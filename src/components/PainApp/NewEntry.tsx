@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Home, Plus, X, Save, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { PainEntry } from "@/types/painApp";
-import { logAndSaveWeatherAt } from "@/utils/weatherLogger";
+
 import { useCreateEntry, useUpdateEntry } from "@/features/entries/hooks/useEntryMutations";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -103,9 +103,7 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
 
     setSaving(true);
     try {
-      // Wetter für die EINGEGEBENE Zeit (auch rückdatiert)
-      const atISO = new Date(`${selectedDate}T${selectedTime}:00`).toISOString();
-      const weatherId = await logAndSaveWeatherAt(atISO);
+      const weatherId = null; // Wetter wird täglich nachgetragen
 
       const payload = {
         selected_date: selectedDate,
