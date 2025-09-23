@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { PainEntry } from "@/types/painApp";
 import { logAndSaveWeatherAt } from "@/utils/weatherLogger";
 import { useCreateEntry, useUpdateEntry } from "@/features/entries/hooks/useEntryMutations";
-import { supabase } from "@/lib/supabaseClient";
+import { useMeds, useAddMed, useDeleteMed } from "@/features/meds/hooks/useMeds";
 
 interface NewEntryProps {
   onBack: () => void;
@@ -32,66 +32,47 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
   const [selectedDate, setSelectedDate] = useState(entry?.selected_date || new Date().toISOString().split("T")[0]);
   const [selectedTime, setSelectedTime] = useState(entry?.selected_time || new Date().toTimeString().slice(0, 5));
   const [selectedMedications, setSelectedMedications] = useState<string[]>(entry?.medications || ["-"]);
-  const [allMedications, setAllMedications] = useState<string[]>([]);
   const [newMedication, setNewMedication] = useState("");
   const [showAddMedication, setShowAddMedication] = useState(false);
   const [saving, setSaving] = useState(false);
   const [notes, setNotes] = useState(entry?.notes || "");
 
+  const { data: medOptions = [] } = useMeds();
+  const addMedMut = useAddMed();
+  const delMedMut = useDeleteMed();
   const createMut = useCreateEntry();
   const updateMut = useUpdateEntry();
 
-  useEffect(() => {
-    const loadMedications = async () => {
-      const { data: authData } = await supabase.auth.getUser();
-      if (!authData.user) return;
-
-      const { data, error } = await supabase
-        .from("user_medications")
-        .select("name")
-        .eq("user_id", authData.user.id);
-
-      if (!error && data) setAllMedications(data.map((m) => m.name));
-    };
-    loadMedications();
-  }, []);
 
   const handleAddNewMedication = async () => {
-    if (!newMedication.trim()) return;
-    const { data: authData } = await supabase.auth.getUser();
-    if (!authData.user) return;
-
-    const { error } = await supabase
-      .from("user_medications")
-      .insert({ user_id: authData.user.id, name: newMedication.trim() });
-
-    if (!error) {
-      setAllMedications((prev) => [...prev, newMedication.trim()]);
+    const name = newMedication.trim();
+    if (!name) return;
+    try {
+      await addMedMut.mutateAsync(name);
       setNewMedication("");
       setShowAddMedication(false);
-      toast({ title: "Medikament hinzugefügt", description: `${newMedication} wurde hinzugefügt.` });
-    } else {
-      toast({ title: "Fehler", description: error.message, variant: "destructive" });
+      // Optional: gleich in Auswahl setzen
+      setSelectedMedications((prev) => {
+        const next = [...prev];
+        if (next.length === 1 && next[0] === "-") next[0] = name; else next.push(name);
+        return next;
+      });
+      toast({ title: "Medikament hinzugefügt", description: `${name} wurde hinzugefügt.` });
+    } catch (e: any) {
+      toast({ title: "Fehler", description: e.message ?? String(e), variant: "destructive" });
     }
   };
 
   const handleDeleteMedication = async (name: string) => {
+    if (!name || name === "-") return;
     if (!confirm(`Möchten Sie ${name} wirklich löschen?`)) return;
-    const { data: authData } = await supabase.auth.getUser();
-    if (!authData.user) return;
-
-    const { error } = await supabase
-      .from("user_medications")
-      .delete()
-      .eq("user_id", authData.user.id)
-      .eq("name", name);
-
-    if (!error) {
-      setAllMedications((prev) => prev.filter((m) => m !== name));
+    try {
+      await delMedMut.mutateAsync(name);
+      // Auswahl bereinigen
       setSelectedMedications((prev) => prev.map((m) => (m === name ? "-" : m)));
       toast({ title: "Gelöscht", description: `${name} wurde gelöscht.` });
-    } else {
-      toast({ title: "Fehler", description: error.message, variant: "destructive" });
+    } catch (e: any) {
+      toast({ title: "Fehler", description: e.message ?? String(e), variant: "destructive" });
     }
   };
 
@@ -225,7 +206,7 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="-">-</SelectItem>
-                  {allMedications.map((m) => (
+                  {medOptions.map((m) => (
                     <SelectItem key={m} value={m}>{m}</SelectItem>
                   ))}
                 </SelectContent>
