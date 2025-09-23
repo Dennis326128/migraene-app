@@ -12,6 +12,10 @@ export async function ensureUserProfile() {
     .maybeSingle();
 
   if (!existing) {
-    await supabase.from("user_profiles").insert({ user_id: uid }).then(() => {}).catch(() => {});
+    try {
+      await supabase.from("user_profiles").insert({ user_id: uid });
+    } catch (error) {
+      // Ignore insert errors (profile might already exist)
+    }
   }
 }
