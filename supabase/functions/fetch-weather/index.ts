@@ -2,100 +2,68 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": "*", // optional später auf Domain einschränken
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 const SB_URL = Deno.env.get("SB_URL");
-const SB_SERVICE_ROLE_KEY = Deno.env.get("SB_SERVICE_ROLE_KEY");
-if (!SB_URL || !SB_SERVICE_ROLE_KEY) {
-  throw new Error("❌ SB_URL oder SB_SERVICE_ROLE_KEY fehlt");
-}
-const supabase = createClient(SB_URL, SB_SERVICE_ROLE_KEY);
+const SB_ANON_KEY = Deno.env.get("SB_ANON_KEY"); // in Supabase Secrets setzen
+if (!SB_URL || !SB_ANON_KEY) throw new Error("Missing SB_URL or SB_ANON_KEY");
 
-// --- Helpers (UTC-basiert) ---
-function toUTCStartOfHourISO(iso: string) {
-  const d = new Date(iso);
-  // in JS-Date ist intern UTC; wir setzen explizit Minuten/Sekunden auf 0
-  d.setUTCMinutes(0, 0, 0);
-  return d.toISOString(); // exakt „YYYY-MM-DDTHH:00:00.000Z"
+// --- UTC-Helper ---
+function toUTCStartOfHourISO(iso: string) { const d = new Date(iso); d.setUTCMinutes(0,0,0); return d.toISOString(); }
+function ymdUTC(iso: string) { return iso.slice(0,10); }
+function addDaysUTC(iso: string, days: number) { const d = new Date(iso); d.setUTCDate(d.getUTCDate()+days); return d.toISOString(); }
+
+async function fetchHourly(lat:number, lon:number, startDate:string, endDate:string){
+  const url=`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,pressure_msl,relative_humidity_2m,wind_speed_10m,weather_code&timezone=UTC&start_date=${startDate}&end_date=${endDate}`;
+  const res = await fetch(url); if(!res.ok) throw new Error(`Open-Meteo hourly failed: ${res.status}`); return await res.json();
 }
-function ymdUTC(iso: string) {
-  return iso.slice(0, 10); // von ISO „YYYY-MM-DD"
-}
-function addDaysUTC(iso: string, days: number) {
-  const d = new Date(iso);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString();
+async function fetchAstronomy(lat:number, lon:number, date:string){
+  const url=`https://api.open-meteo.com/v1/astronomy?latitude=${lat}&longitude=${lon}&daily=moon_phase,moonrise,moonset&timezone=UTC&start_date=${date}&end_date=${date}`;
+  const res = await fetch(url); if(!res.ok) throw new Error(`Open-Meteo astronomy failed: ${res.status}`); return await res.json();
 }
 
-async function fetchHourly(lat: number, lon: number, startDate: string, endDate: string) {
-  const url =
-    `https://api.open-meteo.com/v1/forecast` +
-    `?latitude=${lat}&longitude=${lon}` +
-    `&hourly=temperature_2m,pressure_msl,relative_humidity_2m,wind_speed_10m,weather_code` +
-    `&timezone=UTC&start_date=${startDate}&end_date=${endDate}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Open-Meteo hourly failed: ${res.status}`);
-  return await res.json();
-}
-
-async function fetchAstronomy(lat: number, lon: number, date: string) {
-  const url =
-    `https://api.open-meteo.com/v1/astronomy?latitude=${lat}&longitude=${lon}` +
-    `&daily=moon_phase,moonrise,moonset&timezone=UTC&start_date=${date}&end_date=${date}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Open-Meteo astronomy failed: ${res.status}`);
-  return await res.json();
-}
+const WMO_CODE_TEXT: Record<number,string> = {0:"Klar",1:"Überwiegend klar",2:"Teilweise bewölkt",3:"Bedeckt",45:"Nebel",48:"Reifiger Nebel",51:"Nieselregen leicht",53:"Nieselregen mäßig",55:"Nieselregen stark",61:"Regen leicht",63:"Regen mäßig",65:"Regen stark",66:"Gefrierender Regen leicht",67:"Gefrierender Regen stark",71:"Schnee leicht",73:"Schnee mäßig",75:"Schnee stark",77:"Schneekörner",80:"Regenschauer leicht",81:"Regenschauer mäßig",82:"Regenschauer stark",85:"Schneeschauer leicht",86:"Schneeschauer stark",95:"Gewitter",96:"Gewitter mit leichtem Hagel",99:"Gewitter mit starkem Hagel"};
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
+    // 🔐 Authentifizierten Client erzeugen (RLS greift)
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) return new Response(JSON.stringify({ error: "Missing Authorization header" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+    const supabase = createClient(SB_URL, SB_ANON_KEY, { global: { headers: { Authorization: authHeader }}});
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+    // 📥 Body lesen (ohne user_id!)
     const body = await req.json().catch(() => ({}));
     const lat = Number(body.lat);
     const lon = Number(body.lon);
-    const user_id = String(body.user_id || "");
-    const atISO_in = String(body.at || new Date().toISOString());
-
-    if (!lat || !lon || !user_id) {
-      return new Response(JSON.stringify({ error: "lat, lon, user_id erforderlich" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    const atISO_in: string = String(body.at || new Date().toISOString());
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+      return new Response(JSON.stringify({ error: "lat/lon required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Ziel-Zeitpunkt exakt auf UTC-Stundenanfang
-    const atHourUTC = toUTCStartOfHourISO(atISO_in);                     // z.B. 2025-09-23T17:00:00.000Z
-    const atHourUTC_noZ = atHourUTC.slice(0, 13) + ":00";                // 2025-09-23T17:00 (Open-Meteo times Format)
-
-    // Zwei UTC-Tage für 24h-Druckdelta
-    const startDate = ymdUTC(addDaysUTC(atHourUTC, -1));                 // Vortag (UTC)
-    const endDate   = ymdUTC(atHourUTC);                                 // Zieltag (UTC)
+    const atHourUTC = toUTCStartOfHourISO(atISO_in);
+    const atHourUTC_noZ = atHourUTC.slice(0,13)+":00";
+    const startDate = ymdUTC(addDaysUTC(atHourUTC, -1));
+    const endDate   = ymdUTC(atHourUTC);
 
     const hourly = await fetchHourly(lat, lon, startDate, endDate);
     const times: string[] = hourly?.hourly?.time || [];
-
     const idx = times.indexOf(atHourUTC_noZ);
-    if (idx < 0) throw new Error("Kein stündlicher Datensatz für die gewünschte UTC-Stunde gefunden.");
+    if (idx < 0) throw new Error("No hourly record for the requested UTC hour.");
 
     const temp = hourly.hourly.temperature_2m[idx] ?? null;
     const pressure = hourly.hourly.pressure_msl[idx] ?? null;
     const rh = hourly.hourly.relative_humidity_2m[idx] ?? null;
     const wind = hourly.hourly.wind_speed_10m[idx] ?? null;
     const code = hourly.hourly.weather_code[idx] ?? null;
-
-    const WMO_CODE_TEXT: Record<number, string> = {
-      0:"Klar",1:"Überwiegend klar",2:"Teilweise bewölkt",3:"Bedeckt",45:"Nebel",48:"Reifiger Nebel",
-      51:"Nieselregen leicht",53:"Nieselregen mäßig",55:"Nieselregen stark",
-      61:"Regen leicht",63:"Regen mäßig",65:"Regen stark",
-      66:"Gefrierender Regen leicht",67:"Gefrierender Regen stark",
-      71:"Schnee leicht",73:"Schnee mäßig",75:"Schnee stark",77:"Schneekörner",
-      80:"Regenschauer leicht",81:"Regenschauer mäßig",82:"Regenschauer stark",
-      85:"Schneeschauer leicht",86:"Schneeschauer stark",
-      95:"Gewitter",96:"Gewitter mit leichtem Hagel",99:"Gewitter mit starkem Hagel"
-    };
     const condition_text = code != null ? (WMO_CODE_TEXT[Number(code)] || `WMO ${code}`) : null;
 
     let pressure_change_24h: number | null = null;
@@ -108,24 +76,22 @@ serve(async (req) => {
     const moonrise = astro?.daily?.moonrise?.[0] ?? null;
     const moonset = astro?.daily?.moonset?.[0] ?? null;
 
-    // Dedupe: existiert bereits ein Log für diese Stunde?
-    const { data: existing, error: existErr } = await supabase
+    // 🧯 Dedupe: existiert bereits Log für diese UTC-Stunde?
+    const { data: existing } = await supabase
       .from("weather_logs")
       .select("id")
-      .eq("user_id", user_id)
+      .eq("user_id", user.id)
       .eq("created_at", atHourUTC)
       .maybeSingle();
-
-    if (!existErr && existing?.id) {
-      return new Response(JSON.stringify({ weather_id: existing.id, dedup: true }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (existing?.id) {
+      return new Response(JSON.stringify({ weather_id: existing.id, dedup: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" }});
     }
 
+    // ✅ Insert mit RLS (user_id = auth.uid())
     const { data: inserted, error: insertError } = await supabase
       .from("weather_logs")
       .insert([{
-        user_id,
+        user_id: user.id,
         latitude: lat,
         longitude: lon,
         temperature_c: temp,
@@ -139,19 +105,14 @@ serve(async (req) => {
         moon_phase,
         moonrise,
         moonset,
-        created_at: atHourUTC, // exakt die angefragte UTC-Stunde speichern
+        created_at: atHourUTC,
       }])
       .select("id")
       .single();
-
     if (insertError) throw insertError;
 
-    return new Response(JSON.stringify({ weather_id: inserted.id }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(JSON.stringify({ weather_id: inserted.id }), { headers: { ...corsHeaders, "Content-Type": "application/json" }});
   } catch (err: any) {
-    return new Response(JSON.stringify({ error: err.message || "unknown" }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(JSON.stringify({ error: err.message || "unknown" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" }});
   }
 });

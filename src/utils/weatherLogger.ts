@@ -62,15 +62,19 @@ export async function logAndSaveWeatherAt(atISO: string): Promise<number | null>
   const coords = await getCoords();
   if (!coords) return null;
 
+  const { data: sessionData } = await supabase.auth.getSession();
+  const accessToken = sessionData.session?.access_token;
+  if (!accessToken) return null;
+
   const url = `${VITE_SUPABASE_URL}/functions/v1/fetch-weather`;
   const res = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       apikey: VITE_SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${VITE_SUPABASE_ANON_KEY}`,
+      Authorization: `Bearer ${accessToken}`,   // wichtig: User-JWT, nicht anon key
     },
-    body: JSON.stringify({ lat: coords.lat, lon: coords.lon, user_id: userId, at: atISO }),
+    body: JSON.stringify({ lat: coords.lat, lon: coords.lon, at: atISO }),
   });
 
   if (!res.ok) return null;
