@@ -3,6 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 import { Session, User } from "@supabase/supabase-js";
@@ -63,38 +64,26 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   return session ? <>{children}</> : <Navigate to="/auth" replace />;
 }
 
-const App = () => {
-  const [ReactQueryDevtools, setReactQueryDevtools] = useState<React.ComponentType<any> | null>(null);
-
-  useEffect(() => {
-    if (import.meta.env.DEV) {
-      import("@tanstack/react-query-devtools").then((devtools) => {
-        setReactQueryDevtools(() => devtools.ReactQueryDevtools);
-      });
-    }
-  }, []);
-
-  return (
-    <QueryClientProvider client={queryClient}>
-      {ReactQueryDevtools && <ReactQueryDevtools initialIsOpen={false} />}
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/auth" element={<AuthPage />} />
-            <Route path="/" element={
-              <AuthGuard>
-                <Index />
-              </AuthGuard>
-            } />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
-  );
-};
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <TooltipProvider>
+      <Toaster />
+      <Sonner />
+      <BrowserRouter>
+        <Routes>
+          <Route path="/auth" element={<AuthPage />} />
+          <Route path="/" element={
+            <AuthGuard>
+              <Index />
+            </AuthGuard>
+          } />
+          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </BrowserRouter>
+    </TooltipProvider>
+    {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
+  </QueryClientProvider>
+);
 
 export default App;
