@@ -6,9 +6,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Home, Plus, X, Save, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "../../lib/supabaseClient";
 import { PainEntry } from "@/types/painApp";
 import { logAndSaveWeatherAt } from "@/utils/weatherLogger";
+import { useCreateEntry, useUpdateEntry } from "@/features/entries/hooks/useEntryMutations";
+import { supabase } from "@/lib/supabaseClient";
 
 interface NewEntryProps {
   onBack: () => void;
@@ -36,6 +37,9 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
   const [showAddMedication, setShowAddMedication] = useState(false);
   const [saving, setSaving] = useState(false);
   const [notes, setNotes] = useState(entry?.notes || "");
+
+  const createMut = useCreateEntry();
+  const updateMut = useUpdateEntry();
 
   useEffect(() => {
     const loadMedications = async () => {
@@ -99,21 +103,11 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
 
     setSaving(true);
     try {
-      const { data: authData } = await supabase.auth.getUser();
-      if (!authData.user) throw new Error("Kein Nutzer gefunden");
-
-      // Wetter zuerst loggen → weather_id
+      // Wetter für die EINGEGEBENE Zeit (auch rückdatiert)
       const atISO = new Date(`${selectedDate}T${selectedTime}:00`).toISOString();
       const weatherId = await logAndSaveWeatherAt(atISO);
 
-      const payload: Partial<PainEntry> & {
-        selected_date: string;
-        selected_time: string;
-        pain_level: string;
-        medications: string[];
-        notes: string | null;
-        weather_id?: number | null;
-      } = {
+      const payload = {
         selected_date: selectedDate,
         selected_time: selectedTime,
         pain_level: painLevel,
@@ -122,24 +116,17 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
         weather_id: weatherId ?? null,
       };
 
-      let error;
       if (entry?.id) {
-        ({ error } = await supabase.from("pain_entries").update(payload).eq("id", entry.id));
+        await updateMut.mutateAsync({ id: entry.id, patch: payload });
       } else {
-        ({ error } = await supabase.from("pain_entries").insert({
-          user_id: authData.user.id,
-          timestamp_created: new Date().toISOString(),
-          ...payload,
-        }));
+        await createMut.mutateAsync(payload);
       }
-
-      if (error) throw new Error(error.message);
 
       toast({ title: "✓ Eintrag gespeichert", description: "Erfolgreich gespeichert." });
       onSave?.();
       onBack();
     } catch (err: any) {
-      toast({ title: "Fehler", description: err.message, variant: "destructive" });
+      toast({ title: "Fehler", description: err.message ?? String(err), variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -265,8 +252,8 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
           </Button>
         </Card>
 
-        <Button className="w-full h-14 mt-4" onClick={handleSave} disabled={saving}>
-          <Save className="w-5 h-5 mr-2" /> {saving ? "Speichern..." : "Speichern"}
+        <Button className="w-full h-14 mt-4" onClick={handleSave} disabled={saving || createMut.isPending || updateMut.isPending}>
+          <Save className="w-5 h-5 mr-2" /> {saving || createMut.isPending || updateMut.isPending ? "Speichern..." : "Speichern"}
         </Button>
       </div>
     </div>
