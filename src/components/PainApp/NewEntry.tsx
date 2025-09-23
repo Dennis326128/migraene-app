@@ -8,7 +8,7 @@ import { Home, Plus, X, Save, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "../../lib/supabaseClient";
 import { PainEntry } from "@/types/painApp";
-import { logAndSaveWeather } from "@/utils/weatherLogger";
+import { logAndSaveWeatherAt } from "@/utils/weatherLogger";
 
 interface NewEntryProps {
   onBack: () => void;
@@ -103,7 +103,8 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
       if (!authData.user) throw new Error("Kein Nutzer gefunden");
 
       // Wetter zuerst loggen → weather_id
-      const weatherId = await logAndSaveWeather();
+      const atISO = new Date(`${selectedDate}T${selectedTime}:00`).toISOString();
+      const weatherId = await logAndSaveWeatherAt(atISO);
 
       const payload: Partial<PainEntry> & {
         selected_date: string;
