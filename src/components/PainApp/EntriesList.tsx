@@ -6,6 +6,7 @@ import {
 import { PainEntry } from "@/types/painApp";
 import { useEntries } from "@/features/entries/hooks/useEntries";
 import { useDeleteEntry } from "@/features/entries/hooks/useEntryMutations";
+import { backfillWeatherForRecentEntries } from "@/utils/backfillWeather";
 
 export const EntriesList = ({
   onBack,
@@ -56,6 +57,17 @@ export const EntriesList = ({
     <div className="p-4">
       <Button onClick={onBack} className="mb-4">← Zurück</Button>
       <h1 className="text-2xl font-bold mb-4">Gespeicherte Einträge</h1>
+      <div className="mb-3">
+        <Button variant="outline" onClick={async () => {
+          const btn = document.activeElement as HTMLButtonElement | null;
+          if (btn) btn.disabled = true;
+          const res = await backfillWeatherForRecentEntries(30);
+          alert(`Wetter nachgetragen:\nGesamt: ${res.total}\nErfolgreich: ${res.ok}\nFehlgeschlagen: ${res.fail}`);
+          if (btn) btn.disabled = false;
+        }}>
+          🌤️ Wetter nachtragen (30 Tage)
+        </Button>
+      </div>
 
       {sorted.length === 0 ? (
         <p>Keine Einträge vorhanden.</p>
