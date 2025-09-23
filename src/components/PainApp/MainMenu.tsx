@@ -9,7 +9,7 @@ interface MainMenuProps {
   onViewAnalysis: () => void;
 }
 
-export const MainMenu = ({ onNewEntry, onViewEntries }: MainMenuProps) => {
+export const MainMenu = ({ onNewEntry, onViewEntries, onViewAnalysis }: MainMenuProps) => {
   return (
     <div className="min-h-screen bg-background p-6 flex flex-col">
       <div className="absolute top-4 right-4">
@@ -46,16 +46,15 @@ export const MainMenu = ({ onNewEntry, onViewEntries }: MainMenuProps) => {
             </Button>
           </Card>
 
-          {/* Analyse-Karte deaktiviert */}
-          <Card className="p-6 bg-gradient-to-br from-card to-card/50 border-border/50 shadow-lg opacity-50">
+          <Card className="p-6 bg-gradient-to-br from-card to-card/50 border-border/50 shadow-lg">
             <Button
-              disabled
+              onClick={onViewAnalysis}
               variant="secondary"
               size="lg"
-              className="w-full h-16 text-secondary-foreground font-medium text-lg rounded-xl"
+              className="w-full h-16 bg-secondary hover:bg-secondary/80 text-secondary-foreground font-medium text-lg rounded-xl transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
             >
               <TrendingUp className="w-6 h-6 mr-3" />
-              Auswertungen & Berichte (bald verfügbar 🚧)
+              Auswertungen & Berichte
             </Button>
           </Card>
         </div>
