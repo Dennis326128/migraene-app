@@ -14,11 +14,11 @@ const Index = () => {
       logDailyWeatherSnapshots().finally(() => localStorage.setItem(keyA, today));
     }
 
-    // b) Eintrags-Wetter-Backfill (letzte 7 Tage)
+    // b) Eintrags-Wetter-Backfill (letzte 30 Tage)
     const keyB = "entries-weather-backfill-last";
     const lastB = localStorage.getItem(keyB);
     if (lastB !== today) {
-      backfillWeatherForRecentEntries(7).finally(() => localStorage.setItem(keyB, today));
+      backfillWeatherForRecentEntries(30).finally(() => localStorage.setItem(keyB, today));
     }
   }, []);
 
