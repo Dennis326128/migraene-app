@@ -108,10 +108,10 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
       const payload = {
         selected_date: selectedDate,
         selected_time: selectedTime,
-        pain_level: painLevel,
+        pain_level: painLevel as "leicht" | "mittel" | "stark" | "sehr_stark",
         medications: selectedMedications.filter((m) => m !== "-" && m.trim() !== ""),
         notes: notes.trim() || null,
-        weather_id: weatherId ?? null,
+        weather_id: weatherId,
       };
 
       if (entry?.id) {

@@ -1,16 +1,10 @@
 import { supabase } from "@/lib/supabaseClient";
 import type { PainEntry } from "@/types/painApp";
+import { EntryPayloadSchema, type EntryPayload } from "@/lib/zod/schemas";
 
 export type ListParams = { from?: string; to?: string };
 
-export type PainEntryPayload = {
-  selected_date: string;      // "YYYY-MM-DD"
-  selected_time: string;      // "HH:MM"
-  pain_level: string;         // "leicht" | "mittel" | "stark" | "sehr_stark" | "-"
-  medications: string[];      // Namen
-  notes?: string | null;
-  weather_id?: number | null;
-};
+export type PainEntryPayload = EntryPayload;
 
 function normalizeWeather(w: any) {
   if (!w) return undefined;
@@ -89,15 +83,18 @@ export async function createEntry(payload: PainEntryPayload) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Kein Nutzer");
 
+  // Zod-Validierung
+  const parsed = EntryPayloadSchema.parse(payload);
+
   // Ereigniszeitpunkt aus Datum+Uhrzeit ableiten
-  const atISO = payload.selected_date && payload.selected_time
-    ? new Date(`${payload.selected_date}T${payload.selected_time}:00`).toISOString()
+  const atISO = parsed.selected_date && parsed.selected_time
+    ? new Date(`${parsed.selected_date}T${parsed.selected_time}:00`).toISOString()
     : new Date().toISOString();
 
   const insert = {
     user_id: user.id,
     timestamp_created: atISO, // wichtig: Ereigniszeitpunkt
-    ...payload,
+    ...parsed,
   };
 
   const { data, error } = await supabase
@@ -111,10 +108,12 @@ export async function createEntry(payload: PainEntryPayload) {
 }
 
 export async function updateEntry(id: string, patch: Partial<PainEntryPayload>) {
-  const update: any = { ...patch };
+  // Zod-Validierung für Teilupdates
+  const parsed = EntryPayloadSchema.partial().parse(patch);
+  const update: any = { ...parsed };
 
   // Wenn Datum oder Uhrzeit geändert werden, timestamp_created neu setzen
-  if (patch.selected_date || patch.selected_time) {
+  if (parsed.selected_date || parsed.selected_time) {
     // Wir brauchen beide Komponenten; fehlende aus DB nachladen
     const { data: current } = await supabase
       .from("pain_entries")
@@ -122,8 +121,8 @@ export async function updateEntry(id: string, patch: Partial<PainEntryPayload>) 
       .eq("id", id)
       .single();
 
-    const date = patch.selected_date ?? current?.selected_date;
-    const time = patch.selected_time ?? current?.selected_time;
+    const date = parsed.selected_date ?? current?.selected_date;
+    const time = parsed.selected_time ?? current?.selected_time;
 
     if (date && time) {
       update.timestamp_created = new Date(`${date}T${time}:00`).toISOString();
