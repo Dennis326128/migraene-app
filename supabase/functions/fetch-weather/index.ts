@@ -108,6 +108,20 @@ serve(async (req) => {
     const moonrise = astro?.daily?.moonrise?.[0] ?? null;
     const moonset = astro?.daily?.moonset?.[0] ?? null;
 
+    // Dedupe: existiert bereits ein Log für diese Stunde?
+    const { data: existing, error: existErr } = await supabase
+      .from("weather_logs")
+      .select("id")
+      .eq("user_id", user_id)
+      .eq("created_at", atHourUTC)
+      .maybeSingle();
+
+    if (!existErr && existing?.id) {
+      return new Response(JSON.stringify({ weather_id: existing.id, dedup: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const { data: inserted, error: insertError } = await supabase
       .from("weather_logs")
       .insert([{
