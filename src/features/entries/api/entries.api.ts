@@ -89,9 +89,14 @@ export async function createEntry(payload: PainEntryPayload) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Kein Nutzer");
 
+  // Ereigniszeitpunkt aus Datum+Uhrzeit ableiten
+  const atISO = payload.selected_date && payload.selected_time
+    ? new Date(`${payload.selected_date}T${payload.selected_time}:00`).toISOString()
+    : new Date().toISOString();
+
   const insert = {
     user_id: user.id,
-    timestamp_created: new Date().toISOString(),
+    timestamp_created: atISO, // wichtig: Ereigniszeitpunkt
     ...payload,
   };
 
@@ -106,7 +111,26 @@ export async function createEntry(payload: PainEntryPayload) {
 }
 
 export async function updateEntry(id: string, patch: Partial<PainEntryPayload>) {
-  const { error } = await supabase.from("pain_entries").update(patch).eq("id", id);
+  const update: any = { ...patch };
+
+  // Wenn Datum oder Uhrzeit geändert werden, timestamp_created neu setzen
+  if (patch.selected_date || patch.selected_time) {
+    // Wir brauchen beide Komponenten; fehlende aus DB nachladen
+    const { data: current } = await supabase
+      .from("pain_entries")
+      .select("selected_date, selected_time")
+      .eq("id", id)
+      .single();
+
+    const date = patch.selected_date ?? current?.selected_date;
+    const time = patch.selected_time ?? current?.selected_time;
+
+    if (date && time) {
+      update.timestamp_created = new Date(`${date}T${time}:00`).toISOString();
+    }
+  }
+
+  const { error } = await supabase.from("pain_entries").update(update).eq("id", id);
   if (error) throw error;
 }
 
