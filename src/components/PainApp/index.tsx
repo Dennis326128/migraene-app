@@ -1,60 +1,47 @@
-import { useState, useEffect } from "react";
-import { MainMenu } from "./MainMenu";
+import React, { useState } from "react";
 import { NewEntry } from "./NewEntry";
 import { EntriesList } from "./EntriesList";
+import { MainMenu } from "./MainMenu";
 import { AnalysisView } from "./AnalysisView";
-import { useToast } from "@/hooks/use-toast";
-import { PainEntry, WeatherData } from "@/types/painApp";
+import type { PainEntry } from "@/types/painApp";
 
-type AppView = "main" | "new-entry" | "entries-list" | "analysis";
+type View = "menu" | "new" | "list" | "analysis";
 
-export const PainApp = () => {
-  const [currentView, setCurrentView] = useState<AppView>("main");
-  const [editEntry, setEditEntry] = useState<PainEntry | null>(null); // 🔹 neu für Bearbeiten
-  const { toast } = useToast();
+export const PainApp: React.FC = () => {
+  const [view, setView] = useState<View>("menu");
+  const [editing, setEditing] = useState<PainEntry | null>(null);
 
-  const handleEditEntry = (entry: PainEntry) => {
-    setEditEntry(entry);
-    setCurrentView("new-entry");
-  };
+  const goHome = () => { setEditing(null); setView("menu"); };
 
-  const handleEntrySaved = () => {
-    setEditEntry(null);
-    setCurrentView("main");
-  };
+  return (
+    <div className="min-h-screen">
+      {view === "menu" && (
+        <MainMenu
+          onNewEntry={() => { setEditing(null); setView("new"); }}
+          onViewEntries={() => setView("list")}
+          onViewAnalysis={() => setView("analysis")}
+        />
+      )}
 
-  const renderCurrentView = () => {
-    switch (currentView) {
-      case "new-entry":
-        return (
-          <NewEntry
-            onBack={() => setCurrentView("main")}
-            onSave={handleEntrySaved}
-            entry={editEntry} // 🔹 Bearbeitungsmodus
-          />
-        );
-      case "entries-list":
-        return (
-          <EntriesList
-            onBack={() => setCurrentView("main")}
-            onEdit={handleEditEntry} // 🔹 Edit-Funktion weitergeben
-          />
-        );
-      case "analysis":
-        return <AnalysisView onBack={() => setCurrentView("main")} />;
-      default:
-        return (
-          <MainMenu
-            onNewEntry={() => {
-              setEditEntry(null);
-              setCurrentView("new-entry");
-            }}
-            onViewEntries={() => setCurrentView("entries-list")}
-            onViewAnalysis={() => setCurrentView("analysis")}
-          />
-        );
-    }
-  };
+      {view === "new" && (
+        <NewEntry
+          entry={editing}
+          onBack={goHome}
+          onSave={goHome}
+        />
+      )}
 
-  return <div className="min-h-screen bg-background">{renderCurrentView()}</div>;
+      {view === "list" && (
+        <EntriesList
+          onBack={goHome}
+          onEdit={(entry) => { setEditing(entry); setView("new"); }}
+        />
+      )}
+
+      {view === "analysis" && (
+        <AnalysisView onBack={goHome} />
+      )}
+    </div>
+  );
 };
+export default PainApp;
