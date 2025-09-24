@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { PainEntry } from "@/types/painApp";
 import { useEntries } from "@/features/entries/hooks/useEntries";
+import { buildDiaryPdf } from "@/lib/pdf/report";
 
 type Preset = "3m" | "6m" | "12m" | "custom";
 
@@ -158,6 +159,26 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
     URL.revokeObjectURL(url);
   };
 
+  const savePDF = async () => {
+    if (!generated.length) return;
+    const bytes = await buildDiaryPdf({
+      title: "Kopfschmerztagebuch",
+      from, to,
+      entries: generated,
+      selectedMeds,
+      includeNoMeds,
+    });
+    const blob = new Blob([bytes], { type: "application/pdf" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `kopfschmerztagebuch_${from}_bis_${to}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="p-4">
       <Button onClick={onBack} className="mb-4">← Zurück</Button>
@@ -218,6 +239,7 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
         <div className="flex gap-2">
           <Button onClick={generatePreview} disabled={isLoading}>Vorschau aktualisieren</Button>
           <Button variant="secondary" onClick={printPDF} disabled={!generated.length}>PDF / Drucken</Button>
+          <Button variant="secondary" onClick={savePDF} disabled={!generated.length}>PDF speichern</Button>
           <Button variant="outline" onClick={exportCSV} disabled={!generated.length}>CSV Export</Button>
         </div>
       </Card>
