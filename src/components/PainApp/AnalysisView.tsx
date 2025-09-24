@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, FileText, BarChart3, Activity } from "lucide-react";
+// Import fix for DiaryReport default export
 import DiaryReport from "./DiaryReport";
 import ChartComponent from "@/components/Chart";
 import { useEntries } from "@/features/entries/hooks/useEntries";
