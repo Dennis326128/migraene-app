@@ -14,12 +14,47 @@ export type Database = {
   }
   public: {
     Tables: {
+      entry_symptoms: {
+        Row: {
+          created_at: string
+          entry_id: number
+          symptom_id: string
+        }
+        Insert: {
+          created_at?: string
+          entry_id: number
+          symptom_id: string
+        }
+        Update: {
+          created_at?: string
+          entry_id?: number
+          symptom_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "entry_symptoms_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "pain_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "entry_symptoms_symptom_id_fkey"
+            columns: ["symptom_id"]
+            isOneToOne: false
+            referencedRelation: "symptom_catalog"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pain_entries: {
         Row: {
+          aura_type: string
           id: number
           medications: string[] | null
           notes: string | null
           pain_level: string
+          pain_location: string | null
           selected_date: string | null
           selected_time: string | null
           timestamp_created: string | null
@@ -27,10 +62,12 @@ export type Database = {
           weather_id: number | null
         }
         Insert: {
+          aura_type?: string
           id?: number
           medications?: string[] | null
           notes?: string | null
           pain_level: string
+          pain_location?: string | null
           selected_date?: string | null
           selected_time?: string | null
           timestamp_created?: string | null
@@ -38,10 +75,12 @@ export type Database = {
           weather_id?: number | null
         }
         Update: {
+          aura_type?: string
           id?: number
           medications?: string[] | null
           notes?: string | null
           pain_level?: string
+          pain_location?: string | null
           selected_date?: string | null
           selected_time?: string | null
           timestamp_created?: string | null
@@ -64,6 +103,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      symptom_catalog: {
+        Row: {
+          id: string
+          is_active: boolean
+          name: string
+        }
+        Insert: {
+          id?: string
+          is_active?: boolean
+          name: string
+        }
+        Update: {
+          id?: string
+          is_active?: boolean
+          name?: string
+        }
+        Relationships: []
       }
       user_medications: {
         Row: {
@@ -103,6 +160,33 @@ export type Database = {
           latitude?: number | null
           longitude?: number | null
           updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_settings: {
+        Row: {
+          backfill_days: number
+          default_report_preset: string
+          include_no_meds: boolean
+          snapshot_hours: number[]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          backfill_days?: number
+          default_report_preset?: string
+          include_no_meds?: boolean
+          snapshot_hours?: number[]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          backfill_days?: number
+          default_report_preset?: string
+          include_no_meds?: boolean
+          snapshot_hours?: number[]
+          updated_at?: string
           user_id?: string
         }
         Relationships: []

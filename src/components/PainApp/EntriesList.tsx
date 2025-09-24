@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { PainEntry } from "@/types/painApp";
+import { formatPainLevel, formatAuraType, formatPainLocation } from "@/lib/utils/pain";
+import { PainEntry, MigraineEntry } from "@/types/painApp";
 import { useEntries } from "@/features/entries/hooks/useEntries";
 import { useDeleteEntry } from "@/features/entries/hooks/useEntryMutations";
 import { backfillWeatherForRecentEntries } from "@/utils/backfillWeather";
@@ -14,11 +15,11 @@ export const EntriesList = ({
   onEdit,
 }: {
   onBack: () => void;
-  onEdit: (entry: PainEntry) => void;
+  onEdit: (entry: MigraineEntry) => void;
 }) => {
   const { data: entries = [], isLoading, isError } = useEntries();
   const { mutate: deleteMutate } = useDeleteEntry();
-  const [selectedEntry, setSelectedEntry] = useState<PainEntry | null>(null);
+  const [selectedEntry, setSelectedEntry] = useState<MigraineEntry | null>(null);
 
   const { data: symptomCatalog = [] } = useSymptomCatalog();
   const entryIdNum = selectedEntry?.id ? Number(selectedEntry.id) : null;
@@ -61,15 +62,22 @@ export const EntriesList = ({
   if (isError)   return (<div className="p-4 text-destructive">Fehler beim Laden der Einträge.</div>);
 
   return (
-    <div className="p-4">
-      <Button onClick={onBack} className="mb-4">← Zurück</Button>
-      <h1 className="text-2xl font-bold mb-4">Gespeicherte Einträge</h1>
-      <div className="mb-3">
+    <div className="p-4 bg-gradient-to-br from-background to-secondary/20 min-h-screen">
+      <div className="flex items-center justify-between mb-6">
+        <Button onClick={onBack} variant="ghost" className="p-2 hover:bg-secondary/80">
+          ← Zurück
+        </Button>
+        <h1 className="text-xl font-semibold">📊 Migräne-Verlauf</h1>
+        <div className="w-16"></div>
+      </div>
+      
+      <div className="mb-4">
         <Button variant="outline" onClick={async () => {
           const btn = document.activeElement as HTMLButtonElement | null;
           if (btn) btn.disabled = true;
-          const res = await backfillWeatherForRecentEntries(30);
-          alert(`Wetter nachgetragen:\nGesamt: ${res.total}\nErfolgreich: ${res.ok}\nFehlgeschlagen: ${res.fail}`);
+          const { backfillMigrainWeatherEntries } = await import("@/utils/migraineBackfill");
+          const res = await backfillMigrainWeatherEntries(30);
+          alert(`🌤️ Wetter nachgetragen:\n✅ Erfolgreich: ${res.success}\n❌ Fehlgeschlagen: ${res.failed}\n📊 Gesamt: ${res.total}`);
           if (btn) btn.disabled = false;
         }}>
           🌤️ Wetter nachtragen (30 Tage)
@@ -77,44 +85,74 @@ export const EntriesList = ({
       </div>
 
       {sorted.length === 0 ? (
-        <p>Keine Einträge vorhanden.</p>
+        <div className="text-center py-12">
+          <p className="text-muted-foreground text-lg">Noch keine Migräne-Einträge vorhanden.</p>
+          <p className="text-sm text-muted-foreground mt-2">Erstellen Sie Ihren ersten Eintrag über das Hauptmenü.</p>
+        </div>
       ) : (
-        <ul className="space-y-2">
+        <div className="space-y-3">
           {sorted.map((entry) => (
-            <li
+            <div
               key={entry.id}
-              className="p-3 border rounded-lg bg-card hover:bg-accent cursor-pointer"
+              className="p-4 border rounded-lg bg-card hover:bg-accent/50 cursor-pointer transition-colors"
               onClick={() => setSelectedEntry(entry)}
             >
-              <div className="flex">
-                <span className="w-[80px]">{formatDate(entry.selected_date || entry.timestamp_created)}</span>
-                <span className="w-[80px]">{entry.selected_time ?? new Date(entry.timestamp_created).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}</span>
-              </div>
-              {entry.medications?.length > 0 && (
-                <div className="text-xs text-muted-foreground mt-1 truncate">
-                  {entry.medications.join(", ")}
+              <div className="flex justify-between items-start">
+                <div>
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className="font-medium">
+                      {formatDate(entry.selected_date || entry.timestamp_created)}
+                    </span>
+                    <span className="text-sm text-muted-foreground">
+                      {entry.selected_time ?? new Date(entry.timestamp_created).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </div>
+                  <p className="text-sm">
+                    <strong>Intensität:</strong> {formatPainLevel(entry.pain_level)}
+                  </p>
+                  {entry.medications?.length > 0 && (
+                    <p className="text-xs text-muted-foreground mt-1 truncate">
+                      💊 {entry.medications.join(", ")}
+                    </p>
+                  )}
                 </div>
-              )}
-            </li>
+                <div className="text-lg">
+                  {entry.pain_level === "sehr_stark" ? "🔴" : 
+                   entry.pain_level === "stark" ? "🟠" :
+                   entry.pain_level === "mittel" ? "💛" : "💚"}
+                </div>
+              </div>
+            </div>
           ))}
-        </ul>
+        </div>
       )}
 
       <Dialog open={!!selectedEntry} onOpenChange={() => setSelectedEntry(null)}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Eintragsdetails</DialogTitle>
+            <DialogTitle className="text-lg">🩺 Migräne-Eintrag Details</DialogTitle>
           </DialogHeader>
 
           {selectedEntry && (
-            <div className="space-y-1">
+            <div className="space-y-3 text-sm">
               <p><strong>📅 Datum:</strong> {formatDate(selectedEntry.selected_date || selectedEntry.timestamp_created)}</p>
               <p><strong>⏰ Uhrzeit:</strong> {selectedEntry.selected_time ?? new Date(selectedEntry.timestamp_created).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}</p>
-              <p><strong>🤕 Schmerzlevel:</strong> {formatPainLevel(selectedEntry.pain_level)}</p>
-              <p><strong>💊 Medikamente:</strong>
-                {selectedEntry.medications?.length
-                  ? " " + selectedEntry.medications.join(", ")
-                  : " Keine"}
+              
+              <p><strong>🩺 Migräne-Intensität:</strong> {formatPainLevel(selectedEntry.pain_level)}</p>
+              
+              {(selectedEntry as any).aura_type && (selectedEntry as any).aura_type !== "keine" && (
+                <p><strong>✨ Aura:</strong> {formatAuraType((selectedEntry as any).aura_type)}</p>
+              )}
+              
+              {(selectedEntry as any).pain_location && (
+                <p><strong>📍 Lokalisation:</strong> {formatPainLocation((selectedEntry as any).pain_location)}</p>
+              )}
+
+              <p>
+                <strong>💊 Medikamente:</strong>{" "}
+                {selectedEntry.medications?.length 
+                  ? selectedEntry.medications.join(", ") 
+                  : "Keine"}
               </p>
 
               <p><strong>🧩 Symptome:</strong> {symptomNames.length ? symptomNames.join(", ") : "Keine"}</p>
@@ -128,26 +166,27 @@ export const EntriesList = ({
               )}
 
               {selectedEntry.weather && (
-                <>
+                <div className="mt-4 pt-3 border-t">
+                  <p className="font-medium mb-2">🌤️ Wetterdaten:</p>
                   <p><strong>🌍 Ort:</strong> {selectedEntry.weather.location || "Unbekannt"}</p>
                   <p><strong>🌡 Temperatur:</strong> {selectedEntry.weather.temperature_c ?? "-"}°C</p>
                   <p><strong>☁ Wetter:</strong> {selectedEntry.weather.condition_text || "-"}</p>
                   <p><strong>💧 Luftfeuchtigkeit:</strong> {selectedEntry.weather.humidity ?? "-"}%</p>
                   <p><strong>🔽 Luftdruck:</strong> {selectedEntry.weather.pressure_mb ?? "-"} hPa</p>
-                  <p><strong>📉 Luftdruckänderung (24h):</strong> {selectedEntry.weather.pressure_change_24h ?? "-"} hPa</p>
-                </>
+                  <p><strong>📉 Druckänderung (24h):</strong> {selectedEntry.weather.pressure_change_24h ?? "-"} hPa</p>
+                </div>
               )}
             </div>
           )}
 
-          <DialogFooter>
+          <DialogFooter className="flex gap-2">
             {selectedEntry && (
               <>
                 <Button variant="secondary" onClick={() => { onEdit(selectedEntry); setSelectedEntry(null); }}>
-                  Bearbeiten
+                  ✏️ Bearbeiten
                 </Button>
                 <Button variant="destructive" onClick={() => handleDelete(selectedEntry.id)}>
-                  Eintrag löschen
+                  🗑️ Löschen
                 </Button>
               </>
             )}

@@ -8,21 +8,33 @@ const Index = () => {
   useEffect(() => {
     const today = new Date().toISOString().slice(0, 10);
 
-    // a) Tägliche Snapshots (06/12/18)
+    // a) Tägliche Wetter-Snapshots (06/12/18 Uhr)
     const keyA = "weather-snapshots-last";
     const lastA = localStorage.getItem(keyA);
     if (lastA !== today) {
       logDailyWeatherSnapshots().finally(() => localStorage.setItem(keyA, today));
     }
 
-    // b) Eintrags-Wetter-Backfill (letzte 30 Tage)
-    const keyB = "entries-weather-backfill-last";
+    // b) Verbesserter Migräne-Wetter-Backfill (letzte 7 Tage)
+    const keyB = "migraine-weather-backfill-last";
     const lastB = localStorage.getItem(keyB);
     if (lastB !== today) {
       (async () => {
-        const s = await getUserSettings().catch(() => null);
-        const days = s?.backfill_days ?? 30;
-        backfillWeatherForRecentEntries(days).finally(() => localStorage.setItem(keyB, today));
+        try {
+          const s = await getUserSettings().catch(() => null);
+          const days = s?.backfill_days ?? 7; // Reduziert auf 7 Tage für bessere Performance
+          
+          const { backfillMigrainWeatherEntries } = await import("@/utils/migraineBackfill");
+          const result = await backfillMigrainWeatherEntries(days);
+          
+          if (result.success > 0) {
+            console.log(`✅ ${result.success} Migräne-Einträge mit Wetter-Daten ergänzt`);
+          }
+        } catch (error) {
+          console.warn('⚠️ Wetter-Backfill Fehler:', error);
+        } finally {
+          localStorage.setItem(keyB, today);
+        }
       })();
     }
   }, []);

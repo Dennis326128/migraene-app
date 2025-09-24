@@ -4,9 +4,9 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Home, Plus, X, Save, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, X, Save, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { PainEntry } from "@/types/painApp";
+import { MigraineEntry } from "@/types/painApp";
 import { logAndSaveWeatherAt } from "@/utils/weatherLogger";
 import { useCreateEntry, useUpdateEntry } from "@/features/entries/hooks/useEntryMutations";
 import { useMeds, useAddMed, useDeleteMed } from "@/features/meds/hooks/useMeds";
@@ -15,28 +15,46 @@ import { useSymptomCatalog, useEntrySymptoms, useSetEntrySymptoms } from "@/feat
 interface NewEntryProps {
   onBack: () => void;
   onSave?: () => void;
-  entry?: PainEntry | null;
+  entry?: MigraineEntry | null;
 }
 
 const painLevels = [
-  { value: "-", label: "-" },
-  { value: "leicht", label: "Leicht" },
-  { value: "mittel", label: "Mittel" },
-  { value: "stark", label: "Stark" },
-  { value: "sehr_stark", label: "Sehr stark" }
+  { value: "leicht", label: "💚 Leichte Migräne", desc: "Beeinträchtigt Alltag wenig" },
+  { value: "mittel", label: "💛 Mittlere Migräne", desc: "Erschwert Aktivitäten" },
+  { value: "stark", label: "🟠 Starke Migräne", desc: "Normale Aktivitäten unmöglich" },
+  { value: "sehr_stark", label: "🔴 Sehr starke Migräne", desc: "Bettlägerig, unerträglich" },
+];
+
+const auraTypes = [
+  { value: "keine", label: "Keine Aura" },
+  { value: "visuell", label: "Visuelle Aura (Blitze, Zacken)" },
+  { value: "sensorisch", label: "Sensorische Aura (Taubheit, Kribbeln)" },
+  { value: "sprachlich", label: "Sprachliche Aura (Wortfindung)" },
+  { value: "gemischt", label: "Gemischte Aura" },
+];
+
+const painLocations = [
+  { value: "einseitig_links", label: "🔵 Einseitig links" },
+  { value: "einseitig_rechts", label: "🔴 Einseitig rechts" },
+  { value: "beidseitig", label: "🟡 Beidseitig" },
+  { value: "stirn", label: "🟢 Stirnbereich" },
+  { value: "nacken", label: "🟣 Nackenbereich" },
+  { value: "schlaefe", label: "🟠 Schläfenbereich" },
 ];
 
 export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
   const { toast } = useToast();
 
-  const [painLevel, setPainLevel] = useState(entry?.pain_level || "stark");
-  const [selectedDate, setSelectedDate] = useState(entry?.selected_date || new Date().toISOString().split("T")[0]);
-  const [selectedTime, setSelectedTime] = useState(entry?.selected_time || new Date().toTimeString().slice(0, 5));
-  const [selectedMedications, setSelectedMedications] = useState<string[]>(entry?.medications || ["-"]);
+  const [painLevel, setPainLevel] = useState<string>("-");
+  const [auraType, setAuraType] = useState<string>("keine");
+  const [painLocation, setPainLocation] = useState<string>("");
+  const [selectedDate, setSelectedDate] = useState<string>("");
+  const [selectedTime, setSelectedTime] = useState<string>("");
+  const [selectedMedications, setSelectedMedications] = useState<string[]>(["-"]);
   const [newMedication, setNewMedication] = useState("");
   const [showAddMedication, setShowAddMedication] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [notes, setNotes] = useState(entry?.notes || "");
+  const [notes, setNotes] = useState<string>("");
 
   const entryIdNum = entry?.id ? Number(entry.id) : null;
   const { data: catalog = [] } = useSymptomCatalog();
@@ -54,6 +72,21 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
   const createMut = useCreateEntry();
   const updateMut = useUpdateEntry();
 
+  useEffect(() => {
+    if (entry) {
+      setPainLevel(entry.pain_level || "-");
+      setAuraType((entry as any).aura_type || "keine");
+      setPainLocation((entry as any).pain_location || "");
+      setSelectedDate(entry.selected_date || new Date().toISOString().slice(0, 10));
+      setSelectedTime(entry.selected_time || new Date().toTimeString().slice(0, 5));
+      setSelectedMedications([...entry.medications]);
+      setNotes(entry.notes || "");
+    } else {
+      const now = new Date();
+      setSelectedDate(now.toISOString().slice(0, 10));
+      setSelectedTime(now.toTimeString().slice(0, 5));
+    }
+  }, [entry]);
 
   const handleAddNewMedication = async () => {
     const name = newMedication.trim();
@@ -89,7 +122,7 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
 
   const handleSave = async () => {
     if (!painLevel || painLevel === "-") {
-      toast({ title: "Fehler", description: "Bitte Schmerzstufe auswählen", variant: "destructive" });
+      toast({ title: "Fehler", description: "Bitte Migräne-Intensität auswählen", variant: "destructive" });
       return;
     }
 
@@ -109,6 +142,8 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
         selected_date: selectedDate,
         selected_time: selectedTime,
         pain_level: painLevel as "leicht" | "mittel" | "stark" | "sehr_stark",
+        aura_type: auraType as "keine" | "visuell" | "sensorisch" | "sprachlich" | "gemischt",
+        pain_location: (painLocation || null) as "einseitig_links" | "einseitig_rechts" | "beidseitig" | "stirn" | "nacken" | "schlaefe" | null,
         medications: selectedMedications.filter((m) => m !== "-" && m.trim() !== ""),
         notes: notes.trim() || null,
         weather_id: weatherId,
@@ -128,7 +163,7 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
         await setEntrySymptomsMut.mutateAsync({ entryId: numericId, symptomIds: selectedSymptoms });
       }
 
-      toast({ title: "✓ Eintrag gespeichert", description: "Erfolgreich gespeichert." });
+      toast({ title: "✅ Migräne-Eintrag gespeichert", description: "Erfolgreich gespeichert." });
       onSave?.();
       onBack();
     } catch (err: any) {
@@ -139,160 +174,265 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
   };
 
   return (
-    <div className="min-h-screen bg-background p-6">
-      <div className="max-w-md mx-auto">
-        <div className="flex items-center justify-between mb-8">
-          <Button variant="ghost" size="sm" onClick={onBack}>
-            <Home className="w-5 h-5 mr-2" /> Home
+    <div className="p-6 bg-gradient-to-br from-background to-secondary/20 min-h-screen">
+      <div className="flex items-center justify-between mb-6">
+        <Button 
+          variant="ghost" 
+          onClick={onBack} 
+          className="p-2 hover:bg-secondary/80"
+          aria-label="Zurück zum Hauptmenü"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <h1 className="text-xl font-semibold text-center flex-1">
+          {entry ? "📝 Migräne-Eintrag bearbeiten" : "✏️ Neue Migräne erfassen"}
+        </h1>
+        <div className="w-9"></div>
+      </div>
+
+      {/* Migräne-Intensität */}
+      <Card className="p-6 mb-4">
+        <Label className="text-base font-medium mb-3 block">
+          🩺 Migräne-Intensität *
+        </Label>
+        <div className="grid gap-3">
+          {painLevels.map((level) => (
+            <Button
+              key={level.value}
+              type="button"
+              variant={painLevel === level.value ? "default" : "outline"}
+              className="h-auto p-4 text-left justify-start"
+              onClick={() => setPainLevel(level.value)}
+              aria-pressed={painLevel === level.value}
+            >
+              <div className="flex flex-col items-start w-full">
+                <span className="font-medium">{level.label}</span>
+                <span className="text-sm text-muted-foreground mt-1">{level.desc}</span>
+              </div>
+            </Button>
+          ))}
+        </div>
+      </Card>
+
+      {/* Aura */}
+      <Card className="p-6 mb-4">
+        <Label className="text-base font-medium mb-3 block">
+          ✨ Aura-Symptome
+        </Label>
+        <div className="grid gap-2">
+          {auraTypes.map((aura) => (
+            <Button
+              key={aura.value}
+              type="button"
+              variant={auraType === aura.value ? "default" : "outline"}
+              className="justify-start"
+              onClick={() => setAuraType(aura.value)}
+              aria-pressed={auraType === aura.value}
+            >
+              {aura.label}
+            </Button>
+          ))}
+        </div>
+      </Card>
+
+      {/* Schmerzlokalisation */}
+      <Card className="p-6 mb-4">
+        <Label className="text-base font-medium mb-3 block">
+          📍 Schmerzlokalisation
+        </Label>
+        <div className="grid gap-2">
+          <Button
+            type="button"
+            variant={painLocation === "" ? "default" : "outline"}
+            className="justify-start"
+            onClick={() => setPainLocation("")}
+            aria-pressed={painLocation === ""}
+          >
+            Nicht spezifiziert
           </Button>
-          <h2 className="text-xl font-medium">
-            {entry ? "Eintrag bearbeiten" : "Neuer Eintrag"}
-          </h2>
-          <div className="w-16" />
+          {painLocations.map((location) => (
+            <Button
+              key={location.value}
+              type="button"
+              variant={painLocation === location.value ? "default" : "outline"}
+              className="justify-start"
+              onClick={() => setPainLocation(location.value)}
+              aria-pressed={painLocation === location.value}
+            >
+              {location.label}
+            </Button>
+          ))}
+        </div>
+      </Card>
+
+      {/* Datum und Zeit */}
+      <Card className="p-6 mb-4">
+        <Label className="text-base font-medium mb-3 block">📅 Datum und Uhrzeit</Label>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="date-input">Datum</Label>
+            <Input 
+              id="date-input"
+              type="date" 
+              value={selectedDate} 
+              onChange={(e) => setSelectedDate(e.target.value)}
+              aria-label="Migräne-Datum"
+            />
+          </div>
+          <div>
+            <Label htmlFor="time-input">Uhrzeit</Label>
+            <Input 
+              id="time-input"
+              type="time" 
+              value={selectedTime} 
+              onChange={(e) => setSelectedTime(e.target.value)}
+              aria-label="Migräne-Uhrzeit"
+            />
+          </div>
+        </div>
+      </Card>
+
+      {/* Auslöser/Notizen */}
+      <Card className="p-6 mb-4">
+        <Label htmlFor="notes-input" className="text-base font-medium mb-3 block">
+          📝 Auslöser / Notizen
+        </Label>
+        <Input
+          id="notes-input"
+          type="text"
+          placeholder="z. B. Stress, helles Licht, Wetterumschwung, Schlafmangel..."
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          aria-label="Migräne-Auslöser oder Notizen"
+        />
+      </Card>
+
+      {/* Symptome */}
+      <Card className="p-6 mb-4">
+        <Label className="text-base font-medium mb-3 block">🧩 Begleitsymptome</Label>
+        {loadingSymptoms && entry ? (
+          <div className="text-sm text-muted-foreground mt-2">Lade vorhandene Symptome…</div>
+        ) : (
+          <div className="flex flex-wrap gap-2 mt-2">
+            {catalog.map((s) => {
+              const active = selectedSymptoms.includes(s.id);
+              return (
+                <Button
+                  key={s.id}
+                  type="button"
+                  variant={active ? "default" : "outline"}
+                  size="sm"
+                  onClick={() =>
+                    setSelectedSymptoms((prev) =>
+                      prev.includes(s.id) ? prev.filter((x) => x !== s.id) : [...prev, s.id]
+                    )
+                  }
+                  aria-pressed={active}
+                >
+                  {s.name}
+                </Button>
+              );
+            })}
+            {catalog.length === 0 && (
+              <div className="text-sm text-muted-foreground">Keine Symptome im Katalog.</div>
+            )}
+          </div>
+        )}
+      </Card>
+
+      {/* Medikamente */}
+      <Card className="p-6 mb-4">
+        <div className="flex justify-between items-center mb-4">
+          <Label className="text-base font-medium">💊 Medikamenteneinnahme</Label>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => setShowAddMedication(!showAddMedication)}
+            aria-label="Neues Medikament hinzufügen"
+          >
+            <Plus className="w-4 h-4 mr-1" /> Neu
+          </Button>
         </div>
 
-        <Card className="p-6 mb-4">
-          <Label>Schmerzstufe</Label>
-          <div className="grid grid-cols-2 gap-2 mt-2">
-            {painLevels.map((level) => (
-              <Button
-                key={level.value}
-                variant={painLevel === level.value ? "default" : "outline"}
-                onClick={() => setPainLevel(level.value)}
-              >
-                {level.label}
-              </Button>
-            ))}
-          </div>
-        </Card>
-
-        <Card className="p-6 mb-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>Datum</Label>
-              <Input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} />
-            </div>
-            <div>
-              <Label>Uhrzeit</Label>
-              <Input type="time" value={selectedTime} onChange={(e) => setSelectedTime(e.target.value)} />
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-6 mb-4">
-          <Label>Auslöser / Notiz</Label>
-          <Input
-            type="text"
-            placeholder="z. B. Stress, Überanstrengung, Lärm..."
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-          />
-        </Card>
-
-        <Card className="p-6 mb-4">
-          <Label>Symptome</Label>
-          {loadingSymptoms && entry ? (
-            <div className="text-sm text-muted-foreground mt-2">Lade vorhandene Symptome…</div>
-          ) : (
-            <div className="flex flex-wrap gap-2 mt-2">
-              {catalog.map((s) => {
-                const active = selectedSymptoms.includes(s.id);
-                return (
-                  <Button
-                    key={s.id}
-                    type="button"
-                    variant={active ? "default" : "outline"}
-                    size="sm"
-                    onClick={() =>
-                      setSelectedSymptoms((prev) =>
-                        prev.includes(s.id) ? prev.filter((x) => x !== s.id) : [...prev, s.id]
-                      )
-                    }
-                  >
-                    {s.name}
-                  </Button>
-                );
-              })}
-              {catalog.length === 0 && (
-                <div className="text-sm text-muted-foreground">Keine Symptome im Katalog.</div>
-              )}
-            </div>
-          )}
-        </Card>
-
-        <Card className="p-6 mb-4">
-          <div className="flex justify-between items-center mb-4">
-            <Label>Tabletten-Einnahme</Label>
-            <Button variant="ghost" size="sm" onClick={() => setShowAddMedication(!showAddMedication)}>
-              <Plus className="w-4 h-4 mr-1" /> Neu
+        {showAddMedication && (
+          <div className="mb-4 flex gap-2">
+            <Input
+              placeholder="Neues Medikament"
+              value={newMedication}
+              onChange={(e) => setNewMedication(e.target.value)}
+              aria-label="Name des neuen Medikaments"
+            />
+            <Button onClick={handleAddNewMedication} aria-label="Medikament hinzufügen">
+              <Plus className="w-4 h-4" />
             </Button>
           </div>
+        )}
 
-          {showAddMedication && (
-            <div className="mb-4 flex gap-2">
-              <Input
-                placeholder="Neues Medikament"
-                value={newMedication}
-                onChange={(e) => setNewMedication(e.target.value)}
-              />
-              <Button onClick={handleAddNewMedication}>
-                <Plus className="w-4 h-4" />
-              </Button>
-            </div>
-          )}
+        {selectedMedications.map((med, index) => (
+          <div key={index} className="flex gap-2 mb-2">
+            <Select
+              value={med}
+              onValueChange={(v) => {
+                const updated = [...selectedMedications];
+                updated[index] = v;
+                setSelectedMedications(updated);
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Medikament auswählen" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="-">-</SelectItem>
+                {medOptions.map((m) => (
+                  <SelectItem key={m} value={m}>{m}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-          {selectedMedications.map((med, index) => (
-            <div key={index} className="flex gap-2 mb-2">
-              <Select
-                value={med}
-                onValueChange={(v) => {
-                  const updated = [...selectedMedications];
-                  updated[index] = v;
-                  setSelectedMedications(updated);
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Medikament auswählen" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="-">-</SelectItem>
-                  {medOptions.map((m) => (
-                    <SelectItem key={m} value={m}>{m}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                if (index === 0 && selectedMedications.length === 1) return;
+                setSelectedMedications((prev) => prev.filter((_, i) => i !== index));
+              }}
+              aria-label="Medikament entfernen"
+            >
+              <X className="w-4 h-4" />
+            </Button>
 
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  if (index === 0 && selectedMedications.length === 1) return;
-                  setSelectedMedications((prev) => prev.filter((_, i) => i !== index));
-                }}
-              >
-                <X className="w-4 h-4" />
-              </Button>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => handleDeleteMedication(med)}
+              aria-label={`${med} aus Liste löschen`}
+            >
+              <Trash2 className="w-4 h-4 text-destructive" />
+            </Button>
+          </div>
+        ))}
 
-              <Button variant="ghost" size="sm" onClick={() => handleDeleteMedication(med)}>
-                <Trash2 className="w-4 h-4 text-red-500" />
-              </Button>
-            </div>
-          ))}
-
-          <Button
-            className="w-full mt-2"
-            variant="outline"
-            disabled={selectedMedications[0] === "-"}
-            onClick={() => setSelectedMedications((prev) => [...prev, "-"])}
-          >
-            + Weiteres Medikament
-          </Button>
-        </Card>
-
-        <Button className="w-full h-14 mt-4" onClick={handleSave} disabled={saving || createMut.isPending || updateMut.isPending || setEntrySymptomsMut.isPending}>
-          <Save className="w-5 h-5 mr-2" /> {saving || createMut.isPending || updateMut.isPending || setEntrySymptomsMut.isPending ? "Speichern..." : "Speichern"}
+        <Button
+          className="w-full mt-2"
+          variant="outline"
+          disabled={selectedMedications[0] === "-"}
+          onClick={() => setSelectedMedications((prev) => [...prev, "-"])}
+          aria-label="Weiteres Medikament hinzufügen"
+        >
+          + Weiteres Medikament
         </Button>
-      </div>
+      </Card>
+
+      {/* Speichern Button */}
+      <Button 
+        className="w-full h-14 mt-4 text-lg font-medium" 
+        onClick={handleSave} 
+        disabled={saving || createMut.isPending || updateMut.isPending || setEntrySymptomsMut.isPending}
+        aria-label="Migräne-Eintrag speichern"
+      >
+        <Save className="w-5 h-5 mr-2" /> 
+        {saving || createMut.isPending || updateMut.isPending || setEntrySymptomsMut.isPending ? "Speichere..." : "Migräne-Eintrag speichern"}
+      </Button>
     </div>
   );
 };
