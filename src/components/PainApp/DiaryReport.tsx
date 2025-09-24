@@ -135,6 +135,29 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
     win.print();
   };
 
+  const exportCSV = () => {
+    if (!generated.length) return;
+    const header = ["Datum/Zeit","Schmerzlevel","Medikamente","Notiz"];
+    const rows = generated.map(e => {
+      const dt = e.selected_date && e.selected_time
+        ? `${e.selected_date} ${e.selected_time}`
+        : new Date(e.timestamp_created).toLocaleString();
+      const meds = (e.medications || []).join("; ");
+      const note = (e.notes ?? "").replace(/\r?\n/g, " ").replace(/"/g, '""');
+      return [dt, e.pain_level, meds, `"${note}"`];
+    });
+    const lines = [header.join(","), ...rows.map(r => r.join(","))].join("\n");
+    const blob = new Blob(["\ufeff" + lines], { type: "text/csv;charset=utf-8" }); // BOM für Excel
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `kopfschmerztagebuch_${from}_bis_${to}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="p-4">
       <Button onClick={onBack} className="mb-4">← Zurück</Button>
@@ -195,6 +218,7 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
         <div className="flex gap-2">
           <Button onClick={generatePreview} disabled={isLoading}>Vorschau aktualisieren</Button>
           <Button variant="secondary" onClick={printPDF} disabled={!generated.length}>PDF / Drucken</Button>
+          <Button variant="outline" onClick={exportCSV} disabled={!generated.length}>CSV Export</Button>
         </div>
       </Card>
 
