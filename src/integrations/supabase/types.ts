@@ -250,12 +250,62 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      v_migraine_daily: {
+        Row: {
+          avg_score: number | null
+          cnt: number | null
+          day_berlin: string | null
+          user_id: string | null
+          with_meds: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       invoke_auto_weather: {
         Args: Record<PropertyKey, never>
         Returns: undefined
+      }
+      rpc_entries_filtered: {
+        Args: {
+          p_aura_types?: string[]
+          p_from: string
+          p_levels?: string[]
+          p_pain_locations?: string[]
+          p_to: string
+          p_user: string
+        }
+        Returns: {
+          aura_type: string
+          id: number
+          medications: string[] | null
+          notes: string | null
+          pain_level: string
+          pain_location: string | null
+          selected_date: string | null
+          selected_time: string | null
+          timestamp_created: string | null
+          user_id: string | null
+          weather_id: number | null
+        }[]
+      }
+      rpc_migraine_stats: {
+        Args: { p_from: string; p_to: string; p_user: string }
+        Returns: {
+          avg_intensity: number
+          most_common_aura: string
+          most_common_location: string
+          most_common_time_hour: number
+          total_entries: number
+          with_medication_count: number
+        }[]
+      }
+      rpc_time_distribution: {
+        Args: { p_from: string; p_to: string; p_user: string }
+        Returns: {
+          entry_count: number
+          hour_of_day: number
+        }[]
       }
     }
     Enums: {
