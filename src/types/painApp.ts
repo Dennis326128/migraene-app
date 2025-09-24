@@ -11,14 +11,19 @@ export interface WeatherData {
   moonset?: number | null;
 }
 
-export interface PainEntry {
+export interface MigraineEntry {
   id: string;
   timestamp_created: string;
   selected_date?: string;
   selected_time?: string;
   pain_level: string;
+  aura_type?: string;
+  pain_location?: string;
   medications: string[];
   notes?: string | null;
   weather_id?: number | null;
   weather?: WeatherData;
 }
+
+// Backward compatibility
+export type PainEntry = MigraineEntry;
