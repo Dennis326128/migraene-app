@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import type { PainEntry } from "@/types/painApp";
 import { useEntries } from "@/features/entries/hooks/useEntries";
 import { buildDiaryPdf } from "@/lib/pdf/report";
+import { getUserSettings } from "@/features/settings/api/settings.api";
 
 type Preset = "3m" | "6m" | "12m" | "custom";
 
@@ -32,6 +33,18 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
   const [medOptions, setMedOptions] = useState<string[]>([]);
   const [includeNoMeds, setIncludeNoMeds] = useState<boolean>(true);
   const [generated, setGenerated] = useState<PainEntry[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      const s = await getUserSettings().catch(() => null);
+      if (s?.default_report_preset && (["3m","6m","12m"] as const).includes(s.default_report_preset)) {
+        setPreset(s.default_report_preset);
+      }
+      if (typeof s?.include_no_meds === "boolean") {
+        setIncludeNoMeds(s.include_no_meds);
+      }
+    })();
+  }, []);
 
   // berechneter Zeitraum
   const { from, to } = useMemo(() => {

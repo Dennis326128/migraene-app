@@ -1,5 +1,6 @@
 import { Geolocation } from '@capacitor/geolocation';
 import { supabase, VITE_SUPABASE_ANON_KEY, VITE_SUPABASE_URL } from '@/lib/supabaseClient';
+import { getUserSettings } from "@/features/settings/api/settings.api";
 
 type Coords = { lat: number; lon: number };
 
@@ -82,13 +83,20 @@ export async function logAndSaveWeatherAt(atISO: string): Promise<number | null>
   return json?.weather_id ?? null;
 }
 
-const SNAP_HOURS = [6, 12, 18];
+async function getSnapshotHours(): Promise<number[]> {
+  try {
+    const s = await getUserSettings();
+    const hours = s?.snapshot_hours?.length ? s.snapshot_hours : [6, 12, 18];
+    // nur valide Stunden 0..23
+    return hours.filter(h => Number.isInteger(h) && h >= 0 && h <= 23);
+  } catch { return [6, 12, 18]; }
+}
 
 function yyyyMmDd(date: Date) {
   return date.toISOString().slice(0, 10);
 }
 
-/** Trägt für den gegebenen Tag (default: heute) Snapshots (06/12/18) nach, falls fehlen. */
+/** Trägt für den gegebenen Tag Snapshots nach, falls fehlen (Stunden aus user_settings). */
 export async function logDailyWeatherSnapshots(date: Date = new Date()): Promise<void> {
   const userId = await getUserId();
   if (!userId) return;
@@ -96,6 +104,7 @@ export async function logDailyWeatherSnapshots(date: Date = new Date()): Promise
   const coords = await getCoords();
   if (!coords) return;
 
+  const SNAP_HOURS = await getSnapshotHours();
   const day = yyyyMmDd(date);
   const startISO = new Date(`${day}T00:00:00`).toISOString();
   const endISO = new Date(`${day}T23:59:59`).toISOString();
@@ -107,12 +116,15 @@ export async function logDailyWeatherSnapshots(date: Date = new Date()): Promise
     .gte('created_at', startISO)
     .lte('created_at', endISO);
 
-  const haveHours = new Set<number>((logs || []).map(l => new Date(l.created_at as string).getHours()));
-
+  const haveHours = new Set<number>((logs || []).map(l => new Date(l.created_at as string).getUTCHours()));
   for (const h of SNAP_HOURS) {
-    if (!haveHours.has(h)) {
-      const at = new Date(`${day}T${String(h).padStart(2, '0')}:00:00`).toISOString();
+    // Stunde in lokaler Zeit annehmen und zu ISO konvertieren
+    const atLocal = new Date(`${day}T${String(h).padStart(2, '0')}:00:00`);
+    const at = atLocal.toISOString();
+    const hourUTC = new Date(at).getUTCHours();
+    if (!haveHours.has(hourUTC)) {
       await logAndSaveWeatherAt(at);
+      await new Promise(r => setTimeout(r, 150));
     }
   }
 }
