@@ -7,6 +7,7 @@ import { PainEntry } from "@/types/painApp";
 import { useEntries } from "@/features/entries/hooks/useEntries";
 import { useDeleteEntry } from "@/features/entries/hooks/useEntryMutations";
 import { backfillWeatherForRecentEntries } from "@/utils/backfillWeather";
+import { useSymptomCatalog, useEntrySymptoms } from "@/features/symptoms/hooks/useSymptoms";
 
 export const EntriesList = ({
   onBack,
@@ -18,6 +19,12 @@ export const EntriesList = ({
   const { data: entries = [], isLoading, isError } = useEntries();
   const { mutate: deleteMutate } = useDeleteEntry();
   const [selectedEntry, setSelectedEntry] = useState<PainEntry | null>(null);
+
+  const { data: symptomCatalog = [] } = useSymptomCatalog();
+  const entryIdNum = selectedEntry?.id ? Number(selectedEntry.id) : null;
+  const { data: symptomIds = [] } = useEntrySymptoms(entryIdNum);
+  const symptomNameById = new Map(symptomCatalog.map(s => [s.id, s.name]));
+  const symptomNames = symptomIds.map(id => symptomNameById.get(id) || id);
 
   const sorted = useMemo(
     () => [...entries].sort((a, b) =>
@@ -109,6 +116,8 @@ export const EntriesList = ({
                   ? " " + selectedEntry.medications.join(", ")
                   : " Keine"}
               </p>
+
+              <p><strong>🧩 Symptome:</strong> {symptomNames.length ? symptomNames.join(", ") : "Keine"}</p>
 
               {selectedEntry.notes && (
                 <p><strong>📝 Auslöser / Notiz:</strong> {selectedEntry.notes}</p>
