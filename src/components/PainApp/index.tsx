@@ -3,9 +3,10 @@ import { NewEntry } from "./NewEntry";
 import { EntriesList } from "./EntriesList";
 import { MainMenu } from "./MainMenu";
 import { AnalysisView } from "./AnalysisView";
+import SettingsPage from "./SettingsPage";
 import type { PainEntry } from "@/types/painApp";
 
-type View = "menu" | "new" | "list" | "analysis";
+type View = "menu" | "new" | "list" | "analysis" | "settings";
 
 export const PainApp: React.FC = () => {
   const [view, setView] = useState<View>("menu");
@@ -20,6 +21,7 @@ export const PainApp: React.FC = () => {
           onNewEntry={() => { setEditing(null); setView("new"); }}
           onViewEntries={() => setView("list")}
           onViewAnalysis={() => setView("analysis")}
+          onViewSettings={() => setView("settings")}
         />
       )}
 
@@ -40,6 +42,10 @@ export const PainApp: React.FC = () => {
 
       {view === "analysis" && (
         <AnalysisView onBack={goHome} />
+      )}
+
+      {view === "settings" && (
+        <SettingsPage onBack={goHome} />
       )}
     </div>
   );
