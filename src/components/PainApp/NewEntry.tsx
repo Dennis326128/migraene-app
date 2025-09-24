@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import { PainEntry } from "@/types/painApp";
 import { logAndSaveWeatherAt } from "@/utils/weatherLogger";
 import { useCreateEntry, useUpdateEntry } from "@/features/entries/hooks/useEntryMutations";
 import { useMeds, useAddMed, useDeleteMed } from "@/features/meds/hooks/useMeds";
+import { useSymptomCatalog, useEntrySymptoms, useSetEntrySymptoms } from "@/features/symptoms/hooks/useSymptoms";
 
 interface NewEntryProps {
   onBack: () => void;
@@ -36,6 +37,16 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
   const [showAddMedication, setShowAddMedication] = useState(false);
   const [saving, setSaving] = useState(false);
   const [notes, setNotes] = useState(entry?.notes || "");
+
+  const entryIdNum = entry?.id ? Number(entry.id) : null;
+  const { data: catalog = [] } = useSymptomCatalog();
+  const { data: entrySymptomIds = [], isLoading: loadingSymptoms } = useEntrySymptoms(entryIdNum);
+  const setEntrySymptomsMut = useSetEntrySymptoms();
+
+  const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
+  useEffect(() => {
+    if (entry && entrySymptomIds) setSelectedSymptoms(entrySymptomIds);
+  }, [entry, entrySymptomIds]);
 
   const { data: medOptions = [] } = useMeds();
   const addMedMut = useAddMed();
@@ -103,10 +114,18 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
         weather_id: weatherId,
       };
 
+      let savedId: string | number;
       if (entry?.id) {
         await updateMut.mutateAsync({ id: entry.id, patch: payload });
+        savedId = entry.id;
       } else {
-        await createMut.mutateAsync(payload);
+        savedId = await createMut.mutateAsync(payload as any);
+      }
+
+      // Symptome setzen (idempotent)
+      const numericId = Number(savedId);
+      if (Number.isFinite(numericId)) {
+        await setEntrySymptomsMut.mutateAsync({ entryId: numericId, symptomIds: selectedSymptoms });
       }
 
       toast({ title: "✓ Eintrag gespeichert", description: "Erfolgreich gespeichert." });
@@ -168,6 +187,37 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
           />
+        </Card>
+
+        <Card className="p-6 mb-4">
+          <Label>Symptome</Label>
+          {loadingSymptoms && entry ? (
+            <div className="text-sm text-muted-foreground mt-2">Lade vorhandene Symptome…</div>
+          ) : (
+            <div className="flex flex-wrap gap-2 mt-2">
+              {catalog.map((s) => {
+                const active = selectedSymptoms.includes(s.id);
+                return (
+                  <Button
+                    key={s.id}
+                    type="button"
+                    variant={active ? "default" : "outline"}
+                    size="sm"
+                    onClick={() =>
+                      setSelectedSymptoms((prev) =>
+                        prev.includes(s.id) ? prev.filter((x) => x !== s.id) : [...prev, s.id]
+                      )
+                    }
+                  >
+                    {s.name}
+                  </Button>
+                );
+              })}
+              {catalog.length === 0 && (
+                <div className="text-sm text-muted-foreground">Keine Symptome im Katalog.</div>
+              )}
+            </div>
+          )}
         </Card>
 
         <Card className="p-6 mb-4">
@@ -239,8 +289,8 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
           </Button>
         </Card>
 
-        <Button className="w-full h-14 mt-4" onClick={handleSave} disabled={saving || createMut.isPending || updateMut.isPending}>
-          <Save className="w-5 h-5 mr-2" /> {saving || createMut.isPending || updateMut.isPending ? "Speichern..." : "Speichern"}
+        <Button className="w-full h-14 mt-4" onClick={handleSave} disabled={saving || createMut.isPending || updateMut.isPending || setEntrySymptomsMut.isPending}>
+          <Save className="w-5 h-5 mr-2" /> {saving || createMut.isPending || updateMut.isPending || setEntrySymptomsMut.isPending ? "Speichern..." : "Speichern"}
         </Button>
       </div>
     </div>
