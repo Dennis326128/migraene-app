@@ -97,6 +97,7 @@ async function backfillYesterdayForAllUsers(): Promise<{ok: number, skip: number
 
   const dateUTC = berlinYesterdayMidnightUTC();
   const dateISO = toISODateUTC(dateUTC);
+  const snapshotDate = dateISO.slice(0, 10); // "YYYY-MM-DD"
   const targetDate = new Date(dateISO);
 
   console.log(`🌤️ Starting daily weather backfill for ${dateISO}`);
@@ -122,14 +123,13 @@ async function backfillYesterdayForAllUsers(): Promise<{ok: number, skip: number
 
   for (const profile of profiles) {
     try {
-      // Check if weather log already exists for this user and date (idempotent)
+      // 1) Existenzcheck per snapshot_date
       const { data: existing } = await supabase
         .from('weather_logs')
         .select('id')
         .eq('user_id', profile.user_id)
-        .gte('created_at', dateISO)
-        .lt('created_at', new Date(new Date(dateISO).getTime() + 24 * 60 * 60 * 1000).toISOString())
-        .single();
+        .eq('snapshot_date', snapshotDate)
+        .maybeSingle();
 
       if (existing) {
         skip++;
@@ -148,18 +148,19 @@ async function backfillYesterdayForAllUsers(): Promise<{ok: number, skip: number
         continue;
       }
 
-      // Create weather log
+      // 2) Insert mit snapshot_date
       const { data: weatherLog, error: weatherError } = await supabase
         .from('weather_logs')
         .insert({
           user_id: profile.user_id,
           latitude: weatherData.lat,
           longitude: weatherData.lon,
-          temperature_c: weatherData.tempMax, // Use max temp as primary
+          temperature_c: weatherData.tempMax,
           pressure_mb: weatherData.pressure,
           humidity: weatherData.humidity,
           condition_text: `${weatherData.tempMin}°C - ${weatherData.tempMax}°C`,
           created_at: dateISO,
+          snapshot_date: snapshotDate
         })
         .select('id')
         .single();
