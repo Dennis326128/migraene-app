@@ -1,11 +1,17 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*", // optional später auf Domain einschränken
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+const RAW_ALLOWED = Deno.env.get("ALLOWED_ORIGINS") ?? "";
+function getCors(origin?: string | null) {
+  const allowed = RAW_ALLOWED.split(",").map(s => s.trim()).filter(Boolean);
+  const allow = origin && allowed.includes(origin) ? origin : "null";
+  return {
+    "Access-Control-Allow-Origin": allow,
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Vary": "Origin",
+  };
+}
 
 const SB_URL = Deno.env.get("SB_URL");
 const SB_ANON_KEY = Deno.env.get("SB_ANON_KEY"); // in Supabase Secrets setzen
@@ -28,17 +34,17 @@ async function fetchAstronomy(lat:number, lon:number, date:string){
 const WMO_CODE_TEXT: Record<number,string> = {0:"Klar",1:"Überwiegend klar",2:"Teilweise bewölkt",3:"Bedeckt",45:"Nebel",48:"Reifiger Nebel",51:"Nieselregen leicht",53:"Nieselregen mäßig",55:"Nieselregen stark",61:"Regen leicht",63:"Regen mäßig",65:"Regen stark",66:"Gefrierender Regen leicht",67:"Gefrierender Regen stark",71:"Schnee leicht",73:"Schnee mäßig",75:"Schnee stark",77:"Schneekörner",80:"Regenschauer leicht",81:"Regenschauer mäßig",82:"Regenschauer stark",85:"Schneeschauer leicht",86:"Schneeschauer stark",95:"Gewitter",96:"Gewitter mit leichtem Hagel",99:"Gewitter mit starkem Hagel"};
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (req.method === "OPTIONS") return new Response("ok", { headers: getCors(req.headers.get("Origin")) });
 
   try {
     // 🔐 Authentifizierten Client erzeugen (RLS greift)
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return new Response(JSON.stringify({ error: "Missing Authorization header" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    if (!authHeader) return new Response(JSON.stringify({ error: "Missing Authorization header" }), { status: 401, headers: { ...getCors(req.headers.get("Origin")), "Content-Type": "application/json" } });
 
     const supabase = createClient(SB_URL, SB_ANON_KEY, { global: { headers: { Authorization: authHeader }}});
 
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    if (!user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...getCors(req.headers.get("Origin")), "Content-Type": "application/json" } });
 
     // 📥 Body lesen (ohne user_id!)
     const body = await req.json().catch(() => ({}));
@@ -46,7 +52,7 @@ serve(async (req) => {
     const lon = Number(body.lon);
     const atISO_in: string = String(body.at || new Date().toISOString());
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-      return new Response(JSON.stringify({ error: "lat/lon required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ error: "lat/lon required" }), { status: 400, headers: { ...getCors(req.headers.get("Origin")), "Content-Type": "application/json" } });
     }
 
     const atHourUTC = toUTCStartOfHourISO(atISO_in);
@@ -84,7 +90,7 @@ serve(async (req) => {
       .eq("created_at", atHourUTC)
       .maybeSingle();
     if (existing?.id) {
-      return new Response(JSON.stringify({ weather_id: existing.id, dedup: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" }});
+      return new Response(JSON.stringify({ weather_id: existing.id, dedup: true }), { headers: { ...getCors(req.headers.get("Origin")), "Content-Type": "application/json" }});
     }
 
     // ✅ Insert mit RLS (user_id = auth.uid())
@@ -111,8 +117,8 @@ serve(async (req) => {
       .single();
     if (insertError) throw insertError;
 
-    return new Response(JSON.stringify({ weather_id: inserted.id }), { headers: { ...corsHeaders, "Content-Type": "application/json" }});
+    return new Response(JSON.stringify({ weather_id: inserted.id }), { headers: { ...getCors(req.headers.get("Origin")), "Content-Type": "application/json" }});
   } catch (err: any) {
-    return new Response(JSON.stringify({ error: err.message || "unknown" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" }});
+    return new Response(JSON.stringify({ error: err.message || "unknown" }), { status: 500, headers: { ...getCors(req.headers.get("Origin")), "Content-Type": "application/json" }});
   }
 });
