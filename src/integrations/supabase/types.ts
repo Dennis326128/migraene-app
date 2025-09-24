@@ -250,16 +250,7 @@ export type Database = {
       }
     }
     Views: {
-      v_migraine_daily: {
-        Row: {
-          avg_score: number | null
-          cnt: number | null
-          day_berlin: string | null
-          user_id: string | null
-          with_meds: number | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
       invoke_auto_weather: {

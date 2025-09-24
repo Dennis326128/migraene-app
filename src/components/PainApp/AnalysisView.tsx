@@ -1,78 +1,156 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { Trash } from "lucide-react";
-import { PainEntry } from "@/types/painApp";
+import { ArrowLeft, FileText, BarChart3, Activity } from "lucide-react";
+import DiaryReport from "./DiaryReport";
 import ChartComponent from "@/components/Chart";
-import DiaryReport from "@/components/PainApp/DiaryReport";
 import { useEntries } from "@/features/entries/hooks/useEntries";
 import { useDeleteEntry } from "@/features/entries/hooks/useEntryMutations";
-import { formatPainLevel, mapTextLevelToScore } from "@/lib/utils/pain";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatisticsFilter } from "./StatisticsFilter";
+import { StatisticsCards } from "./StatisticsCards";
+import { TimeDistributionChart } from "./TimeDistributionChart";
+import { useFilteredEntries, useMigraineStats, useTimeDistribution } from "@/features/statistics/hooks/useStatistics";
 
 interface AnalysisViewProps {
   onBack: () => void;
 }
 
-type Range = "3m" | "6m" | "12m" | "custom";
-
-export const AnalysisView: React.FC<AnalysisViewProps> = ({ onBack }) => {
-  const [viewMode, setViewMode] = useState<"menu" | "tagebuch" | "analyse" | "grafik">("menu");
-  const [timeRange, setTimeRange] = useState<Range>("3m");
-  const [customStart, setCustomStart] = useState<string>("");
-  const [customEnd, setCustomEnd] = useState<string>("");
-
-  const [includeMeds, setIncludeMeds] = useState(true);
-  const [includeWeather, setIncludeWeather] = useState(true);
-  const [analysisReport, setAnalysisReport] = useState<string>("");
+export function AnalysisView({ onBack }: AnalysisViewProps) {
+  const [viewMode, setViewMode] = useState<"tagebuch" | "analyse" | "grafik">("tagebuch");
+  const [timeRange, setTimeRange] = useState("3m");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+  const [selectedLevels, setSelectedLevels] = useState<string[]>([]);
+  const [selectedAuraTypes, setSelectedAuraTypes] = useState<string[]>([]);
+  const [selectedPainLocations, setSelectedPainLocations] = useState<string[]>([]);
+  const [analysisReport, setAnalysisReport] = useState("");
 
   const { from, to } = useMemo(() => {
-    const end = (timeRange === "custom" && customEnd) ? customEnd : new Date().toISOString().slice(0,10);
-    const d = new Date();
-    const start =
-      timeRange === "custom" && customStart ? customStart :
-      timeRange === "3m" ? (()=>{ const x=new Date(d); x.setMonth(d.getMonth()-3); return x.toISOString().slice(0,10); })() :
-      timeRange === "6m" ? (()=>{ const x=new Date(d); x.setMonth(d.getMonth()-6); return x.toISOString().slice(0,10); })() :
-      (()=>{ const x=new Date(d); x.setMonth(d.getMonth()-12); return x.toISOString().slice(0,10); })();
-    return { from: start, to: end };
-  }, [timeRange, customStart, customEnd]);
+    const now = new Date();
+    let from: Date, to: Date;
 
-  const { data: entries = [], isLoading, isError, refetch } = useEntries({ from, to });
-  const { mutate: deleteMutate } = useDeleteEntry();
+    switch (timeRange) {
+      case "7d":
+        from = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        to = now;
+        break;
+      case "30d":
+        from = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        to = now;
+        break;
+      case "3m":
+        from = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+        to = now;
+        break;
+      case "6m":
+        from = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
+        to = now;
+        break;
+      case "1y":
+        from = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+        to = now;
+        break;
+      case "custom":
+        from = customFrom ? new Date(customFrom) : new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        to = customTo ? new Date(customTo) : now;
+        break;
+      default:
+        from = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        to = now;
+    }
+
+    return {
+      from: from.toISOString().split('T')[0],
+      to: to.toISOString().split('T')[0]
+    };
+  }, [timeRange, customFrom, customTo]);
+
+  // Use original entries hook for diary report and charts
+  const { data: entries = [], isLoading, error, refetch } = useEntries({ from, to });
+  const deleteEntry = useDeleteEntry();
+
+  // Use new filtered hooks for statistics
+  const filters = {
+    from,
+    to,
+    levels: selectedLevels.length > 0 ? selectedLevels : undefined,
+    auraTypes: selectedAuraTypes.length > 0 ? selectedAuraTypes : undefined,
+    painLocations: selectedPainLocations.length > 0 ? selectedPainLocations : undefined
+  };
+
+  const { data: filteredEntries = [] } = useFilteredEntries(filters);
+  const { data: stats, isLoading: statsLoading } = useMigraineStats({ from, to });
+  const { data: timeDistribution = [], isLoading: timeLoading } = useTimeDistribution({ from, to });
 
   useEffect(() => {
     if (viewMode === "analyse") {
-      // sicherstellen, dass Daten für Zeitraum frisch sind
       refetch();
     }
   }, [viewMode, refetch]);
 
+  const handleLevelToggle = (level: string) => {
+    setSelectedLevels(prev => 
+      prev.includes(level) 
+        ? prev.filter(l => l !== level)
+        : [...prev, level]
+    );
+  };
+
+  const handleAuraTypeToggle = (type: string) => {
+    setSelectedAuraTypes(prev => 
+      prev.includes(type) 
+        ? prev.filter(t => t !== type)
+        : [...prev, type]
+    );
+  };
+
+  const handlePainLocationToggle = (location: string) => {
+    setSelectedPainLocations(prev => 
+      prev.includes(location) 
+        ? prev.filter(l => l !== location)
+        : [...prev, location]
+    );
+  };
+
+  const handleClearFilters = () => {
+    setSelectedLevels([]);
+    setSelectedAuraTypes([]);
+    setSelectedPainLocations([]);
+  };
+
   const runAnalysis = () => {
-    if (!entries.length) {
-      setAnalysisReport("Keine Daten im gewählten Zeitraum gefunden.");
+    if (!filteredEntries.length) {
+      setAnalysisReport("Keine Einträge im gewählten Zeitraum oder Filter gefunden.");
       return;
     }
-    const total = entries.length;
-    const avgPain = (entries.reduce((sum, e) => sum + mapTextLevelToScore(e.pain_level), 0) / total).toFixed(2);
 
-    let report = `Analysezeitraum: ${from} - ${to}\n`;
-    report += `Gesamtanzahl Einträge: ${total}\n`;
-    report += `Durchschnittliches Schmerzlevel: ${avgPain}\n`;
+    let report = `Migräne-Analyse vom ${from} bis ${to}\n\n`;
+    report += `Gefilterte Einträge: ${filteredEntries.length}\n`;
+    
+    const painScores = filteredEntries.map(e => {
+      switch (e.pain_level) {
+        case "leicht": return 2;
+        case "mittel": return 5;
+        case "stark": return 7;
+        case "sehr_stark": return 9;
+        default: return 0;
+      }
+    });
+    
+    const avgPain = painScores.length > 0 ? (painScores.reduce((a, b) => a + b, 0) / painScores.length).toFixed(1) : "0";
+    report += `Durchschnittliche Schmerzstärke: ${avgPain}/10\n`;
 
-    if (includeWeather) {
-      const countWithWeather = entries.filter(e => e.weather?.temperature_c != null).length;
-      const avgTemp = countWithWeather
-        ? (entries.reduce((s, e) => s + (e.weather?.temperature_c ?? 0), 0) / countWithWeather).toFixed(1)
-        : "–";
-      report += `Durchschnittstemperatur (nur Einträge mit Wetter): ${avgTemp} °C\n`;
-    }
+    const withMeds = filteredEntries.filter(e => e.medications && e.medications.length > 0).length;
+    report += `Einträge mit Medikation: ${withMeds} (${((withMeds / filteredEntries.length) * 100).toFixed(1)}%)\n`;
 
-    if (includeMeds) {
-      const meds = entries.flatMap((e) => e.medications || []);
-      const medStats: Record<string, number> = {};
-      meds.forEach((m) => { medStats[m] = (medStats[m] || 0) + 1; });
-      const medsLine = Object.keys(medStats).length
-        ? Object.entries(medStats).map(([m, c]) => `${m} (${c}x)`).join(", ")
-        : "Keine";
-      report += `Medikamente: ${medsLine}\n`;
+    // Note: Filtered entries don't include weather data, use original entries for weather analysis
+    const withWeather = entries.filter(e => e.weather?.temperature_c != null).length;
+    if (withWeather > 0) {
+      const avgTemp = entries
+        .filter(e => e.weather?.temperature_c != null)
+        .reduce((sum, e) => sum + (e.weather?.temperature_c || 0), 0) / withWeather;
+      report += `\nWetter-Durchschnitt (${withWeather} Einträge):\n`;
+      report += `Temperatur: ${avgTemp.toFixed(1)}°C\n`;
     }
 
     setAnalysisReport(report);
@@ -80,91 +158,182 @@ export const AnalysisView: React.FC<AnalysisViewProps> = ({ onBack }) => {
 
   const printReport = () => {
     const html = `
-      <h2>Analysebericht</h2>
-      <pre>${analysisReport}</pre>
+      <h2>Migräne-Analysebericht</h2>
+      <pre style="white-space: pre-wrap; font-family: monospace;">${analysisReport}</pre>
     `;
     const w = window.open("", "_blank");
-    if (w) { w.document.write(html); w.document.close(); w.print(); }
+    if (w) {
+      w.document.write(html);
+      w.document.close();
+      w.print();
+    }
   };
 
-  if (viewMode === "menu") {
-    return (
-      <div className="p-4">
-        <Button onClick={onBack} className="mb-6">← Zurück</Button>
-        <h1 className="text-2xl font-bold mb-6">Auswertungen & Berichte</h1>
-        <div className="space-y-4">
-          <Button onClick={() => setViewMode("tagebuch")} variant="secondary" size="lg" className="w-full">📄 Kopfschmerztagebuch (PDF)</Button>
-          <Button onClick={() => setViewMode("analyse")} variant="secondary" size="lg" className="w-full">🤖 Analyse (Schmerz + Wetter)</Button>
-          <Button onClick={() => setViewMode("grafik")} variant="secondary" size="lg" className="w-full">📊 Grafische Darstellung</Button>
-        </div>
+  return (
+    <div className="container mx-auto p-4 space-y-6">
+      <div className="flex items-center justify-between">
+        <Button
+          onClick={onBack}
+          variant="outline"
+          className="flex items-center gap-2"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Zurück
+        </Button>
+        <h1 className="text-2xl font-bold">Auswertung & Statistiken</h1>
       </div>
-    );
-  }
 
-  if (viewMode === "tagebuch") {
-    return <DiaryReport onBack={() => setViewMode("menu")} />;
-  }
-
-  if (viewMode === "analyse" || viewMode === "grafik") {
-    // Ladeindikatoren nur in Unteransichten zeigen
-    if (isLoading) return <p className="p-4">Lade Daten...</p>;
-    if (isError)   return <p className="p-4 text-destructive">Fehler beim Laden der Daten.</p>;
-  }
-
-  if (viewMode === "analyse") {
-    return (
-      <div className="p-4">
-        <Button onClick={() => setViewMode("menu")} className="mb-4">← Zurück</Button>
-        <h1 className="text-2xl font-bold mb-4">Analyse</h1>
-
-        <label>Zeitraum:</label>
-        <select value={timeRange} onChange={(e) => setTimeRange(e.target.value as any)} className="border p-2 w-full mb-4">
-          <option value="3m">Letzte 3 Monate</option>
-          <option value="6m">Letzte 6 Monate</option>
-          <option value="12m">Letzte 12 Monate</option>
-          <option value="custom">Benutzerdefiniert</option>
-        </select>
-
-        {timeRange === "custom" && (
-          <div className="flex gap-2 mb-4">
-            <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} className="border p-2 w-full" />
-            <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} className="border p-2 w-full" />
+      {/* View Mode Selector */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex flex-wrap gap-2">
+            <Button
+              onClick={() => setViewMode("tagebuch")}
+              variant={viewMode === "tagebuch" ? "default" : "outline"}
+              className="flex items-center gap-2"
+            >
+              <FileText className="h-4 w-4" />
+              Kopfschmerztagebuch
+            </Button>
+            <Button
+              onClick={() => setViewMode("analyse")}
+              variant={viewMode === "analyse" ? "default" : "outline"}
+              className="flex items-center gap-2"
+            >
+              <BarChart3 className="h-4 w-4" />
+              Analyse
+            </Button>
+            <Button
+              onClick={() => setViewMode("grafik")}
+              variant={viewMode === "grafik" ? "default" : "outline"}
+              className="flex items-center gap-2"
+            >
+              <Activity className="h-4 w-4" />
+              Grafische Darstellung
+            </Button>
           </div>
-        )}
+        </CardContent>
+      </Card>
 
-        <label className="flex items-center gap-2 mb-2">
-          <input type="checkbox" checked={includeMeds} onChange={(e) => setIncludeMeds(e.target.checked)} /> Medikamente einbeziehen
-        </label>
-        <label className="flex items-center gap-2 mb-4">
-          <input type="checkbox" checked={includeWeather} onChange={(e) => setIncludeWeather(e.target.checked)} /> Wetterdaten einbeziehen
-        </label>
+      {/* Content based on view mode */}
+      {viewMode === "tagebuch" && (
+        <DiaryReport onBack={() => setViewMode("tagebuch")} />
+      )}
 
-        <Button onClick={runAnalysis} className="mb-4">Analyse starten</Button>
+      {viewMode === "analyse" && (
+        <>
+          <StatisticsFilter
+            timeRange={timeRange}
+            onTimeRangeChange={setTimeRange}
+            customFrom={customFrom}
+            customTo={customTo}
+            onCustomFromChange={setCustomFrom}
+            onCustomToChange={setCustomTo}
+            selectedLevels={selectedLevels}
+            onLevelToggle={handleLevelToggle}
+            selectedAuraTypes={selectedAuraTypes}
+            onAuraTypeToggle={handleAuraTypeToggle}
+            selectedPainLocations={selectedPainLocations}
+            onPainLocationToggle={handlePainLocationToggle}
+            onClearFilters={handleClearFilters}
+          />
 
-        {analysisReport && (
-          <div className="border p-4 rounded bg-gray-50 mb-4 whitespace-pre-wrap">
-            {analysisReport}
-            <div className="mt-2 flex gap-2">
-              <Button onClick={printReport}>PDF/Print</Button>
+          {isLoading || statsLoading ? (
+            <div className="text-center py-8">Lade Daten...</div>
+          ) : error ? (
+            <div className="text-center py-8 text-red-500">
+              Fehler beim Laden der Daten: {error.message}
             </div>
-          </div>
-        )}
+          ) : (
+            <>
+              {stats && (
+                <StatisticsCards
+                  totalEntries={stats.total_entries}
+                  avgIntensity={Number(stats.avg_intensity) || 0}
+                  withMedicationCount={stats.with_medication_count}
+                  mostCommonTimeHour={stats.most_common_time_hour}
+                  mostCommonAura={stats.most_common_aura}
+                  mostCommonLocation={stats.most_common_location}
+                  isLoading={statsLoading}
+                />
+              )}
 
-        {entries.length > 0 && <ChartComponent entries={entries} />}
-      </div>
-    );
-  }
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <TimeDistributionChart 
+                  data={timeDistribution} 
+                  isLoading={timeLoading}
+                />
+                
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Intensitätsverlauf</CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                      Zeitlicher Verlauf der Migräne-Intensität
+                    </p>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-80">
+                      <ChartComponent entries={entries} />
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
 
-  if (viewMode === "grafik") {
-    return (
-      <div className="p-4">
-        <Button onClick={() => setViewMode("menu")} className="mb-4">← Zurück</Button>
-        <h1 className="text-2xl font-bold mb-4">Grafische Darstellung</h1>
-        <ChartComponent entries={entries} />
-      </div>
-    );
-  }
+              {/* Analysis Report Section */}
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle>Detailanalyse</CardTitle>
+                  <div className="flex gap-2">
+                    <Button onClick={runAnalysis} size="sm" variant="outline">
+                      Analyse aktualisieren
+                    </Button>
+                    {analysisReport && (
+                      <Button onClick={printReport} size="sm" variant="outline">
+                        Drucken
+                      </Button>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {analysisReport ? (
+                    <pre className="whitespace-pre-wrap text-sm bg-muted p-4 rounded-md overflow-auto">
+                      {analysisReport}
+                    </pre>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      Klicken Sie auf "Analyse aktualisieren" für eine detaillierte Auswertung
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </>
+          )}
+        </>
+      )}
 
-  // Fallback
-  return null;
-};
+      {viewMode === "grafik" && (
+        <>
+          {isLoading ? (
+            <div className="text-center py-8">Lade Daten...</div>
+          ) : error ? (
+            <div className="text-center py-8 text-red-500">
+              Fehler beim Laden der Daten: {error.message}
+            </div>
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle>Intensitätsverlauf</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Grafische Darstellung der Migräne-Einträge über Zeit
+                </p>
+              </CardHeader>
+              <CardContent>
+                <ChartComponent entries={entries} />
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
