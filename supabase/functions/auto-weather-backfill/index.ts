@@ -32,15 +32,7 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get OpenWeatherMap API key
-    const openWeatherApiKey = Deno.env.get('OPENWEATHERMAP_API_KEY');
-    if (!openWeatherApiKey) {
-      console.error('❌ OpenWeatherMap API key not configured');
-      return new Response(JSON.stringify({ error: 'Weather service not configured' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    // No need for OpenWeatherMap API key - we use the free fetch-weather-hybrid function
 
     let totalProcessed = 0;
     let successCount = 0;
@@ -135,12 +127,11 @@ serve(async (req) => {
               weatherId = existingWeather[0].id;
               console.log(`♻️ Using existing weather data for entry ${entry.id}`);
             } else {
-              // Fetch new weather data
-              const weatherResult = await fetchWeatherData(
+              // Fetch new weather data using fetch-weather-hybrid
+              const weatherResult = await fetchWeatherViaHybrid(
                 userCoords.latitude,
                 userCoords.longitude,
                 targetTimestamp,
-                openWeatherApiKey,
                 supabase,
                 entry.user_id
               );
@@ -254,11 +245,10 @@ serve(async (req) => {
               weatherId = existingWeather[0].id;
               console.log(`♻️ Using existing weather data for event ${event.id}`);
             } else {
-              const weatherResult = await fetchWeatherData(
+              const weatherResult = await fetchWeatherViaHybrid(
                 userCoords.latitude,
                 userCoords.longitude,
                 targetTimestamp,
-                openWeatherApiKey,
                 supabase,
                 event.user_id
               );
@@ -330,94 +320,45 @@ serve(async (req) => {
   }
 });
 
-// Helper function to fetch weather data from OpenWeatherMap
-async function fetchWeatherData(
+// Helper function to fetch weather data via fetch-weather-hybrid function
+async function fetchWeatherViaHybrid(
   lat: number, 
   lon: number, 
   timestamp: string, 
-  apiKey: string, 
   supabase: any, 
   userId: string
 ): Promise<number | null> {
   try {
-    const targetDate = new Date(timestamp);
-    const now = new Date();
-    const daysDiff = Math.floor((now.getTime() - targetDate.getTime()) / (1000 * 60 * 60 * 24));
-    const isHistorical = daysDiff > 5;
-    const dateStr = targetDate.toISOString().split('T')[0];
-
-    let weatherData;
-
-    if (isHistorical) {
-      // Use historical API
-      const unixTimestamp = Math.floor(targetDate.getTime() / 1000);
-      const historyUrl = `https://api.openweathermap.org/data/3.0/onecall/timemachine?lat=${lat}&lon=${lon}&dt=${unixTimestamp}&appid=${apiKey}&units=metric`;
-      
-      const response = await fetch(historyUrl);
-      if (!response.ok) {
-        throw new Error(`OpenWeatherMap Historical API error: ${response.status}`);
+    console.log(`🌤️ Fetching weather for user ${userId} at ${lat},${lon} for ${timestamp}`);
+    
+    // Call the fetch-weather-hybrid function
+    const { data, error } = await supabase.functions.invoke('fetch-weather-hybrid', {
+      body: {
+        lat,
+        lon,
+        at: timestamp
+      },
+      headers: {
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+        'Content-Type': 'application/json'
       }
-      
-      const data = await response.json();
-      const hourlyData = data.data[0];
-      
-      weatherData = {
-        temperature_c: hourlyData.temp,
-        pressure_mb: hourlyData.pressure,
-        humidity: hourlyData.humidity,
-        wind_kph: hourlyData.wind_speed * 3.6,
-        condition_text: hourlyData.weather[0].description,
-        condition_icon: hourlyData.weather[0].icon,
-      };
-    } else {
-      // Use current weather API
-      const currentUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric`;
-      
-      const response = await fetch(currentUrl);
-      if (!response.ok) {
-        throw new Error(`OpenWeatherMap Current API error: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      
-      weatherData = {
-        temperature_c: data.main.temp,
-        pressure_mb: data.main.pressure,
-        humidity: data.main.humidity,
-        wind_kph: data.wind?.speed ? data.wind.speed * 3.6 : 0,
-        condition_text: data.weather[0].description,
-        condition_icon: data.weather[0].icon,
-      };
+    });
+
+    if (error) {
+      console.error('❌ Error calling fetch-weather-hybrid:', error);
+      return null;
     }
 
-    // Insert weather log
-    const { data: insertedLog, error: insertError } = await supabase
-      .from('weather_logs')
-      .insert({
-        user_id: userId,
-        latitude: lat,
-        longitude: lon,
-        temperature_c: weatherData.temperature_c,
-        pressure_mb: weatherData.pressure_mb,
-        humidity: weatherData.humidity,
-        wind_kph: weatherData.wind_kph,
-        condition_text: weatherData.condition_text,
-        condition_icon: weatherData.condition_icon,
-        pressure_change_24h: 0, // Simplified
-        snapshot_date: dateStr,
-        created_at: targetDate.toISOString(),
-      })
-      .select('id')
-      .single();
-
-    if (insertError) {
-      throw new Error(`Database insert error: ${insertError.message}`);
+    if (!data || !data.weather_id) {
+      console.error('❌ No weather_id returned from fetch-weather-hybrid');
+      return null;
     }
 
-    return insertedLog.id;
+    console.log(`✅ Successfully fetched weather_id ${data.weather_id} for user ${userId}`);
+    return data.weather_id;
 
   } catch (error) {
-    console.error('❌ fetchWeatherData error:', error);
+    console.error('❌ fetchWeatherViaHybrid error:', error);
     return null;
   }
 }
