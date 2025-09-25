@@ -2,6 +2,7 @@ import React, { useMemo } from "react";
 import type { PainEntry } from "@/types/painApp";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from "recharts";
 import { mapTextLevelToScore } from "@/lib/utils/pain";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 type Props = { entries: PainEntry[] };
 
@@ -12,11 +13,14 @@ function toLabel(e: PainEntry) {
 }
 
 export default function ChartComponent({ entries }: Props) {
+  const isMobile = useIsMobile();
+  
   // Debug logging to see what data we receive
   console.log('📊 Chart component received:', {
     entriesCount: entries?.length || 0,
     firstEntry: entries?.[0],
-    lastEntry: entries?.[entries?.length - 1]
+    lastEntry: entries?.[entries?.length - 1],
+    isMobile
   });
 
   const data = useMemo(() => {
@@ -91,47 +95,47 @@ export default function ChartComponent({ entries }: Props) {
         </div>
       )}
 
-      <div className="w-full" style={{ height: "min(70vh, 400px)" }}>
+      <div className="w-full" style={{ height: isMobile ? "250px" : "min(70vh, 400px)" }}>
         <ResponsiveContainer>
           <LineChart 
             data={data} 
             margin={{ 
               top: 10, 
-              right: window.innerWidth < 768 ? 12 : 24, 
-              left: window.innerWidth < 768 ? 8 : 16, 
-              bottom: window.innerWidth < 768 ? 20 : 10 
+              right: isMobile ? 8 : 24, 
+              left: isMobile ? 4 : 16, 
+              bottom: isMobile ? 50 : 10 
             }}
           >
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
             <XAxis 
               dataKey="label" 
-              tick={{ fontSize: window.innerWidth < 768 ? 8 : 10 }} 
-              interval="preserveStartEnd"
-              angle={window.innerWidth < 768 ? -45 : 0}
-              textAnchor={window.innerWidth < 768 ? "end" : "middle"}
-              height={window.innerWidth < 768 ? 60 : 30}
+              tick={{ fontSize: isMobile ? 8 : 10 }} 
+              interval={isMobile ? Math.max(Math.floor(data.length / 4), 1) : "preserveStartEnd"}
+              angle={isMobile ? -60 : 0}
+              textAnchor={isMobile ? "end" : "middle"}
+              height={isMobile ? 60 : 30}
             />
             <YAxis 
               yAxisId="pain" 
               domain={[0, 10]} 
-              tick={{ fontSize: window.innerWidth < 768 ? 8 : 10 }} 
+              tick={{ fontSize: isMobile ? 8 : 10 }} 
               label={{ 
-                value: window.innerWidth < 768 ? "Schmerz" : "Schmerz (0-10)", 
+                value: isMobile ? "Pain" : "Schmerz (0-10)", 
                 angle: -90, 
                 position: "insideLeft",
-                style: { textAnchor: 'middle' }
+                style: { textAnchor: 'middle', fontSize: isMobile ? 10 : 12 }
               }} 
             />
             <YAxis 
               yAxisId="pressure" 
               orientation="right" 
               domain={[950, 1050]}
-              tick={{ fontSize: window.innerWidth < 768 ? 8 : 10 }} 
+              tick={{ fontSize: isMobile ? 8 : 10 }} 
               label={{ 
                 value: "hPa", 
                 angle: 90, 
                 position: "insideRight",
-                style: { textAnchor: 'middle' }
+                style: { textAnchor: 'middle', fontSize: isMobile ? 10 : 12 }
               }} 
             />
             <Tooltip 
@@ -140,7 +144,9 @@ export default function ChartComponent({ entries }: Props) {
                 border: '1px solid hsl(var(--border))',
                 borderRadius: '8px',
                 boxShadow: '0 4px 12px hsl(var(--background) / 0.1)',
-                fontSize: window.innerWidth < 768 ? '12px' : '14px'
+                fontSize: isMobile ? '11px' : '14px',
+                padding: isMobile ? '8px' : '12px',
+                minWidth: isMobile ? '120px' : 'auto'
               }}
               formatter={(value, name) => {
                 if (name === 'pain') return [`${value}/10`, 'Schmerzlevel'];
@@ -151,15 +157,18 @@ export default function ChartComponent({ entries }: Props) {
               }}
             />
             <Legend 
-              wrapperStyle={{ fontSize: window.innerWidth < 768 ? '12px' : '14px' }}
+              wrapperStyle={{ 
+                fontSize: isMobile ? '11px' : '14px',
+                paddingTop: isMobile ? '8px' : '4px'
+              }}
             />
             <Line 
               yAxisId="pain" 
               type="monotone" 
               dataKey="pain" 
               name="Schmerz" 
-              dot={false} 
-              strokeWidth={window.innerWidth < 768 ? 3 : 2}
+              dot={{ r: isMobile ? 2 : 3, strokeWidth: 1 }} 
+              strokeWidth={isMobile ? 2 : 2}
               stroke="hsl(var(--destructive))"
             />
             <Line 
@@ -167,8 +176,8 @@ export default function ChartComponent({ entries }: Props) {
               type="monotone" 
               dataKey="pressure" 
               name="Luftdruck" 
-              dot={false} 
-              strokeWidth={window.innerWidth < 768 ? 2 : 1}
+              dot={{ r: isMobile ? 1 : 2, strokeWidth: 1 }} 
+              strokeWidth={isMobile ? 1.5 : 1}
               stroke="hsl(var(--primary))"
               connectNulls={false}
             />

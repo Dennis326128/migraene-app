@@ -40,8 +40,12 @@ export function useCompatibleEntries(filters?: { from: string; to: string }) {
       return [];
     },
     enabled: !legacyLoading && !eventsLoading,
-    // Return legacy data by default since that's what we have
-    initialData: legacyEntries || []
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    select: (data) => {
+      // Ensure we always return the most recent data
+      console.log('🔍 Compatible entries selected:', data?.length || 0, 'entries');
+      return data || [];
+    }
   });
 }
 

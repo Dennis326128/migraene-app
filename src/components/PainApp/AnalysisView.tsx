@@ -17,12 +17,14 @@ import { useFilteredEntries, useMigraineStats, useTimeDistribution } from "@/fea
 import { Pill, AlertTriangle } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { buildModernDiaryPdf } from "@/lib/pdf/modernReport";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface AnalysisViewProps {
   onBack: () => void;
 }
 
 export function AnalysisView({ onBack }: AnalysisViewProps) {
+  const isMobile = useIsMobile();
   const [viewMode, setViewMode] = useState<"tagebuch" | "analyse" | "grafik" | "medikamente" | "ueberverbrauch" | "migration">("grafik");
   const [timeRange, setTimeRange] = useState("6m");
   const [customFrom, setCustomFrom] = useState("");
@@ -205,57 +207,34 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
       </div>
 
       {/* View Mode Selector */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-wrap gap-2">
-            <Button
-              onClick={() => setViewMode("tagebuch")}
-              variant={viewMode === "tagebuch" ? "default" : "outline"}
-              className="flex items-center gap-2"
-            >
-              <FileText className="h-4 w-4" />
-              Kopfschmerztagebuch
-            </Button>
-            <Button
-              onClick={() => setViewMode("analyse")}
-              variant={viewMode === "analyse" ? "default" : "outline"}
-              className="flex items-center gap-2"
-            >
-              <BarChart3 className="h-4 w-4" />
-              Analyse
-            </Button>
-            <Button
-              onClick={() => setViewMode("grafik")}
-              variant={viewMode === "grafik" ? "default" : "outline"}
-              className="flex items-center gap-2"
-            >
-              <Activity className="h-4 w-4" />
-              Grafische Darstellung
-            </Button>
-            <Button
-              onClick={() => setViewMode("medikamente")}
-              variant={viewMode === "medikamente" ? "default" : "outline"}
-              className="flex items-center gap-2"
-            >
-              <Pill className="h-4 w-4" />
-              Medikamenten-Analyse
-            </Button>
-            <Button
-              onClick={() => setViewMode("ueberverbrauch")}
-              variant={viewMode === "ueberverbrauch" ? "default" : "outline"}
-              className="flex items-center gap-2"
-            >
-              <AlertTriangle className="h-4 w-4" />
-              Überverbrauch-Monitor
-            </Button>
-            <Button
-              onClick={() => setViewMode("migration")}
-              variant={viewMode === "migration" ? "default" : "outline"}
-              className="flex items-center gap-2"
-            >
-              <Database className="h-4 w-4" />
-              System-Migration
-            </Button>
+      <Card className={isMobile ? "mb-4 sticky top-0 z-10 shadow-md" : "mb-4"}>
+        <CardContent className="p-4">
+          <div className={`flex gap-2 ${isMobile ? 'overflow-x-auto scrollbar-hide pb-2' : 'flex-wrap'}`}>
+            {[
+              { id: "tagebuch", label: isMobile ? "📋" : "📋 Tagebuch", icon: FileText },
+              { id: "analyse", label: isMobile ? "📊" : "📊 Analyse", icon: BarChart3 },
+              { id: "grafik", label: isMobile ? "📈" : "📈 Grafik", icon: Activity },
+              { id: "medikamente", label: isMobile ? "💊" : "💊 Medikamente", icon: Pill },
+              { id: "ueberverbrauch", label: isMobile ? "⚠️" : "⚠️ Überverbrauch", icon: AlertTriangle },
+              { id: "migration", label: isMobile ? "🔄" : "🔄 Migration", icon: Database },
+            ].map(({ id, label, icon: Icon }) => (
+              <Button
+                key={id}
+                variant={viewMode === id ? "default" : "outline"}
+                size={isMobile ? "sm" : "sm"}
+                onClick={() => setViewMode(id as any)}
+                className={`${isMobile ? 'text-xs min-w-fit px-3 whitespace-nowrap' : 'text-xs'} touch-manipulation`}
+              >
+                {isMobile ? (
+                  <span className="text-sm">{label}</span>
+                ) : (
+                  <>
+                    <Icon className="mr-1 h-3 w-3" />
+                    {label}
+                  </>
+                )}
+              </Button>
+            ))}
           </div>
         </CardContent>
       </Card>
