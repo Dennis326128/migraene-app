@@ -4,7 +4,8 @@ import { ArrowLeft, FileText, BarChart3, Activity, Calendar, BookOpen, Database,
 // Import fix for DiaryReport default export
 import DiaryReport from "./DiaryReport";
 import ChartComponent from "@/components/Chart";
-import { useCompatibleEntries, useSystemStatus } from "@/hooks/useCompatibleEntries";
+import { useEntries } from "@/features/entries/hooks/useEntries";
+import { useSystemStatus } from "@/hooks/useCompatibleEntries";
 import { useDeleteEntry } from "@/features/entries/hooks/useEntryMutations";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatisticsFilter } from "./StatisticsFilter";
@@ -26,7 +27,7 @@ interface AnalysisViewProps {
 export function AnalysisView({ onBack }: AnalysisViewProps) {
   const isMobile = useIsMobile();
   const [viewMode, setViewMode] = useState<"tagebuch" | "analyse" | "grafik" | "medikamente" | "ueberverbrauch" | "migration">("grafik");
-  const [timeRange, setTimeRange] = useState("6m");
+  const [timeRange, setTimeRange] = useState("alle");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
   const [selectedLevels, setSelectedLevels] = useState<string[]>([]);
@@ -39,46 +40,60 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
 
   const { from, to } = useMemo(() => {
     const now = new Date();
-    let from: Date, to: Date;
-
+    
     switch (timeRange) {
-      case "7d":
-        from = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        to = now;
-        break;
-      case "30d":
-        from = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        to = now;
-        break;
-      case "3m":
-        from = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
-        to = now;
-        break;
-      case "6m":
-        from = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
-        to = now;
-        break;
-      case "1y":
-        from = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
-        to = now;
-        break;
-      case "custom":
-        from = customFrom ? new Date(customFrom) : new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        to = customTo ? new Date(customTo) : now;
-        break;
+      case "7d": {
+        const from = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        return {
+          from: from.toISOString().split('T')[0],
+          to: now.toISOString().split('T')[0]
+        };
+      }
+      case "30d": {
+        const from = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        return {
+          from: from.toISOString().split('T')[0],
+          to: now.toISOString().split('T')[0]
+        };
+      }
+      case "3m": {
+        const from = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+        return {
+          from: from.toISOString().split('T')[0],
+          to: now.toISOString().split('T')[0]
+        };
+      }
+      case "6m": {
+        const from = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
+        return {
+          from: from.toISOString().split('T')[0],
+          to: now.toISOString().split('T')[0]
+        };
+      }
+      case "1y": {
+        const from = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+        return {
+          from: from.toISOString().split('T')[0],
+          to: now.toISOString().split('T')[0]
+        };
+      }
+      case "custom": {
+        const from = customFrom ? new Date(customFrom) : new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        const to = customTo ? new Date(customTo) : now;
+        return {
+          from: from.toISOString().split('T')[0],
+          to: to.toISOString().split('T')[0]
+        };
+      }
+      case "alle":
       default:
-        from = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        to = now;
+        // Return undefined to get ALL entries without date filtering
+        return { from: undefined, to: undefined };
     }
-
-    return {
-      from: from.toISOString().split('T')[0],
-      to: to.toISOString().split('T')[0]
-    };
   }, [timeRange, customFrom, customTo]);
 
-  // Use compatible entries hook that supports both systems
-  const { data: entries = [], isLoading, error, refetch } = useCompatibleEntries({ from, to });
+  // Use direct entries hook to get ALL data reliably
+  const { data: entries = [], isLoading, error, refetch } = useEntries(from && to ? { from, to } : {});
   
   // Debug logging for AnalysisView
   console.log('📈 AnalysisView received data:', {
