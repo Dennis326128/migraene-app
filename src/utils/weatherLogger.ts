@@ -60,7 +60,7 @@ export async function logAndSaveWeatherAt(atISO: string): Promise<number | null>
   const accessToken = sessionData.session?.access_token;
   if (!accessToken) return null;
 
-  const url = `${VITE_SUPABASE_URL}/functions/v1/fetch-weather`;
+  const url = `${VITE_SUPABASE_URL}/functions/v1/fetch-weather-meteo`;
   const res = await fetch(url, {
     method: 'POST',
     headers: {
