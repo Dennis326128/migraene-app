@@ -173,6 +173,96 @@ export type Database = {
         }
         Relationships: []
       }
+      hormonal_logs: {
+        Row: {
+          contraception_active: boolean | null
+          contraception_type: string | null
+          created_at: string
+          cycle_day: number | null
+          cycle_phase: string | null
+          id: string
+          log_date: string
+          notes: string | null
+          symptoms: string[] | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          contraception_active?: boolean | null
+          contraception_type?: string | null
+          created_at?: string
+          cycle_day?: number | null
+          cycle_phase?: string | null
+          id?: string
+          log_date: string
+          notes?: string | null
+          symptoms?: string[] | null
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          contraception_active?: boolean | null
+          contraception_type?: string | null
+          created_at?: string
+          cycle_day?: number | null
+          cycle_phase?: string | null
+          id?: string
+          log_date?: string
+          notes?: string | null
+          symptoms?: string[] | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      lifestyle_logs: {
+        Row: {
+          alcohol_units: number | null
+          caffeine_mg: number | null
+          created_at: string
+          exercise_minutes: number | null
+          id: string
+          log_date: string
+          notes: string | null
+          sleep_hours: number | null
+          sleep_quality: number | null
+          stress_level: number | null
+          trigger_foods: string[] | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          alcohol_units?: number | null
+          caffeine_mg?: number | null
+          created_at?: string
+          exercise_minutes?: number | null
+          id?: string
+          log_date: string
+          notes?: string | null
+          sleep_hours?: number | null
+          sleep_quality?: number | null
+          stress_level?: number | null
+          trigger_foods?: string[] | null
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          alcohol_units?: number | null
+          caffeine_mg?: number | null
+          created_at?: string
+          exercise_minutes?: number | null
+          id?: string
+          log_date?: string
+          notes?: string | null
+          sleep_hours?: number | null
+          sleep_quality?: number | null
+          stress_level?: number | null
+          trigger_foods?: string[] | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       med_effects: {
         Row: {
           created_at: string
