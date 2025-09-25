@@ -45,18 +45,16 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ open, onOpenCh
   const { data: medications = [] } = useMeds();
   const createQuickEvent = useCreateQuickPainEvent();
 
-  const [intensity, setIntensity] = useState([5]); // 0-10 scale, default 5
+  const [intensity, setIntensity] = useState([7]); // 0-10 scale, default 7
   const [selectedMeds, setSelectedMeds] = useState<Record<string, SelectedMedication>>({});
-  const [notes, setNotes] = useState("");
   const [takenTime, setTakenTime] = useState<"now" | "15min" | "custom">("now");
   const [customTime, setCustomTime] = useState("");
 
   // Reset form when modal opens
   useEffect(() => {
     if (open) {
-      setIntensity([5]);
+      setIntensity([7]);
       setSelectedMeds({});
-      setNotes("");
       setTakenTime("now");
       setCustomTime("");
     }
@@ -119,8 +117,7 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ open, onOpenCh
       
       await createQuickEvent.mutateAsync({
         intensity_0_10: intensity[0],
-        medications: selectedMedsList,
-        notes: notes.trim() || undefined
+        medications: selectedMedsList
       });
 
       toast({
@@ -303,25 +300,6 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ open, onOpenCh
                   />
                 </div>
               )}
-            </CardContent>
-          </Card>
-
-          {/* Notizen */}
-          <Card>
-            <CardContent className="pt-6">
-              <Label className="text-base font-medium mb-3 block">
-                📝 Außergewöhnliche Symptome/Auslöser (optional)
-              </Label>
-              <Textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="z.B. Besonders starke Lichtempfindlichkeit, Stress durch Termin..."
-                className="min-h-[80px]"
-                maxLength={500}
-              />
-              <div className="text-xs text-muted-foreground mt-1">
-                {notes.length}/500 Zeichen
-              </div>
             </CardContent>
           </Card>
 

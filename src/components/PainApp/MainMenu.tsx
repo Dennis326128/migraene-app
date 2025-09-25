@@ -52,6 +52,17 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         )}
 
         <div className="grid gap-4 sm:gap-6 w-full max-w-md px-2 sm:px-0">
+          {/* New Entry Button */}
+          <Card className="hover:shadow-lg active:shadow-xl transition-all cursor-pointer group border-green-200 bg-green-50 hover:bg-green-100 active:scale-[0.98] touch-manipulation mobile-touch-feedback" onClick={onNewEntry}>
+            <div className="p-4 sm:p-6 text-center min-h-[4rem] sm:min-h-[6rem] flex flex-col justify-center mobile-card-compact mobile-text-compact">
+              <div className="text-2xl sm:text-4xl mb-1 sm:mb-3 group-hover:scale-110 transition-transform">➕</div>
+              <h3 className="text-base sm:text-xl font-semibold mb-1 text-green-700 mobile-button-text">Neuer Eintrag</h3>
+              <p className="text-muted-foreground text-xs leading-tight mobile-button-text">
+                Detaillierte Migräne-Dokumentation
+              </p>
+            </div>
+          </Card>
+
           {/* Quick Entry Button - Mobile Optimized */}
           <Card 
             className="hover:shadow-lg active:shadow-xl transition-all cursor-pointer group border-destructive bg-destructive/5 hover:bg-destructive/10 active:scale-[0.98] touch-manipulation mobile-touch-feedback" 
@@ -62,17 +73,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               <h3 className="text-base sm:text-xl font-semibold mb-1 text-destructive mobile-button-text">Schnelleintrag</h3>
               <p className="text-muted-foreground text-xs leading-tight mobile-button-text">
                 Sofortige Tabletteneinnahme dokumentieren
-              </p>
-            </div>
-          </Card>
-
-          {/* New Entry Button */}
-          <Card className="hover:shadow-lg active:shadow-xl transition-all cursor-pointer group active:scale-[0.98] touch-manipulation mobile-touch-feedback" onClick={onNewEntry}>
-            <div className="p-4 sm:p-6 text-center min-h-[4rem] sm:min-h-[6rem] flex flex-col justify-center mobile-card-compact mobile-text-compact">
-              <div className="text-2xl sm:text-4xl mb-1 sm:mb-3 group-hover:scale-110 transition-transform">➕</div>
-              <h3 className="text-base sm:text-xl font-semibold mb-1 mobile-button-text">Neuer Eintrag</h3>
-              <p className="text-muted-foreground text-xs leading-tight mobile-button-text">
-                Detaillierte Migräne-Dokumentation
               </p>
             </div>
           </Card>
