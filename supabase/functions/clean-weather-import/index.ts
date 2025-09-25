@@ -125,6 +125,9 @@ serve(async (req) => {
               lon: userLon,
               at: timestamp,
               userId: userId
+            },
+            headers: {
+              'Authorization': authHeader
             }
           });
 
