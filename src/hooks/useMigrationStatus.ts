@@ -21,10 +21,10 @@ export function useShouldShowMigration() {
   
   if (!status) return false;
   
-  // Show migration if:
-  // 1. There are legacy pain entries
-  // 2. No events exist yet
-  // 3. Or if events are significantly fewer than pain entries (incomplete migration)
-  return status.needsMigration || 
-         (status.painEntries > 0 && status.events < status.painEntries * 0.8);
+  // Only show migration if there are actual legacy pain entries to migrate
+  // Never show for empty systems
+  return status.painEntries > 0 && (
+    status.needsMigration || 
+    status.events < status.painEntries * 0.8
+  );
 }

@@ -40,13 +40,26 @@ export const MainMenu: React.FC<MainMenuProps> = ({
 
         {/* Migration Alert */}
         {shouldShowMigration && (
-          <Alert className="mb-4 border-orange-200">
-            <Database className="h-4 w-4" />
+          <Alert className="mb-4 border-orange-200 bg-orange-50">
+            <Database className="h-4 w-4 text-orange-600" />
             <AlertDescription>
-              <strong>System-Update verfügbar!</strong> Ihre Daten können zum verbesserten Event-System migriert werden.
-              <Button variant="link" onClick={onViewAnalysis} className="p-0 h-auto ml-2">
-                Jetzt aktualisieren →
-              </Button>
+              <div className="flex flex-col gap-2">
+                <div>
+                  <strong>Daten-Migration verfügbar!</strong>
+                  <br />
+                  <span className="text-sm text-muted-foreground">
+                    Ihre bestehenden Migräne-Einträge können zum neuen Event-System migriert werden.
+                  </span>
+                </div>
+                <Button 
+                  variant="secondary" 
+                  size="sm"
+                  onClick={onViewAnalysis} 
+                  className="w-fit"
+                >
+                  Zur Migration →
+                </Button>
+              </div>
             </AlertDescription>
           </Alert>
         )}
