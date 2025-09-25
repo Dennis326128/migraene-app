@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useUserSettings } from "@/features/settings/hooks/useUserSettings";
 import { WeatherBackfillManager } from "@/components/WeatherBackfillManager";
+import { WeatherImportButton } from "@/components/WeatherImportButton";
 import { AccountDeletion } from "@/components/AccountDeletion";
 import { MedicationLimitsSettings } from "./MedicationLimitsSettings";
 import { Separator } from "@/components/ui/separator";
@@ -154,8 +155,10 @@ const SettingsPage = ({ onBack }: { onBack: () => void }) => {
 
       {/* Weather Backfill Section */}
       <Card className="p-6 mb-4">
-        <h2 className="text-lg font-medium mb-4">🌤️ Intelligentes Wetter-Backfill</h2>
+        <h2 className="text-lg font-medium mb-4">🌤️ Wetter-Daten Management</h2>
         <div className="space-y-4">
+          <WeatherImportButton />
+          <Separator />
           <WeatherBackfillManager />
         </div>
       </Card>
