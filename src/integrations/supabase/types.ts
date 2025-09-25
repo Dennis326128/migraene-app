@@ -504,6 +504,39 @@ export type Database = {
         }
         Relationships: []
       }
+      user_medication_limits: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          limit_count: number
+          medication_name: string
+          period_type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          limit_count: number
+          medication_name: string
+          period_type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          limit_count?: number
+          medication_name?: string
+          period_type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_medications: {
         Row: {
           created_at: string | null

@@ -12,6 +12,8 @@ import { useCreateEntry, useUpdateEntry } from "@/features/entries/hooks/useEntr
 import { useMeds, useAddMed, useDeleteMed } from "@/features/meds/hooks/useMeds";
 import { useSymptomCatalog, useEntrySymptoms, useSetEntrySymptoms } from "@/features/symptoms/hooks/useSymptoms";
 import { useLastEntryDefaults, useCreateEntryMedication } from "@/features/entries/hooks/useEntryMedications";
+import { useCheckMedicationLimits, type LimitCheck } from "@/features/medication-limits/hooks/useMedicationLimits";
+import { MedicationLimitWarning } from "./MedicationLimitWarning";
 import type { EntryMedication } from "@/types/entryMedications";
 
 interface NewEntryProps {
@@ -72,6 +74,12 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
   const { data: lastDefaults } = useLastEntryDefaults();
 
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
+
+  // Medication limit checking
+  const [showLimitWarning, setShowLimitWarning] = useState(false);
+  const [limitChecks, setLimitChecks] = useState<LimitCheck[]>([]);
+  const [pendingSave, setPendingSave] = useState(false);
+  const checkLimits = useCheckMedicationLimits();
   
   // Set entry symptoms when data loads or prefill from last entry for new entries
   useEffect(() => {
@@ -196,7 +204,33 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
       return;
     }
 
+    // Check medication limits before saving
+    const activeMedications = selectedMedications.filter((m) => m !== "-" && m.trim() !== "");
+    if (activeMedications.length > 0 && !pendingSave) {
+      try {
+        const limitResults = await checkLimits.mutateAsync(activeMedications);
+        const warningNeeded = limitResults.some(result => 
+          result.status === 'warning' || result.status === 'reached' || result.status === 'exceeded'
+        );
+        
+        if (warningNeeded) {
+          setLimitChecks(limitResults);
+          setShowLimitWarning(true);
+          return;
+        }
+      } catch (error) {
+        console.error('Error checking medication limits:', error);
+        // Continue with save if limit check fails
+      }
+    }
+
+    await performSave();
+  };
+
+  const performSave = async () => {
+
     setSaving(true);
+    setPendingSave(false);
     try {
       // Wetter für alle Einträge abfragen
       const atISO = new Date(`${selectedDate}T${selectedTime}:00`).toISOString();
@@ -251,6 +285,24 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
         onSave?.();
         onBack();
       }, 1000);
+    } catch (error) {
+      console.error("Save error:", error);
+      toast({ 
+        title: "❌ Fehler beim Speichern", 
+        description: "Bitte versuchen Sie es erneut.", 
+        variant: "destructive" 
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+      });
+      
+      // Success animation delay
+      setTimeout(() => {
+        onSave?.();
+        onBack();
+      }, 1000);
       
       // Haptic feedback for success
       triggerHapticFeedback();
@@ -260,8 +312,6 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
       setSaving(false);
     }
   };
-
-  return (
     <div className="p-6 bg-gradient-to-br from-background to-secondary/20 min-h-screen">
       <div className="flex items-center justify-between mb-6">
         <Button 
@@ -550,6 +600,22 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
         <Save className="w-5 h-5 mr-2" /> 
         {saving || createMut.isPending || updateMut.isPending || setEntrySymptomsMut.isPending ? "Speichere..." : "Migräne-Eintrag speichern"}
       </Button>
+
+      {/* Medication Limit Warning Dialog */}
+      <MedicationLimitWarning
+        isOpen={showLimitWarning}
+        onOpenChange={setShowLimitWarning}
+        limitChecks={limitChecks}
+        onContinue={() => {
+          setPendingSave(true);
+          setShowLimitWarning(false);
+          handleSave();
+        }}
+        onCancel={() => {
+          setShowLimitWarning(false);
+          setPendingSave(false);
+        }}
+      />
     </div>
   );
 };

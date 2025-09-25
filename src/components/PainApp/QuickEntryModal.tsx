@@ -112,6 +112,32 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ open, onOpenCh
   };
 
   const handleSave = async () => {
+    const selectedMedsList = Object.values(selectedMeds);
+    const medicationNames = selectedMedsList.map(med => med.name).filter(Boolean);
+    
+    // Check medication limits before saving
+    if (medicationNames.length > 0 && !pendingSave) {
+      try {
+        const limitResults = await checkLimits.mutateAsync(medicationNames);
+        const warningNeeded = limitResults.some(result => 
+          result.status === 'warning' || result.status === 'reached' || result.status === 'exceeded'
+        );
+        
+        if (warningNeeded) {
+          setLimitChecks(limitResults);
+          setShowLimitWarning(true);
+          return;
+        }
+      } catch (error) {
+        console.error('Error checking medication limits:', error);
+      }
+    }
+
+    await performSave();
+  };
+
+  const performSave = async () => {
+    setPendingSave(false);
     try {
       const selectedMedsList = Object.values(selectedMeds);
       
@@ -340,6 +366,22 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ open, onOpenCh
           </div>
         </div>
       </DialogContent>
+
+      {/* Medication Limit Warning Dialog */}
+      <MedicationLimitWarning
+        isOpen={showLimitWarning}
+        onOpenChange={setShowLimitWarning}
+        limitChecks={limitChecks}
+        onContinue={() => {
+          setPendingSave(true);
+          setShowLimitWarning(false);
+          performSave();
+        }}
+        onCancel={() => {
+          setShowLimitWarning(false);
+          setPendingSave(false);
+        }}
+      />
     </Dialog>
   );
 };
