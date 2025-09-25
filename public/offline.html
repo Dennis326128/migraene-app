@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Offline - Migräne-App</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+        
+        .offline-container {
+            text-align: center;
+            max-width: 400px;
+            padding: 2rem;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        
+        .offline-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+        
+        h1 {
+            margin: 0 0 1rem 0;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+        
+        p {
+            margin: 0 0 2rem 0;
+            opacity: 0.9;
+            line-height: 1.5;
+        }
+        
+        .retry-button {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.2s ease;
+        }
+        
+        .retry-button:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-1px);
+        }
+        
+        .features {
+            margin-top: 2rem;
+            text-align: left;
+            font-size: 0.9rem;
+        }
+        
+        .features h3 {
+            margin: 0 0 0.5rem 0;
+            font-size: 1rem;
+        }
+        
+        .features ul {
+            margin: 0;
+            padding-left: 1.2rem;
+            opacity: 0.8;
+        }
+        
+        .features li {
+            margin-bottom: 0.3rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="offline-container">
+        <div class="offline-icon">🔌</div>
+        <h1>Sie sind offline</h1>
+        <p>
+            Keine Internetverbindung verfügbar. Die Migräne-App funktioniert auch offline 
+            mit eingeschränkter Funktionalität.
+        </p>
+        
+        <button class="retry-button" onclick="location.reload()">
+            🔄 Erneut versuchen
+        </button>
+        
+        <div class="features">
+            <h3>📱 Offline verfügbar:</h3>
+            <ul>
+                <li>Gespeicherte Einträge anzeigen</li>
+                <li>Neue Einträge erstellen*</li>
+                <li>Statistiken der cached Daten</li>
+                <li>Einstellungen bearbeiten*</li>
+            </ul>
+            <p style="font-size: 0.8rem; margin-top: 1rem;">
+                * Werden synchronisiert sobald Sie wieder online sind
+            </p>
+        </div>
+    </div>
+
+    <script>
+        // Automatisch zur App weiterleiten wenn wieder online
+        window.addEventListener('online', () => {
+            window.location.href = '/';
+        });
+        
+        // Online-Status anzeigen
+        function updateOnlineStatus() {
+            if (navigator.onLine) {
+                window.location.href = '/';
+            }
+        }
+        
+        window.addEventListener('online', updateOnlineStatus);
+        
+        // Periodisch Verbindung testen
+        setInterval(() => {
+            if (navigator.onLine) {
+                fetch('/', { method: 'HEAD', cache: 'no-cache' })
+                    .then(() => {
+                        window.location.href = '/';
+                    })
+                    .catch(() => {
+                        // Noch offline
+                    });
+            }
+        }, 5000);
+    </script>
+</body>
+</html>

@@ -3,10 +3,16 @@ import { PainApp } from "@/components/PainApp";
 import { logDailyWeatherSnapshots } from "@/utils/weatherLogger";
 import { backfillWeatherForRecentEntries } from "@/utils/backfillWeather";
 import { getUserSettings } from "@/features/settings/api/settings.api";
+import { useOptimizedCache } from "@/hooks/useOptimizedCache";
 
 const Index = () => {
+  const { prefetchEssentials } = useOptimizedCache();
+
   useEffect(() => {
     const today = new Date().toISOString().slice(0, 10);
+
+    // Prefetch essential data for better performance
+    prefetchEssentials();
 
     // a) Tägliche Wetter-Snapshots (06/12/18 Uhr)
     const keyA = "weather-snapshots-last";
@@ -37,7 +43,7 @@ const Index = () => {
         }
       })();
     }
-  }, []);
+  }, [prefetchEssentials]);
 
   return <PainApp />;
 };

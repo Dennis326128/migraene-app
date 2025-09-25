@@ -11,6 +11,7 @@ import Index from "./pages/Index";
 import AuthPage from "./pages/AuthPage";
 import NotFound from "./pages/NotFound";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
+import { registerOfflineSupport } from "@/hooks/useOptimizedCache";
 
 // Create QueryClient with error recovery
 const queryClient = new QueryClient({
@@ -63,6 +64,9 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     );
 
     getInitialSession();
+
+    // Register service worker for offline support
+    registerOfflineSupport();
 
     return () => {
       mounted = false;
