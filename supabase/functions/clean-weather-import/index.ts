@@ -84,8 +84,8 @@ serve(async (req) => {
     let failed = 0;
     const errors: string[] = [];
 
-    // Process entries in batches of 5
-    const batchSize = 5;
+    // Process entries in batches of 1 for testing
+    const batchSize = 1;
     for (let i = 0; i < entries.length; i += batchSize) {
       const batch = entries.slice(i, i + batchSize);
       console.log(`🔄 Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(entries.length/batchSize)}`);
@@ -118,12 +118,17 @@ serve(async (req) => {
 
           console.log(`🌤️ Fetching weather for entry ${entry.id} at ${timestamp}`);
 
-          // Call fetch-weather-hybrid function
+          // Call fetch-weather-hybrid function with service role
+          const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
           const { data: weatherResult, error: weatherError } = await supabase.functions.invoke('fetch-weather-hybrid', {
             body: {
               lat: userLat,
               lon: userLon,
-              at: timestamp
+              at: timestamp,
+              userId: userId
+            },
+            headers: {
+              'Authorization': `Bearer ${serviceRoleKey}`
             }
           });
 

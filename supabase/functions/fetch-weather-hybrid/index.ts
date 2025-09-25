@@ -29,25 +29,22 @@ serve(async (req) => {
     const token = authHeader.replace('Bearer ', '');
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     let userId: string;
+    let lat: number, lon: number, at: string;
 
     if (token === serviceRoleKey) {
       // Service role authentication - get userId from request body
       const requestBody = await req.json();
-      const { lat, lon, at, userId: requestUserId } = requestBody;
+      const { lat: reqLat, lon: reqLon, at: reqAt, userId: requestUserId } = requestBody;
       
       if (!requestUserId) {
         throw new Error('userId required for service role authentication');
       }
       
       userId = requestUserId;
+      lat = reqLat;
+      lon = reqLon;
+      at = reqAt;
       console.log('🔑 Service role authentication for user:', userId);
-      
-      // Re-parse request data
-      const requestData = { lat, lon, at };
-      console.log('📍 Weather request for:', { ...requestData, userId });
-      
-      // Continue with the rest of the function using requestData
-      req.json = () => Promise.resolve(requestData);
     } else {
       // User JWT authentication
       const { data: { user }, error: authError } = await supabase.auth.getUser(token);
@@ -58,9 +55,14 @@ serve(async (req) => {
 
       userId = user.id;
       console.log('👤 User JWT authentication:', userId);
+      
+      // Parse request body for user JWT
+      const { lat: reqLat, lon: reqLon, at: reqAt } = await req.json();
+      lat = reqLat;
+      lon = reqLon;
+      at = reqAt;
     }
 
-    const { lat, lon, at } = await req.json();
     console.log('📍 Weather request for:', { lat, lon, at, userId });
 
     if (!lat || !lon || !at) {
