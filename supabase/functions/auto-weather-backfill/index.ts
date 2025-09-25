@@ -89,11 +89,29 @@ serve(async (req) => {
               continue;
             }
 
-            // Determine the target timestamp
+            // Determine the target timestamp with safe date parsing
             let targetTimestamp: string;
-            if (entry.selected_date && entry.selected_time) {
-              targetTimestamp = new Date(`${entry.selected_date}T${entry.selected_time}:00`).toISOString();
-            } else {
+            try {
+              if (entry.selected_date && entry.selected_time) {
+                // Validate date components
+                const dateStr = String(entry.selected_date);
+                const timeStr = String(entry.selected_time);
+                
+                // Try parsing the date combination
+                const combinedDateTime = new Date(`${dateStr}T${timeStr}:00`);
+                
+                // Check if the date is valid
+                if (isNaN(combinedDateTime.getTime())) {
+                  console.log(`⚠️ Invalid date/time combination for entry ${entry.id}: ${dateStr}T${timeStr}, falling back to timestamp_created`);
+                  targetTimestamp = new Date(entry.timestamp_created).toISOString();
+                } else {
+                  targetTimestamp = combinedDateTime.toISOString();
+                }
+              } else {
+                targetTimestamp = new Date(entry.timestamp_created).toISOString();
+              }
+            } catch (dateError) {
+              console.log(`⚠️ Date parsing error for entry ${entry.id}, using timestamp_created:`, dateError);
               targetTimestamp = new Date(entry.timestamp_created).toISOString();
             }
 

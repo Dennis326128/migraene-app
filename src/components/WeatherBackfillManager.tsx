@@ -102,30 +102,43 @@ export function WeatherBackfillManager() {
       successCount: 0,
       failCount: 0,
       currentAction: 'Starte Wetter-Backfill...',
-      logs: ['🚀 Wetter-Backfill gestartet']
+      logs: ['🚀 Wetter-Backfill gestartet', '📡 Verbinde mit Wetter-Service...']
     }));
 
     try {
       const result = await triggerAutoBackfill();
       
+      const completionLogs = [
+        `🎉 Backfill abgeschlossen!`,
+        `📊 Verarbeitet: ${result.totalProcessed || 0} Einträge`,
+        `✅ Erfolgreich: ${result.successCount || 0}`,
+        `❌ Fehlgeschlagen: ${result.failCount || 0}`
+      ];
+
+      // Add first 3 errors if any
+      if (result.errors && result.errors.length > 0) {
+        completionLogs.push('🔍 Erste Fehler:');
+        result.errors.slice(0, 3).forEach((error: string) => {
+          completionLogs.push(`  • ${error}`);
+        });
+        if (result.errors.length > 3) {
+          completionLogs.push(`  ... und ${result.errors.length - 3} weitere`);
+        }
+      }
+      
       setProgress(prev => ({
         ...prev,
         isRunning: false,
-        successCount: result.successCount,
-        failCount: result.failCount,
-        currentAction: result.success ? 'Backfill abgeschlossen' : 'Backfill fehlgeschlagen',
-        logs: [
-          ...prev.logs,
-          `✅ Erfolgreich: ${result.successCount}`,
-          `❌ Fehlgeschlagen: ${result.failCount}`,
-          result.message || 'Backfill abgeschlossen'
-        ]
+        successCount: result.successCount || 0,
+        failCount: result.failCount || 0,
+        currentAction: result.success ? 'Backfill abgeschlossen' : 'Backfill teilweise erfolgreich',
+        logs: [...prev.logs, ...completionLogs]
       }));
 
       toast({
         title: result.success ? "Backfill erfolgreich" : "Backfill teilweise erfolgreich",
-        description: `${result.successCount} erfolgreich, ${result.failCount} fehlgeschlagen`,
-        variant: result.success ? "default" : "destructive"
+        description: `${result.successCount || 0} erfolgreich, ${result.failCount || 0} fehlgeschlagen`,
+        variant: result.success && result.failCount === 0 ? "default" : "destructive"
       });
 
       // Reload stats
@@ -135,7 +148,7 @@ export function WeatherBackfillManager() {
         ...prev,
         isRunning: false,
         currentAction: 'Fehler aufgetreten',
-        logs: [...prev.logs, `❌ Fehler: ${error.message}`]
+        logs: [...prev.logs, `❌ Verbindungsfehler: ${error.message}`, '💡 Tipp: Versuchen Sie es später erneut oder verwenden Sie den manuellen Modus']
       }));
 
       toast({
@@ -330,11 +343,12 @@ export function WeatherBackfillManager() {
             ℹ️ Wie funktioniert das Wetter-Backfill?
           </h4>
           <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
-            <li>• Verwendet OpenWeatherMap API für historische Wetterdaten</li>
-            <li>• Verarbeitet maximal 50 Einträge pro Durchlauf</li>
+            <li>• Verwendet kostenlose Open-Meteo API für historische Wetterdaten</li>
+            <li>• Verarbeitet Einträge in Batches zur besseren Performance</li>
             <li>• Automatisches Rate-Limiting verhindert API-Überlastung</li>
-            <li>• Koordinaten werden aus Ihrem Benutzerprofil verwendet</li>
+            <li>• Robuste Datum/Zeit-Verarbeitung mit Fallback-Mechanismus</li>
             <li>• Bereits vorhandene Wetterdaten werden nicht überschrieben</li>
+            <li>• Bei Fehlern wird automatisch auf timestamp_created zurückgegriffen</li>
           </ul>
         </div>
       </CardContent>
