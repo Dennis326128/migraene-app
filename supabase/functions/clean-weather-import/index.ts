@@ -17,7 +17,7 @@ serve(async (req) => {
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
     );
 
     // Get authenticated user
@@ -118,17 +118,13 @@ serve(async (req) => {
 
           console.log(`🌤️ Fetching weather for entry ${entry.id} at ${timestamp}`);
 
-          // Call fetch-weather-hybrid function with service role
-          const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+          // Call fetch-weather-hybrid function with user JWT
           const { data: weatherResult, error: weatherError } = await supabase.functions.invoke('fetch-weather-hybrid', {
             body: {
               lat: userLat,
               lon: userLon,
               at: timestamp,
               userId: userId
-            },
-            headers: {
-              'Authorization': `Bearer ${serviceRoleKey}`
             }
           });
 
