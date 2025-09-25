@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Database, ArrowRight, AlertTriangle, CheckCircle, Cloud } from "lucide-react";
+import { Database, ArrowRight, AlertTriangle, CheckCircle, Cloud, PlusCircle } from "lucide-react";
 import { migratePainEntriesToEvents, getMigrationStatus, enhancedWeatherBackfill, type MigrationResult } from "@/services/migration.service";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -64,6 +64,28 @@ export function MigrationPanel() {
       <Card>
         <CardContent className="pt-6">
           <div className="text-center">Prüfe Migrations-Status...</div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Handle empty system first
+  if (status?.isEmpty) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <PlusCircle className="h-5 w-5 text-blue-500" />
+            Erste Schritte
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground mb-4">
+            Ihr System ist bereit! Erstellen Sie Ihren ersten Migräne-Eintrag, um mit der Auswertung zu beginnen.
+          </p>
+          <div className="text-xs text-muted-foreground">
+            💡 Tipp: Nach einigen Einträgen können Sie hier Wetter-Daten ergänzen und Analysen durchführen.
+          </div>
         </CardContent>
       </Card>
     );

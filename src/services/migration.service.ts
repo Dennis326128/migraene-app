@@ -150,10 +150,14 @@ export async function getMigrationStatus() {
     supabase.from("events").select("id", { count: "exact", head: true }).eq("user_id", user.id)
   ]);
 
+  const painCount = painEntriesResult.count || 0;
+  const eventsCount = eventsResult.count || 0;
+  
   return {
-    painEntries: painEntriesResult.count || 0,
-    events: eventsResult.count || 0,
-    needsMigration: (painEntriesResult.count || 0) > 0 && (eventsResult.count || 0) === 0
+    painEntries: painCount,
+    events: eventsCount,
+    needsMigration: painCount > 0 && eventsCount === 0,
+    isEmpty: painCount === 0 && eventsCount === 0
   };
 }
 
