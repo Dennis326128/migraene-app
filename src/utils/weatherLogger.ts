@@ -13,32 +13,25 @@ async function getCoords(): Promise<Coords | null> {
   const userId = await getUserId();
   if (!userId) return null;
 
-  // 1) gespeicherte Koordinaten?
-  const { data: profile } = await supabase
-    .from('user_profiles')
-    .select('latitude, longitude')
-    .eq('user_id', userId)
-    .maybeSingle();
-
-  if (profile?.latitude && profile?.longitude) {
-    return { lat: Number(profile.latitude), lon: Number(profile.longitude) };
-  }
-
-  // 2) aktuelle Position?
+  // 1) Immer zuerst aktuelle GPS-Position versuchen
   try {
     const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 10000 });
     const lat = pos.coords.latitude;
     const lon = pos.coords.longitude;
-    // speichern
-    await supabase
-      .from('user_profiles')
-      .upsert(
-        { user_id: userId, latitude: lat, longitude: lon, updated_at: new Date().toISOString() },
-        { onConflict: 'user_id' }
-      );
     return { lat, lon };
   } catch {
-    // 3) Fallback: letzte bekannte Koordinaten aus weather_logs
+    // 2) Fallback: gespeicherte Koordinaten aus user_profiles
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('latitude, longitude')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (profile?.latitude && profile?.longitude) {
+      return { lat: Number(profile.latitude), lon: Number(profile.longitude) };
+    }
+
+    // 3) Letzter Fallback: letzte bekannte Koordinaten aus weather_logs
     const { data: lastLog } = await supabase
       .from('weather_logs')
       .select('latitude, longitude')

@@ -198,15 +198,9 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
 
     setSaving(true);
     try {
-      // Wetter nur bei rückdatierten Einträgen sofort abfragen
+      // Wetter für alle Einträge abfragen
       const atISO = new Date(`${selectedDate}T${selectedTime}:00`).toISOString();
-      const now = new Date();
-      const isBackdated =
-        selectedDate < now.toISOString().slice(0,10) ||
-        (selectedDate === now.toISOString().slice(0,10) &&
-         new Date(atISO).getTime() < now.getTime() - 2 * 60 * 60 * 1000); // >2h in der Vergangenheit
-
-      const weatherId = isBackdated ? await logAndSaveWeatherAt(atISO) : null;
+      const weatherId = await logAndSaveWeatherAt(atISO);
 
       const payload = {
         selected_date: selectedDate,
