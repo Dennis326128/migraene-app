@@ -4,6 +4,9 @@ import { Card } from "@/components/ui/card";
 import { Plus, History, TrendingUp, Settings } from "lucide-react";
 import { LogoutButton } from "@/components/LogoutButton";
 import { QuickEntryModal } from "./QuickEntryModal";
+import { useShouldShowMigration } from "@/hooks/useMigrationStatus";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Database } from "lucide-react";
 
 interface MainMenuProps {
   onNewEntry: () => void;
@@ -19,6 +22,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   onViewSettings,
 }) => {
   const [quickEntryOpen, setQuickEntryOpen] = useState(false);
+  const shouldShowMigration = useShouldShowMigration();
 
   return (
     <div className="min-h-screen bg-background p-4 sm:p-6 flex flex-col">
@@ -30,6 +34,19 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           <h1 className="text-3xl sm:text-4xl font-light text-foreground mb-2">Migräne-App</h1>
           <p className="text-muted-foreground text-sm sm:text-base">Verfolgen Sie Ihre Migräne und finden Sie Muster</p>
         </div>
+
+        {/* Migration Alert */}
+        {shouldShowMigration && (
+          <Alert className="mb-4 border-orange-200">
+            <Database className="h-4 w-4" />
+            <AlertDescription>
+              <strong>System-Update verfügbar!</strong> Ihre Daten können zum verbesserten Event-System migriert werden.
+              <Button variant="link" onClick={onViewAnalysis} className="p-0 h-auto ml-2">
+                Jetzt aktualisieren →
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
 
         <div className="grid gap-4 sm:gap-6 w-full max-w-md px-2 sm:px-0">
           {/* Quick Entry Button - Mobile Optimized */}

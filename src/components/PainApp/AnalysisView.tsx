@@ -12,15 +12,16 @@ import { StatisticsCards } from "./StatisticsCards";
 import { TimeDistributionChart } from "./TimeDistributionChart";
 import { MedicationEffectsView } from "./MedicationEffectsView";
 import { OveruseMonitor } from "./OveruseMonitor";
+import { MigrationPanel } from "./MigrationPanel";
 import { useFilteredEntries, useMigraineStats, useTimeDistribution } from "@/features/statistics/hooks/useStatistics";
-import { Pill, AlertTriangle } from "lucide-react";
+import { Pill, AlertTriangle, Database } from "lucide-react";
 
 interface AnalysisViewProps {
   onBack: () => void;
 }
 
 export function AnalysisView({ onBack }: AnalysisViewProps) {
-  const [viewMode, setViewMode] = useState<"tagebuch" | "analyse" | "grafik" | "medikamente" | "ueberverbrauch">("tagebuch");
+  const [viewMode, setViewMode] = useState<"tagebuch" | "analyse" | "grafik" | "medikamente" | "ueberverbrauch" | "migration">("tagebuch");
   const [timeRange, setTimeRange] = useState("3m");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
@@ -231,6 +232,14 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
               <AlertTriangle className="h-4 w-4" />
               Überverbrauch-Monitor
             </Button>
+            <Button
+              onClick={() => setViewMode("migration")}
+              variant={viewMode === "migration" ? "default" : "outline"}
+              className="flex items-center gap-2"
+            >
+              <Database className="h-4 w-4" />
+              System-Migration
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -374,6 +383,39 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
             <OveruseMonitor />
           </CardContent>
         </Card>
+      )}
+
+      {viewMode === "migration" && (
+        <div className="space-y-6">
+          <MigrationPanel />
+          <Card>
+            <CardHeader>
+              <CardTitle>Was bietet das neue System?</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <h4 className="font-medium">📊 Erweiterte Analysen</h4>
+                  <ul className="text-sm text-muted-foreground space-y-1">
+                    <li>• Medikamenten-Wirksamkeit tracking</li>
+                    <li>• Detaillierte Symptom-Korrelationen</li>
+                    <li>• Verbesserte Wetter-Analysen</li>
+                    <li>• Zeitbasierte Trend-Erkennung</li>
+                  </ul>
+                </div>
+                <div className="space-y-2">
+                  <h4 className="font-medium">💊 Smart Medication</h4>
+                  <ul className="text-sm text-muted-foreground space-y-1">
+                    <li>• Automatische Wirksamkeits-Erinnerungen</li>
+                    <li>• Dosierung und Einnahme-Zeitpunkte</li>
+                    <li>• Überverbrauch-Warnungen</li>
+                    <li>• Medikamenten-Interaktionen</li>
+                  </ul>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       )}
     </div>
   );
