@@ -85,7 +85,7 @@ export function AccountDeletion() {
       if (!user) throw new Error('Nicht angemeldet');
 
       // Call the delete account function
-      const { error } = await supabase.rpc('delete_user_account');
+      const { error } = await supabase.rpc('delete_user_account' as any);
       
       if (error) throw error;
 

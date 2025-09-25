@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      audit_logs: {
+        Row: {
+          action: string
+          created_at: string
+          id: string
+          old_data: Json | null
+          record_id: string | null
+          table_name: string | null
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          id?: string
+          old_data?: Json | null
+          record_id?: string | null
+          table_name?: string | null
+          user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          id?: string
+          old_data?: Json | null
+          record_id?: string | null
+          table_name?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       entry_symptoms: {
         Row: {
           created_at: string
@@ -312,6 +342,42 @@ export type Database = {
         }
         Relationships: []
       }
+      user_consents: {
+        Row: {
+          consent_date: string
+          consent_given: boolean
+          consent_type: string
+          created_at: string
+          id: string
+          ip_address: string | null
+          updated_at: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          consent_date?: string
+          consent_given?: boolean
+          consent_type: string
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          updated_at?: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          consent_date?: string
+          consent_given?: boolean
+          consent_type?: string
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          updated_at?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_medications: {
         Row: {
           created_at: string | null
@@ -525,6 +591,10 @@ export type Database = {
           p_notes?: string
         }
         Returns: number
+      }
+      delete_user_account: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
       }
       invoke_auto_weather: {
         Args: Record<PropertyKey, never>
