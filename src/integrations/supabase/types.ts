@@ -353,6 +353,8 @@ export type Database = {
         Row: {
           aura_type: string
           id: number
+          latitude: number | null
+          longitude: number | null
           medications: string[] | null
           notes: string | null
           pain_level: string
@@ -366,6 +368,8 @@ export type Database = {
         Insert: {
           aura_type?: string
           id?: number
+          latitude?: number | null
+          longitude?: number | null
           medications?: string[] | null
           notes?: string | null
           pain_level: string
@@ -379,6 +383,8 @@ export type Database = {
         Update: {
           aura_type?: string
           id?: number
+          latitude?: number | null
+          longitude?: number | null
           medications?: string[] | null
           notes?: string | null
           pain_level?: string
@@ -783,6 +789,8 @@ export type Database = {
         Returns: {
           aura_type: string
           id: number
+          latitude: number | null
+          longitude: number | null
           medications: string[] | null
           notes: string | null
           pain_level: string

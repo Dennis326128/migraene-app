@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowLeft, Plus, X, Save, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { MigraineEntry } from "@/types/painApp";
-import { logAndSaveWeatherAt } from "@/utils/weatherLogger";
+import { logAndSaveWeatherAt, logAndSaveWeatherAtCoords } from "@/utils/weatherLogger";
 import { useCreateEntry, useUpdateEntry } from "@/features/entries/hooks/useEntryMutations";
 import { useMeds, useAddMed, useDeleteMed } from "@/features/meds/hooks/useMeds";
 import { useSymptomCatalog, useEntrySymptoms, useSetEntrySymptoms } from "@/features/symptoms/hooks/useSymptoms";
@@ -231,11 +231,30 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
     setSaving(true);
     setPendingSave(false);
     
+    // Capture GPS coordinates first
+    let latitude = null;
+    let longitude = null;
+    try {
+      const { Geolocation } = await import('@capacitor/geolocation');
+      const pos = await Geolocation.getCurrentPosition({ 
+        enableHighAccuracy: true, 
+        timeout: 10000 
+      });
+      latitude = pos.coords.latitude;
+      longitude = pos.coords.longitude;
+    } catch (gpsError) {
+      console.warn('GPS coordinates capture failed:', gpsError);
+    }
+    
     let weatherId = null;
     try {
-      // Versuche Wetterdaten zu holen, aber blockiere nicht das Speichern wenn es fehlschlägt
+      // Use captured coordinates for weather data
       const atISO = new Date(`${selectedDate}T${selectedTime}:00`).toISOString();
-      weatherId = await logAndSaveWeatherAt(atISO);
+      if (latitude && longitude) {
+        weatherId = await logAndSaveWeatherAtCoords(atISO, latitude, longitude);
+      } else {
+        weatherId = await logAndSaveWeatherAt(atISO);
+      }
     } catch (weatherError) {
       console.warn('Weather data fetch failed, continuing without weather data:', weatherError);
       toast({ 
@@ -255,6 +274,8 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
         medications: selectedMedications.filter((m) => m !== "-" && m.trim() !== ""),
         notes: notes.trim() || null,
         weather_id: weatherId,
+        latitude,
+        longitude,
       };
 
       let savedId: string | number;

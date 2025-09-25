@@ -23,6 +23,8 @@ export interface MigraineEntry {
   notes?: string | null;
   weather_id?: number | null;
   weather?: WeatherData;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 // Backward compatibility
