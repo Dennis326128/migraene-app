@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useUserSettings } from "@/features/settings/hooks/useUserSettings";
-import { WeatherBackfillTest } from "@/components/WeatherBackfillTest";
+import { WeatherBackfillManager } from "@/components/WeatherBackfillManager";
 import { AccountDeletion } from "@/components/AccountDeletion";
 import { MedicationLimitsSettings } from "./MedicationLimitsSettings";
 import { Separator } from "@/components/ui/separator";
@@ -152,8 +152,13 @@ const SettingsPage = ({ onBack }: { onBack: () => void }) => {
         </div>
       </Card>
 
-      {/* Test Component for Development */}
-      <WeatherBackfillTest />
+      {/* Weather Backfill Section */}
+      <Card className="p-6 mb-4">
+        <h2 className="text-lg font-medium mb-4">🌤️ Intelligentes Wetter-Backfill</h2>
+        <div className="space-y-4">
+          <WeatherBackfillManager />
+        </div>
+      </Card>
     </div>
   );
 };

@@ -50,188 +50,238 @@ serve(async (req) => {
     // Step 1: Backfill missing weather data for pain_entries (legacy system)
     console.log('📋 Processing pain_entries without weather data...');
     
-    const { data: painEntries, error: painEntriesError } = await supabase
-      .from('pain_entries')
-      .select(`
-        id, user_id, timestamp_created, selected_date, selected_time, weather_id,
-        user_profiles!inner(latitude, longitude)
-      `)
-      .is('weather_id', null)
-      .not('user_profiles.latitude', 'is', null)
-      .not('user_profiles.longitude', 'is', null)
-      .order('timestamp_created', { ascending: false })
-      .limit(50); // Process in batches to avoid timeout
+    // First, get users with coordinates
+    const { data: usersWithCoords, error: coordsError } = await supabase
+      .from('user_profiles')
+      .select('user_id, latitude, longitude')
+      .not('latitude', 'is', null)
+      .not('longitude', 'is', null);
 
-    if (painEntriesError) {
-      console.error('❌ Error fetching pain entries:', painEntriesError);
-      errors.push(`Pain entries fetch error: ${painEntriesError.message}`);
-    } else if (painEntries) {
-      totalProcessed += painEntries.length;
+    if (coordsError) {
+      console.error('❌ Error fetching user coordinates:', coordsError);
+      errors.push(`User coordinates fetch error: ${coordsError.message}`);
+    } else if (usersWithCoords && usersWithCoords.length > 0) {
+      const userIds = usersWithCoords.map(u => u.user_id);
       
-      for (const entry of painEntries) {
-        try {
-          const profile = Array.isArray(entry.user_profiles) ? entry.user_profiles[0] : entry.user_profiles;
-          if (!profile || !profile.latitude || !profile.longitude) continue;
+      // Then get pain entries for those users
+      const { data: painEntries, error: painEntriesError } = await supabase
+        .from('pain_entries')
+        .select('id, user_id, timestamp_created, selected_date, selected_time')
+        .is('weather_id', null)
+        .in('user_id', userIds)
+        .order('timestamp_created', { ascending: false })
+        .limit(50); // Process in batches to avoid timeout
 
-          // Determine the target timestamp
-          let targetTimestamp: string;
-          if (entry.selected_date && entry.selected_time) {
-            targetTimestamp = new Date(`${entry.selected_date}T${entry.selected_time}:00`).toISOString();
-          } else {
-            targetTimestamp = new Date(entry.timestamp_created).toISOString();
-          }
-
-          const targetDate = new Date(targetTimestamp);
-          const dateStr = targetDate.toISOString().split('T')[0];
-
-          // Check if weather data already exists for this date/location
-          const { data: existingWeather } = await supabase
-            .from('weather_logs')
-            .select('id')
-            .eq('user_id', entry.user_id)
-            .eq('latitude', profile.latitude)
-            .eq('longitude', profile.longitude)
-            .eq('snapshot_date', dateStr)
-            .limit(1);
-
-          let weatherId: number;
-
-          if (existingWeather && existingWeather.length > 0) {
-            // Use existing weather data
-            weatherId = existingWeather[0].id;
-            console.log(`♻️ Using existing weather data for entry ${entry.id}`);
-          } else {
-            // Fetch new weather data
-            const weatherResult = await fetchWeatherData(
-              profile.latitude,
-              profile.longitude,
-              targetTimestamp,
-              openWeatherApiKey,
-              supabase,
-              entry.user_id
-            );
-
-            if (!weatherResult) {
+      if (painEntriesError) {
+        console.error('❌ Error fetching pain entries:', painEntriesError);
+        errors.push(`Pain entries fetch error: ${painEntriesError.message}`);
+      } else if (painEntries && painEntries.length > 0) {
+        totalProcessed += painEntries.length;
+        
+        for (const entry of painEntries) {
+          try {
+            // Find coordinates for this user
+            const userCoords = usersWithCoords.find(u => u.user_id === entry.user_id);
+            
+            if (!userCoords?.latitude || !userCoords?.longitude) {
+              console.log(`⚠️ No coordinates for pain entry ${entry.id}, user ${entry.user_id}`);
               failCount++;
-              errors.push(`Failed to fetch weather for entry ${entry.id}`);
               continue;
             }
 
-            weatherId = weatherResult;
-          }
+            // Determine the target timestamp
+            let targetTimestamp: string;
+            if (entry.selected_date && entry.selected_time) {
+              targetTimestamp = new Date(`${entry.selected_date}T${entry.selected_time}:00`).toISOString();
+            } else {
+              targetTimestamp = new Date(entry.timestamp_created).toISOString();
+            }
 
-          // Update the entry with weather_id
-          const { error: updateError } = await supabase
-            .from('pain_entries')
-            .update({ weather_id: weatherId })
-            .eq('id', entry.id);
+            const targetDate = new Date(targetTimestamp);
+            const dateStr = targetDate.toISOString().split('T')[0];
 
-          if (updateError) {
+            // Check if weather data already exists for this date/location
+            const { data: existingWeather } = await supabase
+              .from('weather_logs')
+              .select('id')
+              .eq('user_id', entry.user_id)
+              .eq('latitude', userCoords.latitude)
+              .eq('longitude', userCoords.longitude)
+              .eq('snapshot_date', dateStr)
+              .limit(1);
+
+            let weatherId: number;
+
+            if (existingWeather && existingWeather.length > 0) {
+              // Use existing weather data
+              weatherId = existingWeather[0].id;
+              console.log(`♻️ Using existing weather data for entry ${entry.id}`);
+            } else {
+              // Fetch new weather data
+              const weatherResult = await fetchWeatherData(
+                userCoords.latitude,
+                userCoords.longitude,
+                targetTimestamp,
+                openWeatherApiKey,
+                supabase,
+                entry.user_id
+              );
+
+              if (!weatherResult) {
+                failCount++;
+                errors.push(`Failed to fetch weather for entry ${entry.id}`);
+                continue;
+              }
+
+              weatherId = weatherResult;
+            }
+
+            // Update the entry with weather_id
+            const { error: updateError } = await supabase
+              .from('pain_entries')
+              .update({ weather_id: weatherId })
+              .eq('id', entry.id);
+
+            if (updateError) {
+              failCount++;
+              errors.push(`Failed to update entry ${entry.id}: ${updateError.message}`);
+            } else {
+              successCount++;
+              console.log(`✅ Updated pain entry ${entry.id} with weather ${weatherId}`);
+            }
+
+            // Rate limiting - wait 100ms between requests
+            await new Promise(resolve => setTimeout(resolve, 100));
+
+          } catch (error: any) {
             failCount++;
-            errors.push(`Failed to update entry ${entry.id}: ${updateError.message}`);
-          } else {
-            successCount++;
-            console.log(`✅ Updated pain entry ${entry.id} with weather ${weatherId}`);
+            errors.push(`Error processing pain entry ${entry.id}: ${error?.message || 'Unknown error'}`);
+            console.error(`❌ Error processing pain entry ${entry.id}:`, error);
           }
-
-          // Rate limiting - wait 100ms between requests
-          await new Promise(resolve => setTimeout(resolve, 100));
-
-        } catch (error: any) {
-          failCount++;
-          errors.push(`Error processing pain entry ${entry.id}: ${error?.message || 'Unknown error'}`);
-          console.error(`❌ Error processing pain entry ${entry.id}:`, error);
         }
+      } else {
+        console.log('ℹ️ No pain entries without weather data found');
       }
+    } else {
+      console.log('ℹ️ No users with coordinates found');
     }
 
     // Step 2: Backfill missing weather data for events (new system)
     console.log('📅 Processing events without weather data...');
     
-    const { data: events, error: eventsError } = await supabase
-      .from('events')
-      .select(`
-        id, user_id, started_at, weather_id,
-        user_profiles!inner(latitude, longitude)
-      `)
-      .is('weather_id', null)
-      .not('user_profiles.latitude', 'is', null)
-      .not('user_profiles.longitude', 'is', null)
-      .order('started_at', { ascending: false })
-      .limit(50); // Process in batches
+    // Reuse users with coordinates or fetch again if needed
+    let eventUsersWithCoords = usersWithCoords;
+    if (!eventUsersWithCoords) {
+      const { data: eventCoordsData, error: eventCoordsError } = await supabase
+        .from('user_profiles')
+        .select('user_id, latitude, longitude')
+        .not('latitude', 'is', null)
+        .not('longitude', 'is', null);
 
-    if (eventsError) {
-      console.error('❌ Error fetching events:', eventsError);
-      errors.push(`Events fetch error: ${eventsError.message}`);
-    } else if (events) {
-      totalProcessed += events.length;
+      if (eventCoordsError) {
+        console.error('❌ Error fetching user coordinates for events:', eventCoordsError);
+        errors.push(`Event user coordinates fetch error: ${eventCoordsError.message}`);
+        eventUsersWithCoords = [];
+      } else {
+        eventUsersWithCoords = eventCoordsData || [];
+      }
+    }
+
+    if (eventUsersWithCoords && eventUsersWithCoords.length > 0) {
+      const eventUserIds = eventUsersWithCoords.map(u => u.user_id);
       
-      for (const event of events) {
-        try {
-          const profile = Array.isArray(event.user_profiles) ? event.user_profiles[0] : event.user_profiles;
-          if (!profile || !profile.latitude || !profile.longitude) continue;
+      // Get events for those users
+      const { data: events, error: eventsError } = await supabase
+        .from('events')
+        .select('id, user_id, started_at')
+        .is('weather_id', null)
+        .in('user_id', eventUserIds)
+        .order('started_at', { ascending: false })
+        .limit(50); // Process in batches
 
-          const targetTimestamp = new Date(event.started_at).toISOString();
-          const targetDate = new Date(targetTimestamp);
-          const dateStr = targetDate.toISOString().split('T')[0];
-
-          // Check if weather data already exists
-          const { data: existingWeather } = await supabase
-            .from('weather_logs')
-            .select('id')
-            .eq('user_id', event.user_id)
-            .eq('latitude', profile.latitude)
-            .eq('longitude', profile.longitude)
-            .eq('snapshot_date', dateStr)
-            .limit(1);
-
-          let weatherId: number;
-
-          if (existingWeather && existingWeather.length > 0) {
-            weatherId = existingWeather[0].id;
-            console.log(`♻️ Using existing weather data for event ${event.id}`);
-          } else {
-            const weatherResult = await fetchWeatherData(
-              profile.latitude,
-              profile.longitude,
-              targetTimestamp,
-              openWeatherApiKey,
-              supabase,
-              event.user_id
-            );
-
-            if (!weatherResult) {
+      if (eventsError) {
+        console.error('❌ Error fetching events:', eventsError);
+        errors.push(`Events fetch error: ${eventsError.message}`);
+      } else if (events && events.length > 0) {
+        totalProcessed += events.length;
+        
+        for (const event of events) {
+          try {
+            // Find coordinates for this user
+            const userCoords = eventUsersWithCoords.find(u => u.user_id === event.user_id);
+            
+            if (!userCoords?.latitude || !userCoords?.longitude) {
+              console.log(`⚠️ No coordinates for event ${event.id}, user ${event.user_id}`);
               failCount++;
-              errors.push(`Failed to fetch weather for event ${event.id}`);
               continue;
             }
 
-            weatherId = weatherResult;
-          }
+            const targetTimestamp = new Date(event.started_at).toISOString();
+            const targetDate = new Date(targetTimestamp);
+            const dateStr = targetDate.toISOString().split('T')[0];
 
-          // Update the event with weather_id
-          const { error: updateError } = await supabase
-            .from('events')
-            .update({ weather_id: weatherId })
-            .eq('id', event.id);
+            // Check if weather data already exists
+            const { data: existingWeather } = await supabase
+              .from('weather_logs')
+              .select('id')
+              .eq('user_id', event.user_id)
+              .eq('latitude', userCoords.latitude)
+              .eq('longitude', userCoords.longitude)
+              .eq('snapshot_date', dateStr)
+              .limit(1);
 
-          if (updateError) {
+            let weatherId: number;
+
+            if (existingWeather && existingWeather.length > 0) {
+              weatherId = existingWeather[0].id;
+              console.log(`♻️ Using existing weather data for event ${event.id}`);
+            } else {
+              const weatherResult = await fetchWeatherData(
+                userCoords.latitude,
+                userCoords.longitude,
+                targetTimestamp,
+                openWeatherApiKey,
+                supabase,
+                event.user_id
+              );
+
+              if (!weatherResult) {
+                failCount++;
+                errors.push(`Failed to fetch weather for event ${event.id}`);
+                continue;
+              }
+
+              weatherId = weatherResult;
+            }
+
+            // Update the event with weather_id
+            const { error: updateError } = await supabase
+              .from('events')
+              .update({ weather_id: weatherId })
+              .eq('id', event.id);
+
+            if (updateError) {
+              failCount++;
+              errors.push(`Failed to update event ${event.id}: ${updateError.message}`);
+            } else {
+              successCount++;
+              console.log(`✅ Updated event ${event.id} with weather ${weatherId}`);
+            }
+
+            // Rate limiting
+            await new Promise(resolve => setTimeout(resolve, 100));
+
+          } catch (error: any) {
             failCount++;
-            errors.push(`Failed to update event ${event.id}: ${updateError.message}`);
-          } else {
-            successCount++;
-            console.log(`✅ Updated event ${event.id} with weather ${weatherId}`);
+            errors.push(`Error processing event ${event.id}: ${error?.message || 'Unknown error'}`);
+            console.error(`❌ Error processing event ${event.id}:`, error);
           }
-
-          // Rate limiting
-          await new Promise(resolve => setTimeout(resolve, 100));
-
-        } catch (error: any) {
-          failCount++;
-          errors.push(`Error processing event ${event.id}: ${error?.message || 'Unknown error'}`);
-          console.error(`❌ Error processing event ${event.id}:`, error);
         }
+      } else {
+        console.log('ℹ️ No events without weather data found');
       }
+    } else {
+      console.log('ℹ️ No users with coordinates found for events');
     }
 
     const result = {
