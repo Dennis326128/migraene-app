@@ -11,6 +11,8 @@ import { logAndSaveWeatherAt } from "@/utils/weatherLogger";
 import { useCreateEntry, useUpdateEntry } from "@/features/entries/hooks/useEntryMutations";
 import { useMeds, useAddMed, useDeleteMed } from "@/features/meds/hooks/useMeds";
 import { useSymptomCatalog, useEntrySymptoms, useSetEntrySymptoms } from "@/features/symptoms/hooks/useSymptoms";
+import { useLastEntryDefaults, useCreateEntryMedication } from "@/features/entries/hooks/useEntryMedications";
+import type { EntryMedication } from "@/types/entryMedications";
 
 interface NewEntryProps {
   onBack: () => void;
@@ -32,13 +34,12 @@ const triggerHapticFeedback = () => {
   }
 };
 
-const auraTypes = [
-  { value: "keine", label: "Keine Aura" },
-  { value: "visuell", label: "Visuelle Aura (Blitze, Zacken)" },
-  { value: "sensorisch", label: "Sensorische Aura (Taubheit, Kribbeln)" },
-  { value: "sprachlich", label: "Sprachliche Aura (Wortfindung)" },
-  { value: "gemischt", label: "Gemischte Aura" },
-];
+interface MedicationWithEffectiveness {
+  name: string;
+  dosage: string;
+  effectiveness: number;
+  notes: string;
+}
 
 const painLocations = [
   { value: "einseitig_links", label: "🔵 Einseitig links" },
@@ -54,11 +55,11 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
   const painLevelSectionRef = useRef<HTMLDivElement>(null);
 
   const [painLevel, setPainLevel] = useState<string>("-");
-  const [auraType, setAuraType] = useState<string>("keine");
   const [painLocation, setPainLocation] = useState<string>("");
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedTime, setSelectedTime] = useState<string>("");
   const [selectedMedications, setSelectedMedications] = useState<string[]>(["-"]);
+  const [medicationsWithEffectiveness, setMedicationsWithEffectiveness] = useState<MedicationWithEffectiveness[]>([]);
   const [newMedication, setNewMedication] = useState("");
   const [showAddMedication, setShowAddMedication] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -68,22 +69,33 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
   const { data: catalog = [] } = useSymptomCatalog();
   const { data: entrySymptomIds = [], isLoading: loadingSymptoms } = useEntrySymptoms(entryIdNum);
   const setEntrySymptomsMut = useSetEntrySymptoms();
+  const { data: lastDefaults } = useLastEntryDefaults();
 
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
+  
+  // Set entry symptoms when data loads or prefill from last entry for new entries
   useEffect(() => {
-    if (entry && entrySymptomIds) setSelectedSymptoms(entrySymptomIds);
-  }, [entry, entrySymptomIds]);
+    if (entry && entrySymptomIds) {
+      setSelectedSymptoms(entrySymptomIds);
+    } else if (!entry && lastDefaults) {
+      // Only prefill for new entries, not when editing
+      if (lastDefaults.pain_location) {
+        setPainLocation(lastDefaults.pain_location);
+      }
+      setSelectedSymptoms(lastDefaults.symptom_ids);
+    }
+  }, [entry, entrySymptomIds, lastDefaults]);
 
   const { data: medOptions = [] } = useMeds();
   const addMedMut = useAddMed();
   const delMedMut = useDeleteMed();
   const createMut = useCreateEntry();
   const updateMut = useUpdateEntry();
+  const createEntryMedicationMut = useCreateEntryMedication();
 
   useEffect(() => {
     if (entry) {
       setPainLevel(entry.pain_level || "-");
-      setAuraType((entry as any).aura_type || "keine");
       setPainLocation((entry as any).pain_location || "");
       setSelectedDate(entry.selected_date || new Date().toISOString().slice(0, 10));
       setSelectedTime(entry.selected_time || new Date().toTimeString().slice(0, 5));
@@ -200,7 +212,7 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
         selected_date: selectedDate,
         selected_time: selectedTime,
         pain_level: painLevel as "leicht" | "mittel" | "stark" | "sehr_stark",
-        aura_type: auraType as "keine" | "visuell" | "sensorisch" | "sprachlich" | "gemischt",
+        aura_type: "keine" as const, // Always set to default since aura is removed
         pain_location: (painLocation || null) as "einseitig_links" | "einseitig_rechts" | "beidseitig" | "stirn" | "nacken" | "schlaefe" | null,
         medications: selectedMedications.filter((m) => m !== "-" && m.trim() !== ""),
         notes: notes.trim() || null,
@@ -219,6 +231,20 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
       const numericId = Number(savedId);
       if (Number.isFinite(numericId)) {
         await setEntrySymptomsMut.mutateAsync({ entryId: numericId, symptomIds: selectedSymptoms });
+      }
+
+      // Save medication effectiveness
+      for (const med of medicationsWithEffectiveness) {
+        if (med.name && selectedMedications.includes(med.name)) {
+          await createEntryMedicationMut.mutateAsync({
+            entry_id: numericId,
+            medication_name: med.name,
+            dosage: med.dosage || undefined,
+            effectiveness_rating: med.effectiveness || undefined,
+            notes: med.notes || undefined,
+            taken_at: new Date(`${selectedDate}T${selectedTime}`).toISOString()
+          });
+        }
       }
 
       toast({ 
@@ -292,26 +318,7 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
         </div>
       </Card>
 
-      {/* Aura */}
-      <Card className="p-6 mb-4">
-        <Label className="text-base font-medium mb-3 block">
-          ✨ Aura-Symptome
-        </Label>
-        <div className="grid gap-2">
-          {auraTypes.map((aura) => (
-            <Button
-              key={aura.value}
-              type="button"
-              variant={auraType === aura.value ? "default" : "outline"}
-              className="justify-start"
-              onClick={() => setAuraType(aura.value)}
-              aria-pressed={auraType === aura.value}
-            >
-              {aura.label}
-            </Button>
-          ))}
-        </div>
-      </Card>
+        {/* Aura block completely removed */}
 
       {/* Schmerzlokalisation */}
       <Card className="p-6 mb-4">
@@ -420,87 +427,123 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
 
       {/* Medikamente */}
       <Card className="p-6 mb-4">
-        <div className="flex justify-between items-center mb-4">
-          <Label className="text-base font-medium">💊 Medikamenteneinnahme</Label>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={() => setShowAddMedication(!showAddMedication)}
-            aria-label="Neues Medikament hinzufügen"
-          >
-            <Plus className="w-4 h-4 mr-1" /> Neu
-          </Button>
-        </div>
-
-        {showAddMedication && (
-          <div className="mb-4 flex gap-2">
+        <Label className="text-base font-medium mb-3 block">💊 Medikamenteneinnahme</Label>
+        
+        {/* Medikamente-Auswahl */}
+        <div className="space-y-2 mb-4">
+          <Select value="" onValueChange={(medName) => {
+            if (!selectedMedications.includes(medName)) {
+              setSelectedMedications(prev => [...prev.filter(m => m !== "-"), medName]);
+            }
+          }}>
+            <SelectTrigger>
+              <SelectValue placeholder="Medikament auswählen..." />
+            </SelectTrigger>
+            <SelectContent>
+              {medOptions.filter(m => !selectedMedications.includes(typeof m === 'string' ? m : m.name)).map((m) => (
+                <SelectItem key={typeof m === 'string' ? m : m.id} value={typeof m === 'string' ? m : m.name}>
+                  {typeof m === 'string' ? m : m.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          
+          {/* Neues Medikament */}
+          <div className="flex gap-2">
             <Input
-              placeholder="Neues Medikament"
+              placeholder="Neues Medikament eingeben..."
               value={newMedication}
               onChange={(e) => setNewMedication(e.target.value)}
-              aria-label="Name des neuen Medikaments"
+              onKeyDown={(e) => e.key === 'Enter' && handleAddNewMedication()}
             />
-            <Button onClick={handleAddNewMedication} aria-label="Medikament hinzufügen">
-              <Plus className="w-4 h-4" />
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={handleAddNewMedication}
+              disabled={!newMedication.trim()}
+            >
+              <Plus className="h-4 w-4" />
             </Button>
+          </div>
+        </div>
+
+        {/* Ausgewählte Medikamente mit Wirksamkeit */}
+        {selectedMedications.filter(m => m !== "-" && m.trim() !== "").length > 0 && (
+          <div className="space-y-3">
+            <div className="text-sm font-medium">Ausgewählte Medikamente:</div>
+            <div className="space-y-3">
+              {selectedMedications.filter(m => m !== "-" && m.trim() !== "").map((med) => {
+                const medEffectiveness = medicationsWithEffectiveness.find(m => m.name === med) || {
+                  name: med,
+                  dosage: "",
+                  effectiveness: 0,
+                  notes: ""
+                };
+                
+                return (
+                  <div key={med} className="border rounded-lg p-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">{med}</span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedMedications(prev => prev.filter(m => m !== med))}
+                        className="text-muted-foreground hover:text-destructive"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-xs text-muted-foreground">Dosierung</label>
+                        <Input
+                          placeholder="z.B. 10mg"
+                          value={medEffectiveness.dosage}
+                          onChange={(e) => {
+                            const updated = medicationsWithEffectiveness.filter(m => m.name !== med);
+                            updated.push({ ...medEffectiveness, dosage: e.target.value });
+                            setMedicationsWithEffectiveness(updated);
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">Wirksamkeit (0-4)</label>
+                        <select
+                          value={medEffectiveness.effectiveness}
+                          onChange={(e) => {
+                            const updated = medicationsWithEffectiveness.filter(m => m.name !== med);
+                            updated.push({ ...medEffectiveness, effectiveness: parseInt(e.target.value) });
+                            setMedicationsWithEffectiveness(updated);
+                          }}
+                          className="w-full h-9 px-3 rounded-md border border-input bg-background"
+                        >
+                          <option value={0}>0 - Keine Wirkung</option>
+                          <option value={1}>1 - Schwach</option>
+                          <option value={2}>2 - Mäßig</option>
+                          <option value={3}>3 - Gut</option>
+                          <option value={4}>4 - Sehr gut</option>
+                        </select>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label className="text-xs text-muted-foreground">Notizen zur Wirkung</label>
+                      <Input
+                        placeholder="Nebenwirkungen, Wirkdauer etc."
+                        value={medEffectiveness.notes}
+                        onChange={(e) => {
+                          const updated = medicationsWithEffectiveness.filter(m => m.name !== med);
+                          updated.push({ ...medEffectiveness, notes: e.target.value });
+                          setMedicationsWithEffectiveness(updated);
+                        }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
-
-        {selectedMedications.map((med, index) => (
-          <div key={index} className="flex gap-2 mb-2">
-            <Select
-              value={med}
-              onValueChange={(v) => {
-                const updated = [...selectedMedications];
-                updated[index] = v;
-                setSelectedMedications(updated);
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Medikament auswählen" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="-">-</SelectItem>
-                {medOptions.map((m) => (
-                  <SelectItem key={typeof m === 'string' ? m : m.id} value={typeof m === 'string' ? m : m.name}>
-                    {typeof m === 'string' ? m : m.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                if (index === 0 && selectedMedications.length === 1) return;
-                setSelectedMedications((prev) => prev.filter((_, i) => i !== index));
-              }}
-              aria-label="Medikament entfernen"
-            >
-              <X className="w-4 h-4" />
-            </Button>
-
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => handleDeleteMedication(med)}
-              aria-label={`${med} aus Liste löschen`}
-            >
-              <Trash2 className="w-4 h-4 text-destructive" />
-            </Button>
-          </div>
-        ))}
-
-        <Button
-          className="w-full mt-2"
-          variant="outline"
-          disabled={selectedMedications[0] === "-"}
-          onClick={() => setSelectedMedications((prev) => [...prev, "-"])}
-          aria-label="Weiteres Medikament hinzufügen"
-        >
-          + Weiteres Medikament
-        </Button>
       </Card>
 
       {/* Speichern Button */}

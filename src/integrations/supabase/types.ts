@@ -44,6 +44,42 @@ export type Database = {
         }
         Relationships: []
       }
+      entry_medications: {
+        Row: {
+          created_at: string
+          dosage: string | null
+          effectiveness_rating: number | null
+          entry_id: number
+          id: string
+          medication_name: string
+          notes: string | null
+          taken_at: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          dosage?: string | null
+          effectiveness_rating?: number | null
+          entry_id: number
+          id?: string
+          medication_name: string
+          notes?: string | null
+          taken_at?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          dosage?: string | null
+          effectiveness_rating?: number | null
+          entry_id?: number
+          id?: string
+          medication_name?: string
+          notes?: string | null
+          taken_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       entry_symptoms: {
         Row: {
           created_at: string
