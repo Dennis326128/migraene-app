@@ -5,10 +5,7 @@ import { Plus, History, TrendingUp, Settings } from "lucide-react";
 import { LogoutButton } from "@/components/LogoutButton";
 import { QuickEntryModal } from "./QuickEntryModal";
 import { WelcomeModal } from "./WelcomeModal";
-import { useShouldShowMigration } from "@/hooks/useMigrationStatus";
 import { useOnboarding } from "@/hooks/useOnboarding";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Database } from "lucide-react";
 
 interface MainMenuProps {
   onNewEntry: () => void;
@@ -24,7 +21,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   onViewSettings,
 }) => {
   const [quickEntryOpen, setQuickEntryOpen] = useState(false);
-  const shouldShowMigration = useShouldShowMigration();
   const { needsOnboarding, completeOnboarding, isLoading: onboardingLoading } = useOnboarding();
 
   return (
@@ -37,32 +33,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           <h1 className="text-3xl sm:text-4xl font-light text-foreground mb-2">Migräne-App</h1>
           <p className="text-muted-foreground text-sm sm:text-base">Verfolgen Sie Ihre Migräne und finden Sie Muster</p>
         </div>
-
-        {/* Migration Alert */}
-        {shouldShowMigration && (
-          <Alert className="mb-4 border-orange-200 bg-orange-50">
-            <Database className="h-4 w-4 text-orange-600" />
-            <AlertDescription>
-              <div className="flex flex-col gap-2">
-                <div>
-                  <strong>Daten-Migration verfügbar!</strong>
-                  <br />
-                  <span className="text-sm text-muted-foreground">
-                    Ihre bestehenden Migräne-Einträge können zum neuen Event-System migriert werden.
-                  </span>
-                </div>
-                <Button 
-                  variant="secondary" 
-                  size="sm"
-                  onClick={onViewAnalysis} 
-                  className="w-fit"
-                >
-                  Zur Migration →
-                </Button>
-              </div>
-            </AlertDescription>
-          </Alert>
-        )}
 
         <div className="grid gap-4 sm:gap-6 w-full max-w-md px-2 sm:px-0">
           {/* New Entry Button */}
