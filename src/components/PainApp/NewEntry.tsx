@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -19,11 +19,18 @@ interface NewEntryProps {
 }
 
 const painLevels = [
-  { value: "leicht", label: "💚 Leichte Migräne", desc: "Beeinträchtigt Alltag wenig" },
-  { value: "mittel", label: "💛 Mittlere Migräne", desc: "Erschwert Aktivitäten" },
-  { value: "stark", label: "🟠 Starke Migräne", desc: "Normale Aktivitäten unmöglich" },
-  { value: "sehr_stark", label: "🔴 Sehr starke Migräne", desc: "Bettlägerig, unerträglich" },
+  { value: "leicht", label: "💚 Leichte Migräne (2/10)", desc: "Beeinträchtigt Alltag wenig" },
+  { value: "mittel", label: "💛 Mittlere Migräne (5/10)", desc: "Erschwert Aktivitäten" },
+  { value: "stark", label: "🟠 Starke Migräne (7/10)", desc: "Normale Aktivitäten unmöglich" },
+  { value: "sehr_stark", label: "🔴 Sehr starke Migräne (9/10)", desc: "Bettlägerig, unerträglich" },
 ];
+
+// Haptic Feedback für Mobile
+const triggerHapticFeedback = () => {
+  if ('vibrate' in navigator) {
+    navigator.vibrate(50); // 50ms vibration
+  }
+};
 
 const auraTypes = [
   { value: "keine", label: "Keine Aura" },
@@ -44,6 +51,7 @@ const painLocations = [
 
 export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
   const { toast } = useToast();
+  const painLevelSectionRef = useRef<HTMLDivElement>(null);
 
   const [painLevel, setPainLevel] = useState<string>("-");
   const [auraType, setAuraType] = useState<string>("keine");
@@ -120,6 +128,56 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
     }
   };
 
+  // Enhanced pain level setter with haptic feedback
+  const handlePainLevelChange = useCallback((newLevel: string) => {
+    setPainLevel(newLevel);
+    triggerHapticFeedback();
+  }, []);
+
+  // Keyboard navigation for pain levels
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (!painLevelSectionRef.current?.contains(document.activeElement)) return;
+    
+    const currentIndex = painLevels.findIndex(level => level.value === painLevel);
+    let newIndex = currentIndex;
+    
+    switch (e.key) {
+      case 'ArrowDown':
+      case 'ArrowRight':
+        e.preventDefault();
+        newIndex = Math.min(currentIndex + 1, painLevels.length - 1);
+        break;
+      case 'ArrowUp':
+      case 'ArrowLeft':
+        e.preventDefault();
+        newIndex = Math.max(currentIndex - 1, 0);
+        break;
+      case 'Home':
+        e.preventDefault();
+        newIndex = 0;
+        break;
+      case 'End':
+        e.preventDefault();
+        newIndex = painLevels.length - 1;
+        break;
+    }
+    
+    if (newIndex !== currentIndex && newIndex >= 0) {
+      handlePainLevelChange(painLevels[newIndex].value);
+      // Focus the corresponding button
+      const buttons = painLevelSectionRef.current?.querySelectorAll('button');
+      if (buttons && buttons[newIndex]) {
+        (buttons[newIndex] as HTMLButtonElement).focus();
+      }
+    }
+  }, [painLevel, handlePainLevelChange]);
+
+  // Add keyboard event listener
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
+
   const handleSave = async () => {
     if (!painLevel || painLevel === "-") {
       toast({ title: "Fehler", description: "Bitte Migräne-Intensität auswählen", variant: "destructive" });
@@ -195,15 +253,21 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
         <Label className="text-base font-medium mb-3 block">
           🩺 Migräne-Intensität *
         </Label>
-        <div className="grid gap-3">
-          {painLevels.map((level) => (
+        <div className="text-sm text-muted-foreground mb-2">
+          💡 Tipp: Nutzen Sie die Pfeiltasten ↑↓ zur Navigation
+        </div>
+        <div ref={painLevelSectionRef} className="grid gap-3" role="radiogroup" aria-label="Migräne-Intensität auswählen">
+          {painLevels.map((level, index) => (
             <Button
               key={level.value}
               type="button"
               variant={painLevel === level.value ? "default" : "outline"}
-              className="h-auto p-4 text-left justify-start"
-              onClick={() => setPainLevel(level.value)}
+              className="h-auto p-4 text-left justify-start transition-all duration-200 hover:scale-[1.02]"
+              onClick={() => handlePainLevelChange(level.value)}
               aria-pressed={painLevel === level.value}
+              role="radio"
+              aria-checked={painLevel === level.value}
+              tabIndex={index === 0 ? 0 : -1}
             >
               <div className="flex flex-col items-start w-full">
                 <span className="font-medium">{level.label}</span>
