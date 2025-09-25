@@ -70,10 +70,46 @@ export default function ChartComponent({ entries }: Props) {
     return avgPainByPressure;
   }, [data]);
 
-  if (!data.length) return <div className="text-sm text-muted-foreground">Keine Daten für die Grafik.</div>;
+  if (!data.length) return (
+    <div className="text-center py-8 text-muted-foreground">
+      <div className="text-lg mb-2">📈</div>
+      <div className="text-sm">Keine Daten für die Grafik</div>
+    </div>
+  );
+
+  // Calculate data availability
+  const dataAvailability = useMemo(() => {
+    const totalEntries = data.length;
+    const entriesWithWeather = data.filter(d => d.hasWeather).length;
+    const weatherPercentage = totalEntries > 0 ? (entriesWithWeather / totalEntries) * 100 : 0;
+    
+    return {
+      totalEntries,
+      entriesWithWeather,
+      weatherPercentage: Math.round(weatherPercentage)
+    };
+  }, [data]);
 
   return (
     <div className="w-full space-y-4">
+      {/* Data Quality Indicator */}
+      <div className="bg-muted/50 p-3 rounded-lg">
+        <div className="flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2">
+            <span className="text-sm">📊</span>
+            <span>
+              <strong>{data.length}</strong> Schmerzeinträge
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm">🌤️</span>
+            <span>
+              <strong>{dataAvailability.entriesWithWeather}</strong> mit Wetterdaten ({dataAvailability.weatherPercentage}%)
+            </span>
+          </div>
+        </div>
+      </div>
+
       {/* Weather Correlation Summary */}
       {weatherCorrelation && (
         <div className="bg-muted/50 p-3 rounded-lg">
@@ -167,20 +203,23 @@ export default function ChartComponent({ entries }: Props) {
               type="monotone" 
               dataKey="pain" 
               name="Schmerz" 
-              dot={{ r: isMobile ? 2 : 3, strokeWidth: 1 }} 
-              strokeWidth={isMobile ? 2 : 2}
+              dot={{ r: isMobile ? 3 : 4, strokeWidth: 2 }} 
+              strokeWidth={isMobile ? 3 : 3}
               stroke="hsl(var(--destructive))"
+              connectNulls={true}
             />
-            <Line 
-              yAxisId="pressure" 
-              type="monotone" 
-              dataKey="pressure" 
-              name="Luftdruck" 
-              dot={{ r: isMobile ? 1 : 2, strokeWidth: 1 }} 
-              strokeWidth={isMobile ? 1.5 : 1}
-              stroke="hsl(var(--primary))"
-              connectNulls={false}
-            />
+            {dataAvailability.entriesWithWeather > 0 && (
+              <Line 
+                yAxisId="pressure" 
+                type="monotone" 
+                dataKey="pressure" 
+                name="Luftdruck" 
+                dot={{ r: isMobile ? 1 : 2, strokeWidth: 1 }} 
+                strokeWidth={isMobile ? 1.5 : 1}
+                stroke="hsl(var(--primary))"
+                connectNulls={false}
+              />
+            )}
           </LineChart>
         </ResponsiveContainer>
       </div>
