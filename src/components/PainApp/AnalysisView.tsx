@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, FileText, BarChart3, Activity } from "lucide-react";
+import { ArrowLeft, FileText, BarChart3, Activity, Calendar, BookOpen, Database, Badge } from "lucide-react";
 // Import fix for DiaryReport default export
 import DiaryReport from "./DiaryReport";
 import ChartComponent from "@/components/Chart";
-import { useEntries } from "@/features/entries/hooks/useEntries";
+import { useCompatibleEntries, useSystemStatus } from "@/hooks/useCompatibleEntries";
 import { useDeleteEntry } from "@/features/entries/hooks/useEntryMutations";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatisticsFilter } from "./StatisticsFilter";
@@ -14,8 +14,9 @@ import { MedicationEffectsView } from "./MedicationEffectsView";
 import { OveruseMonitor } from "./OveruseMonitor";
 import { MigrationPanel } from "./MigrationPanel";
 import { useFilteredEntries, useMigraineStats, useTimeDistribution } from "@/features/statistics/hooks/useStatistics";
-import { Pill, AlertTriangle, Database } from "lucide-react";
+import { Pill, AlertTriangle } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
+import { buildModernDiaryPdf } from "@/lib/pdf/modernReport";
 
 interface AnalysisViewProps {
   onBack: () => void;
@@ -30,6 +31,9 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
   const [selectedAuraTypes, setSelectedAuraTypes] = useState<string[]>([]);
   const [selectedPainLocations, setSelectedPainLocations] = useState<string[]>([]);
   const [analysisReport, setAnalysisReport] = useState("");
+
+  // Check system status for migration recommendations
+  const { data: systemStatus } = useSystemStatus();
 
   const { from, to } = useMemo(() => {
     const now = new Date();
@@ -71,8 +75,8 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
     };
   }, [timeRange, customFrom, customTo]);
 
-  // Use original entries hook for diary report and charts
-  const { data: entries = [], isLoading, error, refetch } = useEntries({ from, to });
+  // Use compatible entries hook that supports both systems
+  const { data: entries = [], isLoading, error, refetch } = useCompatibleEntries({ from, to });
   const deleteEntry = useDeleteEntry();
 
   // Use new filtered hooks for statistics
@@ -283,19 +287,22 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
                 }}
               />
             </div>
-          ) : entries.length === 0 ? (
-            <div className="flex justify-center py-8">
-              <EmptyState
-                icon="📊"
-                title="Keine Daten für Analyse"
-                description="Erstellen Sie mindestens 3-5 Migräne-Einträge, um aussagekräftige Statistiken zu erhalten."
-                action={{
-                  label: "Ersten Eintrag erstellen",
-                  onClick: onBack,
-                  variant: "default"
-                }}
-              />
-            </div>
+           ) : entries.length === 0 ? (
+             <div className="flex justify-center py-8">
+               <EmptyState
+                 icon="📊"
+                 title="Keine Daten für Analyse"
+                 description={systemStatus?.needsMigration 
+                   ? `Es sind ${systemStatus.painEntries} Legacy-Einträge vorhanden. Führen Sie die Migration durch, um sie zu analysieren.`
+                   : "Erstellen Sie mindestens 3-5 Migräne-Einträge, um aussagekräftige Statistiken zu erhalten."
+                 }
+                 action={{
+                   label: systemStatus?.needsMigration ? "Zur Migration" : "Ersten Eintrag erstellen",
+                   onClick: systemStatus?.needsMigration ? () => setViewMode("migration") : onBack,
+                   variant: "default"
+                 }}
+               />
+             </div>
           ) : (
             <>
               {stats && (
