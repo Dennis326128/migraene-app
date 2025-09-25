@@ -12,6 +12,8 @@ import { Loader2, Pill, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useMeds } from "@/features/meds/hooks/useMeds";
 import { useCreateQuickPainEvent } from "@/features/events/hooks/useEvents";
+import { useCheckMedicationLimits, type LimitCheck } from "@/features/medication-limits/hooks/useMedicationLimits";
+import { MedicationLimitWarning } from "./MedicationLimitWarning";
 
 interface QuickEntryModalProps {
   open: boolean;
@@ -50,6 +52,13 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ open, onOpenCh
   const [takenTime, setTakenTime] = useState<"now" | "15min" | "custom">("now");
   const [customTime, setCustomTime] = useState("");
 
+  // Medication limit checking
+  const [showLimitWarning, setShowLimitWarning] = useState(false);
+  const [limitChecks, setLimitChecks] = useState<LimitCheck[]>([]);
+  const [pendingSave, setPendingSave] = useState(false);
+  
+  const checkLimits = useCheckMedicationLimits();
+
   // Reset form when modal opens
   useEffect(() => {
     if (open) {
@@ -57,6 +66,8 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ open, onOpenCh
       setSelectedMeds({});
       setTakenTime("now");
       setCustomTime("");
+      setShowLimitWarning(false);
+      setPendingSave(false);
     }
   }, [open]);
 

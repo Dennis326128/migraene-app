@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useUserSettings } from "@/features/settings/hooks/useUserSettings";
 import { WeatherBackfillTest } from "@/components/WeatherBackfillTest";
 import { AccountDeletion } from "@/components/AccountDeletion";
+import { MedicationLimitsSettings } from "./MedicationLimitsSettings";
 import { Separator } from "@/components/ui/separator";
 import { useMeds, useAddMed, useDeleteMed } from "@/features/meds/hooks/useMeds";
 import { Trash2, Plus, Pill } from "lucide-react";
@@ -131,6 +132,9 @@ const SettingsPage = ({ onBack }: { onBack: () => void }) => {
           </div>
         </div>
       </Card>
+
+      {/* Medication Limits Section */}
+      <MedicationLimitsSettings />
 
       {/* Privacy & GDPR Section */}
       <Card className="p-6 mb-4">

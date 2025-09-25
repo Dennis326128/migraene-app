@@ -296,22 +296,8 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
       setSaving(false);
     }
   };
-      });
-      
-      // Success animation delay
-      setTimeout(() => {
-        onSave?.();
-        onBack();
-      }, 1000);
-      
-      // Haptic feedback for success
-      triggerHapticFeedback();
-    } catch (err: any) {
-      toast({ title: "Fehler", description: err.message ?? String(err), variant: "destructive" });
-    } finally {
-      setSaving(false);
-    }
-  };
+
+  return (
     <div className="p-6 bg-gradient-to-br from-background to-secondary/20 min-h-screen">
       <div className="flex items-center justify-between mb-6">
         <Button 
