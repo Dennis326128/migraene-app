@@ -1,124 +1,192 @@
-import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const RAW_ALLOWED = Deno.env.get("ALLOWED_ORIGINS") ?? "";
-function getCors(origin?: string | null) {
-  const allowed = RAW_ALLOWED.split(",").map(s => s.trim()).filter(Boolean);
-  const allow = origin && allowed.includes(origin) ? origin : "null";
-  return {
-    "Access-Control-Allow-Origin": allow,
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-    "Vary": "Origin",
-  };
-}
-
-const SB_URL = Deno.env.get("SB_URL");
-const SB_ANON_KEY = Deno.env.get("SB_ANON_KEY"); // in Supabase Secrets setzen
-if (!SB_URL || !SB_ANON_KEY) throw new Error("Missing SB_URL or SB_ANON_KEY");
-
-// --- UTC-Helper ---
-function toUTCStartOfHourISO(iso: string) { const d = new Date(iso); d.setUTCMinutes(0,0,0); return d.toISOString(); }
-function ymdUTC(iso: string) { return iso.slice(0,10); }
-function addDaysUTC(iso: string, days: number) { const d = new Date(iso); d.setUTCDate(d.getUTCDate()+days); return d.toISOString(); }
-
-async function fetchHourly(lat:number, lon:number, startDate:string, endDate:string){
-  const url=`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,pressure_msl,relative_humidity_2m,wind_speed_10m,weather_code&timezone=UTC&start_date=${startDate}&end_date=${endDate}`;
-  const res = await fetch(url); if(!res.ok) throw new Error(`Open-Meteo hourly failed: ${res.status}`); return await res.json();
-}
-async function fetchAstronomy(lat:number, lon:number, date:string){
-  const url=`https://api.open-meteo.com/v1/astronomy?latitude=${lat}&longitude=${lon}&daily=moon_phase,moonrise,moonset&timezone=UTC&start_date=${date}&end_date=${date}`;
-  const res = await fetch(url); if(!res.ok) throw new Error(`Open-Meteo astronomy failed: ${res.status}`); return await res.json();
-}
-
-const WMO_CODE_TEXT: Record<number,string> = {0:"Klar",1:"Überwiegend klar",2:"Teilweise bewölkt",3:"Bedeckt",45:"Nebel",48:"Reifiger Nebel",51:"Nieselregen leicht",53:"Nieselregen mäßig",55:"Nieselregen stark",61:"Regen leicht",63:"Regen mäßig",65:"Regen stark",66:"Gefrierender Regen leicht",67:"Gefrierender Regen stark",71:"Schnee leicht",73:"Schnee mäßig",75:"Schnee stark",77:"Schneekörner",80:"Regenschauer leicht",81:"Regenschauer mäßig",82:"Regenschauer stark",85:"Schneeschauer leicht",86:"Schneeschauer stark",95:"Gewitter",96:"Gewitter mit leichtem Hagel",99:"Gewitter mit starkem Hagel"};
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: getCors(req.headers.get("Origin")) });
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
 
   try {
-    // 🔐 Authentifizierten Client erzeugen (RLS greift)
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return new Response(JSON.stringify({ error: "Missing Authorization header" }), { status: 401, headers: { ...getCors(req.headers.get("Origin")), "Content-Type": "application/json" } });
+    console.log('🌤️ Fetch-weather function called');
+    
+    // Initialize Supabase client
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-    const supabase = createClient(SB_URL, SB_ANON_KEY, { global: { headers: { Authorization: authHeader }}});
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...getCors(req.headers.get("Origin")), "Content-Type": "application/json" } });
-
-    // 📥 Body lesen (ohne user_id!)
-    const body = await req.json().catch(() => ({}));
-    const lat = Number(body.lat);
-    const lon = Number(body.lon);
-    const atISO_in: string = String(body.at || new Date().toISOString());
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-      return new Response(JSON.stringify({ error: "lat/lon required" }), { status: 400, headers: { ...getCors(req.headers.get("Origin")), "Content-Type": "application/json" } });
+    // Verify authentication
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      console.error('❌ Missing or invalid authorization header');
+      return new Response(JSON.stringify({ error: 'Authorization required' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
-    const atHourUTC = toUTCStartOfHourISO(atISO_in);
-    const atHourUTC_noZ = atHourUTC.slice(0,13)+":00";
-    const startDate = ymdUTC(addDaysUTC(atHourUTC, -1));
-    const endDate   = ymdUTC(atHourUTC);
-
-    const hourly = await fetchHourly(lat, lon, startDate, endDate);
-    const times: string[] = hourly?.hourly?.time || [];
-    const idx = times.indexOf(atHourUTC_noZ);
-    if (idx < 0) throw new Error("No hourly record for the requested UTC hour.");
-
-    const temp = hourly.hourly.temperature_2m[idx] ?? null;
-    const pressure = hourly.hourly.pressure_msl[idx] ?? null;
-    const rh = hourly.hourly.relative_humidity_2m[idx] ?? null;
-    const wind = hourly.hourly.wind_speed_10m[idx] ?? null;
-    const code = hourly.hourly.weather_code[idx] ?? null;
-    const condition_text = code != null ? (WMO_CODE_TEXT[Number(code)] || `WMO ${code}`) : null;
-
-    let pressure_change_24h: number | null = null;
-    if (idx - 24 >= 0 && hourly.hourly.pressure_msl[idx - 24] != null && pressure != null) {
-      pressure_change_24h = Number((pressure - hourly.hourly.pressure_msl[idx - 24]).toFixed(1));
+    const jwt = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: authError } = await supabase.auth.getUser(jwt);
+    
+    if (authError || !user) {
+      console.error('❌ Authentication failed:', authError);
+      return new Response(JSON.stringify({ error: 'Authentication failed' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
-    const astro = await fetchAstronomy(lat, lon, ymdUTC(atHourUTC));
-    const moon_phase = astro?.daily?.moon_phase?.[0] ?? null;
-    const moonrise = astro?.daily?.moonrise?.[0] ?? null;
-    const moonset = astro?.daily?.moonset?.[0] ?? null;
+    // Parse request body
+    const { lat, lon, at } = await req.json();
+    console.log('📍 Weather request for:', { lat, lon, at, userId: user.id });
 
-    // 🧯 Dedupe: existiert bereits Log für diese UTC-Stunde?
-    const { data: existing } = await supabase
-      .from("weather_logs")
-      .select("id")
-      .eq("user_id", user.id)
-      .eq("created_at", atHourUTC)
-      .maybeSingle();
-    if (existing?.id) {
-      return new Response(JSON.stringify({ weather_id: existing.id, dedup: true }), { headers: { ...getCors(req.headers.get("Origin")), "Content-Type": "application/json" }});
+    if (!lat || !lon || !at) {
+      return new Response(JSON.stringify({ error: 'lat, lon, and at are required' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
-    // ✅ Insert mit RLS (user_id = auth.uid())
-    const { data: inserted, error: insertError } = await supabase
-      .from("weather_logs")
-      .insert([{
-        user_id: user.id,
-        latitude: lat,
-        longitude: lon,
-        temperature_c: temp,
-        pressure_mb: pressure,
-        humidity: rh,
-        wind_kph: wind,
-        condition_text,
-        condition_icon: null,
-        location: null,
-        pressure_change_24h,
-        moon_phase,
-        moonrise,
-        moonset,
-        created_at: atHourUTC,
-      }])
-      .select("id")
-      .single();
-    if (insertError) throw insertError;
+    const targetDate = new Date(at);
+    const dateStr = targetDate.toISOString().split('T')[0]; // YYYY-MM-DD format
 
-    return new Response(JSON.stringify({ weather_id: inserted.id }), { headers: { ...getCors(req.headers.get("Origin")), "Content-Type": "application/json" }});
-  } catch (err: any) {
-    return new Response(JSON.stringify({ error: err.message || "unknown" }), { status: 500, headers: { ...getCors(req.headers.get("Origin")), "Content-Type": "application/json" }});
+    // Check if we already have weather data for this user, location, and time
+    const { data: existingLogs } = await supabase
+      .from('weather_logs')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('latitude', lat)
+      .eq('longitude', lon)
+      .gte('snapshot_date', dateStr)
+      .lte('snapshot_date', dateStr)
+      .limit(1);
+
+    if (existingLogs && existingLogs.length > 0) {
+      console.log('✅ Using existing weather data:', existingLogs[0].id);
+      return new Response(JSON.stringify({ weather_id: existingLogs[0].id }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Get OpenWeatherMap API key
+    const openWeatherApiKey = Deno.env.get('OPENWEATHERMAP_API_KEY');
+    if (!openWeatherApiKey) {
+      console.error('❌ OpenWeatherMap API key not configured');
+      return new Response(JSON.stringify({ error: 'Weather service not configured' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Determine if we need historical data (more than 5 days old)
+    const now = new Date();
+    const daysDiff = Math.floor((now.getTime() - targetDate.getTime()) / (1000 * 60 * 60 * 24));
+    const isHistorical = daysDiff > 5;
+
+    let weatherData;
+    
+    try {
+      if (isHistorical) {
+        // Use OpenWeatherMap Historical API for dates older than 5 days
+        const timestamp = Math.floor(targetDate.getTime() / 1000);
+        const historyUrl = `https://api.openweathermap.org/data/3.0/onecall/timemachine?lat=${lat}&lon=${lon}&dt=${timestamp}&appid=${openWeatherApiKey}&units=metric`;
+        
+        console.log('🔍 Fetching historical weather data from OpenWeatherMap');
+        const historyResponse = await fetch(historyUrl);
+        
+        if (!historyResponse.ok) {
+          throw new Error(`OpenWeatherMap Historical API error: ${historyResponse.status}`);
+        }
+        
+        const historyData = await historyResponse.json();
+        const hourlyData = historyData.data[0]; // Get the closest hour data
+        
+        weatherData = {
+          temperature_c: hourlyData.temp,
+          pressure_mb: hourlyData.pressure,
+          humidity: hourlyData.humidity,
+          wind_kph: hourlyData.wind_speed * 3.6, // Convert m/s to km/h
+          condition_text: hourlyData.weather[0].description,
+          condition_icon: hourlyData.weather[0].icon,
+        };
+      } else {
+        // Use current weather API for recent dates
+        const currentUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${openWeatherApiKey}&units=metric`;
+        
+        console.log('🌤️ Fetching current weather data from OpenWeatherMap');
+        const currentResponse = await fetch(currentUrl);
+        
+        if (!currentResponse.ok) {
+          throw new Error(`OpenWeatherMap Current API error: ${currentResponse.status}`);
+        }
+        
+        const currentData = await currentResponse.json();
+        
+        weatherData = {
+          temperature_c: currentData.main.temp,
+          pressure_mb: currentData.main.pressure,
+          humidity: currentData.main.humidity,
+          wind_kph: currentData.wind?.speed ? currentData.wind.speed * 3.6 : 0,
+          condition_text: currentData.weather[0].description,
+          condition_icon: currentData.weather[0].icon,
+        };
+      }
+
+      // Calculate 24h pressure change (simplified approach)
+      const pressure_change_24h = 0; // Would need historical comparison for accurate calculation
+
+      // Insert weather log into database
+      const { data: insertedLog, error: insertError } = await supabase
+        .from('weather_logs')
+        .insert({
+          user_id: user.id,
+          latitude: lat,
+          longitude: lon,
+          temperature_c: weatherData.temperature_c,
+          pressure_mb: weatherData.pressure_mb,
+          humidity: weatherData.humidity,
+          wind_kph: weatherData.wind_kph,
+          condition_text: weatherData.condition_text,
+          condition_icon: weatherData.condition_icon,
+          pressure_change_24h: pressure_change_24h,
+          snapshot_date: dateStr,
+          created_at: targetDate.toISOString(),
+        })
+        .select('id')
+        .single();
+
+      if (insertError) {
+        console.error('❌ Database insert error:', insertError);
+        return new Response(JSON.stringify({ error: 'Failed to save weather data' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      console.log('✅ Weather data saved successfully:', insertedLog.id);
+      
+      return new Response(JSON.stringify({ weather_id: insertedLog.id }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+
+    } catch (weatherError) {
+      console.error('❌ Weather API error:', weatherError);
+      return new Response(JSON.stringify({ error: 'Failed to fetch weather data' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+  } catch (error) {
+    console.error('❌ Unexpected error:', error);
+    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 });

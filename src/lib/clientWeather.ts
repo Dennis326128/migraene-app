@@ -1,5 +1,30 @@
 import { supabase } from "@/lib/supabaseClient";
 
+export async function triggerAutoBackfill(): Promise<{
+  success: boolean;
+  totalProcessed: number;
+  successCount: number;
+  failCount: number;
+  message?: string;
+  errors?: string[];
+}> {
+  try {
+    const { data, error } = await supabase.functions.invoke('auto-weather-backfill', {
+      method: 'POST',
+      headers: {
+        'x-cron-secret': 'dev-test-secret' // Für lokale Tests
+      }
+    });
+
+    if (error) throw error;
+    
+    return data;
+  } catch (error) {
+    console.error('Auto backfill trigger error:', error);
+    throw new Error(`Auto backfill fehlgeschlagen: ${error.message}`);
+  }
+}
+
 export async function triggerDailyBackfill(): Promise<{
   success: boolean;
   ok: number;

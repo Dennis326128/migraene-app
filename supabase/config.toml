@@ -17,3 +17,6 @@ enable_signup = true
 
 [functions.daily-weather-backfill]
 verify_jwt = false
+
+[functions.auto-weather-backfill]
+verify_jwt = false

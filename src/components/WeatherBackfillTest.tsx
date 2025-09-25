@@ -1,70 +1,71 @@
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { useToast } from "@/hooks/use-toast";
-import { triggerDailyBackfill, checkUserCoordinates } from "@/lib/clientWeather";
+import React, { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
+import { triggerAutoBackfill, checkUserCoordinates } from '@/lib/clientWeather';
 
-export const WeatherBackfillTest = () => {
-  const { toast } = useToast();
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<any>(null);
+export function WeatherBackfillTest() {
+  const [isLoading, setIsLoading] = useState(false);
+  const [backfillResult, setBackfillResult] = useState<any>(null);
   const [coordinates, setCoordinates] = useState<any>(null);
+  const { toast } = useToast();
 
   const handleCheckCoordinates = async () => {
     try {
-      const coords = await checkUserCoordinates();
-      setCoordinates(coords);
+      setIsLoading(true);
+      const result = await checkUserCoordinates();
+      setCoordinates(result);
       
-      if (coords.hasCoordinates) {
-        toast({
-          title: "✅ Koordinaten vorhanden",
-          description: `Lat: ${coords.latitude}, Lon: ${coords.longitude}`,
-        });
-      } else {
-        toast({
-          title: "⚠️ Keine Koordinaten",
-          description: "Standort muss erst in den Einstellungen gesetzt werden",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
+      toast({
+        title: result.hasCoordinates ? "Koordinaten gefunden" : "Keine Koordinaten",
+        description: result.hasCoordinates 
+          ? `Lat: ${result.latitude}, Lon: ${result.longitude}`
+          : "Bitte Standort in den Einstellungen festlegen",
+        variant: result.hasCoordinates ? "default" : "destructive"
+      });
+    } catch (error: any) {
       toast({
         title: "Fehler",
         description: error.message,
-        variant: "destructive",
+        variant: "destructive"
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleTriggerBackfill = async () => {
-    setLoading(true);
+  const handleTriggerAutoBackfill = async () => {
     try {
-      const result = await triggerDailyBackfill();
-      setResult(result);
+      setIsLoading(true);
+      const result = await triggerAutoBackfill();
+      setBackfillResult(result);
       
       toast({
-        title: "🌤️ Wetter-Backfill abgeschlossen",
-        description: `✅ ${result.ok} erfolgreich, ⏭️ ${result.skip} übersprungen, ❌ ${result.fail} fehlgeschlagen`,
+        title: result.success ? "Backfill erfolgreich" : "Backfill fehlgeschlagen",
+        description: result.message || `${result.successCount} Erfolg, ${result.failCount} Fehler`,
+        variant: result.success ? "default" : "destructive"
       });
-    } catch (error) {
+    } catch (error: any) {
       toast({
-        title: "Fehler beim Backfill",
+        title: "Fehler",
         description: error.message,
-        variant: "destructive",
+        variant: "destructive"
       });
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
   return (
-    <Card className="p-6 m-4">
-      <h2 className="text-lg font-semibold mb-4">🧪 Wetter-Backfill Test</h2>
-      
-      <div className="space-y-4">
-        <div>
+    <Card className="w-full max-w-2xl mx-auto">
+      <CardHeader>
+        <CardTitle>🌤️ Automatisches Wetter-Backfill System</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
           <Button 
             onClick={handleCheckCoordinates}
+            disabled={isLoading}
             variant="outline"
             className="w-full"
           >
@@ -72,51 +73,54 @@ export const WeatherBackfillTest = () => {
           </Button>
           
           {coordinates && (
-            <div className="mt-2 p-3 bg-muted rounded text-sm">
-              <strong>Status:</strong> {coordinates.hasCoordinates ? "✅ Koordinaten vorhanden" : "❌ Keine Koordinaten"}
-              {coordinates.hasCoordinates && (
-                <>
-                  <br />
-                  <strong>Lat:</strong> {coordinates.latitude}
-                  <br />
-                  <strong>Lon:</strong> {coordinates.longitude}
-                </>
+            <div className="p-3 bg-muted rounded-md">
+              <p className="text-sm">
+                <strong>Koordinaten:</strong> {coordinates.hasCoordinates 
+                  ? `${coordinates.latitude}, ${coordinates.longitude}` 
+                  : "Nicht verfügbar"}
+              </p>
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <Button 
+            onClick={handleTriggerAutoBackfill}
+            disabled={isLoading}
+            className="w-full"
+          >
+            🔄 Automatisches Wetter-Backfill starten
+          </Button>
+          
+          {backfillResult && (
+            <div className="p-3 bg-muted rounded-md space-y-2">
+              <p className="text-sm">
+                <strong>Ergebnis:</strong> {backfillResult.success ? "✅ Erfolgreich" : "❌ Fehlgeschlagen"}
+              </p>
+              <p className="text-sm">
+                <strong>Bearbeitet:</strong> {backfillResult.totalProcessed || 0}
+              </p>
+              <p className="text-sm">
+                <strong>Erfolgreich:</strong> {backfillResult.successCount || 0}
+              </p>
+              <p className="text-sm">
+                <strong>Fehlgeschlagen:</strong> {backfillResult.failCount || 0}
+              </p>
+              {backfillResult.message && (
+                <p className="text-sm text-muted-foreground">{backfillResult.message}</p>
               )}
             </div>
           )}
         </div>
 
-        <div>
-          <Button 
-            onClick={handleTriggerBackfill}
-            disabled={loading}
-            className="w-full"
-          >
-            {loading ? "🔄 Lädt..." : "🌤️ Täglichen Wetter-Backfill starten"}
-          </Button>
-          
-          {result && (
-            <div className="mt-2 p-3 bg-muted rounded text-sm">
-              <strong>Ergebnis:</strong>
-              <br />
-              ✅ Erfolgreich: {result.ok}
-              <br />
-              ⏭️ Übersprungen: {result.skip}
-              <br />
-              ❌ Fehlgeschlagen: {result.fail}
-              <br />
-              <strong>Nachricht:</strong> {result.message}
-              <br />
-              <strong>Zeitstempel:</strong> {result.timestamp}
-            </div>
-          )}
+        <div className="text-xs text-muted-foreground p-3 bg-muted rounded-md">
+          <p><strong>Neues System:</strong></p>
+          <p>• Verwendet OpenWeatherMap API für bessere historische Daten</p>
+          <p>• Backfill läuft automatisch für alle Einträge ohne Wetterdaten</p>
+          <p>• Verarbeitet sowohl legacy pain_entries als auch neue events</p>
+          <p>• Rate-Limiting verhindert API-Überlastung</p>
         </div>
-
-        <div className="text-xs text-muted-foreground">
-          <p><strong>Hinweis:</strong> Der Backfill holt Wetter-Daten für GESTERN (Europe/Berlin) und verknüpft sie mit Migräne-Einträgen.</p>
-          <p><strong>Idempotenz:</strong> Mehrfache Ausführung ist sicher - bereits vorhandene Daten werden übersprungen.</p>
-        </div>
-      </div>
+      </CardContent>
     </Card>
   );
-};
+}
