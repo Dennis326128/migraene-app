@@ -12,8 +12,15 @@ function toLabel(e: PainEntry) {
 }
 
 export default function ChartComponent({ entries }: Props) {
+  // Debug logging to see what data we receive
+  console.log('📊 Chart component received:', {
+    entriesCount: entries?.length || 0,
+    firstEntry: entries?.[0],
+    lastEntry: entries?.[entries?.length - 1]
+  });
+
   const data = useMemo(() => {
-    return (entries || []).map(e => {
+    const processedData = (entries || []).map(e => {
       const weather = e.weather;
       return {
         label: toLabel(e),
@@ -28,6 +35,14 @@ export default function ChartComponent({ entries }: Props) {
         hasWeather: !!weather?.pressure_mb
       };
     });
+
+    console.log('📊 Chart processed data:', {
+      processedCount: processedData.length,
+      sampleData: processedData.slice(0, 3),
+      painLevels: processedData.map(d => d.pain)
+    });
+
+    return processedData;
   }, [entries]);
 
   // Calculate weather correlation

@@ -23,8 +23,8 @@ interface AnalysisViewProps {
 }
 
 export function AnalysisView({ onBack }: AnalysisViewProps) {
-  const [viewMode, setViewMode] = useState<"tagebuch" | "analyse" | "grafik" | "medikamente" | "ueberverbrauch" | "migration">("tagebuch");
-  const [timeRange, setTimeRange] = useState("3m");
+  const [viewMode, setViewMode] = useState<"tagebuch" | "analyse" | "grafik" | "medikamente" | "ueberverbrauch" | "migration">("grafik");
+  const [timeRange, setTimeRange] = useState("6m");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
   const [selectedLevels, setSelectedLevels] = useState<string[]>([]);
@@ -77,6 +77,17 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
 
   // Use compatible entries hook that supports both systems
   const { data: entries = [], isLoading, error, refetch } = useCompatibleEntries({ from, to });
+  
+  // Debug logging for AnalysisView
+  console.log('📈 AnalysisView received data:', {
+    entriesCount: entries?.length || 0,
+    timeRange,
+    dateRange: { from, to },
+    isLoading,
+    error: error?.message,
+    sampleEntry: entries?.[0]
+  });
+  
   const deleteEntry = useDeleteEntry();
 
   // Use new filtered hooks for statistics

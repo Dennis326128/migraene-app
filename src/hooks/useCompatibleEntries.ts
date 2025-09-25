@@ -12,16 +12,25 @@ export function useCompatibleEntries(filters?: { from: string; to: string }) {
   const { data: legacyEntries = [], isLoading: legacyLoading, error: legacyError } = useEntries(filters);
   const { data: newEvents = [], isLoading: eventsLoading, error: eventsError } = useEvents();
 
+  // Debug logging for data received
+  console.log('🔍 useCompatibleEntries debug:', {
+    legacyEntries: legacyEntries?.length || 0,
+    newEvents: newEvents?.length || 0,
+    legacyLoading,
+    eventsLoading,
+    filters
+  });
+
   return useQuery({
     queryKey: ['compatible-entries', filters],
-    queryFn: async () => {
-      // If we have new events, use them
+    queryFn: () => {
+      // Always prioritize events if they exist
       if (newEvents && newEvents.length > 0) {
         console.log('✅ Using new event system:', newEvents.length, 'events');
         return newEvents;
       }
       
-      // Otherwise fall back to legacy entries
+      // Fall back to legacy entries - this should be the main data source for now
       if (legacyEntries && legacyEntries.length > 0) {
         console.log('🔄 Using legacy system:', legacyEntries.length, 'entries');
         return legacyEntries;
@@ -31,7 +40,8 @@ export function useCompatibleEntries(filters?: { from: string; to: string }) {
       return [];
     },
     enabled: !legacyLoading && !eventsLoading,
-    initialData: []
+    // Return legacy data by default since that's what we have
+    initialData: legacyEntries || []
   });
 }
 
