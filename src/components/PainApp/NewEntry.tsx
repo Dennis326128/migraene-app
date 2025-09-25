@@ -221,9 +221,19 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
         await setEntrySymptomsMut.mutateAsync({ entryId: numericId, symptomIds: selectedSymptoms });
       }
 
-      toast({ title: "✅ Migräne-Eintrag gespeichert", description: "Erfolgreich gespeichert." });
-      onSave?.();
-      onBack();
+      toast({ 
+        title: "✅ Migräne-Eintrag gespeichert", 
+        description: "Erfolgreich gespeichert. Ihre Daten sind sicher gespeichert." 
+      });
+      
+      // Success animation delay
+      setTimeout(() => {
+        onSave?.();
+        onBack();
+      }, 1000);
+      
+      // Haptic feedback for success
+      triggerHapticFeedback();
     } catch (err: any) {
       toast({ title: "Fehler", description: err.message ?? String(err), variant: "destructive" });
     } finally {

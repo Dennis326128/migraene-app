@@ -15,6 +15,7 @@ import { OveruseMonitor } from "./OveruseMonitor";
 import { MigrationPanel } from "./MigrationPanel";
 import { useFilteredEntries, useMigraineStats, useTimeDistribution } from "@/features/statistics/hooks/useStatistics";
 import { Pill, AlertTriangle, Database } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 
 interface AnalysisViewProps {
   onBack: () => void;
@@ -270,8 +271,30 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
           {isLoading || statsLoading ? (
             <div className="text-center py-8">Lade Daten...</div>
           ) : error ? (
-            <div className="text-center py-8 text-red-500">
-              Fehler beim Laden der Daten: {error.message}
+            <div className="flex justify-center py-8">
+              <EmptyState
+                icon="⚠️"
+                title="Fehler beim Laden"
+                description={`Es gab ein Problem beim Laden der Daten: ${error.message}`}
+                action={{
+                  label: "Erneut versuchen",
+                  onClick: () => window.location.reload(),
+                  variant: "outline"
+                }}
+              />
+            </div>
+          ) : entries.length === 0 ? (
+            <div className="flex justify-center py-8">
+              <EmptyState
+                icon="📊"
+                title="Keine Daten für Analyse"
+                description="Erstellen Sie mindestens 3-5 Migräne-Einträge, um aussagekräftige Statistiken zu erhalten."
+                action={{
+                  label: "Ersten Eintrag erstellen",
+                  onClick: onBack,
+                  variant: "default"
+                }}
+              />
             </div>
           ) : (
             <>
@@ -345,8 +368,30 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
           {isLoading ? (
             <div className="text-center py-8">Lade Daten...</div>
           ) : error ? (
-            <div className="text-center py-8 text-red-500">
-              Fehler beim Laden der Daten: {error.message}
+            <div className="flex justify-center py-8">
+              <EmptyState
+                icon="⚠️"
+                title="Fehler beim Laden"
+                description={`Es gab ein Problem beim Laden der Daten: ${error.message}`}
+                action={{
+                  label: "Erneut versuchen",
+                  onClick: () => window.location.reload(),
+                  variant: "outline"
+                }}
+              />
+            </div>
+          ) : entries.length === 0 ? (
+            <div className="flex justify-center py-8">
+              <EmptyState
+                icon="📈"
+                title="Keine Daten für Grafik"
+                description="Erstellen Sie mindestens 3-5 Migräne-Einträge, um grafische Auswertungen zu sehen."
+                action={{
+                  label: "Ersten Eintrag erstellen",
+                  onClick: onBack,
+                  variant: "default"
+                }}
+              />
             </div>
           ) : (
             <Card>

@@ -125,8 +125,13 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ open, onOpenCh
 
       toast({
         title: "✅ Schnelleintrag gespeichert",
-        description: `Intensität ${intensity[0]}/10${selectedMedsList.length > 0 ? `, ${selectedMedsList.length} Medikament(e)` : ""}`,
+        description: "Medikamenteneinnahme wurde erfolgreich dokumentiert. Reminder für Wirksamkeit in 2h gesetzt."
       });
+      
+      // Success animation delay
+      setTimeout(() => {
+        onOpenChange(false);
+      }, 1000);
 
       onOpenChange(false);
     } catch (error) {

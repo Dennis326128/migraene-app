@@ -9,6 +9,7 @@ import { useEntries } from "@/features/entries/hooks/useEntries";
 import { useDeleteEntry } from "@/features/entries/hooks/useEntryMutations";
 import { backfillWeatherForRecentEntries } from "@/utils/backfillWeather";
 import { useSymptomCatalog, useEntrySymptoms } from "@/features/symptoms/hooks/useSymptoms";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export const EntriesList = ({
   onBack,
@@ -85,9 +86,17 @@ export const EntriesList = ({
       </div>
 
       {sorted.length === 0 ? (
-        <div className="text-center py-12">
-          <p className="text-muted-foreground text-lg">Noch keine Migräne-Einträge vorhanden.</p>
-          <p className="text-sm text-muted-foreground mt-2">Erstellen Sie Ihren ersten Eintrag über das Hauptmenü.</p>
+        <div className="flex justify-center py-8">
+          <EmptyState
+            icon="📋"
+            title="Noch keine Einträge"
+            description="Ihre Migräne-Einträge werden hier angezeigt. Erstellen Sie Ihren ersten Eintrag, um zu beginnen."
+            action={{
+              label: "Ersten Eintrag erstellen",
+              onClick: onBack,
+              variant: "default"
+            }}
+          />
         </div>
       ) : (
         <div className="space-y-3">

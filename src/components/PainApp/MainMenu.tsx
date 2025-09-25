@@ -4,7 +4,9 @@ import { Card } from "@/components/ui/card";
 import { Plus, History, TrendingUp, Settings } from "lucide-react";
 import { LogoutButton } from "@/components/LogoutButton";
 import { QuickEntryModal } from "./QuickEntryModal";
+import { WelcomeModal } from "./WelcomeModal";
 import { useShouldShowMigration } from "@/hooks/useMigrationStatus";
+import { useOnboarding } from "@/hooks/useOnboarding";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Database } from "lucide-react";
 
@@ -23,6 +25,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
 }) => {
   const [quickEntryOpen, setQuickEntryOpen] = useState(false);
   const shouldShowMigration = useShouldShowMigration();
+  const { needsOnboarding, completeOnboarding, isLoading: onboardingLoading } = useOnboarding();
 
   return (
     <div className="min-h-screen bg-background p-4 sm:p-6 flex flex-col">
@@ -114,6 +117,14 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         open={quickEntryOpen} 
         onOpenChange={setQuickEntryOpen} 
       />
+
+      {/* Welcome/Onboarding Modal */}
+      {!onboardingLoading && (
+        <WelcomeModal 
+          open={needsOnboarding} 
+          onComplete={completeOnboarding} 
+        />
+      )}
     </div>
   );
 };
