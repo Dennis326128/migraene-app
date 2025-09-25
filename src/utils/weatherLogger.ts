@@ -60,13 +60,13 @@ export async function logAndSaveWeatherAt(atISO: string): Promise<number | null>
   const accessToken = sessionData.session?.access_token;
   if (!accessToken) return null;
 
-  const url = `${VITE_SUPABASE_URL}/functions/v1/fetch-weather-hybrid`;
+  const url = `https://lzcbjciqrhsezxkjeyhb.supabase.co/functions/v1/fetch-weather-hybrid`;
   const res = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       apikey: VITE_SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${accessToken}`,   // wichtig: User-JWT, nicht anon key
+      Authorization: `Bearer ${accessToken}`,
     },
     body: JSON.stringify({ lat: coords.lat, lon: coords.lon, at: atISO }),
   });

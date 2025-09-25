@@ -228,14 +228,24 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
   };
 
   const performSave = async () => {
-
     setSaving(true);
     setPendingSave(false);
+    
+    let weatherId = null;
     try {
-      // Wetter für alle Einträge abfragen
+      // Versuche Wetterdaten zu holen, aber blockiere nicht das Speichern wenn es fehlschlägt
       const atISO = new Date(`${selectedDate}T${selectedTime}:00`).toISOString();
-      const weatherId = await logAndSaveWeatherAt(atISO);
+      weatherId = await logAndSaveWeatherAt(atISO);
+    } catch (weatherError) {
+      console.warn('Weather data fetch failed, continuing without weather data:', weatherError);
+      toast({ 
+        title: "⚠️ Wetterdaten nicht verfügbar", 
+        description: "Eintrag wird ohne Wetterdaten gespeichert.",
+        variant: "default"
+      });
+    }
 
+    try {
       const payload = {
         selected_date: selectedDate,
         selected_time: selectedTime,
