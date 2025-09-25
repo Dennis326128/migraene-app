@@ -10,14 +10,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatisticsFilter } from "./StatisticsFilter";
 import { StatisticsCards } from "./StatisticsCards";
 import { TimeDistributionChart } from "./TimeDistributionChart";
+import { MedicationEffectsView } from "./MedicationEffectsView";
+import { OveruseMonitor } from "./OveruseMonitor";
 import { useFilteredEntries, useMigraineStats, useTimeDistribution } from "@/features/statistics/hooks/useStatistics";
+import { Pill, AlertTriangle } from "lucide-react";
 
 interface AnalysisViewProps {
   onBack: () => void;
 }
 
 export function AnalysisView({ onBack }: AnalysisViewProps) {
-  const [viewMode, setViewMode] = useState<"tagebuch" | "analyse" | "grafik">("tagebuch");
+  const [viewMode, setViewMode] = useState<"tagebuch" | "analyse" | "grafik" | "medikamente" | "ueberverbrauch">("tagebuch");
   const [timeRange, setTimeRange] = useState("3m");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
@@ -212,6 +215,22 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
               <Activity className="h-4 w-4" />
               Grafische Darstellung
             </Button>
+            <Button
+              onClick={() => setViewMode("medikamente")}
+              variant={viewMode === "medikamente" ? "default" : "outline"}
+              className="flex items-center gap-2"
+            >
+              <Pill className="h-4 w-4" />
+              Medikamenten-Analyse
+            </Button>
+            <Button
+              onClick={() => setViewMode("ueberverbrauch")}
+              variant={viewMode === "ueberverbrauch" ? "default" : "outline"}
+              className="flex items-center gap-2"
+            >
+              <AlertTriangle className="h-4 w-4" />
+              Überverbrauch-Monitor
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -334,6 +353,27 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
             </Card>
           )}
         </>
+      )}
+
+      {viewMode === "medikamente" && (
+        <MedicationEffectsView onBack={() => setViewMode("analyse")} />
+      )}
+
+      {viewMode === "ueberverbrauch" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5" />
+              Medikamenten-Überverbrauch Monitor
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Überwachung der Medikamenteneinnahme zur Vermeidung von Übergebrauch
+            </p>
+          </CardHeader>
+          <CardContent>
+            <OveruseMonitor />
+          </CardContent>
+        </Card>
       )}
     </div>
   );
