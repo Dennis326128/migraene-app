@@ -248,21 +248,25 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
         <div className="w-9"></div>
       </div>
 
-      {/* Migräne-Intensität */}
-      <Card className="p-6 mb-4">
+      {/* Migräne-Intensität - Mobile Optimized */}
+      <Card className="p-4 sm:p-6 mb-4">
         <Label className="text-base font-medium mb-3 block">
           🩺 Migräne-Intensität *
         </Label>
-        <div className="text-sm text-muted-foreground mb-2">
-          💡 Tipp: Nutzen Sie die Pfeiltasten ↑↓ zur Navigation
+        <div className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-2 px-1">
+          💡 Tipp: Tippen Sie auf eine Option oder nutzen Sie die Pfeiltasten ↑↓
         </div>
-        <div ref={painLevelSectionRef} className="grid gap-3" role="radiogroup" aria-label="Migräne-Intensität auswählen">
+        <div ref={painLevelSectionRef} className="grid gap-2 sm:gap-3" role="radiogroup" aria-label="Migräne-Intensität auswählen">
           {painLevels.map((level, index) => (
             <Button
               key={level.value}
               type="button"
               variant={painLevel === level.value ? "default" : "outline"}
-              className="h-auto p-4 text-left justify-start transition-all duration-200 hover:scale-[1.02]"
+              className={`h-auto p-3 sm:p-4 text-left justify-start transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] touch-manipulation min-h-[3rem] sm:min-h-[auto] ${
+                painLevel === level.value 
+                  ? "ring-2 ring-primary/20 shadow-lg" 
+                  : ""
+              }`}
               onClick={() => handlePainLevelChange(level.value)}
               aria-pressed={painLevel === level.value}
               role="radio"
@@ -270,8 +274,8 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
               tabIndex={index === 0 ? 0 : -1}
             >
               <div className="flex flex-col items-start w-full">
-                <span className="font-medium">{level.label}</span>
-                <span className="text-sm text-muted-foreground mt-1">{level.desc}</span>
+                <span className="font-medium text-sm sm:text-base">{level.label}</span>
+                <span className="text-xs sm:text-sm text-muted-foreground mt-1 leading-tight">{level.desc}</span>
               </div>
             </Button>
           ))}
