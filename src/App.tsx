@@ -10,6 +10,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import Index from "./pages/Index";
 import AuthPage from "./pages/AuthPage";
 import NotFound from "./pages/NotFound";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
 
 // Create QueryClient with error recovery
 const queryClient = new QueryClient({
@@ -91,6 +92,7 @@ function App() {
           <TooltipProvider>
             <Routes>
               <Route path="/auth" element={<AuthPage />} />
+              <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route 
                 path="/" 
                 element={

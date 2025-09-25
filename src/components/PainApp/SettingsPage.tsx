@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useUserSettings } from "@/features/settings/hooks/useUserSettings";
 import { WeatherBackfillTest } from "@/components/WeatherBackfillTest";
+import { AccountDeletion } from "@/components/AccountDeletion";
+import { Separator } from "@/components/ui/separator";
 
 const SettingsPage = ({ onBack }: { onBack: () => void }) => {
   const { toast } = useToast();
@@ -209,6 +211,22 @@ const SettingsPage = ({ onBack }: { onBack: () => void }) => {
               {saving ? "Speichere..." : "💾 Speichern"}
             </Button>
           </div>
+        </div>
+      </Card>
+
+      {/* Privacy & GDPR Section */}
+      <Card className="p-6 mb-4">
+        <h2 className="text-lg font-medium mb-4">🛡️ Datenschutz & DSGVO</h2>
+        <div className="space-y-4">
+          <Button
+            variant="outline"
+            onClick={() => window.open('/privacy', '_blank')}
+            className="w-full justify-start"
+          >
+            📋 Datenschutzerklärung anzeigen
+          </Button>
+          <Separator />
+          <AccountDeletion />
         </div>
       </Card>
 
