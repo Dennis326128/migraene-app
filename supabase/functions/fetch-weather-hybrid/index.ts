@@ -15,15 +15,43 @@ serve(async (req) => {
   try {
     console.log('🌤️ Fetch-weather-hybrid function called');
 
-    const supabase = createClient(
+    // Create two clients: one for auth validation, one for database operations
+    const supabaseAuth = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+    );
+
+    const supabaseService = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
+    // Parse request body once
+    let requestBody: any;
+    try {
+      requestBody = await req.json();
+    } catch (error) {
+      console.error('❌ Invalid JSON in request body');
+      return new Response(JSON.stringify({ 
+        error: 'Invalid JSON in request body',
+        weather_id: null 
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
     // Authentication - support both user JWT and service role
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      throw new Error('Missing Authorization header');
+      console.error('❌ Missing Authorization header');
+      return new Response(JSON.stringify({ 
+        error: 'Missing Authorization header',
+        weather_id: null 
+      }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
     const token = authHeader.replace('Bearer ', '');
@@ -33,11 +61,17 @@ serve(async (req) => {
 
     if (token === serviceRoleKey) {
       // Service role authentication - get userId from request body
-      const requestBody = await req.json();
       const { lat: reqLat, lon: reqLon, at: reqAt, userId: requestUserId } = requestBody;
       
       if (!requestUserId) {
-        throw new Error('userId required for service role authentication');
+        console.error('❌ userId required for service role authentication');
+        return new Response(JSON.stringify({ 
+          error: 'userId required for service role authentication',
+          weather_id: null 
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
       }
       
       userId = requestUserId;
@@ -46,18 +80,25 @@ serve(async (req) => {
       at = reqAt;
       console.log('🔑 Service role authentication for user:', userId);
     } else {
-      // User JWT authentication
-      const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+      // User JWT authentication - use ANON client for auth validation
+      const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(token);
 
       if (authError || !user) {
-        throw new Error('Invalid authentication');
+        console.error('❌ Invalid user authentication:', authError?.message);
+        return new Response(JSON.stringify({ 
+          error: 'Invalid authentication',
+          weather_id: null 
+        }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
       }
 
       userId = user.id;
       console.log('👤 User JWT authentication:', userId);
       
-      // Parse request body for user JWT
-      const { lat: reqLat, lon: reqLon, at: reqAt } = await req.json();
+      // Parse request data
+      const { lat: reqLat, lon: reqLon, at: reqAt } = requestBody;
       lat = reqLat;
       lon = reqLon;
       at = reqAt;
@@ -66,7 +107,14 @@ serve(async (req) => {
     console.log('📍 Weather request for:', { lat, lon, at, userId });
 
     if (!lat || !lon || !at) {
-      throw new Error('Missing required parameters: lat, lon, at');
+      console.error('❌ Missing required parameters');
+      return new Response(JSON.stringify({ 
+        error: 'Missing required parameters: lat, lon, at',
+        weather_id: null 
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
     // Parse the date
@@ -84,7 +132,7 @@ serve(async (req) => {
     const dateString = requestDate.toISOString().split('T')[0];
     console.log('🔍 Checking for existing weather data for date:', dateString);
 
-    const { data: existing, error: existingError } = await supabase
+    const { data: existing, error: existingError } = await supabaseService
       .from('weather_logs')
       .select('id')
       .eq('user_id', userId)
@@ -173,7 +221,7 @@ serve(async (req) => {
 
     // Insert weather data into database
     console.log('💾 Inserting weather data into database...');
-    const { data: insertResult, error: insertError } = await supabase
+    const { data: insertResult, error: insertError } = await supabaseService
       .from('weather_logs')
       .insert({
         user_id: userId,
@@ -195,7 +243,7 @@ serve(async (req) => {
       // Check if it's a duplicate key error
       if (insertError.code === '23505') {
         console.log('⚠️ Duplicate weather entry, fetching existing...');
-        const { data: existingData } = await supabase
+        const { data: existingData } = await supabaseService
           .from('weather_logs')
           .select('id')
           .eq('user_id', userId)
@@ -224,11 +272,20 @@ serve(async (req) => {
   } catch (error) {
     console.error('❌ Function error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
+    // Determine appropriate status code based on error type
+    let statusCode = 500;
+    if (errorMessage.includes('Missing Authorization') || errorMessage.includes('Invalid authentication')) {
+      statusCode = 401;
+    } else if (errorMessage.includes('Missing required parameters') || errorMessage.includes('Invalid JSON')) {
+      statusCode = 400;
+    }
+    
     return new Response(JSON.stringify({ 
       error: errorMessage,
       weather_id: null 
     }), {
-      status: 500,
+      status: statusCode,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
