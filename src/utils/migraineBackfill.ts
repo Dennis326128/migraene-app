@@ -4,9 +4,23 @@ import type { MigraineEntry } from "@/types/painApp";
 
 function toAtISO(entry: Pick<MigraineEntry, "selected_date" | "selected_time" | "timestamp_created">): string {
   if (entry.selected_date && entry.selected_time) {
-    // Lokale Eingabe → in ISO (UTC) mit Europe/Berlin Berücksichtigung
-    const localDateTime = `${entry.selected_date}T${entry.selected_time}:00`;
+    // Bereinige selected_time: falls bereits Sekunden vorhanden, entferne ":00" am Ende nicht
+    let timeStr = entry.selected_time;
+    if (timeStr.length === 5) {
+      // HH:MM Format → füge Sekunden hinzu
+      timeStr += ":00";
+    }
+    // HH:MM:SS Format bleibt unverändert
+    
+    const localDateTime = `${entry.selected_date}T${timeStr}`;
     const date = new Date(localDateTime);
+    
+    // Validiere das Datum
+    if (isNaN(date.getTime())) {
+      console.warn(`⚠️ Ungültiges Datum für Eintrag: ${entry.selected_date}T${timeStr}, verwende timestamp_created`);
+      return new Date(entry.timestamp_created).toISOString();
+    }
+    
     // Für Europe/Berlin Zeitzone (UTC+1/UTC+2)
     const offset = date.getTimezoneOffset();
     date.setMinutes(date.getMinutes() - offset);
