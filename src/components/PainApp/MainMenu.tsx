@@ -54,57 +54,57 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         <div className="grid gap-4 sm:gap-6 w-full max-w-md px-2 sm:px-0">
           {/* Quick Entry Button - Mobile Optimized */}
           <Card 
-            className="hover:shadow-lg active:shadow-xl transition-all cursor-pointer group border-destructive bg-destructive/5 hover:bg-destructive/10 active:scale-[0.98] touch-manipulation" 
+            className="hover:shadow-lg active:shadow-xl transition-all cursor-pointer group border-destructive bg-destructive/5 hover:bg-destructive/10 active:scale-[0.98] touch-manipulation mobile-touch-feedback" 
             onClick={() => setQuickEntryOpen(true)}
           >
-            <div className="p-5 sm:p-6 text-center min-h-[5rem] sm:min-h-[6rem] flex flex-col justify-center">
-              <div className="text-3xl sm:text-4xl mb-2 sm:mb-3 group-hover:scale-110 transition-transform">🚨</div>
-              <h3 className="text-lg sm:text-xl font-semibold mb-1 sm:mb-2 text-destructive">Schnelleintrag</h3>
-              <p className="text-muted-foreground text-xs sm:text-sm leading-tight">
-                Sofortige Tabletteneinnahme dokumentieren (&lt; 30 Sek.)
+            <div className="p-4 sm:p-6 text-center min-h-[4rem] sm:min-h-[6rem] flex flex-col justify-center mobile-card-compact mobile-text-compact">
+              <div className="text-2xl sm:text-4xl mb-1 sm:mb-3 group-hover:scale-110 transition-transform">🚨</div>
+              <h3 className="text-base sm:text-xl font-semibold mb-1 text-destructive mobile-button-text">Schnelleintrag</h3>
+              <p className="text-muted-foreground text-xs leading-tight mobile-button-text">
+                Sofortige Tabletteneinnahme dokumentieren
               </p>
             </div>
           </Card>
 
           {/* New Entry Button */}
-          <Card className="hover:shadow-lg active:shadow-xl transition-all cursor-pointer group active:scale-[0.98] touch-manipulation" onClick={onNewEntry}>
-            <div className="p-5 sm:p-6 text-center min-h-[5rem] sm:min-h-[6rem] flex flex-col justify-center">
-              <div className="text-3xl sm:text-4xl mb-2 sm:mb-3 group-hover:scale-110 transition-transform">➕</div>
-              <h3 className="text-lg sm:text-xl font-semibold mb-1 sm:mb-2">Neuer Eintrag</h3>
-              <p className="text-muted-foreground text-xs sm:text-sm leading-tight">
-                Detaillierte Migräne-Dokumentation mit allen Symptomen
+          <Card className="hover:shadow-lg active:shadow-xl transition-all cursor-pointer group active:scale-[0.98] touch-manipulation mobile-touch-feedback" onClick={onNewEntry}>
+            <div className="p-4 sm:p-6 text-center min-h-[4rem] sm:min-h-[6rem] flex flex-col justify-center mobile-card-compact mobile-text-compact">
+              <div className="text-2xl sm:text-4xl mb-1 sm:mb-3 group-hover:scale-110 transition-transform">➕</div>
+              <h3 className="text-base sm:text-xl font-semibold mb-1 mobile-button-text">Neuer Eintrag</h3>
+              <p className="text-muted-foreground text-xs leading-tight mobile-button-text">
+                Detaillierte Migräne-Dokumentation
               </p>
             </div>
           </Card>
 
           {/* View Entries Button */}
-          <Card className="hover:shadow-lg active:shadow-xl transition-all cursor-pointer group active:scale-[0.98] touch-manipulation" onClick={onViewEntries}>
-            <div className="p-5 sm:p-6 text-center min-h-[5rem] sm:min-h-[6rem] flex flex-col justify-center">
-              <div className="text-3xl sm:text-4xl mb-2 sm:mb-3 group-hover:scale-110 transition-transform">📋</div>
-              <h3 className="text-lg sm:text-xl font-semibold mb-1 sm:mb-2">Verlauf</h3>
-              <p className="text-muted-foreground text-xs sm:text-sm leading-tight">
+          <Card className="hover:shadow-lg active:shadow-xl transition-all cursor-pointer group active:scale-[0.98] touch-manipulation mobile-touch-feedback" onClick={onViewEntries}>
+            <div className="p-4 sm:p-6 text-center min-h-[4rem] sm:min-h-[6rem] flex flex-col justify-center mobile-card-compact mobile-text-compact">
+              <div className="text-2xl sm:text-4xl mb-1 sm:mb-3 group-hover:scale-110 transition-transform">📋</div>
+              <h3 className="text-base sm:text-xl font-semibold mb-1 mobile-button-text">Verlauf</h3>
+              <p className="text-muted-foreground text-xs leading-tight mobile-button-text">
                 Letzte Einträge anzeigen und bearbeiten
               </p>
             </div>
           </Card>
 
           {/* Analysis Button */}
-          <Card className="hover:shadow-lg active:shadow-xl transition-all cursor-pointer group active:scale-[0.98] touch-manipulation" onClick={onViewAnalysis}>
-            <div className="p-5 sm:p-6 text-center min-h-[5rem] sm:min-h-[6rem] flex flex-col justify-center">
-              <div className="text-3xl sm:text-4xl mb-2 sm:mb-3 group-hover:scale-110 transition-transform">📊</div>
-              <h3 className="text-lg sm:text-xl font-semibold mb-1 sm:mb-2">Auswertungen</h3>
-              <p className="text-muted-foreground text-xs sm:text-sm leading-tight">
+          <Card className="hover:shadow-lg active:shadow-xl transition-all cursor-pointer group active:scale-[0.98] touch-manipulation mobile-touch-feedback" onClick={onViewAnalysis}>
+            <div className="p-4 sm:p-6 text-center min-h-[4rem] sm:min-h-[6rem] flex flex-col justify-center mobile-card-compact mobile-text-compact">
+              <div className="text-2xl sm:text-4xl mb-1 sm:mb-3 group-hover:scale-110 transition-transform">📊</div>
+              <h3 className="text-base sm:text-xl font-semibold mb-1 mobile-button-text">Auswertungen</h3>
+              <p className="text-muted-foreground text-xs leading-tight mobile-button-text">
                 Trends, Korrelationen und PDF-Berichte
               </p>
             </div>
           </Card>
 
           {/* Settings Button */}
-          <Card className="hover:shadow-lg active:shadow-xl transition-all cursor-pointer group active:scale-[0.98] touch-manipulation" onClick={onViewSettings}>
-            <div className="p-5 sm:p-6 text-center min-h-[5rem] sm:min-h-[6rem] flex flex-col justify-center">
-              <div className="text-3xl sm:text-4xl mb-2 sm:mb-3 group-hover:scale-110 transition-transform">⚙️</div>
-              <h3 className="text-lg sm:text-xl font-semibold mb-1 sm:mb-2">Einstellungen</h3>
-              <p className="text-muted-foreground text-xs sm:text-sm leading-tight">
+          <Card className="hover:shadow-lg active:shadow-xl transition-all cursor-pointer group active:scale-[0.98] touch-manipulation mobile-touch-feedback" onClick={onViewSettings}>
+            <div className="p-4 sm:p-6 text-center min-h-[4rem] sm:min-h-[6rem] flex flex-col justify-center mobile-card-compact mobile-text-compact">
+              <div className="text-2xl sm:text-4xl mb-1 sm:mb-3 group-hover:scale-110 transition-transform">⚙️</div>
+              <h3 className="text-base sm:text-xl font-semibold mb-1 mobile-button-text">Einstellungen</h3>
+              <p className="text-muted-foreground text-xs leading-tight mobile-button-text">
                 Medikamente, Profile und Konfiguration
               </p>
             </div>

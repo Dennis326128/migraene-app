@@ -158,4 +158,32 @@ All colors MUST be HSL.
     min-height: 44px;
     min-width: 44px;
   }
+
+  /* Mobile card optimizations */
+  .mobile-card-compact {
+    padding: 0.75rem !important;
+  }
+
+  .mobile-text-compact h3 {
+    font-size: 1rem !important;
+    line-height: 1.25 !important;
+  }
+
+  .mobile-text-compact p {
+    font-size: 0.875rem !important;
+    line-height: 1.25 !important;
+  }
+
+  /* Better button text wrapping on mobile */
+  .mobile-button-text {
+    hyphens: auto;
+    word-break: break-word;
+    text-align: center;
+  }
+
+  /* Improved touch feedback */
+  .mobile-touch-feedback:active {
+    transform: scale(0.98);
+    transition: transform 0.1s ease;
+  }
 }
