@@ -448,7 +448,9 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
               <SelectContent>
                 <SelectItem value="-">-</SelectItem>
                 {medOptions.map((m) => (
-                  <SelectItem key={m} value={m}>{m}</SelectItem>
+                  <SelectItem key={typeof m === 'string' ? m : m.id} value={typeof m === 'string' ? m : m.name}>
+                    {typeof m === 'string' ? m : m.name}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>

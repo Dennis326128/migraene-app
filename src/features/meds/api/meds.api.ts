@@ -2,16 +2,16 @@ import { supabase } from "@/lib/supabaseClient";
 
 export type Med = { id: string; name: string; class?: string | null; is_active?: boolean | null };
 
-export async function listMeds(): Promise<string[]> {
+export async function listMeds(): Promise<Med[]> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return [];
   const { data, error } = await supabase
     .from("user_medications")
-    .select("name")
+    .select("id, name")
     .eq("user_id", user.id)
     .order("name", { ascending: true });
   if (error) throw error;
-  return (data || []).map((d: any) => d.name);
+  return (data || []).map((d: any) => ({ id: d.id, name: d.name }));
 }
 
 export async function addMed(name: string): Promise<void> {

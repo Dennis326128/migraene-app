@@ -1,7 +1,9 @@
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Plus, History, TrendingUp, Settings } from "lucide-react";
 import { LogoutButton } from "@/components/LogoutButton";
+import { QuickEntryModal } from "./QuickEntryModal";
 
 interface MainMenuProps {
   onNewEntry: () => void;
@@ -10,7 +12,14 @@ interface MainMenuProps {
   onViewSettings: () => void;
 }
 
-export const MainMenu = ({ onNewEntry, onViewEntries, onViewAnalysis, onViewSettings }: MainMenuProps) => {
+export const MainMenu: React.FC<MainMenuProps> = ({
+  onNewEntry,
+  onViewEntries,
+  onViewAnalysis,
+  onViewSettings,
+}) => {
+  const [quickEntryOpen, setQuickEntryOpen] = useState(false);
+
   return (
     <div className="min-h-screen bg-background p-6 flex flex-col">
       <div className="absolute top-4 right-4">
@@ -18,60 +27,76 @@ export const MainMenu = ({ onNewEntry, onViewEntries, onViewAnalysis, onViewSett
       </div>
       <div className="flex-1 flex flex-col justify-center max-w-md mx-auto w-full">
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-light text-foreground mb-2">Schmerz-App</h1>
-          <p className="text-muted-foreground">Verfolgen Sie Ihre Schmerzen und Medikamente</p>
+          <h1 className="text-4xl font-light text-foreground mb-2">Migräne-App</h1>
+          <p className="text-muted-foreground">Verfolgen Sie Ihre Migräne und finden Sie Muster</p>
         </div>
 
-        <div className="space-y-6">
-          <Card className="p-6 bg-gradient-to-br from-card to-card/50 border-border/50 shadow-lg">
-            <Button
-              onClick={onNewEntry}
-              variant="default"
-              size="lg"
-              className="w-full h-16 bg-primary hover:bg-primary/90 text-primary-foreground font-medium text-lg rounded-xl transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
-            >
-              <Plus className="w-6 h-6 mr-3" />
-              Neuer Eintrag
-            </Button>
+        <div className="grid gap-6 w-full max-w-md">
+          {/* Quick Entry Button - RED EMERGENCY STYLE */}
+          <Card 
+            className="hover:shadow-lg transition-all cursor-pointer group border-destructive bg-destructive/5 hover:bg-destructive/10" 
+            onClick={() => setQuickEntryOpen(true)}
+          >
+            <div className="p-6 text-center">
+              <div className="text-4xl mb-3 group-hover:scale-110 transition-transform">🚨</div>
+              <h3 className="text-xl font-semibold mb-2 text-destructive">Schnelleintrag</h3>
+              <p className="text-muted-foreground text-sm">
+                Sofortige Tabletteneinnahme dokumentieren (&lt; 30 Sek.)
+              </p>
+            </div>
           </Card>
 
-          <Card className="p-6 bg-gradient-to-br from-card to-card/50 border-border/50 shadow-lg">
-            <Button
-              onClick={onViewEntries}
-              variant="secondary"
-              size="lg"
-              className="w-full h-16 bg-secondary hover:bg-secondary/80 text-secondary-foreground font-medium text-lg rounded-xl transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
-            >
-              <History className="w-6 h-6 mr-3" />
-              Letzte Einträge
-            </Button>
+          {/* New Entry Button */}
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer group" onClick={onNewEntry}>
+            <div className="p-6 text-center">
+              <div className="text-4xl mb-3 group-hover:scale-110 transition-transform">➕</div>
+              <h3 className="text-xl font-semibold mb-2">Neuer Eintrag</h3>
+              <p className="text-muted-foreground text-sm">
+                Detaillierte Migräne-Dokumentation mit allen Symptomen
+              </p>
+            </div>
           </Card>
 
-          <Card className="p-6 bg-gradient-to-br from-card to-card/50 border-border/50 shadow-lg">
-            <Button
-              onClick={onViewAnalysis}
-              variant="secondary"
-              size="lg"
-              className="w-full h-16 text-secondary-foreground font-medium text-lg rounded-xl transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
-            >
-              <TrendingUp className="w-6 h-6 mr-3" />
-              Auswertungen & Berichte
-            </Button>
+          {/* View Entries Button */}
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer group" onClick={onViewEntries}>
+            <div className="p-6 text-center">
+              <div className="text-4xl mb-3 group-hover:scale-110 transition-transform">📋</div>
+              <h3 className="text-xl font-semibold mb-2">Verlauf</h3>
+              <p className="text-muted-foreground text-sm">
+                Letzte Einträge anzeigen und bearbeiten
+              </p>
+            </div>
           </Card>
 
-          <Card className="p-6 bg-gradient-to-br from-card to-card/50 border-border/50 shadow-lg">
-            <Button
-              onClick={onViewSettings}
-              variant="outline"
-              size="lg"
-              className="w-full h-16 font-medium text-lg rounded-xl transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
-            >
-              <Settings className="w-6 h-6 mr-3" />
-              Einstellungen
-            </Button>
+          {/* Analysis Button */}
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer group" onClick={onViewAnalysis}>
+            <div className="p-6 text-center">
+              <div className="text-4xl mb-3 group-hover:scale-110 transition-transform">📊</div>
+              <h3 className="text-xl font-semibold mb-2">Auswertungen</h3>
+              <p className="text-muted-foreground text-sm">
+                Trends, Korrelationen und PDF-Berichte
+              </p>
+            </div>
+          </Card>
+
+          {/* Settings Button */}
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer group" onClick={onViewSettings}>
+            <div className="p-6 text-center">
+              <div className="text-4xl mb-3 group-hover:scale-110 transition-transform">⚙️</div>
+              <h3 className="text-xl font-semibold mb-2">Einstellungen</h3>
+              <p className="text-muted-foreground text-sm">
+                Medikamente, Profile und Konfiguration
+              </p>
+            </div>
           </Card>
         </div>
       </div>
+
+      {/* Quick Entry Modal */}
+      <QuickEntryModal 
+        open={quickEntryOpen} 
+        onOpenChange={setQuickEntryOpen} 
+      />
     </div>
   );
 };

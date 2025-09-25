@@ -47,6 +47,152 @@ export type Database = {
           },
         ]
       }
+      event_meds: {
+        Row: {
+          created_at: string
+          dose_mg: number | null
+          event_id: number
+          id: number
+          med_id: string
+          source: string
+          taken_at: string
+          units: string | null
+          was_default: boolean | null
+        }
+        Insert: {
+          created_at?: string
+          dose_mg?: number | null
+          event_id: number
+          id?: number
+          med_id: string
+          source?: string
+          taken_at?: string
+          units?: string | null
+          was_default?: boolean | null
+        }
+        Update: {
+          created_at?: string
+          dose_mg?: number | null
+          event_id?: number
+          id?: number
+          med_id?: string
+          source?: string
+          taken_at?: string
+          units?: string | null
+          was_default?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_meds_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_meds_med_id_fkey"
+            columns: ["med_id"]
+            isOneToOne: false
+            referencedRelation: "user_medications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      events: {
+        Row: {
+          created_at: string
+          default_symptoms_applied: boolean | null
+          duration_min: number | null
+          id: number
+          intensity_0_10: number | null
+          location_geo: unknown | null
+          notes_extraordinary: string | null
+          started_at: string
+          type: string
+          updated_at: string
+          user_id: string
+          weather_id: number | null
+        }
+        Insert: {
+          created_at?: string
+          default_symptoms_applied?: boolean | null
+          duration_min?: number | null
+          id?: number
+          intensity_0_10?: number | null
+          location_geo?: unknown | null
+          notes_extraordinary?: string | null
+          started_at: string
+          type?: string
+          updated_at?: string
+          user_id?: string
+          weather_id?: number | null
+        }
+        Update: {
+          created_at?: string
+          default_symptoms_applied?: boolean | null
+          duration_min?: number | null
+          id?: number
+          intensity_0_10?: number | null
+          location_geo?: unknown | null
+          notes_extraordinary?: string | null
+          started_at?: string
+          type?: string
+          updated_at?: string
+          user_id?: string
+          weather_id?: number | null
+        }
+        Relationships: []
+      }
+      med_effects: {
+        Row: {
+          created_at: string
+          documented_at: string
+          effect_rating_0_4: number | null
+          event_med_id: number
+          id: number
+          onset_min: number | null
+          pain_after_0_10: number | null
+          pain_before_0_10: number | null
+          relief_duration_min: number | null
+          relief_percent_0_100: number | null
+          side_effects_text: string | null
+        }
+        Insert: {
+          created_at?: string
+          documented_at?: string
+          effect_rating_0_4?: number | null
+          event_med_id: number
+          id?: number
+          onset_min?: number | null
+          pain_after_0_10?: number | null
+          pain_before_0_10?: number | null
+          relief_duration_min?: number | null
+          relief_percent_0_100?: number | null
+          side_effects_text?: string | null
+        }
+        Update: {
+          created_at?: string
+          documented_at?: string
+          effect_rating_0_4?: number | null
+          event_med_id?: number
+          id?: number
+          onset_min?: number | null
+          pain_after_0_10?: number | null
+          pain_before_0_10?: number | null
+          relief_duration_min?: number | null
+          relief_percent_0_100?: number | null
+          side_effects_text?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "med_effects_event_med_id_fkey"
+            columns: ["event_med_id"]
+            isOneToOne: false
+            referencedRelation: "event_meds"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pain_entries: {
         Row: {
           aura_type: string
@@ -104,6 +250,50 @@ export type Database = {
           },
         ]
       }
+      reminder_queue: {
+        Row: {
+          created_at: string
+          event_med_id: number
+          id: number
+          reminder_type: string
+          retry_count: number | null
+          scheduled_for: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_med_id: number
+          id?: number
+          reminder_type?: string
+          retry_count?: number | null
+          scheduled_for: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          event_med_id?: number
+          id?: number
+          reminder_type?: string
+          retry_count?: number | null
+          scheduled_for?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reminder_queue_event_med_id_fkey"
+            columns: ["event_med_id"]
+            isOneToOne: false
+            referencedRelation: "event_meds"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       symptom_catalog: {
         Row: {
           id: string
@@ -145,20 +335,29 @@ export type Database = {
       }
       user_profiles: {
         Row: {
+          default_symptoms: string[] | null
           latitude: number | null
           longitude: number | null
+          notes_layout: string | null
+          quick_entry_mode: boolean | null
           updated_at: string | null
           user_id: string
         }
         Insert: {
+          default_symptoms?: string[] | null
           latitude?: number | null
           longitude?: number | null
+          notes_layout?: string | null
+          quick_entry_mode?: boolean | null
           updated_at?: string | null
           user_id: string
         }
         Update: {
+          default_symptoms?: string[] | null
           latitude?: number | null
           longitude?: number | null
+          notes_layout?: string | null
+          quick_entry_mode?: boolean | null
           updated_at?: string | null
           user_id?: string
         }
@@ -206,6 +405,8 @@ export type Database = {
           moonset: number | null
           pressure_change_24h: number | null
           pressure_mb: number | null
+          pressure_trend_24h: number | null
+          snapshot_date: string | null
           temperature_c: number | null
           user_id: string | null
           wind_kph: number | null
@@ -224,6 +425,8 @@ export type Database = {
           moonset?: number | null
           pressure_change_24h?: number | null
           pressure_mb?: number | null
+          pressure_trend_24h?: number | null
+          snapshot_date?: string | null
           temperature_c?: number | null
           user_id?: string | null
           wind_kph?: number | null
@@ -242,6 +445,68 @@ export type Database = {
           moonset?: number | null
           pressure_change_24h?: number | null
           pressure_mb?: number | null
+          pressure_trend_24h?: number | null
+          snapshot_date?: string | null
+          temperature_c?: number | null
+          user_id?: string | null
+          wind_kph?: number | null
+        }
+        Relationships: []
+      }
+      weather_logs_dups_backup: {
+        Row: {
+          condition_icon: string | null
+          condition_text: string | null
+          created_at: string | null
+          humidity: number | null
+          id: number | null
+          latitude: number | null
+          location: string | null
+          longitude: number | null
+          moon_phase: number | null
+          moonrise: number | null
+          moonset: number | null
+          pressure_change_24h: number | null
+          pressure_mb: number | null
+          snapshot_date: string | null
+          temperature_c: number | null
+          user_id: string | null
+          wind_kph: number | null
+        }
+        Insert: {
+          condition_icon?: string | null
+          condition_text?: string | null
+          created_at?: string | null
+          humidity?: number | null
+          id?: number | null
+          latitude?: number | null
+          location?: string | null
+          longitude?: number | null
+          moon_phase?: number | null
+          moonrise?: number | null
+          moonset?: number | null
+          pressure_change_24h?: number | null
+          pressure_mb?: number | null
+          snapshot_date?: string | null
+          temperature_c?: number | null
+          user_id?: string | null
+          wind_kph?: number | null
+        }
+        Update: {
+          condition_icon?: string | null
+          condition_text?: string | null
+          created_at?: string | null
+          humidity?: number | null
+          id?: number | null
+          latitude?: number | null
+          location?: string | null
+          longitude?: number | null
+          moon_phase?: number | null
+          moonrise?: number | null
+          moonset?: number | null
+          pressure_change_24h?: number | null
+          pressure_mb?: number | null
+          snapshot_date?: string | null
           temperature_c?: number | null
           user_id?: string | null
           wind_kph?: number | null
@@ -253,8 +518,28 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_quick_pain_event: {
+        Args: {
+          p_intensity_0_10: number
+          p_medications?: Json
+          p_notes?: string
+        }
+        Returns: number
+      }
       invoke_auto_weather: {
         Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      record_med_effect: {
+        Args: {
+          p_effect_rating_0_4: number
+          p_event_med_id: number
+          p_onset_min?: number
+          p_pain_after_0_10?: number
+          p_pain_before_0_10?: number
+          p_relief_duration_min?: number
+          p_side_effects_text?: string
+        }
         Returns: undefined
       }
       rpc_entries_filtered: {
