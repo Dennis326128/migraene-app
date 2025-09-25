@@ -187,6 +187,54 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ open, onOpenCh
             </CardContent>
           </Card>
 
+          {/* Timing */}
+          <Card>
+            <CardContent className="pt-6">
+              <Label className="text-base font-medium mb-4 block flex items-center gap-2">
+                <Clock className="w-4 h-4" />
+                Einnahmezeitpunkt
+              </Label>
+              
+              <div className="grid grid-cols-3 gap-2">
+                <Button
+                  type="button"
+                  variant={takenTime === "now" ? "default" : "outline"}
+                  onClick={() => setTakenTime("now")}
+                  className="text-sm"
+                >
+                  Jetzt
+                </Button>
+                <Button
+                  type="button"
+                  variant={takenTime === "15min" ? "default" : "outline"}
+                  onClick={() => setTakenTime("15min")}
+                  className="text-sm"
+                >
+                  Vor 15 Min
+                </Button>
+                <Button
+                  type="button"
+                  variant={takenTime === "custom" ? "default" : "outline"}
+                  onClick={() => setTakenTime("custom")}
+                  className="text-sm"
+                >
+                  Zeit wählen
+                </Button>
+              </div>
+              
+              {takenTime === "custom" && (
+                <div className="mt-3">
+                  <input
+                    type="time"
+                    value={customTime}
+                    onChange={(e) => setCustomTime(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-md"
+                  />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Medikamente */}
           <Card>
             <CardContent className="pt-6">
@@ -250,54 +298,6 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ open, onOpenCh
                       </div>
                     );
                   })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Timing */}
-          <Card>
-            <CardContent className="pt-6">
-              <Label className="text-base font-medium mb-4 block flex items-center gap-2">
-                <Clock className="w-4 h-4" />
-                Einnahmezeitpunkt
-              </Label>
-              
-              <div className="grid grid-cols-3 gap-2">
-                <Button
-                  type="button"
-                  variant={takenTime === "now" ? "default" : "outline"}
-                  onClick={() => setTakenTime("now")}
-                  className="text-sm"
-                >
-                  Jetzt
-                </Button>
-                <Button
-                  type="button"
-                  variant={takenTime === "15min" ? "default" : "outline"}
-                  onClick={() => setTakenTime("15min")}
-                  className="text-sm"
-                >
-                  Vor 15 Min
-                </Button>
-                <Button
-                  type="button"
-                  variant={takenTime === "custom" ? "default" : "outline"}
-                  onClick={() => setTakenTime("custom")}
-                  className="text-sm"
-                >
-                  Zeit wählen
-                </Button>
-              </div>
-              
-              {takenTime === "custom" && (
-                <div className="mt-3">
-                  <input
-                    type="time"
-                    value={customTime}
-                    onChange={(e) => setCustomTime(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-md"
-                  />
                 </div>
               )}
             </CardContent>

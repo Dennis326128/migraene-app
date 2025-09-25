@@ -320,36 +320,6 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
 
         {/* Aura block completely removed */}
 
-      {/* Schmerzlokalisation */}
-      <Card className="p-6 mb-4">
-        <Label className="text-base font-medium mb-3 block">
-          📍 Schmerzlokalisation
-        </Label>
-        <div className="grid gap-2">
-          <Button
-            type="button"
-            variant={painLocation === "" ? "default" : "outline"}
-            className="justify-start"
-            onClick={() => setPainLocation("")}
-            aria-pressed={painLocation === ""}
-          >
-            Nicht spezifiziert
-          </Button>
-          {painLocations.map((location) => (
-            <Button
-              key={location.value}
-              type="button"
-              variant={painLocation === location.value ? "default" : "outline"}
-              className="justify-start"
-              onClick={() => setPainLocation(location.value)}
-              aria-pressed={painLocation === location.value}
-            >
-              {location.label}
-            </Button>
-          ))}
-        </div>
-      </Card>
-
       {/* Datum und Zeit */}
       <Card className="p-6 mb-4">
         <Label className="text-base font-medium mb-3 block">📅 Datum und Uhrzeit</Label>
@@ -375,54 +345,6 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
             />
           </div>
         </div>
-      </Card>
-
-      {/* Auslöser/Notizen */}
-      <Card className="p-6 mb-4">
-        <Label htmlFor="notes-input" className="text-base font-medium mb-3 block">
-          📝 Auslöser / Notizen
-        </Label>
-        <Input
-          id="notes-input"
-          type="text"
-          placeholder="z. B. Stress, helles Licht, Wetterumschwung, Schlafmangel..."
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          aria-label="Migräne-Auslöser oder Notizen"
-        />
-      </Card>
-
-      {/* Symptome */}
-      <Card className="p-6 mb-4">
-        <Label className="text-base font-medium mb-3 block">🧩 Begleitsymptome</Label>
-        {loadingSymptoms && entry ? (
-          <div className="text-sm text-muted-foreground mt-2">Lade vorhandene Symptome…</div>
-        ) : (
-          <div className="flex flex-wrap gap-2 mt-2">
-            {catalog.map((s) => {
-              const active = selectedSymptoms.includes(s.id);
-              return (
-                <Button
-                  key={s.id}
-                  type="button"
-                  variant={active ? "default" : "outline"}
-                  size="sm"
-                  onClick={() =>
-                    setSelectedSymptoms((prev) =>
-                      prev.includes(s.id) ? prev.filter((x) => x !== s.id) : [...prev, s.id]
-                    )
-                  }
-                  aria-pressed={active}
-                >
-                  {s.name}
-                </Button>
-              );
-            })}
-            {catalog.length === 0 && (
-              <div className="text-sm text-muted-foreground">Keine Symptome im Katalog.</div>
-            )}
-          </div>
-        )}
       </Card>
 
       {/* Medikamente */}
@@ -544,6 +466,84 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
             </div>
           </div>
         )}
+      </Card>
+
+      {/* Schmerzlokalisation */}
+      <Card className="p-6 mb-4">
+        <Label className="text-base font-medium mb-3 block">
+          📍 Schmerzlokalisation
+        </Label>
+        <div className="grid gap-2">
+          <Button
+            type="button"
+            variant={painLocation === "" ? "default" : "outline"}
+            className="justify-start"
+            onClick={() => setPainLocation("")}
+            aria-pressed={painLocation === ""}
+          >
+            Nicht spezifiziert
+          </Button>
+          {painLocations.map((location) => (
+            <Button
+              key={location.value}
+              type="button"
+              variant={painLocation === location.value ? "default" : "outline"}
+              className="justify-start"
+              onClick={() => setPainLocation(location.value)}
+              aria-pressed={painLocation === location.value}
+            >
+              {location.label}
+            </Button>
+          ))}
+        </div>
+      </Card>
+
+      {/* Symptome */}
+      <Card className="p-6 mb-4">
+        <Label className="text-base font-medium mb-3 block">🧩 Begleitsymptome</Label>
+        {loadingSymptoms && entry ? (
+          <div className="text-sm text-muted-foreground mt-2">Lade vorhandene Symptome…</div>
+        ) : (
+          <div className="flex flex-wrap gap-2 mt-2">
+            {catalog.map((s) => {
+              const active = selectedSymptoms.includes(s.id);
+              return (
+                <Button
+                  key={s.id}
+                  type="button"
+                  variant={active ? "default" : "outline"}
+                  size="sm"
+                  onClick={() =>
+                    setSelectedSymptoms((prev) =>
+                      prev.includes(s.id) ? prev.filter((x) => x !== s.id) : [...prev, s.id]
+                    )
+                  }
+                  aria-pressed={active}
+                >
+                  {s.name}
+                </Button>
+              );
+            })}
+            {catalog.length === 0 && (
+              <div className="text-sm text-muted-foreground">Keine Symptome im Katalog.</div>
+            )}
+          </div>
+        )}
+      </Card>
+
+      {/* Auslöser/Notizen */}
+      <Card className="p-6 mb-4">
+        <Label htmlFor="notes-input" className="text-base font-medium mb-3 block">
+          📝 Auslöser / Notizen
+        </Label>
+        <Input
+          id="notes-input"
+          type="text"
+          placeholder="z. B. Stress, helles Licht, Wetterumschwung, Schlafmangel..."
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          aria-label="Migräne-Auslöser oder Notizen"
+        />
       </Card>
 
       {/* Speichern Button */}
