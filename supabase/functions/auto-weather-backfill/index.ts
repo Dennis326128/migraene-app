@@ -336,7 +336,8 @@ async function fetchWeatherViaHybrid(
       body: {
         lat,
         lon,
-        at: timestamp
+        at: timestamp,
+        userId: userId  // Include userId for service role authentication
       },
       headers: {
         'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,

@@ -20,22 +20,48 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Authentication
+    // Authentication - support both user JWT and service role
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       throw new Error('Missing Authorization header');
     }
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser(
-      authHeader.replace('Bearer ', '')
-    );
+    const token = authHeader.replace('Bearer ', '');
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    let userId: string;
 
-    if (authError || !user) {
-      throw new Error('Invalid authentication');
+    if (token === serviceRoleKey) {
+      // Service role authentication - get userId from request body
+      const requestBody = await req.json();
+      const { lat, lon, at, userId: requestUserId } = requestBody;
+      
+      if (!requestUserId) {
+        throw new Error('userId required for service role authentication');
+      }
+      
+      userId = requestUserId;
+      console.log('🔑 Service role authentication for user:', userId);
+      
+      // Re-parse request data
+      const requestData = { lat, lon, at };
+      console.log('📍 Weather request for:', { ...requestData, userId });
+      
+      // Continue with the rest of the function using requestData
+      req.json = () => Promise.resolve(requestData);
+    } else {
+      // User JWT authentication
+      const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+      if (authError || !user) {
+        throw new Error('Invalid authentication');
+      }
+
+      userId = user.id;
+      console.log('👤 User JWT authentication:', userId);
     }
 
     const { lat, lon, at } = await req.json();
-    console.log('📍 Weather request for:', { lat, lon, at, userId: user.id });
+    console.log('📍 Weather request for:', { lat, lon, at, userId });
 
     if (!lat || !lon || !at) {
       throw new Error('Missing required parameters: lat, lon, at');
@@ -59,7 +85,7 @@ serve(async (req) => {
     const { data: existing, error: existingError } = await supabase
       .from('weather_logs')
       .select('id')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('snapshot_date', dateString)
       .eq('latitude', lat)
       .eq('longitude', lon)
@@ -148,7 +174,7 @@ serve(async (req) => {
     const { data: insertResult, error: insertError } = await supabase
       .from('weather_logs')
       .insert({
-        user_id: user.id,
+        user_id: userId,
         latitude: lat,
         longitude: lon,
         snapshot_date: dateString,
@@ -170,7 +196,7 @@ serve(async (req) => {
         const { data: existingData } = await supabase
           .from('weather_logs')
           .select('id')
-          .eq('user_id', user.id)
+          .eq('user_id', userId)
           .eq('snapshot_date', dateString)
           .eq('latitude', lat)
           .eq('longitude', lon)
