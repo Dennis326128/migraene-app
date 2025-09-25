@@ -219,8 +219,27 @@ serve(async (req) => {
       };
     }
 
+    // Check if weather data already exists before inserting
+    console.log('🔍 Checking for existing weather data...');
+    const { data: existingWeather } = await supabaseService
+      .from('weather_logs')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('snapshot_date', dateString)
+      .eq('latitude', lat)
+      .eq('longitude', lon)
+      .limit(1)
+      .maybeSingle();
+
+    if (existingWeather) {
+      console.log('✅ Returning existing weather data:', existingWeather.id);
+      return new Response(JSON.stringify({ weather_id: existingWeather.id }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
     // Insert weather data into database
-    console.log('💾 Inserting weather data into database...');
+    console.log('💾 Inserting new weather data into database...');
     const { data: insertResult, error: insertError } = await supabaseService
       .from('weather_logs')
       .insert({
@@ -233,33 +252,14 @@ serve(async (req) => {
         pressure_mb: weatherData.pressure_mb,
         wind_kph: weatherData.wind_kph,
         condition_text: weatherData.condition_text,
-        location: weatherData.location,
-        created_at: new Date().toISOString()
+        location: weatherData.location
+        // created_at wird automatisch gesetzt
       })
       .select('id')
       .single();
 
     if (insertError) {
-      // Check if it's a duplicate key error
-      if (insertError.code === '23505') {
-        console.log('⚠️ Duplicate weather entry, fetching existing...');
-        const { data: existingData } = await supabaseService
-          .from('weather_logs')
-          .select('id')
-          .eq('user_id', userId)
-          .eq('snapshot_date', dateString)
-          .eq('latitude', lat)
-          .eq('longitude', lon)
-          .limit(1)
-          .single();
-        
-        if (existingData) {
-          console.log('✅ Returning existing weather data:', existingData.id);
-          return new Response(JSON.stringify({ weather_id: existingData.id }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
-        }
-      }
+      console.error('❌ Insert error:', insertError);
       throw insertError;
     }
 
