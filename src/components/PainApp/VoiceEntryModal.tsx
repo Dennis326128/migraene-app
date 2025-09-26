@@ -132,9 +132,16 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
   }, [open]);
 
   // Update editing states when parsed entry changes
-  // Handle voice-finished with proper error taxonomy
+  // Handle voice-finished with proper error taxonomy and slot-filling
   const handleRecognitionEnd = () => {
     addDebugLog(`Recognition ended. Final transcript: "${transcript}"`);
+    
+    // Auto-restart logic from original function
+    if (restartCount < 2 && recordingState === 'recording' && !transcript.trim()) {
+      // Auto-restart for no-speech
+      addDebugLog('Auto-restarting due to no speech detected');
+      return;
+    }
     
     if (!transcript || transcript.trim() === '') {
       setCurrentError('stt_no_audio');
@@ -146,8 +153,21 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
       setRecordingState('processing');
       const parsed = parseGermanVoiceEntry(transcript);
       setParsedEntry(parsed);
+      addDebugLog(`Parsed: Pain=${parsed.painLevel}, Meds=${parsed.medications?.join(',') || 'none'}`);
       
-      // Check for missing required fields
+      // Handle confirmation responses if we're in confirming state
+      if (recordingState === 'confirming') {
+        handleConfirmationResponse(transcript);
+        return;
+      }
+      
+      // Handle slot-filling responses if we're in slot-filling state
+      if (recordingState === 'slot_filling') {
+        handleSlotResponse(transcript);
+        return;
+      }
+      
+      // Check for missing required fields for new entries
       const missingSlots = getMissingSlots(parsed);
       
       if (missingSlots.length > 0) {
@@ -672,28 +692,6 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
     }
   };
 
-  const handleRecognitionEnd = () => {
-    if (restartCount < 2 && recordingState === 'recording' && !transcript.trim()) {
-      // Auto-restart for no-speech
-      return;
-    }
-    
-    setRecordingState('processing');
-    
-    if (transcript.trim()) {
-      const parsed = parseGermanVoiceEntry(transcript.trim());
-      setParsedEntry(parsed);
-      setRecordingState('reviewing');
-      addDebugLog(`Parsed: Pain=${parsed.painLevel}, Meds=${parsed.medications.join(',')}`);
-    } else {
-      setRecordingState('fallback');
-      toast({
-        title: "Keine Sprache erkannt",
-        description: "Probieren Sie Push-to-Talk oder die Schnell-Eingabe.",
-        variant: "default"
-      });
-    }
-  };
 
   const handleAudioError = (error: any) => {
     setRecordingState('fallback');
