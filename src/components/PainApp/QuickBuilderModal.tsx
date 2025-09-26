@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { PainSlider } from "@/components/ui/pain-slider";
+import { normalizePainLevel } from "@/lib/utils/pain";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Clock, Activity, Pill, FileText } from "lucide-react";
 
@@ -32,14 +34,14 @@ const timePresets = [
 
 export function QuickBuilderModal({ open, onClose, onComplete, availableMeds }: QuickBuilderModalProps) {
   const [selectedTime, setSelectedTime] = useState<string>('');
-  const [selectedPain, setSelectedPain] = useState<string>('');
+  const [selectedPain, setSelectedPain] = useState<number>(7);
   const [selectedMeds, setSelectedMeds] = useState<string[]>([]);
   const [step, setStep] = useState<'time' | 'pain' | 'meds' | 'review'>('time');
 
   React.useEffect(() => {
     if (open) {
       setSelectedTime('');
-      setSelectedPain('');
+      setSelectedPain(7);
       setSelectedMeds([]);
       setStep('time');
     }
@@ -118,7 +120,7 @@ export function QuickBuilderModal({ open, onClose, onComplete, availableMeds }: 
   const canProceed = () => {
     switch (step) {
       case 'time': return selectedTime !== '';
-      case 'pain': return selectedPain !== '';
+      case 'pain': return selectedPain >= 0;
       case 'meds': return true; // Optional
       case 'review': return true;
       default: return false;
@@ -178,18 +180,14 @@ export function QuickBuilderModal({ open, onClose, onComplete, availableMeds }: 
 
           {/* Pain Level Selection */}
           {step === 'pain' && (
-            <div className="grid gap-2">
-              {painLevels.map((level) => (
-                <Button
-                  key={level.value}
-                  variant={selectedPain === level.value ? "default" : "outline"}
-                  size="sm"
-                  className="justify-start h-auto py-3"
-                  onClick={() => setSelectedPain(level.value)}
-                >
-                  {level.label}
-                </Button>
-              ))}
+            <div className="space-y-4">
+              <div className="text-sm text-muted-foreground text-center">
+                Schieben Sie den Regler zur gewünschten Schmerzstärke:
+              </div>
+              <PainSlider 
+                value={selectedPain} 
+                onValueChange={setSelectedPain}
+              />
             </div>
           )}
 
@@ -236,7 +234,7 @@ export function QuickBuilderModal({ open, onClose, onComplete, availableMeds }: 
                 <div className="flex items-center gap-2">
                   <Activity className="w-4 h-4" />
                   <span className="text-sm">
-                    {painLevels.find(p => p.value === selectedPain)?.label}
+                    Schmerzstärke: {selectedPain}/10
                   </span>
                 </div>
                 

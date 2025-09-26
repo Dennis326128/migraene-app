@@ -2,13 +2,28 @@ export function formatPainLevel(text: string) {
   return (text || "").replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
 }
 
-export function mapTextLevelToScore(level: string): number {
+export function mapTextLevelToScore(level: string | number): number {
+  // If already numeric, return as-is
+  if (typeof level === 'number') return Math.max(0, Math.min(10, level));
+  
   const t = (level || "").toLowerCase();
   if (t.includes("sehr") && t.includes("stark")) return 9;
   if (t.includes("stark")) return 7;
   if (t.includes("mittel")) return 5;
   if (t.includes("leicht")) return 2;
   return 0;
+}
+
+export function convertNumericToCategory(level: number): "leicht" | "mittel" | "stark" | "sehr_stark" {
+  if (level >= 8) return "sehr_stark";
+  if (level >= 6) return "stark";
+  if (level >= 3) return "mittel";
+  return "leicht";
+}
+
+export function normalizePainLevel(level: string | number): number {
+  if (typeof level === 'number') return Math.max(0, Math.min(10, level));
+  return mapTextLevelToScore(level);
 }
 
 export function formatAuraType(aura: string): string {

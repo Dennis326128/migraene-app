@@ -44,7 +44,7 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
   // Manual editing states
   const [editedDate, setEditedDate] = useState('');
   const [editedTime, setEditedTime] = useState('');
-  const [editedPainLevel, setEditedPainLevel] = useState('');
+  const [editedPainLevel, setEditedPainLevel] = useState<number>(7);
   const [editedMedications, setEditedMedications] = useState<string[]>([]);
   const [editedNotes, setEditedNotes] = useState('');
 
@@ -100,7 +100,7 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
   function resetEditingState() {
     setEditedDate('');
     setEditedTime('');
-    setEditedPainLevel('');
+    setEditedPainLevel(7);
     setEditedMedications([]);
     setEditedNotes('');
   }
@@ -197,7 +197,7 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
   function populateEditingFields(entry: ParsedVoiceEntry) {
     setEditedDate(entry.selectedDate);
     setEditedTime(entry.selectedTime);
-    setEditedPainLevel(entry.painLevel);
+    setEditedPainLevel(normalizePainLevel(entry.painLevel));
     setEditedMedications([...entry.medications]);
     setEditedNotes(entry.notes);
   }
@@ -229,7 +229,7 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
       const entryData = {
         date: dataToSave.selectedDate,
         time: dataToSave.selectedTime,
-        pain_level: convertNumericPainToCategory(dataToSave.painLevel || '0'),
+        pain_level: dataToSave.painLevel || 0,
         medications: dataToSave.medications,
         notes: dataToSave.notes || '',
         entry_method: 'voice' as const,
@@ -403,7 +403,11 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
 
               <div>
                 <Label htmlFor="pain-level">Schmerzstärke (0-10)</Label>
-                <Select value={editedPainLevel} onValueChange={setEditedPainLevel}>
+                <PainSlider 
+                  value={editedPainLevel} 
+                  onValueChange={setEditedPainLevel}
+                />
+              </div>
                   <SelectTrigger>
                     <SelectValue placeholder="Schmerzstärke wählen" />
                   </SelectTrigger>

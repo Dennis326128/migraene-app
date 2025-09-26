@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { PainSlider } from "@/components/ui/pain-slider";
+import { normalizePainLevel } from "@/lib/utils/pain";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -39,7 +41,7 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
   const { data: medOptions = [] } = useMeds();
   const createMut = useCreateEntry();
 
-  const [painLevel, setPainLevel] = useState<string>("");
+  const [painLevel, setPainLevel] = useState<number>(7);
   const [selectedTime, setSelectedTime] = useState<string>("now");
   const [customTime, setCustomTime] = useState<string>("");
   const [customDate, setCustomDate] = useState<string>("");
@@ -54,7 +56,7 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
       setCustomTime(now.toTimeString().slice(0, 5));
       
       // Reset form
-      setPainLevel("");
+      setPainLevel(7);
       setSelectedTime("now");
       setMedicationStates({});
     }
@@ -151,7 +153,7 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
       const payload = {
         selected_date: selectedDate,
         selected_time: selectedTimeStr,
-        pain_level: painLevel as "leicht" | "mittel" | "stark" | "sehr_stark",
+        pain_level: painLevel,
         aura_type: "keine" as const,
         pain_location: null,
         medications: getSelectedMedications(),
@@ -165,7 +167,7 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
       
       toast({ 
         title: "🚀 Schnelleintrag gespeichert", 
-        description: `${painLevels.find(p => p.value === painLevel)?.label} erfasst` 
+        description: `Schmerzstärke ${painLevel}/10 erfasst` 
       });
       
       setTimeout(() => {
@@ -201,23 +203,14 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
             <Label className="text-base font-medium mb-3 block text-quick-entry">
               🩺 Schmerzstärke *
             </Label>
-            <div className="grid gap-2">
-              {painLevels.map((level) => (
-                <Button
-                  key={level.value}
-                  type="button"
-                  variant={painLevel === level.value ? "default" : "outline"}
-                  className={`h-auto p-3 text-left justify-start transition-all ${
-                    painLevel === level.value 
-                      ? "bg-quick-entry text-quick-entry-foreground ring-2 ring-quick-entry/50" 
-                      : "hover:border-quick-entry/50"
-                  }`}
-                  onClick={() => setPainLevel(level.value)}
-                >
-                  <span className="font-medium">{level.label}</span>
-                </Button>
-              ))}
+            <div className="text-xs text-muted-foreground mb-4 px-1">
+              Schieben Sie den Regler zur gewünschten Schmerzstärke:
             </div>
+            <PainSlider 
+              value={painLevel} 
+              onValueChange={setPainLevel}
+              disabled={saving}
+            />
           </Card>
 
           {/* Time Selection */}
@@ -300,7 +293,7 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
             </Button>
             <Button 
               onClick={handleSave}
-              disabled={!painLevel || saving}
+              disabled={painLevel < 1 || saving}
               className="flex-1 bg-quick-entry hover:bg-quick-entry-hover text-quick-entry-foreground"
             >
               <Save className="h-4 w-4 mr-1" />

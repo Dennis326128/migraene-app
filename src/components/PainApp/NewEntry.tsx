@@ -13,6 +13,8 @@ import { useMeds, useAddMed, useDeleteMed } from "@/features/meds/hooks/useMeds"
 import { useSymptomCatalog, useEntrySymptoms, useSetEntrySymptoms } from "@/features/symptoms/hooks/useSymptoms";
 import { useCheckMedicationLimits, type LimitCheck } from "@/features/medication-limits/hooks/useMedicationLimits";
 import { MedicationLimitWarning } from "./MedicationLimitWarning";
+import { PainSlider } from "@/components/ui/pain-slider";
+import { normalizePainLevel } from "@/lib/utils/pain";
 
 interface NewEntryProps {
   onBack: () => void;
@@ -54,7 +56,7 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
   const { toast } = useToast();
   const painLevelSectionRef = useRef<HTMLDivElement>(null);
 
-  const [painLevel, setPainLevel] = useState<string>("-");
+  const [painLevel, setPainLevel] = useState<number>(7);
   const [painLocation, setPainLocation] = useState<string>("");
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedTime, setSelectedTime] = useState<string>("");
@@ -93,7 +95,7 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
 
   useEffect(() => {
     if (entry) {
-      setPainLevel(entry.pain_level || "-");
+      setPainLevel(normalizePainLevel(entry.pain_level || 7));
       setPainLocation((entry as any).pain_location || "");
       setSelectedDate(entry.selected_date || new Date().toISOString().slice(0, 10));
       setSelectedTime(entry.selected_time || new Date().toTimeString().slice(0, 5));
@@ -138,58 +140,16 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
     }
   };
 
-  // Enhanced pain level setter with haptic feedback
-  const handlePainLevelChange = useCallback((newLevel: string) => {
-    setPainLevel(newLevel);
-    triggerHapticFeedback();
-  }, []);
+// ... keep existing code
 
-  // Keyboard navigation for pain levels
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (!painLevelSectionRef.current?.contains(document.activeElement)) return;
-    
-    const currentIndex = painLevels.findIndex(level => level.value === painLevel);
-    let newIndex = currentIndex;
-    
-    switch (e.key) {
-      case 'ArrowDown':
-      case 'ArrowRight':
-        e.preventDefault();
-        newIndex = Math.min(currentIndex + 1, painLevels.length - 1);
-        break;
-      case 'ArrowUp':
-      case 'ArrowLeft':
-        e.preventDefault();
-        newIndex = Math.max(currentIndex - 1, 0);
-        break;
-      case 'Home':
-        e.preventDefault();
-        newIndex = 0;
-        break;
-      case 'End':
-        e.preventDefault();
-        newIndex = painLevels.length - 1;
-        break;
-    }
-    
-    if (newIndex !== currentIndex && newIndex >= 0) {
-      handlePainLevelChange(painLevels[newIndex].value);
-      // Focus the corresponding button
-      const buttons = painLevelSectionRef.current?.querySelectorAll('button');
-      if (buttons && buttons[newIndex]) {
-        (buttons[newIndex] as HTMLButtonElement).focus();
-      }
-    }
-  }, [painLevel, handlePainLevelChange]);
+  // Enhanced pain level setter with haptic feedback removed (now handled by PainSlider)
 
-  // Add keyboard event listener
-  useEffect(() => {
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [handleKeyDown]);
+  // Keyboard navigation for pain levels removed (now handled by PainSlider)
+
+// ... keep existing code
 
   const handleSave = async () => {
-    if (!painLevel || painLevel === "-") {
+    if (painLevel < 1) {
       toast({ title: "Fehler", description: "Bitte Migräne-Intensität auswählen", variant: "destructive" });
       return;
     }
@@ -290,7 +250,7 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
       const payload = {
         selected_date: selectedDate,
         selected_time: selectedTime,
-        pain_level: painLevel as "leicht" | "mittel" | "stark" | "sehr_stark",
+        pain_level: painLevel,
         aura_type: "keine" as const, // Always set to default since aura is removed
         pain_location: (painLocation || null) as "einseitig_links" | "einseitig_rechts" | "beidseitig" | "stirn" | "nacken" | "schlaefe" | null,
         medications: selectedMedications.filter((m) => m !== "-" && m.trim() !== ""),
@@ -356,38 +316,19 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
         <div className="w-9"></div>
       </div>
 
-      {/* Migräne-Intensität - Mobile Optimized */}
+      {/* Migräne-Intensität - Slider */}
       <Card className="p-4 sm:p-6 mb-4">
         <Label className="text-base font-medium mb-3 block">
           🩺 Migräne-Intensität *
         </Label>
-        <div className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-2 px-1">
-          💡 Tipp: Tippen Sie auf eine Option oder nutzen Sie die Pfeiltasten ↑↓
+        <div className="text-xs sm:text-sm text-muted-foreground mb-4 px-1">
+          💡 Tipp: Schieben Sie den Regler zur gewünschten Schmerzstärke
         </div>
-        <div ref={painLevelSectionRef} className="grid gap-2 sm:gap-3" role="radiogroup" aria-label="Migräne-Intensität auswählen">
-          {painLevels.map((level, index) => (
-            <Button
-              key={level.value}
-              type="button"
-              variant={painLevel === level.value ? "default" : "outline"}
-              className={`h-auto p-3 sm:p-4 text-left justify-start transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] touch-manipulation min-h-[3rem] sm:min-h-[auto] ${
-                painLevel === level.value 
-                  ? "ring-2 ring-primary/20 shadow-lg" 
-                  : ""
-              }`}
-              onClick={() => handlePainLevelChange(level.value)}
-              aria-pressed={painLevel === level.value}
-              role="radio"
-              aria-checked={painLevel === level.value}
-              tabIndex={index === 0 ? 0 : -1}
-            >
-              <div className="flex flex-col items-start w-full">
-                <span className="font-medium text-sm sm:text-base">{level.label}</span>
-                <span className="text-xs sm:text-sm text-muted-foreground mt-1 leading-tight">{level.desc}</span>
-              </div>
-            </Button>
-          ))}
-        </div>
+        <PainSlider 
+          value={painLevel} 
+          onValueChange={setPainLevel}
+          disabled={saving}
+        />
       </Card>
 
         {/* Aura block completely removed */}
