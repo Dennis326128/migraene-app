@@ -1,9 +1,10 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Plus, History, TrendingUp, Settings } from "lucide-react";
+import { Plus, History, TrendingUp, Settings, Zap } from "lucide-react";
 import { LogoutButton } from "@/components/LogoutButton";
 import { WelcomeModal } from "./WelcomeModal";
+import { QuickEntryModal } from "./QuickEntryModal";
 import { useOnboarding } from "@/hooks/useOnboarding";
 
 interface MainMenuProps {
@@ -11,6 +12,7 @@ interface MainMenuProps {
   onViewEntries: () => void;
   onViewAnalysis: () => void;
   onViewSettings: () => void;
+  onQuickEntry?: () => void;
 }
 
 export const MainMenu: React.FC<MainMenuProps> = ({
@@ -18,8 +20,10 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   onViewEntries,
   onViewAnalysis,
   onViewSettings,
+  onQuickEntry,
 }) => {
   const { needsOnboarding, completeOnboarding, isLoading: onboardingLoading } = useOnboarding();
+  const [showQuickEntry, setShowQuickEntry] = useState(false);
 
   return (
     <div className="min-h-screen bg-background p-4 sm:p-6 flex flex-col">
@@ -44,7 +48,16 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             </div>
           </Card>
 
-          {/* Quick Entry Button - Removed - No QuickEntryModal anymore */}
+          {/* Quick Entry Button */}
+          <Card className="hover:shadow-lg active:shadow-xl transition-all cursor-pointer group border-quick-entry bg-quick-entry/10 hover:bg-quick-entry/20 active:scale-[0.98] touch-manipulation mobile-touch-feedback" onClick={() => setShowQuickEntry(true)}>
+            <div className="p-4 sm:p-6 text-center min-h-[4rem] sm:min-h-[6rem] flex flex-col justify-center mobile-card-compact mobile-text-compact">
+              <div className="text-2xl sm:text-4xl mb-1 sm:mb-3 group-hover:scale-110 transition-transform">🔴</div>
+              <h3 className="text-base sm:text-xl font-semibold mb-1 text-quick-entry mobile-button-text">Schnelleintrag</h3>
+              <p className="text-muted-foreground text-xs leading-tight mobile-button-text">
+                Sofortige Migräne-Erfassung
+              </p>
+            </div>
+          </Card>
 
           {/* View Entries Button */}
           <Card className="hover:shadow-lg active:shadow-xl transition-all cursor-pointer group active:scale-[0.98] touch-manipulation mobile-touch-feedback" onClick={onViewEntries}>
@@ -81,13 +94,22 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         </div>
       </div>
 
-      {/* Welcome/Onboarding Modal - No QuickEntryModal anymore */}
+      {/* Modals */}
       {!onboardingLoading && (
         <WelcomeModal 
           open={needsOnboarding} 
           onComplete={completeOnboarding} 
         />
       )}
+      
+      <QuickEntryModal 
+        open={showQuickEntry}
+        onClose={() => setShowQuickEntry(false)}
+        onSuccess={() => {
+          setShowQuickEntry(false);
+          onQuickEntry?.();
+        }}
+      />
     </div>
   );
 };

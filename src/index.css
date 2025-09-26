@@ -72,6 +72,11 @@ All colors MUST be HSL.
     --pain-strong: 24 100% 50%;
     --pain-severe: 0 84% 60%;
 
+    /* Quick Entry Colors */
+    --quick-entry: 0 84% 60%;
+    --quick-entry-foreground: 210 40% 98%;
+    --quick-entry-hover: 0 84% 55%;
+
     /* Gradients */
     --gradient-primary: linear-gradient(135deg, hsl(142 76% 36%), hsl(142 76% 42%));
     --gradient-card: linear-gradient(135deg, hsl(220 13% 12%), hsl(220 13% 14%));

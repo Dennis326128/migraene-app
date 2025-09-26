@@ -62,6 +62,11 @@ export default {
 					strong: 'hsl(var(--pain-strong))',
 					severe: 'hsl(var(--pain-severe))'
 				},
+				'quick-entry': {
+					DEFAULT: 'hsl(var(--quick-entry))',
+					foreground: 'hsl(var(--quick-entry-foreground))',
+					hover: 'hsl(var(--quick-entry-hover))'
+				},
 				sidebar: {
 					DEFAULT: 'hsl(var(--sidebar-background))',
 					foreground: 'hsl(var(--sidebar-foreground))',

@@ -39,6 +39,7 @@ export const PainApp: React.FC = () => {
           onViewEntries={() => setView("list")}
           onViewAnalysis={() => setView("analysis")}
           onViewSettings={() => setView("settings")}
+          onQuickEntry={() => setView("list")} // Show entries after quick entry
         />
       )}
 
