@@ -5,7 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Mic, MicOff, Play, Square, Edit3, Save, X, Trash2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Progress } from "@/components/ui/progress";
+import { Mic, MicOff, Play, Square, Edit3, Save, X, Trash2, Settings, Volume2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { parseGermanVoiceEntry, type ParsedVoiceEntry } from "@/lib/voice/germanParser";
 import { useCreateEntry } from "@/features/entries/hooks/useEntryMutations";
@@ -18,7 +20,7 @@ interface VoiceEntryModalProps {
   onSuccess?: () => void;
 }
 
-type RecordingState = 'idle' | 'recording' | 'processing' | 'reviewing';
+type RecordingState = 'idle' | 'warmup' | 'recording' | 'processing' | 'reviewing' | 'fallback';
 
 // TypeScript declarations for Web Speech API
 declare global {
@@ -43,7 +45,20 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
   const [editedMedications, setEditedMedications] = useState<string[]>([]);
   const [editedNotes, setEditedNotes] = useState('');
   
+  // STT robustness states
+  const [restartCount, setRestartCount] = useState(0);
+  const [audioLevel, setAudioLevel] = useState(0);
+  const [availableDevices, setAvailableDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedDevice, setSelectedDevice] = useState<string>('default');
+  const [showDebug, setShowDebug] = useState(false);
+  const [isPushToTalk, setIsPushToTalk] = useState(false);
+  const [debugLog, setDebugLog] = useState<string[]>([]);
+  
   const recognitionRef = useRef<any>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const warmupTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const createEntryMutation = useCreateEntry();
   const { data: availableMeds = [] } = useMeds();
 
@@ -74,7 +89,14 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
       setTranscript('');
       setParsedEntry(null);
       setIsEditing(false);
+      setRestartCount(0);
+      setDebugLog([]);
       stopRecording();
+      cleanup();
+    } else {
+      // Load available devices and preferences when modal opens
+      loadAudioDevices();
+      loadPreferences();
     }
   }, [open]);
 
@@ -89,7 +111,73 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
     }
   }, [parsedEntry]);
 
-  const startRecording = () => {
+  const addDebugLog = (message: string) => {
+    setDebugLog(prev => [...prev.slice(-9), `${new Date().toLocaleTimeString()}: ${message}`]);
+  };
+
+  const loadAudioDevices = async () => {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const audioInputs = devices.filter(device => device.kind === 'audioinput');
+      setAvailableDevices(audioInputs);
+      addDebugLog(`Found ${audioInputs.length} audio input devices`);
+    } catch (error) {
+      addDebugLog(`Device enumeration failed: ${error}`);
+    }
+  };
+
+  const loadPreferences = () => {
+    const savedDevice = localStorage.getItem('voice-preferred-device');
+    if (savedDevice) setSelectedDevice(savedDevice);
+  };
+
+  const savePreferences = () => {
+    localStorage.setItem('voice-preferred-device', selectedDevice);
+  };
+
+  const setupAudioMonitoring = async (stream: MediaStream) => {
+    try {
+      audioContextRef.current = new AudioContext();
+      const source = audioContextRef.current.createMediaStreamSource(stream);
+      analyserRef.current = audioContextRef.current.createAnalyser();
+      analyserRef.current.fftSize = 256;
+      
+      source.connect(analyserRef.current);
+      
+      const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+      
+      const updateAudioLevel = () => {
+        if (analyserRef.current && recordingState === 'recording') {
+          analyserRef.current.getByteFrequencyData(dataArray);
+          const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
+          setAudioLevel(average);
+          requestAnimationFrame(updateAudioLevel);
+        }
+      };
+      
+      updateAudioLevel();
+      addDebugLog('Audio monitoring setup complete');
+    } catch (error) {
+      addDebugLog(`Audio monitoring failed: ${error}`);
+    }
+  };
+
+  const cleanup = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+    if (warmupTimeoutRef.current) {
+      clearTimeout(warmupTimeoutRef.current);
+      warmupTimeoutRef.current = null;
+    }
+  };
+
+  const startRecording = async () => {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
       toast({
         title: "Spracherkennung nicht unterstützt",
@@ -100,26 +188,73 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
     }
 
     try {
+      setRecordingState('warmup');
+      addDebugLog('Starting audio warmup...');
+      
+      // Audio warmup - get user media first
+      const constraints = {
+        audio: {
+          deviceId: selectedDevice !== 'default' ? { exact: selectedDevice } : undefined,
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 16000
+        }
+      };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      streamRef.current = stream;
+      
+      // Setup audio monitoring
+      await setupAudioMonitoring(stream);
+      
+      // Warmup delay
+      warmupTimeoutRef.current = setTimeout(() => {
+        initializeSpeechRecognition();
+      }, 500);
+      
+    } catch (error) {
+      addDebugLog(`getUserMedia failed: ${error}`);
+      handleAudioError(error);
+    }
+  };
+
+  const initializeSpeechRecognition = async () => {
+    try {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       const recognition = new SpeechRecognition();
       
       recognition.lang = 'de-DE';
       recognition.continuous = true;
       recognition.interimResults = true;
-      recognition.maxAlternatives = 1;
+      recognition.maxAlternatives = 5;
+
+      // Grammar biasing (Chrome only, partial support)
+      try {
+        const grammar = createGrammar();
+        if (grammar) {
+          recognition.grammars = grammar;
+          addDebugLog('Grammar biasing applied');
+        }
+      } catch (e) {
+        addDebugLog('Grammar biasing not supported');
+      }
 
       recognition.onstart = () => {
         setRecordingState('recording');
         setTranscript('');
-        console.log('🎙️ Voice recording started');
+        addDebugLog('🎙️ Speech recognition started');
       };
 
       recognition.onresult = (event) => {
         let finalTranscript = '';
         let interimTranscript = '';
+        let confidence = 0;
 
         for (let i = event.resultIndex; i < event.results.length; i++) {
           const transcript = event.results[i][0].transcript;
+          confidence = Math.max(confidence, event.results[i][0].confidence || 0);
+          
           if (event.results[i].isFinal) {
             finalTranscript += transcript;
           } else {
@@ -127,63 +262,124 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
           }
         }
 
-        setTranscript(finalTranscript + interimTranscript);
+        const fullTranscript = finalTranscript + interimTranscript;
+        setTranscript(fullTranscript);
+        addDebugLog(`Transcript (conf: ${confidence.toFixed(2)}): ${fullTranscript.slice(0, 50)}...`);
       };
 
       recognition.onerror = (event) => {
-        console.error('🎙️ Speech recognition error:', event.error);
-        setRecordingState('idle');
-        
-        let errorMessage = "Spracherkennung fehlgeschlagen";
-        switch (event.error) {
-          case 'no-speech':
-            errorMessage = "Keine Sprache erkannt. Bitte sprechen Sie deutlicher.";
-            break;
-          case 'audio-capture':
-            errorMessage = "Mikrofonzugriff fehlgeschragen. Bitte Berechtigung erteilen.";
-            break;
-          case 'not-allowed':
-            errorMessage = "Mikrofonzugriff verweigert. Bitte Berechtigung in den Browsereinstellungen aktivieren.";
-            break;
-        }
-        
-        toast({
-          title: "Sprachfehler",
-          description: errorMessage,
-          variant: "destructive"
-        });
+        addDebugLog(`🎙️ Speech error: ${event.error}`);
+        handleRecognitionError(event.error);
       };
 
       recognition.onend = () => {
-        setRecordingState('processing');
-        console.log('🎙️ Voice recording ended, processing...');
-        
-        if (transcript.trim()) {
-          // Parse the transcript
-          const parsed = parseGermanVoiceEntry(transcript.trim());
-          setParsedEntry(parsed);
-          setRecordingState('reviewing');
-        } else {
-          setRecordingState('idle');
-          toast({
-            title: "Keine Sprache erkannt",
-            description: "Bitte versuchen Sie es erneut und sprechen Sie deutlicher.",
-            variant: "destructive"
-          });
-        }
+        addDebugLog('🎙️ Recognition ended');
+        handleRecognitionEnd();
       };
 
       recognitionRef.current = recognition;
       recognition.start();
       
     } catch (error) {
-      console.error('🎙️ Failed to start recognition:', error);
+      addDebugLog(`Recognition init failed: ${error}`);
+      handleAudioError(error);
+    }
+  };
+
+  const createGrammar = () => {
+    try {
+      if (!(window as any).SpeechGrammarList) return null;
+      
+      const grammarList = new (window as any).SpeechGrammarList();
+      const medications = availableMeds.map(med => med.name).join(' | ');
+      const numbers = Array.from({length: 11}, (_, i) => i).join(' | ');
+      const timeWords = 'heute | gestern | vorgestern | vor | minuten | stunden | uhr';
+      
+      const grammar = `#JSGF V1.0; grammar migraine; public <entry> = <pain> | <medication> | <time>; <pain> = schmerz | migräne | kopfschmerz (${numbers}); <medication> = ${medications}; <time> = ${timeWords};`;
+      
+      grammarList.addFromString(grammar, 1);
+      return grammarList;
+    } catch (e) {
+      return null;
+    }
+  };
+
+  const handleRecognitionError = (error: string) => {
+    switch (error) {
+      case 'no-speech':
+        if (restartCount < 2) {
+          addDebugLog(`No speech detected, restarting (${restartCount + 1}/2)...`);
+          setRestartCount(prev => prev + 1);
+          setTimeout(() => {
+            if (recognitionRef.current) {
+              recognitionRef.current.start();
+            }
+          }, 250 * (restartCount + 1));
+          return;
+        } else {
+          setRecordingState('fallback');
+          toast({
+            title: "Spracherkennung schwierig",
+            description: "Versuchen Sie Push-to-Talk oder nutzen Sie die Schnell-Bausteine.",
+            variant: "default"
+          });
+        }
+        break;
+        
+      case 'audio-capture':
+        toast({
+          title: "Kein Mikrofon gefunden",
+          description: "Anderes Programm nutzt es? Bitte Gerät wählen.",
+          variant: "destructive"
+        });
+        setRecordingState('fallback');
+        break;
+        
+      case 'not-allowed':
+        toast({
+          title: "Mikrofon blockiert",
+          description: "Berechtigung in Browser/OS-Einstellungen aktivieren.",
+          variant: "destructive"
+        });
+        setRecordingState('fallback');
+        break;
+        
+      default:
+        setRecordingState('idle');
+        toast({
+          title: "Sprachfehler",
+          description: "Unbekannter Fehler. Bitte erneut versuchen.",
+          variant: "destructive"
+        });
+    }
+  };
+
+  const handleRecognitionEnd = () => {
+    if (restartCount < 2 && recordingState === 'recording' && !transcript.trim()) {
+      // Auto-restart for no-speech
+      return;
+    }
+    
+    setRecordingState('processing');
+    
+    if (transcript.trim()) {
+      const parsed = parseGermanVoiceEntry(transcript.trim());
+      setParsedEntry(parsed);
+      setRecordingState('reviewing');
+      addDebugLog(`Parsed: Pain=${parsed.painLevel}, Meds=${parsed.medications.join(',')}`);
+    } else {
+      setRecordingState('fallback');
       toast({
-        title: "Spracherkennung fehlgeschlagen",
-        description: "Bitte versuchen Sie es erneut oder verwenden Sie die manuelle Eingabe.",
-        variant: "destructive"
+        title: "Keine Sprache erkannt",
+        description: "Probieren Sie Push-to-Talk oder die Schnell-Eingabe.",
+        variant: "default"
       });
     }
+  };
+
+  const handleAudioError = (error: any) => {
+    setRecordingState('fallback');
+    addDebugLog(`Audio error: ${error.message || error}`);
   };
 
   const stopRecording = () => {
@@ -307,6 +503,29 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
         <div className="space-y-4">
           {recordingState === 'idle' && (
             <div className="text-center space-y-4">
+              {/* Device Selection */}
+              {availableDevices.length > 1 && (
+                <div className="space-y-2">
+                  <Label className="text-xs">Mikrofon wählen</Label>
+                  <Select value={selectedDevice} onValueChange={(value) => {
+                    setSelectedDevice(value);
+                    savePreferences();
+                  }}>
+                    <SelectTrigger className="text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="default">Standard-Mikrofon</SelectItem>
+                      {availableDevices.map((device) => (
+                        <SelectItem key={device.deviceId} value={device.deviceId}>
+                          {device.label || `Mikrofon ${device.deviceId.slice(0, 8)}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               <p className="text-sm text-muted-foreground">
                 Sprechen Sie Ihren Migräne-Eintrag auf Deutsch:
               </p>
@@ -315,38 +534,94 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
                 <p>"Ich habe Schmerzstufe 8 und Sumatriptan 50 genommen"</p>
                 <p>"Vor 30 Minuten Schmerz 6, Ibuprofen 400"</p>
                 <p>"Gestern um 17 Uhr 7/10, kein Medikament"</p>
+                <p>"Die letzte Tablette hat mittel geholfen"</p>
               </div>
-              <Button 
-                onClick={startRecording}
-                size="lg"
-                className="w-full"
-              >
-                <Mic className="w-5 h-5 mr-2" />
-                Aufnahme starten
-              </Button>
-              <div className="text-xs text-muted-foreground">
-                Alternativ können Sie auch manuell eingeben
+              
+              <div className="space-y-2">
+                <Button 
+                  onClick={startRecording}
+                  size="lg"
+                  className="w-full"
+                >
+                  <Mic className="w-5 h-5 mr-2" />
+                  Aufnahme starten
+                </Button>
+                
+                {isPushToTalk && (
+                  <Button 
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onMouseDown={startRecording}
+                    onMouseUp={stopRecording}
+                    onTouchStart={startRecording}
+                    onTouchEnd={stopRecording}
+                  >
+                    <Mic className="w-4 h-4 mr-2" />
+                    Halten zum Sprechen
+                  </Button>
+                )}
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => setShowDebug(!showDebug)}
+                >
+                  <Settings className="w-4 h-4" />
+                </Button>
+                <div className="text-xs text-muted-foreground">
+                  Alternativ: Schnell-Eingabe verwenden
+                </div>
               </div>
             </div>
           )}
 
-          {recordingState === 'recording' && (
+          {(recordingState === 'warmup' || recordingState === 'recording') && (
             <div className="text-center space-y-4">
               <div className="flex items-center justify-center gap-2">
                 <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
-                <span className="text-sm font-medium">Aufnahme läuft...</span>
+                <span className="text-sm font-medium">
+                  {recordingState === 'warmup' ? 'Mikrofon wird vorbereitet...' : 'Aufnahme läuft...'}
+                </span>
               </div>
+              
+              {/* Audio Level Indicator */}
+              {recordingState === 'recording' && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 justify-center">
+                    <Volume2 className="w-4 h-4" />
+                    <Progress value={audioLevel} className="w-32" />
+                  </div>
+                  {audioLevel < 10 && (
+                    <div className="text-xs text-yellow-600">
+                      ⚠️ Sehr leise - sprechen Sie näher ans Mikrofon
+                    </div>
+                  )}
+                </div>
+              )}
+              
               <div className="p-4 bg-secondary/50 rounded-lg min-h-[60px]">
                 <p className="text-sm">{transcript || "Sprechen Sie jetzt..."}</p>
               </div>
-              <Button 
-                onClick={stopRecording}
-                variant="outline"
-                size="sm"
-              >
-                <Square className="w-4 h-4 mr-2" />
-                Aufnahme beenden
-              </Button>
+              
+              <div className="flex gap-2">
+                <Button 
+                  onClick={stopRecording}
+                  variant="outline"
+                  size="sm"
+                  className="flex-1"
+                >
+                  <Square className="w-4 h-4 mr-2" />
+                  Aufnahme beenden
+                </Button>
+                {restartCount > 0 && (
+                  <Badge variant="secondary" className="text-xs">
+                    Restart {restartCount}/2
+                  </Badge>
+                )}
+              </div>
             </div>
           )}
 
@@ -354,6 +629,51 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
             <div className="text-center space-y-4">
               <div className="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full mx-auto"></div>
               <p className="text-sm">Verarbeite Spracheingabe...</p>
+            </div>
+          )}
+
+          {recordingState === 'fallback' && (
+            <div className="space-y-4">
+              <div className="text-center">
+                <div className="text-sm font-medium text-yellow-600 mb-2">
+                  🎙️ Spracherkennung schwierig
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Nutzen Sie eine der alternativen Eingabemethoden:
+                </p>
+              </div>
+              
+              <div className="space-y-2">
+                <Button 
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => setIsPushToTalk(true)}
+                >
+                  Push-to-Talk versuchen
+                </Button>
+                
+                <Button 
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => {
+                    // Show quick builder
+                    const quickEntry = {
+                      selectedDate: new Date().toISOString().split('T')[0],
+                      selectedTime: new Date().toTimeString().slice(0, 5),
+                      painLevel: '',
+                      medications: [],
+                      notes: 'Fallback-Eingabe',
+                      isNow: true
+                    };
+                    setParsedEntry(quickEntry as any);
+                    setRecordingState('reviewing');
+                  }}
+                >
+                  Schnell-Eingabe nutzen
+                </Button>
+              </div>
             </div>
           )}
 
@@ -408,6 +728,34 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
                     <div>
                       <Label className="text-xs text-muted-foreground">Zusätzliche Notizen</Label>
                       <p className="text-sm">{parsedEntry.notes}</p>
+                    </div>
+                  )}
+
+                  {parsedEntry.medicationEffect && (
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Medikamenten-Wirkung</Label>
+                      <div className="space-y-1">
+                        <p className="text-sm">
+                          {parsedEntry.medicationEffect.medName && (
+                            <strong>{parsedEntry.medicationEffect.medName}: </strong>
+                          )}
+                          {parsedEntry.medicationEffect.rating === 'none' && '❌ Gar nicht geholfen'}
+                          {parsedEntry.medicationEffect.rating === 'poor' && '🔴 Schlecht geholfen'}
+                          {parsedEntry.medicationEffect.rating === 'moderate' && '🟡 Mittel geholfen'}
+                          {parsedEntry.medicationEffect.rating === 'good' && '🟢 Gut geholfen'}
+                          {parsedEntry.medicationEffect.rating === 'very_good' && '✅ Sehr gut geholfen'}
+                        </p>
+                        {parsedEntry.medicationEffect.sideEffects && parsedEntry.medicationEffect.sideEffects.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {parsedEntry.medicationEffect.sideEffects.map((effect, i) => (
+                              <Badge key={i} variant="destructive" className="text-xs">{effect}</Badge>
+                            ))}
+                          </div>
+                        )}
+                        <Badge variant="secondary" className="text-xs">
+                          Konfidenz: {parsedEntry.medicationEffect.confidence}
+                        </Badge>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -510,6 +858,24 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
                   <Save className="w-4 h-4 mr-1" />
                   {saving ? "Speichert..." : "Speichern"}
                 </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Debug Panel */}
+          {showDebug && (
+            <div className="border-t pt-4 space-y-2">
+              <div className="text-xs font-medium">🔧 Debug-Informationen</div>
+              <div className="text-xs space-y-1 bg-secondary/30 p-2 rounded max-h-32 overflow-y-auto">
+                <div>Gerät: {selectedDevice === 'default' ? 'Standard' : selectedDevice.slice(0, 20)}</div>
+                <div>Audio-Level: {audioLevel.toFixed(0)}</div>
+                <div>Restarts: {restartCount}/2</div>
+                <div>Status: {recordingState}</div>
+                <div className="border-t pt-1 mt-1">
+                  {debugLog.map((log, i) => (
+                    <div key={i} className="text-[10px] text-muted-foreground">{log}</div>
+                  ))}
+                </div>
               </div>
             </div>
           )}

@@ -7,6 +7,12 @@ export interface ParsedVoiceEntry {
   medications: string[];
   notes: string;
   isNow: boolean;
+  medicationEffect?: {
+    rating: 'none' | 'poor' | 'moderate' | 'good' | 'very_good';
+    medName?: string;
+    sideEffects?: string[];
+    confidence: 'high' | 'medium' | 'low';
+  };
 }
 
 // German pain level mapping
@@ -222,6 +228,28 @@ function parsePainLevel(text: string): string {
   }
   
   return ""; // No pain level found
+}
+
+function parseMedicationEffect(text: string): ParsedVoiceEntry['medicationEffect'] {
+  // Simple effect patterns for quick implementation
+  const effects = [
+    { pattern: /(gar nicht|nicht).{0,20}(geholfen|gewirkt)/i, rating: 'none' as const },
+    { pattern: /(schlecht|wenig).{0,20}(geholfen|gewirkt)/i, rating: 'poor' as const },
+    { pattern: /(mittel|ok|okay).{0,20}(geholfen|gewirkt)/i, rating: 'moderate' as const },
+    { pattern: /(gut).{0,20}(geholfen|gewirkt)/i, rating: 'good' as const },
+    { pattern: /(sehr gut|super).{0,20}(geholfen|gewirkt)/i, rating: 'very_good' as const },
+  ];
+
+  for (const effect of effects) {
+    if (effect.pattern.test(text)) {
+      return {
+        rating: effect.rating,
+        confidence: 'medium'
+      };
+    }
+  }
+  
+  return undefined;
 }
 
 function parseMedications(text: string): string[] {
