@@ -170,10 +170,30 @@ serve(async (req) => {
         console.log('📊 Current weather response:', data);
 
         if (data.current) {
+          // Calculate 24h pressure change for current weather
+          let pressureChange24h = null;
+          try {
+            const yesterdayDate = new Date(requestDate);
+            yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+            const yesterdayString = yesterdayDate.toISOString().split('T')[0];
+            
+            const histUrl = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${yesterdayString}&end_date=${yesterdayString}&daily=surface_pressure_mean&timezone=auto`;
+            const histResponse = await fetch(histUrl);
+            const histData = await histResponse.json();
+            
+            if (histData.daily?.surface_pressure_mean?.[0]) {
+              pressureChange24h = data.current.surface_pressure - histData.daily.surface_pressure_mean[0];
+              console.log('📈 Calculated 24h pressure change:', pressureChange24h, 'hPa');
+            }
+          } catch (pressureError) {
+            console.log('⚠️ Failed to calculate pressure change:', pressureError);
+          }
+
           weatherData = {
             temperature_c: data.current.temperature_2m,
             humidity: data.current.relative_humidity_2m,
             pressure_mb: data.current.surface_pressure,
+            pressure_change_24h: pressureChange24h,
             wind_kph: data.current.wind_speed_10m * 3.6, // Convert m/s to km/h
             condition_text: 'Current weather',
             location: `${lat.toFixed(2)}, ${lon.toFixed(2)}`
@@ -189,19 +209,38 @@ serve(async (req) => {
     if (!weatherData) {
       console.log('🌍 Fetching historical weather data from Open-Meteo');
       try {
-        const historicalUrl = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${dateString}&end_date=${dateString}&daily=temperature_2m_mean,relative_humidity_2m_mean,surface_pressure_mean,wind_speed_10m_mean&timezone=auto`;
+        // Fetch current date and previous day for pressure change calculation
+        const prevDate = new Date(requestDate);
+        prevDate.setDate(prevDate.getDate() - 1);
+        const prevDateString = prevDate.toISOString().split('T')[0];
+        
+        const historicalUrl = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${prevDateString}&end_date=${dateString}&daily=temperature_2m_mean,relative_humidity_2m_mean,surface_pressure_mean,wind_speed_10m_mean&timezone=auto`;
         
         const response = await fetch(historicalUrl);
         const data = await response.json();
         
         console.log('📊 Historical weather response:', data);
 
-        if (data.daily && data.daily.temperature_2m_mean && data.daily.temperature_2m_mean[0] !== null) {
+        if (data.daily && data.daily.temperature_2m_mean && data.daily.temperature_2m_mean.length > 0) {
+          const currentIndex = data.daily.temperature_2m_mean.length - 1; // Last day = requested date
+          let pressureChange24h = null;
+          
+          // Calculate pressure change if we have both days
+          if (data.daily.surface_pressure_mean && data.daily.surface_pressure_mean.length >= 2) {
+            const currentPressure = data.daily.surface_pressure_mean[currentIndex];
+            const previousPressure = data.daily.surface_pressure_mean[currentIndex - 1];
+            if (currentPressure && previousPressure) {
+              pressureChange24h = currentPressure - previousPressure;
+              console.log('📈 Calculated historical 24h pressure change:', pressureChange24h, 'hPa');
+            }
+          }
+
           weatherData = {
-            temperature_c: data.daily.temperature_2m_mean[0],
-            humidity: data.daily.relative_humidity_2m_mean[0],
-            pressure_mb: data.daily.surface_pressure_mean[0],
-            wind_kph: data.daily.wind_speed_10m_mean[0], // Already in km/h from archive API
+            temperature_c: data.daily.temperature_2m_mean[currentIndex],
+            humidity: data.daily.relative_humidity_2m_mean[currentIndex],
+            pressure_mb: data.daily.surface_pressure_mean[currentIndex],
+            pressure_change_24h: pressureChange24h,
+            wind_kph: data.daily.wind_speed_10m_mean[currentIndex], // Already in km/h from archive API
             condition_text: 'Historical data',
             location: `${lat.toFixed(2)}, ${lon.toFixed(2)}`
           };
@@ -258,6 +297,7 @@ serve(async (req) => {
         temperature_c: weatherData.temperature_c,
         humidity: weatherData.humidity,
         pressure_mb: weatherData.pressure_mb,
+        pressure_change_24h: weatherData.pressure_change_24h,
         wind_kph: weatherData.wind_kph,
         condition_text: weatherData.condition_text,
         location: weatherData.location

@@ -182,7 +182,23 @@ export const EntriesList = ({
                   <p><strong>☁ Wetter:</strong> {selectedEntry.weather.condition_text || "-"}</p>
                   <p><strong>💧 Luftfeuchtigkeit:</strong> {selectedEntry.weather.humidity ?? "-"}%</p>
                   <p><strong>🔽 Luftdruck:</strong> {selectedEntry.weather.pressure_mb ?? "-"} hPa</p>
-                  <p><strong>📉 Druckänderung (24h):</strong> {selectedEntry.weather.pressure_change_24h ?? "-"} hPa</p>
+                  <p><strong>📈 Luftdrucktrend (24h):</strong>{" "}
+                    {selectedEntry.weather.pressure_change_24h != null ? (
+                      <>
+                        {selectedEntry.weather.pressure_change_24h > 0 ? "↗️ +" : 
+                         selectedEntry.weather.pressure_change_24h < 0 ? "↘️ " : "➡️ "}
+                        {selectedEntry.weather.pressure_change_24h.toFixed(1)} hPa
+                        {Math.abs(selectedEntry.weather.pressure_change_24h) > 3 && (
+                          <span className="text-orange-600 ml-1">⚠️</span>
+                        )}
+                      </>
+                    ) : "-"}
+                  </p>
+                  {selectedEntry.weather.pressure_change_24h != null && Math.abs(selectedEntry.weather.pressure_change_24h) > 3 && (
+                    <p className="text-xs text-orange-600 mt-1">
+                      💡 Starke Luftdruckänderung kann Migräne auslösen
+                    </p>
+                  )}
                 </div>
               )}
             </div>
