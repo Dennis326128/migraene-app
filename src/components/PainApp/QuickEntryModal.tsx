@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import { X, Clock, Save, Zap } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useMeds } from "@/features/meds/hooks/useMeds";
@@ -43,7 +43,7 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
   const [selectedTime, setSelectedTime] = useState<string>("now");
   const [customTime, setCustomTime] = useState<string>("");
   const [customDate, setCustomDate] = useState<string>("");
-  const [medicationDosages, setMedicationDosages] = useState<Record<string, number>>({});
+  const [medicationStates, setMedicationStates] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
 
   // Initialize dates
@@ -56,7 +56,7 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
       // Reset form
       setPainLevel("");
       setSelectedTime("now");
-      setMedicationDosages({});
+      setMedicationStates({});
     }
   }, [open]);
 
@@ -78,8 +78,8 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
   };
 
   const getSelectedMedications = () => {
-    return Object.entries(medicationDosages)
-      .filter(([_, dosage]) => dosage > 0)
+    return Object.entries(medicationStates)
+      .filter(([_, taken]) => taken === true)
       .map(([name]) => name);
   };
 
@@ -270,24 +270,16 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
               <Label className="text-base font-medium mb-3 block">💊 Medikamente</Label>
               <div className="space-y-3">
                 {medOptions.map((med) => (
-                  <div key={med.id} className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium">{med.name}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {medicationDosages[med.name] || 0}x
-                      </span>
-                    </div>
-                    <Slider
-                      value={[medicationDosages[med.name] || 0]}
-                      onValueChange={(value) => 
-                        setMedicationDosages(prev => ({ 
+                  <div key={med.id} className="flex items-center justify-between py-1">
+                    <span className="text-sm font-medium">{med.name}</span>
+                    <Switch
+                      checked={medicationStates[med.name] || false}
+                      onCheckedChange={(checked) => 
+                        setMedicationStates(prev => ({ 
                           ...prev, 
-                          [med.name]: value[0] 
+                          [med.name]: checked 
                         }))
                       }
-                      max={5}
-                      step={1}
-                      className="w-full"
                     />
                   </div>
                 ))}
