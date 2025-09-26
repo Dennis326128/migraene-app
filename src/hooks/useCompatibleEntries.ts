@@ -1,48 +1,36 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEntries } from "@/features/entries/hooks/useEntries";
-import { useEvents } from "@/features/events/hooks/useEvents";
 
 /**
- * Temporary compatibility hook that supports both pain_entries and events
- * This provides a seamless transition during migration
+ * Hook that provides backwards compatibility - now only uses pain_entries system
  */
 export function useCompatibleEntries(filters?: { from: string; to: string }) {
-  // Check both systems
+  // Use only the pain_entries system (which is now the primary system)
   const { data: legacyEntries = [], isLoading: legacyLoading, error: legacyError } = useEntries(filters);
-  const { data: newEvents = [], isLoading: eventsLoading, error: eventsError } = useEvents();
 
   // Debug logging for data received
   console.log('🔍 useCompatibleEntries debug:', {
     legacyEntries: legacyEntries?.length || 0,
-    newEvents: newEvents?.length || 0,
     legacyLoading,
-    eventsLoading,
     filters
   });
 
   return useQuery({
     queryKey: ['compatible-entries', filters],
     queryFn: () => {
-      // Always prioritize events if they exist
-      if (newEvents && newEvents.length > 0) {
-        console.log('✅ Using new event system:', newEvents.length, 'events');
-        return newEvents;
-      }
-      
-      // Fall back to legacy entries - this should be the main data source for now
+      // Return pain_entries data
       if (legacyEntries && legacyEntries.length > 0) {
-        console.log('🔄 Using legacy system:', legacyEntries.length, 'entries');
+        console.log('🔄 Using pain_entries system:', legacyEntries.length, 'entries');
         return legacyEntries;
       }
 
-      console.log('📭 No data in either system');
+      console.log('📭 No data found');
       return [];
     },
-    enabled: !legacyLoading && !eventsLoading,
+    enabled: !legacyLoading,
     staleTime: 5 * 60 * 1000, // 5 minutes
     select: (data) => {
-      // Ensure we always return the most recent data
       console.log('🔍 Compatible entries selected:', data?.length || 0, 'entries');
       return data || [];
     }
@@ -50,7 +38,7 @@ export function useCompatibleEntries(filters?: { from: string; to: string }) {
 }
 
 /**
- * Hook to check which system has data and recommend migration
+ * Hook to check system status - simplified to only check pain_entries
  */
 export function useSystemStatus() {
   return useQuery({
@@ -59,21 +47,20 @@ export function useSystemStatus() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return null;
 
-      const [painEntriesResult, eventsResult] = await Promise.all([
-        supabase.from("pain_entries").select("id", { count: "exact", head: true }).eq("user_id", user.id),
-        supabase.from("events").select("id", { count: "exact", head: true }).eq("user_id", user.id)
-      ]);
+      const painEntriesResult = await supabase
+        .from("pain_entries")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id);
 
       const painCount = painEntriesResult.count || 0;
-      const eventCount = eventsResult.count || 0;
 
       return {
         painEntries: painCount,
-        events: eventCount,
+        events: 0, // No longer using events
         hasLegacyData: painCount > 0,
-        hasNewData: eventCount > 0,
-        needsMigration: painCount > 0 && eventCount === 0,
-        systemToUse: eventCount > 0 ? 'events' : 'pain_entries'
+        hasNewData: false, // No new system anymore
+        needsMigration: false, // No migration needed
+        systemToUse: 'pain_entries'
       };
     }
   });

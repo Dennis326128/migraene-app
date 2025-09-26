@@ -11,8 +11,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatisticsFilter } from "./StatisticsFilter";
 import { StatisticsCards } from "./StatisticsCards";
 import { TimeDistributionChart } from "./TimeDistributionChart";
-import { MedicationEffectsView } from "./MedicationEffectsView";
-import { OveruseMonitor } from "./OveruseMonitor";
 import { MigrationPanel } from "./MigrationPanel";
 import { useFilteredEntries, useMigraineStats, useTimeDistribution } from "@/features/statistics/hooks/useStatistics";
 import { Pill, AlertTriangle } from "lucide-react";
@@ -239,6 +237,7 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
                 size={isMobile ? "sm" : "sm"}
                 onClick={() => setViewMode(id as any)}
                 className={`${isMobile ? 'text-xs min-w-fit px-3 whitespace-nowrap' : 'text-xs'} touch-manipulation`}
+                disabled={id === "medikamente" || id === "ueberverbrauch"} // Disable removed features
               >
                 {isMobile ? (
                   <span className="text-sm">{label}</span>
@@ -422,7 +421,16 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
       )}
 
       {viewMode === "medikamente" && (
-        <MedicationEffectsView onBack={() => setViewMode("analyse")} />
+        <Card>
+          <CardHeader>
+            <CardTitle>Medikamenten-Analyse</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground">
+              Diese Funktion wurde entfernt. Medikamentendaten sind weiterhin in den Einträgen verfügbar.
+            </p>
+          </CardContent>
+        </Card>
       )}
 
       {viewMode === "ueberverbrauch" && (
@@ -432,12 +440,11 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
               <AlertTriangle className="h-5 w-5" />
               Medikamenten-Überverbrauch Monitor
             </CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Überwachung der Medikamenteneinnahme zur Vermeidung von Übergebrauch
-            </p>
           </CardHeader>
           <CardContent>
-            <OveruseMonitor />
+            <p className="text-muted-foreground">
+              Diese Funktion wurde entfernt. Überprüfen Sie Medikamenteneinnahme manuell in den Einträgen.
+            </p>
           </CardContent>
         </Card>
       )}

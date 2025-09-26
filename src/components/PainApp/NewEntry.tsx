@@ -11,10 +11,8 @@ import { logAndSaveWeatherAt, logAndSaveWeatherAtCoords } from "@/utils/weatherL
 import { useCreateEntry, useUpdateEntry } from "@/features/entries/hooks/useEntryMutations";
 import { useMeds, useAddMed, useDeleteMed } from "@/features/meds/hooks/useMeds";
 import { useSymptomCatalog, useEntrySymptoms, useSetEntrySymptoms } from "@/features/symptoms/hooks/useSymptoms";
-import { useLastEntryDefaults, useCreateEntryMedication } from "@/features/entries/hooks/useEntryMedications";
 import { useCheckMedicationLimits, type LimitCheck } from "@/features/medication-limits/hooks/useMedicationLimits";
 import { MedicationLimitWarning } from "./MedicationLimitWarning";
-import type { EntryMedication } from "@/types/entryMedications";
 
 interface NewEntryProps {
   onBack: () => void;
@@ -71,7 +69,6 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
   const { data: catalog = [] } = useSymptomCatalog();
   const { data: entrySymptomIds = [], isLoading: loadingSymptoms } = useEntrySymptoms(entryIdNum);
   const setEntrySymptomsMut = useSetEntrySymptoms();
-  const { data: lastDefaults } = useLastEntryDefaults();
 
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
 
@@ -81,25 +78,18 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
   const [pendingSave, setPendingSave] = useState(false);
   const checkLimits = useCheckMedicationLimits();
   
-  // Set entry symptoms when data loads or prefill from last entry for new entries
+  // Set entry symptoms when data loads
   useEffect(() => {
     if (entry && entrySymptomIds) {
       setSelectedSymptoms(entrySymptomIds);
-    } else if (!entry && lastDefaults) {
-      // Only prefill for new entries, not when editing
-      if (lastDefaults.pain_location) {
-        setPainLocation(lastDefaults.pain_location);
-      }
-      setSelectedSymptoms(lastDefaults.symptom_ids);
     }
-  }, [entry, entrySymptomIds, lastDefaults]);
+  }, [entry, entrySymptomIds]);
 
   const { data: medOptions = [] } = useMeds();
   const addMedMut = useAddMed();
   const delMedMut = useDeleteMed();
   const createMut = useCreateEntry();
   const updateMut = useUpdateEntry();
-  const createEntryMedicationMut = useCreateEntryMedication();
 
   useEffect(() => {
     if (entry) {
@@ -292,19 +282,8 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
         await setEntrySymptomsMut.mutateAsync({ entryId: numericId, symptomIds: selectedSymptoms });
       }
 
-      // Save medication effectiveness
-      for (const med of medicationsWithEffectiveness) {
-        if (med.name && selectedMedications.includes(med.name)) {
-          await createEntryMedicationMut.mutateAsync({
-            entry_id: numericId,
-            medication_name: med.name,
-            dosage: med.dosage || undefined,
-            effectiveness_rating: med.effectiveness || undefined,
-            notes: med.notes || undefined,
-            taken_at: new Date(`${selectedDate}T${selectedTime}`).toISOString()
-          });
-        }
-      }
+      // Medication effectiveness is now tracked in the medications array of pain_entries
+      // No separate entry_medications table needed
 
       toast({ 
         title: "✅ Migräne-Eintrag gespeichert", 

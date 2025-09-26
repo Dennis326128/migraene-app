@@ -56,14 +56,9 @@ export function WeatherBackfillManager() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const [painEntriesResult, eventsResult, entriesWithCoordsResult] = await Promise.all([
+      const [painEntriesResult, entriesWithCoordsResult] = await Promise.all([
         supabase
           .from('pain_entries')
-          .select('id', { count: 'exact' })
-          .eq('user_id', user.id)
-          .is('weather_id', null),
-        supabase
-          .from('events')
           .select('id', { count: 'exact' })
           .eq('user_id', user.id)
           .is('weather_id', null),
@@ -78,7 +73,7 @@ export function WeatherBackfillManager() {
 
       setStats({
         totalMissingEntries: painEntriesResult.count || 0,
-        totalMissingEvents: eventsResult.count || 0,
+        totalMissingEvents: 0, // Events system removed
         entriesWithCoords: entriesWithCoordsResult.count || 0,
         hasCoordinates: coordsResult.hasCoordinates,
         userLatitude: coordsResult.latitude,

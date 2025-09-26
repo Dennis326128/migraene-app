@@ -3,7 +3,6 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Plus, History, TrendingUp, Settings } from "lucide-react";
 import { LogoutButton } from "@/components/LogoutButton";
-import { QuickEntryModal } from "./QuickEntryModal";
 import { WelcomeModal } from "./WelcomeModal";
 import { useOnboarding } from "@/hooks/useOnboarding";
 
@@ -20,7 +19,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   onViewAnalysis,
   onViewSettings,
 }) => {
-  const [quickEntryOpen, setQuickEntryOpen] = useState(false);
   const { needsOnboarding, completeOnboarding, isLoading: onboardingLoading } = useOnboarding();
 
   return (
@@ -46,19 +44,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             </div>
           </Card>
 
-          {/* Quick Entry Button - Mobile Optimized */}
-          <Card 
-            className="hover:shadow-lg active:shadow-xl transition-all cursor-pointer group border-destructive bg-destructive/5 hover:bg-destructive/10 active:scale-[0.98] touch-manipulation mobile-touch-feedback" 
-            onClick={() => setQuickEntryOpen(true)}
-          >
-            <div className="p-4 sm:p-6 text-center min-h-[4rem] sm:min-h-[6rem] flex flex-col justify-center mobile-card-compact mobile-text-compact">
-              <div className="text-2xl sm:text-4xl mb-1 sm:mb-3 group-hover:scale-110 transition-transform">🚨</div>
-              <h3 className="text-base sm:text-xl font-semibold mb-1 text-destructive mobile-button-text">Schnelleintrag</h3>
-              <p className="text-muted-foreground text-xs leading-tight mobile-button-text">
-                Sofortige Tabletteneinnahme dokumentieren
-              </p>
-            </div>
-          </Card>
+          {/* Quick Entry Button - Removed - No QuickEntryModal anymore */}
 
           {/* View Entries Button */}
           <Card className="hover:shadow-lg active:shadow-xl transition-all cursor-pointer group active:scale-[0.98] touch-manipulation mobile-touch-feedback" onClick={onViewEntries}>
@@ -95,13 +81,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         </div>
       </div>
 
-      {/* Quick Entry Modal */}
-      <QuickEntryModal 
-        open={quickEntryOpen} 
-        onOpenChange={setQuickEntryOpen} 
-      />
-
-      {/* Welcome/Onboarding Modal */}
+      {/* Welcome/Onboarding Modal - No QuickEntryModal anymore */}
       {!onboardingLoading && (
         <WelcomeModal 
           open={needsOnboarding} 

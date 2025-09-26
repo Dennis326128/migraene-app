@@ -4,7 +4,6 @@ import { EntriesList } from "./EntriesList";
 import { MainMenu } from "./MainMenu";
 import { AnalysisView } from "./AnalysisView";
 import SettingsPage from "./SettingsPage";
-import { ReminderNotifications } from "./ReminderNotifications";
 import { OnboardingModal } from "./OnboardingModal";
 import { useOnboarding } from "@/hooks/useOnboarding";
 import type { PainEntry } from "@/types/painApp";
@@ -32,8 +31,7 @@ export const PainApp: React.FC = () => {
 
   return (
     <div className="min-h-screen">
-      {/* Reminder Notifications - Global */}
-      <ReminderNotifications />
+      {/* Global Components - No ReminderNotifications anymore */}
       
       {view === "menu" && (
         <MainMenu

@@ -24,9 +24,8 @@ export function AccountDeletion() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const [entries, events, meds, profile] = await Promise.all([
+      const [entries, meds, profile] = await Promise.all([
         supabase.from('pain_entries').select('*').eq('user_id', user.id),
-        supabase.from('events').select('*, event_meds(*, med_effects(*))').eq('user_id', user.id),
         supabase.from('user_medications').select('*').eq('user_id', user.id),
         supabase.from('user_profiles').select('*').eq('user_id', user.id).single()
       ]);
@@ -37,7 +36,6 @@ export function AccountDeletion() {
         email: user.email,
         profile: profile.data,
         painEntries: entries.data || [],
-        events: events.data || [],
         medications: meds.data || []
       };
 
