@@ -16,12 +16,21 @@ interface QuickEntryModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess?: () => void;
+  // Voice input pre-filling
+  initialPainLevel?: number;
+  initialSelectedTime?: string;
+  initialCustomDate?: string;
+  initialCustomTime?: string;
+  initialMedicationStates?: Record<string, boolean>;
+  initialNotes?: string;
 }
 
 const timeOptions = [
-  { value: "now", label: "🔴 Jetzt", minutes: 0 },
+  { value: "jetzt", label: "🔴 Jetzt", minutes: 0 },
   { value: "15min", label: "🟠 Vor 15 Min", minutes: 15 },
   { value: "30min", label: "🟡 Vor 30 Min", minutes: 30 },
+  { value: "1h", label: "🟡 Vor 1 Std", minutes: 60 },
+  { value: "2h", label: "🟠 Vor 2 Std", minutes: 120 },
   { value: "custom", label: "⏰ Zeitpunkt wählen", minutes: null },
 ];
 
@@ -35,7 +44,13 @@ const painLevels = [
 export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ 
   open, 
   onClose, 
-  onSuccess 
+  onSuccess,
+  initialPainLevel,
+  initialSelectedTime,
+  initialCustomDate,
+  initialCustomTime,
+  initialMedicationStates,
+  initialNotes
 }) => {
   const { toast } = useToast();
   const { data: medOptions = [] } = useMeds();
@@ -48,27 +63,37 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
   const [medicationStates, setMedicationStates] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
 
-  // Initialize dates
+  // Initialize form - use voice data or defaults
   useEffect(() => {
     if (open) {
       const now = new Date();
-      setCustomDate(now.toISOString().slice(0, 10));
-      setCustomTime(now.toTimeString().slice(0, 5));
       
-      // Reset form
-      setPainLevel(7);
-      setSelectedTime("now");
-      setMedicationStates({});
+      // Set dates first
+      setCustomDate(initialCustomDate || now.toISOString().slice(0, 10));
+      setCustomTime(initialCustomTime || now.toTimeString().slice(0, 5));
+      
+      // Use voice input data or defaults
+      setPainLevel(initialPainLevel ?? 7);
+      setSelectedTime(initialSelectedTime ?? "jetzt");
+      
+      // Set medication states from voice input or reset
+      const newStates: Record<string, boolean> = {};
+      medOptions.forEach(med => {
+        newStates[med.name] = initialMedicationStates?.[med.name] ?? false;
+      });
+      setMedicationStates(newStates);
     }
-  }, [open]);
+  }, [open, medOptions, initialPainLevel, initialSelectedTime, initialCustomTime, initialCustomDate, initialMedicationStates]);
 
   const calculateTimestamp = () => {
     const now = new Date();
     
-    if (selectedTime === "now") return now;
+    if (selectedTime === "jetzt") return now;
     
-    if (selectedTime === "15min" || selectedTime === "30min") {
-      const minutes = selectedTime === "15min" ? 15 : 30;
+    if (selectedTime === "15min" || selectedTime === "30min" || selectedTime === "1h" || selectedTime === "2h") {
+      const minutes = selectedTime === "15min" ? 15 : 
+                    selectedTime === "30min" ? 30 : 
+                    selectedTime === "1h" ? 60 : 120;
       return new Date(now.getTime() - minutes * 60 * 1000);
     }
     
@@ -86,7 +111,7 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
   };
 
   const handleSave = async () => {
-    if (!painLevel) {
+    if (painLevel === null || painLevel === undefined) {
       toast({ 
         title: "Fehler", 
         description: "Bitte Schmerzstärke auswählen", 
@@ -157,7 +182,7 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
         aura_type: "keine" as const,
         pain_location: null,
         medications: getSelectedMedications(),
-        notes: "📱 Schnelleintrag",
+        notes: initialNotes ? `🎤 Spracheintrag: ${initialNotes}` : "📱 Schnelleintrag",
         weather_id: weatherId,
         latitude,
         longitude,
@@ -290,7 +315,7 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
             </Button>
             <Button 
               onClick={handleSave}
-              disabled={painLevel < 1 || saving}
+              disabled={painLevel < 0 || saving}
               className="flex-1 bg-quick-entry hover:bg-quick-entry-hover text-quick-entry-foreground"
             >
               <Save className="h-4 w-4 mr-1" />

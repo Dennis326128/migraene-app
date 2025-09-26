@@ -5,8 +5,9 @@ import { Plus, History, TrendingUp, Settings, Zap, Mic } from "lucide-react";
 import { LogoutButton } from "@/components/LogoutButton";
 import { WelcomeModal } from "./WelcomeModal";
 import { QuickEntryModal } from "./QuickEntryModal";
-import { VoiceEntryModal } from "./VoiceEntryModal";
 import { useOnboarding } from "@/hooks/useOnboarding";
+import { useVoiceTrigger, type VoiceTriggerData } from "@/hooks/useVoiceTrigger";
+import { toast } from "sonner";
 
 interface MainMenuProps {
   onNewEntry: () => void;
@@ -25,7 +26,29 @@ export const MainMenu: React.FC<MainMenuProps> = ({
 }) => {
   const { needsOnboarding, completeOnboarding, isLoading: onboardingLoading } = useOnboarding();
   const [showQuickEntry, setShowQuickEntry] = useState(false);
-  const [showVoiceEntry, setShowVoiceEntry] = useState(false);
+  const [voiceData, setVoiceData] = useState<VoiceTriggerData | null>(null);
+
+  // New voice trigger system
+  const voiceTrigger = useVoiceTrigger({
+    onParsed: (data) => {
+      console.log('🎯 Voice data parsed, opening QuickEntry:', data);
+      setVoiceData(data);
+      setShowQuickEntry(true);
+    },
+    onError: (error) => {
+      toast.error(`Spracheingabe Fehler: ${error}`);
+    }
+  });
+
+  const handleVoiceEntry = () => {
+    toast.info('🎤 Sprechen Sie jetzt...');
+    voiceTrigger.startVoiceEntry();
+  };
+
+  const handleQuickEntryClose = () => {
+    setShowQuickEntry(false);
+    setVoiceData(null); // Reset voice data
+  };
 
   return (
     <div className="min-h-screen bg-background p-4 sm:p-6 flex flex-col">
@@ -62,12 +85,16 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           </Card>
 
           {/* Voice Entry Button */}
-          <Card className="hover:shadow-lg active:shadow-xl transition-all cursor-pointer group border-green-600/30 bg-green-600/10 hover:bg-green-600/20 active:scale-[0.98] touch-manipulation mobile-touch-feedback" onClick={() => setShowVoiceEntry(true)}>
+          <Card className={`hover:shadow-lg active:shadow-xl transition-all cursor-pointer group border-green-600/30 bg-green-600/10 hover:bg-green-600/20 active:scale-[0.98] touch-manipulation mobile-touch-feedback ${voiceTrigger.isListening ? 'ring-2 ring-green-500 animate-pulse' : ''}`} onClick={handleVoiceEntry}>
             <div className="p-4 sm:p-6 text-center min-h-[4rem] sm:min-h-[6rem] flex flex-col justify-center mobile-card-compact mobile-text-compact">
-              <div className="text-2xl sm:text-4xl mb-1 sm:mb-3 group-hover:scale-110 transition-transform">🎙️</div>
-              <h3 className="text-base sm:text-xl font-semibold mb-1 text-green-600 mobile-button-text">Sprach-Eintrag</h3>
+              <div className="text-2xl sm:text-4xl mb-1 sm:mb-3 group-hover:scale-110 transition-transform">
+                {voiceTrigger.isListening ? '🔴' : '🎙️'}
+              </div>
+              <h3 className="text-base sm:text-xl font-semibold mb-1 text-green-600 mobile-button-text">
+                {voiceTrigger.isListening ? 'Hört zu...' : 'Sprach-Eintrag'}
+              </h3>
               <p className="text-muted-foreground text-xs leading-tight mobile-button-text">
-                Sprechen Sie Ihren Eintrag auf Deutsch
+                {voiceTrigger.isListening ? 'Sprechen Sie jetzt!' : 'Sprechen Sie Ihren Eintrag auf Deutsch'}
               </p>
             </div>
           </Card>
@@ -117,20 +144,18 @@ export const MainMenu: React.FC<MainMenuProps> = ({
       
       <QuickEntryModal 
         open={showQuickEntry}
-        onClose={() => setShowQuickEntry(false)}
+        onClose={handleQuickEntryClose}
         onSuccess={() => {
-          setShowQuickEntry(false);
+          handleQuickEntryClose();
           onQuickEntry?.();
         }}
-      />
-      
-      <VoiceEntryModal 
-        open={showVoiceEntry}
-        onClose={() => setShowVoiceEntry(false)}
-        onSuccess={() => {
-          setShowVoiceEntry(false);
-          onQuickEntry?.();
-        }}
+        // Voice input pre-filling
+        initialPainLevel={voiceData?.painLevel}
+        initialSelectedTime={voiceData?.selectedTime}
+        initialCustomDate={voiceData?.customDate}
+        initialCustomTime={voiceData?.customTime}
+        initialMedicationStates={voiceData?.medicationStates}
+        initialNotes={voiceData?.notes}
       />
     </div>
   );

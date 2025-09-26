@@ -244,35 +244,27 @@ function parsePainLevel(text: string): string {
   const convertedText = convertNumberWords(text);
   console.log(`🎯 [parsePainLevel] After number conversion: "${convertedText}"`);
   
-  // Step 2: Look for direct numbers 0-10 (highest priority)
+  // Step 2: Look for direct numbers 0-10 (highest priority) - RETURN NUMERIC
   const directNumberMatch = convertedText.match(/\b([0-9]|10)\b/);
   if (directNumberMatch) {
     const level = parseInt(directNumberMatch[1]);
     if (level >= 0 && level <= 10) {
       console.log(`🎯 [parsePainLevel] Found direct number: ${level} -> HIGH confidence`);
-      return level.toString();
+      return level.toString(); // Return numeric value directly
     }
   }
   
-  // Step 3: Try explicit numeric patterns with context
+  // Step 3: Try explicit numeric patterns with context - RETURN NUMERIC
   const numericMatch = convertedText.match(/\b(\d+)\s*(?:\/10|von\s*10|out\s*of\s*10)?\b/);
   if (numericMatch) {
     const level = parseInt(numericMatch[1]);
     if (level >= 0 && level <= 10) {
       console.log(`🎯 [parsePainLevel] Found contextual number: ${level} -> HIGH confidence`);
-      return level.toString();
+      return level.toString(); // Return numeric value directly
     }
   }
   
-  // Step 4: Fall back to category patterns 
-  for (const painPattern of PAIN_LEVEL_PATTERNS) {
-    if (painPattern.pattern.test(convertedText)) {
-      console.log(`🎯 [parsePainLevel] Found category match: ${painPattern.level} -> MEDIUM confidence`);
-      return painPattern.level;
-    }
-  }
-  
-  // Step 5: Last resort - check original text for number words without conversion
+  // Step 4: Check number words first - RETURN NUMERIC
   const numberWordMatch = text.match(/\b(null|eins|zwei|drei|vier|fünf|sechs|sieben|acht|neun|zehn)\b/i);
   if (numberWordMatch) {
     const word = numberWordMatch[1].toLowerCase();
@@ -282,7 +274,15 @@ function parsePainLevel(text: string): string {
     };
     if (numberMap[word] !== undefined) {
       console.log(`🎯 [parsePainLevel] Found number word: "${word}" = ${numberMap[word]} -> HIGH confidence`);
-      return numberMap[word].toString();
+      return numberMap[word].toString(); // Return numeric value directly
+    }
+  }
+  
+  // Step 5: Fall back to category patterns (only if no numbers found)
+  for (const painPattern of PAIN_LEVEL_PATTERNS) {
+    if (painPattern.pattern.test(convertedText)) {
+      console.log(`🎯 [parsePainLevel] Found category match: ${painPattern.level} -> MEDIUM confidence`);
+      return painPattern.level; // Keep category for backward compatibility
     }
   }
   
