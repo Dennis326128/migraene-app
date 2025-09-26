@@ -53,22 +53,7 @@ export function PainSlider({ value, onValueChange, disabled, className }: PainSl
   const painColor = getPainColor(value)
   
   return (
-    <div className={cn("w-full space-y-6", className)}>
-      {/* Value Display */}
-      <div className="flex items-center justify-center space-x-3">
-        <span className="text-3xl" aria-hidden="true">
-          {painEmojis[value as keyof typeof painEmojis]}
-        </span>
-        <div className="text-center">
-          <div className="text-2xl font-bold" style={{ color: painColor }}>
-            {value}/10
-          </div>
-          <div className="text-sm text-muted-foreground">
-            {painLabels[value as keyof typeof painLabels]}
-          </div>
-        </div>
-      </div>
-
+    <div className={cn("w-full space-y-4", className)}>
       {/* Slider */}
       <div className="px-3">
         <Slider
