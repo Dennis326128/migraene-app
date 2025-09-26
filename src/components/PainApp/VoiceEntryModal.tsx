@@ -18,6 +18,8 @@ import { SlotFillingDialog } from "./SlotFillingDialog";
 import { berlinDateToday } from "@/lib/tz";
 import { convertNumericPainToCategory } from "@/lib/utils/pain";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
+import { PainSlider } from "@/components/ui/pain-slider";
+import { normalizePainLevel } from "@/lib/utils/pain";
 
 interface VoiceEntryModalProps {
   open: boolean;
@@ -229,7 +231,7 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
       const entryData = {
         date: dataToSave.selectedDate,
         time: dataToSave.selectedTime,
-        pain_level: dataToSave.painLevel || 0,
+        pain_level: typeof dataToSave.painLevel === 'number' ? dataToSave.painLevel : normalizePainLevel(dataToSave.painLevel || 0),
         medications: dataToSave.medications,
         notes: dataToSave.notes || '',
         entry_method: 'voice' as const,
@@ -407,18 +409,6 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
                   value={editedPainLevel} 
                   onValueChange={setEditedPainLevel}
                 />
-              </div>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Schmerzstärke wählen" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {painLevels.map(level => (
-                      <SelectItem key={level} value={level}>
-                        {level} {level === '0' ? '(schmerzfrei)' : level === '10' ? '(unerträglich)' : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
 
               <div>
