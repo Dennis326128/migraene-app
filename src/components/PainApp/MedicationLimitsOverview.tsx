@@ -28,6 +28,17 @@ export function MedicationLimitsOverview({ onSetupLimits }: MedicationLimitsOver
 
   const { data: recentEntries = [] } = useEntries(last30Days);
 
+  // Debug logging
+  React.useEffect(() => {
+    console.log('[MedicationLimitsOverview] Debug Info:', {
+      recentEntries: recentEntries,
+      entriesCount: recentEntries.length,
+      last30Days: last30Days,
+      medications: medications,
+      medicationsCount: medications.length
+    });
+  }, [recentEntries, last30Days, medications]);
+
   // Check limits when we have medications
   React.useEffect(() => {
     if (medications.length > 0) {
@@ -89,7 +100,7 @@ export function MedicationLimitsOverview({ onSetupLimits }: MedicationLimitsOver
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">Keine Medikamente in den letzten 30 Tagen eingenommen.</p>
+              <p className="text-sm text-muted-foreground">Noch keine Einträge mit Medikamenten erstellt. <br/>Erstellen Sie Ihren ersten Eintrag im Tagebuch.</p>
             )}
           </div>
           {onSetupLimits && (
@@ -221,7 +232,7 @@ export function MedicationLimitsOverview({ onSetupLimits }: MedicationLimitsOver
           </div>
           {Object.keys(medicationUsage).length === 0 && (
             <p className="text-muted-foreground text-center py-4">
-              Keine Medikamente in den letzten 30 Tagen eingenommen.
+              Noch keine Einträge mit Medikamenten erstellt.
             </p>
           )}
         </CardContent>
