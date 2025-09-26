@@ -199,7 +199,7 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
       
       if (!workingTranscript || workingTranscript.trim() === '') {
         setCurrentError('stt_no_audio');
-        handleError('stt_no_audio', 'Keine Sprache erkannt. Bitte versuchen Sie es erneut oder wählen Sie ein anderes Mikrofon.');
+        handleError('stt_no_audio', `DEBUG: Erkannter Text: "${workingTranscript}" (Länge: ${workingTranscript?.length || 0}) - Keine verwertbare Sprache erkannt.`);
         return;
       }
     }
