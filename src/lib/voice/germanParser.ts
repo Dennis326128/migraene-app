@@ -336,16 +336,25 @@ function calculateConfidence(text: string, parsedTime: any, parsedPain: string, 
   // Time confidence
   let timeConfidence: 'high' | 'medium' | 'low' = 'low';
   if (parsedTime.isNow) {
-    timeConfidence = 'medium'; // Default assumption
+    timeConfidence = 'high'; // "now" is explicit and clear
   } else if (parsedTime.date !== berlinDateToday() || parsedTime.time !== '') {
     timeConfidence = 'high'; // Explicit time mentioned
   }
   
-  // Pain confidence  
+  // Pain confidence - be more generous with numbers
   let painConfidence: 'high' | 'medium' | 'low' = 'low';
   if (parsedPain && parsedPain !== '') {
-    const hasExplicitPain = /\b(\d+|null|eins|zwei|drei|vier|fünf|sechs|sieben|acht|neun|zehn)\b.*?(schmerz|migräne|pain)/i.test(normalizedText);
-    painConfidence = hasExplicitPain ? 'high' : 'medium';
+    // Direct numbers get high confidence
+    const isDirectNumber = /^\d+$/.test(parsedPain);
+    if (isDirectNumber) {
+      console.log(`[Confidence] Pain level ${parsedPain} is a direct number -> HIGH confidence`);
+      painConfidence = 'high';
+    } else {
+      // Category words get medium confidence
+      const hasExplicitPain = /\b(\d+|null|eins|zwei|drei|vier|fünf|sechs|sieben|acht|neun|zehn)\b.*?(schmerz|migräne|pain)/i.test(normalizedText);
+      painConfidence = hasExplicitPain ? 'high' : 'medium';
+      console.log(`[Confidence] Pain level ${parsedPain} categorized as ${painConfidence}`);
+    }
   }
   
   // Medication confidence
@@ -355,28 +364,41 @@ function calculateConfidence(text: string, parsedTime: any, parsedPain: string, 
     medsConfidence = hasExplicitMeds ? 'high' : 'medium';
   }
   
-  return { time: timeConfidence, pain: painConfidence, meds: medsConfidence };
+  const result = { time: timeConfidence, pain: painConfidence, meds: medsConfidence };
+  console.log(`[Confidence] Calculated:`, result);
+  return result;
 }
 
 // Check which required fields are missing for slot-filling
 export function getMissingSlots(entry: ParsedVoiceEntry): ('time' | 'pain' | 'meds')[] {
   const missing: ('time' | 'pain' | 'meds')[] = [];
   
-  // Time is missing if confidence is low and no explicit time
-  if (entry.confidence.time === 'low' && !entry.isNow) {
+  console.log(`[getMissingSlots] Analyzing entry:`, {
+    painLevel: entry.painLevel,
+    isNow: entry.isNow,
+    medications: entry.medications,
+    confidence: entry.confidence
+  });
+  
+  // Time is missing only if we have no time info at all AND it's not "now"
+  if (!entry.isNow && entry.confidence.time === 'low' && !entry.selectedTime) {
+    console.log(`[getMissingSlots] Time marked as missing`);
     missing.push('time');
   }
   
-  // Pain is required and missing if empty or low confidence
-  if (!entry.painLevel || entry.painLevel === '' || entry.confidence.pain === 'low') {
+  // Pain is missing only if completely empty (not just low confidence)
+  if (!entry.painLevel || entry.painLevel === '') {
+    console.log(`[getMissingSlots] Pain marked as missing`);
     missing.push('pain');
   }
   
-  // Meds are optional, but if mentioned with low confidence, clarify
+  // Meds are optional - only ask if user explicitly mentioned meds but we couldn't parse them well
   if (entry.medications.length > 0 && entry.confidence.meds === 'low') {
+    console.log(`[getMissingSlots] Meds marked as missing (mentioned but unclear)`);
     missing.push('meds');
   }
   
+  console.log(`[getMissingSlots] Missing slots:`, missing);
   return missing;
 }
 
@@ -406,5 +428,6 @@ export function parseGermanVoiceEntry(text: string): ParsedVoiceEntry {
   };
   
   console.log('🎙️ Parsed result:', result);
+  console.log('🎙️ Missing slots check:', getMissingSlots(result));
   return result;
 }

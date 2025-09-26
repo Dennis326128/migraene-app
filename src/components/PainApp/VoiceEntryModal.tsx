@@ -170,7 +170,11 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
       // Check for missing required fields for new entries
       const missingSlots = getMissingSlots(parsed);
       
+      addDebugLog(`Missing slots analysis: ${missingSlots.join(', ') || 'none'}`);
+      addDebugLog(`Confidence levels: Time=${parsed.confidence.time}, Pain=${parsed.confidence.pain}, Meds=${parsed.confidence.meds}`);
+      
       if (missingSlots.length > 0) {
+        addDebugLog(`Starting slot-filling for missing: ${missingSlots.join(', ')}`);
         // Start slot-filling dialog instead of showing error
         setCurrentError('parse_missing_fields');
         setSlotFillingState({
@@ -181,6 +185,7 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
         setRecordingState('slot_filling');
         startSlotFilling(missingSlots[0], parsed);
       } else {
+        addDebugLog('All required data available, going to review mode');
         // All required data present, go to review
         setRecordingState('reviewing');
       }
