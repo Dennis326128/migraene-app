@@ -41,8 +41,32 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   });
 
   const handleVoiceEntry = () => {
-    toast.info('🎤 Sprechen Sie jetzt...');
-    voiceTrigger.startVoiceEntry();
+    if (voiceTrigger.isListening) {
+      voiceTrigger.stopVoiceEntry();
+    } else {
+      toast.info('🎤 Sprechen Sie jetzt...');
+      voiceTrigger.startVoiceEntry();
+    }
+  };
+
+  const getVoiceButtonTitle = () => {
+    if (voiceTrigger.remainingSeconds) {
+      return `Beende in ${voiceTrigger.remainingSeconds}s`;
+    }
+    if (voiceTrigger.isListening) {
+      return 'Hört zu...';
+    }
+    return 'Sprach-Eintrag';
+  };
+
+  const getVoiceButtonSubtitle = () => {
+    if (voiceTrigger.remainingSeconds) {
+      return 'Weiter sprechen oder warten...';
+    }
+    if (voiceTrigger.isListening) {
+      return 'Sprechen Sie jetzt! (3s Pause beendet)';
+    }
+    return 'Sprechen Sie Ihren Eintrag auf Deutsch';
   };
 
   const handleQuickEntryClose = () => {
@@ -91,10 +115,10 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 {voiceTrigger.isListening ? '🔴' : '🎙️'}
               </div>
               <h3 className="text-base sm:text-xl font-semibold mb-1 text-green-600 mobile-button-text">
-                {voiceTrigger.isListening ? 'Hört zu...' : 'Sprach-Eintrag'}
+                {getVoiceButtonTitle()}
               </h3>
               <p className="text-muted-foreground text-xs leading-tight mobile-button-text">
-                {voiceTrigger.isListening ? 'Sprechen Sie jetzt!' : 'Sprechen Sie Ihren Eintrag auf Deutsch'}
+                {getVoiceButtonSubtitle()}
               </p>
             </div>
           </Card>

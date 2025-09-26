@@ -6,7 +6,7 @@ import { normalizePainLevel } from "@/lib/utils/pain";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { X, Clock, Save, Zap } from "lucide-react";
+import { X, Clock, Save, Zap, Mic } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useMeds } from "@/features/meds/hooks/useMeds";
 import { useCreateEntry } from "@/features/entries/hooks/useEntryMutations";
@@ -280,7 +280,14 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
               <div className="space-y-3">
                 {medOptions.map((med) => (
                   <div key={med.id} className="flex items-center justify-between py-1">
-                    <span className="text-sm font-medium">{med.name}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">{med.name}</span>
+                      {initialMedicationStates?.[med.name] && (
+                        <div className="flex items-center" title="Von Spracheingabe erkannt">
+                          <Mic className="h-3 w-3 text-green-600" />
+                        </div>
+                      )}
+                    </div>
                     <Switch
                       checked={medicationStates[med.name] || false}
                       onCheckedChange={(checked) => 

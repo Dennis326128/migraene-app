@@ -6,15 +6,19 @@ interface SpeechRecognitionState {
   isProcessing: boolean;
   error: string | null;
   confidence: number;
+  remainingSeconds?: number;
+  isPaused: boolean;
 }
 
 interface SpeechRecognitionOptions {
   language?: string;
   continuous?: boolean;
   interimResults?: boolean;
+  pauseThreshold?: number; // seconds of silence before ending
   onTranscriptReady?: (transcript: string, confidence: number) => void;
   onError?: (error: string) => void;
   onDebugLog?: (message: string) => void;
+  onPauseDetected?: (remainingSeconds: number) => void;
 }
 
 interface UseSpeechRecognitionReturn {
@@ -36,9 +40,11 @@ export function useSpeechRecognition(options: SpeechRecognitionOptions = {}): Us
     language = 'de-DE',
     continuous = true,
     interimResults = true,
+    pauseThreshold = 3, // 3 seconds of silence
     onTranscriptReady,
     onError,
-    onDebugLog
+    onDebugLog,
+    onPauseDetected
   } = options;
 
   const [state, setState] = useState<SpeechRecognitionState>({
@@ -46,23 +52,70 @@ export function useSpeechRecognition(options: SpeechRecognitionOptions = {}): Us
     transcript: '',
     isProcessing: false,
     error: null,
-    confidence: 0
+    confidence: 0,
+    isPaused: false
   });
 
   const recognitionRef = useRef<any>(null);
   const finalTranscriptRef = useRef<string>('');
   const fullTranscriptRef = useRef<string>('');
+  const pauseTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastSpeechTimeRef = useRef<number>(0);
 
   const log = useCallback((message: string) => {
     console.log(`[SpeechRecognition] ${message}`);
     onDebugLog?.(message);
   }, [onDebugLog]);
 
+  const clearTimers = useCallback(() => {
+    if (pauseTimerRef.current) {
+      clearTimeout(pauseTimerRef.current);
+      pauseTimerRef.current = null;
+    }
+    if (countdownTimerRef.current) {
+      clearInterval(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
+  }, []);
+
   const handleError = useCallback((error: string) => {
     log(`❌ Error: ${error}`);
-    setState(prev => ({ ...prev, error, isRecording: false, isProcessing: false }));
+    clearTimers();
+    setState(prev => ({ ...prev, error, isRecording: false, isProcessing: false, isPaused: false }));
     onError?.(error);
-  }, [log, onError]);
+  }, [log, onError, clearTimers]);
+
+  const startPauseDetection = useCallback(() => {
+    clearTimers();
+    
+    const startCountdown = () => {
+      let remainingSeconds = pauseThreshold;
+      setState(prev => ({ ...prev, isPaused: true, remainingSeconds }));
+      
+      countdownTimerRef.current = setInterval(() => {
+        remainingSeconds--;
+        setState(prev => ({ ...prev, remainingSeconds }));
+        onPauseDetected?.(remainingSeconds);
+        
+        if (remainingSeconds <= 0) {
+          clearTimers();
+          if (recognitionRef.current) {
+            log('⏹️ Auto-stopping after pause threshold');
+            recognitionRef.current.stop();
+          }
+        }
+      }, 1000);
+    };
+
+    pauseTimerRef.current = setTimeout(startCountdown, 1000); // Start countdown after 1 second of silence
+  }, [pauseThreshold, onPauseDetected, clearTimers, log]);
+
+  const resetPauseDetection = useCallback(() => {
+    clearTimers();
+    setState(prev => ({ ...prev, isPaused: false, remainingSeconds: undefined }));
+    lastSpeechTimeRef.current = Date.now();
+  }, [clearTimers]);
 
   const startRecording = useCallback(async () => {
     try {
@@ -78,10 +131,12 @@ export function useSpeechRecognition(options: SpeechRecognitionOptions = {}): Us
         transcript: '',
         isProcessing: true,
         error: null,
-        confidence: 0
+        confidence: 0,
+        isPaused: false
       });
       finalTranscriptRef.current = '';
       fullTranscriptRef.current = '';
+      clearTimers();
 
       log('🎙️ Initialisiere Spracherkennung...');
 
@@ -97,6 +152,7 @@ export function useSpeechRecognition(options: SpeechRecognitionOptions = {}): Us
 
       recognition.onstart = () => {
         log('✅ Aufnahme gestartet');
+        lastSpeechTimeRef.current = Date.now();
         setState(prev => ({ ...prev, isRecording: true, isProcessing: false, error: null }));
       };
 
@@ -130,6 +186,13 @@ export function useSpeechRecognition(options: SpeechRecognitionOptions = {}): Us
           confidence: maxConfidence
         }));
 
+        // Handle pause detection
+        if (fullText.trim()) {
+          resetPauseDetection(); // Reset when new speech detected
+        } else if (finalText.trim()) {
+          startPauseDetection(); // Start pause detection after final speech
+        }
+
         log(`📝 Transcript: "${fullText.slice(0, 50)}..." (conf: ${maxConfidence.toFixed(2)})`);
       };
 
@@ -161,6 +224,7 @@ export function useSpeechRecognition(options: SpeechRecognitionOptions = {}): Us
 
       recognition.onend = () => {
         log('🏁 Aufnahme beendet');
+        clearTimers();
         
         // Use the stored transcript from refs (no race condition)
         const finalText = finalTranscriptRef.current;
@@ -172,7 +236,9 @@ export function useSpeechRecognition(options: SpeechRecognitionOptions = {}): Us
         setState(prev => ({
           ...prev,
           isRecording: false,
-          transcript: bestTranscript
+          transcript: bestTranscript,
+          isPaused: false,
+          remainingSeconds: undefined
         }));
 
         // Call callback with final result
@@ -191,14 +257,15 @@ export function useSpeechRecognition(options: SpeechRecognitionOptions = {}): Us
       const message = error instanceof Error ? error.message : 'Unbekannter Fehler';
       handleError(message);
     }
-  }, [language, continuous, interimResults, log, handleError, onTranscriptReady, state.confidence]);
+  }, [language, continuous, interimResults, log, handleError, onTranscriptReady, state.confidence, resetPauseDetection, startPauseDetection]);
 
   const stopRecording = useCallback(() => {
     if (recognitionRef.current && state.isRecording) {
       log('⏹️ Stoppe Aufnahme...');
+      clearTimers();
       recognitionRef.current.stop();
     }
-  }, [state.isRecording, log]);
+  }, [state.isRecording, log, clearTimers]);
 
   const resetTranscript = useCallback(() => {
     setState(prev => ({ ...prev, transcript: '', error: null, confidence: 0 }));
