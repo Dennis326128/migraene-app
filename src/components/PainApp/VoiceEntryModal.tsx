@@ -139,33 +139,37 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
 
   // Update editing states when parsed entry changes
   // Handle voice-finished with proper error taxonomy and slot-filling
-  const handleRecognitionEnd = () => {
-    addDebugLog(`Recognition ended. Final transcript: "${transcript}"`);
+  const handleRecognitionEnd = (finalTranscript?: string) => {
+    // Use parameter transcript or fall back to state (for backward compatibility)
+    const workingTranscript = finalTranscript || transcript;
+    addDebugLog(`Recognition ended. Final transcript: "${workingTranscript}" (from ${finalTranscript ? 'event' : 'state'})`);
     
     // Complete STT step in trace
     if (traceLogger) {
-      if (!transcript || transcript.trim() === '') {
+      if (!workingTranscript || workingTranscript.trim() === '') {
         traceLogger.addStep('STT', 'failed', { 
-          transcript: transcript || '',
-          reason: 'no_speech_detected'
+          transcript: workingTranscript || '',
+          reason: 'no_speech_detected',
+          source: finalTranscript ? 'event' : 'state'
         }, 'Keine Sprache erkannt');
       } else {
         traceLogger.addStep('STT', 'completed', { 
-          transcript,
-          length: transcript.length,
+          transcript: workingTranscript,
+          length: workingTranscript.length,
+          source: finalTranscript ? 'event' : 'state',
           alternatives: 'not_available' // could be enhanced with alternatives from recognition event
         });
       }
     }
     
     // Auto-restart logic from original function
-    if (restartCount < 2 && recordingState === 'recording' && !transcript.trim()) {
+    if (restartCount < 2 && recordingState === 'recording' && !workingTranscript.trim()) {
       // Auto-restart for no-speech
       addDebugLog('Auto-restarting due to no speech detected');
       return;
     }
     
-    if (!transcript || transcript.trim() === '') {
+    if (!workingTranscript || workingTranscript.trim() === '') {
       setCurrentError('stt_no_audio');
       handleError('stt_no_audio', 'Keine Sprache erkannt. Bitte versuchen Sie es erneut oder wählen Sie ein anderes Mikrofon.');
       return;
@@ -176,11 +180,11 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
       
       // Start parser step in trace
       traceLogger?.addStep('PARSER', 'started', { 
-        inputText: transcript,
-        textLength: transcript.length
+        inputText: workingTranscript,
+        textLength: workingTranscript.length
       });
       
-      const parsed = parseGermanVoiceEntry(transcript);
+      const parsed = parseGermanVoiceEntry(workingTranscript);
       setParsedEntry(parsed);
       addDebugLog(`Parsed: Pain=${parsed.painLevel}, Meds=${parsed.medications?.join(',') || 'none'}`);
       
@@ -196,13 +200,13 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
       
       // Handle confirmation responses if we're in confirming state
       if (recordingState === 'confirming') {
-        handleConfirmationResponse(transcript);
+        handleConfirmationResponse(workingTranscript);
         return;
       }
       
       // Handle slot-filling responses if we're in slot-filling state
       if (recordingState === 'slot_filling') {
-        handleSlotResponse(transcript);
+        handleSlotResponse(workingTranscript);
         return;
       }
       
@@ -666,6 +670,11 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
         const fullTranscript = finalTranscript + interimTranscript;
         setTranscript(fullTranscript);
         addDebugLog(`Transcript (conf: ${confidence.toFixed(2)}): ${fullTranscript.slice(0, 50)}...`);
+        
+        // Store final transcript in a ref for use in onend
+        if (finalTranscript) {
+          recognitionRef.current.finalTranscript = finalTranscript;
+        }
       };
 
       recognition.onerror = (event) => {
@@ -675,7 +684,9 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
 
       recognition.onend = () => {
         addDebugLog('🎙️ Recognition ended');
-        handleRecognitionEnd();
+        // Pass the final transcript from the event data to avoid race condition
+        const eventTranscript = recognitionRef.current?.finalTranscript || '';
+        handleRecognitionEnd(eventTranscript);
       };
 
       recognitionRef.current = recognition;
