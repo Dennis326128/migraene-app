@@ -17,6 +17,7 @@ import { Pill, AlertTriangle } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { buildModernDiaryPdf } from "@/lib/pdf/modernReport";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { MedicationLimitsOverview } from "./MedicationLimitsOverview";
 
 interface AnalysisViewProps {
   onBack: () => void;
@@ -237,7 +238,7 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
                 size={isMobile ? "sm" : "sm"}
                 onClick={() => setViewMode(id as any)}
                 className={`${isMobile ? 'text-xs min-w-fit px-3 whitespace-nowrap' : 'text-xs'} touch-manipulation`}
-                disabled={id === "medikamente" || id === "ueberverbrauch"} // Disable removed features
+                disabled={id === "medikamente"} // Only disable medications feature
               >
                 {isMobile ? (
                   <span className="text-sm">{label}</span>
@@ -434,19 +435,13 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
       )}
 
       {viewMode === "ueberverbrauch" && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5" />
-              Medikamenten-Überverbrauch Monitor
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground">
-              Diese Funktion wurde entfernt. Überprüfen Sie Medikamenteneinnahme manuell in den Einträgen.
-            </p>
-          </CardContent>
-        </Card>
+        <div className="space-y-6">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5" />
+            <h2 className="text-2xl font-bold">Medikamenten-Überverbrauch Monitor</h2>
+          </div>
+          <MedicationLimitsOverview />
+        </div>
       )}
 
       {viewMode === "migration" && (
