@@ -1,10 +1,11 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Plus, History, TrendingUp, Settings, Zap } from "lucide-react";
+import { Plus, History, TrendingUp, Settings, Zap, Mic } from "lucide-react";
 import { LogoutButton } from "@/components/LogoutButton";
 import { WelcomeModal } from "./WelcomeModal";
 import { QuickEntryModal } from "./QuickEntryModal";
+import { VoiceEntryModal } from "./VoiceEntryModal";
 import { useOnboarding } from "@/hooks/useOnboarding";
 
 interface MainMenuProps {
@@ -24,6 +25,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
 }) => {
   const { needsOnboarding, completeOnboarding, isLoading: onboardingLoading } = useOnboarding();
   const [showQuickEntry, setShowQuickEntry] = useState(false);
+  const [showVoiceEntry, setShowVoiceEntry] = useState(false);
 
   return (
     <div className="min-h-screen bg-background p-4 sm:p-6 flex flex-col">
@@ -55,6 +57,17 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               <h3 className="text-base sm:text-xl font-semibold mb-1 text-quick-entry mobile-button-text">Schnelleintrag</h3>
               <p className="text-muted-foreground text-xs leading-tight mobile-button-text">
                 Sofortige Migräne-Erfassung
+              </p>
+            </div>
+          </Card>
+
+          {/* Voice Entry Button */}
+          <Card className="hover:shadow-lg active:shadow-xl transition-all cursor-pointer group border-green-600/30 bg-green-600/10 hover:bg-green-600/20 active:scale-[0.98] touch-manipulation mobile-touch-feedback" onClick={() => setShowVoiceEntry(true)}>
+            <div className="p-4 sm:p-6 text-center min-h-[4rem] sm:min-h-[6rem] flex flex-col justify-center mobile-card-compact mobile-text-compact">
+              <div className="text-2xl sm:text-4xl mb-1 sm:mb-3 group-hover:scale-110 transition-transform">🎙️</div>
+              <h3 className="text-base sm:text-xl font-semibold mb-1 text-green-600 mobile-button-text">Sprach-Eintrag</h3>
+              <p className="text-muted-foreground text-xs leading-tight mobile-button-text">
+                Sprechen Sie Ihren Eintrag auf Deutsch
               </p>
             </div>
           </Card>
@@ -107,6 +120,15 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         onClose={() => setShowQuickEntry(false)}
         onSuccess={() => {
           setShowQuickEntry(false);
+          onQuickEntry?.();
+        }}
+      />
+      
+      <VoiceEntryModal 
+        open={showVoiceEntry}
+        onClose={() => setShowVoiceEntry(false)}
+        onSuccess={() => {
+          setShowVoiceEntry(false);
           onQuickEntry?.();
         }}
       />
