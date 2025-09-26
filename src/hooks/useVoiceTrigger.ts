@@ -9,7 +9,7 @@ interface VoiceTriggerOptions {
 }
 
 export interface VoiceTriggerData {
-  painLevel: number;
+  painLevel: string;
   selectedTime: string;
   customDate?: string;
   customTime?: string;
@@ -35,7 +35,7 @@ export function useVoiceTrigger(options: VoiceTriggerOptions = {}) {
       console.log('🧠 Parsed voice data:', parsed);
       
       // Convert parsed data to QuickEntry format with dynamic meds
-      const voiceData = convertToQuickEntryData(parsed, userMeds || []);
+      const voiceData = convertToQuickEntryData(parsed, userMeds || [], transcript);
       console.log('📱 Converted for QuickEntry:', voiceData);
       
       setIsListening(false);
@@ -126,21 +126,25 @@ function findBestMedicationMatch(spokenMed: string, userMeds: any[]): any | null
   return null;
 }
 
-function convertToQuickEntryData(parsed: ParsedVoiceEntry, userMeds: any[] = []): VoiceTriggerData {
-  // Convert pain level to numeric (0-10)
-  let painLevel = 0;
+function convertToQuickEntryData(parsed: ParsedVoiceEntry, userMeds: any[] = [], originalText: string = ''): VoiceTriggerData {
+  console.log('🔄 Converting parsed entry to VoiceTriggerData:', parsed);
+  console.log('🔄 Available user medications:', userMeds?.map(m => m.name) || []);
+  console.log('🔄 Original voice text:', originalText);
+  
+  // Convert pain level to string (0-10)
+  let painLevel = '';
   if (parsed.painLevel) {
     const numericPain = parseInt(parsed.painLevel);
     if (!isNaN(numericPain) && numericPain >= 0 && numericPain <= 10) {
-      painLevel = numericPain;
+      painLevel = numericPain.toString();
     } else {
       // Convert category to numeric
       switch (parsed.painLevel.toLowerCase()) {
-        case 'leicht': painLevel = 2; break;
-        case 'mittel': painLevel = 5; break;
-        case 'stark': painLevel = 7; break;
-        case 'sehr_stark': painLevel = 9; break;
-        default: painLevel = 0;
+        case 'leicht': painLevel = '2'; break;
+        case 'mittel': painLevel = '5'; break;
+        case 'stark': painLevel = '7'; break;
+        case 'sehr_stark': painLevel = '9'; break;
+        default: painLevel = '';
       }
     }
   }
@@ -177,8 +181,15 @@ function convertToQuickEntryData(parsed: ParsedVoiceEntry, userMeds: any[] = [])
     }
   }
 
-  // Convert medications to states object with fuzzy matching
+  // Convert medications to states object with fuzzy matching + fallback
   const medicationStates: Record<string, boolean> = {};
+  
+  // Initialize all medications to false
+  userMeds.forEach(med => {
+    medicationStates[med.name] = false;
+  });
+  
+  // First: Try parsed medications with fuzzy matching
   if (parsed.medications && parsed.medications.length > 0 && userMeds.length > 0) {
     parsed.medications.forEach(spokenMed => {
       console.log('🔍 Matching spoken medication:', spokenMed);
@@ -193,6 +204,28 @@ function convertToQuickEntryData(parsed: ParsedVoiceEntry, userMeds: any[] = [])
         medicationStates[matchedMed.name] = true;
       } else {
         console.log('❌ No match found for:', cleanSpokenMed);
+      }
+    });
+  }
+  
+  // FALLBACK: If no medications were found by parser, try direct text search
+  if ((!parsed.medications || parsed.medications.length === 0) && originalText && userMeds.length > 0) {
+    console.log(`💊 Fallback: Parser found no medications, trying direct text search...`);
+    
+    userMeds.forEach(med => {
+      const medNameLower = med.name.toLowerCase();
+      const textLower = originalText.toLowerCase();
+      
+      // Check if medication name or common abbreviation appears in text
+      if (textLower.includes(medNameLower) || 
+          textLower.includes(medNameLower.split(' ')[0]) || // First word only
+          (medNameLower.includes('sumatriptan') && (textLower.includes('sumatriptan') || textLower.includes('suma'))) ||
+          (medNameLower.includes('ibuprofen') && (textLower.includes('ibuprofen') || textLower.includes('ibu'))) ||
+          (medNameLower.includes('aspirin') && (textLower.includes('aspirin') || textLower.includes('ass'))) ||
+          (medNameLower.includes('paracetamol') && (textLower.includes('paracetamol') || textLower.includes('para')))) {
+        
+        medicationStates[med.name] = true;
+        console.log(`💊 Fallback match: Found "${med.name}" in text "${originalText}"`);
       }
     });
   }

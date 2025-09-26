@@ -97,15 +97,25 @@ const PAIN_LEVEL_PATTERNS = [
   { pattern: /(leichte?|schwache?|geringe?).{0,30}(schmerz|migräne|kopfschmerz)/i, level: "leicht" },
 ];
 
-// Common medications with dosage patterns
+// Common medications with dosage patterns AND without dosage
 const MEDICATION_PATTERNS = [
+  // With dosage patterns (original)
   { name: "Sumatriptan", pattern: /(sumatriptan|suma).{0,20}(\d{1,3})/i },
   { name: "Ibuprofen", pattern: /(ibuprofen|ibu).{0,20}(\d{1,4})/i },
   { name: "Aspirin", pattern: /(aspirin|ass).{0,20}(\d{1,4})/i },
   { name: "Paracetamol", pattern: /(paracetamol|para).{0,20}(\d{1,4})/i },
   { name: "Rizatriptan", pattern: /(rizatriptan|riza).{0,20}(\d{1,3})/i },
   { name: "Almotriptan", pattern: /(almotriptan|almo).{0,20}(\d{1,3})/i },
-  { name: "Naratriptan", pattern: /(naratriptan|nara).{0,20}(\d{1,3})/i }
+  { name: "Naratriptan", pattern: /(naratriptan|nara).{0,20}(\d{1,3})/i },
+  
+  // Without dosage patterns - for "eine Sumatriptan Tablette" etc.
+  { name: "Sumatriptan", pattern: /\b(sumatriptan|suma)\s*(tablette|kapsel)?\b/i, noDosage: true },
+  { name: "Ibuprofen", pattern: /\b(ibuprofen|ibu)\s*(tablette|kapsel)?\b/i, noDosage: true },
+  { name: "Aspirin", pattern: /\b(aspirin|ass)\s*(tablette|kapsel)?\b/i, noDosage: true },
+  { name: "Paracetamol", pattern: /\b(paracetamol|para)\s*(tablette|kapsel)?\b/i, noDosage: true },
+  { name: "Rizatriptan", pattern: /\b(rizatriptan|riza)\s*(tablette|kapsel)?\b/i, noDosage: true },
+  { name: "Almotriptan", pattern: /\b(almotriptan|almo)\s*(tablette|kapsel)?\b/i, noDosage: true },
+  { name: "Naratriptan", pattern: /\b(naratriptan|nara)\s*(tablette|kapsel)?\b/i, noDosage: true }
 ];
 
 // Time patterns for German voice input  
@@ -318,17 +328,33 @@ function parseMedicationEffect(text: string): { rating: 'none' | 'poor' | 'moder
 function parseMedications(text: string): string[] {
   const medications: string[] = [];
   
+  console.log(`💊 [parseMedications] Input text: "${text}"`);
+  
   for (const medPattern of MEDICATION_PATTERNS) {
-    let match;
-    const regex = new RegExp(medPattern.pattern.source, medPattern.pattern.flags);
+    const match = text.match(medPattern.pattern);
     
-    while ((match = regex.exec(text)) !== null) {
-      const dosage = match[2];
-      const medName = dosage ? `${medPattern.name} ${dosage} mg` : medPattern.name;
-      medications.push(medName);
+    if (match) {
+      let medName: string;
+      
+      if (medPattern.noDosage) {
+        // Pattern without dosage requirement
+        medName = medPattern.name;
+        console.log(`💊 [parseMedications] Found medication without dosage: "${medName}" from pattern: ${medPattern.pattern}`);
+      } else {
+        // Pattern with dosage requirement  
+        const dosage = match[2];
+        medName = dosage ? `${medPattern.name} ${dosage} mg` : medPattern.name;
+        console.log(`💊 [parseMedications] Found medication with dosage: "${medName}" from pattern: ${medPattern.pattern}`);
+      }
+      
+      // Avoid duplicates
+      if (!medications.includes(medName)) {
+        medications.push(medName);
+      }
     }
   }
   
+  console.log(`💊 [parseMedications] Final result:`, medications);
   return medications;
 }
 

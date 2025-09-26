@@ -174,7 +174,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           onQuickEntry?.();
         }}
         // Voice input pre-filling
-        initialPainLevel={voiceData?.painLevel}
+        initialPainLevel={voiceData?.painLevel ? parseInt(voiceData.painLevel) : undefined}
         initialSelectedTime={voiceData?.selectedTime}
         initialCustomDate={voiceData?.customDate}
         initialCustomTime={voiceData?.customTime}
