@@ -33,3 +33,19 @@ export function formatPainLocation(location: string): string {
   };
   return locationLabels[location] || location;
 }
+
+export function convertNumericPainToCategory(level: string): "leicht" | "mittel" | "stark" | "sehr_stark" {
+  // If already a category, return as-is
+  if (['leicht', 'mittel', 'stark', 'sehr_stark'].includes(level)) {
+    return level as "leicht" | "mittel" | "stark" | "sehr_stark";
+  }
+  
+  // Convert numeric (0-10) to categories
+  const num = parseInt(level);
+  if (isNaN(num)) return "leicht"; // fallback
+  
+  if (num >= 8) return "sehr_stark";  // 8-10
+  if (num >= 6) return "stark";       // 6-7
+  if (num >= 3) return "mittel";      // 3-5
+  return "leicht";                    // 0-2
+}

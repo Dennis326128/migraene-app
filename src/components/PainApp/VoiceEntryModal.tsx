@@ -16,6 +16,8 @@ import { logAndSaveWeatherAt, logAndSaveWeatherAtCoords } from "@/utils/weatherL
 import { TTSEngine } from "@/lib/voice/ttsEngine";
 import { SlotFillingDialog } from "./SlotFillingDialog";
 import { berlinDateToday } from "@/lib/tz";
+import { convertNumericPainToCategory } from "@/lib/utils/pain";
+import { createTraceLogger, type VoiceTraceLogger } from "@/lib/voice/traceLogger";
 
 interface VoiceEntryModalProps {
   open: boolean;
@@ -75,6 +77,10 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
   const [currentError, setCurrentError] = useState<ErrorType | null>(null);
   const [spokenText, setSpokenText] = useState('');
   const [isTTSSpeaking, setIsTTSSpeaking] = useState(false);
+  
+  // Trace logging
+  const [traceLogger, setTraceLogger] = useState<VoiceTraceLogger | null>(null);
+  const [showTrace, setShowTrace] = useState(false);
   
   const recognitionRef = useRef<any>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -136,6 +142,22 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
   const handleRecognitionEnd = () => {
     addDebugLog(`Recognition ended. Final transcript: "${transcript}"`);
     
+    // Complete STT step in trace
+    if (traceLogger) {
+      if (!transcript || transcript.trim() === '') {
+        traceLogger.addStep('STT', 'failed', { 
+          transcript: transcript || '',
+          reason: 'no_speech_detected'
+        }, 'Keine Sprache erkannt');
+      } else {
+        traceLogger.addStep('STT', 'completed', { 
+          transcript,
+          length: transcript.length,
+          alternatives: 'not_available' // could be enhanced with alternatives from recognition event
+        });
+      }
+    }
+    
     // Auto-restart logic from original function
     if (restartCount < 2 && recordingState === 'recording' && !transcript.trim()) {
       // Auto-restart for no-speech
@@ -151,9 +173,26 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
 
     try {
       setRecordingState('processing');
+      
+      // Start parser step in trace
+      traceLogger?.addStep('PARSER', 'started', { 
+        inputText: transcript,
+        textLength: transcript.length
+      });
+      
       const parsed = parseGermanVoiceEntry(transcript);
       setParsedEntry(parsed);
       addDebugLog(`Parsed: Pain=${parsed.painLevel}, Meds=${parsed.medications?.join(',') || 'none'}`);
+      
+      // Complete parser step
+      traceLogger?.addStep('PARSER', 'completed', {
+        parsedTime: { date: parsed.selectedDate, time: parsed.selectedTime, isNow: parsed.isNow },
+        parsedPain: parsed.painLevel,
+        parsedMeds: parsed.medications,
+        parsedNotes: parsed.notes,
+        confidence: parsed.confidence,
+        missingSlots: getMissingSlots(parsed)
+      });
       
       // Handle confirmation responses if we're in confirming state
       if (recordingState === 'confirming') {
@@ -191,6 +230,7 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
       }
       
     } catch (error) {
+      traceLogger?.addStep('PARSER', 'failed', { error: error.message }, error.message);
       setCurrentError('save_error');
       handleError('save_error', 'Fehler beim Verarbeiten der Spracheingabe');
     }
@@ -531,6 +571,16 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
     }
 
     try {
+      // Initialize trace logging for new session
+      if (!traceLogger) {
+        const logger = createTraceLogger();
+        setTraceLogger(logger);
+        logger.addStep('STT', 'started', { 
+          deviceId: selectedDevice,
+          userAgent: navigator.userAgent.substring(0, 100)
+        });
+      }
+
       setRecordingState('warmup');
       addDebugLog('Starting audio warmup...');
       
@@ -557,6 +607,7 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
       }, 500);
       
     } catch (error) {
+      traceLogger?.addStep('STT', 'failed', { error: error.message }, error.message);
       addDebugLog(`getUserMedia failed: ${error}`);
       handleAudioError(error);
     }
@@ -718,7 +769,8 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
       selectedTime: editedTime,
       painLevel: editedPainLevel,
       medications: editedMedications.filter(m => m.trim()),
-      notes: editedNotes
+      notes: editedNotes,
+      isNow: false
     } : parsedEntry!;
     
     if (!finalEntry.painLevel) {
@@ -732,69 +784,152 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
 
     setSaving(true);
     
+    // Start DTO preparation in trace
+    traceLogger?.addStep('DTO', 'started', { 
+      rawEntry: finalEntry,
+      isEditing
+    });
+
     try {
-      // Capture GPS coordinates
-      let latitude = null;
-      let longitude = null;
+      // Fix time handling - ensure we have proper date/time
+      let selectedDate = finalEntry.selectedDate;
+      let selectedTime = finalEntry.selectedTime;
       
+      // Handle isNow case - set current date/time
+      if (finalEntry.isNow || !selectedDate || !selectedTime) {
+        const now = new Date();
+        selectedDate = now.toISOString().split('T')[0]; // YYYY-MM-DD
+        selectedTime = now.toTimeString().slice(0, 5);  // HH:MM
+        console.log(`🕒 Voice Entry: Using current time ${selectedDate} ${selectedTime}`);
+      }
+      
+      // Convert pain level from numeric to category if needed
+      const painLevelCategory = convertNumericPainToCategory(finalEntry.painLevel);
+      console.log(`🎯 Voice Entry: Pain level conversion ${finalEntry.painLevel} -> ${painLevelCategory}`);
+      
+      // Prepare DTO payload
+      const dtoPayload = {
+        user_id: "auth.uid()", // Will be set by API
+        timestamp_created: new Date().toISOString(),
+        selected_date: selectedDate,
+        selected_time: selectedTime,
+        pain_level: painLevelCategory,
+        medications: Array.isArray(finalEntry.medications) ? finalEntry.medications : [finalEntry.medications].filter(Boolean),
+        notes: finalEntry.notes?.trim() || "",
+        latitude: null as number | null,
+        longitude: null as number | null,
+        weather_id: null as number | null
+      };
+      
+      traceLogger?.addStep('DTO', 'completed', dtoPayload);
+      
+      // Capture GPS coordinates (non-blocking)
       try {
         const { Geolocation } = await import('@capacitor/geolocation');
         const pos = await Geolocation.getCurrentPosition({ 
           enableHighAccuracy: true, 
           timeout: 8000 
         });
-        latitude = pos.coords.latitude;
-        longitude = pos.coords.longitude;
+        dtoPayload.latitude = pos.coords.latitude;
+        dtoPayload.longitude = pos.coords.longitude;
         console.log('📍 Voice Entry: GPS coordinates captured');
       } catch (gpsError) {
         console.warn('📍 Voice Entry: GPS failed, will use fallback', gpsError);
       }
       
-      // Capture weather data (non-blocking)
-      let weatherId = null;
-      try {
-        const atISO = new Date(`${finalEntry.selectedDate}T${finalEntry.selectedTime}:00`).toISOString();
-        if (latitude && longitude) {
-          weatherId = await logAndSaveWeatherAtCoords(atISO, latitude, longitude);
-        } else {
-          weatherId = await logAndSaveWeatherAt(atISO);
+      // Start weather step (non-blocking)
+      traceLogger?.addStep('WEATHER', 'started', { 
+        coords: dtoPayload.latitude ? `${dtoPayload.latitude},${dtoPayload.longitude}` : 'fallback'
+      });
+      
+      // Capture weather data (non-blocking - don't let it fail the save)
+      const weatherPromise = (async () => {
+        try {
+          const atISO = new Date(`${selectedDate}T${selectedTime}:00`).toISOString();
+          if (dtoPayload.latitude && dtoPayload.longitude) {
+            return await logAndSaveWeatherAtCoords(atISO, dtoPayload.latitude, dtoPayload.longitude);
+          } else {
+            return await logAndSaveWeatherAt(atISO);
+          }
+        } catch (weatherError) {
+          traceLogger?.addStep('WEATHER', 'failed', { error: weatherError.message }, weatherError.message);
+          console.warn('Weather data fetch failed:', weatherError);
+          return null;
         }
-      } catch (weatherError) {
-        console.warn('Weather data fetch failed:', weatherError);
-      }
+      })();
+
+      // Start DB insert
+      traceLogger?.addStep('DB_INSERT', 'started', {
+        payload: {
+          ...dtoPayload,
+          medications_count: dtoPayload.medications.length
+        }
+      });
 
       // Create the entry using the same system as form entries
       const payload = {
-        selected_date: finalEntry.selectedDate,
-        selected_time: finalEntry.selectedTime,
-        pain_level: finalEntry.painLevel as "leicht" | "mittel" | "stark" | "sehr_stark",
+        selected_date: selectedDate,
+        selected_time: selectedTime,
+        pain_level: painLevelCategory,
         aura_type: "keine" as const,
         pain_location: null,
-        medications: finalEntry.medications,
-        notes: finalEntry.notes.trim() || null,
-        weather_id: weatherId,
-        latitude,
-        longitude,
+        medications: dtoPayload.medications,
+        notes: dtoPayload.notes || null,
+        weather_id: null, // Will be updated after weather call
+        latitude: dtoPayload.latitude,
+        longitude: dtoPayload.longitude,
       };
 
-      await createEntryMutation.mutateAsync(payload as any);
+      const entryId = await createEntryMutation.mutateAsync(payload as any);
+      
+      traceLogger?.addStep('DB_INSERT', 'completed', { 
+        entryId,
+        insertedPayload: payload
+      });
+
+      // Wait for weather and update if successful (optional)
+      try {
+        const weatherId = await weatherPromise;
+        if (weatherId) {
+          traceLogger?.addStep('WEATHER', 'completed', { weatherId });
+          console.log(`🌤️ Voice Entry: Weather logged with ID ${weatherId}`);
+        }
+      } catch (weatherError) {
+        // Weather errors shouldn't fail the save
+        console.warn('Weather update failed after save:', weatherError);
+      }
 
       toast({
         title: "✅ Spracheintrag gespeichert",
         description: "Ihr Migräne-Eintrag wurde erfolgreich über Sprache erfasst."
       });
 
-      // Log to audit (optional - metadata in old_data)
-      // Could be added via audit_logs table if needed
-
       onSuccess?.();
       onClose();
       
     } catch (error) {
+      traceLogger?.addStep('DB_INSERT', 'failed', { 
+        error: error.message,
+        errorDetails: error 
+      }, error.message);
+      
       console.error('Voice entry save error:', error);
+      
+      // More specific error messages based on error type
+      let errorTitle = "❌ Fehler beim Speichern";
+      let errorDescription = "Bitte versuchen Sie es erneut.";
+      
+      if (error.message?.includes('violates row-level security')) {
+        errorTitle = "🔒 Berechtigungsfehler";
+        errorDescription = "Authentifizierung fehlgeschlagen. Bitte melden Sie sich erneut an.";
+      } else if (error.message?.includes('not null violation')) {
+        errorTitle = "📝 Daten unvollständig";
+        errorDescription = "Erforderliche Felder fehlen. Bitte überprüfen Sie Ihre Eingaben.";
+      }
+      
       toast({
-        title: "❌ Fehler beim Speichern",
-        description: "Bitte versuchen Sie es erneut.",
+        title: errorTitle,
+        description: errorDescription,
         variant: "destructive"
       });
     } finally {
@@ -1183,21 +1318,110 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
             </div>
           )}
 
+          {/* Slot Filling Dialog */}
+          {recordingState === 'slot_filling' && slotFillingState.missingSlots.length > 0 && (
+            <SlotFillingDialog
+              currentSlot={slotFillingState.missingSlots[slotFillingState.currentSlotIndex]}
+              progress={slotFillingState.currentSlotIndex + 1}
+              totalSlots={slotFillingState.missingSlots.length}
+              isSpeaking={isTTSSpeaking}
+              spokenText={spokenText}
+              onQuickSelect={(value: string) => {
+                handleSlotResponse(value);
+              }}
+              onManualInput={(value: string) => {
+                handleSlotResponse(value);
+              }}
+              onSkip={() => {
+                // Skip current slot and move to next
+                const nextIndex = slotFillingState.currentSlotIndex + 1;
+                if (nextIndex < slotFillingState.missingSlots.length) {
+                  setSlotFillingState({
+                    ...slotFillingState,
+                    currentSlotIndex: nextIndex
+                  });
+                  startSlotFilling(slotFillingState.missingSlots[nextIndex], slotFillingState.collectedData as ParsedVoiceEntry);
+                } else {
+                  // All slots processed, go to review
+                  setParsedEntry(slotFillingState.collectedData as ParsedVoiceEntry);
+                  setRecordingState('reviewing');
+                }
+              }}
+              onCancel={() => {
+                setRecordingState('fallback');
+              }}
+              availableMeds={availableMeds.map(med => med.name)}
+            />
+          )}
+
           {/* Debug Panel */}
           {showDebug && (
             <div className="border-t pt-4 space-y-2">
-              <div className="text-xs font-medium">🔧 Debug-Informationen</div>
-              <div className="text-xs space-y-1 bg-secondary/30 p-2 rounded max-h-32 overflow-y-auto">
-                <div>Gerät: {selectedDevice === 'default' ? 'Standard' : selectedDevice.slice(0, 20)}</div>
-                <div>Audio-Level: {audioLevel.toFixed(0)}</div>
-                <div>Restarts: {restartCount}/2</div>
-                <div>Status: {recordingState}</div>
-                <div className="border-t pt-1 mt-1">
-                  {debugLog.map((log, i) => (
-                    <div key={i} className="text-[10px] text-muted-foreground">{log}</div>
-                  ))}
-                </div>
+              <div className="flex items-center gap-2">
+                <div className="text-xs font-medium">🔧 Debug-Informationen</div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowTrace(!showTrace)}
+                  className="h-6 px-2 text-xs"
+                >
+                  {showTrace ? 'Pipeline' : 'Basic'}
+                </Button>
               </div>
+              
+              {!showTrace ? (
+                <div className="text-xs space-y-1 bg-secondary/30 p-2 rounded max-h-32 overflow-y-auto">
+                  <div>Gerät: {selectedDevice === 'default' ? 'Standard' : selectedDevice.slice(0, 20)}</div>
+                  <div>Audio-Level: {audioLevel.toFixed(0)}</div>
+                  <div>Restarts: {restartCount}/2</div>
+                  <div>Status: {recordingState}</div>
+                  <div className="border-t pt-1 mt-1">
+                    {debugLog.map((log, i) => (
+                      <div key={i} className="text-[10px] text-muted-foreground">{log}</div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-xs space-y-2 bg-secondary/30 p-2 rounded max-h-48 overflow-y-auto">
+                  {traceLogger ? (
+                    <>
+                      <div className="font-medium">
+                        🔍 Pipeline Trace (ID: {traceLogger.getCorrelationId().slice(-8)})
+                      </div>
+                      <div className="space-y-1">
+                        {traceLogger.getTraces().map((trace, i) => (
+                          <div key={i} className="text-[10px] p-1 bg-background/50 rounded">
+                            <div className="flex items-center gap-1">
+                              <span className={`w-2 h-2 rounded-full ${
+                                trace.status === 'completed' ? 'bg-green-500' : 
+                                trace.status === 'failed' ? 'bg-red-500' : 'bg-yellow-500'
+                              }`}></span>
+                              <span className="font-mono">{trace.step}</span>
+                              <span className="text-muted-foreground">
+                                {new Date(trace.timestamp).toLocaleTimeString()}
+                              </span>
+                            </div>
+                            {trace.error && (
+                              <div className="text-red-600 mt-1">❌ {trace.error}</div>
+                            )}
+                            <div className="text-muted-foreground mt-1">
+                              {JSON.stringify(trace.data).substring(0, 100)}...
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="border-t pt-1 mt-2 text-[10px] text-muted-foreground">
+                        {(() => {
+                          const summary = traceLogger.getSummary();
+                          return `${summary.completed}/${summary.totalSteps} steps completed, ${summary.failed} failed, ${Math.round(summary.totalDuration / 1000)}s`;
+                        })()}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-muted-foreground">No trace data available</div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>

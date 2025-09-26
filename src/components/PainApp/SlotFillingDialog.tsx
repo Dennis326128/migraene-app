@@ -10,8 +10,8 @@ interface SlotFillingDialogProps {
   totalSlots: number;
   isSpeaking: boolean;
   spokenText: string;
-  onQuickSelect: (slot: string, value: string) => void;
-  onManualInput: () => void;
+  onQuickSelect: (value: string) => void;
+  onManualInput: (value: string) => void;
   onSkip: () => void;
   onCancel: () => void;
   availableMeds?: string[];
@@ -123,7 +123,7 @@ export function SlotFillingDialog({
               variant="outline"
               size="sm"
               className="h-auto p-3 text-left justify-start"
-              onClick={() => onQuickSelect(currentSlot, option.value)}
+              onClick={() => onQuickSelect(option.value)}
             >
               {option.label}
             </Button>
@@ -136,7 +136,7 @@ export function SlotFillingDialog({
         <Button
           variant="outline"
           size="sm"
-          onClick={onManualInput}
+          onClick={() => onManualInput('')}
           className="flex-1"
         >
           Tippen
