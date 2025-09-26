@@ -51,6 +51,7 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
   const [parsedEntry, setParsedEntry] = useState<ParsedVoiceEntry | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [directSaveMode, setDirectSaveMode] = useState(false);
   
   // Manual editing states
   const [editedDate, setEditedDate] = useState('');
@@ -128,6 +129,7 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
       setIsEditing(false);
       setRestartCount(0);
       setDebugLog([]);
+      setDirectSaveMode(false);
       stopRecording();
       cleanup();
     } else {
@@ -142,7 +144,7 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
   const handleRecognitionEnd = (finalTranscript?: string) => {
     // Use parameter transcript or fall back to state (for backward compatibility)
     const workingTranscript = finalTranscript || transcript;
-    addDebugLog(`Recognition ended. Final transcript: "${workingTranscript}" (from ${finalTranscript ? 'event' : 'state'})`);
+    addDebugLog(`Recognition ended. Final transcript: "${workingTranscript}" (from ${finalTranscript ? 'event' : 'state'}). Direct save mode: ${directSaveMode}`);
     
     // Complete STT step in trace
     if (traceLogger) {
@@ -150,29 +152,56 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
         traceLogger.addStep('STT', 'failed', { 
           transcript: workingTranscript || '',
           reason: 'no_speech_detected',
-          source: finalTranscript ? 'event' : 'state'
+          source: finalTranscript ? 'event' : 'state',
+          directSaveMode
         }, 'Keine Sprache erkannt');
       } else {
         traceLogger.addStep('STT', 'completed', { 
           transcript: workingTranscript,
           length: workingTranscript.length,
           source: finalTranscript ? 'event' : 'state',
+          directSaveMode,
           alternatives: 'not_available' // could be enhanced with alternatives from recognition event
         });
       }
     }
     
-    // Auto-restart logic from original function
-    if (restartCount < 2 && recordingState === 'recording' && !workingTranscript.trim()) {
-      // Auto-restart for no-speech
-      addDebugLog('Auto-restarting due to no speech detected');
-      return;
-    }
-    
-    if (!workingTranscript || workingTranscript.trim() === '') {
-      setCurrentError('stt_no_audio');
-      handleError('stt_no_audio', 'Keine Sprache erkannt. Bitte versuchen Sie es erneut oder wählen Sie ein anderes Mikrofon.');
-      return;
+    // In direct save mode, skip auto-restart and error handling
+    if (directSaveMode) {
+      addDebugLog('🚀 Direct save mode: Processing whatever text we have...');
+      setDirectSaveMode(false); // Reset for next time
+      
+      // Even with empty transcript, try to process - user can edit manually
+      if (!workingTranscript || workingTranscript.trim() === '') {
+        addDebugLog('🚀 No transcript in direct save mode - creating empty entry for manual editing');
+        // Create minimal entry for manual editing
+        const minimalEntry: ParsedVoiceEntry = {
+          selectedDate: berlinDateToday(),
+          selectedTime: '',
+          painLevel: '',
+          medications: [],
+          notes: '',
+          isNow: true,
+          confidence: { time: 'high', pain: 'low', meds: 'high' }
+        };
+        setParsedEntry(minimalEntry);
+        setRecordingState('reviewing');
+        return;
+      }
+      // Continue with normal processing below for non-empty transcript
+    } else {
+      // Normal mode: Auto-restart logic from original function
+      if (restartCount < 2 && recordingState === 'recording' && !workingTranscript.trim()) {
+        // Auto-restart for no-speech
+        addDebugLog('Auto-restarting due to no speech detected');
+        return;
+      }
+      
+      if (!workingTranscript || workingTranscript.trim() === '') {
+        setCurrentError('stt_no_audio');
+        handleError('stt_no_audio', 'Keine Sprache erkannt. Bitte versuchen Sie es erneut oder wählen Sie ein anderes Mikrofon.');
+        return;
+      }
     }
 
     try {
@@ -221,9 +250,14 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
       addDebugLog(`Parsed Time: "${parsed.selectedTime}"`);
       addDebugLog(`Missing slots: ${missingSlots.join(', ') || 'NONE'}`);
       addDebugLog(`Confidence: Time=${parsed.confidence.time}, Pain=${parsed.confidence.pain}, Meds=${parsed.confidence.meds}`);
+      addDebugLog(`Direct save mode was: ${directSaveMode}`);
       addDebugLog(`=================`);
       
-      if (missingSlots.length > 0) {
+      // In direct save mode, skip slot-filling and go directly to review for manual editing
+      if (directSaveMode) {
+        addDebugLog('🚀 Direct save mode: Skipping slot-filling, going to review for manual editing');
+        setRecordingState('reviewing');
+      } else if (missingSlots.length > 0) {
         addDebugLog(`🚨 Starting slot-filling for missing: ${missingSlots.join(', ')}`);
         // Start slot-filling dialog instead of showing error
         setCurrentError('parse_missing_fields');
@@ -1027,9 +1061,15 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
                     size="sm"
                     className="w-full"
                     onMouseDown={startRecording}
-                    onMouseUp={stopRecording}
+                    onMouseUp={() => {
+                      setDirectSaveMode(true);
+                      stopRecording();
+                    }}
                     onTouchStart={startRecording}
-                    onTouchEnd={stopRecording}
+                    onTouchEnd={() => {
+                      setDirectSaveMode(true);
+                      stopRecording();
+                    }}
                   >
                     <Mic className="w-4 h-4 mr-2" />
                     Halten zum Sprechen
@@ -1080,9 +1120,12 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
                 <p className="text-sm">{transcript || "Sprechen Sie jetzt..."}</p>
               </div>
               
-              <div className="flex gap-2">
+               <div className="flex gap-2">
                 <Button 
-                  onClick={stopRecording}
+                  onClick={() => {
+                    setDirectSaveMode(true);
+                    stopRecording();
+                  }}
                   variant="outline"
                   size="sm"
                   className="flex-1"
