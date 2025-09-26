@@ -35,7 +35,9 @@ export function MedicationLimitsOverview({ onSetupLimits }: MedicationLimitsOver
       entriesCount: recentEntries.length,
       last30Days: last30Days,
       medications: medications,
-      medicationsCount: medications.length
+      medicationsCount: medications.length,
+      sampleEntry: recentEntries[0],
+      dateRange: `${last30Days.from} bis ${last30Days.to}`
     });
   }, [recentEntries, last30Days, medications]);
 

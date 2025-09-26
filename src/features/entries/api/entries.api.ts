@@ -45,7 +45,12 @@ export async function listEntries(params: ListParams = {}): Promise<PainEntry[]>
     .order("timestamp_created", { ascending: false });
 
   if (params.from) q = q.gte("timestamp_created", new Date(params.from).toISOString());
-  if (params.to)   q = q.lte("timestamp_created", new Date(params.to).toISOString());
+  if (params.to) {
+    // Fix: Include the entire "to" day by setting time to end of day
+    const toDate = new Date(params.to);
+    toDate.setHours(23, 59, 59, 999);
+    q = q.lte("timestamp_created", toDate.toISOString());
+  }
 
   const { data, error } = await q;
   if (error) throw error;

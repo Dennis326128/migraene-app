@@ -25,7 +25,7 @@ interface AnalysisViewProps {
 
 export function AnalysisView({ onBack }: AnalysisViewProps) {
   const isMobile = useIsMobile();
-  const [viewMode, setViewMode] = useState<"tagebuch" | "analyse" | "grafik" | "medikamente" | "Ueberverbrauch" | "migration">("grafik");
+  const [viewMode, setViewMode] = useState<"tagebuch" | "analyse" | "grafik" | "medikamente" | "ueberverbrauch" | "migration">("grafik");
   const [timeRange, setTimeRange] = useState("alle");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
@@ -229,7 +229,7 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
               { id: "analyse", label: isMobile ? "📊" : "📊 Analyse", icon: BarChart3 },
               { id: "grafik", label: isMobile ? "📈" : "📈 Grafik", icon: Activity },
               { id: "medikamente", label: isMobile ? "💊" : "💊 Medikamente", icon: Pill },
-              { id: "Ueberverbrauch", label: isMobile ? "⚠️" : "⚠️ Überverbrauch", icon: AlertTriangle },
+              { id: "ueberverbrauch", label: isMobile ? "⚠️" : "⚠️ Überverbrauch", icon: AlertTriangle },
               { id: "migration", label: isMobile ? "🔄" : "🔄 Migration", icon: Database },
             ].map(({ id, label, icon: Icon }) => (
               <Button
@@ -434,7 +434,7 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
         </Card>
       )}
 
-      {viewMode === "Ueberverbrauch" && (
+      {viewMode === "ueberverbrauch" && (
         <MedicationLimitsOverview />
       )}
 
