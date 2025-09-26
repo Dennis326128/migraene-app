@@ -319,7 +319,7 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
       {/* Migräne-Intensität - Slider */}
       <Card className="p-4 sm:p-6 mb-4">
         <Label className="text-base font-medium mb-3 block">
-          🩺 Migräne-Intensität *
+          Migräne-Intensität
         </Label>
         <div className="text-xs sm:text-sm text-muted-foreground mb-4 px-1">
           💡 Tipp: Schieben Sie den Regler zur gewünschten Schmerzstärke

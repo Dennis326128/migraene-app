@@ -69,18 +69,8 @@ export function PainSlider({ value, onValueChange, disabled, className }: PainSl
           } as React.CSSProperties}
         />
         
-        {/* Scale Labels */}
-        <div className="flex justify-between mt-2 px-1">
-          <span className="text-xs text-muted-foreground">0</span>
-          <span className="text-xs text-muted-foreground">2</span>
-          <span className="text-xs text-muted-foreground">4</span>
-          <span className="text-xs text-muted-foreground">6</span>
-          <span className="text-xs text-muted-foreground">8</span>
-          <span className="text-xs text-muted-foreground">10</span>
-        </div>
-        
         {/* End Labels */}
-        <div className="flex justify-between mt-1">
+        <div className="flex justify-between mt-2">
           <span className="text-xs text-success">Keine Schmerzen</span>
           <span className="text-xs text-destructive">Unerträglich</span>
         </div>

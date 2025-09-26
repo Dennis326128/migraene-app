@@ -201,7 +201,7 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
           {/* Pain Level Selection */}
           <Card className="p-4 border-quick-entry/20">
             <Label className="text-base font-medium mb-3 block text-quick-entry">
-              🩺 Schmerzstärke *
+              Schmerzstärke
             </Label>
             <div className="text-xs text-muted-foreground mb-4 px-1">
               Schieben Sie den Regler zur gewünschten Schmerzstärke:
