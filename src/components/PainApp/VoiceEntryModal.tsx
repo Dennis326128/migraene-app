@@ -705,10 +705,13 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
         setTranscript(fullTranscript);
         addDebugLog(`Transcript (conf: ${confidence.toFixed(2)}): ${fullTranscript.slice(0, 50)}...`);
         
-        // Store final transcript in a ref for use in onend
+        // Store both final and full transcript in ref for use in onend
         if (finalTranscript) {
           recognitionRef.current.finalTranscript = finalTranscript;
         }
+        // Always store the full transcript (includes interim text)
+        recognitionRef.current.fullTranscript = fullTranscript;
+        addDebugLog(`📝 Stored in ref - final: "${finalTranscript}" (${finalTranscript.length}), full: "${fullTranscript}" (${fullTranscript.length})`);
       };
 
       recognition.onerror = (event) => {
@@ -718,8 +721,11 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
 
       recognition.onend = () => {
         addDebugLog('🎙️ Recognition ended');
-        // Pass the final transcript from the event data to avoid race condition
-        const eventTranscript = recognitionRef.current?.finalTranscript || '';
+        // Prioritize full transcript (includes interim), then final transcript as fallback
+        const fullFromRef = recognitionRef.current?.fullTranscript || '';
+        const finalFromRef = recognitionRef.current?.finalTranscript || '';
+        const eventTranscript = fullFromRef || finalFromRef;
+        addDebugLog(`📖 Reading from ref - full: "${fullFromRef}" (${fullFromRef.length}), final: "${finalFromRef}" (${finalFromRef.length}) → using: "${eventTranscript}"`);
         handleRecognitionEnd(eventTranscript);
       };
 
