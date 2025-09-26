@@ -9,10 +9,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Progress } from "@/components/ui/progress";
 import { Mic, MicOff, Play, Square, Edit3, Save, X, Trash2, Settings, Volume2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { parseGermanVoiceEntry, type ParsedVoiceEntry } from "@/lib/voice/germanParser";
+import { parseGermanVoiceEntry, getMissingSlots, type ParsedVoiceEntry, convertNumberWords } from "@/lib/voice/germanParser";
 import { useCreateEntry } from "@/features/entries/hooks/useEntryMutations";
 import { useMeds } from "@/features/meds/hooks/useMeds";
 import { logAndSaveWeatherAt, logAndSaveWeatherAtCoords } from "@/utils/weatherLogger";
+import { TTSEngine } from "@/lib/voice/ttsEngine";
+import { SlotFillingDialog } from "./SlotFillingDialog";
+import { berlinDateToday } from "@/lib/tz";
 
 interface VoiceEntryModalProps {
   open: boolean;
@@ -20,7 +23,16 @@ interface VoiceEntryModalProps {
   onSuccess?: () => void;
 }
 
-type RecordingState = 'idle' | 'warmup' | 'recording' | 'processing' | 'reviewing' | 'fallback';
+type RecordingState = 'idle' | 'warmup' | 'recording' | 'processing' | 'reviewing' | 'fallback' | 'slot_filling' | 'confirming';
+
+type ErrorType = 'stt_no_audio' | 'parse_missing_fields' | 'save_error' | 'audio_permission' | 'network_error';
+
+interface SlotFillingState {
+  missingSlots: ('time' | 'pain' | 'meds')[];
+  currentSlotIndex: number;
+  collectedData: Partial<ParsedVoiceEntry>;
+  slotTimeout?: NodeJS.Timeout;
+}
 
 // TypeScript declarations for Web Speech API
 declare global {
@@ -54,13 +66,32 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
   const [isPushToTalk, setIsPushToTalk] = useState(false);
   const [debugLog, setDebugLog] = useState<string[]>([]);
   
+  // Slot-filling and TTS states
+  const [slotFillingState, setSlotFillingState] = useState<SlotFillingState>({
+    missingSlots: [],
+    currentSlotIndex: 0,
+    collectedData: {}
+  });
+  const [currentError, setCurrentError] = useState<ErrorType | null>(null);
+  const [spokenText, setSpokenText] = useState('');
+  const [isTTSSpeaking, setIsTTSSpeaking] = useState(false);
+  
   const recognitionRef = useRef<any>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const warmupTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const ttsEngineRef = useRef<TTSEngine | null>(null);
   const createEntryMutation = useCreateEntry();
   const { data: availableMeds = [] } = useMeds();
+
+  // Initialize TTS engine
+  useEffect(() => {
+    ttsEngineRef.current = new TTSEngine();
+    return () => {
+      ttsEngineRef.current?.stopSpeaking();
+    };
+  }, []);
 
   const painLevels = [
     { value: "leicht", label: "💚 Leichte Migräne (2/10)" },
@@ -101,6 +132,293 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
   }, [open]);
 
   // Update editing states when parsed entry changes
+  // Handle voice-finished with proper error taxonomy
+  const handleRecognitionEnd = () => {
+    addDebugLog(`Recognition ended. Final transcript: "${transcript}"`);
+    
+    if (!transcript || transcript.trim() === '') {
+      setCurrentError('stt_no_audio');
+      handleError('stt_no_audio', 'Keine Sprache erkannt. Bitte versuchen Sie es erneut oder wählen Sie ein anderes Mikrofon.');
+      return;
+    }
+
+    try {
+      setRecordingState('processing');
+      const parsed = parseGermanVoiceEntry(transcript);
+      setParsedEntry(parsed);
+      
+      // Check for missing required fields
+      const missingSlots = getMissingSlots(parsed);
+      
+      if (missingSlots.length > 0) {
+        // Start slot-filling dialog instead of showing error
+        setCurrentError('parse_missing_fields');
+        setSlotFillingState({
+          missingSlots,
+          currentSlotIndex: 0,
+          collectedData: parsed
+        });
+        setRecordingState('slot_filling');
+        startSlotFilling(missingSlots[0], parsed);
+      } else {
+        // All required data present, go to review
+        setRecordingState('reviewing');
+      }
+      
+    } catch (error) {
+      setCurrentError('save_error');
+      handleError('save_error', 'Fehler beim Verarbeiten der Spracheingabe');
+    }
+  };
+
+  // Start slot-filling process with TTS
+  const startSlotFilling = async (slot: 'time' | 'pain' | 'meds', currentData: ParsedVoiceEntry) => {
+    const tts = ttsEngineRef.current;
+    if (!tts) return;
+
+    try {
+      // Stop any current speech recognition
+      stopRecording();
+      
+      setIsTTSSpeaking(true);
+      
+      const summary = generateSummary(currentData);
+      let questionText = '';
+      
+      switch (slot) {
+        case 'time':
+          questionText = `Ich habe verstanden: ${summary}. Für wann soll ich den Eintrag speichern? Soll ich jetzt nehmen?`;
+          break;
+        case 'pain':
+          questionText = `Ich habe verstanden: ${summary}. Welche Schmerzstufe von 0 bis 10?`;
+          break;
+        case 'meds':
+          questionText = `Ich habe verstanden: ${summary}. Hast du ein Medikament genommen? Wenn ja, welches und welche Dosis?`;
+          break;
+      }
+      
+      setSpokenText(questionText);
+      
+      await tts.speak(questionText, {
+        onEnd: () => {
+          setIsTTSSpeaking(false);
+          // Resume recording for answer after 500ms delay
+          setTimeout(() => {
+            startRecording();
+            // Set timeout for slot response (10 seconds)
+            const timeout = setTimeout(() => {
+              showSlotFallbackUI();
+            }, 10000);
+            setSlotFillingState(prev => ({
+              ...prev,
+              slotTimeout: timeout
+            }));
+          }, 500);
+        },
+        onError: () => {
+          setIsTTSSpeaking(false);
+          // Fallback to UI immediately if TTS fails
+          showSlotFallbackUI();
+        }
+      });
+      
+    } catch (error) {
+      console.error('TTS Error:', error);
+      setIsTTSSpeaking(false);
+      showSlotFallbackUI();
+    }
+  };
+
+  // Show fallback UI when voice doesn't work
+  const showSlotFallbackUI = () => {
+    // Clear any slot timeout
+    if (slotFillingState.slotTimeout) {
+      clearTimeout(slotFillingState.slotTimeout);
+    }
+    // UI will show the SlotFillingDialog component
+  };
+
+  // Handle slot-filling responses
+  const handleSlotResponse = (response: string) => {
+    const currentSlot = slotFillingState.missingSlots[slotFillingState.currentSlotIndex];
+    const updatedData = { ...slotFillingState.collectedData };
+    
+    // Parse the response based on slot type
+    switch (currentSlot) {
+      case 'time':
+        if (response.toLowerCase().includes('jetzt') || response === 'now') {
+          updatedData.isNow = true;
+          updatedData.selectedDate = berlinDateToday();
+          updatedData.selectedTime = '';
+        } else {
+          // Parse time response (implement based on quick select values)
+          parseTimeSlotResponse(response, updatedData);
+        }
+        break;
+      case 'pain':
+        updatedData.painLevel = response.match(/\d+/)?.[0] || response;
+        break;
+      case 'meds':
+        if (response.toLowerCase().includes('keine') || response === 'none') {
+          updatedData.medications = [];
+        } else {
+          updatedData.medications = [response];
+        }
+        break;
+    }
+    
+    // Update confidence for filled slot
+    if (updatedData.confidence) {
+      updatedData.confidence[currentSlot] = 'high';
+    }
+    
+    // Move to next slot or finish
+    const nextIndex = slotFillingState.currentSlotIndex + 1;
+    if (nextIndex < slotFillingState.missingSlots.length) {
+      setSlotFillingState({
+        ...slotFillingState,
+        currentSlotIndex: nextIndex,
+        collectedData: updatedData
+      });
+      startSlotFilling(slotFillingState.missingSlots[nextIndex], updatedData as ParsedVoiceEntry);
+    } else {
+      // All slots filled, go to confirmation
+      setParsedEntry(updatedData as ParsedVoiceEntry);
+      startConfirmation(updatedData as ParsedVoiceEntry);
+    }
+  };
+
+  // Parse time slot responses
+  const parseTimeSlotResponse = (response: string, data: any) => {
+    const now = new Date();
+    
+    if (response === '30min_ago') {
+      const targetTime = new Date(now.getTime() - 30 * 60 * 1000);
+      data.selectedDate = targetTime.toISOString().split('T')[0];
+      data.selectedTime = targetTime.toTimeString().slice(0, 5);
+    } else if (response === '1hour_ago') {
+      const targetTime = new Date(now.getTime() - 60 * 60 * 1000);
+      data.selectedDate = targetTime.toISOString().split('T')[0];
+      data.selectedTime = targetTime.toTimeString().slice(0, 5);
+    } else if (response === '2hours_ago') {
+      const targetTime = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+      data.selectedDate = targetTime.toISOString().split('T')[0];
+      data.selectedTime = targetTime.toTimeString().slice(0, 5);
+    } else if (response === 'yesterday_17') {
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      data.selectedDate = yesterday.toISOString().split('T')[0];
+      data.selectedTime = '17:00';
+    }
+  };
+
+  // Start confirmation process
+  const startConfirmation = async (finalData: ParsedVoiceEntry) => {
+    const tts = ttsEngineRef.current;
+    if (!tts) {
+      setRecordingState('reviewing');
+      return;
+    }
+
+    setRecordingState('confirming');
+    const summary = generateSummary(finalData);
+    const confirmText = `Okay. ${summary}. Speichern?`;
+    
+    setIsTTSSpeaking(true);
+    setSpokenText(confirmText);
+    
+    try {
+      await tts.speak(confirmText, {
+        onEnd: () => {
+          setIsTTSSpeaking(false);
+          // Start listening for "ja"/"nein" response
+          setTimeout(() => startRecording(), 500);
+        },
+        onError: () => {
+          setIsTTSSpeaking(false);
+          setRecordingState('reviewing');
+        }
+      });
+    } catch (error) {
+      setIsTTSSpeaking(false);
+      setRecordingState('reviewing');
+    }
+  };
+
+  // Generate summary for TTS
+  const generateSummary = (data: ParsedVoiceEntry): string => {
+    const parts: string[] = [];
+    
+    if (data.isNow) {
+      parts.push('jetzt');
+    } else if (data.selectedDate && data.selectedTime) {
+      parts.push(`${data.selectedDate} um ${data.selectedTime}`);
+    }
+    
+    if (data.painLevel) {
+      parts.push(`Schmerz ${data.painLevel}`);
+    }
+    
+    if (data.medications && data.medications.length > 0) {
+      parts.push(data.medications.join(', '));
+    } else {
+      parts.push('keine Medikamente');
+    }
+    
+    return parts.join(', ');
+  };
+
+  // Handle confirmation responses
+  const handleConfirmationResponse = (transcript: string) => {
+    const response = transcript.toLowerCase();
+    
+    if (response.includes('ja') || response.includes('speichern') || response.includes('genau')) {
+      handleSave();
+    } else if (response.includes('nein') || response.includes('zurück') || response.includes('ändern')) {
+      setRecordingState('reviewing');
+    }
+  };
+
+  // Enhanced error handling with proper taxonomy
+  const handleError = (errorType: ErrorType, message: string) => {
+    setCurrentError(errorType);
+    
+    switch (errorType) {
+      case 'stt_no_audio':
+        toast({
+          title: "Mikrofon-Problem",
+          description: message,
+          variant: "destructive"
+        });
+        // Go to fallback mode, don't close modal
+        setRecordingState('fallback');
+        break;
+        
+      case 'parse_missing_fields':
+        // Don't show error toast, this triggers slot-filling
+        break;
+        
+      case 'audio_permission':
+        toast({
+          title: "Mikrofon blockiert",
+          description: "Bitte erlauben Sie den Mikrofon-Zugriff in den Browser-Einstellungen.",
+          variant: "destructive"
+        });
+        setRecordingState('fallback');
+        break;
+        
+      case 'save_error':
+      case 'network_error':
+        toast({
+          title: "Fehler",
+          description: message,
+          variant: "destructive"
+        });
+        break;
+    }
+  };
+
+  // Update the existing handleRecognitionEnd in the warmup/recording section
   useEffect(() => {
     if (parsedEntry) {
       setEditedDate(parsedEntry.selectedDate);
