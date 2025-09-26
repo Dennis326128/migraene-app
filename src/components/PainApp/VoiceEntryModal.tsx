@@ -142,8 +142,8 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
   // Update editing states when parsed entry changes
   // Handle voice-finished with proper error taxonomy and slot-filling
   const handleRecognitionEnd = (finalTranscript?: string) => {
-    // Use parameter transcript or fall back to state (for backward compatibility)
-    const workingTranscript = finalTranscript || transcript;
+    // Prioritize transcript state when available, as finalTranscript can be empty due to race conditions
+    const workingTranscript = (transcript && transcript.trim()) ? transcript : (finalTranscript || '');
     addDebugLog(`Recognition ended. Final transcript: "${workingTranscript}" (from ${finalTranscript ? 'event' : 'state'}). Direct save mode: ${directSaveMode}`);
     
     // Complete STT step in trace
@@ -199,7 +199,7 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
       
       if (!workingTranscript || workingTranscript.trim() === '') {
         setCurrentError('stt_no_audio');
-        handleError('stt_no_audio', `DEBUG: Erkannter Text: "${workingTranscript}" (Länge: ${workingTranscript?.length || 0}) - Keine verwertbare Sprache erkannt.`);
+        handleError('stt_no_audio', `DEBUG: finalTranscript: "${finalTranscript || ''}" (${(finalTranscript || '').length}), transcript state: "${transcript}" (${transcript.length}) → verwendet: "${workingTranscript}" - Keine verwertbare Sprache erkannt.`);
         return;
       }
     }
