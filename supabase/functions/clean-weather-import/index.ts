@@ -15,9 +15,15 @@ serve(async (req) => {
   try {
     console.log('🧹 Clean weather import started');
 
+    // Create both regular and service role clients
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+    );
+
+    const serviceSupabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
     // Get authenticated user
@@ -26,16 +32,20 @@ serve(async (req) => {
       throw new Error('Missing Authorization header');
     }
 
+    console.log('🔐 Auth header present, length:', authHeader.length);
+
     const { data: { user }, error: authError } = await supabase.auth.getUser(
       authHeader.replace('Bearer ', '')
     );
 
     if (authError || !user) {
+      console.error('❌ Auth error:', authError);
       throw new Error('Invalid authentication');
     }
 
     const userId = user.id;
     console.log('👤 Processing clean import for user:', userId);
+    console.log('📧 User email:', user.email);
 
     // Get user's fallback coordinates from profile (for entries without GPS)
     const { data: profile, error: profileError } = await supabase
@@ -48,24 +58,62 @@ serve(async (req) => {
     const userLon = profile?.longitude ? Number(profile.longitude) : null;
     console.log(`📍 User fallback coordinates: ${userLat}, ${userLon}`);
 
-    // Get ALL entries without weather_id, including their GPS coordinates
-    const { data: entries, error: entriesError } = await supabase
+    // DEBUG: First count ALL entries for this user
+    console.log('🔍 DEBUG: Checking user entries...');
+    const { count: totalEntries, error: countError } = await serviceSupabase
       .from('pain_entries')
-      .select('id, timestamp_created, selected_date, selected_time, latitude, longitude')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId);
+    
+    if (countError) {
+      console.error('❌ Count error:', countError);
+    } else {
+      console.log(`📊 Total entries for user: ${totalEntries}`);
+    }
+
+    // DEBUG: Count entries with weather_id
+    const { count: withWeather, error: withWeatherError } = await serviceSupabase
+      .from('pain_entries')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .not('weather_id', 'is', null);
+    
+    if (withWeatherError) {
+      console.error('❌ With weather count error:', withWeatherError);
+    } else {
+      console.log(`🌤️ Entries with weather: ${withWeather}`);
+    }
+
+    // Get ALL entries without weather_id using service role for better access
+    console.log('🔍 Querying entries without weather_id...');
+    const { data: entries, error: entriesError } = await serviceSupabase
+      .from('pain_entries')
+      .select('id, timestamp_created, selected_date, selected_time, latitude, longitude, weather_id')
       .eq('user_id', userId)
       .is('weather_id', null)
       .order('timestamp_created', { ascending: true });
+
+    console.log('📋 Query result:', {
+      entriesError: entriesError?.message,
+      entriesCount: entries?.length,
+      firstFewEntries: entries?.slice(0, 3)?.map(e => ({
+        id: e.id,
+        weather_id: e.weather_id,
+        hasCoords: !!(e.latitude && e.longitude)
+      }))
+    });
 
     if (entriesError) {
       throw new Error(`Failed to fetch entries: ${entriesError.message}`);
     }
 
     if (!entries?.length) {
-      console.log('✅ No entries without weather data found');
+      console.log(`✅ No entries without weather data found (checked ${totalEntries} total entries, ${withWeather} already have weather)`);
       return new Response(JSON.stringify({
         success: true,
         message: 'No entries need weather import',
-        total: 0,
+        total: totalEntries || 0,
+        withWeather: withWeather || 0,
         processed: 0,
         successful: 0,
         failed: 0
@@ -140,16 +188,13 @@ serve(async (req) => {
 
           console.log(`🌤️ Fetching weather for entry ${entry.id} at ${timestamp} (${lat}, ${lon})`);
 
-          // Call fetch-weather-hybrid function with user JWT
-          const { data: weatherResult, error: weatherError } = await supabase.functions.invoke('fetch-weather-hybrid', {
+          // Call fetch-weather-hybrid function with service role for better reliability
+          const { data: weatherResult, error: weatherError } = await serviceSupabase.functions.invoke('fetch-weather-hybrid', {
             body: {
               lat,
               lon,
               at: timestamp,
               userId: userId
-            },
-            headers: {
-              'Authorization': authHeader
             }
           });
 
@@ -158,8 +203,8 @@ serve(async (req) => {
           }
 
           if (weatherResult?.weather_id) {
-            // Update the entry with weather_id
-            const { error: updateError } = await supabase
+            // Update the entry with weather_id using service role
+            const { error: updateError } = await serviceSupabase
               .from('pain_entries')
               .update({ weather_id: weatherResult.weather_id })
               .eq('id', entry.id);
@@ -172,7 +217,7 @@ serve(async (req) => {
             console.log(`✅ Entry ${entry.id} updated with weather_id ${weatherResult.weather_id}`);
           } else {
             failed++;
-            const errorMsg = `No weather_id returned for entry ${entry.id}`;
+            const errorMsg = `No weather_id returned for entry ${entry.id} - response: ${JSON.stringify(weatherResult)}`;
             errors.push(errorMsg);
             console.warn(`⚠️ ${errorMsg}`);
           }
