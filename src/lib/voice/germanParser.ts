@@ -375,28 +375,28 @@ function calculateConfidence(text: string, parsedTime: any, parsedPain: string, 
     console.log(`[Confidence] No clear time -> LOW confidence`);
   }
   
-  // Pain confidence - be more generous with numbers
+  // Pain confidence - treat "0" as valid (no pain)
   let painConfidence: 'high' | 'medium' | 'low' = 'low';
-  if (parsedPain && parsedPain !== '' && parsedPain !== '0') {
-    // Direct numbers (1-10) get high confidence  
-    const isDirectNumber = /^[1-9]|10$/.test(parsedPain);
-    // Check if original text contained number words
-    const hasNumberWords = /\b(eins|zwei|drei|vier|fünf|sechs|sieben|acht|neun|zehn)\b/i.test(normalizedText);
+  if (parsedPain && parsedPain !== '' && parsedPain !== '-') {
+    // Direct numbers (0-10) get high confidence - "0" is valid!
+    const isDirectNumber = /^[0-9]|10$/.test(parsedPain);
+    // Check if original text contained number words (including "null" for 0)
+    const hasNumberWords = /\b(null|eins|zwei|drei|vier|fünf|sechs|sieben|acht|neun|zehn)\b/i.test(normalizedText);
     // Check for category patterns
     const hasCategoryPattern = /\b(leicht|mittel|stark|sehr.*stark)\b/i.test(parsedPain);
     
     if (isDirectNumber || hasNumberWords) {
-      console.log(`[Confidence] Pain level ${parsedPain} is direct number or number word -> HIGH confidence`);
+      console.log(`[Confidence] Pain level "${parsedPain}" is direct number/word (0=no pain) -> HIGH confidence`);
       painConfidence = 'high';
     } else if (hasCategoryPattern) {
-      console.log(`[Confidence] Pain level ${parsedPain} is category pattern -> HIGH confidence`);
+      console.log(`[Confidence] Pain level "${parsedPain}" is category pattern -> HIGH confidence`);
       painConfidence = 'high';
     } else {
-      console.log(`[Confidence] Pain level ${parsedPain} -> MEDIUM confidence`);
+      console.log(`[Confidence] Pain level "${parsedPain}" -> MEDIUM confidence`);
       painConfidence = 'medium';
     }
   } else {
-    console.log(`[Confidence] No pain level found -> LOW confidence`);
+    console.log(`[Confidence] No pain level found or invalid: "${parsedPain}" -> LOW confidence`);
   }
   
   // Medication confidence - always high (optional field)
@@ -435,12 +435,12 @@ export function getMissingSlots(entry: ParsedVoiceEntry): ('time' | 'pain' | 'me
     console.log(`[getMissingSlots] Time is OK - isNow=${entry.isNow}, date=${entry.selectedDate}, time=${entry.selectedTime}`);
   }
   
-  // Pain is missing only if completely empty
-  if (!entry.painLevel || entry.painLevel === '' || entry.painLevel === '0') {
-    console.log(`[getMissingSlots] Pain marked as missing - empty or zero: "${entry.painLevel}"`);
+  // Pain is missing only if completely empty (but "0" = no pain is VALID!)
+  if (!entry.painLevel || entry.painLevel === '' || entry.painLevel === '-') {
+    console.log(`[getMissingSlots] Pain marked as missing - truly empty: "${entry.painLevel}"`);
     missing.push('pain');
   } else {
-    console.log(`[getMissingSlots] Pain is OK: "${entry.painLevel}"`);
+    console.log(`[getMissingSlots] Pain is VALID (including "0" = no pain): "${entry.painLevel}"`);
   }
   
   // Meds are completely optional - never mark as missing unless explicitly requested
