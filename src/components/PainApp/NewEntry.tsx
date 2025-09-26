@@ -321,9 +321,6 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
         <Label className="text-base font-medium mb-3 block">
           Migräne-Intensität
         </Label>
-        <div className="text-xs sm:text-sm text-muted-foreground mb-4 px-1">
-          💡 Tipp: Schieben Sie den Regler zur gewünschten Schmerzstärke
-        </div>
         <PainSlider 
           value={painLevel} 
           onValueChange={setPainLevel}

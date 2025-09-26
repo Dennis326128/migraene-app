@@ -203,9 +203,6 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
             <Label className="text-base font-medium mb-3 block text-quick-entry">
               Schmerzstärke
             </Label>
-            <div className="text-xs text-muted-foreground mb-4 px-1">
-              Schieben Sie den Regler zur gewünschten Schmerzstärke:
-            </div>
             <PainSlider 
               value={painLevel} 
               onValueChange={setPainLevel}
