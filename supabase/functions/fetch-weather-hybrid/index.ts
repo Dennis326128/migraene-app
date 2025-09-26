@@ -128,17 +128,23 @@ serve(async (req) => {
       daysDiff 
     });
 
-    // Check for existing weather data first
+    // Check for existing weather data first with more flexible matching
     const dateString = requestDate.toISOString().split('T')[0];
     console.log('🔍 Checking for existing weather data for date:', dateString);
+
+    // Round coordinates to avoid tiny GPS differences
+    const roundedLat = Math.round(lat * 1000) / 1000; // 3 decimal places = ~111m precision
+    const roundedLon = Math.round(lon * 1000) / 1000;
 
     const { data: existing, error: existingError } = await supabaseService
       .from('weather_logs')
       .select('id')
       .eq('user_id', userId)
       .eq('snapshot_date', dateString)
-      .eq('latitude', lat)
-      .eq('longitude', lon)
+      .gte('latitude', roundedLat - 0.001)
+      .lte('latitude', roundedLat + 0.001)
+      .gte('longitude', roundedLon - 0.001)
+      .lte('longitude', roundedLon + 0.001)
       .limit(1);
 
     if (existingError) {
@@ -219,15 +225,17 @@ serve(async (req) => {
       };
     }
 
-    // Check if weather data already exists before inserting
-    console.log('🔍 Checking for existing weather data...');
+    // Final check with rounded coordinates before inserting
+    console.log('🔍 Final check for existing weather data before insert...');
     const { data: existingWeather } = await supabaseService
       .from('weather_logs')
       .select('id')
       .eq('user_id', userId)
       .eq('snapshot_date', dateString)
-      .eq('latitude', lat)
-      .eq('longitude', lon)
+      .gte('latitude', roundedLat - 0.001)
+      .lte('latitude', roundedLat + 0.001)
+      .gte('longitude', roundedLon - 0.001)
+      .lte('longitude', roundedLon + 0.001)
       .limit(1)
       .maybeSingle();
 
@@ -238,14 +246,14 @@ serve(async (req) => {
       });
     }
 
-    // Insert weather data into database
+    // Insert weather data into database with duplicate key protection
     console.log('💾 Inserting new weather data into database...');
     const { data: insertResult, error: insertError } = await supabaseService
       .from('weather_logs')
       .insert({
         user_id: userId,
-        latitude: lat,
-        longitude: lon,
+        latitude: roundedLat, // Use rounded coordinates for consistency
+        longitude: roundedLon,
         snapshot_date: dateString,
         temperature_c: weatherData.temperature_c,
         humidity: weatherData.humidity,
@@ -260,6 +268,30 @@ serve(async (req) => {
 
     if (insertError) {
       console.error('❌ Insert error:', insertError);
+      
+      // Handle duplicate key error specifically
+      if (insertError.code === '23505') {
+        console.log('🔄 Duplicate key detected, fetching existing record...');
+        const { data: existingRecord } = await supabaseService
+          .from('weather_logs')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('snapshot_date', dateString)
+          .gte('latitude', roundedLat - 0.001)
+          .lte('latitude', roundedLat + 0.001)
+          .gte('longitude', roundedLon - 0.001)
+          .lte('longitude', roundedLon + 0.001)
+          .limit(1)
+          .single();
+        
+        if (existingRecord) {
+          console.log('✅ Returning existing duplicate record:', existingRecord.id);
+          return new Response(JSON.stringify({ weather_id: existingRecord.id }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+      }
+      
       throw insertError;
     }
 

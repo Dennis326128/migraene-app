@@ -37,25 +37,21 @@ serve(async (req) => {
     const userId = user.id;
     console.log('👤 Processing clean import for user:', userId);
 
-    // Get user's current coordinates from profile
+    // Get user's fallback coordinates from profile (for entries without GPS)
     const { data: profile, error: profileError } = await supabase
       .from('user_profiles')
       .select('latitude, longitude')
       .eq('user_id', userId)
       .single();
 
-    if (profileError || !profile?.latitude || !profile?.longitude) {
-      throw new Error('User coordinates not found in profile');
-    }
+    const userLat = profile?.latitude ? Number(profile.latitude) : null;
+    const userLon = profile?.longitude ? Number(profile.longitude) : null;
+    console.log(`📍 User fallback coordinates: ${userLat}, ${userLon}`);
 
-    const userLat = Number(profile.latitude);
-    const userLon = Number(profile.longitude);
-    console.log(`📍 Using user coordinates: ${userLat}, ${userLon}`);
-
-    // Get ALL entries without weather_id
+    // Get ALL entries without weather_id, including their GPS coordinates
     const { data: entries, error: entriesError } = await supabase
       .from('pain_entries')
-      .select('id, timestamp_created, selected_date, selected_time')
+      .select('id, timestamp_created, selected_date, selected_time, latitude, longitude')
       .eq('user_id', userId)
       .is('weather_id', null)
       .order('timestamp_created', { ascending: true });
@@ -84,14 +80,17 @@ serve(async (req) => {
     let failed = 0;
     const errors: string[] = [];
 
-    // Process entries in batches of 1 for testing
-    const batchSize = 1;
+    // Process entries in smaller batches with better error handling
+    const batchSize = 3; // Increase batch size slightly for better performance
     for (let i = 0; i < entries.length; i += batchSize) {
       const batch = entries.slice(i, i + batchSize);
-      console.log(`🔄 Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(entries.length/batchSize)}`);
+      console.log(`🔄 Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(entries.length/batchSize)} (${batch.length} entries)`);
 
       for (const entry of batch) {
         try {
+          // Check if entry has both coordinates types (GPS vs fallback)
+          const hasGPS = entry.latitude && entry.longitude;
+          const hasUserFallback = userLat && userLon;
           // Determine the timestamp to use (prioritize selected date/time)
           let timestamp: string;
           if (entry.selected_date && entry.selected_time) {
@@ -125,13 +124,27 @@ serve(async (req) => {
             timestamp = new Date(entry.timestamp_created).toISOString();
           }
 
-          console.log(`🌤️ Fetching weather for entry ${entry.id} at ${timestamp}`);
+          // Determine coordinates to use: entry GPS coordinates or fallback to user profile
+          let lat: number, lon: number;
+          if (hasGPS) {
+            lat = Number(entry.latitude);
+            lon = Number(entry.longitude);
+            console.log(`🎯 Using entry GPS coordinates: ${lat}, ${lon}`);
+          } else if (hasUserFallback) {
+            lat = userLat;
+            lon = userLon;
+            console.log(`📍 Using fallback user coordinates: ${lat}, ${lon}`);
+          } else {
+            throw new Error(`No coordinates available for entry ${entry.id} - neither GPS nor user profile coordinates found`);
+          }
+
+          console.log(`🌤️ Fetching weather for entry ${entry.id} at ${timestamp} (${lat}, ${lon})`);
 
           // Call fetch-weather-hybrid function with user JWT
           const { data: weatherResult, error: weatherError } = await supabase.functions.invoke('fetch-weather-hybrid', {
             body: {
-              lat: userLat,
-              lon: userLon,
+              lat,
+              lon,
               at: timestamp,
               userId: userId
             },
@@ -164,8 +177,8 @@ serve(async (req) => {
             console.warn(`⚠️ ${errorMsg}`);
           }
 
-          // Small delay between requests
-          await new Promise(resolve => setTimeout(resolve, 100));
+          // Longer delay between requests to avoid rate limiting
+          await new Promise(resolve => setTimeout(resolve, 200));
 
         } catch (error) {
           failed++;
