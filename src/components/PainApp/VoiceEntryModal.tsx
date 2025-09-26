@@ -54,6 +54,19 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
     { value: "sehr_stark", label: "🔴 Sehr starke Migräne (9/10)" },
   ];
 
+  const getPainLevelDisplay = (level: string) => {
+    // If it's a direct number (0-10), show it dynamically
+    if (/^\d+$/.test(level)) {
+      const num = parseInt(level);
+      if (num >= 0 && num <= 10) {
+        const emoji = num >= 8 ? '🔴' : num >= 6 ? '🟠' : num >= 4 ? '💛' : '💚';
+        return `${emoji} Migräne (${num}/10)`;
+      }
+    }
+    // Fallback to predefined categories
+    return painLevels.find(p => p.value === level)?.label || level;
+  };
+
   useEffect(() => {
     if (!open) {
       // Reset all states when modal closes
@@ -374,7 +387,7 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
                     <Label className="text-xs text-muted-foreground">Schmerzstärke</Label>
                     <p className="text-sm">
                       {parsedEntry.painLevel ? 
-                        painLevels.find(p => p.value === parsedEntry.painLevel)?.label || parsedEntry.painLevel
+                        getPainLevelDisplay(parsedEntry.painLevel)
                         : "⚠️ Nicht erkannt"}
                     </p>
                   </div>

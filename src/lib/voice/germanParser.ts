@@ -194,11 +194,33 @@ function parseTime(text: string): { date: string; time: string; isNow: boolean }
 }
 
 function parsePainLevel(text: string): string {
-  for (const pattern of PAIN_LEVEL_PATTERNS) {
-    if (pattern.pattern.test(text)) {
-      return pattern.level;
+  // First: Try to extract exact numbers 0-10
+  const numberPattern = /(schmerz|pain|migräne|kopfschmerz).{0,20}(\d{1,2})/i;
+  const reverseNumberPattern = /(\d{1,2}).{0,20}(schmerz|pain|migräne|kopfschmerz)/i;
+  
+  let match = text.match(numberPattern) || text.match(reverseNumberPattern);
+  
+  if (match) {
+    const number = parseInt(match[2] || match[1]);
+    if (number >= 0 && number <= 10) {
+      return number.toString();
     }
   }
+  
+  // Fallback: Use intensity words and map to approximate numbers
+  for (const pattern of PAIN_LEVEL_PATTERNS) {
+    if (pattern.pattern.test(text)) {
+      // Map categories to representative numbers
+      switch (pattern.level) {
+        case "sehr_stark": return "9";
+        case "stark": return "7";
+        case "mittel": return "5";
+        case "leicht": return "2";
+        default: return pattern.level;
+      }
+    }
+  }
+  
   return ""; // No pain level found
 }
 
