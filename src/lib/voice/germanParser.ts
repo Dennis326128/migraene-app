@@ -238,25 +238,55 @@ function convertWordToNumber(word: string): number {
 }
 
 function parsePainLevel(text: string): string {
-  // First try to find explicit numeric patterns
-  const numericMatch = text.match(/\b(\d+)\s*(?:\/10|von\s*10|out\s*of\s*10)?\b/);
-  if (numericMatch) {
-    const level = parseInt(numericMatch[1]);
+  console.log(`🎯 [parsePainLevel] Input text: "${text}"`);
+  
+  // Step 1: Convert number words to digits first
+  const convertedText = convertNumberWords(text);
+  console.log(`🎯 [parsePainLevel] After number conversion: "${convertedText}"`);
+  
+  // Step 2: Look for direct numbers 0-10 (highest priority)
+  const directNumberMatch = convertedText.match(/\b([0-9]|10)\b/);
+  if (directNumberMatch) {
+    const level = parseInt(directNumberMatch[1]);
     if (level >= 0 && level <= 10) {
-      console.log(`🎯 Pain level parsed: ${level} (numeric)`);
+      console.log(`🎯 [parsePainLevel] Found direct number: ${level} -> HIGH confidence`);
       return level.toString();
     }
   }
   
-  // Then try category patterns
+  // Step 3: Try explicit numeric patterns with context
+  const numericMatch = convertedText.match(/\b(\d+)\s*(?:\/10|von\s*10|out\s*of\s*10)?\b/);
+  if (numericMatch) {
+    const level = parseInt(numericMatch[1]);
+    if (level >= 0 && level <= 10) {
+      console.log(`🎯 [parsePainLevel] Found contextual number: ${level} -> HIGH confidence`);
+      return level.toString();
+    }
+  }
+  
+  // Step 4: Fall back to category patterns 
   for (const painPattern of PAIN_LEVEL_PATTERNS) {
-    if (painPattern.pattern.test(text)) {
-      console.log(`🎯 Pain level parsed: ${painPattern.level} (category)`);
+    if (painPattern.pattern.test(convertedText)) {
+      console.log(`🎯 [parsePainLevel] Found category match: ${painPattern.level} -> MEDIUM confidence`);
       return painPattern.level;
     }
   }
   
-  console.log('🎯 No pain level found');
+  // Step 5: Last resort - check original text for number words without conversion
+  const numberWordMatch = text.match(/\b(null|eins|zwei|drei|vier|fünf|sechs|sieben|acht|neun|zehn)\b/i);
+  if (numberWordMatch) {
+    const word = numberWordMatch[1].toLowerCase();
+    const numberMap: Record<string, number> = {
+      'null': 0, 'eins': 1, 'zwei': 2, 'drei': 3, 'vier': 4, 'fünf': 5,
+      'sechs': 6, 'sieben': 7, 'acht': 8, 'neun': 9, 'zehn': 10
+    };
+    if (numberMap[word] !== undefined) {
+      console.log(`🎯 [parsePainLevel] Found number word: "${word}" = ${numberMap[word]} -> HIGH confidence`);
+      return numberMap[word].toString();
+    }
+  }
+  
+  console.log('🎯 [parsePainLevel] No pain level found');
   return '';
 }
 
@@ -344,10 +374,13 @@ function calculateConfidence(text: string, parsedTime: any, parsedPain: string, 
   // Pain confidence - be more generous with numbers
   let painConfidence: 'high' | 'medium' | 'low' = 'low';
   if (parsedPain && parsedPain !== '') {
-    // Direct numbers get high confidence
+    // Direct numbers (0-10) get high confidence
     const isDirectNumber = /^\d+$/.test(parsedPain);
-    if (isDirectNumber) {
-      console.log(`[Confidence] Pain level ${parsedPain} is a direct number -> HIGH confidence`);
+    // Check if original text contained number words
+    const hasNumberWords = /\b(null|eins|zwei|drei|vier|fünf|sechs|sieben|acht|neun|zehn)\b/i.test(normalizedText);
+    
+    if (isDirectNumber || hasNumberWords) {
+      console.log(`[Confidence] Pain level ${parsedPain} is direct number or number word -> HIGH confidence`);
       painConfidence = 'high';
     } else {
       // Category words get medium confidence
