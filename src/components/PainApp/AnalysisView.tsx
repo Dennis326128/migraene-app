@@ -12,12 +12,12 @@ import { StatisticsFilter } from "./StatisticsFilter";
 import { StatisticsCards } from "./StatisticsCards";
 import { TimeDistributionChart } from "./TimeDistributionChart";
 import { MigrationPanel } from "./MigrationPanel";
+import { MedicationLimitsOverview } from "./MedicationLimitsOverview";
 import { useFilteredEntries, useMigraineStats, useTimeDistribution } from "@/features/statistics/hooks/useStatistics";
 import { Pill, AlertTriangle } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { buildModernDiaryPdf } from "@/lib/pdf/modernReport";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { MedicationLimitsOverview } from "./MedicationLimitsOverview";
 
 interface AnalysisViewProps {
   onBack: () => void;
@@ -435,13 +435,7 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
       )}
 
       {viewMode === "ueberverbrauch" && (
-        <div className="space-y-6">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5" />
-            <h2 className="text-2xl font-bold">Medikamenten-Überverbrauch Monitor</h2>
-          </div>
-          <MedicationLimitsOverview />
-        </div>
+        <MedicationLimitsOverview />
       )}
 
       {viewMode === "migration" && (
