@@ -26,37 +26,49 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Get authenticated user
+    // Get authenticated user - use service role for auth to avoid token issues
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       throw new Error('Missing Authorization header');
     }
 
     console.log('🔐 Auth header present, length:', authHeader.length);
+    const authToken = authHeader.replace('Bearer ', '');
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser(
-      authHeader.replace('Bearer ', '')
-    );
+    // Use service role for auth to bypass potential RLS issues
+    const { data: { user }, error: authError } = await serviceSupabase.auth.getUser(authToken);
 
     if (authError || !user) {
       console.error('❌ Auth error:', authError);
-      throw new Error('Invalid authentication');
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Authentication failed',
+        details: authError?.message,
+        debug: { hasAuthHeader: !!authHeader, tokenLength: authToken.length }
+      }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
     const userId = user.id;
     console.log('👤 Processing clean import for user:', userId);
     console.log('📧 User email:', user.email);
 
-    // Get user's fallback coordinates from profile (for entries without GPS)
-    const { data: profile, error: profileError } = await supabase
+    // Get user's fallback coordinates from profile (for entries without GPS) - use service role
+    const { data: profile, error: profileError } = await serviceSupabase
       .from('user_profiles')
       .select('latitude, longitude')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle(); // Use maybeSingle to avoid errors if no profile found
+
+    if (profileError) {
+      console.warn('⚠️ Profile fetch error:', profileError.message);
+    }
 
     const userLat = profile?.latitude ? Number(profile.latitude) : null;
     const userLon = profile?.longitude ? Number(profile.longitude) : null;
-    console.log(`📍 User fallback coordinates: ${userLat}, ${userLon}`);
+    console.log(`📍 User fallback coordinates: ${userLat ? 'Available' : 'Not available'} (${userLat}, ${userLon})`);
 
     // DEBUG: First count ALL entries for this user
     console.log('🔍 DEBUG: Checking user entries...');
@@ -112,11 +124,15 @@ serve(async (req) => {
       return new Response(JSON.stringify({
         success: true,
         message: 'No entries need weather import',
-        total: totalEntries || 0,
-        withWeather: withWeather || 0,
-        processed: 0,
-        successful: 0,
-        failed: 0
+        totalProcessed: 0,              // Changed from 'processed' to match WeatherImportButton
+        successCount: 0,                // Changed from 'successful' to match WeatherImportButton
+        failCount: 0,                   // Changed from 'failed' to match WeatherImportButton
+        debug: {
+          userId: userId,
+          userHasFallbackCoords: !!(userLat && userLon),
+          totalUserEntries: totalEntries || 0,
+          entriesWithWeather: withWeather || 0
+        }
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
@@ -243,11 +259,16 @@ serve(async (req) => {
     const result = {
       success: true,
       message: `Processed ${entries.length} entries. ${successful} successful, ${failed} failed.`,
-      total: entries.length,
-      processed: entries.length,
-      successful,
-      failed,
-      errors: errors.slice(0, 10) // Limit error list
+      totalProcessed: entries.length, // Changed from 'total' and 'processed' to match WeatherImportButton
+      successCount: successful,        // Changed from 'successful' to match WeatherImportButton  
+      failCount: failed,               // Changed from 'failed' to match WeatherImportButton
+      errors: errors.slice(0, 10),    // Limit error list
+      debug: {
+        userId: userId,
+        userHasFallbackCoords: !!(userLat && userLon),
+        totalUserEntries: totalEntries || 0,
+        entriesWithWeather: withWeather || 0
+      }
     };
 
     console.log('🎉 Clean import completed:', result);
