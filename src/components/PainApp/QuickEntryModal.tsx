@@ -27,10 +27,7 @@ interface QuickEntryModalProps {
 
 const timeOptions = [
   { value: "jetzt", label: "🔴 Jetzt", minutes: 0 },
-  { value: "15min", label: "🟠 Vor 15 Min", minutes: 15 },
-  { value: "30min", label: "🟡 Vor 30 Min", minutes: 30 },
-  { value: "1h", label: "🟡 Vor 1 Std", minutes: 60 },
-  { value: "2h", label: "🟠 Vor 2 Std", minutes: 120 },
+  { value: "1h", label: "🟡 Vor 1 Stunde", minutes: 60 },
   { value: "custom", label: "⏰ Zeitpunkt wählen", minutes: null },
 ];
 
@@ -90,11 +87,8 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
     
     if (selectedTime === "jetzt") return now;
     
-    if (selectedTime === "15min" || selectedTime === "30min" || selectedTime === "1h" || selectedTime === "2h") {
-      const minutes = selectedTime === "15min" ? 15 : 
-                    selectedTime === "30min" ? 30 : 
-                    selectedTime === "1h" ? 60 : 120;
-      return new Date(now.getTime() - minutes * 60 * 1000);
+    if (selectedTime === "1h") {
+      return new Date(now.getTime() - 60 * 60 * 1000);
     }
     
     if (selectedTime === "custom" && customDate && customTime) {
@@ -258,21 +252,21 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
             {selectedTime === "custom" && (
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <Label className="text-sm">Datum</Label>
+                  <Label className="text-sm text-foreground">Datum</Label>
                   <input 
                     type="date" 
                     value={customDate}
                     onChange={(e) => setCustomDate(e.target.value)}
-                    className="w-full p-2 border rounded text-sm"
+                    className="w-full p-2 border border-border rounded text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
                 <div>
-                  <Label className="text-sm">Zeit</Label>
+                  <Label className="text-sm text-foreground">Zeit</Label>
                   <input 
                     type="time" 
                     value={customTime}
                     onChange={(e) => setCustomTime(e.target.value)}
-                    className="w-full p-2 border rounded text-sm"
+                    className="w-full p-2 border border-border rounded text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
               </div>
