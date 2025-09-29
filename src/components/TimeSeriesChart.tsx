@@ -95,7 +95,34 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
     true
   );
   
-  // Fallback query for missing weather data
+  // Build initial daily data to check for missing weather
+  const initialDailyData = useMemo(() => {
+    const days = eachDayOfInterval({ start: startOfDay(startDate), end: endOfDay(endDate) });
+    const weatherByDate = new Map<string, any>();
+    
+    // Map weather data with correct field names
+    weatherData?.forEach(weather => {
+      if (weather.date) {
+        weatherByDate.set(weather.date, {
+          temp: weather.temperature_c,
+          pressure: weather.pressure_mb,
+          humidity: weather.humidity
+        });
+      }
+    });
+    
+    return days.map(day => {
+      const dateKey = format(day, 'yyyy-MM-dd');
+      const weather = weatherByDate.get(dateKey);
+      return {
+        date: dateKey,
+        hasWeather: !!(weather?.temp !== null || weather?.pressure !== null)
+      };
+    });
+  }, [weatherData, startDate, endDate]);
+  
+  // Fallback query for missing weather data - enabled when we have days without weather
+  const missingWeatherDays = initialDailyData.filter(day => !day.hasWeather);
   const { data: fallbackWeatherData } = useQuery({
     queryKey: ['fallback-weather', format(startDate, 'yyyy-MM-dd'), format(endDate, 'yyyy-MM-dd')],
     queryFn: async () => {
@@ -106,8 +133,7 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
         .from('weather_logs')
         .select('pressure_mb, temperature_c, humidity, snapshot_date, created_at')
         .eq('user_id', userData.user.id)
-        .gte('created_at', format(startDate, 'yyyy-MM-dd') + 'T00:00:00')
-        .lte('created_at', format(endDate, 'yyyy-MM-dd') + 'T23:59:59')
+        .or(`and(snapshot_date.gte.${format(startDate, 'yyyy-MM-dd')},snapshot_date.lte.${format(endDate, 'yyyy-MM-dd')}),and(snapshot_date.is.null,created_at.gte.${format(startDate, 'yyyy-MM-dd')}T00:00:00,created_at.lte.${format(endDate, 'yyyy-MM-dd')}T23:59:59)`)
         .order('created_at', { ascending: true });
         
       if (error) throw error;
@@ -115,18 +141,24 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
       // Group by date, taking the latest entry per day
       const byDate = new Map();
       data?.forEach(weather => {
+        // Use snapshot_date if available, otherwise use created_at date
         const date = weather.snapshot_date || weather.created_at?.split('T')[0];
         if (date) {
           const existing = byDate.get(date);
           if (!existing || new Date(weather.created_at) > new Date(existing.created_at)) {
-            byDate.set(date, { ...weather, date });
+            byDate.set(date, { 
+              date,
+              temperature_c: weather.temperature_c,
+              pressure_mb: weather.pressure_mb,
+              humidity: weather.humidity
+            });
           }
         }
       });
       
       return Array.from(byDate.values());
     },
-    enabled: !!(weatherData && weatherData.length === 0), // Only run if primary query has no data
+    enabled: missingWeatherDays.length > 0,
     staleTime: 5 * 60 * 1000,
   });
   
@@ -148,18 +180,28 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
       }
     });
     
-    // Group weather by date
+    // Build comprehensive weather lookup with proper field mapping
     const weatherByDate = new Map<string, any>();
+    
+    // Primary weather data from timeline API
     weatherData?.forEach(weather => {
       if (weather.date) {
-        weatherByDate.set(weather.date, weather);
+        weatherByDate.set(weather.date, {
+          temp: weather.temperature_c,
+          pressure: weather.pressure_mb,
+          humidity: weather.humidity
+        });
       }
     });
     
     // Add fallback weather data for missing days
     fallbackWeatherData?.forEach(weather => {
       if (weather.date && !weatherByDate.has(weather.date)) {
-        weatherByDate.set(weather.date, weather);
+        weatherByDate.set(weather.date, {
+          temp: weather.temperature_c,
+          pressure: weather.pressure_mb,
+          humidity: weather.humidity
+        });
       }
     });
     
@@ -185,12 +227,12 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
         date: format(day, 'dd.MM'),
         ts: day.getTime(),
         pain: maxPain,
-        temperature: weather?.temperature_c ?? null,
-        pressure: weather?.pressure_mb ?? null,
+        temperature: weather?.temp ?? null,
+        pressure: weather?.pressure ?? null,
         hasEntry: dayEntries.length > 0,
       } as DailyDataPoint;
     });
-  }, [entries, weatherData, startDate, endDate]);
+  }, [entries, weatherData, fallbackWeatherData, startDate, endDate]);
   
   // Calculate optimal tick count for X-axis
   const daysDiff = differenceInDays(endDate, startDate);
