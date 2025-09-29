@@ -97,7 +97,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         <div className="space-y-4 sm:space-y-6 w-full max-w-md px-2 sm:px-0">
           {/* New Entry Button */}
           <MobileOptimizedCard 
-            variant="success" 
+            variant="interactive" 
             touchFeedback 
             onClick={onNewEntry}
             className="cursor-pointer"
@@ -112,7 +112,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           {/* Quick Entry Button - Desktop */}
           {!isMobile && (
             <MobileOptimizedCard 
-              variant="quick" 
+              variant="interactive" 
               touchFeedback 
               onClick={() => setShowQuickEntry(true)}
               className="cursor-pointer"
@@ -127,7 +127,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
 
           {/* Voice Entry Button */}
           <MobileOptimizedCard 
-            variant="success" 
+            variant="interactive" 
             touchFeedback 
             onClick={handleVoiceEntry}
             className={`cursor-pointer ${voiceTrigger.isListening ? 'ring-2 ring-success animate-pulse' : ''}`}
@@ -210,7 +210,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         {/* Mobile-only Floating Action Button for Quick Entry */}
         {isMobile && (
           <FloatingActionButton
-            variant="quick"
+            variant="primary"
             size="lg"
             position="bottom-right"
             onClick={() => setShowQuickEntry(true)}
