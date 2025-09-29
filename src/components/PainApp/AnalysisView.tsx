@@ -410,6 +410,43 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
                 <p className="text-sm text-muted-foreground">
                   Grafische Darstellung der Migräne-Einträge über Zeit
                 </p>
+                <div className="flex flex-wrap gap-2 mt-4">
+                  <Button
+                    variant={timeRange === "30days" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setTimeRange("30days")}
+                  >
+                    30 Tage
+                  </Button>
+                  <Button
+                    variant={timeRange === "3months" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setTimeRange("3months")}
+                  >
+                    3 Monate
+                  </Button>
+                  <Button
+                    variant={timeRange === "6months" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setTimeRange("6months")}
+                  >
+                    6 Monate
+                  </Button>
+                  <Button
+                    variant={timeRange === "12months" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setTimeRange("12months")}
+                  >
+                    12 Monate
+                  </Button>
+                  <Button
+                    variant={timeRange === "all" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setTimeRange("all")}
+                  >
+                    Alle
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 <ChartComponent entries={entries} dateRange={{ from, to }} />
