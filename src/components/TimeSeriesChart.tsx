@@ -85,8 +85,32 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
   const isMobile = useIsMobile();
   
   // Always use today as end date, ignore dateRange.to
-  const startDate = useMemo(() => new Date(dateRange.from), [dateRange.from]);
   const endDate = useMemo(() => new Date(), []); // Always today
+  
+  // Find earliest entry date to start chart from there
+  const startDate = useMemo(() => {
+    if (!entries || entries.length === 0) {
+      return new Date(dateRange.from);
+    }
+    
+    // Find the earliest entry date
+    const entryDates = entries
+      .map(entry => {
+        const entryDate = entry.selected_date || entry.timestamp_created?.split('T')[0];
+        return entryDate ? new Date(entryDate) : null;
+      })
+      .filter(date => date !== null) as Date[];
+    
+    if (entryDates.length === 0) {
+      return new Date(dateRange.from);
+    }
+    
+    const earliestEntryDate = new Date(Math.min(...entryDates.map(d => d.getTime())));
+    const rangeFromDate = new Date(dateRange.from);
+    
+    // Use the later of either the range start or the earliest entry
+    return earliestEntryDate > rangeFromDate ? earliestEntryDate : rangeFromDate;
+  }, [entries, dateRange.from]);
   
   // Fetch weather data for the range
   const { data: weatherData } = useWeatherTimeline(
