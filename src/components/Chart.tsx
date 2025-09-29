@@ -39,6 +39,27 @@ export default function ChartComponent({ entries, dateRange }: Props) {
   });
 
   const data = useMemo(() => {
+    // Filter entries based on dateRange if provided
+    let filteredEntries = entries || [];
+    
+    if (dateRange?.from || dateRange?.to) {
+      filteredEntries = entries?.filter(entry => {
+        const entryDate = entry.selected_date || new Date(entry.timestamp_created).toISOString().split('T')[0];
+        
+        if (dateRange.from && entryDate < dateRange.from) return false;
+        if (dateRange.to && entryDate > dateRange.to) return false;
+        
+        return true;
+      }) || [];
+      
+      console.log('📊 Date range filtering:', {
+        originalCount: entries?.length || 0,
+        filteredCount: filteredEntries.length,
+        dateRange,
+        sampleFilteredEntry: filteredEntries[0]?.selected_date || filteredEntries[0]?.timestamp_created
+      });
+    }
+
     // Use weather timeline data if available, otherwise fall back to entry data
     if (weatherTimeline && weatherTimeline.length > 0) {
       // Sort weather timeline data chronologically (oldest to newest)
@@ -63,9 +84,9 @@ export default function ChartComponent({ entries, dateRange }: Props) {
       }));
     }
 
-    // Fallback to original entry-based processing
+    // Fallback to original entry-based processing with filtered entries
     // Sort entries chronologically by timestamp_created (oldest to newest)
-    const sortedEntries = [...(entries || [])].sort((a, b) => {
+    const sortedEntries = [...filteredEntries].sort((a, b) => {
       return new Date(a.timestamp_created).getTime() - new Date(b.timestamp_created).getTime();
     });
     
@@ -95,7 +116,7 @@ export default function ChartComponent({ entries, dateRange }: Props) {
     });
 
     return processedData;
-  }, [entries, weatherTimeline]);
+  }, [entries, weatherTimeline, dateRange]);
 
   // Calculate weather correlation
   const weatherCorrelation = useMemo(() => {
@@ -118,12 +139,28 @@ export default function ChartComponent({ entries, dateRange }: Props) {
     return avgPainByPressure;
   }, [data]);
 
-  if (!data.length) return (
-    <div className="text-center py-8 text-muted-foreground">
-      <div className="text-lg mb-2">📈</div>
-      <div className="text-sm">Keine Daten für die Grafik</div>
-    </div>
-  );
+  if (!data.length) {
+    const hasDateRange = dateRange?.from || dateRange?.to;
+    const totalEntries = entries?.length || 0;
+    
+    return (
+      <div className="text-center py-8 text-muted-foreground">
+        <div className="text-lg mb-2">📈</div>
+        {hasDateRange ? (
+          <div className="space-y-2">
+            <div className="text-sm">Keine Daten im gewählten Zeitraum</div>
+            {totalEntries > 0 && (
+              <div className="text-xs">
+                {totalEntries} Einträge insgesamt vorhanden - wählen Sie einen anderen Zeitraum
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="text-sm">Keine Daten für die Grafik</div>
+        )}
+      </div>
+    );
+  }
 
   // Calculate data availability
   const dataAvailability = useMemo(() => {
