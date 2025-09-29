@@ -30,9 +30,10 @@ type ModernReportParams = {
 function formatDateTime(isoString: string): string {
   const date = new Date(isoString);
   return date.toLocaleDateString("de-DE", { 
+    weekday: "short",
     day: "2-digit", 
     month: "2-digit", 
-    year: "2-digit",
+    year: "numeric",
     hour: "2-digit",
     minute: "2-digit"
   });
@@ -74,17 +75,18 @@ export async function buildModernDiaryPdf(params: ModernReportParams): Promise<U
   page.drawText(`Anzahl Ereignisse: ${events.length}`, { x: margin, y, size: 10, font, color: rgb(0.4, 0.4, 0.4) });
   y -= 25;
 
-  // Statistics overview
-  const avgIntensity = events
-    .filter(e => e.intensity_0_10)
-    .reduce((sum, e) => sum + (e.intensity_0_10 || 0), 0) / events.filter(e => e.intensity_0_10).length;
+  // Statistics overview - exclude zero values from average
+  const validIntensityEvents = events.filter(e => e.intensity_0_10 && e.intensity_0_10 > 0);
+  const avgIntensity = validIntensityEvents.length > 0 
+    ? validIntensityEvents.reduce((sum, e) => sum + (e.intensity_0_10 || 0), 0) / validIntensityEvents.length
+    : 0;
   
   const medEvents = events.filter(e => e.medications && e.medications.length > 0);
   const withSymptoms = events.filter(e => e.symptoms && e.symptoms.length > 0);
 
   page.drawText("📊 ÜBERSICHT", { x: margin, y, size: 14, font: fontBold });
   y -= 18;
-  page.drawText(`• Durchschnittliche Intensität: ${avgIntensity ? avgIntensity.toFixed(1) : 'N/A'}/10`, { x: margin + 10, y, size: 10, font });
+  page.drawText(`• Durchschnittliche Intensität: ${avgIntensity ? avgIntensity.toFixed(1) : 'N/A'}/10 (aus ${validIntensityEvents.length} Einträgen)`, { x: margin + 10, y, size: 10, font });
   y -= 14;
   page.drawText(`• Ereignisse mit Medikamenten: ${medEvents.length} (${Math.round(medEvents.length/events.length*100)}%)`, { x: margin + 10, y, size: 10, font });
   y -= 14;

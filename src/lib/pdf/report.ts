@@ -13,7 +13,7 @@ type BuildReportParams = {
 function toLabel(e: PainEntry) {
   if (e.selected_date && e.selected_time) return `${e.selected_date} ${e.selected_time}`;
   const d = new Date(e.timestamp_created);
-  const ds = d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" });
+  const ds = d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
   const ts = d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
   return `${ds} ${ts}`;
 }

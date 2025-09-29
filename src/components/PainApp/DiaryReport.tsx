@@ -7,6 +7,7 @@ import { useEntries } from "@/features/entries/hooks/useEntries";
 import { buildDiaryPdf } from "@/lib/pdf/report";
 import { buildModernDiaryPdf } from "@/lib/pdf/modernReport";
 import { getUserSettings } from "@/features/settings/api/settings.api";
+import { mapTextLevelToScore } from "@/lib/utils/pain";
 
 type Preset = "3m" | "6m" | "12m" | "custom";
 
@@ -16,14 +17,6 @@ function addMonths(d: Date, m: number) {
   return dd;
 }
 function fmt(d: Date) { return d.toISOString().slice(0,10); }
-function mapTextLevelToScore(level: string): number {
-  const t = (level || "").toLowerCase();
-  if (t.includes("sehr")) return 9;
-  if (t.includes("stark")) return 7;
-  if (t.includes("mittel")) return 5;
-  if (t.includes("leicht")) return 2;
-  return 0;
-}
 
 export default function DiaryReport({ onBack }: { onBack: () => void }) {
   const today = useMemo(() => new Date(), []);
@@ -100,8 +93,13 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
 
   const avgPain = useMemo(() => {
     if (!generated.length) return 0;
-    const sum = generated.reduce((s, e) => s + mapTextLevelToScore(e.pain_level), 0);
-    return (sum / generated.length).toFixed(2);
+    const validEntries = generated.filter(e => {
+      const score = mapTextLevelToScore(e.pain_level);
+      return score > 0; // Exclude zero values from average
+    });
+    if (!validEntries.length) return 0;
+    const sum = validEntries.reduce((s, e) => s + mapTextLevelToScore(e.pain_level), 0);
+    return (sum / validEntries.length).toFixed(2);
   }, [generated]);
 
   const printPDF = () => {
