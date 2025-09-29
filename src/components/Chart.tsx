@@ -318,7 +318,8 @@ export default function ChartComponent({ entries, dateRange }: Props) {
               angle={isMobile ? -45 : 0}
               textAnchor={isMobile ? "end" : "middle"}
               height={isMobile ? 60 : 30}
-              interval="preserveStartEnd"
+              interval={0}
+              domain={['dataMin', 'dataMax']}
             />
             <YAxis
               yAxisId="pain"
