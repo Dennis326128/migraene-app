@@ -308,7 +308,7 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
           data={dailyData}
           margin={{
             top: 20,
-            right: isMobile ? 20 : 60,
+            right: isMobile ? 35 : 70,
             left: isMobile ? 20 : 60,
             bottom: 60,
           }}
@@ -346,11 +346,12 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
             orientation="right"
             domain={['dataMin - 2', 'dataMax + 2']}
             tick={{ fontSize: isMobile ? 10 : 12 }}
+            width={isMobile ? 50 : 65}
             label={{ 
-              value: 'Temperatur (°C)', 
+              value: isMobile ? 'Temp. (°C)' : 'Temperatur (°C)', 
               angle: 90, 
               position: 'insideRight',
-              offset: -5,
+              offset: -10,
               style: { textAnchor: 'middle', fontSize: isMobile ? 10 : 12 }
             }}
           />
@@ -360,14 +361,14 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
             yAxisId="pressure"
             orientation="right"
             domain={['dataMin - 5', 'dataMax + 5']}
-            tick={{ fontSize: isMobile ? 8 : 10 }}
-            width={60}
+            tick={{ fontSize: isMobile ? 10 : 12 }}
+            width={isMobile ? 50 : 65}
             label={{ 
-              value: 'Luftdruck (mb)', 
+              value: isMobile ? 'Druck (mb)' : 'Luftdruck (mb)', 
               angle: 90, 
               position: 'insideRight',
-              offset: 10,
-              style: { textAnchor: 'middle', fontSize: isMobile ? 8 : 10 }
+              offset: 25,
+              style: { textAnchor: 'middle', fontSize: isMobile ? 10 : 12 }
             }}
           />
           
