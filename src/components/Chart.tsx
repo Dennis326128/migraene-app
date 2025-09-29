@@ -41,7 +41,14 @@ export default function ChartComponent({ entries, dateRange }: Props) {
   const data = useMemo(() => {
     // Use weather timeline data if available, otherwise fall back to entry data
     if (weatherTimeline && weatherTimeline.length > 0) {
-      return weatherTimeline.map(point => ({
+      // Sort weather timeline data chronologically (oldest to newest)
+      const sortedTimeline = [...weatherTimeline].sort((a, b) => {
+        const dateA = new Date(`${a.date} ${a.time || '00:00'}`);
+        const dateB = new Date(`${b.date} ${b.time || '00:00'}`);
+        return dateA.getTime() - dateB.getTime();
+      });
+      
+      return sortedTimeline.map(point => ({
         label: point.time ? `${point.date} ${point.time}` : point.date,
         pain: point.pain_level || null,
         pressure: point.pressure_mb || null,
@@ -57,7 +64,12 @@ export default function ChartComponent({ entries, dateRange }: Props) {
     }
 
     // Fallback to original entry-based processing
-    const processedData = (entries || []).map(e => {
+    // Sort entries chronologically by timestamp_created (oldest to newest)
+    const sortedEntries = [...(entries || [])].sort((a, b) => {
+      return new Date(a.timestamp_created).getTime() - new Date(b.timestamp_created).getTime();
+    });
+    
+    const processedData = sortedEntries.map(e => {
       const weather = e.weather;
       return {
         label: toLabel(e),
@@ -77,7 +89,9 @@ export default function ChartComponent({ entries, dateRange }: Props) {
     console.log('📊 Chart processed data:', {
       processedCount: processedData.length,
       sampleData: processedData.slice(0, 3),
-      painLevels: processedData.map(d => d.pain)
+      painLevels: processedData.map(d => d.pain),
+      chronological: processedData.length > 1 ? 
+        `${processedData[0].label} → ${processedData[processedData.length - 1].label}` : 'single point'
     });
 
     return processedData;

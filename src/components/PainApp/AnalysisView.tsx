@@ -412,37 +412,37 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
                 </p>
                 <div className="flex flex-wrap gap-2 mt-4">
                   <Button
-                    variant={timeRange === "30days" ? "default" : "outline"}
+                    variant={timeRange === "30d" ? "default" : "outline"}
                     size="sm"
-                    onClick={() => setTimeRange("30days")}
+                    onClick={() => setTimeRange("30d")}
                   >
                     30 Tage
                   </Button>
                   <Button
-                    variant={timeRange === "3months" ? "default" : "outline"}
+                    variant={timeRange === "3m" ? "default" : "outline"}
                     size="sm"
-                    onClick={() => setTimeRange("3months")}
+                    onClick={() => setTimeRange("3m")}
                   >
                     3 Monate
                   </Button>
                   <Button
-                    variant={timeRange === "6months" ? "default" : "outline"}
+                    variant={timeRange === "6m" ? "default" : "outline"}
                     size="sm"
-                    onClick={() => setTimeRange("6months")}
+                    onClick={() => setTimeRange("6m")}
                   >
                     6 Monate
                   </Button>
                   <Button
-                    variant={timeRange === "12months" ? "default" : "outline"}
+                    variant={timeRange === "1y" ? "default" : "outline"}
                     size="sm"
-                    onClick={() => setTimeRange("12months")}
+                    onClick={() => setTimeRange("1y")}
                   >
                     12 Monate
                   </Button>
                   <Button
-                    variant={timeRange === "all" ? "default" : "outline"}
+                    variant={timeRange === "alle" ? "default" : "outline"}
                     size="sm"
-                    onClick={() => setTimeRange("all")}
+                    onClick={() => setTimeRange("alle")}
                   >
                     Alle
                   </Button>
