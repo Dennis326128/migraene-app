@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, FileText, BarChart3, Activity, Calendar, BookOpen, Database, Badge } from "lucide-react";
 // Import fix for DiaryReport default export
 import DiaryReport from "./DiaryReport";
-import ChartComponent from "@/components/Chart";
+import TimeSeriesChart from "@/components/TimeSeriesChart";
 import { useEntries } from "@/features/entries/hooks/useEntries";
 import { useSystemStatus } from "@/hooks/useCompatibleEntries";
 import { useDeleteEntry } from "@/features/entries/hooks/useEntryMutations";
@@ -363,9 +363,9 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
                     </p>
                   </CardHeader>
                   <CardContent>
-                    <div className="h-80">
-                      <ChartComponent entries={entries} dateRange={{ from, to }} />
-                    </div>
+                     <div className="h-80">
+                       <TimeSeriesChart entries={entries} dateRange={{ from, to }} />
+                     </div>
                   </CardContent>
                 </Card>
               </div>
@@ -493,11 +493,10 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
                 </div>
               </CardHeader>
               <CardContent>
-                <ChartComponent 
+                <TimeSeriesChart 
                   key={`${timeRange}-${from}-${to}`}
                   entries={entries} 
-                  dateRange={{ from, to }} 
-                  timeRange={timeRange}
+                  dateRange={{ from, to }}
                 />
               </CardContent>
             </Card>
