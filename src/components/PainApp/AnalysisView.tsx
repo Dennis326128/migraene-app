@@ -91,8 +91,8 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
     }
   }, [timeRange, customFrom, customTo]);
 
-  // Use direct entries hook to get ALL data reliably
-  const { data: entries = [], isLoading, error, refetch } = useEntries(from && to ? { from, to } : {});
+  // Load ALL entries without date filtering - let Chart component handle filtering
+  const { data: entries = [], isLoading, error, refetch } = useEntries();
   
   // Debug logging for AnalysisView
   console.log('📈 AnalysisView received data:', {

@@ -1,145 +1,199 @@
 import React, { useMemo, useState } from "react";
-import type { PainEntry } from "@/types/painApp";
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from "recharts";
-import { mapTextLevelToScore } from "@/lib/utils/pain";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, Legend } from "recharts";
 import { useWeatherTimeline } from "@/features/weather/hooks/useWeatherTimeline";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { MigraineEntry } from "@/types/painApp";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 
-type Props = { 
-  entries: PainEntry[];
-  dateRange?: { from?: string; to?: string };
+interface Props {
+  entries: MigraineEntry[];
+  dateRange?: {
+    from?: string;
+    to?: string;
+  };
+}
+
+// Helper function to convert pain level to numeric score
+const painLevelToScore = (level: string): number => {
+  switch (level) {
+    case "leicht": return 2;
+    case "mittel": return 5;
+    case "stark": return 7;
+    case "sehr_stark": return 9;
+    default: return 0;
+  }
 };
 
-function toLabel(e: PainEntry) {
-  if (e.selected_date && e.selected_time) return `${e.selected_date} ${e.selected_time}`;
-  const d = new Date(e.timestamp_created);
-  return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }) + " " + d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
-}
+// Helper function to format date for chart labels
+const formatDateLabel = (dateStr: string, timeRange: string): string => {
+  const date = new Date(dateStr);
+  
+  // For timeRanges longer than 1 month, show only date
+  if (timeRange === "3m" || timeRange === "6m" || timeRange === "1y") {
+    return date.toLocaleDateString('de-DE', { 
+      day: '2-digit', 
+      month: '2-digit' 
+    });
+  }
+  
+  // For shorter timeRanges, show date and time
+  return date.toLocaleDateString('de-DE', { 
+    day: '2-digit', 
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+};
 
 export default function ChartComponent({ entries, dateRange }: Props) {
   const isMobile = useIsMobile();
   const [showPassiveWeather, setShowPassiveWeather] = useState(true);
-  
-  // Use weather timeline API when date range is available
-  const { data: weatherTimeline, isLoading: weatherLoading } = useWeatherTimeline(
+
+  // Determine time range for label formatting
+  const timeRangeType = useMemo(() => {
+    if (!dateRange?.from || !dateRange?.to) return "alle";
+    
+    const fromDate = new Date(dateRange.from);
+    const toDate = new Date(dateRange.to);
+    const diffDays = Math.abs((toDate.getTime() - fromDate.getTime()) / (1000 * 3600 * 24));
+    
+    if (diffDays <= 7) return "7d";
+    if (diffDays <= 30) return "30d";
+    if (diffDays <= 90) return "3m";
+    if (diffDays <= 180) return "6m";
+    if (diffDays <= 365) return "1y";
+    return "alle";
+  }, [dateRange]);
+
+  // Filter entries based on dateRange
+  const filteredEntries = useMemo(() => {
+    if (!dateRange?.from && !dateRange?.to) {
+      return entries || [];
+    }
+    
+    return (entries || []).filter(entry => {
+      const entryDate = entry.selected_date || new Date(entry.timestamp_created).toISOString().split('T')[0];
+      
+      if (dateRange.from && entryDate < dateRange.from) return false;
+      if (dateRange.to && entryDate > dateRange.to) return false;
+      
+      return true;
+    });
+  }, [entries, dateRange]);
+
+  console.log('📊 Chart data processing:', {
+    originalCount: entries?.length || 0,
+    filteredCount: filteredEntries.length,
+    dateRange,
+    timeRangeType,
+    sampleEntry: filteredEntries[0]
+  });
+
+  // Get weather timeline data for the filtered date range
+  const { data: weatherTimeline = [] } = useWeatherTimeline(
     dateRange?.from,
     dateRange?.to,
     showPassiveWeather
   );
-  
-  // Debug logging to see what data we receive
-  console.log('📊 Chart component received:', {
-    entriesCount: entries?.length || 0,
-    firstEntry: entries?.[0],
-    lastEntry: entries?.[entries?.length - 1],
-    isMobile
-  });
 
-  const data = useMemo(() => {
-    // Filter entries based on dateRange if provided
-    let filteredEntries = entries || [];
-    
-    if (dateRange?.from || dateRange?.to) {
-      filteredEntries = entries?.filter(entry => {
-        const entryDate = entry.selected_date || new Date(entry.timestamp_created).toISOString().split('T')[0];
-        
-        if (dateRange.from && entryDate < dateRange.from) return false;
-        if (dateRange.to && entryDate > dateRange.to) return false;
-        
-        return true;
-      }) || [];
-      
-      console.log('📊 Date range filtering:', {
-        originalCount: entries?.length || 0,
-        filteredCount: filteredEntries.length,
-        dateRange,
-        sampleFilteredEntry: filteredEntries[0]?.selected_date || filteredEntries[0]?.timestamp_created
-      });
-    }
+  // Process chart data
+  const chartData = useMemo(() => {
+    if (!filteredEntries.length) return [];
 
-    // Use weather timeline data if available, otherwise fall back to entry data
-    if (weatherTimeline && weatherTimeline.length > 0) {
-      // Sort weather timeline data chronologically (oldest to newest)
-      const sortedTimeline = [...weatherTimeline].sort((a, b) => {
-        const dateA = new Date(`${a.date} ${a.time || '00:00'}`);
-        const dateB = new Date(`${b.date} ${b.time || '00:00'}`);
-        return dateA.getTime() - dateB.getTime();
-      });
-      
-      return sortedTimeline.map(point => ({
-        label: point.time ? `${point.date} ${point.time}` : point.date,
-        pain: point.pain_level || null,
-        pressure: point.pressure_mb || null,
-        temperature: point.temperature_c || null,
-        humidity: point.humidity || null,
-        weatherRisk: point.pressure_mb ? 
-          (point.pressure_mb < 1000 ? 'Niedrigdruck' : 
-           point.pressure_mb > 1020 ? 'Hochdruck' : 'Normal') : null,
-        hasWeather: !!(point.pressure_mb || point.temperature_c),
-        hasEntry: point.has_pain_entry,
-        source: point.source
-      }));
-    }
-
-    // Fallback to original entry-based processing with filtered entries
-    // Sort entries chronologically by timestamp_created (oldest to newest)
+    // Sort entries chronologically (oldest to newest for left-to-right display)
     const sortedEntries = [...filteredEntries].sort((a, b) => {
-      return new Date(a.timestamp_created).getTime() - new Date(b.timestamp_created).getTime();
+      const aTime = new Date(a.selected_date ? 
+        `${a.selected_date}T${a.selected_time || '12:00'}` : 
+        a.timestamp_created
+      ).getTime();
+      const bTime = new Date(b.selected_date ? 
+        `${b.selected_date}T${b.selected_time || '12:00'}` : 
+        b.timestamp_created
+      ).getTime();
+      return aTime - bTime;
     });
-    
-    const processedData = sortedEntries.map(e => {
-      const weather = e.weather;
+
+    // Create a map of weather data by date for quick lookup
+    const weatherMap = new Map();
+    weatherTimeline.forEach(weather => {
+      const dateKey = weather.date;
+      if (dateKey) {
+        weatherMap.set(dateKey, weather);
+      }
+    });
+
+    // Process entries into chart data points
+    const data = sortedEntries.map(entry => {
+      const entryDate = entry.selected_date || new Date(entry.timestamp_created).toISOString().split('T')[0];
+      const entryTime = entry.selected_time || new Date(entry.timestamp_created).toTimeString().slice(0, 5);
+      const entryDateTime = `${entryDate}T${entryTime}`;
+      
+      // Get weather data for this entry's date
+      const weather = weatherMap.get(entryDate) || entry.weather;
+      
       return {
-        label: toLabel(e),
-        pain: mapTextLevelToScore(e.pain_level),
-        pressure: weather?.pressure_mb ?? null,
-        temperature: weather?.temperature_c ?? null,
-        humidity: weather?.humidity ?? null,
-        weatherRisk: weather?.pressure_mb ? 
-          (weather.pressure_mb < 1000 ? 'Niedrigdruck' : 
-           weather.pressure_mb > 1020 ? 'Hochdruck' : 'Normal') : null,
-        hasWeather: !!weather?.pressure_mb,
-        hasEntry: true,
-        source: 'entry'
+        date: entryDateTime,
+        label: formatDateLabel(entryDateTime, timeRangeType),
+        pain: painLevelToScore(entry.pain_level),
+        painLevel: entry.pain_level,
+        pressure: weather?.pressure_mb || null,
+        temperature: weather?.temperature_c || null,
+        aura: entry.aura_type,
+        location: entry.pain_location,
+        medications: entry.medications?.length || 0,
+        hasWeather: !!weather,
+        notes: entry.notes
       };
     });
 
-    console.log('📊 Chart processed data:', {
-      processedCount: processedData.length,
-      sampleData: processedData.slice(0, 3),
-      painLevels: processedData.map(d => d.pain),
-      chronological: processedData.length > 1 ? 
-        `${processedData[0].label} → ${processedData[processedData.length - 1].label}` : 'single point'
+    console.log('📊 Processed chart data:', {
+      dataPoints: data.length,
+      withWeather: data.filter(d => d.hasWeather).length,
+      dateRange: data.length > 0 ? {
+        first: data[0].label,
+        last: data[data.length - 1].label
+      } : null
     });
 
-    return processedData;
-  }, [entries, weatherTimeline, dateRange]);
+    return data;
+  }, [filteredEntries, weatherTimeline, timeRangeType]);
 
   // Calculate weather correlation
   const weatherCorrelation = useMemo(() => {
-    const withWeather = data.filter(d => d.hasWeather && d.pressure !== null);
-    if (withWeather.length < 2) return null;
-
-    const lowPressureEntries = withWeather.filter(d => d.pressure! < 1000);
-    const normalPressureEntries = withWeather.filter(d => d.pressure! >= 1000 && d.pressure! <= 1020);
-    const highPressureEntries = withWeather.filter(d => d.pressure! > 1020);
+    const dataWithWeather = chartData.filter(d => d.pressure != null);
+    if (dataWithWeather.length < 3) return null;
 
     const avgPainByPressure = {
-      niedrig: lowPressureEntries.length > 0 ? 
-        lowPressureEntries.reduce((sum, d) => sum + d.pain, 0) / lowPressureEntries.length : 0,
-      normal: normalPressureEntries.length > 0 ? 
-        normalPressureEntries.reduce((sum, d) => sum + d.pain, 0) / normalPressureEntries.length : 0,
-      hoch: highPressureEntries.length > 0 ? 
-        highPressureEntries.reduce((sum, d) => sum + d.pain, 0) / highPressureEntries.length : 0
+      low: { pain: 0, count: 0 },
+      normal: { pain: 0, count: 0 },
+      high: { pain: 0, count: 0 }
     };
 
-    return avgPainByPressure;
-  }, [data]);
+    dataWithWeather.forEach(d => {
+      if (d.pressure! < 1005) {
+        avgPainByPressure.low.pain += d.pain;
+        avgPainByPressure.low.count++;
+      } else if (d.pressure! > 1020) {
+        avgPainByPressure.high.pain += d.pain;
+        avgPainByPressure.high.count++;
+      } else {
+        avgPainByPressure.normal.pain += d.pain;
+        avgPainByPressure.normal.count++;
+      }
+    });
 
-  if (!data.length) {
+    // Calculate averages
+    Object.keys(avgPainByPressure).forEach(key => {
+      const category = avgPainByPressure[key as keyof typeof avgPainByPressure];
+      category.pain = category.count > 0 ? category.pain / category.count : 0;
+    });
+
+    return avgPainByPressure;
+  }, [chartData]);
+
+  // Show empty state if no data
+  if (!chartData.length) {
     const hasDateRange = dateRange?.from || dateRange?.to;
     const totalEntries = entries?.length || 0;
     
@@ -162,201 +216,145 @@ export default function ChartComponent({ entries, dateRange }: Props) {
     );
   }
 
-  // Calculate data availability
-  const dataAvailability = useMemo(() => {
-    const totalEntries = data.length;
-    const entriesWithWeather = data.filter(d => d.hasWeather).length;
-    const weatherPercentage = totalEntries > 0 ? (entriesWithWeather / totalEntries) * 100 : 0;
+  // Calculate data quality metrics
+  const dataQuality = useMemo(() => {
+    const withWeather = chartData.filter(d => d.hasWeather).length;
+    const weatherPercentage = chartData.length > 0 ? Math.round((withWeather / chartData.length) * 100) : 0;
     
     return {
-      totalEntries,
-      entriesWithWeather,
-      weatherPercentage: Math.round(weatherPercentage)
+      total: chartData.length,
+      withWeather,
+      weatherPercentage
     };
-  }, [data]);
+  }, [chartData]);
+
+  const hasWeatherData = chartData.some(d => d.pressure != null);
 
   return (
-    <div className="w-full space-y-4">
-      {/* Weather Data Toggle */}
-      {dateRange?.from && dateRange?.to && (
-        <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="passive-weather"
-              checked={showPassiveWeather}
-              onCheckedChange={setShowPassiveWeather}
-            />
-            <Label htmlFor="passive-weather" className="text-sm">
-              Alle Wetterdaten anzeigen
-            </Label>
-          </div>
-          <div className="text-xs text-muted-foreground">
-            {showPassiveWeather ? 'Zeigt Entry + passive Wetterdaten' : 'Nur Entry-Wetterdaten'}
-          </div>
+    <div className="space-y-4">
+      {/* Data Quality & Weather Toggle */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 text-sm text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-4">
+          <Badge variant="outline">
+            {chartData.length} Einträge
+          </Badge>
+          {hasWeatherData && (
+            <Badge variant="outline">
+              {dataQuality.weatherPercentage}% mit Wetter
+            </Badge>
+          )}
         </div>
-      )}
-
-      {/* Data Quality Indicator */}
-      <div className="bg-muted/50 p-3 rounded-lg">
-        <div className="flex items-center justify-between text-xs">
-          <div className="flex items-center gap-2">
-            <span className="text-sm">📊</span>
-            <span>
-              <strong>{data.filter(d => d.hasEntry).length}</strong> Schmerzeinträge
-              {weatherTimeline && (
-                <span className="ml-2 text-muted-foreground">
-                  ({data.length} Datenpunkte gesamt)
-                </span>
-              )}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm">🌤️</span>
-            <span>
-              <strong>{dataAvailability.entriesWithWeather}</strong> mit Wetterdaten ({dataAvailability.weatherPercentage}%)
-            </span>
-          </div>
-        </div>
+        
+        {hasWeatherData && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowPassiveWeather(!showPassiveWeather)}
+            className="text-xs"
+          >
+            {showPassiveWeather ? "Nur aktive Wetterdaten" : "Auch passive Wetterdaten"}
+          </Button>
+        )}
       </div>
 
       {/* Weather Correlation Summary */}
       {weatherCorrelation && (
-        <div className="bg-muted/50 p-3 rounded-lg">
-          <h4 className="text-sm font-medium mb-2">🌤️ Wetter-Korrelation</h4>
+        <div className="bg-muted/50 p-3 rounded-lg text-sm">
+          <div className="font-medium mb-2">Wetterkorrelation (Luftdruck):</div>
           <div className="grid grid-cols-3 gap-2 text-xs">
-            <div className="text-center">
-              <div className="font-medium text-blue-600">Niedrigdruck</div>
-              <div>{weatherCorrelation.niedrig.toFixed(1)}/10</div>
-            </div>
-            <div className="text-center">
-              <div className="font-medium text-green-600">Normaldruck</div>
-              <div>{weatherCorrelation.normal.toFixed(1)}/10</div>
-            </div>
-            <div className="text-center">
-              <div className="font-medium text-orange-600">Hochdruck</div>
-              <div>{weatherCorrelation.hoch.toFixed(1)}/10</div>
-            </div>
+            <div>Tiefdruck (&lt;1005mb): Ø {weatherCorrelation.low.pain.toFixed(1)}/10 ({weatherCorrelation.low.count}x)</div>
+            <div>Normal (1005-1020mb): Ø {weatherCorrelation.normal.pain.toFixed(1)}/10 ({weatherCorrelation.normal.count}x)</div>
+            <div>Hochdruck (&gt;1020mb): Ø {weatherCorrelation.high.pain.toFixed(1)}/10 ({weatherCorrelation.high.count}x)</div>
           </div>
         </div>
       )}
 
-      <div className="w-full" style={{ height: isMobile ? "250px" : "min(70vh, 400px)" }}>
-        <ResponsiveContainer>
-          <LineChart 
-            data={data} 
-            margin={{ 
-              top: 10, 
-              right: isMobile ? 8 : 24, 
-              left: isMobile ? 4 : 16, 
-              bottom: isMobile ? 50 : 10 
+      {/* Chart */}
+      <div className="h-80">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart
+            data={chartData}
+            margin={{
+              top: 5,
+              right: isMobile ? 10 : 30,
+              left: isMobile ? 10 : 20,
+              bottom: isMobile ? 20 : 5,
             }}
           >
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
-            <XAxis 
-              dataKey="label" 
-              tick={{ fontSize: isMobile ? 8 : 10 }} 
-              interval={isMobile ? Math.max(Math.floor(data.length / 4), 1) : "preserveStartEnd"}
-              angle={isMobile ? -60 : 0}
+            <XAxis
+              dataKey="label"
+              tick={{ fontSize: isMobile ? 10 : 12 }}
+              angle={isMobile ? -45 : 0}
               textAnchor={isMobile ? "end" : "middle"}
               height={isMobile ? 60 : 30}
+              interval="preserveStartEnd"
             />
-            <YAxis 
-              yAxisId="pain" 
-              domain={[0, 10]} 
-              tick={{ fontSize: isMobile ? 8 : 10 }} 
-              label={{ 
-                value: isMobile ? "Pain" : "Schmerz (0-10)", 
-                angle: -90, 
-                position: "insideLeft",
-                style: { textAnchor: 'middle', fontSize: isMobile ? 10 : 12 }
-              }} 
+            <YAxis
+              yAxisId="pain"
+              orientation="left"
+              domain={[0, 10]}
+              tick={{ fontSize: isMobile ? 10 : 12 }}
+              label={!isMobile ? { value: 'Schmerzstärke', angle: -90, position: 'insideLeft' } : undefined}
             />
-            <YAxis 
-              yAxisId="pressure" 
-              orientation="right" 
-              domain={[950, 1050]}
-              tick={{ fontSize: isMobile ? 8 : 10 }} 
-              label={{ 
-                value: "hPa", 
-                angle: 90, 
-                position: "insideRight",
-                style: { textAnchor: 'middle', fontSize: isMobile ? 10 : 12 }
-              }} 
-            />
-            <Tooltip 
-              contentStyle={{
-                backgroundColor: 'hsl(var(--background))',
-                border: '1px solid hsl(var(--border))',
-                borderRadius: '8px',
-                boxShadow: '0 4px 12px hsl(var(--background) / 0.1)',
-                fontSize: isMobile ? '11px' : '14px',
-                padding: isMobile ? '8px' : '12px',
-                minWidth: isMobile ? '120px' : 'auto'
-              }}
-              formatter={(value, name) => {
-                if (name === 'pain') return [`${value}/10`, 'Schmerzlevel'];
-                if (name === 'pressure') return [`${value} hPa`, 'Luftdruck'];
-                if (name === 'temperature') return [`${value}°C`, 'Temperatur'];
-                if (name === 'humidity') return [`${value}%`, 'Luftfeuchtigkeit'];
-                return [value, name];
-              }}
-            />
-            <Legend 
-              wrapperStyle={{ 
-                fontSize: isMobile ? '11px' : '14px',
-                paddingTop: isMobile ? '8px' : '4px'
-              }}
-            />
-            <Line 
-              yAxisId="pain" 
-              type="monotone" 
-              dataKey="pain" 
-              name="Schmerz" 
-              dot={(props) => {
-                const { cx, cy, payload } = props;
-                if (!payload?.hasEntry) return null;
+            {hasWeatherData && (
+              <YAxis
+                yAxisId="pressure"
+                orientation="right"
+                domain={['dataMin - 5', 'dataMax + 5']}
+                tick={{ fontSize: isMobile ? 10 : 12 }}
+                label={!isMobile ? { value: 'Luftdruck (mb)', angle: 90, position: 'insideRight' } : undefined}
+              />
+            )}
+            <Tooltip
+              content={({ active, payload, label }) => {
+                if (!active || !payload || !payload.length) return null;
+                const data = payload[0].payload;
                 return (
-                  <circle 
-                    cx={cx} 
-                    cy={cy} 
-                    r={isMobile ? 3 : 4} 
-                    fill="hsl(var(--destructive))" 
-                    strokeWidth={2}
-                    stroke="hsl(var(--background))"
-                  />
+                  <div className="bg-background border border-border p-3 rounded-lg shadow-lg">
+                    <p className="font-medium">{label}</p>
+                    <p className="text-sm">
+                      <span className="text-blue-500">●</span> Schmerz: {data.pain}/10 ({data.painLevel})
+                    </p>
+                    {data.aura && <p className="text-xs">Aura: {data.aura}</p>}
+                    {data.location && <p className="text-xs">Ort: {data.location}</p>}
+                    {data.medications > 0 && <p className="text-xs">Medikamente: {data.medications}</p>}
+                    {data.pressure && (
+                      <p className="text-sm">
+                        <span className="text-orange-500">●</span> Luftdruck: {data.pressure}mb
+                      </p>
+                    )}
+                    {data.temperature && <p className="text-xs">Temperatur: {data.temperature}°C</p>}
+                    {data.notes && <p className="text-xs mt-1 italic">"{data.notes}"</p>}
+                  </div>
                 );
               }}
-              strokeWidth={isMobile ? 3 : 3}
-              stroke="hsl(var(--destructive))"
-              connectNulls={false}
             />
-            {dataAvailability.entriesWithWeather > 0 && (
-              <Line 
-                yAxisId="pressure" 
-                type="monotone" 
-                dataKey="pressure" 
-                name="Luftdruck" 
-                dot={(props) => {
-                  const { cx, cy, payload } = props;
-                  // Only show dots when pressure data exists
-                  if (payload?.pressure == null) return null;
-                  const dotSize = payload?.hasEntry ? (isMobile ? 2 : 3) : (isMobile ? 1 : 1.5);
-                  const opacity = payload?.hasEntry ? 1 : 0.6;
-                  return (
-                    <circle 
-                      cx={cx} 
-                      cy={cy} 
-                      r={dotSize} 
-                      fill="hsl(var(--primary))" 
-                      strokeWidth={1}
-                      opacity={opacity}
-                    />
-                  );
-                }}
-                strokeWidth={isMobile ? 1.5 : 1}
-                stroke="hsl(var(--primary))"
+            <Legend />
+            
+            {/* Pain Level Line */}
+            <Line
+              yAxisId="pain"
+              type="monotone"
+              dataKey="pain"
+              stroke="hsl(var(--primary))"
+              strokeWidth={2}
+              dot={{ r: 4, fill: "hsl(var(--primary))" }}
+              connectNulls={false}
+              name="Schmerzstärke"
+            />
+            
+            {/* Pressure Line */}
+            {hasWeatherData && (
+              <Line
+                yAxisId="pressure"
+                type="monotone"
+                dataKey="pressure"
+                stroke="hsl(var(--destructive))"
+                strokeWidth={1}
+                dot={{ r: 2, fill: "hsl(var(--destructive))" }}
                 connectNulls={false}
-                strokeDasharray={showPassiveWeather ? "0" : "5 5"}
+                name="Luftdruck (mb)"
+                strokeDasharray="3 3"
               />
             )}
           </LineChart>
