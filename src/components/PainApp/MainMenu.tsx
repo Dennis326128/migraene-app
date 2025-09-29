@@ -97,7 +97,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         <div className="space-y-4 sm:space-y-6 w-full max-w-md px-2 sm:px-0">
           {/* New Entry Button */}
           <MobileOptimizedCard 
-            variant="interactive" 
+            variant="success" 
             touchFeedback 
             onClick={onNewEntry}
             className="cursor-pointer"
@@ -112,7 +112,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           {/* Quick Entry Button - Desktop */}
           {!isMobile && (
             <MobileOptimizedCard 
-              variant="interactive" 
+              variant="quick" 
               touchFeedback 
               onClick={() => setShowQuickEntry(true)}
               className="cursor-pointer"
