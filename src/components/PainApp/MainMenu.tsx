@@ -5,7 +5,7 @@ import { LogoutButton } from "@/components/LogoutButton";
 import { WelcomeModal } from "./WelcomeModal";
 import { QuickEntryModal } from "./QuickEntryModal";
 import { FloatingActionButton } from "@/components/ui/floating-action-button";
-import { MobileOptimizedCard, MobileCardHeader, MobileButtonGrid } from "@/components/ui/mobile-optimized-card";
+import { StartPageCard, StartPageCardHeader, StartPageButtonGrid } from "@/components/ui/start-page-card";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 import { useOnboarding } from "@/hooks/useOnboarding";
@@ -95,115 +95,109 @@ export const MainMenu: React.FC<MainMenuProps> = ({
 
         <div className="space-y-4 sm:space-y-6 w-full max-w-md px-2 sm:px-0">
           {/* New Entry Button */}
-          <MobileOptimizedCard 
+          <StartPageCard 
             variant="success" 
             touchFeedback 
             onClick={onNewEntry}
-            className="cursor-pointer"
           >
-            <MobileCardHeader
+            <StartPageCardHeader
               icon="➕"
               title="Neuer Eintrag"
               subtitle="Detaillierte Migräne-Dokumentation"
             />
-          </MobileOptimizedCard>
+          </StartPageCard>
 
           {/* Quick Entry Button - Desktop */}
           {!isMobile && (
-            <MobileOptimizedCard 
+            <StartPageCard 
               variant="quick" 
               touchFeedback 
               onClick={() => setShowQuickEntry(true)}
-              className="cursor-pointer"
             >
-              <MobileCardHeader
+              <StartPageCardHeader
                 icon="🔴"
                 title="Schnelleintrag"
                 subtitle="Sofortige Migräne-Erfassung"
               />
-            </MobileOptimizedCard>
+            </StartPageCard>
           )}
 
           {/* Voice Entry Button */}
-          <MobileOptimizedCard 
-            variant="interactive" 
+          <StartPageCard 
+            variant="voice" 
             touchFeedback 
             onClick={handleVoiceEntry}
-            className={`cursor-pointer ${voiceTrigger.isListening ? 'ring-2 ring-success animate-pulse' : ''}`}
+            className={voiceTrigger.isListening ? 'ring-2 ring-blue-400 animate-pulse' : ''}
           >
-            <MobileCardHeader
+            <StartPageCardHeader
               icon={voiceTrigger.isListening ? '🔴' : '🎙️'}
               title={getVoiceButtonTitle()}
               subtitle={getVoiceButtonSubtitle()}
             />
-          </MobileOptimizedCard>
+          </StartPageCard>
 
           {/* Secondary Actions Grid */}
-          <MobileButtonGrid columns={2} gap="md">
+          <StartPageButtonGrid columns={2} gap="md">
             {/* Medication Overview */}
-            <MobileOptimizedCard 
+            <StartPageCard 
               variant="warning" 
               touchFeedback 
               onClick={() => onNavigate?.('medication-overview')}
-              className="cursor-pointer"
             >
               <div className="text-center space-y-2">
                 <div className="text-2xl">💊</div>
                 <div>
                   <h4 className="font-semibold text-sm">Medikamente</h4>
-                  <p className="text-xs text-muted-foreground">Wirkung</p>
+                  <p className="text-xs opacity-75">Wirkung</p>
                 </div>
               </div>
-            </MobileOptimizedCard>
+            </StartPageCard>
 
             {/* View Entries */}
-            <MobileOptimizedCard 
-              variant="interactive" 
+            <StartPageCard 
+              variant="neutral" 
               touchFeedback 
               onClick={onViewEntries}
-              className="cursor-pointer"
             >
               <div className="text-center space-y-2">
                 <div className="text-2xl">📋</div>
                 <div>
                   <h4 className="font-semibold text-sm">Verlauf</h4>
-                  <p className="text-xs text-muted-foreground">Einträge</p>
+                  <p className="text-xs opacity-75">Einträge</p>
                 </div>
               </div>
-            </MobileOptimizedCard>
+            </StartPageCard>
 
             {/* Analysis */}
-            <MobileOptimizedCard 
-              variant="interactive" 
+            <StartPageCard 
+              variant="neutral" 
               touchFeedback 
               onClick={onViewAnalysis}
-              className="cursor-pointer"
             >
               <div className="text-center space-y-2">
                 <div className="text-2xl">📊</div>
                 <div>
                   <h4 className="font-semibold text-sm">Auswertungen</h4>
-                  <p className="text-xs text-muted-foreground">Trends</p>
+                  <p className="text-xs opacity-75">Trends</p>
                 </div>
               </div>
-            </MobileOptimizedCard>
+            </StartPageCard>
 
             {/* Settings */}
-            <MobileOptimizedCard 
-              variant="interactive" 
+            <StartPageCard 
+              variant="neutral" 
               touchFeedback 
               onClick={onViewSettings}
-              className="cursor-pointer"
             >
               <div className="text-center space-y-2">
                 <div className="text-2xl">⚙️</div>
                 <div>
                   <h4 className="font-semibold text-sm">Einstellungen</h4>
-                  <p className="text-xs text-muted-foreground">Konfiguration</p>
+                  <p className="text-xs opacity-75">Konfiguration</p>
                 </div>
               </div>
-            </MobileOptimizedCard>
-          </MobileButtonGrid>
+            </StartPageCard>
+          </StartPageButtonGrid>
         </div>
 
         {/* Mobile-only Floating Action Button for Quick Entry */}
