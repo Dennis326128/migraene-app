@@ -69,7 +69,7 @@ const normalizePainLevel = (level: string | number | undefined | null): number |
 const chartConfig = {
   pain: {
     label: "Schmerz",
-    color: "hsl(var(--primary))",
+    color: "hsl(var(--chart-1))",
   },
   temperature: {
     label: "Temperatur",
@@ -370,7 +370,7 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
             dataKey="pain"
             stroke={chartConfig.pain.color}
             strokeWidth={2}
-            dot={{ r: 4, fill: chartConfig.pain.color }}
+            dot={{ r: 3, fill: chartConfig.pain.color }}
             connectNulls={false}
             isAnimationActive={false}
             name={chartConfig.pain.label}
@@ -382,9 +382,8 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
             type="monotone"
             dataKey="temperature"
             stroke={chartConfig.temperature.color}
-            strokeWidth={1}
-            strokeDasharray="5 5"
-            dot={{ r: 2, fill: chartConfig.temperature.color }}
+            strokeWidth={2}
+            dot={{ r: 3, fill: chartConfig.temperature.color }}
             connectNulls={false}
             isAnimationActive={false}
             name={chartConfig.temperature.label}
@@ -396,9 +395,8 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
             type="monotone"
             dataKey="pressure"
             stroke={chartConfig.pressure.color}
-            strokeWidth={1}
-            strokeDasharray="3 3"
-            dot={{ r: 2, fill: chartConfig.pressure.color }}
+            strokeWidth={2}
+            dot={{ r: 3, fill: chartConfig.pressure.color }}
             connectNulls={false}
             isAnimationActive={false}
             name={chartConfig.pressure.label}
