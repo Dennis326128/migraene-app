@@ -87,13 +87,15 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
   // Always use today as end date, ignore dateRange.to
   const endDate = useMemo(() => new Date(), []); // Always today
   
-  // Find earliest entry date to start chart from there
-  const startDate = useMemo(() => {
+  // X-axis should show full selected range
+  const startDate = useMemo(() => new Date(dateRange.from), [dateRange.from]);
+  
+  // Find earliest entry date for data filtering
+  const earliestEntryDate = useMemo(() => {
     if (!entries || entries.length === 0) {
-      return new Date(dateRange.from);
+      return null;
     }
     
-    // Find the earliest entry date
     const entryDates = entries
       .map(entry => {
         const entryDate = entry.selected_date || entry.timestamp_created?.split('T')[0];
@@ -102,15 +104,11 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
       .filter(date => date !== null) as Date[];
     
     if (entryDates.length === 0) {
-      return new Date(dateRange.from);
+      return null;
     }
     
-    const earliestEntryDate = new Date(Math.min(...entryDates.map(d => d.getTime())));
-    const rangeFromDate = new Date(dateRange.from);
-    
-    // Use the later of either the range start or the earliest entry
-    return earliestEntryDate > rangeFromDate ? earliestEntryDate : rangeFromDate;
-  }, [entries, dateRange.from]);
+    return new Date(Math.min(...entryDates.map(d => d.getTime())));
+  }, [entries]);
   
   // Fetch weather data for the range
   const { data: weatherData } = useWeatherTimeline(
@@ -236,16 +234,25 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
       const weather = weatherByDate.get(dateKey);
       
       // Calculate max pain level for the day
-      let maxPain: number = 0; // Default: no pain
-      if (dayEntries.length > 0) {
-        const painLevels = dayEntries
-          .map(entry => normalizePainLevel(entry.pain_level))
-          .filter(p => p !== null) as number[];
-        
-        if (painLevels.length > 0) {
-          maxPain = Math.max(...painLevels);
+      let maxPain: number | null = null;
+      
+      // Only show pain data from earliest entry date onwards
+      if (earliestEntryDate && day >= earliestEntryDate) {
+        if (dayEntries.length > 0) {
+          const painLevels = dayEntries
+            .map(entry => normalizePainLevel(entry.pain_level))
+            .filter(p => p !== null) as number[];
+          
+          if (painLevels.length > 0) {
+            maxPain = Math.max(...painLevels);
+          } else {
+            maxPain = 0; // Day with entry but no valid pain data
+          }
+        } else {
+          maxPain = 0; // No entries for this day after earliest entry date
         }
       }
+      // Before earliest entry: maxPain stays null
       
       return {
         date: format(day, 'dd.MM'),
