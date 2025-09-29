@@ -212,7 +212,7 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
       const weather = weatherByDate.get(dateKey);
       
       // Calculate max pain level for the day
-      let maxPain: number | null = null;
+      let maxPain: number = 0; // Default: no pain
       if (dayEntries.length > 0) {
         const painLevels = dayEntries
           .map(entry => normalizePainLevel(entry.pain_level))
@@ -371,7 +371,7 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
             stroke={chartConfig.pain.color}
             strokeWidth={2}
             dot={{ r: 3, fill: chartConfig.pain.color }}
-            connectNulls={true}
+            connectNulls={false}
             isAnimationActive={false}
             name={chartConfig.pain.label}
           />
