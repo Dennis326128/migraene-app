@@ -97,25 +97,71 @@ const PAIN_LEVEL_PATTERNS = [
   { pattern: /(leichte?|schwache?|geringe?).{0,30}(schmerz|migräne|kopfschmerz)/i, level: "leicht" },
 ];
 
-// Common medications with dosage patterns AND without dosage
-const MEDICATION_PATTERNS = [
-  // With dosage patterns (original)
+// Generate dynamic medication patterns from user's saved medications
+export function generateUserMedicationPatterns(userMeds: Array<{ name: string }> = []): Array<{ name: string; pattern: RegExp; noDosage?: boolean }> {
+  const patterns: Array<{ name: string; pattern: RegExp; noDosage?: boolean }> = [];
+  
+  console.log('🧬 Generating dynamic patterns for medications:', userMeds.map(m => m.name));
+  
+  userMeds.forEach(med => {
+    const medName = med.name.toLowerCase();
+    const medWords = medName.split(/\s+/);
+    const primaryName = medWords[0]; // First word (e.g., "sumatriptan" from "Sumatriptan 100mg")
+    
+    // Extract dosage if present
+    const dosageMatch = medName.match(/(\d+)\s*mg/);
+    const dosage = dosageMatch ? dosageMatch[1] : null;
+    
+    // Generate abbreviations
+    const abbreviations = [];
+    if (medName.includes('sumatriptan')) abbreviations.push('suma');
+    if (medName.includes('ibuprofen')) abbreviations.push('ibu');
+    if (medName.includes('aspirin')) abbreviations.push('ass');
+    if (medName.includes('paracetamol')) abbreviations.push('para');
+    if (medName.includes('rizatriptan')) abbreviations.push('riza');
+    if (medName.includes('almotriptan')) abbreviations.push('almo');
+    if (medName.includes('naratriptan')) abbreviations.push('nara');
+    
+    // Build pattern variants
+    const nameVariants = [primaryName, ...abbreviations];
+    const namePattern = nameVariants.join('|');
+    
+    // Pattern 1: With flexible dosage
+    if (dosage) {
+      const dosageVariants = [
+        dosage, // exact number
+        dosage.replace(/(\d)00$/, '$1 hundert'), // 800 -> 8 hundert
+        dosage.replace(/(\d)00$/, '$1hundert') // 800 -> 8hundert
+      ];
+      const dosagePattern = dosageVariants.join('|');
+      
+      const withDosagePattern = new RegExp(
+        `\\b(${namePattern})(?:\\s*(?:${dosagePattern})\\s*(?:mg|milligramm)?)?(?:\\s*(?:tablette|kapsel|genommen|eingenommen))?\\b`,
+        'i'
+      );
+      patterns.push({ name: med.name, pattern: withDosagePattern });
+    }
+    
+    // Pattern 2: Without dosage requirement
+    const noDosagePattern = new RegExp(
+      `\\b(${namePattern})(?:\\s*(?:tablette|kapsel|genommen|eingenommen))?\\b`,
+      'i'
+    );
+    patterns.push({ name: med.name, pattern: noDosagePattern, noDosage: true });
+  });
+  
+  console.log('🧬 Generated patterns:', patterns.map(p => ({ name: p.name, pattern: p.pattern.source })));
+  return patterns;
+}
+
+// Fallback patterns for common medications (when no user meds available)
+const FALLBACK_MEDICATION_PATTERNS = [
   { name: "Sumatriptan", pattern: /(sumatriptan|suma).{0,20}(\d{1,3})/i },
   { name: "Ibuprofen", pattern: /(ibuprofen|ibu).{0,20}(\d{1,4})/i },
   { name: "Aspirin", pattern: /(aspirin|ass).{0,20}(\d{1,4})/i },
   { name: "Paracetamol", pattern: /(paracetamol|para).{0,20}(\d{1,4})/i },
-  { name: "Rizatriptan", pattern: /(rizatriptan|riza).{0,20}(\d{1,3})/i },
-  { name: "Almotriptan", pattern: /(almotriptan|almo).{0,20}(\d{1,3})/i },
-  { name: "Naratriptan", pattern: /(naratriptan|nara).{0,20}(\d{1,3})/i },
-  
-  // Without dosage patterns - for "eine Sumatriptan Tablette" etc.
   { name: "Sumatriptan", pattern: /\b(sumatriptan|suma)\s*(tablette|kapsel)?\b/i, noDosage: true },
   { name: "Ibuprofen", pattern: /\b(ibuprofen|ibu)\s*(tablette|kapsel)?\b/i, noDosage: true },
-  { name: "Aspirin", pattern: /\b(aspirin|ass)\s*(tablette|kapsel)?\b/i, noDosage: true },
-  { name: "Paracetamol", pattern: /\b(paracetamol|para)\s*(tablette|kapsel)?\b/i, noDosage: true },
-  { name: "Rizatriptan", pattern: /\b(rizatriptan|riza)\s*(tablette|kapsel)?\b/i, noDosage: true },
-  { name: "Almotriptan", pattern: /\b(almotriptan|almo)\s*(tablette|kapsel)?\b/i, noDosage: true },
-  { name: "Naratriptan", pattern: /\b(naratriptan|nara)\s*(tablette|kapsel)?\b/i, noDosage: true }
 ];
 
 // Time patterns for German voice input  
@@ -325,26 +371,31 @@ function parseMedicationEffect(text: string): { rating: 'none' | 'poor' | 'moder
   return undefined;
 }
 
-function parseMedications(text: string): string[] {
+function parseMedications(text: string, userMeds: Array<{ name: string }> = []): string[] {
   const medications: string[] = [];
   
   console.log(`💊 [parseMedications] Input text: "${text}"`);
+  console.log(`💊 [parseMedications] User medications:`, userMeds.map(m => m.name));
   
-  for (const medPattern of MEDICATION_PATTERNS) {
+  // Use dynamic patterns if user medications are available
+  const patterns = userMeds.length > 0 
+    ? generateUserMedicationPatterns(userMeds)
+    : FALLBACK_MEDICATION_PATTERNS;
+  
+  for (const medPattern of patterns) {
     const match = text.match(medPattern.pattern);
     
     if (match) {
       let medName: string;
       
       if (medPattern.noDosage) {
-        // Pattern without dosage requirement
+        // Use the exact saved medication name
         medName = medPattern.name;
-        console.log(`💊 [parseMedications] Found medication without dosage: "${medName}" from pattern: ${medPattern.pattern}`);
+        console.log(`💊 [parseMedications] Found medication without dosage: "${medName}" from pattern: ${medPattern.pattern.source}`);
       } else {
-        // Pattern with dosage requirement  
-        const dosage = match[2];
-        medName = dosage ? `${medPattern.name} ${dosage} mg` : medPattern.name;
-        console.log(`💊 [parseMedications] Found medication with dosage: "${medName}" from pattern: ${medPattern.pattern}`);
+        // Try to preserve original name with dosage
+        medName = medPattern.name;
+        console.log(`💊 [parseMedications] Found medication with dosage: "${medName}" from pattern: ${medPattern.pattern.source}`);
       }
       
       // Avoid duplicates
@@ -358,7 +409,7 @@ function parseMedications(text: string): string[] {
   return medications;
 }
 
-function extractNotes(text: string, parsedTime: any, parsedPain: string, parsedMeds: string[]): string {
+function extractNotes(text: string, parsedTime: any, parsedPain: string, parsedMeds: string[], userMeds: Array<{ name: string }> = []): string {
   let cleanedText = text;
   
   // Remove recognized time expressions
@@ -371,8 +422,12 @@ function extractNotes(text: string, parsedTime: any, parsedPain: string, parsedM
     cleanedText = cleanedText.replace(painPattern.pattern, '');
   }
   
-  // Remove recognized medications
-  for (const medPattern of MEDICATION_PATTERNS) {
+  // Remove recognized medications using dynamic patterns
+  const patterns = userMeds.length > 0 
+    ? generateUserMedicationPatterns(userMeds)
+    : FALLBACK_MEDICATION_PATTERNS;
+    
+  for (const medPattern of patterns) {
     cleanedText = cleanedText.replace(medPattern.pattern, '');
   }
   
@@ -476,7 +531,7 @@ export function getMissingSlots(entry: ParsedVoiceEntry): ('time' | 'pain' | 'me
   return missing;
 }
 
-export function parseGermanVoiceEntry(text: string): ParsedVoiceEntry {
+export function parseGermanVoiceEntry(text: string, userMeds: Array<{ name: string }> = []): ParsedVoiceEntry {
   console.log('🎯 Parsing voice entry:', text);
   
   // Convert number words first

@@ -30,8 +30,8 @@ export function useVoiceTrigger(options: VoiceTriggerOptions = {}) {
     onTranscriptReady: (transcript: string) => {
       console.log('🎤 Voice transcript received:', transcript);
       
-      // Parse the German voice input
-      const parsed = parseGermanVoiceEntry(transcript);
+      // Parse the German voice input with user's saved medications
+      const parsed = parseGermanVoiceEntry(transcript, userMeds || []);
       console.log('🧠 Parsed voice data:', parsed);
       
       // Convert parsed data to QuickEntry format with dynamic meds
@@ -208,24 +208,33 @@ function convertToQuickEntryData(parsed: ParsedVoiceEntry, userMeds: any[] = [],
     });
   }
   
-  // FALLBACK: If no medications were found by parser, try direct text search
+  // Enhanced fallback: If parser didn't find medications, try broader text search
   if ((!parsed.medications || parsed.medications.length === 0) && originalText && userMeds.length > 0) {
-    console.log(`💊 Fallback: Parser found no medications, trying direct text search...`);
+    console.log(`💊 Enhanced Fallback: Parser found no medications, trying broader text search...`);
     
     userMeds.forEach(med => {
       const medNameLower = med.name.toLowerCase();
       const textLower = originalText.toLowerCase();
+      const firstWord = medNameLower.split(' ')[0];
       
-      // Check if medication name or common abbreviation appears in text
-      if (textLower.includes(medNameLower) || 
-          textLower.includes(medNameLower.split(' ')[0]) || // First word only
-          (medNameLower.includes('sumatriptan') && (textLower.includes('sumatriptan') || textLower.includes('suma'))) ||
-          (medNameLower.includes('ibuprofen') && (textLower.includes('ibuprofen') || textLower.includes('ibu'))) ||
-          (medNameLower.includes('aspirin') && (textLower.includes('aspirin') || textLower.includes('ass'))) ||
-          (medNameLower.includes('paracetamol') && (textLower.includes('paracetamol') || textLower.includes('para')))) {
-        
+      // More flexible matching including common speech patterns
+      const matchConditions = [
+        textLower.includes(medNameLower), // Full name
+        textLower.includes(firstWord), // First word only
+        textLower.includes('genommen') && textLower.includes(firstWord), // "X genommen"
+        textLower.includes('eingenommen') && textLower.includes(firstWord), // "X eingenommen"
+        // Common abbreviations
+        (firstWord.includes('sumatriptan') && (textLower.includes('suma') || textLower.includes('sumatriptan'))),
+        (firstWord.includes('ibuprofen') && (textLower.includes('ibu') || textLower.includes('ibuprofen'))),
+        (firstWord.includes('aspirin') && (textLower.includes('ass') || textLower.includes('aspirin'))),
+        (firstWord.includes('paracetamol') && (textLower.includes('para') || textLower.includes('paracetamol'))),
+        // Flexible dosage matching
+        (textLower.includes(firstWord.substring(0, 4)) && textLower.match(/\d+/)) // Partial name + any number
+      ];
+      
+      if (matchConditions.some(condition => condition)) {
         medicationStates[med.name] = true;
-        console.log(`💊 Fallback match: Found "${med.name}" in text "${originalText}"`);
+        console.log(`💊 Enhanced Fallback match: Found "${med.name}" in text "${originalText}"`);
       }
     });
   }
