@@ -301,6 +301,8 @@ export default function ChartComponent({ entries, dateRange }: Props) {
                 name="Luftdruck" 
                 dot={(props) => {
                   const { cx, cy, payload } = props;
+                  // Only show dots when pressure data exists
+                  if (payload?.pressure == null) return null;
                   const dotSize = payload?.hasEntry ? (isMobile ? 2 : 3) : (isMobile ? 1 : 1.5);
                   const opacity = payload?.hasEntry ? 1 : 0.6;
                   return (
@@ -316,7 +318,7 @@ export default function ChartComponent({ entries, dateRange }: Props) {
                 }}
                 strokeWidth={isMobile ? 1.5 : 1}
                 stroke="hsl(var(--primary))"
-                connectNulls={showPassiveWeather}
+                connectNulls={false}
                 strokeDasharray={showPassiveWeather ? "0" : "5 5"}
               />
             )}
