@@ -5,7 +5,8 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { MigraineEntry } from "@/types/painApp";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { addDays, format, parseISO, startOfDay, endOfDay, differenceInDays, isSameDay } from "date-fns";
+import { format, parseISO, differenceInDays, startOfDay, endOfDay } from "date-fns";
+import { buildDailySeries, generateTimeTicks, formatTimeAxisLabel, type DailySeriesPoint } from "@/lib/chartDataUtils";
 
 interface Props {
   entries: MigraineEntry[];
@@ -13,60 +14,6 @@ interface Props {
     from?: string;
     to?: string;
   };
-}
-
-// Helper function to convert pain level to numeric score
-const painLevelToScore = (level: string): number => {
-  switch (level) {
-    case "leicht": return 2;
-    case "mittel": return 5;
-    case "stark": return 7;
-    case "sehr_stark": return 9;
-    default: return 0;
-  }
-};
-
-// Generate continuous time axis from start to end date
-function generateTimeAxis(fromDate: string, toDate: string) {
-  const start = startOfDay(parseISO(fromDate));
-  const end = endOfDay(parseISO(toDate));
-  const daysDiff = differenceInDays(end, start);
-  
-  const timePoints = [];
-  let current = start;
-  
-  while (current <= end) {
-    const dateStr = format(current, 'yyyy-MM-dd');
-    timePoints.push({
-      date: dateStr,
-      displayDate: current,
-      pain_level: null,
-      atmospheric_pressure: null,
-      temperature: null,
-      humidity: null,
-      label: formatXAxisLabel(current, daysDiff)
-    });
-    current = addDays(current, 1);
-  }
-  
-  return { timePoints, daysDiff };
-}
-
-// Format X-axis labels based on time range
-function formatXAxisLabel(date: Date, daysDiff: number): string {
-  if (daysDiff <= 1) {
-    // Today/Yesterday: Show time
-    return format(date, 'HH:mm');
-  } else if (daysDiff <= 7) {
-    // Week: Show day and date
-    return format(date, 'EEE dd.MM');
-  } else if (daysDiff <= 31) {
-    // Month: Show date
-    return format(date, 'dd.MM');
-  } else {
-    // Longer: Show month/year
-    return format(date, 'MM.yy');
-  }
 }
 
 export default function ChartComponent({ entries, dateRange }: Props) {
@@ -90,9 +37,16 @@ export default function ChartComponent({ entries, dateRange }: Props) {
     };
   }, [dateRange]);
 
+  const startDate = useMemo(() => startOfDay(parseISO(actualDateRange.from)), [actualDateRange.from]);
+  const endDate = useMemo(() => endOfDay(parseISO(actualDateRange.to)), [actualDateRange.to]);
+  const daysDiff = useMemo(() => differenceInDays(endDate, startDate), [endDate, startDate]);
+
   console.log('📊 Chart date range:', {
     requested: dateRange,
     actual: actualDateRange,
+    startDate,
+    endDate,
+    daysDiff,
     totalEntries: entries?.length || 0
   });
 
@@ -103,120 +57,29 @@ export default function ChartComponent({ entries, dateRange }: Props) {
     showPassiveWeather
   );
 
-  // Process chart data with continuous time axis
-  const chartData = useMemo(() => {
-    // Generate continuous time axis for the date range
-    const { timePoints, daysDiff } = generateTimeAxis(actualDateRange.from, actualDateRange.to);
+  // Build daily time series with proper data aggregation
+  const dailySeries = useMemo(() => {
+    const series = buildDailySeries(entries || [], startDate, endDate, weatherTimeline);
     
-    // Create a map of entries by date for quick lookup
-    const entriesMap = new Map<string, MigraineEntry[]>();
-    (entries || []).forEach(entry => {
-      const entryDate = entry.selected_date || new Date(entry.timestamp_created).toISOString().split('T')[0];
-      
-      // Only include entries within the date range
-      if (entryDate >= actualDateRange.from && entryDate <= actualDateRange.to) {
-        if (!entriesMap.has(entryDate)) {
-          entriesMap.set(entryDate, []);
-        }
-        entriesMap.get(entryDate)!.push(entry);
-      }
+    console.log('📊 Daily series built:', {
+      totalDays: series.length,
+      daysWithPain: series.filter(d => d.pain !== null).length,
+      daysWithWeather: series.filter(d => d.hasWeather).length,
+      firstDay: series[0]?.date,
+      lastDay: series[series.length - 1]?.date
     });
+    
+    return series;
+  }, [entries, startDate, endDate, weatherTimeline]);
 
-    // Create a map of weather data by date for quick lookup
-    const weatherMap = new Map();
-    weatherTimeline.forEach(weather => {
-      const dateKey = weather.date;
-      if (dateKey) {
-        weatherMap.set(dateKey, weather);
-      }
-    });
-
-    // Map each time point to chart data
-    const data = timePoints.map(timePoint => {
-      const entriesForDate = entriesMap.get(timePoint.date) || [];
-      
-      // For days with entries, use the most recent entry (or average if multiple)
-      let painValue = null;
-      let painLevel = null;
-      let aura = null;
-      let location = null;
-      let medications = 0;
-      let notes = null;
-      
-      if (entriesForDate.length > 0) {
-        // Sort by time if available, otherwise use creation time
-        const sortedEntries = entriesForDate.sort((a, b) => {
-          const aTime = a.selected_time || new Date(a.timestamp_created).toTimeString().slice(0, 5);
-          const bTime = b.selected_time || new Date(b.timestamp_created).toTimeString().slice(0, 5);
-          return bTime.localeCompare(aTime); // Latest first
-        });
-        
-        const latestEntry = sortedEntries[0];
-        painValue = painLevelToScore(latestEntry.pain_level);
-        painLevel = latestEntry.pain_level;
-        aura = latestEntry.aura_type;
-        location = latestEntry.pain_location;
-        medications = latestEntry.medications?.length || 0;
-        notes = latestEntry.notes;
-      }
-      
-      // Get weather data for this date
-      const weather = weatherMap.get(timePoint.date);
-      
-      return {
-        date: timePoint.date,
-        label: timePoint.label,
-        pain: painValue,
-        painLevel: painLevel,
-        pressure: weather?.pressure_mb || null,
-        temperature: weather?.temperature_c || null,
-        aura,
-        location,
-        medications,
-        hasWeather: !!weather,
-        notes,
-        entriesCount: entriesForDate.length
-      };
-    });
-
-    console.log('📊 Continuous chart data:', {
-      timePointsGenerated: timePoints.length,
-      daysWithEntries: data.filter(d => d.pain !== null).length,
-      daysWithWeather: data.filter(d => d.hasWeather).length,
-      dateRange: { from: actualDateRange.from, to: actualDateRange.to, days: daysDiff }
-    });
-
-    return { data, daysDiff };
-  }, [entries, actualDateRange, weatherTimeline]);
-
-  // Generate ticks for X-axis based on time range
+  // Generate X-axis ticks
   const xAxisTicks = useMemo(() => {
-    const daysDiff = chartData.daysDiff;
-    let interval: number;
-    
-    if (daysDiff <= 7) {
-      interval = 1; // Daily
-    } else if (daysDiff <= 30) {
-      interval = Math.ceil(daysDiff / 6); // ~6 ticks
-    } else if (daysDiff <= 90) {
-      interval = Math.ceil(daysDiff / 8); // ~8 ticks
-    } else {
-      interval = Math.ceil(daysDiff / 10); // ~10 ticks
-    }
-    
-    const ticks: string[] = [];
-    chartData.data.forEach((point, index) => {
-      if (index % interval === 0 || index === chartData.data.length - 1) {
-        ticks.push(point.label);
-      }
-    });
-    
-    return ticks;
-  }, [chartData]);
+    return generateTimeTicks(dailySeries, isMobile ? 4 : 8);
+  }, [dailySeries, isMobile]);
 
   // Calculate weather correlation
   const weatherCorrelation = useMemo(() => {
-    const dataWithPainAndWeather = chartData.data.filter(d => d.pain !== null && d.pressure != null);
+    const dataWithPainAndWeather = dailySeries.filter(d => d.pain !== null && d.pressure !== null);
     if (dataWithPainAndWeather.length < 3) return null;
 
     const avgPainByPressure = {
@@ -245,26 +108,70 @@ export default function ChartComponent({ entries, dateRange }: Props) {
     });
 
     return avgPainByPressure;
-  }, [chartData]);
+  }, [dailySeries]);
 
   // Show empty state if no entries in the time range
-  const entriesInRange = chartData.data.filter(d => d.pain !== null);
+  const entriesInRange = dailySeries.filter(d => d.pain !== null);
   if (entriesInRange.length === 0) {
     const totalEntries = entries?.length || 0;
     
     return (
-      <div className="text-center py-8 text-muted-foreground">
-        <div className="text-lg mb-2">📈</div>
-        <div className="space-y-2">
-          <div className="text-sm">Keine Einträge im Zeitraum</div>
-          <div className="text-xs">
-            {format(parseISO(actualDateRange.from), 'dd.MM.yyyy')} - {format(parseISO(actualDateRange.to), 'dd.MM.yyyy')}
-          </div>
-          {totalEntries > 0 && (
+      <div className="space-y-4">
+        {/* Empty chart with axes */}
+        <div className="h-80">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart
+              data={dailySeries}
+              margin={{
+                top: 5,
+                right: isMobile ? 10 : 30,
+                left: isMobile ? 10 : 20,
+                bottom: isMobile ? 20 : 5,
+              }}
+            >
+              <XAxis
+                type="number"
+                scale="time"
+                dataKey="ts"
+                domain={[startDate.getTime(), endDate.getTime()]}
+                ticks={xAxisTicks}
+                tickFormatter={(ts) => formatTimeAxisLabel(ts, daysDiff)}
+                tick={{ fontSize: isMobile ? 10 : 12 }}
+                angle={isMobile ? -45 : 0}
+                textAnchor={isMobile ? "end" : "middle"}
+                height={isMobile ? 60 : 30}
+              />
+              <YAxis
+                yAxisId="pain"
+                orientation="left"
+                domain={[0, 10]}
+                tick={{ fontSize: isMobile ? 10 : 12 }}
+                label={!isMobile ? { value: 'Schmerzstärke', angle: -90, position: 'insideLeft' } : undefined}
+              />
+              <YAxis
+                yAxisId="pressure"
+                orientation="right"
+                domain={[980, 1040]}
+                tick={{ fontSize: isMobile ? 10 : 12 }}
+                label={!isMobile ? { value: 'Luftdruck (mb)', angle: 90, position: 'insideRight' } : undefined}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+        
+        <div className="text-center py-8 text-muted-foreground">
+          <div className="text-lg mb-2">📈</div>
+          <div className="space-y-2">
+            <div className="text-sm">Keine Einträge im Zeitraum</div>
             <div className="text-xs">
-              {totalEntries} Einträge insgesamt vorhanden - wählen Sie einen anderen Zeitraum
+              {format(startDate, 'dd.MM.yyyy')} - {format(endDate, 'dd.MM.yyyy')}
             </div>
-          )}
+            {totalEntries > 0 && (
+              <div className="text-xs">
+                {totalEntries} Einträge insgesamt vorhanden - wählen Sie einen anderen Zeitraum
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -272,19 +179,19 @@ export default function ChartComponent({ entries, dateRange }: Props) {
 
   // Calculate data quality metrics
   const dataQuality = useMemo(() => {
-    const entriesWithData = chartData.data.filter(d => d.pain !== null);
-    const entriesWithWeather = chartData.data.filter(d => d.pain !== null && d.hasWeather);
+    const entriesWithData = dailySeries.filter(d => d.pain !== null);
+    const entriesWithWeather = dailySeries.filter(d => d.pain !== null && d.hasWeather);
     const weatherPercentage = entriesWithData.length > 0 ? Math.round((entriesWithWeather.length / entriesWithData.length) * 100) : 0;
     
     return {
-      totalDays: chartData.data.length,
+      totalDays: dailySeries.length,
       daysWithEntries: entriesWithData.length,
       daysWithWeather: entriesWithWeather.length,
       weatherPercentage
     };
-  }, [chartData]);
+  }, [dailySeries]);
 
-  const hasWeatherData = chartData.data.some(d => d.pressure != null);
+  const hasWeatherData = dailySeries.some(d => d.pressure !== null || d.temp !== null);
 
   return (
     <div className="space-y-4">
@@ -329,7 +236,7 @@ export default function ChartComponent({ entries, dateRange }: Props) {
       <div className="h-80">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
-            data={chartData.data}
+            data={dailySeries}
             margin={{
               top: 5,
               right: isMobile ? 10 : 30,
@@ -338,14 +245,16 @@ export default function ChartComponent({ entries, dateRange }: Props) {
             }}
           >
             <XAxis
-              dataKey="label"
+              type="number"
+              scale="time"
+              dataKey="ts"
+              domain={[startDate.getTime(), endDate.getTime()]}
+              ticks={xAxisTicks}
+              tickFormatter={(ts) => formatTimeAxisLabel(ts, daysDiff)}
               tick={{ fontSize: isMobile ? 10 : 12 }}
               angle={isMobile ? -45 : 0}
               textAnchor={isMobile ? "end" : "middle"}
               height={isMobile ? 60 : 30}
-              ticks={xAxisTicks}
-              interval={0}
-              type="category"
             />
             <YAxis
               yAxisId="pain"
@@ -355,42 +264,53 @@ export default function ChartComponent({ entries, dateRange }: Props) {
               label={!isMobile ? { value: 'Schmerzstärke', angle: -90, position: 'insideLeft' } : undefined}
             />
             {hasWeatherData && (
-              <YAxis
-                yAxisId="pressure"
-                orientation="right"
-                domain={['dataMin - 5', 'dataMax + 5']}
-                tick={{ fontSize: isMobile ? 10 : 12 }}
-                label={!isMobile ? { value: 'Luftdruck (mb)', angle: 90, position: 'insideRight' } : undefined}
-              />
+              <>
+                <YAxis
+                  yAxisId="temp"
+                  orientation="right"
+                  domain={['dataMin - 2', 'dataMax + 2']}
+                  tick={{ fontSize: isMobile ? 8 : 10 }}
+                  label={!isMobile ? { value: 'Temperatur (°C)', angle: 90, position: 'outside', offset: 10 } : undefined}
+                />
+                <YAxis
+                  yAxisId="pressure"
+                  orientation="right"
+                  domain={['dataMin - 5', 'dataMax + 5']}
+                  tick={{ fontSize: isMobile ? 8 : 10 }}
+                  label={!isMobile ? { value: 'Luftdruck (mb)', angle: 90, position: 'outside', offset: 40 } : undefined}
+                />
+              </>
             )}
             <Tooltip
               content={({ active, payload, label }) => {
                 if (!active || !payload || !payload.length) return null;
-                const data = payload[0].payload;
+                const data = payload[0].payload as DailySeriesPoint;
                 
-                // Don't show tooltip for empty data points
-                if (data.pain === null && data.pressure === null) return null;
+                // Don't show tooltip for completely empty data points
+                if (data.pain === null && data.pressure === null && data.temp === null) return null;
                 
                 return (
                   <div className="bg-background border border-border p-3 rounded-lg shadow-lg">
-                    <p className="font-medium">{label}</p>
+                    <p className="font-medium">{format(new Date(data.ts), 'dd.MM.yyyy (EEE)')}</p>
                     {data.pain !== null ? (
                       <p className="text-sm">
                         <span className="text-blue-500">●</span> Schmerz: {data.pain}/10 ({data.painLevel})
                       </p>
                     ) : (
-                      <p className="text-sm text-muted-foreground">Kein Eintrag an diesem Tag</p>
+                      <p className="text-sm text-muted-foreground">Kein Schmerzwert</p>
                     )}
                     {data.aura && <p className="text-xs">Aura: {data.aura}</p>}
                     {data.location && <p className="text-xs">Ort: {data.location}</p>}
-                    {data.medications > 0 && <p className="text-xs">Medikamente: {data.medications}</p>}
-                    {data.entriesCount > 1 && <p className="text-xs">{data.entriesCount} Einträge an diesem Tag</p>}
+                    {data.medications && data.medications > 0 && <p className="text-xs">Medikamente: {data.medications}</p>}
+                    {data.entriesCount > 1 && <p className="text-xs">{data.entriesCount} Einträge</p>}
                     {data.pressure && (
                       <p className="text-sm">
                         <span className="text-orange-500">●</span> Luftdruck: {data.pressure}mb
                       </p>
                     )}
-                    {data.temperature && <p className="text-xs">Temperatur: {data.temperature}°C</p>}
+                    {data.temp && <p className="text-sm">
+                      <span className="text-green-500">●</span> Temperatur: {data.temp}°C
+                    </p>}
                     {data.notes && <p className="text-xs mt-1 italic">"{data.notes}"</p>}
                   </div>
                 );
@@ -408,7 +328,24 @@ export default function ChartComponent({ entries, dateRange }: Props) {
               dot={{ r: 4, fill: "hsl(var(--primary))" }}
               connectNulls={false}
               name="Schmerzstärke"
+              isAnimationActive={false}
             />
+            
+            {/* Temperature Line */}
+            {hasWeatherData && (
+              <Line
+                yAxisId="temp"
+                type="monotone"
+                dataKey="temp"
+                stroke="hsl(var(--chart-2))"
+                strokeWidth={1}
+                dot={{ r: 2, fill: "hsl(var(--chart-2))" }}
+                connectNulls={false}
+                name="Temperatur (°C)"
+                strokeDasharray="5 5"
+                isAnimationActive={false}
+              />
+            )}
             
             {/* Pressure Line */}
             {hasWeatherData && (
@@ -416,12 +353,13 @@ export default function ChartComponent({ entries, dateRange }: Props) {
                 yAxisId="pressure"
                 type="monotone"
                 dataKey="pressure"
-                stroke="hsl(var(--destructive))"
+                stroke="hsl(var(--chart-3))"
                 strokeWidth={1}
-                dot={{ r: 2, fill: "hsl(var(--destructive))" }}
+                dot={{ r: 2, fill: "hsl(var(--chart-3))" }}
                 connectNulls={false}
                 name="Luftdruck (mb)"
                 strokeDasharray="3 3"
+                isAnimationActive={false}
               />
             )}
           </LineChart>
