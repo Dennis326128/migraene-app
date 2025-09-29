@@ -20,3 +20,9 @@ verify_jwt = false
 
 [functions.auto-weather-backfill]
 verify_jwt = false
+
+[functions.fetch-weather-hybrid]
+verify_jwt = false
+
+[functions.clean-weather-import]
+verify_jwt = false
