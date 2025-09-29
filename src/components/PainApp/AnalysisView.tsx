@@ -414,42 +414,62 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
                   <Button
                     variant={timeRange === "30d" ? "default" : "outline"}
                     size="sm"
-                    onClick={() => setTimeRange("30d")}
+                    onClick={() => {
+                      console.log("Setting timeRange to 30d, current from/to:", from, to);
+                      setTimeRange("30d");
+                    }}
                   >
                     30 Tage
                   </Button>
                   <Button
                     variant={timeRange === "3m" ? "default" : "outline"}
                     size="sm"
-                    onClick={() => setTimeRange("3m")}
+                    onClick={() => {
+                      console.log("Setting timeRange to 3m, current from/to:", from, to);
+                      setTimeRange("3m");
+                    }}
                   >
                     3 Monate
                   </Button>
                   <Button
                     variant={timeRange === "6m" ? "default" : "outline"}
                     size="sm"
-                    onClick={() => setTimeRange("6m")}
+                    onClick={() => {
+                      console.log("Setting timeRange to 6m, current from/to:", from, to);
+                      setTimeRange("6m");
+                    }}
                   >
                     6 Monate
                   </Button>
                   <Button
                     variant={timeRange === "1y" ? "default" : "outline"}
                     size="sm"
-                    onClick={() => setTimeRange("1y")}
+                    onClick={() => {
+                      console.log("Setting timeRange to 1y, current from/to:", from, to);
+                      setTimeRange("1y");
+                    }}
                   >
                     12 Monate
                   </Button>
                   <Button
                     variant={timeRange === "alle" ? "default" : "outline"}
                     size="sm"
-                    onClick={() => setTimeRange("alle")}
+                    onClick={() => {
+                      console.log("Setting timeRange to alle, current from/to:", from, to);
+                      setTimeRange("alle");
+                    }}
                   >
                     Alle
                   </Button>
                 </div>
               </CardHeader>
               <CardContent>
-                <ChartComponent entries={entries} dateRange={{ from, to }} />
+                <ChartComponent 
+                  key={`${timeRange}-${from}-${to}`}
+                  entries={entries} 
+                  dateRange={{ from, to }} 
+                  timeRange={timeRange}
+                />
               </CardContent>
             </Card>
           )}

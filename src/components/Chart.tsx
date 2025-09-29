@@ -14,9 +14,15 @@ interface Props {
     from?: string;
     to?: string;
   };
+  timeRange?: string;
 }
 
-export default function ChartComponent({ entries, dateRange }: Props) {
+export default function ChartComponent({ entries, dateRange, timeRange }: Props) {
+  console.log("ChartComponent render:", { 
+    entriesCount: entries?.length, 
+    dateRange, 
+    timeRange 
+  });
   const isMobile = useIsMobile();
   const [showPassiveWeather, setShowPassiveWeather] = useState(true);
 
