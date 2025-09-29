@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useUserSettings } from "@/features/settings/hooks/useUserSettings";
 import { WeatherBackfillManager } from "@/components/WeatherBackfillManager";
 import { WeatherImportButton } from "@/components/WeatherImportButton";
+import { WeatherSystemDiagnostics } from "@/components/WeatherSystemDiagnostics";
 import { AccountDeletion } from "@/components/AccountDeletion";
 import { MedicationLimitsSettings } from "./MedicationLimitsSettings";
 import { Separator } from "@/components/ui/separator";
@@ -157,6 +158,8 @@ const SettingsPage = ({ onBack }: { onBack: () => void }) => {
       <Card className="p-6 mb-4">
         <h2 className="text-lg font-medium mb-4">🌤️ Wetter-Daten Management</h2>
         <div className="space-y-4">
+          <WeatherSystemDiagnostics />
+          <Separator />
           <WeatherImportButton />
           <Separator />
           <WeatherBackfillManager />

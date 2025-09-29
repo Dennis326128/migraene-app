@@ -10,12 +10,12 @@ export async function testWeatherSystems(): Promise<{
 
     // Test 1: Coordinate system
     console.log('📍 Testing coordinate system...');
-    const { getUserFallbackCoordinates } = await import('@/utils/coordinateUpdater');
-    const coordinates = await getUserFallbackCoordinates();
+    const { checkUserCoordinates } = await import('@/lib/clientWeather');
+    const coordinates = await checkUserCoordinates();
     const coordinateTest = {
-      success: !!coordinates,
+      success: coordinates.hasCoordinates,
       coordinates,
-      message: coordinates ? 'Fallback coordinates available' : 'No fallback coordinates found'
+      message: coordinates.hasCoordinates ? 'User coordinates available' : 'No user coordinates found'
     };
 
     // Test 2: Daily backfill
