@@ -289,6 +289,7 @@ export type Database = {
           condition_icon: string | null
           condition_text: string | null
           created_at: string | null
+          dewpoint_c: number | null
           humidity: number | null
           id: number
           latitude: number
@@ -309,6 +310,7 @@ export type Database = {
           condition_icon?: string | null
           condition_text?: string | null
           created_at?: string | null
+          dewpoint_c?: number | null
           humidity?: number | null
           id?: number
           latitude: number
@@ -329,6 +331,7 @@ export type Database = {
           condition_icon?: string | null
           condition_text?: string | null
           created_at?: string | null
+          dewpoint_c?: number | null
           humidity?: number | null
           id?: number
           latitude?: number

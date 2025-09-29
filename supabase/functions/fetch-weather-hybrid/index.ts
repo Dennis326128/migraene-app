@@ -162,7 +162,7 @@ serve(async (req) => {
     if (daysDiff <= 7) {
       console.log('🌍 Fetching current weather data from Open-Meteo');
       try {
-        const currentWeatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,surface_pressure,wind_speed_10m&timezone=auto`;
+        const currentWeatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,surface_pressure,wind_speed_10m,dewpoint_2m&timezone=auto`;
         
         const response = await fetch(currentWeatherUrl);
         const data = await response.json();
@@ -195,6 +195,7 @@ serve(async (req) => {
             pressure_mb: data.current.surface_pressure,
             pressure_change_24h: pressureChange24h,
             wind_kph: data.current.wind_speed_10m * 3.6, // Convert m/s to km/h
+            dewpoint_c: data.current.dewpoint_2m,
             condition_text: 'Current weather',
             location: `${lat.toFixed(2)}, ${lon.toFixed(2)}`
           };
@@ -214,7 +215,7 @@ serve(async (req) => {
         prevDate.setDate(prevDate.getDate() - 1);
         const prevDateString = prevDate.toISOString().split('T')[0];
         
-        const historicalUrl = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${prevDateString}&end_date=${dateString}&daily=temperature_2m_mean,relative_humidity_2m_mean,surface_pressure_mean,wind_speed_10m_mean&timezone=auto`;
+        const historicalUrl = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${prevDateString}&end_date=${dateString}&daily=temperature_2m_mean,relative_humidity_2m_mean,surface_pressure_mean,wind_speed_10m_mean,dewpoint_2m_mean&timezone=auto`;
         
         const response = await fetch(historicalUrl);
         const data = await response.json();
@@ -241,6 +242,7 @@ serve(async (req) => {
             pressure_mb: data.daily.surface_pressure_mean[currentIndex],
             pressure_change_24h: pressureChange24h,
             wind_kph: data.daily.wind_speed_10m_mean[currentIndex], // Already in km/h from archive API
+            dewpoint_c: data.daily.dewpoint_2m_mean ? data.daily.dewpoint_2m_mean[currentIndex] : null,
             condition_text: 'Historical data',
             location: `${lat.toFixed(2)}, ${lon.toFixed(2)}`
           };
@@ -299,6 +301,7 @@ serve(async (req) => {
         pressure_mb: weatherData.pressure_mb,
         pressure_change_24h: weatherData.pressure_change_24h,
         wind_kph: weatherData.wind_kph,
+        dewpoint_c: weatherData.dewpoint_c,
         condition_text: weatherData.condition_text,
         location: weatherData.location
         // created_at wird automatisch gesetzt

@@ -37,6 +37,8 @@ function MedicationCard({ entry, medication, existingEffect }: MedicationCardPro
   const [sideEffects, setSideEffects] = useState<string[]>(existingEffect?.side_effects || []);
   const [notes, setNotes] = useState(existingEffect?.notes || "");
   const [hasChanges, setHasChanges] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const saveTimeoutRef = React.useRef<NodeJS.Timeout>();
 
   const handleEffectChange = (value: number) => {
     setEffectRating(value);
@@ -61,18 +63,37 @@ function MedicationCard({ entry, medication, existingEffect }: MedicationCardPro
   const handleNotesChange = (value: string) => {
     setNotes(value);
     setHasChanges(true);
+    // Clear existing timeout
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
     // Debounce notes saving
-    setTimeout(() => {
+    saveTimeoutRef.current = setTimeout(() => {
       saveEffect(effectRating, sideEffects, value);
     }, 1000);
   };
 
+  // Save on component unmount or when navigating away
+  React.useEffect(() => {
+    return () => {
+      if (hasChanges && !isSaving) {
+        saveEffect(effectRating, sideEffects, notes);
+      }
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [hasChanges, effectRating, sideEffects, notes, isSaving]);
+
   const saveEffect = async (rating: number, effects: string[], noteText: string) => {
+    if (isSaving) return; // Prevent concurrent saves
+    
     const ratingValue = rating === 0 ? 'none' :
       rating <= 2 ? 'poor' :
       rating <= 4 ? 'moderate' :
       rating <= 7 ? 'good' : 'very_good';
 
+    setIsSaving(true);
     try {
       await createEffect.mutateAsync({
         entry_id: entry.id,
@@ -85,11 +106,18 @@ function MedicationCard({ entry, medication, existingEffect }: MedicationCardPro
       });
       setHasChanges(false);
     } catch (error) {
+      console.error('Save error:', error);
       toast({
         title: "Fehler beim Speichern",
-        description: "Die Bewertung konnte nicht gespeichert werden.",
+        description: "Die Bewertung konnte nicht gespeichert werden. Versuche es erneut.",
         variant: "destructive"
       });
+      // Retry mechanism
+      setTimeout(() => {
+        saveEffect(rating, effects, noteText);
+      }, 2000);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -148,8 +176,10 @@ function MedicationCard({ entry, medication, existingEffect }: MedicationCardPro
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {hasChanges && (
-              <div className="text-xs text-primary">Speichert...</div>
+            {(hasChanges || isSaving) && (
+              <div className="text-xs text-primary">
+                {isSaving ? "Speichert..." : "Nicht gespeichert"}
+              </div>
             )}
             {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </div>
