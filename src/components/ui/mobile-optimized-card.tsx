@@ -4,17 +4,17 @@ import { cn } from "@/lib/utils"
 import { useIsMobile } from "@/hooks/use-mobile"
 
 const mobileCardVariants = cva(
-  "rounded-md bg-card text-card-foreground transition-all duration-200 touch-manipulation",
+  "rounded-md text-card-foreground transition-all duration-200 touch-manipulation",
   {
     variants: {
       variant: {
-        default: "bg-card hover:shadow-md",
-        interactive: "bg-card hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] cursor-pointer",
-        success: "bg-success/10 hover:bg-success/20",
+        default: "bg-background hover:shadow-md",
+        interactive: "bg-background hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] cursor-pointer",
+        success: "bg-success hover:bg-success/90",
         warning: "bg-yellow-50 hover:bg-yellow-100",
-        destructive: "bg-destructive/10 hover:bg-destructive/20",
-        primary: "bg-primary/10 hover:bg-primary/20",
-        quick: "bg-quick-entry/10 hover:bg-quick-entry/20",
+        destructive: "bg-destructive hover:bg-destructive/90",
+        primary: "bg-primary hover:bg-primary/90",
+        quick: "bg-quick-entry hover:bg-quick-entry/90",
       },
       size: {
         default: "p-4",
