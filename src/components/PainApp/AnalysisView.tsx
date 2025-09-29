@@ -337,7 +337,7 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
                   </CardHeader>
                   <CardContent>
                     <div className="h-80">
-                      <ChartComponent entries={entries} />
+                      <ChartComponent entries={entries} dateRange={{ from, to }} />
                     </div>
                   </CardContent>
                 </Card>
@@ -414,7 +414,7 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
                 </p>
               </CardHeader>
               <CardContent>
-                <ChartComponent entries={entries} />
+                <ChartComponent entries={entries} dateRange={{ from, to }} />
               </CardContent>
             </Card>
           )}

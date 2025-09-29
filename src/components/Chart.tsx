@@ -1,10 +1,17 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import type { PainEntry } from "@/types/painApp";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from "recharts";
 import { mapTextLevelToScore } from "@/lib/utils/pain";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useWeatherTimeline } from "@/features/weather/hooks/useWeatherTimeline";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
-type Props = { entries: PainEntry[] };
+type Props = { 
+  entries: PainEntry[];
+  dateRange?: { from?: string; to?: string };
+};
 
 function toLabel(e: PainEntry) {
   if (e.selected_date && e.selected_time) return `${e.selected_date} ${e.selected_time}`;
@@ -12,8 +19,16 @@ function toLabel(e: PainEntry) {
   return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }) + " " + d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
 }
 
-export default function ChartComponent({ entries }: Props) {
+export default function ChartComponent({ entries, dateRange }: Props) {
   const isMobile = useIsMobile();
+  const [showPassiveWeather, setShowPassiveWeather] = useState(true);
+  
+  // Use weather timeline API when date range is available
+  const { data: weatherTimeline, isLoading: weatherLoading } = useWeatherTimeline(
+    dateRange?.from,
+    dateRange?.to,
+    showPassiveWeather
+  );
   
   // Debug logging to see what data we receive
   console.log('📊 Chart component received:', {
@@ -24,6 +39,24 @@ export default function ChartComponent({ entries }: Props) {
   });
 
   const data = useMemo(() => {
+    // Use weather timeline data if available, otherwise fall back to entry data
+    if (weatherTimeline && weatherTimeline.length > 0) {
+      return weatherTimeline.map(point => ({
+        label: point.time ? `${point.date} ${point.time}` : point.date,
+        pain: point.pain_level || null,
+        pressure: point.pressure_mb || null,
+        temperature: point.temperature_c || null,
+        humidity: point.humidity || null,
+        weatherRisk: point.pressure_mb ? 
+          (point.pressure_mb < 1000 ? 'Niedrigdruck' : 
+           point.pressure_mb > 1020 ? 'Hochdruck' : 'Normal') : null,
+        hasWeather: !!(point.pressure_mb || point.temperature_c),
+        hasEntry: point.has_pain_entry,
+        source: point.source
+      }));
+    }
+
+    // Fallback to original entry-based processing
     const processedData = (entries || []).map(e => {
       const weather = e.weather;
       return {
@@ -32,11 +65,12 @@ export default function ChartComponent({ entries }: Props) {
         pressure: weather?.pressure_mb ?? null,
         temperature: weather?.temperature_c ?? null,
         humidity: weather?.humidity ?? null,
-        // Weather correlation indicator
         weatherRisk: weather?.pressure_mb ? 
           (weather.pressure_mb < 1000 ? 'Niedrigdruck' : 
            weather.pressure_mb > 1020 ? 'Hochdruck' : 'Normal') : null,
-        hasWeather: !!weather?.pressure_mb
+        hasWeather: !!weather?.pressure_mb,
+        hasEntry: true,
+        source: 'entry'
       };
     });
 
@@ -47,7 +81,7 @@ export default function ChartComponent({ entries }: Props) {
     });
 
     return processedData;
-  }, [entries]);
+  }, [entries, weatherTimeline]);
 
   // Calculate weather correlation
   const weatherCorrelation = useMemo(() => {
@@ -92,13 +126,37 @@ export default function ChartComponent({ entries }: Props) {
 
   return (
     <div className="w-full space-y-4">
+      {/* Weather Data Toggle */}
+      {dateRange?.from && dateRange?.to && (
+        <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
+          <div className="flex items-center space-x-2">
+            <Switch
+              id="passive-weather"
+              checked={showPassiveWeather}
+              onCheckedChange={setShowPassiveWeather}
+            />
+            <Label htmlFor="passive-weather" className="text-sm">
+              Alle Wetterdaten anzeigen
+            </Label>
+          </div>
+          <div className="text-xs text-muted-foreground">
+            {showPassiveWeather ? 'Zeigt Entry + passive Wetterdaten' : 'Nur Entry-Wetterdaten'}
+          </div>
+        </div>
+      )}
+
       {/* Data Quality Indicator */}
       <div className="bg-muted/50 p-3 rounded-lg">
         <div className="flex items-center justify-between text-xs">
           <div className="flex items-center gap-2">
             <span className="text-sm">📊</span>
             <span>
-              <strong>{data.length}</strong> Schmerzeinträge
+              <strong>{data.filter(d => d.hasEntry).length}</strong> Schmerzeinträge
+              {weatherTimeline && (
+                <span className="ml-2 text-muted-foreground">
+                  ({data.length} Datenpunkte gesamt)
+                </span>
+              )}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -203,10 +261,23 @@ export default function ChartComponent({ entries }: Props) {
               type="monotone" 
               dataKey="pain" 
               name="Schmerz" 
-              dot={{ r: isMobile ? 3 : 4, strokeWidth: 2 }} 
+              dot={(props) => {
+                const { cx, cy, payload } = props;
+                if (!payload?.hasEntry) return null;
+                return (
+                  <circle 
+                    cx={cx} 
+                    cy={cy} 
+                    r={isMobile ? 3 : 4} 
+                    fill="hsl(var(--destructive))" 
+                    strokeWidth={2}
+                    stroke="hsl(var(--background))"
+                  />
+                );
+              }}
               strokeWidth={isMobile ? 3 : 3}
               stroke="hsl(var(--destructive))"
-              connectNulls={true}
+              connectNulls={false}
             />
             {dataAvailability.entriesWithWeather > 0 && (
               <Line 
@@ -214,10 +285,25 @@ export default function ChartComponent({ entries }: Props) {
                 type="monotone" 
                 dataKey="pressure" 
                 name="Luftdruck" 
-                dot={{ r: isMobile ? 1 : 2, strokeWidth: 1 }} 
+                dot={(props) => {
+                  const { cx, cy, payload } = props;
+                  const dotSize = payload?.hasEntry ? (isMobile ? 2 : 3) : (isMobile ? 1 : 1.5);
+                  const opacity = payload?.hasEntry ? 1 : 0.6;
+                  return (
+                    <circle 
+                      cx={cx} 
+                      cy={cy} 
+                      r={dotSize} 
+                      fill="hsl(var(--primary))" 
+                      strokeWidth={1}
+                      opacity={opacity}
+                    />
+                  );
+                }}
                 strokeWidth={isMobile ? 1.5 : 1}
                 stroke="hsl(var(--primary))"
-                connectNulls={false}
+                connectNulls={showPassiveWeather}
+                strokeDasharray={showPassiveWeather ? "0" : "5 5"}
               />
             )}
           </LineChart>
