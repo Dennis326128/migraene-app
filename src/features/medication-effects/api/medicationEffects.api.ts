@@ -123,3 +123,59 @@ export async function getMedicationEffects(entryId: number): Promise<MedicationE
   if (error) throw error;
   return data as MedicationEffect[];
 }
+
+export type RecentMedicationEntry = {
+  id: number;
+  medications: string[];
+  selected_date: string;
+  selected_time: string;
+  pain_level: string;
+  timestamp_created: string;
+  medication_effects: MedicationEffect[];
+};
+
+export async function getRecentMedicationsWithEffects(): Promise<RecentMedicationEntry[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  // Get entries with medications from last 7 days
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+  const { data: entries, error: entriesError } = await supabase
+    .from("pain_entries")
+    .select("id, medications, selected_date, selected_time, pain_level, timestamp_created")
+    .eq("user_id", user.id)
+    .not("medications", "is", null)
+    .gte("timestamp_created", sevenDaysAgo.toISOString())
+    .order("timestamp_created", { ascending: false })
+    .limit(20);
+
+  if (entriesError) throw entriesError;
+
+  // Get existing medication effects for these entries
+  const entryIds = entries?.map(e => e.id) || [];
+  if (entryIds.length === 0) return [];
+
+  const { data: effects, error: effectsError } = await supabase
+    .from("medication_effects")
+    .select("*")
+    .in("entry_id", entryIds)
+    .order("created_at", { ascending: false });
+
+  if (effectsError) throw effectsError;
+
+  // Group effects by entry_id
+  const effectsByEntry: Record<number, MedicationEffect[]> = {};
+  effects?.forEach(effect => {
+    if (!effectsByEntry[effect.entry_id]) {
+      effectsByEntry[effect.entry_id] = [];
+    }
+    effectsByEntry[effect.entry_id].push(effect as MedicationEffect);
+  });
+
+  return (entries || []).map(entry => ({
+    ...entry,
+    medication_effects: effectsByEntry[entry.id] || []
+  }));
+}

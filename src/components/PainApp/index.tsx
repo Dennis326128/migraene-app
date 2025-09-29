@@ -5,10 +5,11 @@ import { MainMenu } from "./MainMenu";
 import { AnalysisView } from "./AnalysisView";
 import SettingsPage from "./SettingsPage";
 import { OnboardingModal } from "./OnboardingModal";
+import { MedicationOverviewPage } from "@/pages/MedicationOverviewPage";
 import { useOnboarding } from "@/hooks/useOnboarding";
 import type { PainEntry } from "@/types/painApp";
 
-type View = "menu" | "new" | "list" | "analysis" | "settings";
+type View = "menu" | "new" | "list" | "analysis" | "settings" | "medication-overview";
 
 export const PainApp: React.FC = () => {
   const [view, setView] = useState<View>("menu");
@@ -40,6 +41,11 @@ export const PainApp: React.FC = () => {
           onViewAnalysis={() => setView("analysis")}
           onViewSettings={() => setView("settings")}
           onQuickEntry={() => setView("list")} // Show entries after quick entry
+          onNavigate={(target) => {
+            if (target === 'medication-overview') {
+              setView('medication-overview');
+            }
+          }}
         />
       )}
 
@@ -64,6 +70,10 @@ export const PainApp: React.FC = () => {
 
       {view === "settings" && (
         <SettingsPage onBack={goHome} />
+      )}
+
+      {view === "medication-overview" && (
+        <MedicationOverviewPage onBack={goHome} />
       )}
 
       {/* Onboarding Modal */}

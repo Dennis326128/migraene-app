@@ -4,6 +4,7 @@ import {
   createMedicationEffect, 
   createMedicationEffects,
   getMedicationEffects,
+  getRecentMedicationsWithEffects,
   type MedicationEffectPayload 
 } from "../api/medicationEffects.api";
 
@@ -41,5 +42,13 @@ export function useMedicationEffects(entryId: number) {
     queryKey: ["medicationEffects", entryId],
     queryFn: () => getMedicationEffects(entryId),
     enabled: !!entryId,
+  });
+}
+
+export function useRecentMedicationsWithEffects() {
+  return useQuery({
+    queryKey: ["recentMedicationsWithEffects"],
+    queryFn: getRecentMedicationsWithEffects,
+    staleTime: 1 * 60 * 1000, // 1 minute
   });
 }
