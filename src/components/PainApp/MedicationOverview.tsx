@@ -8,6 +8,7 @@ import { ChevronDown, ChevronUp, X, Clock, Calendar } from "lucide-react";
 import { MedicationEffectSlider } from "@/components/ui/medication-effect-slider";
 import { useToast } from "@/hooks/use-toast";
 import { useCreateMedicationEffect } from "@/features/medication-effects/hooks/useMedicationEffects";
+import { useMedicationSave } from "@/contexts/MedicationSaveContext";
 import type { RecentMedicationEntry, MedicationEffect } from "@/features/medication-effects/api/medicationEffects.api";
 
 interface MedicationOverviewProps {
@@ -28,6 +29,7 @@ interface MedicationCardProps {
 function MedicationCard({ entry, medication, existingEffect }: MedicationCardProps) {
   const { toast } = useToast();
   const createEffect = useCreateMedicationEffect();
+  const { addPendingSave, removePendingSave } = useMedicationSave();
   const [isExpanded, setIsExpanded] = useState(false);
   const [effectRating, setEffectRating] = useState(existingEffect?.effect_rating === 'none' ? 0 :
     existingEffect?.effect_rating === 'poor' ? 2 :
@@ -88,12 +90,15 @@ function MedicationCard({ entry, medication, existingEffect }: MedicationCardPro
   const saveEffect = async (rating: number, effects: string[], noteText: string) => {
     if (isSaving) return; // Prevent concurrent saves
     
+    const saveId = `${entry.id}-${medication}`;
     const ratingValue = rating === 0 ? 'none' :
       rating <= 2 ? 'poor' :
       rating <= 4 ? 'moderate' :
       rating <= 7 ? 'good' : 'very_good';
 
     setIsSaving(true);
+    addPendingSave(saveId);
+    
     try {
       await createEffect.mutateAsync({
         entry_id: entry.id,
@@ -118,6 +123,7 @@ function MedicationCard({ entry, medication, existingEffect }: MedicationCardPro
       }, 2000);
     } finally {
       setIsSaving(false);
+      removePendingSave(saveId);
     }
   };
 
@@ -280,7 +286,7 @@ export function MedicationOverview({ entries }: MedicationOverviewProps) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold">💊 Medikamenten-Übersicht</h2>
+          <h2 className="text-xl font-semibold">💊 Medikamenten-Wirkung</h2>
           <p className="text-sm text-muted-foreground">
             Letzte 7 Tage • {medicationList.length} Einnahmen
           </p>
