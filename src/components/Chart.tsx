@@ -26,13 +26,13 @@ export default function ChartComponent({ entries, dateRange, timeRange }: Props)
   const isMobile = useIsMobile();
   const [showPassiveWeather, setShowPassiveWeather] = useState(true);
 
-  // Determine the actual date range - default to showing last 30 days if no range provided
+  // Use the provided date range - AnalysisView now calculates the correct range for all cases
   const actualDateRange = useMemo(() => {
     if (dateRange?.from && dateRange?.to) {
       return { from: dateRange.from, to: dateRange.to };
     }
     
-    // Default to last 30 days
+    // Fallback only if no date range provided at all
     const today = new Date();
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(today.getDate() - 30);

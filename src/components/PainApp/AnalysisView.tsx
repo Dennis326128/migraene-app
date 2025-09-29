@@ -37,6 +37,9 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
   // Check system status for migration recommendations
   const { data: systemStatus } = useSystemStatus();
 
+  // Load ALL entries first to calculate date range for "alle"
+  const { data: allEntries = [], isLoading: entriesLoading, error: entriesError, refetch } = useEntries();
+
   const { from, to } = useMemo(() => {
     const now = new Date();
     
@@ -86,13 +89,39 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
       }
       case "alle":
       default:
-        // Return undefined to get ALL entries without date filtering
-        return { from: undefined, to: undefined };
+        // Calculate actual range from all entries
+        if (allEntries.length === 0) {
+          return {
+            from: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            to: now.toISOString().split('T')[0],
+          };
+        }
+        
+        const dates = allEntries
+          .map(entry => new Date(entry.timestamp_created))
+          .filter(date => !isNaN(date.getTime()));
+        
+        if (dates.length === 0) {
+          return {
+            from: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            to: now.toISOString().split('T')[0],
+          };
+        }
+        
+        const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
+        const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
+        
+        return {
+          from: minDate.toISOString().split('T')[0],
+          to: maxDate.toISOString().split('T')[0],
+        };
     }
-  }, [timeRange, customFrom, customTo]);
+  }, [timeRange, customFrom, customTo, allEntries]);
 
-  // Load ALL entries without date filtering - let Chart component handle filtering
-  const { data: entries = [], isLoading, error, refetch } = useEntries();
+  // Use the same entries data for consistency
+  const entries = allEntries;
+  const isLoading = entriesLoading;
+  const error = entriesError;
   
   // Debug logging for AnalysisView
   console.log('📈 AnalysisView received data:', {
