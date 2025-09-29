@@ -7,8 +7,8 @@ const startPageCardVariants = cva(
   {
     variants: {
       variant: {
-        success: "bg-success text-white hover:bg-success/90 active:bg-success/80",
-        quick: "bg-quick-entry text-white hover:bg-quick-entry/90 active:bg-quick-entry/80", 
+        success: "bg-green-100 text-green-800 hover:bg-green-200 active:bg-green-300",
+        quick: "bg-red-100 text-red-800 hover:bg-red-200 active:bg-red-300",
         neutral: "bg-slate-100 text-slate-900 hover:bg-slate-200 active:bg-slate-300",
         voice: "bg-blue-100 text-blue-900 hover:bg-blue-200 active:bg-blue-300",
         warning: "bg-amber-100 text-amber-900 hover:bg-amber-200 active:bg-amber-300",
