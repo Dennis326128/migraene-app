@@ -310,7 +310,7 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
             top: 20,
             right: isMobile ? 25 : 40,
             left: isMobile ? 20 : 60,
-            bottom: 60,
+            bottom: 80,
           }}
         >
           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -334,8 +334,9 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
             tick={{ fontSize: isMobile ? 10 : 12 }}
             label={{ 
               value: 'Schmerz', 
-              angle: -90, 
-              position: 'insideLeft',
+              angle: isMobile ? -30 : 0, 
+              position: 'insideBottomLeft',
+              offset: 10,
               style: { textAnchor: 'middle', fontSize: isMobile ? 10 : 12 }
             }}
           />
@@ -349,13 +350,12 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
             width={isMobile ? 40 : 55}
             label={{ 
               value: isMobile ? 'Temp.' : 'Temperatur', 
-              angle: 0, 
-              position: 'insideTopRight',
-              offset: 10,
+              angle: isMobile ? -30 : 0, 
+              position: 'insideBottomRight',
+              offset: -25,
               style: { 
                 textAnchor: 'middle', 
-                fontSize: isMobile ? 10 : 12,
-                fill: chartConfig.temperature.color
+                fontSize: isMobile ? 10 : 12
               }
             }}
           />
@@ -369,13 +369,12 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
             width={isMobile ? 40 : 55}
             label={{ 
               value: isMobile ? 'Druck' : 'Luftdruck', 
-              angle: 0, 
+              angle: isMobile ? -30 : 0, 
               position: 'insideBottomRight',
-              offset: 10,
+              offset: 25,
               style: { 
                 textAnchor: 'middle', 
-                fontSize: isMobile ? 10 : 12,
-                fill: chartConfig.pressure.color
+                fontSize: isMobile ? 10 : 12
               }
             }}
           />
