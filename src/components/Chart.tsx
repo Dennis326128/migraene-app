@@ -186,12 +186,37 @@ export default function ChartComponent({ entries, dateRange }: Props) {
       dateRange: { from: actualDateRange.from, to: actualDateRange.to, days: daysDiff }
     });
 
-    return data;
+    return { data, daysDiff };
   }, [entries, actualDateRange, weatherTimeline]);
+
+  // Generate ticks for X-axis based on time range
+  const xAxisTicks = useMemo(() => {
+    const daysDiff = chartData.daysDiff;
+    let interval: number;
+    
+    if (daysDiff <= 7) {
+      interval = 1; // Daily
+    } else if (daysDiff <= 30) {
+      interval = Math.ceil(daysDiff / 6); // ~6 ticks
+    } else if (daysDiff <= 90) {
+      interval = Math.ceil(daysDiff / 8); // ~8 ticks
+    } else {
+      interval = Math.ceil(daysDiff / 10); // ~10 ticks
+    }
+    
+    const ticks: string[] = [];
+    chartData.data.forEach((point, index) => {
+      if (index % interval === 0 || index === chartData.data.length - 1) {
+        ticks.push(point.label);
+      }
+    });
+    
+    return ticks;
+  }, [chartData]);
 
   // Calculate weather correlation
   const weatherCorrelation = useMemo(() => {
-    const dataWithPainAndWeather = chartData.filter(d => d.pain !== null && d.pressure != null);
+    const dataWithPainAndWeather = chartData.data.filter(d => d.pain !== null && d.pressure != null);
     if (dataWithPainAndWeather.length < 3) return null;
 
     const avgPainByPressure = {
@@ -223,7 +248,7 @@ export default function ChartComponent({ entries, dateRange }: Props) {
   }, [chartData]);
 
   // Show empty state if no entries in the time range
-  const entriesInRange = chartData.filter(d => d.pain !== null);
+  const entriesInRange = chartData.data.filter(d => d.pain !== null);
   if (entriesInRange.length === 0) {
     const totalEntries = entries?.length || 0;
     
@@ -247,19 +272,19 @@ export default function ChartComponent({ entries, dateRange }: Props) {
 
   // Calculate data quality metrics
   const dataQuality = useMemo(() => {
-    const entriesWithData = chartData.filter(d => d.pain !== null);
-    const entriesWithWeather = chartData.filter(d => d.pain !== null && d.hasWeather);
+    const entriesWithData = chartData.data.filter(d => d.pain !== null);
+    const entriesWithWeather = chartData.data.filter(d => d.pain !== null && d.hasWeather);
     const weatherPercentage = entriesWithData.length > 0 ? Math.round((entriesWithWeather.length / entriesWithData.length) * 100) : 0;
     
     return {
-      totalDays: chartData.length,
+      totalDays: chartData.data.length,
       daysWithEntries: entriesWithData.length,
       daysWithWeather: entriesWithWeather.length,
       weatherPercentage
     };
   }, [chartData]);
 
-  const hasWeatherData = chartData.some(d => d.pressure != null);
+  const hasWeatherData = chartData.data.some(d => d.pressure != null);
 
   return (
     <div className="space-y-4">
@@ -304,7 +329,7 @@ export default function ChartComponent({ entries, dateRange }: Props) {
       <div className="h-80">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
-            data={chartData}
+            data={chartData.data}
             margin={{
               top: 5,
               right: isMobile ? 10 : 30,
@@ -318,8 +343,9 @@ export default function ChartComponent({ entries, dateRange }: Props) {
               angle={isMobile ? -45 : 0}
               textAnchor={isMobile ? "end" : "middle"}
               height={isMobile ? 60 : 30}
+              ticks={xAxisTicks}
               interval={0}
-              domain={['dataMin', 'dataMax']}
+              type="category"
             />
             <YAxis
               yAxisId="pain"
