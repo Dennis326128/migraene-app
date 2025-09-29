@@ -68,15 +68,15 @@ const normalizePainLevel = (level: string | number | undefined | null): number |
 
 const chartConfig = {
   pain: {
-    label: "Schmerzlevel",
-    color: "hsl(var(--chart-1))",
+    label: "Schmerz",
+    color: "hsl(var(--primary))",
   },
   temperature: {
-    label: "Temperatur (°C)",
+    label: "Temperatur",
     color: "hsl(var(--chart-2))",
   },
   pressure: {
-    label: "Luftdruck (hPa)",
+    label: "Luftdruck", 
     color: "hsl(var(--chart-3))",
   },
 };
@@ -313,11 +313,13 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
           <YAxis
             yAxisId="temp"
             orientation="right"
+            domain={['dataMin - 2', 'dataMax + 2']}
             tick={{ fontSize: isMobile ? 10 : 12 }}
             label={{ 
-              value: 'Temp (°C)', 
+              value: 'Temperatur (°C)', 
               angle: 90, 
               position: 'insideRight',
+              offset: -5,
               style: { textAnchor: 'middle', fontSize: isMobile ? 10 : 12 }
             }}
           />
@@ -326,8 +328,16 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
           <YAxis
             yAxisId="pressure"
             orientation="right"
-            tick={false}
-            width={0}
+            domain={['dataMin - 5', 'dataMax + 5']}
+            tick={{ fontSize: isMobile ? 8 : 10 }}
+            width={60}
+            label={{ 
+              value: 'Luftdruck (mb)', 
+              angle: 90, 
+              position: 'insideRight',
+              offset: 10,
+              style: { textAnchor: 'middle', fontSize: isMobile ? 8 : 10 }
+            }}
           />
           
           <ChartTooltip
@@ -360,7 +370,7 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
             dataKey="pain"
             stroke={chartConfig.pain.color}
             strokeWidth={2}
-            dot={{ r: 4, strokeWidth: 2 }}
+            dot={{ r: 4, fill: chartConfig.pain.color }}
             connectNulls={false}
             isAnimationActive={false}
             name={chartConfig.pain.label}
@@ -372,8 +382,9 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
             type="monotone"
             dataKey="temperature"
             stroke={chartConfig.temperature.color}
-            strokeWidth={2}
-            dot={{ r: 3, strokeWidth: 1 }}
+            strokeWidth={1}
+            strokeDasharray="5 5"
+            dot={{ r: 2, fill: chartConfig.temperature.color }}
             connectNulls={false}
             isAnimationActive={false}
             name={chartConfig.temperature.label}
@@ -385,8 +396,9 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
             type="monotone"
             dataKey="pressure"
             stroke={chartConfig.pressure.color}
-            strokeWidth={2}
-            dot={{ r: 3, strokeWidth: 1 }}
+            strokeWidth={1}
+            strokeDasharray="3 3"
+            dot={{ r: 2, fill: chartConfig.pressure.color }}
             connectNulls={false}
             isAnimationActive={false}
             name={chartConfig.pressure.label}
