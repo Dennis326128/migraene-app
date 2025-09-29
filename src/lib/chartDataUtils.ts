@@ -17,6 +17,9 @@ export interface DailySeriesPoint {
   notes?: string;
 }
 
+// Simplified type for cleaner API
+export type DailyPoint = DailySeriesPoint;
+
 export interface WeatherTimelineEntry {
   date: string;
   temperature_c?: number;
@@ -36,17 +39,27 @@ const painLevelToScore = (level: string): number => {
 };
 
 /**
+ * Returns time domain for chart X-axis: [from, today]
+ */
+export function timeDomain(from: Date): [number, number] {
+  const start = startOfDay(from).getTime();
+  const end = endOfDay(new Date()).getTime(); // Always end at today
+  return [start, end];
+}
+
+/**
  * Builds a daily time series from migraine entries and weather data
- * Ensures continuous time axis from start to end with null for missing values
+ * Ensures continuous time axis from start to TODAY with null for missing values
+ * The 'end' parameter is ignored - series always extends to today
  */
 export function buildDailySeries(
   entries: MigraineEntry[],
   start: Date,
-  end: Date,
+  end: Date, // IGNORED: always use today instead
   weatherTimeline: WeatherTimelineEntry[] = []
 ): DailySeriesPoint[] {
   const startDay = startOfDay(start);
-  const endDay = endOfDay(end);
+  const endDay = endOfDay(new Date()); // Always end at today, ignore 'end' parameter
   
   // Group entries by day
   const entriesByDay = new Map<string, MigraineEntry[]>();

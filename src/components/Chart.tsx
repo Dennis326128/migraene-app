@@ -6,7 +6,7 @@ import { MigraineEntry } from "@/types/painApp";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { format, parseISO, differenceInDays, startOfDay, endOfDay } from "date-fns";
-import { buildDailySeries, generateTimeTicks, formatTimeAxisLabel, type DailySeriesPoint } from "@/lib/chartDataUtils";
+import { buildDailySeries, generateTimeTicks, formatTimeAxisLabel, timeDomain, type DailySeriesPoint } from "@/lib/chartDataUtils";
 
 interface Props {
   entries: MigraineEntry[];
@@ -45,7 +45,8 @@ export default function ChartComponent({ entries, dateRange, timeRange }: Props)
 
   const startDate = useMemo(() => startOfDay(parseISO(actualDateRange.from)), [actualDateRange.from]);
   const endDate = useMemo(() => endOfDay(parseISO(actualDateRange.to)), [actualDateRange.to]);
-  const daysDiff = useMemo(() => differenceInDays(endDate, startDate), [endDate, startDate]);
+  const today = useMemo(() => new Date(), []);
+  const daysDiff = useMemo(() => differenceInDays(today, startDate), [today, startDate]); // Always calculate to today
 
   console.log('📊 Chart date range:', {
     requested: dateRange,
@@ -139,7 +140,7 @@ export default function ChartComponent({ entries, dateRange, timeRange }: Props)
                 type="number"
                 scale="time"
                 dataKey="ts"
-                domain={[startDate.getTime(), endDate.getTime()]}
+                domain={timeDomain(startDate)}
                 ticks={xAxisTicks}
                 tickFormatter={(ts) => formatTimeAxisLabel(ts, daysDiff)}
                 tick={{ fontSize: isMobile ? 10 : 12 }}
@@ -254,7 +255,7 @@ export default function ChartComponent({ entries, dateRange, timeRange }: Props)
               type="number"
               scale="time"
               dataKey="ts"
-              domain={[startDate.getTime(), endDate.getTime()]}
+              domain={timeDomain(startDate)}
               ticks={xAxisTicks}
               tickFormatter={(ts) => formatTimeAxisLabel(ts, daysDiff)}
               tick={{ fontSize: isMobile ? 10 : 12 }}
