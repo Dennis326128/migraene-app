@@ -214,6 +214,7 @@ export type Database = {
       }
       user_profiles: {
         Row: {
+          default_pain_location: string | null
           default_symptoms: string[] | null
           latitude: number | null
           longitude: number | null
@@ -223,6 +224,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          default_pain_location?: string | null
           default_symptoms?: string[] | null
           latitude?: number | null
           longitude?: number | null
@@ -232,6 +234,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          default_pain_location?: string | null
           default_symptoms?: string[] | null
           latitude?: number | null
           longitude?: number | null

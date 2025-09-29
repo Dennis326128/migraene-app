@@ -9,6 +9,13 @@ export type UserSettings = {
   updated_at: string;
 };
 
+export type UserDefaults = {
+  user_id: string;
+  default_symptoms: string[];
+  default_pain_location: string | null;
+  updated_at: string;
+};
+
 export async function getUserSettings(): Promise<UserSettings | null> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
@@ -25,5 +32,24 @@ export async function upsertUserSettings(patch: Partial<UserSettings>): Promise<
   if (!user) throw new Error("Kein Nutzer");
   const payload: Partial<UserSettings> & { user_id: string } = { user_id: user.id, ...patch };
   const { error } = await supabase.from("user_settings").upsert(payload, { onConflict: "user_id" });
+  if (error) throw error;
+}
+
+export async function getUserDefaults(): Promise<UserDefaults | null> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data } = await supabase
+    .from("user_profiles")
+    .select("user_id, default_symptoms, default_pain_location, updated_at")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  return (data as UserDefaults) ?? null;
+}
+
+export async function upsertUserDefaults(patch: Partial<UserDefaults>): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Kein Nutzer");
+  const payload: Partial<UserDefaults> & { user_id: string } = { user_id: user.id, ...patch };
+  const { error } = await supabase.from("user_profiles").upsert(payload, { onConflict: "user_id" });
   if (error) throw error;
 }

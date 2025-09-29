@@ -12,6 +12,7 @@ import { useCreateEntry, useUpdateEntry } from "@/features/entries/hooks/useEntr
 import { useMeds, useAddMed, useDeleteMed } from "@/features/meds/hooks/useMeds";
 import { useSymptomCatalog, useEntrySymptoms, useSetEntrySymptoms } from "@/features/symptoms/hooks/useSymptoms";
 import { useCheckMedicationLimits, type LimitCheck } from "@/features/medication-limits/hooks/useMedicationLimits";
+import { useUserDefaults, useUpsertUserDefaults } from "@/features/settings/hooks/useUserSettings";
 import { MedicationLimitWarning } from "./MedicationLimitWarning";
 import { PainSlider } from "@/components/ui/pain-slider";
 import { normalizePainLevel } from "@/lib/utils/pain";
@@ -74,6 +75,10 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
 
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
 
+  // User defaults for persistent selections
+  const { data: userDefaults } = useUserDefaults();
+  const upsertDefaults = useUpsertUserDefaults();
+
   // Medication limit checking
   const [showLimitWarning, setShowLimitWarning] = useState(false);
   const [limitChecks, setLimitChecks] = useState<LimitCheck[]>([]);
@@ -92,6 +97,19 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
   const delMedMut = useDeleteMed();
   const createMut = useCreateEntry();
   const updateMut = useUpdateEntry();
+
+  // Load user defaults for new entries
+  useEffect(() => {
+    if (!entry && userDefaults) {
+      // Only apply defaults for new entries, not when editing existing ones
+      if (userDefaults.default_pain_location) {
+        setPainLocation(userDefaults.default_pain_location);
+      }
+      if (userDefaults.default_symptoms?.length > 0) {
+        setSelectedSymptoms(userDefaults.default_symptoms);
+      }
+    }
+  }, [entry, userDefaults]);
 
   useEffect(() => {
     if (entry) {
@@ -272,6 +290,18 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
       const numericId = Number(savedId);
       if (Number.isFinite(numericId)) {
         await setEntrySymptomsMut.mutateAsync({ entryId: numericId, symptomIds: selectedSymptoms });
+      }
+
+      // Save current selections as new user defaults
+      try {
+        const newDefaults = {
+          default_pain_location: painLocation || null,
+          default_symptoms: selectedSymptoms,
+        };
+        await upsertDefaults.mutateAsync(newDefaults);
+      } catch (error) {
+        console.warn('Failed to save user defaults:', error);
+        // Don't fail the save operation if defaults saving fails
       }
 
       // Medication effectiveness is now tracked in the medications array of pain_entries
