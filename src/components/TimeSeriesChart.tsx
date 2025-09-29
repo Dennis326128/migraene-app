@@ -4,6 +4,8 @@ import { format, startOfDay, endOfDay, eachDayOfInterval, differenceInDays } fro
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useWeatherTimeline } from "@/features/weather/hooks/useWeatherTimeline";
+import { supabase } from "@/lib/supabaseClient";
+import { useQuery } from "@tanstack/react-query";
 import type { MigraineEntry } from "@/types/painApp";
 
 interface Props {
@@ -93,6 +95,41 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
     true
   );
   
+  // Fallback query for missing weather data
+  const { data: fallbackWeatherData } = useQuery({
+    queryKey: ['fallback-weather', format(startDate, 'yyyy-MM-dd'), format(endDate, 'yyyy-MM-dd')],
+    queryFn: async () => {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) return [];
+      
+      const { data, error } = await supabase
+        .from('weather_logs')
+        .select('pressure_mb, temperature_c, humidity, snapshot_date, created_at')
+        .eq('user_id', userData.user.id)
+        .gte('created_at', format(startDate, 'yyyy-MM-dd') + 'T00:00:00')
+        .lte('created_at', format(endDate, 'yyyy-MM-dd') + 'T23:59:59')
+        .order('created_at', { ascending: true });
+        
+      if (error) throw error;
+      
+      // Group by date, taking the latest entry per day
+      const byDate = new Map();
+      data?.forEach(weather => {
+        const date = weather.snapshot_date || weather.created_at?.split('T')[0];
+        if (date) {
+          const existing = byDate.get(date);
+          if (!existing || new Date(weather.created_at) > new Date(existing.created_at)) {
+            byDate.set(date, { ...weather, date });
+          }
+        }
+      });
+      
+      return Array.from(byDate.values());
+    },
+    enabled: !!(weatherData && weatherData.length === 0), // Only run if primary query has no data
+    staleTime: 5 * 60 * 1000,
+  });
+  
   // Build daily data series
   const dailyData = useMemo(() => {
     const days = eachDayOfInterval({ start: startOfDay(startDate), end: endOfDay(endDate) });
@@ -115,6 +152,13 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
     const weatherByDate = new Map<string, any>();
     weatherData?.forEach(weather => {
       if (weather.date) {
+        weatherByDate.set(weather.date, weather);
+      }
+    });
+    
+    // Add fallback weather data for missing days
+    fallbackWeatherData?.forEach(weather => {
+      if (weather.date && !weatherByDate.has(weather.date)) {
         weatherByDate.set(weather.date, weather);
       }
     });
