@@ -25,7 +25,7 @@ interface AnalysisViewProps {
 
 export function AnalysisView({ onBack }: AnalysisViewProps) {
   const isMobile = useIsMobile();
-  const [viewMode, setViewMode] = useState<"tagebuch" | "analyse" | "grafik" | "medikamente" | "ueberverbrauch" | "migration">("grafik");
+  const [viewMode, setViewMode] = useState<"tagebuch" | "analyse" | "grafik" | "ueberverbrauch" | "migration">("grafik");
   const [timeRange, setTimeRange] = useState("alle");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
@@ -228,8 +228,7 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
               { id: "tagebuch", label: isMobile ? "📋" : "📋 Tagebuch", icon: FileText },
               { id: "analyse", label: isMobile ? "📊" : "📊 Analyse", icon: BarChart3 },
               { id: "grafik", label: isMobile ? "📈" : "📈 Grafik", icon: Activity },
-              { id: "medikamente", label: isMobile ? "💊" : "💊 Medikamente", icon: Pill },
-              { id: "ueberverbrauch", label: isMobile ? "⚠️" : "⚠️ Übergebrauch", icon: AlertTriangle },
+              { id: "ueberverbrauch", label: isMobile ? "📊" : "📊 Überverbrauch", icon: AlertTriangle },
               { id: "migration", label: isMobile ? "🔄" : "🔄 Migration", icon: Database },
             ].map(({ id, label, icon: Icon }) => (
               <Button
@@ -238,7 +237,6 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
                 size={isMobile ? "sm" : "sm"}
                 onClick={() => setViewMode(id as any)}
                 className={`${isMobile ? 'text-xs min-w-fit px-3 whitespace-nowrap' : 'text-xs'} touch-manipulation`}
-                disabled={id === "medikamente"} // Only disable medications feature
               >
                 {isMobile ? (
                   <span className="text-sm">{label}</span>
@@ -421,18 +419,6 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
         </>
       )}
 
-      {viewMode === "medikamente" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Medikamenten-Analyse</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground">
-              Diese Funktion wurde entfernt. Medikamentendaten sind weiterhin in den Einträgen verfügbar.
-            </p>
-          </CardContent>
-        </Card>
-      )}
 
       {viewMode === "ueberverbrauch" && (
         <MedicationLimitsOverview />
