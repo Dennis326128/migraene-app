@@ -228,7 +228,7 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
               { id: "tagebuch", label: isMobile ? "📋" : "📋 Tagebuch", icon: FileText },
               { id: "analyse", label: isMobile ? "📊" : "📊 Analyse", icon: BarChart3 },
               { id: "grafik", label: isMobile ? "📈" : "📈 Grafik", icon: Activity },
-              { id: "ueberverbrauch", label: isMobile ? "📊" : "📊 Überverbrauch", icon: AlertTriangle },
+              { id: "ueberverbrauch", label: isMobile ? "📊" : "Überverbrauch", icon: AlertTriangle },
               { id: "migration", label: isMobile ? "🔄" : "🔄 Migration", icon: Database },
             ].map(({ id, label, icon: Icon }) => (
               <Button
