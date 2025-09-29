@@ -250,30 +250,30 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
           </div>
         )}
 
-        <div>
+        <div className="space-y-2">
           <label className="block text-sm mb-1">Medikamente auswählen (optional)</label>
           <div className="flex flex-wrap gap-2">
             {medOptions.map(m => {
-              const checked = selectedMeds.includes(m);
+              const isSelected = selectedMeds.includes(m);
               return (
-                <button
+                <Button
                   key={m}
-                  onClick={() => setSelectedMeds(prev => checked ? prev.filter(x=>x!==m) : [...prev, m])}
-                  className={`px-3 h-9 rounded border ${checked ? "bg-primary text-primary-foreground" : "bg-background"}`}
+                  type="button"
+                  size="sm"
+                  variant={isSelected ? "default" : "outline"}
+                  onClick={() => setSelectedMeds(prev => isSelected ? prev.filter(x=>x!==m) : [...prev, m])}
+                  aria-pressed={isSelected}
+                  className="text-xs"
                 >
                   {m}
-                </button>
+                </Button>
               );
             })}
           </div>
-          <div className="mt-2 flex gap-2">
-            <Button variant="ghost" onClick={() => setSelectedMeds(medOptions)}>Alle</Button>
-            <Button variant="ghost" onClick={() => setSelectedMeds([])}>Keine</Button>
-            <label className="inline-flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={includeNoMeds} onChange={e=>setIncludeNoMeds(e.target.checked)} />
-              Einträge ohne Medikamente einbeziehen
-            </label>
-          </div>
+          <label className="inline-flex items-center gap-2 text-sm mt-2">
+            <input type="checkbox" checked={includeNoMeds} onChange={e=>setIncludeNoMeds(e.target.checked)} />
+            Einträge ohne Medikamente einbeziehen
+          </label>
         </div>
 
         <div>
