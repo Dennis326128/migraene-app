@@ -20,7 +20,7 @@ export async function getWeatherTimelineData(
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user) throw new Error("Not authenticated");
 
-  // Get entry-based weather data
+  // Get entry-based weather data - fix the relationship reference
   const { data: entryWeather, error: entryError } = await supabase
     .from('pain_entries')
     .select(`
@@ -29,7 +29,7 @@ export async function getWeatherTimelineData(
       selected_date,
       selected_time,
       pain_level,
-      weather_logs!weather_id (
+      weather_logs!pain_entries_weather_id_fkey (
         pressure_mb,
         temperature_c,
         humidity,
@@ -69,25 +69,26 @@ export async function getWeatherTimelineData(
     }
   });
 
-  // Get passive weather data if requested
+  // Get passive weather data if requested - also handle null snapshot_date
   if (includePassive) {
     const { data: passiveWeather, error: passiveError } = await supabase
       .from('weather_logs')
       .select('pressure_mb, temperature_c, humidity, snapshot_date, created_at')
       .eq('user_id', userData.user.id)
-      .gte('snapshot_date', from)
-      .lte('snapshot_date', to)
-      .order('snapshot_date', { ascending: true });
+      .or(`and(snapshot_date.gte.${from},snapshot_date.lte.${to}),and(snapshot_date.is.null,created_at.gte.${from}T00:00:00,created_at.lte.${to}T23:59:59)`)
+      .order('created_at', { ascending: true });
 
     if (passiveError) throw passiveError;
 
-    // Group passive data by date to avoid duplicates
+    // Group passive data by date to avoid duplicates - handle null snapshot_date
     const passiveByDate = new Map<string, typeof passiveWeather[0]>();
     passiveWeather?.forEach(weather => {
-      if (weather.snapshot_date) {
-        const existing = passiveByDate.get(weather.snapshot_date);
+      // Use snapshot_date if available, otherwise use created_at date
+      const date = weather.snapshot_date || weather.created_at?.split('T')[0];
+      if (date) {
+        const existing = passiveByDate.get(date);
         if (!existing || new Date(weather.created_at) > new Date(existing.created_at)) {
-          passiveByDate.set(weather.snapshot_date, weather);
+          passiveByDate.set(date, weather);
         }
       }
     });
