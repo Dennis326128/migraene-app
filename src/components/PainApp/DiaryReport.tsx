@@ -77,10 +77,10 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
     })();
   }, [entries]);
 
-  // Vorschau erzeugen (Filter anwenden)
-  const generatePreview = () => {
+  // Automatisch gefilterte Einträge (Live-Vorschau)
+  const filteredEntries = useMemo(() => {
     const medsSet = new Set(selectedMeds);
-    const filtered = entries.filter(e => {
+    return entries.filter(e => {
       const meds = e.medications || [];
       const hasAny = meds.some(m => medsSet.has(m));
       if (selectedMeds.length === 0) {
@@ -88,19 +88,18 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
       }
       return hasAny || (includeNoMeds && meds.length === 0);
     });
-    setGenerated(filtered);
-  };
+  }, [entries, selectedMeds, includeNoMeds]);
 
   const avgPain = useMemo(() => {
-    if (!generated.length) return 0;
-    const validEntries = generated.filter(e => {
+    if (!filteredEntries.length) return 0;
+    const validEntries = filteredEntries.filter(e => {
       const score = mapTextLevelToScore(e.pain_level);
       return score > 0; // Exclude zero values from average
     });
     if (!validEntries.length) return 0;
     const sum = validEntries.reduce((s, e) => s + mapTextLevelToScore(e.pain_level), 0);
     return (sum / validEntries.length).toFixed(2);
-  }, [generated]);
+  }, [filteredEntries]);
 
   const printPDF = () => {
     const win = window.open("", "_blank");
@@ -120,10 +119,10 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
       <h1>Kopfschmerztagebuch</h1>
       <small>Zeitraum: ${from} bis ${to}${selectedMeds.length ? ` • Medikamente: ${selectedMeds.join(", ")}` : ""}${includeNoMeds ? " • Einträge ohne Medikamente enthalten" : ""}</small>
       <h2>Übersicht</h2>
-      <div>Einträge: ${generated.length} • Durchschnittliches Schmerzlevel: ${avgPain}</div>
+      <div>Einträge: ${filteredEntries.length} • Durchschnittliches Schmerzlevel: ${avgPain}</div>
       <h2>Einträge</h2>
     `;
-    const rows = generated.map(e => {
+    const rows = filteredEntries.map(e => {
       const dt = e.selected_date && e.selected_time
         ? `${e.selected_date} ${e.selected_time}`
         : new Date(e.timestamp_created).toLocaleString();
@@ -150,9 +149,9 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
   };
 
   const exportCSV = () => {
-    if (!generated.length) return;
+    if (!filteredEntries.length) return;
     const header = ["Datum/Zeit","Schmerzlevel","Medikamente","Notiz"];
-    const rows = generated.map(e => {
+    const rows = filteredEntries.map(e => {
       const dt = e.selected_date && e.selected_time
         ? `${e.selected_date} ${e.selected_time}`
         : new Date(e.timestamp_created).toLocaleString();
@@ -173,13 +172,13 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
   };
 
   const savePDF = async () => {
-    if (!generated.length) return;
+    if (!filteredEntries.length) return;
     
     let bytes: Uint8Array;
     
     if (useModernPdf) {
       // Convert legacy entries to modern format for new PDF
-      const modernEvents = generated.map(entry => ({
+      const modernEvents = filteredEntries.map(entry => ({
         id: Number(entry.id),
         started_at: entry.timestamp_created,
         type: 'migraine',
@@ -203,7 +202,7 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
       bytes = await buildDiaryPdf({
         title: "Kopfschmerztagebuch",
         from, to,
-        entries: generated,
+        entries: filteredEntries,
         selectedMeds,
         includeNoMeds,
       });
@@ -304,10 +303,9 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
         </div>
 
         <div className="flex gap-2">
-          <Button onClick={generatePreview} disabled={isLoading}>Vorschau aktualisieren</Button>
-          <Button variant="secondary" onClick={printPDF} disabled={!generated.length}>PDF / Drucken</Button>
-          <Button variant="secondary" onClick={savePDF} disabled={!generated.length}>PDF speichern</Button>
-          <Button variant="outline" onClick={exportCSV} disabled={!generated.length}>CSV Export</Button>
+          <Button variant="secondary" onClick={printPDF} disabled={!filteredEntries.length || isLoading}>📄 PDF / Drucken</Button>
+          <Button variant="secondary" onClick={savePDF} disabled={!filteredEntries.length || isLoading}>💾 PDF speichern</Button>
+          <Button variant="outline" onClick={exportCSV} disabled={!filteredEntries.length || isLoading}>📊 CSV Export</Button>
         </div>
       </Card>
 
@@ -319,15 +317,17 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
           </div>
           <div className="text-right">
             <div className="text-sm text-muted-foreground">Einträge</div>
-            <div className="font-medium">{generated.length}</div>
+            <div className="font-medium">{filteredEntries.length}</div>
           </div>
         </div>
 
-        {generated.length === 0 ? (
-          <div className="text-sm text-muted-foreground">Noch keine Vorschau – klicke auf „Vorschau aktualisieren".</div>
+        {isLoading ? (
+          <div className="text-sm text-muted-foreground">⏳ Lade Einträge...</div>
+        ) : filteredEntries.length === 0 ? (
+          <div className="text-sm text-muted-foreground">📋 Keine Einträge für den gewählten Zeitraum und Filter gefunden.</div>
         ) : (
           <ul className="space-y-2">
-            {generated.map(e => {
+            {filteredEntries.map(e => {
               const dt = e.selected_date && e.selected_time
                 ? `${e.selected_date} ${e.selected_time}`
                 : new Date(e.timestamp_created).toLocaleString();
