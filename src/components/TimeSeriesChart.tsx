@@ -371,7 +371,7 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
             stroke={chartConfig.pain.color}
             strokeWidth={2}
             dot={{ r: 3, fill: chartConfig.pain.color }}
-            connectNulls={false}
+            connectNulls={true}
             isAnimationActive={false}
             name={chartConfig.pain.label}
           />
@@ -384,7 +384,7 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
             stroke={chartConfig.temperature.color}
             strokeWidth={2}
             dot={{ r: 3, fill: chartConfig.temperature.color }}
-            connectNulls={false}
+            connectNulls={true}
             isAnimationActive={false}
             name={chartConfig.temperature.label}
           />
@@ -397,7 +397,7 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
             stroke={chartConfig.pressure.color}
             strokeWidth={2}
             dot={{ r: 3, fill: chartConfig.pressure.color }}
-            connectNulls={false}
+            connectNulls={true}
             isAnimationActive={false}
             name={chartConfig.pressure.label}
           />
