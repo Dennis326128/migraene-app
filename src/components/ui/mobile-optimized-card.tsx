@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils"
 import { useIsMobile } from "@/hooks/use-mobile"
 
 const mobileCardVariants = cva(
-  "rounded-lg bg-card text-card-foreground shadow-sm transition-all duration-200 touch-manipulation",
+  "rounded-md bg-card text-card-foreground transition-all duration-200 touch-manipulation",
   {
     variants: {
       variant: {
