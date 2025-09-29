@@ -8,6 +8,7 @@ import { ArrowLeft, Plus, X, Save, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { MigraineEntry } from "@/types/painApp";
 import { logAndSaveWeatherAt, logAndSaveWeatherAtCoords } from "@/utils/weatherLogger";
+import { updateUserProfileCoordinates } from "@/utils/coordinateUpdater";
 import { useCreateEntry, useUpdateEntry } from "@/features/entries/hooks/useEntryMutations";
 import { useMeds, useAddMed, useDeleteMed } from "@/features/meds/hooks/useMeds";
 import { useSymptomCatalog, useEntrySymptoms, useSetEntrySymptoms } from "@/features/symptoms/hooks/useSymptoms";
@@ -290,6 +291,16 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
       const numericId = Number(savedId);
       if (Number.isFinite(numericId)) {
         await setEntrySymptomsMut.mutateAsync({ entryId: numericId, symptomIds: selectedSymptoms });
+      }
+
+      // Update user profile with latest coordinates (for future fallback)
+      if (latitude && longitude) {
+        try {
+          await updateUserProfileCoordinates(latitude, longitude);
+        } catch (error) {
+          console.warn('Failed to update user profile coordinates:', error);
+          // Don't fail the save operation if coordinate update fails
+        }
       }
 
       // Save current selections as new user defaults

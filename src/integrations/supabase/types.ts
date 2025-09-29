@@ -363,6 +363,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      invoke_auto_weather_backfill: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       rpc_entries_filtered: {
         Args: {
           p_aura_types?: string[]
