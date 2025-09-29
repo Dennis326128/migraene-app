@@ -77,6 +77,45 @@ export type Database = {
           },
         ]
       }
+      medication_effects: {
+        Row: {
+          confidence: string | null
+          created_at: string
+          effect_rating: string
+          entry_id: number
+          id: string
+          med_name: string
+          method: string | null
+          notes: string | null
+          side_effects: string[] | null
+          updated_at: string
+        }
+        Insert: {
+          confidence?: string | null
+          created_at?: string
+          effect_rating: string
+          entry_id: number
+          id?: string
+          med_name: string
+          method?: string | null
+          notes?: string | null
+          side_effects?: string[] | null
+          updated_at?: string
+        }
+        Update: {
+          confidence?: string | null
+          created_at?: string
+          effect_rating?: string
+          entry_id?: number
+          id?: string
+          med_name?: string
+          method?: string | null
+          notes?: string | null
+          side_effects?: string[] | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       pain_entries: {
         Row: {
           aura_type: string

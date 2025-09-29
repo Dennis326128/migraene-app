@@ -5,8 +5,10 @@ import { Plus, History, TrendingUp, Settings, Zap, Mic } from "lucide-react";
 import { LogoutButton } from "@/components/LogoutButton";
 import { WelcomeModal } from "./WelcomeModal";
 import { QuickEntryModal } from "./QuickEntryModal";
+import { MedicationEffectRatingModal } from "./MedicationEffectRatingModal";
 import { useOnboarding } from "@/hooks/useOnboarding";
 import { useVoiceTrigger, type VoiceTriggerData } from "@/hooks/useVoiceTrigger";
+import { useUnratedMedicationEntries } from "@/features/medication-effects/hooks/useMedicationEffects";
 import { toast } from "sonner";
 
 interface MainMenuProps {
@@ -26,7 +28,11 @@ export const MainMenu: React.FC<MainMenuProps> = ({
 }) => {
   const { needsOnboarding, completeOnboarding, isLoading: onboardingLoading } = useOnboarding();
   const [showQuickEntry, setShowQuickEntry] = useState(false);
+  const [showMedicationRating, setShowMedicationRating] = useState(false);
   const [voiceData, setVoiceData] = useState<VoiceTriggerData | null>(null);
+  
+  // Get unrated medication entries
+  const { data: unratedEntries = [], isLoading: unratedLoading } = useUnratedMedicationEntries();
 
   // New voice trigger system
   const voiceTrigger = useVoiceTrigger({
@@ -123,6 +129,26 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             </div>
           </Card>
 
+          {/* Medication Effect Rating Button - only show if there are unrated entries */}
+          {!unratedLoading && unratedEntries.length > 0 && (
+            <Card className="hover:shadow-lg active:shadow-xl transition-all cursor-pointer group border-blue-200 bg-blue-50 hover:bg-blue-100 active:scale-[0.98] touch-manipulation mobile-touch-feedback" onClick={() => setShowMedicationRating(true)}>
+              <div className="p-4 sm:p-6 text-center min-h-[4rem] sm:min-h-[6rem] flex flex-col justify-center mobile-card-compact mobile-text-compact">
+                <div className="text-2xl sm:text-4xl mb-1 sm:mb-3 group-hover:scale-110 transition-transform relative">
+                  💊
+                  <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                    {unratedEntries.reduce((total, entry) => 
+                      total + entry.medications.filter(med => !entry.rated_medications.includes(med)).length, 0
+                    )}
+                  </span>
+                </div>
+                <h3 className="text-base sm:text-xl font-semibold mb-1 text-blue-700 mobile-button-text">Wirkung bewerten</h3>
+                <p className="text-muted-foreground text-xs leading-tight mobile-button-text">
+                  Medikamenten-Effektivität erfassen
+                </p>
+              </div>
+            </Card>
+          )}
+
           {/* View Entries Button */}
           <Card className="hover:shadow-lg active:shadow-xl transition-all cursor-pointer group active:scale-[0.98] touch-manipulation mobile-touch-feedback" onClick={onViewEntries}>
             <div className="p-4 sm:p-6 text-center min-h-[4rem] sm:min-h-[6rem] flex flex-col justify-center mobile-card-compact mobile-text-compact">
@@ -180,6 +206,12 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         initialCustomTime={voiceData?.customTime}
         initialMedicationStates={voiceData?.medicationStates}
         initialNotes={voiceData?.notes}
+      />
+
+      <MedicationEffectRatingModal
+        open={showMedicationRating}
+        onClose={() => setShowMedicationRating(false)}
+        unratedEntries={unratedEntries}
       />
     </div>
   );
