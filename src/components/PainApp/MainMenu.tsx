@@ -72,7 +72,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
     if (voiceTrigger.isListening) {
       return 'Sprechen Sie jetzt! (3s Pause beendet)';
     }
-    return 'Sprechen Sie Ihren Eintrag auf Deutsch';
+    return 'Erstellen Sie einen Schnelleintrag per Sprach-Eingabe';
   };
 
   const handleQuickEntryClose = () => {
@@ -147,8 +147,8 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               <div className="text-center space-y-2">
                 <div className="text-2xl">💊</div>
                 <div>
-                  <h4 className="font-semibold text-sm">Medikamente</h4>
-                  <p className="text-xs opacity-75">Wirkung</p>
+                  <h4 className="font-semibold text-sm">Medikamenten-Wirkung</h4>
+                  <p className="text-xs opacity-75">Nachträglich bewerten</p>
                 </div>
               </div>
             </StartPageCard>
