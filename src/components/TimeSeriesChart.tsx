@@ -308,7 +308,7 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
           data={dailyData}
           margin={{
             top: 20,
-            right: isMobile ? 35 : 70,
+            right: isMobile ? 25 : 40,
             left: isMobile ? 20 : 60,
             bottom: 60,
           }}
@@ -346,13 +346,17 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
             orientation="right"
             domain={['dataMin - 2', 'dataMax + 2']}
             tick={{ fontSize: isMobile ? 10 : 12 }}
-            width={isMobile ? 50 : 65}
+            width={isMobile ? 40 : 55}
             label={{ 
-              value: isMobile ? 'Temp. (°C)' : 'Temperatur (°C)', 
-              angle: 90, 
-              position: 'insideRight',
-              offset: -10,
-              style: { textAnchor: 'middle', fontSize: isMobile ? 10 : 12 }
+              value: isMobile ? 'Temp.' : 'Temperatur', 
+              angle: 0, 
+              position: 'insideTopRight',
+              offset: 10,
+              style: { 
+                textAnchor: 'middle', 
+                fontSize: isMobile ? 10 : 12,
+                fill: chartConfig.temperature.color
+              }
             }}
           />
           
@@ -362,13 +366,17 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
             orientation="right"
             domain={['dataMin - 5', 'dataMax + 5']}
             tick={{ fontSize: isMobile ? 10 : 12 }}
-            width={isMobile ? 50 : 65}
+            width={isMobile ? 40 : 55}
             label={{ 
-              value: isMobile ? 'Druck (mb)' : 'Luftdruck (mb)', 
-              angle: 90, 
-              position: 'insideRight',
-              offset: 25,
-              style: { textAnchor: 'middle', fontSize: isMobile ? 10 : 12 }
+              value: isMobile ? 'Druck' : 'Luftdruck', 
+              angle: 0, 
+              position: 'insideBottomRight',
+              offset: 10,
+              style: { 
+                textAnchor: 'middle', 
+                fontSize: isMobile ? 10 : 12,
+                fill: chartConfig.pressure.color
+              }
             }}
           />
           
