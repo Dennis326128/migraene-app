@@ -107,20 +107,18 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             />
           </StartPageCard>
 
-          {/* Quick Entry Button - Desktop */}
-          {!isMobile && (
-            <StartPageCard 
-              variant="quick" 
-              touchFeedback 
-              onClick={() => setShowQuickEntry(true)}
-            >
-              <StartPageCardHeader
-                icon="🔴"
-                title="Schnelleintrag"
-                subtitle="Sofortige Migräne-Erfassung"
-              />
-            </StartPageCard>
-          )}
+          {/* Quick Entry Button */}
+          <StartPageCard 
+            variant="quick" 
+            touchFeedback 
+            onClick={() => setShowQuickEntry(true)}
+          >
+            <StartPageCardHeader
+              icon="🔴"
+              title="Schnelleintrag"
+              subtitle="Sofortige Migräne-Erfassung"
+            />
+          </StartPageCard>
 
           {/* Voice Entry Button */}
           <StartPageCard 
@@ -200,19 +198,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           </StartPageButtonGrid>
         </div>
 
-        {/* Mobile-only Floating Action Button for Quick Entry */}
-        {isMobile && (
-          <FloatingActionButton
-            variant="primary"
-            size="lg"
-            position="bottom-right"
-            onClick={() => setShowQuickEntry(true)}
-            pulse={voiceTrigger.isListening}
-            aria-label="Schnelleintrag"
-          >
-            <Zap className="h-6 w-6" />
-          </FloatingActionButton>
-        )}
       </div>
 
       {/* Modals */}
