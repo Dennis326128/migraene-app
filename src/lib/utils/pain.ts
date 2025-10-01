@@ -6,11 +6,16 @@ export function mapTextLevelToScore(level: string | number): number {
   // If already numeric, return as-is
   if (typeof level === 'number') return Math.max(0, Math.min(10, level));
   
-  const t = (level || "").toLowerCase();
+  const t = (level || "").toLowerCase().replace(/_/g, " ");
   if (t.includes("sehr") && t.includes("stark")) return 9;
   if (t.includes("stark")) return 7;
   if (t.includes("mittel")) return 5;
   if (t.includes("leicht")) return 2;
+  
+  // Try to parse as number if it's numeric string
+  const num = parseInt(level as string);
+  if (!isNaN(num)) return Math.max(0, Math.min(10, num));
+  
   return 0;
 }
 

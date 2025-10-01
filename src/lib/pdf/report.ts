@@ -18,6 +18,26 @@ function toLabel(e: PainEntry) {
   return `${ds} ${ts}`;
 }
 
+function formatDateRange(from: string, to: string): string {
+  const fromDate = new Date(from);
+  const toDate = new Date(to);
+  const fromFormatted = fromDate.toLocaleDateString("de-DE", { day: "numeric", month: "long", year: "numeric" });
+  const toFormatted = toDate.toLocaleDateString("de-DE", { day: "numeric", month: "long", year: "numeric" });
+  return `${fromFormatted} bis ${toFormatted}`;
+}
+
+function painLevelToNumber(painLevel: string): string {
+  const level = (painLevel || "").toLowerCase().replace(/_/g, " ");
+  if (level.includes("sehr") && level.includes("stark")) return "9";
+  if (level.includes("stark")) return "7";
+  if (level.includes("mittel")) return "5";
+  if (level.includes("leicht")) return "2";
+  // If it's already a number, return as-is
+  const num = parseInt(painLevel);
+  if (!isNaN(num)) return num.toString();
+  return painLevel; // fallback
+}
+
 export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Array> {
   const { title = "Kopfschmerztagebuch", from, to, entries, selectedMeds, includeNoMeds } = params;
 
@@ -32,11 +52,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   // Header
   page.drawText(title, { x: margin, y, size: 18, font: fontBold, color: rgb(0,0,0) });
   y -= 22;
-  page.drawText(`Zeitraum: ${from} bis ${to}`, { x: margin, y, size: 11, font });
-  y -= 14;
-  const medsInfo = selectedMeds.length ? `Medikamente: ${selectedMeds.join(", ")}` : "Medikamente: alle";
-  const noMedsInfo = includeNoMeds ? " • Einträge ohne Medikamente enthalten" : "";
-  page.drawText(`${medsInfo}${noMedsInfo}`, { x: margin, y, size: 10, font, color: rgb(0.25,0.25,0.25) });
+  page.drawText(`Zeitraum: ${formatDateRange(from, to)}`, { x: margin, y, size: 11, font });
   y -= 20;
 
   // Table header
@@ -81,7 +97,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     // Zeile schreiben
     let rowBottomY = y;
     rowBottomY = Math.min(rowBottomY, write(dt,   colX.dt,   160));
-    rowBottomY = Math.min(rowBottomY, write(e.pain_level, colX.pain, 70));
+    rowBottomY = Math.min(rowBottomY, write(painLevelToNumber(e.pain_level), colX.pain, 70));
     rowBottomY = Math.min(rowBottomY, write(meds || "–",   colX.meds, 150));
     rowBottomY = Math.min(rowBottomY, write(note || "–",   colX.note, page.getWidth() - margin - colX.note));
 

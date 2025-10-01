@@ -5,7 +5,6 @@ import { Card } from "@/components/ui/card";
 import type { PainEntry } from "@/types/painApp";
 import { useEntries } from "@/features/entries/hooks/useEntries";
 import { buildDiaryPdf } from "@/lib/pdf/report";
-import { buildModernDiaryPdf } from "@/lib/pdf/modernReport";
 import { getUserSettings } from "@/features/settings/api/settings.api";
 import { mapTextLevelToScore } from "@/lib/utils/pain";
 
@@ -27,7 +26,6 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
   const [medOptions, setMedOptions] = useState<string[]>([]);
   const [includeNoMeds, setIncludeNoMeds] = useState<boolean>(true);
   const [generated, setGenerated] = useState<PainEntry[]>([]);
-  const [useModernPdf, setUseModernPdf] = useState<boolean>(true);
 
   useEffect(() => {
     (async () => {
@@ -174,45 +172,19 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
   const savePDF = async () => {
     if (!filteredEntries.length) return;
     
-    let bytes: Uint8Array;
-    
-    if (useModernPdf) {
-      // Convert legacy entries to modern format for new PDF
-      const modernEvents = filteredEntries.map(entry => ({
-        id: Number(entry.id),
-        started_at: entry.timestamp_created,
-        type: 'migraine',
-        intensity_0_10: mapTextLevelToScore(entry.pain_level),
-        notes_extraordinary: entry.notes,
-        medications: entry.medications?.map(name => ({ name })) || [],
-        symptoms: [], // Legacy entries don't have symptoms
-        weather: undefined // Can be enhanced later
-      }));
-      
-      bytes = await buildModernDiaryPdf({
-        title: "Migräne-Tagebuch (Modernisiert)",
-        from, to,
-        events: modernEvents,
-        includeWeather: false,
-        includeMedEffects: false,
-        includeDoctorSummary: true,
-      });
-    } else {
-      // Use legacy PDF format
-      bytes = await buildDiaryPdf({
-        title: "Kopfschmerztagebuch",
-        from, to,
-        entries: filteredEntries,
-        selectedMeds,
-        includeNoMeds,
-      });
-    }
+    const bytes = await buildDiaryPdf({
+      title: "Kopfschmerztagebuch",
+      from, to,
+      entries: filteredEntries,
+      selectedMeds,
+      includeNoMeds,
+    });
     
     const blob = new Blob([bytes], { type: "application/pdf" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${useModernPdf ? 'migraene_tagebuch_modern' : 'kopfschmerztagebuch'}_${from}_bis_${to}.pdf`;
+    a.download = `kopfschmerztagebuch_${from}_bis_${to}.pdf`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -274,32 +246,6 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
             <input type="checkbox" checked={includeNoMeds} onChange={e=>setIncludeNoMeds(e.target.checked)} />
             Einträge ohne Medikamente einbeziehen
           </label>
-        </div>
-
-        <div>
-          <label className="block text-sm mb-2">PDF-Format</label>
-          <div className="flex gap-2">
-            <Button 
-              variant={useModernPdf ? "default" : "outline"}
-              onClick={() => setUseModernPdf(true)}
-              className="flex-1"
-            >
-              🩺 Modern (mit Analysebereiche)
-            </Button>
-            <Button 
-              variant={!useModernPdf ? "default" : "outline"}
-              onClick={() => setUseModernPdf(false)}
-              className="flex-1"
-            >
-              📋 Klassisch (einfache Tabelle)
-            </Button>
-          </div>
-          <div className="text-xs text-muted-foreground mt-1">
-            {useModernPdf 
-              ? "Enthält Übersicht, Statistiken und ärztliche Zusammenfassung" 
-              : "Einfache tabellarische Darstellung wie bisher"
-            }
-          </div>
         </div>
 
         <div className="flex gap-2">
