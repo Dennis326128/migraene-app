@@ -335,7 +335,8 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
             label={{ 
               value: 'Schmerz', 
               angle: -45, 
-              position: 'outside',
+              position: 'insideLeft',
+              offset: -10,
               style: { textAnchor: 'middle', fontSize: isMobile ? 10 : 12 }
             }}
           />
@@ -350,7 +351,8 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
             label={{ 
               value: isMobile ? 'Temp.' : 'Temperatur', 
               angle: -45, 
-              position: 'outside',
+              position: 'insideRight',
+              offset: -10,
               style: { 
                 textAnchor: 'middle', 
                 fontSize: isMobile ? 10 : 12
@@ -368,8 +370,8 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
             label={{ 
               value: isMobile ? 'Druck' : 'Luftdruck', 
               angle: -45, 
-              position: 'outside',
-              offset: 20,
+              position: 'insideRight',
+              offset: 10,
               style: { 
                 textAnchor: 'middle', 
                 fontSize: isMobile ? 10 : 12
