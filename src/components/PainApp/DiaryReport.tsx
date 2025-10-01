@@ -99,6 +99,11 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
     return (sum / validEntries.length).toFixed(2);
   }, [filteredEntries]);
 
+  const formatGermanDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString("de-DE", { day: "numeric", month: "long", year: "numeric" });
+  };
+
   const printPDF = () => {
     const win = window.open("", "_blank");
     if (!win) return;
@@ -113,11 +118,13 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
       small { color: #6b7280; }
       </style>
     `;
+    const dateRange = `${formatGermanDate(from)} bis ${formatGermanDate(to)}`;
     const header = `
       <h1>Kopfschmerztagebuch</h1>
-      <small>Zeitraum: ${from} bis ${to}${selectedMeds.length ? ` • Medikamente: ${selectedMeds.join(", ")}` : ""}${includeNoMeds ? " • Einträge ohne Medikamente enthalten" : ""}</small>
+      <small>Zeitraum: ${dateRange}${selectedMeds.length ? ` • Medikamente: ${selectedMeds.join(", ")}` : ""}</small>
       <h2>Übersicht</h2>
-      <div>Einträge: ${filteredEntries.length} • Durchschnittliches Schmerzlevel: ${avgPain}</div>
+      <div>Einträge: ${filteredEntries.length}</div>
+      <div>Durchschnittliches Schmerzlevel: ${avgPain}</div>
       <h2>Einträge</h2>
     `;
     const rows = filteredEntries.map(e => {
@@ -125,20 +132,30 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
         ? `${e.selected_date} ${e.selected_time}`
         : new Date(e.timestamp_created).toLocaleString();
       const meds = (e.medications || []).join(", ") || "–";
+      const painScore = mapTextLevelToScore(e.pain_level);
       return `<tr>
         <td>${dt}</td>
-        <td>${e.pain_level}</td>
+        <td>${painScore}</td>
         <td>${meds}</td>
         <td>${e.notes ?? "–"}</td>
       </tr>`;
     }).join("");
     const html = `
-      ${style}
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>Kopfschmerztagebuch</title>
+        ${style}
+      </head>
+      <body>
       ${header}
       <table>
         <thead><tr><th>Datum/Zeit</th><th>Schmerz</th><th>Medikamente</th><th>Notiz</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
+      </body>
+      </html>
     `;
     win.document.write(html);
     win.document.close();
@@ -281,7 +298,7 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
                 <li key={e.id} className="p-3 border rounded-lg">
                   <div className="flex justify-between">
                     <div className="font-medium">{dt}</div>
-                    <div>{e.pain_level}</div>
+                    <div>{mapTextLevelToScore(e.pain_level)}</div>
                   </div>
                   {(e.medications?.length ?? 0) > 0 && (
                     <div className="text-xs text-muted-foreground mt-1">{e.medications.join(", ")}</div>
