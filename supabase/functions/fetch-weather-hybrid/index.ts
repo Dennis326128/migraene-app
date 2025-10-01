@@ -128,7 +128,7 @@ serve(async (req) => {
       daysDiff 
     });
 
-    // Check for existing weather data first with more flexible matching
+    // Check for existing weather data with proximity-based reuse strategy
     const dateString = requestDate.toISOString().split('T')[0];
     console.log('🔍 Checking for existing weather data for date:', dateString);
 
@@ -136,24 +136,47 @@ serve(async (req) => {
     const roundedLat = Math.round(lat * 1000) / 1000; // 3 decimal places = ~111m precision
     const roundedLon = Math.round(lon * 1000) / 1000;
 
-    const { data: existing, error: existingError } = await supabaseService
+    // First: Check if ANY weather log exists for this user and date (regardless of location)
+    const { data: existingForDay, error: dayCheckError } = await supabaseService
       .from('weather_logs')
-      .select('id')
+      .select('id, latitude, longitude')
       .eq('user_id', userId)
       .eq('snapshot_date', dateString)
-      .gte('latitude', roundedLat - 0.001)
-      .lte('latitude', roundedLat + 0.001)
-      .gte('longitude', roundedLon - 0.001)
-      .lte('longitude', roundedLon + 0.001)
-      .limit(1);
+      .limit(1)
+      .maybeSingle();
 
-    if (existingError) {
-      console.log('❌ Error checking existing data:', existingError);
-    } else if (existing && existing.length > 0) {
-      console.log('✅ Found existing weather data:', existing[0].id);
-      return new Response(JSON.stringify({ weather_id: existing[0].id }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+    if (dayCheckError) {
+      console.log('❌ Error checking existing data for day:', dayCheckError);
+    } else if (existingForDay) {
+      // Calculate distance between existing log and requested location
+      const existingLat = Number(existingForDay.latitude);
+      const existingLon = Number(existingForDay.longitude);
+      
+      // Approximate distance in km using Haversine formula (simplified)
+      const R = 6371; // Earth's radius in km
+      const dLat = (roundedLat - existingLat) * Math.PI / 180;
+      const dLon = (roundedLon - existingLon) * Math.PI / 180;
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(existingLat * Math.PI / 180) * Math.cos(roundedLat * Math.PI / 180) *
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      const distance = R * c;
+      
+      console.log(`📏 Distance to existing weather log: ${distance.toFixed(2)} km`);
+      
+      // If within ~1km, reuse existing weather data (weather doesn't change much over 1km)
+      if (distance < 1.0) {
+        console.log('✅ Reusing nearby weather data:', existingForDay.id);
+        return new Response(JSON.stringify({ weather_id: existingForDay.id }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      } else {
+        console.log('⚠️ Existing weather log too far away, but cannot create duplicate for same day');
+        console.log('✅ Reusing existing weather data despite distance:', existingForDay.id);
+        return new Response(JSON.stringify({ weather_id: existingForDay.id }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
     }
 
     let weatherData = null;
@@ -266,32 +289,11 @@ serve(async (req) => {
       };
     }
 
-    // Final check with rounded coordinates before inserting
-    console.log('🔍 Final check for existing weather data before insert...');
-    const { data: existingWeather } = await supabaseService
+    // Try to INSERT new weather data (no UPSERT to avoid conflicts)
+    console.log('💾 Inserting new weather data into database...');
+    const { data: insertResult, error: insertError } = await supabaseService
       .from('weather_logs')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('snapshot_date', dateString)
-      .gte('latitude', roundedLat - 0.001)
-      .lte('latitude', roundedLat + 0.001)
-      .gte('longitude', roundedLon - 0.001)
-      .lte('longitude', roundedLon + 0.001)
-      .limit(1)
-      .maybeSingle();
-
-    if (existingWeather) {
-      console.log('✅ Returning existing weather data:', existingWeather.id);
-      return new Response(JSON.stringify({ weather_id: existingWeather.id }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
-    // UPSERT weather data - automatically handles duplicates
-    console.log('💾 Upserting weather data into database...');
-    const { data: upsertResult, error: upsertError } = await supabaseService
-      .from('weather_logs')
-      .upsert({
+      .insert({
         user_id: userId,
         latitude: roundedLat,
         longitude: roundedLon,
@@ -304,49 +306,47 @@ serve(async (req) => {
         dewpoint_c: weatherData.dewpoint_c,
         condition_text: weatherData.condition_text,
         location: weatherData.location
-      }, {
-        onConflict: 'weather_logs_user_date_uidx',
-        ignoreDuplicates: false // Update if exists
       })
       .select('id')
       .maybeSingle();
 
-    if (upsertError) {
-      console.error('❌ Upsert error:', upsertError);
-      throw upsertError;
-    }
-
-    if (!upsertResult) {
-      console.warn('⚠️ No result from upsert, fetching existing record...');
-      const { data: existingRecord, error: fetchError } = await supabaseService
-        .from('weather_logs')
-        .select('id')
-        .eq('user_id', userId)
-        .eq('snapshot_date', dateString)
-        .gte('latitude', roundedLat - 0.001)
-        .lte('latitude', roundedLat + 0.001)
-        .gte('longitude', roundedLon - 0.001)
-        .lte('longitude', roundedLon + 0.001)
-        .limit(1)
-        .maybeSingle();
-      
-      if (fetchError) {
-        throw fetchError;
+    if (insertError) {
+      // If insert fails due to unique constraint violation, fetch existing
+      if (insertError.code === '23505') { // Unique violation
+        console.log('⚠️ Duplicate key conflict, fetching existing weather data...');
+        const { data: existingRecord, error: fetchError } = await supabaseService
+          .from('weather_logs')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('snapshot_date', dateString)
+          .limit(1)
+          .maybeSingle();
+        
+        if (fetchError) {
+          console.error('❌ Failed to fetch existing record:', fetchError);
+          throw fetchError;
+        }
+        
+        if (existingRecord) {
+          console.log('✅ Returning existing weather data after conflict:', existingRecord.id);
+          return new Response(JSON.stringify({ weather_id: existingRecord.id }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
       }
       
-      if (existingRecord) {
-        console.log('✅ Weather data exists:', existingRecord.id);
-        return new Response(JSON.stringify({ weather_id: existingRecord.id }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-      
-      throw new Error('Failed to create or retrieve weather data');
+      console.error('❌ Insert error:', insertError);
+      throw insertError;
     }
 
-    console.log('✅ Weather data saved successfully:', upsertResult.id);
+    if (!insertResult) {
+      console.warn('⚠️ No result from insert, this should not happen');
+      throw new Error('Failed to create weather data');
+    }
 
-    return new Response(JSON.stringify({ weather_id: upsertResult.id }), {
+    console.log('✅ Weather data saved successfully:', insertResult.id);
+
+    return new Response(JSON.stringify({ weather_id: insertResult.id }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 
