@@ -232,7 +232,6 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="p-4">
-      <Button onClick={onBack} className="mb-4">← Zurück</Button>
       <h1 className="text-2xl font-bold mb-4">Kopfschmerztagebuch (PDF)</h1>
 
       <Card className="p-4 mb-4 space-y-3">
