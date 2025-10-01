@@ -332,12 +332,22 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
             yAxisId="pain"
             domain={[0, 10]}
             tick={{ fontSize: isMobile ? 10 : 12 }}
-            label={{ 
-              value: 'Schmerz', 
-              angle: -45, 
-              position: 'insideLeft',
-              offset: -10,
-              style: { textAnchor: 'middle', fontSize: isMobile ? 10 : 12 }
+            label={(props: any) => {
+              const { viewBox } = props;
+              const x = viewBox.x;
+              const y = viewBox.y + viewBox.height + (isMobile ? 25 : 30);
+              return (
+                <text 
+                  x={x} 
+                  y={y} 
+                  textAnchor="middle" 
+                  fontSize={isMobile ? 10 : 12}
+                  fill="currentColor"
+                  transform={`rotate(-45 ${x} ${y})`}
+                >
+                  Schmerz
+                </text>
+              );
             }}
           />
           
@@ -348,15 +358,22 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
             domain={['dataMin - 2', 'dataMax + 2']}
             tick={{ fontSize: isMobile ? 10 : 12 }}
             width={isMobile ? 40 : 55}
-            label={{ 
-              value: isMobile ? 'Temp.' : 'Temperatur', 
-              angle: -45, 
-              position: 'insideRight',
-              offset: -10,
-              style: { 
-                textAnchor: 'middle', 
-                fontSize: isMobile ? 10 : 12
-              }
+            label={(props: any) => {
+              const { viewBox } = props;
+              const x = viewBox.x + viewBox.width;
+              const y = viewBox.y + viewBox.height + (isMobile ? 25 : 30);
+              return (
+                <text 
+                  x={x} 
+                  y={y} 
+                  textAnchor="middle" 
+                  fontSize={isMobile ? 10 : 12}
+                  fill="currentColor"
+                  transform={`rotate(-45 ${x} ${y})`}
+                >
+                  {isMobile ? 'Temp.' : 'Temperatur'}
+                </text>
+              );
             }}
           />
           
@@ -367,15 +384,22 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
             domain={['dataMin - 5', 'dataMax + 5']}
             tick={{ fontSize: isMobile ? 10 : 12 }}
             width={isMobile ? 40 : 55}
-            label={{ 
-              value: isMobile ? 'Druck' : 'Luftdruck', 
-              angle: -45, 
-              position: 'insideRight',
-              offset: 10,
-              style: { 
-                textAnchor: 'middle', 
-                fontSize: isMobile ? 10 : 12
-              }
+            label={(props: any) => {
+              const { viewBox } = props;
+              const x = viewBox.x + viewBox.width;
+              const y = viewBox.y + viewBox.height + (isMobile ? 25 : 30);
+              return (
+                <text 
+                  x={x} 
+                  y={y} 
+                  textAnchor="middle" 
+                  fontSize={isMobile ? 10 : 12}
+                  fill="currentColor"
+                  transform={`rotate(-45 ${x} ${y})`}
+                >
+                  {isMobile ? 'Druck' : 'Luftdruck'}
+                </text>
+              );
             }}
           />
           
