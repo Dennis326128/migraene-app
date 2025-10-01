@@ -83,12 +83,12 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   const isMobile = useIsMobile();
 
   return (
-    <div className="min-h-screen bg-background p-4 sm:p-6 flex flex-col relative">
+    <div className="min-h-screen bg-background pt-2 px-4 pb-4 sm:pt-4 sm:px-6 sm:pb-6 flex flex-col relative">
       <div className="absolute bottom-4 right-4 z-10">
         <LogoutButton />
       </div>
-      <div className="flex-1 flex flex-col justify-center max-w-md mx-auto w-full">
-        <div className="text-center mb-8 sm:mb-12 px-2">
+      <div className="flex-1 flex flex-col justify-start max-w-md mx-auto w-full">
+        <div className="text-center mb-6 sm:mb-8 px-2">
           <h1 className="text-3xl sm:text-4xl font-light text-foreground mb-2">Migräne-App</h1>
           <p className="text-muted-foreground text-sm sm:text-base">Verfolgen Sie Ihre Migräne und finden Sie Muster</p>
         </div>
