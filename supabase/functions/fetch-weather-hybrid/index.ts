@@ -305,7 +305,7 @@ serve(async (req) => {
         condition_text: weatherData.condition_text,
         location: weatherData.location
       }, {
-        onConflict: 'user_id,snapshot_date',
+        onConflict: 'weather_logs_user_date_uidx',
         ignoreDuplicates: false // Update if exists
       })
       .select('id')
