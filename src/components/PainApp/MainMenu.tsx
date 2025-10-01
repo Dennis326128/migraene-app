@@ -107,14 +107,15 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             />
           </StartPageCard>
 
-          {/* Quick Entry Button */}
+          {/* Quick Entry Button - Schnelleintrag */}
           <StartPageCard 
-            variant="quick" 
+            variant="warning" 
+            size="default"
             touchFeedback 
             onClick={() => setShowQuickEntry(true)}
           >
             <StartPageCardHeader
-              icon="🔴"
+              icon="⚡"
               title="Schnelleintrag"
               subtitle="Sofortige Migräne-Erfassung"
             />
