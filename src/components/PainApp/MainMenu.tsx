@@ -109,7 +109,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
 
           {/* Quick Entry Button - Schnelleintrag */}
           <StartPageCard 
-            variant="warning" 
+            variant="quick" 
             size="default"
             touchFeedback 
             onClick={() => setShowQuickEntry(true)}
