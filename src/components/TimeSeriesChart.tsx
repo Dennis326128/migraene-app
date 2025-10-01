@@ -310,7 +310,7 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
             top: 20,
             right: isMobile ? 25 : 40,
             left: isMobile ? 20 : 60,
-            bottom: 80,
+            bottom: 70,
           }}
         >
           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -334,9 +334,8 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
             tick={{ fontSize: isMobile ? 10 : 12 }}
             label={{ 
               value: 'Schmerz', 
-              angle: isMobile ? -30 : 0, 
-              position: 'insideBottomLeft',
-              offset: 10,
+              angle: -45, 
+              position: 'outside',
               style: { textAnchor: 'middle', fontSize: isMobile ? 10 : 12 }
             }}
           />
@@ -350,9 +349,8 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
             width={isMobile ? 40 : 55}
             label={{ 
               value: isMobile ? 'Temp.' : 'Temperatur', 
-              angle: isMobile ? -30 : 0, 
-              position: 'insideBottomRight',
-              offset: -25,
+              angle: -45, 
+              position: 'outside',
               style: { 
                 textAnchor: 'middle', 
                 fontSize: isMobile ? 10 : 12
@@ -369,9 +367,9 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
             width={isMobile ? 40 : 55}
             label={{ 
               value: isMobile ? 'Druck' : 'Luftdruck', 
-              angle: isMobile ? -30 : 0, 
-              position: 'insideBottomRight',
-              offset: 25,
+              angle: -45, 
+              position: 'outside',
+              offset: 20,
               style: { 
                 textAnchor: 'middle', 
                 fontSize: isMobile ? 10 : 12
@@ -409,7 +407,7 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
             dataKey="pain"
             stroke={chartConfig.pain.color}
             strokeWidth={2}
-            dot={{ r: 3, fill: chartConfig.pain.color }}
+            dot={{ r: 1, fill: chartConfig.pain.color }}
             connectNulls={false}
             isAnimationActive={false}
             name={chartConfig.pain.label}
@@ -422,7 +420,7 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
             dataKey="temperature"
             stroke={chartConfig.temperature.color}
             strokeWidth={2}
-            dot={{ r: 3, fill: chartConfig.temperature.color }}
+            dot={{ r: 1, fill: chartConfig.temperature.color }}
             connectNulls={true}
             isAnimationActive={false}
             name={chartConfig.temperature.label}
@@ -435,7 +433,7 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
             dataKey="pressure"
             stroke={chartConfig.pressure.color}
             strokeWidth={2}
-            dot={{ r: 3, fill: chartConfig.pressure.color }}
+            dot={{ r: 1, fill: chartConfig.pressure.color }}
             connectNulls={true}
             isAnimationActive={false}
             name={chartConfig.pressure.label}
