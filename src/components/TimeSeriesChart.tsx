@@ -334,7 +334,7 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
             tick={{ fontSize: isMobile ? 10 : 12 }}
             label={(props: any) => {
               const { viewBox } = props;
-              const x = viewBox.x;
+              const x = viewBox.x + viewBox.width / 2;
               const y = viewBox.y + viewBox.height + (isMobile ? 25 : 30);
               return (
                 <text 
@@ -360,7 +360,7 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
             width={isMobile ? 40 : 55}
             label={(props: any) => {
               const { viewBox } = props;
-              const x = viewBox.x + viewBox.width;
+              const x = viewBox.x + viewBox.width / 2;
               const y = viewBox.y + viewBox.height + (isMobile ? 25 : 30);
               return (
                 <text 
@@ -386,7 +386,7 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
             width={isMobile ? 40 : 55}
             label={(props: any) => {
               const { viewBox } = props;
-              const x = viewBox.x + viewBox.width;
+              const x = viewBox.x + viewBox.width / 2;
               const y = viewBox.y + viewBox.height + (isMobile ? 25 : 30);
               return (
                 <text 
