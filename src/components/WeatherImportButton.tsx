@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { CloudSun, Loader2 } from "lucide-react";
+import { CloudSun, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 
 export const WeatherImportButton = () => {
   const [isImporting, setIsImporting] = useState(false);
@@ -23,15 +23,18 @@ export const WeatherImportButton = () => {
 
       setResult(data);
       
-      if (data.successCount > 0) {
-        toast.success(`✅ Wetter-Import erfolgreich! ${data.successCount} von ${data.totalProcessed} Einträgen aktualisiert.`);
-      } else if (data.totalProcessed === 0) {
-        toast.info("ℹ️ Alle Einträge haben bereits Wetterdaten.");
-      } else {
-        toast.warning(`⚠️ Import abgeschlossen, aber ${data.failCount} Einträge fehlgeschlagen.`);
-        if (data.errors && data.errors.length > 0) {
-          console.log('Import errors:', data.errors);
-        }
+      if (data.totalProcessed === 0) {
+        toast.info("ℹ️ Alle Einträge haben bereits Wetterdaten - kein Import erforderlich.");
+      } else if (data.successCount > 0 && data.failCount === 0) {
+        toast.success(`✅ Import erfolgreich! ${data.successCount} Einträge mit Wetterdaten aktualisiert.`);
+      } else if (data.successCount > 0 && data.failCount > 0) {
+        toast.warning(`⚠️ Import teilweise erfolgreich: ${data.successCount} erfolgreich, ${data.failCount} fehlgeschlagen.`);
+      } else if (data.failCount > 0) {
+        toast.error(`❌ Import fehlgeschlagen für ${data.failCount} Einträge. Bitte überprüfen Sie Ihre Koordinaten in den Einstellungen.`);
+      }
+      
+      if (data.errors && data.errors.length > 0) {
+        console.log('Import-Fehler Details:', data.errors);
       }
       
     } catch (error) {
@@ -64,31 +67,65 @@ export const WeatherImportButton = () => {
       </Button>
       
       {result && (
-        <div className="p-3 bg-muted rounded-lg text-sm">
-          <div className="font-medium mb-2">Import-Ergebnis:</div>
-          <div className="space-y-1">
-            <div>Verarbeitet: {result.totalProcessed} Einträge</div>
-            <div className="text-green-600">Erfolgreich: {result.successCount}</div>
-            {result.failCount > 0 && (
-              <div className="text-red-600">Fehlgeschlagen: {result.failCount}</div>
+        <div className={`p-4 rounded-lg text-sm border ${
+          result.failCount === 0 ? 'bg-green-50 border-green-200' : 
+          result.successCount > 0 ? 'bg-amber-50 border-amber-200' : 
+          'bg-red-50 border-red-200'
+        }`}>
+          <div className="flex items-start gap-2 mb-3">
+            {result.failCount === 0 ? (
+              <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+            ) : (
+              <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
             )}
-            {result.debug && (
-              <div className="text-xs text-muted-foreground mt-2">
-                User: {result.debug.userId?.slice(0, 8)}...
-                {result.debug.userHasFallbackCoords ? ' (📍 Fallback-Koordinaten verfügbar)' : ' (⚠️ Keine Fallback-Koordinaten)'}
+            <div className="flex-1">
+              <div className="font-semibold mb-1">
+                {result.totalProcessed === 0 ? 'Kein Import erforderlich' :
+                 result.failCount === 0 ? 'Import erfolgreich abgeschlossen' :
+                 result.successCount > 0 ? 'Import teilweise erfolgreich' :
+                 'Import fehlgeschlagen'}
               </div>
-            )}
-            {result.errors && result.errors.length > 0 && (
-              <details className="mt-2">
-                <summary className="text-xs text-red-600 cursor-pointer">Fehler anzeigen ({result.errors.length})</summary>
-                <div className="mt-1 space-y-1 text-xs text-red-600 max-h-32 overflow-y-auto">
-                  {result.errors.map((error: string, index: number) => (
-                    <div key={index}>• {error}</div>
-                  ))}
+              <div className="space-y-1 text-xs">
+                <div className="flex items-center gap-4">
+                  <span>Verarbeitet: <strong>{result.totalProcessed}</strong></span>
+                  {result.successCount > 0 && (
+                    <span className="text-green-700">✓ Erfolgreich: <strong>{result.successCount}</strong></span>
+                  )}
+                  {result.failCount > 0 && (
+                    <span className="text-red-700">✗ Fehlgeschlagen: <strong>{result.failCount}</strong></span>
+                  )}
                 </div>
-              </details>
-            )}
+              </div>
+            </div>
           </div>
+          
+          {result.debug && (
+            <div className="text-xs text-muted-foreground pt-2 border-t">
+              <div className="flex items-center gap-2">
+                <span>Gesamt-Einträge: {result.debug.totalUserEntries}</span>
+                <span>•</span>
+                <span>Mit Wetterdaten: {result.debug.entriesWithWeather}</span>
+                {result.debug.userHasFallbackCoords ? (
+                  <span className="text-green-700">• ✓ Koordinaten konfiguriert</span>
+                ) : (
+                  <span className="text-red-700">• ⚠ Keine Koordinaten - Bitte in Einstellungen hinzufügen</span>
+                )}
+              </div>
+            </div>
+          )}
+          
+          {result.errors && result.errors.length > 0 && (
+            <details className="mt-3 pt-3 border-t">
+              <summary className="text-xs font-medium text-red-700 cursor-pointer hover:text-red-800">
+                Fehlerdetails anzeigen ({result.errors.length} Fehler)
+              </summary>
+              <div className="mt-2 space-y-1 text-xs text-red-700 max-h-40 overflow-y-auto bg-white/50 p-2 rounded">
+                {result.errors.map((error: string, index: number) => (
+                  <div key={index} className="font-mono">• {error}</div>
+                ))}
+              </div>
+            </details>
+          )}
         </div>
       )}
     </div>
