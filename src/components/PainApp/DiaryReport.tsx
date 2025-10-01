@@ -1,11 +1,11 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { PainEntry } from "@/types/painApp";
 import { useEntries } from "@/features/entries/hooks/useEntries";
 import { buildDiaryPdf } from "@/lib/pdf/report";
-import { getUserSettings } from "@/features/settings/api/settings.api";
+import { getUserSettings, upsertUserSettings } from "@/features/settings/api/settings.api";
 import { mapTextLevelToScore } from "@/lib/utils/pain";
 
 type Preset = "3m" | "6m" | "12m" | "custom";
@@ -26,6 +26,9 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
   const [medOptions, setMedOptions] = useState<string[]>([]);
   const [includeNoMeds, setIncludeNoMeds] = useState<boolean>(true);
   const [generated, setGenerated] = useState<PainEntry[]>([]);
+  const [previousSelection, setPreviousSelection] = useState<string[]>([]);
+  const [allSelected, setAllSelected] = useState<boolean>(false);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -35,6 +38,9 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
       }
       if (typeof s?.include_no_meds === "boolean") {
         setIncludeNoMeds(s.include_no_meds);
+      }
+      if (s?.selected_report_medications && Array.isArray(s.selected_report_medications)) {
+        setSelectedMeds(s.selected_report_medications);
       }
     })();
   }, []);
@@ -54,6 +60,22 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
 
   // Einträge laden
   const { data: entries = [], isLoading } = useEntries({ from, to });
+
+  // Save selected medications to settings (debounced)
+  useEffect(() => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    saveTimeoutRef.current = setTimeout(() => {
+      upsertUserSettings({ selected_report_medications: selectedMeds }).catch(console.error);
+    }, 1000);
+    
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [selectedMeds]);
 
   // Medikamenten-Optionen (aus user_medications, Fallback: aus Einträgen)
   useEffect(() => {
@@ -242,6 +264,26 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
         <div className="space-y-2">
           <label className="block text-sm mb-1">Medikamente auswählen (optional)</label>
           <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant={allSelected ? "default" : "outline"}
+              onClick={() => {
+                if (allSelected) {
+                  // Zurück zur vorherigen Auswahl
+                  setSelectedMeds(previousSelection);
+                  setAllSelected(false);
+                } else {
+                  // Alle auswählen
+                  setPreviousSelection(selectedMeds);
+                  setSelectedMeds([...medOptions]);
+                  setAllSelected(true);
+                }
+              }}
+              className="text-xs font-semibold"
+            >
+              Alle
+            </Button>
             {medOptions.map(m => {
               const isSelected = selectedMeds.includes(m);
               return (
@@ -250,7 +292,10 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
                   type="button"
                   size="sm"
                   variant={isSelected ? "default" : "outline"}
-                  onClick={() => setSelectedMeds(prev => isSelected ? prev.filter(x=>x!==m) : [...prev, m])}
+                  onClick={() => {
+                    setSelectedMeds(prev => isSelected ? prev.filter(x=>x!==m) : [...prev, m]);
+                    setAllSelected(false);
+                  }}
                   aria-pressed={isSelected}
                   className="text-xs"
                 >

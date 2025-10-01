@@ -6,6 +6,7 @@ export type UserSettings = {
   backfill_days: number;
   default_report_preset: "3m" | "6m" | "12m";
   include_no_meds: boolean;
+  selected_report_medications: string[];
   updated_at: string;
 };
 
