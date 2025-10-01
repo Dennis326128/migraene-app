@@ -1,19 +1,26 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { CloudSun, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { CloudSun, Loader2, CheckCircle2, AlertCircle, Zap } from "lucide-react";
 
 export const WeatherImportButton = () => {
   const [isImporting, setIsImporting] = useState(false);
   const [result, setResult] = useState<any>(null);
+  const [progress, setProgress] = useState(0);
+  const [useBatchMode, setUseBatchMode] = useState(true);
 
   const handleCleanImport = async () => {
     setIsImporting(true);
     setResult(null);
+    setProgress(0);
     
     try {
-      const { data, error } = await supabase.functions.invoke('clean-weather-import', {
+      const functionName = useBatchMode ? 'batch-weather-import' : 'clean-weather-import';
+      console.log(`🚀 Starting ${useBatchMode ? 'batch' : 'sequential'} import`);
+      
+      const { data, error } = await supabase.functions.invoke(functionName, {
         body: {}
       });
 
@@ -22,11 +29,13 @@ export const WeatherImportButton = () => {
       }
 
       setResult(data);
+      setProgress(data.progress || 100);
       
       if (data.totalProcessed === 0) {
         toast.info("ℹ️ Alle Einträge haben bereits Wetterdaten - kein Import erforderlich.");
       } else if (data.successCount > 0 && data.failCount === 0) {
-        toast.success(`✅ Import erfolgreich! ${data.successCount} Einträge mit Wetterdaten aktualisiert.`);
+        const mode = useBatchMode ? '⚡ Batch-Modus' : 'Standard';
+        toast.success(`✅ ${mode}: Import erfolgreich! ${data.successCount} Einträge mit Wetterdaten aktualisiert.`);
       } else if (data.successCount > 0 && data.failCount > 0) {
         toast.warning(`⚠️ Import teilweise erfolgreich: ${data.successCount} erfolgreich, ${data.failCount} fehlgeschlagen.`);
       } else if (data.failCount > 0) {
@@ -42,11 +51,33 @@ export const WeatherImportButton = () => {
       toast.error(`❌ Import fehlgeschlagen: ${error.message}`);
     } finally {
       setIsImporting(false);
+      setProgress(0);
     }
   };
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center gap-2 mb-2">
+        <Button
+          size="sm"
+          variant={useBatchMode ? "default" : "outline"}
+          onClick={() => setUseBatchMode(true)}
+          disabled={isImporting}
+        >
+          <Zap className="w-3 h-3 mr-1" />
+          Batch-Modus (schnell)
+        </Button>
+        <Button
+          size="sm"
+          variant={!useBatchMode ? "default" : "outline"}
+          onClick={() => setUseBatchMode(false)}
+          disabled={isImporting}
+        >
+          <CloudSun className="w-3 h-3 mr-1" />
+          Standard (langsam)
+        </Button>
+      </div>
+
       <Button 
         onClick={handleCleanImport}
         disabled={isImporting}
@@ -60,11 +91,18 @@ export const WeatherImportButton = () => {
           </>
         ) : (
           <>
-            <CloudSun className="w-4 h-4 mr-2" />
-            Wetterdaten für alle Einträge importieren
+            {useBatchMode ? <Zap className="w-4 h-4 mr-2" /> : <CloudSun className="w-4 h-4 mr-2" />}
+            Wetterdaten für alle Einträge importieren {useBatchMode ? '(Schnell)' : ''}
           </>
         )}
       </Button>
+
+      {isImporting && progress > 0 && (
+        <div className="space-y-2">
+          <Progress value={progress} className="h-2" />
+          <p className="text-xs text-center text-muted-foreground">{progress}% abgeschlossen</p>
+        </div>
+      )}
       
       {result && (
         <div className={`p-4 rounded-lg text-sm border ${
