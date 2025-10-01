@@ -84,7 +84,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
 
   return (
     <div className="min-h-screen bg-background p-4 sm:p-6 flex flex-col relative">
-      <div className="absolute top-4 right-4 z-10">
+      <div className="absolute bottom-4 right-4 z-10">
         <LogoutButton />
       </div>
       <div className="flex-1 flex flex-col justify-center max-w-md mx-auto w-full">
