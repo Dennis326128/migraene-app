@@ -4,7 +4,8 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Plus, X, Save, Trash2 } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ArrowLeft, Plus, X, Save, Trash2, ChevronDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { MigraineEntry } from "@/types/painApp";
 import { logAndSaveWeatherAt, logAndSaveWeatherAtCoords } from "@/utils/weatherLogger";
@@ -68,6 +69,25 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
   const [showAddMedication, setShowAddMedication] = useState(false);
   const [saving, setSaving] = useState(false);
   const [notes, setNotes] = useState<string>("");
+
+  // Collapsible states (stored in localStorage)
+  const [painLocationOpen, setPainLocationOpen] = useState(() => {
+    const stored = localStorage.getItem('newEntry_painLocationOpen');
+    return stored !== null ? stored === 'true' : true;
+  });
+  const [symptomsOpen, setSymptomsOpen] = useState(() => {
+    const stored = localStorage.getItem('newEntry_symptomsOpen');
+    return stored !== null ? stored === 'true' : true;
+  });
+
+  // Save collapsible states to localStorage
+  useEffect(() => {
+    localStorage.setItem('newEntry_painLocationOpen', String(painLocationOpen));
+  }, [painLocationOpen]);
+
+  useEffect(() => {
+    localStorage.setItem('newEntry_symptomsOpen', String(symptomsOpen));
+  }, [symptomsOpen]);
 
   const entryIdNum = entry?.id ? Number(entry.id) : null;
   const { data: catalog = [] } = useSymptomCatalog();
@@ -456,68 +476,84 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
         </div>
       </Card>
 
-      {/* Schmerzlokalisation */}
-      <Card className="p-6 mb-4">
-        <Label className="text-base font-medium mb-3 block">
-          Schmerzlokalisation
-        </Label>
-        <div className="grid gap-2">
-          <Button
-            type="button"
-            variant={painLocation === "" ? "default" : "outline"}
-            className="justify-start"
-            onClick={() => setPainLocation("")}
-            aria-pressed={painLocation === ""}
-          >
-            Nicht spezifiziert
-          </Button>
-          {painLocations.map((location) => (
-            <Button
-              key={location.value}
-              type="button"
-              variant={painLocation === location.value ? "default" : "outline"}
-              className="justify-start"
-              onClick={() => setPainLocation(location.value)}
-              aria-pressed={painLocation === location.value}
-            >
-              {location.label}
-            </Button>
-          ))}
-        </div>
-      </Card>
-
-      {/* Symptome */}
-      <Card className="p-6 mb-4">
-        <Label className="text-base font-medium mb-3 block">Begleitsymptome</Label>
-        {loadingSymptoms && entry ? (
-          <div className="text-sm text-muted-foreground mt-2">Lade vorhandene Symptome…</div>
-        ) : (
-          <div className="flex flex-wrap gap-2 mt-2">
-            {catalog.map((s) => {
-              const active = selectedSymptoms.includes(s.id);
-              return (
+      {/* Schmerzlokalisation - Collapsible */}
+      <Collapsible open={painLocationOpen} onOpenChange={setPainLocationOpen}>
+        <Card className="p-6 mb-4">
+          <CollapsibleTrigger className="w-full flex items-center justify-between hover:opacity-80 transition-opacity">
+            <Label className="text-base font-medium cursor-pointer">
+              Schmerzlokalisation
+            </Label>
+            <ChevronDown className={`h-5 w-5 transition-transform duration-200 ${painLocationOpen ? 'rotate-180' : ''}`} />
+          </CollapsibleTrigger>
+          
+          <CollapsibleContent className="mt-3">
+            <div className="grid gap-2">
+              <Button
+                type="button"
+                variant={painLocation === "" ? "default" : "outline"}
+                className="justify-start"
+                onClick={() => setPainLocation("")}
+                aria-pressed={painLocation === ""}
+              >
+                Nicht spezifiziert
+              </Button>
+              {painLocations.map((location) => (
                 <Button
-                  key={s.id}
+                  key={location.value}
                   type="button"
-                  variant={active ? "default" : "outline"}
-                  size="sm"
-                  onClick={() =>
-                    setSelectedSymptoms((prev) =>
-                      prev.includes(s.id) ? prev.filter((x) => x !== s.id) : [...prev, s.id]
-                    )
-                  }
-                  aria-pressed={active}
+                  variant={painLocation === location.value ? "default" : "outline"}
+                  className="justify-start"
+                  onClick={() => setPainLocation(location.value)}
+                  aria-pressed={painLocation === location.value}
                 >
-                  {s.name}
+                  {location.label}
                 </Button>
-              );
-            })}
-            {catalog.length === 0 && (
-              <div className="text-sm text-muted-foreground">Keine Symptome im Katalog.</div>
+              ))}
+            </div>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
+
+      {/* Symptome - Collapsible */}
+      <Collapsible open={symptomsOpen} onOpenChange={setSymptomsOpen}>
+        <Card className="p-6 mb-4">
+          <CollapsibleTrigger className="w-full flex items-center justify-between hover:opacity-80 transition-opacity">
+            <Label className="text-base font-medium cursor-pointer">Begleitsymptome</Label>
+            <ChevronDown className={`h-5 w-5 transition-transform duration-200 ${symptomsOpen ? 'rotate-180' : ''}`} />
+          </CollapsibleTrigger>
+          
+          <CollapsibleContent>
+            {loadingSymptoms && entry ? (
+              <div className="text-sm text-muted-foreground mt-2">Lade vorhandene Symptome…</div>
+            ) : (
+              <div className="flex flex-wrap gap-2 mt-3">
+                {catalog.map((s) => {
+                  const active = selectedSymptoms.includes(s.id);
+                  return (
+                    <Button
+                      key={s.id}
+                      type="button"
+                      variant={active ? "default" : "outline"}
+                      size="sm"
+                      onClick={() =>
+                        setSelectedSymptoms((prev) =>
+                          prev.includes(s.id) ? prev.filter((x) => x !== s.id) : [...prev, s.id]
+                        )
+                      }
+                      aria-pressed={active}
+                    >
+                      {s.name}
+                    </Button>
+                  );
+                })}
+                {catalog.length === 0 && (
+                  <div className="text-sm text-muted-foreground">Keine Symptome im Katalog.</div>
+                )}
+              </div>
             )}
-          </div>
-        )}
-      </Card>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
 
       {/* Auslöser/Notizen */}
       <Card className="p-6 mb-4">
