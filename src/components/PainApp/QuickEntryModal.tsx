@@ -5,7 +5,6 @@ import { PainSlider } from "@/components/ui/pain-slider";
 import { normalizePainLevel } from "@/lib/utils/pain";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { X, Clock, Save, Zap, Mic } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useMeds } from "@/features/meds/hooks/useMeds";
@@ -277,28 +276,33 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
           {medOptions.length > 0 && (
             <Card className="p-4">
               <Label className="text-base font-medium mb-3 block">💊 Medikamente</Label>
-              <div className="space-y-3">
-                {medOptions.map((med) => (
-                  <div key={med.id} className="flex items-center justify-between py-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">{med.name}</span>
-                      {initialMedicationStates?.[med.name] && (
-                        <div className="flex items-center" title="Von Spracheingabe erkannt">
-                          <Mic className="h-3 w-3 text-green-600" />
-                        </div>
-                      )}
-                    </div>
-                    <Switch
-                      checked={medicationStates[med.name] || false}
-                      onCheckedChange={(checked) => 
+              <div className="flex flex-wrap gap-2">
+                {medOptions.map((med) => {
+                  const isSelected = medicationStates[med.name] || false;
+                  const isVoiceRecognized = initialMedicationStates?.[med.name];
+                  
+                  return (
+                    <Button
+                      key={med.id}
+                      type="button"
+                      variant={isSelected ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => 
                         setMedicationStates(prev => ({ 
                           ...prev, 
-                          [med.name]: checked 
+                          [med.name]: !prev[med.name]
                         }))
                       }
-                    />
-                  </div>
-                ))}
+                      className="gap-1.5"
+                      aria-pressed={isSelected}
+                    >
+                      {med.name}
+                      {isVoiceRecognized && (
+                        <Mic className="h-3 w-3" />
+                      )}
+                    </Button>
+                  );
+                })}
               </div>
             </Card>
           )}
