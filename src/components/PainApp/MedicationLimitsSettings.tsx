@@ -359,7 +359,7 @@ export function MedicationLimitsSettings() {
                           onValueChange={([value]) =>
                             handleOptimisticUpdate(limit.id, { limit_count: value })
                           }
-                          max={50}
+                          max={30}
                           min={1}
                           step={1}
                           className="mt-2 py-6"
@@ -449,7 +449,7 @@ export function MedicationLimitsSettings() {
                         onValueChange={([value]) =>
                           setNewLimit(prev => ({ ...prev, limit_count: value }))
                         }
-                        max={50}
+                        max={30}
                         min={1}
                         step={1}
                         className="mt-2"
