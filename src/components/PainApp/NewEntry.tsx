@@ -193,17 +193,46 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
       return;
     }
 
-    // Check medication limits before saving
+    // Check medication limits before saving with optimistic counting
     const activeMedications = selectedMedications.filter((m) => m !== "-" && m.trim() !== "");
     if (activeMedications.length > 0 && !pendingSave) {
       try {
         const limitResults = await checkLimits.mutateAsync(activeMedications);
-        const warningNeeded = limitResults.some(result => 
+        
+        // Apply optimistic counting: add 1 to current_count for selected medications
+        const optimisticResults = limitResults.map(result => {
+          const willTakeThisMed = activeMedications.includes(result.medication_name);
+          if (!willTakeThisMed) return result;
+          
+          const optimisticCount = result.current_count + 1;
+          const optimisticPercentage = Math.round((optimisticCount / result.limit_count) * 100);
+          
+          // Recalculate status with optimistic count
+          let newStatus: 'safe' | 'warning' | 'reached' | 'exceeded';
+          if (optimisticCount > result.limit_count) {
+            newStatus = 'exceeded';
+          } else if (optimisticCount === result.limit_count) {
+            newStatus = 'reached';
+          } else if (optimisticPercentage >= 90) {
+            newStatus = 'warning';
+          } else {
+            newStatus = 'safe';
+          }
+          
+          return {
+            ...result,
+            current_count: optimisticCount,
+            percentage: optimisticPercentage,
+            status: newStatus
+          };
+        });
+        
+        const warningNeeded = optimisticResults.some(result => 
           result.status === 'warning' || result.status === 'reached' || result.status === 'exceeded'
         );
         
         if (warningNeeded) {
-          setLimitChecks(limitResults);
+          setLimitChecks(optimisticResults);
           setShowLimitWarning(true);
           return;
         }

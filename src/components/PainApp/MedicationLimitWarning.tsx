@@ -51,18 +51,19 @@ const getStatusIcon = (status: string) => {
   }
 };
 
-const getStatusMessage = (check: LimitCheck): string => {
+const getStatusMessage = (check: LimitCheck, isBeforeSave: boolean): string => {
   const periodText = getPeriodText(check.period_type);
+  const currentWithoutNew = check.current_count - 1; // Subtract the pending intake
   
   switch (check.status) {
     case 'warning':
-      return `Du hast ${periodText} bereits ${check.current_count} von ${check.limit_count} ${check.medication_name} genommen. Beachte möglichen Übergebrauch.`;
+      return `Du hast ${periodText} bereits ${currentWithoutNew} von ${check.limit_count} ${check.medication_name} genommen. Mit dieser Einnahme: ${check.current_count}/${check.limit_count}.`;
     case 'reached':
-      return `Du hast ${periodText} bereits ${check.current_count} ${check.medication_name} genommen! Das Limit ist erreicht.`;
+      return `Du hast ${periodText} bereits ${currentWithoutNew} ${check.medication_name} genommen. Mit dieser Einnahme erreichst du das Limit: ${check.current_count}/${check.limit_count}!`;
     case 'exceeded':
       const excess = check.current_count - check.limit_count;
       const unit = excess === 1 ? 'Tablette' : 'Tabletten';
-      return `Du hast ${periodText} bereits ${check.current_count} von ${check.limit_count} ${check.medication_name} genommen! Das ist eine Überschreitung um ${excess} ${unit}.`;
+      return `Du hast ${periodText} bereits ${currentWithoutNew} von ${check.limit_count} ${check.medication_name} genommen. Mit dieser Einnahme überschreitest du das Limit um ${excess} ${unit}!`;
     default:
       return '';
   }
@@ -117,10 +118,10 @@ export function MedicationLimitWarning({
                   {getStatusIcon(check.status)}
                   <div className="flex-1">
                     <p className="text-sm font-medium text-foreground">
-                      {getStatusMessage(check)}
+                      {getStatusMessage(check, true)}
                     </p>
                     <div className="mt-2 text-xs text-muted-foreground">
-                      Aktuell: {check.current_count} • Limit: {check.limit_count} ({check.percentage}%)
+                      Mit Einnahme: {check.current_count}/{check.limit_count} ({check.percentage}%)
                     </div>
                   </div>
                 </div>

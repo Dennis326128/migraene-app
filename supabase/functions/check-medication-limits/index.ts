@@ -94,22 +94,10 @@ serve(async (req) => {
           continue;
       }
 
-      // Count current usage from events (new system)
-      const { data: eventMeds, error: eventError } = await supabase
-        .from('event_meds')
-        .select(`
-          events!inner(user_id, started_at),
-          user_medications!inner(name)
-        `)
-        .eq('events.user_id', user.id)
-        .eq('user_medications.name', limit.medication_name)
-        .gte('events.started_at', periodStart.toISOString());
-
-      if (eventError) {
-        console.error('Event meds error:', eventError);
-      }
-
-      // Count current usage from pain_entries (legacy system)
+      // Count current usage from pain_entries
+      console.log(`📊 Counting ${limit.medication_name} from ${periodStart.toISOString()}`);
+      
+      // Count current usage from pain_entries
       const { data: painEntries, error: entriesError } = await supabase
         .from('pain_entries')
         .select('medications, timestamp_created')
@@ -121,18 +109,20 @@ serve(async (req) => {
         console.error('Pain entries error:', entriesError);
       }
 
-      // Calculate total usage
-      let currentCount = eventMeds?.length || 0;
+      // Calculate total usage from pain_entries
+      let currentCount = 0;
       
-      // Add legacy entries count
       if (painEntries) {
         for (const entry of painEntries) {
           if (entry.medications && entry.medications.includes(limit.medication_name)) {
+            // Count each occurrence of this medication in the array
             const medicationCount = entry.medications.filter((med: string) => med === limit.medication_name).length;
             currentCount += medicationCount;
           }
         }
       }
+
+      console.log(`✅ ${limit.medication_name}: ${currentCount}/${limit.limit_count} (${limit.period_type})`);
 
       const percentage = (currentCount / limit.limit_count) * 100;
       let status: 'safe' | 'warning' | 'reached' | 'exceeded';
