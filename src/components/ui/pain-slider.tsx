@@ -99,7 +99,7 @@ export function PainSlider({ value, onValueChange, disabled, className }: PainSl
       </div>
 
       {/* Enhanced Slider */}
-      <div className="px-3 relative">
+      <div className="px-1 relative">
         <Slider
           value={[value]}
           onValueChange={handleValueChange}
@@ -107,11 +107,7 @@ export function PainSlider({ value, onValueChange, disabled, className }: PainSl
           min={0}
           step={1}
           disabled={disabled}
-          className={cn(
-            "w-full transition-all duration-200",
-            isDragging && "scale-105",
-            longPressActive && "scale-110"
-          )}
+          className="w-full"
           style={{
             '--slider-color': painColor
           } as React.CSSProperties}

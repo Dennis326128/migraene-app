@@ -10,24 +10,24 @@ const Slider = React.forwardRef<
   <SliderPrimitive.Root
     ref={ref}
     className={cn(
-      "relative flex w-full touch-none select-none items-center",
+      "relative flex w-full touch-none select-none items-center py-4",
       className
     )}
     {...props}
   >
-    <SliderPrimitive.Track className="relative h-3 w-full grow overflow-hidden rounded-full bg-secondary">
+    <SliderPrimitive.Track className="relative h-1.5 w-full grow overflow-hidden rounded-full bg-muted/40">
       <SliderPrimitive.Range 
-        className="absolute h-full rounded-full"
+        className="absolute h-full rounded-full transition-all duration-300"
         style={{
           background: 'var(--slider-color, hsl(var(--primary)))'
         }}
       />
     </SliderPrimitive.Track>
     <SliderPrimitive.Thumb 
-      className="block h-6 w-6 rounded-full border-2 bg-background ring-offset-background transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 shadow-lg hover:scale-110"
+      className="block h-7 w-7 rounded-full bg-background transition-all duration-300 ease-out focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/20 disabled:pointer-events-none disabled:opacity-50 active:scale-95 cursor-grab active:cursor-grabbing"
       style={{
-        borderColor: 'var(--slider-color, hsl(var(--primary)))',
-        boxShadow: `0 0 0 0 var(--slider-color, hsl(var(--primary)))`
+        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15), 0 1px 3px rgba(0, 0, 0, 0.1)',
+        border: '0.5px solid rgba(0, 0, 0, 0.04)'
       }}
     />
   </SliderPrimitive.Root>

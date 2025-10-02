@@ -62,7 +62,7 @@ export function MedicationEffectSlider({ value, onValueChange, disabled, classNa
       </div>
 
       {/* Slider */}
-      <div className="px-3">
+      <div className="px-1">
         <Slider
           value={[value]}
           onValueChange={handleValueChange}
