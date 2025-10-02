@@ -207,9 +207,9 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-md mx-auto max-h-[90vh] overflow-y-auto bg-card border-quick-entry">
+      <DialogContent className="max-w-md mx-auto max-h-[90vh] overflow-y-auto bg-card border-quick-entry rounded-2xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-quick-entry">
+          <DialogTitle className="flex items-center gap-2 text-quick-entry text-lg font-semibold">
             <Zap className="h-5 w-5" />
             Migräne Schnelleintrag
           </DialogTitle>
@@ -217,8 +217,8 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
 
         <div className="space-y-4">
           {/* Pain Level Selection */}
-          <Card className="p-4 border-quick-entry/20">
-            <Label className="text-base font-medium mb-3 block text-quick-entry">
+          <Card className="p-4 border-quick-entry/20 rounded-xl">
+            <Label className="text-base mb-3 block text-quick-entry">
               Schmerzstärke
             </Label>
             <PainSlider 
@@ -229,8 +229,8 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
           </Card>
 
           {/* Time Selection */}
-          <Card className="p-4">
-            <Label className="text-base font-medium mb-3 block">
+          <Card className="p-4 rounded-xl">
+            <Label className="text-base mb-3 block">
               <Clock className="inline h-4 w-4 mr-1" />
               Zeitpunkt
             </Label>
@@ -274,8 +274,8 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
 
           {/* Medications */}
           {medOptions.length > 0 && (
-            <Card className="p-4">
-              <Label className="text-base font-medium mb-3 block">Medikamente</Label>
+            <Card className="p-4 rounded-xl">
+              <Label className="text-base mb-3 block">Medikamente</Label>
               <div className="flex flex-wrap gap-2">
                 {medOptions.map((med) => {
                   const isSelected = medicationStates[med.name] || false;
@@ -308,22 +308,22 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
           )}
 
           {/* Action Buttons */}
-          <div className="flex gap-2 pt-2">
+          <div className="flex gap-3 pt-2">
             <Button 
               variant="outline" 
               onClick={onClose}
-              className="flex-1"
+              className="flex-1 h-12 font-semibold"
               disabled={saving}
             >
-              <X className="h-4 w-4 mr-1" />
+              <X className="h-4 w-4 mr-2" />
               Abbrechen
             </Button>
             <Button 
               onClick={handleSave}
               disabled={painLevel < 0 || saving}
-              className="flex-1 bg-success hover:bg-success/90 text-success-foreground"
+              className="flex-1 h-12 bg-success hover:bg-success/90 text-success-foreground font-semibold"
             >
-              <Save className="h-4 w-4 mr-1" />
+              <Save className="h-4 w-4 mr-2" />
               {saving ? "Speichere..." : "Speichern"}
             </Button>
           </div>

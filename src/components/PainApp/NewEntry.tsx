@@ -378,8 +378,8 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
       </div>
 
       {/* Migräne-Intensität - Slider */}
-      <Card className="p-4 sm:p-6 mb-4">
-        <Label className="text-base font-medium mb-3 block">
+      <Card className="p-5 mb-4">
+        <Label className="text-base mb-4 block">
           Migräne-Intensität
         </Label>
         <PainSlider 
@@ -392,10 +392,10 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
         {/* Aura block completely removed */}
 
       {/* Datum und Zeit */}
-      <Card className="p-6 mb-4">
+      <Card className="p-5 mb-4">
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <Label htmlFor="date-input" className="text-base font-medium mb-2 block">Datum</Label>
+            <Label htmlFor="date-input" className="text-base mb-2.5 block">Datum</Label>
             <Input 
               id="date-input"
               type="date" 
@@ -405,7 +405,7 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
             />
           </div>
           <div>
-            <Label htmlFor="time-input" className="text-base font-medium mb-2 block">Uhrzeit</Label>
+            <Label htmlFor="time-input" className="text-base mb-2.5 block">Uhrzeit</Label>
             <Input 
               id="time-input"
               type="time" 
@@ -419,8 +419,8 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
       </Card>
 
       {/* Medikamente */}
-      <Card className="p-6 mb-4">
-        <Label className="text-base font-medium mb-3 block">Medikamenteneinnahme</Label>
+      <Card className="p-5 mb-4">
+        <Label className="text-base mb-3 block">Medikamenteneinnahme</Label>
         
         <div className="grid gap-2">
           <Button
@@ -478,9 +478,9 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
 
       {/* Schmerzlokalisation - Collapsible */}
       <Collapsible open={painLocationOpen} onOpenChange={setPainLocationOpen}>
-        <Card className="p-6 mb-4">
+        <Card className="p-5 mb-4">
           <CollapsibleTrigger className="w-full flex items-center justify-between hover:opacity-80 transition-opacity">
-            <Label className="text-base font-medium cursor-pointer">
+            <Label className="text-base cursor-pointer">
               Schmerzlokalisation
             </Label>
             <ChevronDown className={`h-5 w-5 transition-transform duration-200 ${painLocationOpen ? 'rotate-180' : ''}`} />
@@ -516,9 +516,9 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
 
       {/* Symptome - Collapsible */}
       <Collapsible open={symptomsOpen} onOpenChange={setSymptomsOpen}>
-        <Card className="p-6 mb-4">
+        <Card className="p-5 mb-4">
           <CollapsibleTrigger className="w-full flex items-center justify-between hover:opacity-80 transition-opacity">
-            <Label className="text-base font-medium cursor-pointer">Begleitsymptome</Label>
+            <Label className="text-base cursor-pointer">Begleitsymptome</Label>
             <ChevronDown className={`h-5 w-5 transition-transform duration-200 ${symptomsOpen ? 'rotate-180' : ''}`} />
           </CollapsibleTrigger>
           
@@ -556,8 +556,8 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
       </Collapsible>
 
       {/* Auslöser/Notizen */}
-      <Card className="p-6 mb-4">
-        <Label htmlFor="notes-input" className="text-base font-medium mb-3 block">
+      <Card className="p-5 mb-4">
+        <Label htmlFor="notes-input" className="text-base mb-3 block">
           Auslöser / Besonderheiten
         </Label>
         <Input
@@ -572,7 +572,7 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
 
       {/* Speichern Button */}
       <Button 
-        className="w-full h-14 mt-4 text-lg font-medium" 
+        className="w-full h-12 mt-4 text-base font-semibold" 
         onClick={handleSave} 
         disabled={saving || createMut.isPending || updateMut.isPending || setEntrySymptomsMut.isPending}
         aria-label="Speichern"
