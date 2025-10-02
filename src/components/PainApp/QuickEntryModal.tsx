@@ -317,7 +317,7 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
             <Button 
               onClick={handleSave}
               disabled={painLevel < 0 || saving}
-              className="flex-1 bg-quick-entry hover:bg-quick-entry-hover text-quick-entry-foreground"
+              className="flex-1 bg-success hover:bg-success/90 text-success-foreground"
             >
               <Save className="h-4 w-4 mr-1" />
               {saving ? "Speichere..." : "Speichern"}
