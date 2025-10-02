@@ -3,39 +3,45 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { CloudSun, Loader2 } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 export const WeatherImportButton = () => {
   const [isImporting, setIsImporting] = useState(false);
-  const [missingCount, setMissingCount] = useState<number | null>(null);
-  const [isVisible, setIsVisible] = useState(false);
+  const queryClient = useQueryClient();
+
+  const checkMissingData = async (): Promise<number> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return 0;
+
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const { count, error } = await supabase
+      .from("pain_entries")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .is("weather_id", null)
+      .gte("timestamp_created", thirtyDaysAgo.toISOString());
+
+    if (error) throw error;
+    return count || 0;
+  };
+
+  const { data: missingCount = 0, refetch } = useQuery({
+    queryKey: ["missing-weather"],
+    queryFn: checkMissingData,
+    staleTime: 30_000,
+  });
 
   useEffect(() => {
-    checkMissingData();
-  }, []);
-
-  const checkMissingData = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-      const { count, error } = await supabase
-        .from("pain_entries")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", user.id)
-        .is("weather_id", null)
-        .gte("timestamp_created", thirtyDaysAgo.toISOString());
-
-      if (error) throw error;
-
-      setMissingCount(count || 0);
-      setIsVisible((count || 0) > 0);
-    } catch (error) {
-      console.error("Error checking missing weather data:", error);
-    }
-  };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refetch();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [refetch]);
 
   const handleImport = async () => {
     setIsImporting(true);
@@ -49,7 +55,7 @@ export const WeatherImportButton = () => {
 
       if (data.successCount > 0) {
         toast.success("Wetterdaten erfolgreich ergänzt");
-        setIsVisible(false);
+        queryClient.invalidateQueries({ queryKey: ["missing-weather"] });
       } else {
         toast.error("Fehler beim Import");
       }
@@ -61,7 +67,7 @@ export const WeatherImportButton = () => {
     }
   };
 
-  if (!isVisible) return null;
+  if (missingCount === 0) return null;
 
   return (
     <Button 
