@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -7,9 +7,10 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Plus, Clock, Calendar, CalendarDays, Trash2 } from "lucide-react";
+import { Plus, Clock, Calendar, CalendarDays, Trash2, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useMeds } from "@/features/meds/hooks/useMeds";
+import { useDebounce } from "@/hooks/useDebounce";
 import {
   useMedicationLimits,
   useCreateMedicationLimit,
@@ -45,10 +46,44 @@ export function MedicationLimitsSettings() {
     period_type: 'month',
     is_active: true,
   });
+  const [isSaving, setIsSaving] = useState(false);
+  const pendingUpdatesRef = useRef<Map<string, Partial<CreateMedicationLimitPayload>>>(new Map());
 
   const availableMedications = medications.filter(
     med => !limits.some(limit => limit.medication_name === med.name)
   );
+
+  const performUpdate = async () => {
+    if (pendingUpdatesRef.current.size === 0) return;
+    
+    setIsSaving(true);
+    const updates = Array.from(pendingUpdatesRef.current.entries());
+    pendingUpdatesRef.current.clear();
+
+    try {
+      await Promise.all(
+        updates.map(([id, payload]) => updateLimit.mutateAsync({ id, payload }))
+      );
+    } catch (error) {
+      toast({
+        title: "Fehler",
+        description: "Einige Änderungen konnten nicht gespeichert werden.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const [debouncedUpdate] = useDebounce(performUpdate, 5000);
+
+  useEffect(() => {
+    return () => {
+      if (pendingUpdatesRef.current.size > 0) {
+        performUpdate();
+      }
+    };
+  }, []);
 
   const handleCreateLimit = async () => {
     if (!newLimit.medication_name) {
@@ -82,16 +117,21 @@ export function MedicationLimitsSettings() {
     }
   };
 
-  const handleUpdateLimit = async (
+  const handleUpdateLimit = (
+    id: string,
+    payload: Partial<CreateMedicationLimitPayload>
+  ) => {
+    const existing = pendingUpdatesRef.current.get(id) || {};
+    pendingUpdatesRef.current.set(id, { ...existing, ...payload });
+    debouncedUpdate();
+  };
+
+  const handleImmediateUpdate = async (
     id: string,
     payload: Partial<CreateMedicationLimitPayload>
   ) => {
     try {
       await updateLimit.mutateAsync({ id, payload });
-      toast({
-        title: "Limit aktualisiert",
-        description: "Die Änderungen wurden gespeichert.",
-      });
     } catch (error) {
       toast({
         title: "Fehler",
@@ -147,6 +187,12 @@ export function MedicationLimitsSettings() {
           <CardTitle className="flex items-center gap-2">
             Medikamenten-Limits
             <Badge variant="secondary">{limits.length}</Badge>
+            {isSaving && (
+              <Badge variant="outline" className="gap-1">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Speichert...
+              </Badge>
+            )}
           </CardTitle>
           <CardDescription>
             Setze individuelle Limits für deine Medikamente, um Übergebrauch zu vermeiden.
@@ -198,7 +244,7 @@ export function MedicationLimitsSettings() {
                         <Switch
                           checked={limit.is_active}
                           onCheckedChange={(checked) =>
-                            handleUpdateLimit(limit.id, { is_active: checked })
+                            handleImmediateUpdate(limit.id, { is_active: checked })
                           }
                           disabled={updateLimit.isPending}
                         />

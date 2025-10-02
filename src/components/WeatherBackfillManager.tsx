@@ -201,7 +201,5 @@ export function WeatherBackfillManager() {
     }
   };
 
-  return (
-    <div>GPS-Koordinaten werden jetzt in pain_entries gespeichert und für präzise Wetterdaten verwendet!</div>
-  );
+  return null;
 }
