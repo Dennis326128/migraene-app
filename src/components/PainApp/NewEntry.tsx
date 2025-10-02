@@ -397,30 +397,6 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
           </div>
         </div>
         
-        {/* Retroactive Entry Warning */}
-        {(() => {
-          const entryDateTime = new Date(`${selectedDate}T${selectedTime}:00`);
-          const now = new Date();
-          const isRetroactive = entryDateTime < now && (now.getTime() - entryDateTime.getTime()) > 60000; // 1 minute buffer
-          
-          if (isRetroactive) {
-            return (
-              <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <div className="flex items-start gap-2">
-                  <span className="text-yellow-600">⚠️</span>
-                  <div className="text-sm">
-                    <p className="font-medium text-yellow-800 mb-1">Nachträglicher Eintrag erkannt</p>
-                    <p className="text-yellow-700">
-                      Die Wetterdaten werden für den gewählten Zeitpunkt ({new Date(entryDateTime).toLocaleString('de-DE')}) abgerufen. 
-                      Für genauere Daten könnten Sie den Standort von damals verwenden, falls verfügbar.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            );
-          }
-          return null;
-        })()}
       </Card>
 
       {/* Medikamente */}

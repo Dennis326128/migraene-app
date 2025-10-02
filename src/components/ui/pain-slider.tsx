@@ -129,9 +129,9 @@ export function PainSlider({ value, onValueChange, disabled, className }: PainSl
         </div>
       </div>
 
-      {/* Mobile Quick Selection Buttons */}
-      <div className="grid grid-cols-4 gap-2 mt-4 sm:hidden">
-        {[2, 5, 7, 9].map((level) => (
+      {/* Mobile Quick Selection Buttons - Prominent placement */}
+      <div className="grid grid-cols-5 gap-2 mt-6 sm:hidden">
+        {[0, 3, 5, 7, 10].map((level) => (
           <button
             key={level}
             onClick={() => {
@@ -140,14 +140,18 @@ export function PainSlider({ value, onValueChange, disabled, className }: PainSl
             }}
             disabled={disabled}
             className={cn(
-              "p-2 rounded-lg text-sm font-medium transition-all touch-manipulation",
+              "p-3 rounded-xl text-base font-bold transition-all touch-manipulation flex flex-col items-center gap-1",
               value === level
-                ? "bg-primary text-primary-foreground scale-105"
-                : "bg-muted hover:bg-accent text-muted-foreground"
+                ? "ring-4 ring-offset-2 scale-110 shadow-lg"
+                : "bg-muted hover:bg-accent text-muted-foreground shadow-sm"
             )}
-            style={value === level ? { backgroundColor: painColor } : {}}
+            style={value === level ? { 
+              backgroundColor: getPainColor(level),
+              color: 'white'
+            } : {}}
           >
-            {level}
+            <span className="text-xl">{painEmojis[level as keyof typeof painEmojis]}</span>
+            <span>{level}</span>
           </button>
         ))}
       </div>
