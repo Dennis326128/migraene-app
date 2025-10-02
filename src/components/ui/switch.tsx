@@ -22,7 +22,7 @@ const Switch = React.forwardRef<
     <SwitchPrimitives.Thumb
       className={cn(
         // Thumb (der runde Knopf)
-        "pointer-events-none block h-[20px] w-[20px] rounded-full bg-white shadow-md ring-0",
+        "pointer-events-none block h-[20px] w-[20px] rounded-xl bg-white shadow-md ring-0",
         "transition-transform duration-300 ease-in-out",
         "data-[state=checked]:translate-x-[22px] data-[state=unchecked]:translate-x-[2px]"
       )}
