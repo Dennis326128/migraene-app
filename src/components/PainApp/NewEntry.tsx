@@ -373,10 +373,9 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
 
       {/* Datum und Zeit */}
       <Card className="p-6 mb-4">
-        <Label className="text-base font-medium mb-3 block">Datum und Uhrzeit</Label>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <Label htmlFor="date-input">Datum</Label>
+            <Label htmlFor="date-input" className="text-base font-medium mb-2 block">Datum</Label>
             <Input 
               id="date-input"
               type="date" 
@@ -386,7 +385,7 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
             />
           </div>
           <div>
-            <Label htmlFor="time-input">Uhrzeit</Label>
+            <Label htmlFor="time-input" className="text-base font-medium mb-2 block">Uhrzeit</Label>
             <Input 
               id="time-input"
               type="time" 
