@@ -575,10 +575,10 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
         className="w-full h-14 mt-4 text-lg font-medium" 
         onClick={handleSave} 
         disabled={saving || createMut.isPending || updateMut.isPending || setEntrySymptomsMut.isPending}
-        aria-label="Migräne-Eintrag speichern"
+        aria-label="Speichern"
       >
         <Save className="w-5 h-5 mr-2" /> 
-        {saving || createMut.isPending || updateMut.isPending || setEntrySymptomsMut.isPending ? "Speichere..." : "Migräne-Eintrag speichern"}
+        {saving || createMut.isPending || updateMut.isPending || setEntrySymptomsMut.isPending ? "Speichere..." : "Speichern"}
       </Button>
 
       {/* Medication Limit Warning Dialog */}
