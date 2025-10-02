@@ -25,16 +25,16 @@ interface QuickEntryModalProps {
 }
 
 const timeOptions = [
-  { value: "jetzt", label: "🔴 Jetzt", minutes: 0 },
-  { value: "1h", label: "🟡 Vor 1 Stunde", minutes: 60 },
-  { value: "custom", label: "⏰ Zeitpunkt wählen", minutes: null },
+  { value: "jetzt", label: "Jetzt", minutes: 0 },
+  { value: "1h", label: "Vor 1 Stunde", minutes: 60 },
+  { value: "custom", label: "Zeitpunkt wählen", minutes: null },
 ];
 
 const painLevels = [
-  { value: "leicht", label: "💚 Leicht (2/10)", color: "bg-green-500" },
-  { value: "mittel", label: "💛 Mittel (5/10)", color: "bg-yellow-500" },
-  { value: "stark", label: "🟠 Stark (7/10)", color: "bg-orange-500" },
-  { value: "sehr_stark", label: "🔴 Sehr stark (9/10)", color: "bg-red-500" },
+  { value: "leicht", label: "Leicht (2/10)", color: "bg-green-500" },
+  { value: "mittel", label: "Mittel (5/10)", color: "bg-yellow-500" },
+  { value: "stark", label: "Stark (7/10)", color: "bg-orange-500" },
+  { value: "sehr_stark", label: "Sehr stark (9/10)", color: "bg-red-500" },
 ];
 
 export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ 
@@ -175,7 +175,7 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
         aura_type: "keine" as const,
         pain_location: null,
         medications: getSelectedMedications(),
-        notes: initialNotes ? `🎤 Spracheintrag: ${initialNotes}` : "📱 Schnelleintrag",
+        notes: initialNotes ? `Spracheintrag: ${initialNotes}` : "Schnelleintrag",
         weather_id: weatherId,
         latitude,
         longitude,
@@ -184,7 +184,7 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
       await createMut.mutateAsync(payload as any);
       
       toast({ 
-        title: "🚀 Schnelleintrag gespeichert", 
+        title: "Schnelleintrag gespeichert", 
         description: `Schmerzstärke ${painLevel}/10 erfasst` 
       });
       
@@ -196,7 +196,7 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
     } catch (error) {
       console.error("Quick Entry save error:", error);
       toast({ 
-        title: "❌ Fehler beim Speichern", 
+        title: "Fehler beim Speichern", 
         description: "Bitte versuchen Sie es erneut.", 
         variant: "destructive" 
       });
@@ -211,7 +211,7 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-quick-entry">
             <Zap className="h-5 w-5" />
-            🔴 Migräne Schnelleintrag
+            Migräne Schnelleintrag
           </DialogTitle>
         </DialogHeader>
 
@@ -275,7 +275,7 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
           {/* Medications */}
           {medOptions.length > 0 && (
             <Card className="p-4">
-              <Label className="text-base font-medium mb-3 block">💊 Medikamente</Label>
+              <Label className="text-base font-medium mb-3 block">Medikamente</Label>
               <div className="flex flex-wrap gap-2">
                 {medOptions.map((med) => {
                   const isSelected = medicationStates[med.name] || false;

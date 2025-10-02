@@ -23,10 +23,6 @@ const painLabels = {
   10: "Unerträglich"
 }
 
-const painEmojis = {
-  0: "😊", 1: "🙂", 2: "😐", 3: "😕", 4: "☹️",
-  5: "😣", 6: "😖", 7: "😫", 8: "😰", 9: "😭", 10: "🤯"
-}
 
 function getPainColor(value: number): string {
   if (value === 0) return "hsl(var(--success))" // Green
@@ -82,14 +78,13 @@ export function PainSlider({ value, onValueChange, disabled, className }: PainSl
   
   return (
     <div className={cn("w-full space-y-4", className)}>
-      {/* Current Value Display with Emoji */}
+      {/* Current Value Display */}
       <div className="flex items-center justify-center mb-4">
         <div className={cn(
           "text-center transition-all duration-300",
           showValueTooltip && "scale-110"
         )}>
-          <div className="text-3xl mb-1">{painEmojis[value as keyof typeof painEmojis]}</div>
-          <div className="text-lg font-semibold" style={{ color: painColor }}>
+          <div className="text-2xl font-bold" style={{ color: painColor }}>
             {value}/10
           </div>
           <div className="text-sm text-muted-foreground">
@@ -129,32 +124,6 @@ export function PainSlider({ value, onValueChange, disabled, className }: PainSl
         </div>
       </div>
 
-      {/* Mobile Quick Selection Buttons - Prominent placement */}
-      <div className="grid grid-cols-5 gap-2 mt-6 sm:hidden">
-        {[0, 3, 5, 7, 10].map((level) => (
-          <button
-            key={level}
-            onClick={() => {
-              onValueChange(level)
-              triggerHapticFeedback()
-            }}
-            disabled={disabled}
-            className={cn(
-              "p-3 rounded-xl text-base font-bold transition-all touch-manipulation flex flex-col items-center gap-1",
-              value === level
-                ? "ring-4 ring-offset-2 scale-110 shadow-lg"
-                : "bg-muted hover:bg-accent text-muted-foreground shadow-sm"
-            )}
-            style={value === level ? { 
-              backgroundColor: getPainColor(level),
-              color: 'white'
-            } : {}}
-          >
-            <span className="text-xl">{painEmojis[level as keyof typeof painEmojis]}</span>
-            <span>{level}</span>
-          </button>
-        ))}
-      </div>
     </div>
   )
 }

@@ -25,10 +25,10 @@ interface NewEntryProps {
 }
 
 const painLevels = [
-  { value: "leicht", label: "💚 Leichte Migräne (2/10)", desc: "Beeinträchtigt Alltag wenig" },
-  { value: "mittel", label: "💛 Mittlere Migräne (5/10)", desc: "Erschwert Aktivitäten" },
-  { value: "stark", label: "🟠 Starke Migräne (7/10)", desc: "Normale Aktivitäten unmöglich" },
-  { value: "sehr_stark", label: "🔴 Sehr starke Migräne (9/10)", desc: "Bettlägerig, unerträglich" },
+  { value: "leicht", label: "Leichte Migräne (2/10)", desc: "Beeinträchtigt Alltag wenig" },
+  { value: "mittel", label: "Mittlere Migräne (5/10)", desc: "Erschwert Aktivitäten" },
+  { value: "stark", label: "Starke Migräne (7/10)", desc: "Normale Aktivitäten unmöglich" },
+  { value: "sehr_stark", label: "Sehr starke Migräne (9/10)", desc: "Bettlägerig, unerträglich" },
 ];
 
 // Haptic Feedback für Mobile
@@ -46,12 +46,12 @@ interface MedicationWithEffectiveness {
 }
 
 const painLocations = [
-  { value: "einseitig_links", label: "🔵 Einseitig links" },
-  { value: "einseitig_rechts", label: "🔴 Einseitig rechts" },
-  { value: "beidseitig", label: "🟡 Beidseitig" },
-  { value: "stirn", label: "🟢 Stirnbereich" },
-  { value: "nacken", label: "🟣 Nackenbereich" },
-  { value: "schlaefe", label: "🟠 Schläfenbereich" },
+  { value: "einseitig_links", label: "Einseitig links" },
+  { value: "einseitig_rechts", label: "Einseitig rechts" },
+  { value: "beidseitig", label: "Beidseitig" },
+  { value: "stirn", label: "Stirnbereich" },
+  { value: "nacken", label: "Nackenbereich" },
+  { value: "schlaefe", label: "Schläfenbereich" },
 ];
 
 export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
@@ -319,7 +319,7 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
       // No separate entry_medications table needed
 
       toast({ 
-        title: "✅ Migräne-Eintrag gespeichert", 
+        title: "Migräne-Eintrag gespeichert", 
         description: "Erfolgreich gespeichert. Ihre Daten sind sicher gespeichert." 
       });
       
@@ -352,7 +352,7 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <h1 className="text-xl font-semibold text-center flex-1">
-          {entry ? "📝 Migräne-Eintrag bearbeiten" : "✏️ Neue Migräne erfassen"}
+          {entry ? "Migräne-Eintrag bearbeiten" : "Neue Migräne erfassen"}
         </h1>
         <div className="w-9"></div>
       </div>
@@ -373,7 +373,7 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
 
       {/* Datum und Zeit */}
       <Card className="p-6 mb-4">
-        <Label className="text-base font-medium mb-3 block">📅 Datum und Uhrzeit</Label>
+        <Label className="text-base font-medium mb-3 block">Datum und Uhrzeit</Label>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <Label htmlFor="date-input">Datum</Label>
@@ -401,129 +401,66 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
 
       {/* Medikamente */}
       <Card className="p-6 mb-4">
-        <Label className="text-base font-medium mb-3 block">💊 Medikamenteneinnahme</Label>
+        <Label className="text-base font-medium mb-3 block">Medikamenteneinnahme</Label>
         
-        {/* Medikamente-Auswahl */}
-        <div className="space-y-2 mb-4">
-          <Select value="" onValueChange={(medName) => {
-            if (!selectedMedications.includes(medName)) {
-              setSelectedMedications(prev => [...prev.filter(m => m !== "-"), medName]);
-            }
-          }}>
-            <SelectTrigger>
-              <SelectValue placeholder="Medikament auswählen..." />
-            </SelectTrigger>
-            <SelectContent>
-              {medOptions.filter(m => !selectedMedications.includes(typeof m === 'string' ? m : m.name)).map((m) => (
-                <SelectItem key={typeof m === 'string' ? m : m.id} value={typeof m === 'string' ? m : m.name}>
-                  {typeof m === 'string' ? m : m.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          
-          {/* Neues Medikament */}
-          <div className="flex gap-2">
-            <Input
-              placeholder="Neues Medikament eingeben..."
-              value={newMedication}
-              onChange={(e) => setNewMedication(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleAddNewMedication()}
-            />
-            <Button 
-              type="button" 
-              variant="outline" 
-              onClick={handleAddNewMedication}
-              disabled={!newMedication.trim()}
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
-          </div>
+        <div className="grid gap-2">
+          <Button
+            type="button"
+            variant={selectedMedications.length === 0 || (selectedMedications.length === 1 && selectedMedications[0] === "-") ? "default" : "outline"}
+            className="justify-start"
+            onClick={() => setSelectedMedications(["-"])}
+            aria-pressed={selectedMedications.length === 0 || (selectedMedications.length === 1 && selectedMedications[0] === "-")}
+          >
+            Keine Medikamente
+          </Button>
+          {medOptions.map((med) => {
+            const medName = typeof med === 'string' ? med : med.name;
+            const isSelected = selectedMedications.includes(medName);
+            
+            return (
+              <Button
+                key={typeof med === 'string' ? med : med.id}
+                type="button"
+                variant={isSelected ? "default" : "outline"}
+                className="justify-start"
+                onClick={() => {
+                  if (isSelected) {
+                    setSelectedMedications(prev => prev.filter(m => m !== medName));
+                  } else {
+                    setSelectedMedications(prev => [...prev.filter(m => m !== "-"), medName]);
+                  }
+                }}
+                aria-pressed={isSelected}
+              >
+                {medName}
+              </Button>
+            );
+          })}
         </div>
 
-        {/* Ausgewählte Medikamente mit Wirksamkeit */}
-        {selectedMedications.filter(m => m !== "-" && m.trim() !== "").length > 0 && (
-          <div className="space-y-3">
-            <div className="text-sm font-medium">Ausgewählte Medikamente:</div>
-            <div className="space-y-3">
-              {selectedMedications.filter(m => m !== "-" && m.trim() !== "").map((med) => {
-                const medEffectiveness = medicationsWithEffectiveness.find(m => m.name === med) || {
-                  name: med,
-                  dosage: "",
-                  effectiveness: 0,
-                  notes: ""
-                };
-                
-                return (
-                  <div key={med} className="border rounded-lg p-3 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium">{med}</span>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedMedications(prev => prev.filter(m => m !== med))}
-                        className="text-muted-foreground hover:text-destructive"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-xs text-muted-foreground">Dosierung</label>
-                        <Input
-                          placeholder="z.B. 10mg"
-                          value={medEffectiveness.dosage}
-                          onChange={(e) => {
-                            const updated = medicationsWithEffectiveness.filter(m => m.name !== med);
-                            updated.push({ ...medEffectiveness, dosage: e.target.value });
-                            setMedicationsWithEffectiveness(updated);
-                          }}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">Wirksamkeit (0-4)</label>
-                        <select
-                          value={medEffectiveness.effectiveness}
-                          onChange={(e) => {
-                            const updated = medicationsWithEffectiveness.filter(m => m.name !== med);
-                            updated.push({ ...medEffectiveness, effectiveness: parseInt(e.target.value) });
-                            setMedicationsWithEffectiveness(updated);
-                          }}
-                          className="w-full h-9 px-3 rounded-md border border-input bg-background"
-                        >
-                          <option value={0}>0 - Keine Wirkung</option>
-                          <option value={1}>1 - Schwach</option>
-                          <option value={2}>2 - Mäßig</option>
-                          <option value={3}>3 - Gut</option>
-                          <option value={4}>4 - Sehr gut</option>
-                        </select>
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <label className="text-xs text-muted-foreground">Notizen zur Wirkung</label>
-                      <Input
-                        placeholder="Nebenwirkungen, Wirkdauer etc."
-                        value={medEffectiveness.notes}
-                        onChange={(e) => {
-                          const updated = medicationsWithEffectiveness.filter(m => m.name !== med);
-                          updated.push({ ...medEffectiveness, notes: e.target.value });
-                          setMedicationsWithEffectiveness(updated);
-                        }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+        {/* Neues Medikament hinzufügen */}
+        <div className="mt-4 flex gap-2">
+          <Input
+            placeholder="Neues Medikament eingeben..."
+            value={newMedication}
+            onChange={(e) => setNewMedication(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleAddNewMedication()}
+          />
+          <Button 
+            type="button" 
+            variant="outline" 
+            onClick={handleAddNewMedication}
+            disabled={!newMedication.trim()}
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+        </div>
       </Card>
 
       {/* Schmerzlokalisation */}
       <Card className="p-6 mb-4">
         <Label className="text-base font-medium mb-3 block">
-          📍 Schmerzlokalisation
+          Schmerzlokalisation
         </Label>
         <div className="grid gap-2">
           <Button
@@ -586,7 +523,7 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
       {/* Auslöser/Notizen */}
       <Card className="p-6 mb-4">
         <Label htmlFor="notes-input" className="text-base font-medium mb-3 block">
-          📝 Auslöser / Notizen
+          Auslöser / Notizen
         </Label>
         <Input
           id="notes-input"
