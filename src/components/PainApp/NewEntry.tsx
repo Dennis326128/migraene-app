@@ -488,7 +488,7 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
 
       {/* Symptome */}
       <Card className="p-6 mb-4">
-        <Label className="text-base font-medium mb-3 block">🧩 Begleitsymptome</Label>
+        <Label className="text-base font-medium mb-3 block">Begleitsymptome</Label>
         {loadingSymptoms && entry ? (
           <div className="text-sm text-muted-foreground mt-2">Lade vorhandene Symptome…</div>
         ) : (
@@ -522,7 +522,7 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
       {/* Auslöser/Notizen */}
       <Card className="p-6 mb-4">
         <Label htmlFor="notes-input" className="text-base font-medium mb-3 block">
-          Auslöser / Notizen
+          Auslöser / Besonderheiten
         </Label>
         <Input
           id="notes-input"
