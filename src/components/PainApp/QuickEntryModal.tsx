@@ -208,20 +208,11 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-md mx-auto max-h-[90vh] overflow-y-auto bg-card border-quick-entry">
-        <DialogHeader className="relative">
-          <DialogTitle className="flex items-center gap-2 text-quick-entry pr-12">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-quick-entry">
             <Zap className="h-5 w-5" />
             🔴 Migräne Schnelleintrag
           </DialogTitle>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onClose}
-            className="absolute right-0 top-0 h-10 w-10 rounded-full hover:bg-destructive/10 touch-manipulation"
-            aria-label="Dialog schließen"
-          >
-            <X className="h-6 w-6 text-muted-foreground hover:text-destructive" />
-          </Button>
         </DialogHeader>
 
         <div className="space-y-4">
