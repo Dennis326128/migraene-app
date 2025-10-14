@@ -25,17 +25,29 @@ const CACHE_STRATEGIES = {
 
 // Install Event - Aggressive Update
 self.addEventListener('install', (event) => {
+  console.log('[SW] Installing new version...');
   self.skipWaiting(); // Sofort aktivieren, nicht auf alte Tabs warten
 });
 
-// Activate Event - Aggressive Cache Busting
+// Activate Event - Aggressive Cache Busting + Client Notification
 self.addEventListener('activate', (event) => {
+  console.log('[SW] Activating...');
   event.waitUntil(
     (async () => {
       // Alle alten Caches löschen
       const keys = await caches.keys();
-      await Promise.all(keys.map(k => caches.delete(k)));
+      await Promise.all(
+        keys.map(k => k !== CACHE_NAME ? caches.delete(k) : Promise.resolve())
+      );
+      
+      // Alle Clients übernehmen
       await self.clients.claim();
+      
+      // Clients benachrichtigen, dass neue Version da ist
+      const clients = await self.clients.matchAll({ type: 'window' });
+      clients.forEach(client => {
+        client.postMessage({ type: 'NEW_VERSION_AVAILABLE' });
+      });
     })()
   );
 });
