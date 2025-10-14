@@ -23,27 +23,20 @@ const CACHE_STRATEGIES = {
   PAGES: /^https?:\/\/[^\/]+\/?$/
 };
 
-// Install Event
+// Install Event - Aggressive Update
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(CRITICAL_RESOURCES))
-      .then(() => self.skipWaiting())
-  );
+  self.skipWaiting(); // Sofort aktivieren, nicht auf alte Tabs warten
 });
 
-// Activate Event
+// Activate Event - Aggressive Cache Busting
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys()
-      .then(cacheNames => {
-        return Promise.all(
-          cacheNames
-            .filter(cacheName => cacheName !== CACHE_NAME)
-            .map(cacheName => caches.delete(cacheName))
-        );
-      })
-      .then(() => self.clients.claim())
+    (async () => {
+      // Alle alten Caches löschen
+      const keys = await caches.keys();
+      await Promise.all(keys.map(k => caches.delete(k)));
+      await self.clients.claim();
+    })()
   );
 });
 
@@ -51,6 +44,12 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
+
+  // WICHTIG: build-id.txt niemals cachen (immer fresh vom Server)
+  if (url.pathname.endsWith('/build-id.txt')) {
+    event.respondWith(fetch(request, { cache: 'no-store' }));
+    return;
+  }
 
   // Nur GET Requests cachen
   if (request.method !== 'GET') return;
@@ -67,9 +66,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // HTML Pages - Stale While Revalidate
+  // HTML Pages - NICHT cachen (immer fresh vom Server)
   if (request.destination === 'document') {
-    event.respondWith(staleWhileRevalidateStrategy(request));
+    event.respondWith(fetch(request).catch(() => caches.match(OFFLINE_URL)));
     return;
   }
 
