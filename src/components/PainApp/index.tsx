@@ -8,6 +8,7 @@ import { OnboardingModal } from "./OnboardingModal";
 import { MedicationOverviewPage } from "@/pages/MedicationOverviewPage";
 import { useOnboarding } from "@/hooks/useOnboarding";
 import type { PainEntry } from "@/types/painApp";
+import { MedicationLimitWarning } from "./MedicationLimitWarning";
 
 type View = "menu" | "new" | "list" | "analysis" | "settings" | "medication-overview";
 
@@ -15,8 +16,18 @@ export const PainApp: React.FC = () => {
   const [view, setView] = useState<View>("menu");
   const [editing, setEditing] = useState<PainEntry | null>(null);
   const { needsOnboarding, isLoading, completeOnboarding } = useOnboarding();
+  
+  // Medication limit warnings on app level
+  const [showLimitWarning, setShowLimitWarning] = useState(false);
+  const [limitChecks, setLimitChecks] = useState<any[]>([]);
 
   const goHome = () => { setEditing(null); setView("menu"); };
+  
+  // Callback for child components to trigger limit warnings
+  const handleLimitWarning = (checks: any[]) => {
+    setLimitChecks(checks);
+    setShowLimitWarning(true);
+  };
 
   // Show loading state while checking onboarding status
   if (isLoading) {
@@ -46,6 +57,7 @@ export const PainApp: React.FC = () => {
               setView('medication-overview');
             }
           }}
+          onLimitWarning={handleLimitWarning}
         />
       )}
 
@@ -54,6 +66,7 @@ export const PainApp: React.FC = () => {
           entry={editing}
           onBack={goHome}
           onSave={goHome}
+          onLimitWarning={handleLimitWarning}
         />
       )}
 
@@ -80,6 +93,13 @@ export const PainApp: React.FC = () => {
       <OnboardingModal 
         open={needsOnboarding} 
         onComplete={completeOnboarding} 
+      />
+
+      {/* Medication Limit Warning - App Level */}
+      <MedicationLimitWarning
+        isOpen={showLimitWarning}
+        onOpenChange={setShowLimitWarning}
+        limitChecks={limitChecks}
       />
     </div>
   );

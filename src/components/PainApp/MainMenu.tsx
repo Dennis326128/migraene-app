@@ -19,6 +19,7 @@ interface MainMenuProps {
   onViewSettings: () => void;
   onQuickEntry?: () => void;
   onNavigate?: (view: string) => void;
+  onLimitWarning?: (checks: any[]) => void;
 }
 
 export const MainMenu: React.FC<MainMenuProps> = ({
@@ -28,6 +29,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   onViewSettings,
   onQuickEntry,
   onNavigate,
+  onLimitWarning,
 }) => {
   const { needsOnboarding, completeOnboarding, isLoading: onboardingLoading } = useOnboarding();
   const [showQuickEntry, setShowQuickEntry] = useState(false);
@@ -223,6 +225,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         initialCustomTime={voiceData?.customTime}
         initialMedicationStates={voiceData?.medicationStates}
         initialNotes={voiceData?.notes}
+        onLimitWarning={onLimitWarning}
       />
     </div>
   );

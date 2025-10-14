@@ -11,7 +11,6 @@ import { useMeds } from "@/features/meds/hooks/useMeds";
 import { useCreateEntry } from "@/features/entries/hooks/useEntryMutations";
 import { logAndSaveWeatherAt, logAndSaveWeatherAtCoords } from "@/utils/weatherLogger";
 import { useCheckMedicationLimits } from "@/features/medication-limits/hooks/useMedicationLimits";
-import { MedicationLimitWarning } from "./MedicationLimitWarning";
 
 interface QuickEntryModalProps {
   open: boolean;
@@ -24,6 +23,7 @@ interface QuickEntryModalProps {
   initialCustomTime?: string;
   initialMedicationStates?: Record<string, boolean>;
   initialNotes?: string;
+  onLimitWarning?: (checks: any[]) => void;
 }
 
 const timeOptions = [
@@ -48,7 +48,8 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
   initialCustomDate,
   initialCustomTime,
   initialMedicationStates,
-  initialNotes
+  initialNotes,
+  onLimitWarning
 }) => {
   const { toast } = useToast();
   const { data: medOptions = [] } = useMeds();
@@ -61,8 +62,6 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
   const [customDate, setCustomDate] = useState<string>("");
   const [medicationStates, setMedicationStates] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
-  const [showLimitWarning, setShowLimitWarning] = useState(false);
-  const [limitChecks, setLimitChecks] = useState<any[]>([]);
 
   // Initialize form - use voice data or defaults
   useEffect(() => {
@@ -198,10 +197,10 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
               r.status === 'warning' || r.status === 'reached' || r.status === 'exceeded'
             );
             
-            if (warningNeeded) {
-              console.log('⚠️ QuickEntry showing warning dialog');
-              setLimitChecks(limitResults);
-              setTimeout(() => setShowLimitWarning(true), 1500);
+            if (warningNeeded && onLimitWarning) {
+              console.log('⚠️ QuickEntry triggering limit warning');
+              // Call parent callback before closing modal
+              setTimeout(() => onLimitWarning(limitResults), 1500);
             }
           })
           .catch((error) => {
@@ -362,12 +361,6 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
             </Button>
           </div>
         </div>
-
-        <MedicationLimitWarning
-          isOpen={showLimitWarning}
-          onOpenChange={setShowLimitWarning}
-          limitChecks={limitChecks}
-        />
       </DialogContent>
     </Dialog>
   );

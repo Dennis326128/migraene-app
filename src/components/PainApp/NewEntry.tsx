@@ -15,7 +15,6 @@ import { useMeds, useAddMed, useDeleteMed } from "@/features/meds/hooks/useMeds"
 import { useSymptomCatalog, useEntrySymptoms, useSetEntrySymptoms } from "@/features/symptoms/hooks/useSymptoms";
 import { useCheckMedicationLimits, type LimitCheck } from "@/features/medication-limits/hooks/useMedicationLimits";
 import { useUserDefaults, useUpsertUserDefaults } from "@/features/settings/hooks/useUserSettings";
-import { MedicationLimitWarning } from "./MedicationLimitWarning";
 import { PainSlider } from "@/components/ui/pain-slider";
 import { normalizePainLevel } from "@/lib/utils/pain";
 
@@ -23,6 +22,7 @@ interface NewEntryProps {
   onBack: () => void;
   onSave?: () => void;
   entry?: MigraineEntry | null;
+  onLimitWarning?: (checks: any[]) => void;
 }
 
 const painLevels = [
@@ -55,7 +55,7 @@ const painLocations = [
   { value: "schlaefe", label: "Schläfenbereich" },
 ];
 
-export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
+export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProps) => {
   const { toast } = useToast();
   const painLevelSectionRef = useRef<HTMLDivElement>(null);
 
@@ -101,8 +101,6 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
   const upsertDefaults = useUpsertUserDefaults();
 
   // Medication limit checking
-  const [showLimitWarning, setShowLimitWarning] = useState(false);
-  const [limitChecks, setLimitChecks] = useState<LimitCheck[]>([]);
   const checkLimits = useCheckMedicationLimits();
   
   // Set entry symptoms when data loads
@@ -329,18 +327,17 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
         // Don't await - fire and forget for non-blocking behavior
         checkLimits.mutateAsync(savedMedications)
           .then((limitResults) => {
-            console.log('✅ Limit check results:', limitResults);
+            console.log('✅ NewEntry limit check results:', limitResults);
             const warningNeeded = limitResults.some(r => 
               r.status === 'warning' || r.status === 'reached' || r.status === 'exceeded'
             );
             
-            if (warningNeeded) {
-              console.log('⚠️ Showing warning dialog for:', limitResults.filter(r => 
+            if (warningNeeded && onLimitWarning) {
+              console.log('⚠️ NewEntry triggering limit warning:', limitResults.filter(r => 
                 r.status === 'warning' || r.status === 'reached' || r.status === 'exceeded'
               ));
-              setLimitChecks(limitResults);
-              // Show warning after toast with delay
-              setTimeout(() => setShowLimitWarning(true), 1500);
+              // Call parent callback before returning
+              setTimeout(() => onLimitWarning(limitResults), 1500);
             } else {
               console.log('✅ No warnings needed - all limits safe');
             }
@@ -602,13 +599,6 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
         <Save className="w-5 h-5 mr-2" /> 
         {saving || createMut.isPending || updateMut.isPending || setEntrySymptomsMut.isPending ? "Speichere..." : "Speichern"}
       </Button>
-
-      {/* Medication Limit Warning Dialog */}
-      <MedicationLimitWarning
-        isOpen={showLimitWarning}
-        onOpenChange={setShowLimitWarning}
-        limitChecks={limitChecks}
-      />
     </div>
   );
 };
