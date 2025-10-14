@@ -10,6 +10,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useMeds } from "@/features/meds/hooks/useMeds";
 import { useCreateEntry } from "@/features/entries/hooks/useEntryMutations";
 import { logAndSaveWeatherAt, logAndSaveWeatherAtCoords } from "@/utils/weatherLogger";
+import { useCheckMedicationLimits } from "@/features/medication-limits/hooks/useMedicationLimits";
+import { MedicationLimitWarning } from "./MedicationLimitWarning";
 
 interface QuickEntryModalProps {
   open: boolean;
@@ -51,6 +53,7 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
   const { toast } = useToast();
   const { data: medOptions = [] } = useMeds();
   const createMut = useCreateEntry();
+  const checkLimits = useCheckMedicationLimits();
 
   const [painLevel, setPainLevel] = useState<number>(7);
   const [selectedTime, setSelectedTime] = useState<string>("now");
@@ -58,6 +61,8 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
   const [customDate, setCustomDate] = useState<string>("");
   const [medicationStates, setMedicationStates] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
+  const [showLimitWarning, setShowLimitWarning] = useState(false);
+  const [limitChecks, setLimitChecks] = useState<any[]>([]);
 
   // Initialize form - use voice data or defaults
   useEffect(() => {
@@ -182,6 +187,35 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
       };
 
       await createMut.mutateAsync(payload as any);
+
+      // Post-save medication limit check
+      const savedMedications = payload.medications || [];
+      if (savedMedications.length > 0) {
+        checkLimits.mutateAsync(savedMedications)
+          .then((limitResults) => {
+            console.log('✅ QuickEntry limit check results:', limitResults);
+            const warningNeeded = limitResults.some(r => 
+              r.status === 'warning' || r.status === 'reached' || r.status === 'exceeded'
+            );
+            
+            if (warningNeeded) {
+              console.log('⚠️ QuickEntry showing warning dialog');
+              setLimitChecks(limitResults);
+              setTimeout(() => setShowLimitWarning(true), 1500);
+            }
+          })
+          .catch((error) => {
+            console.error('❌ QuickEntry limit check failed:', error);
+            console.error('Error details:', {
+              message: error?.message,
+              status: error?.status,
+              data: error?.data,
+              stack: error?.stack,
+              full: error
+            });
+            // Silent fail: User has already saved
+          });
+      }
       
       toast({ 
         title: "Schnelleintrag gespeichert", 
@@ -328,6 +362,12 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
             </Button>
           </div>
         </div>
+
+        <MedicationLimitWarning
+          isOpen={showLimitWarning}
+          onOpenChange={setShowLimitWarning}
+          limitChecks={limitChecks}
+        />
       </DialogContent>
     </Dialog>
   );
