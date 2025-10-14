@@ -134,7 +134,7 @@ export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProp
       setPainLevel(normalizePainLevel(entry.pain_level || 7));
       setPainLocation((entry as any).pain_location || "");
       setSelectedDate(entry.selected_date || new Date().toISOString().slice(0, 10));
-      setSelectedTime(entry.selected_time || new Date().toTimeString().slice(0, 5));
+      setSelectedTime(entry.selected_time?.substring(0, 5) || new Date().toTimeString().slice(0, 5));
       setSelectedMedications([...entry.medications]);
       setNotes(entry.notes || "");
     } else {
@@ -267,7 +267,7 @@ export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProp
       
       const payload = {
         selected_date: selectedDate,
-        selected_time: selectedTime,
+        selected_time: selectedTime.substring(0, 5),
         pain_level: painLevel,
         aura_type: "keine" as const, // Always set to default since aura is removed
         pain_location: (painLocation || null) as "einseitig_links" | "einseitig_rechts" | "beidseitig" | "stirn" | "nacken" | "schlaefe" | null,

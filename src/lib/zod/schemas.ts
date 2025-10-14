@@ -10,7 +10,7 @@ export const PainLocationEnum = z.enum(["einseitig_links", "einseitig_rechts", "
 
 export const EntryPayloadSchema = z.object({
   selected_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Ungültiges Datum (YYYY-MM-DD)"),
-  selected_time: z.string().regex(/^\d{2}:\d{2}$/, "Ungültige Uhrzeit (HH:MM)"),
+  selected_time: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/, "Ungültige Uhrzeit (HH:MM oder HH:MM:SS)").transform(val => val.substring(0, 5)),
   pain_level: z.union([
     z.number().min(0).max(10),
     MigraineLevelEnum.refine(v => v !== "-", { message: "Bitte Migräne-Intensität auswählen" })
