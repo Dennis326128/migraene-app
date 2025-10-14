@@ -188,6 +188,12 @@ All colors MUST be HSL.
     min-width: 44px;
   }
 
+  /* Exception: Switches bleiben in ihrer natürlichen Größe */
+  [role="switch"] {
+    min-height: unset !important;
+    min-width: unset !important;
+  }
+
   /* Mobile card optimizations */
   .mobile-card-compact {
     padding: 0.75rem !important;
