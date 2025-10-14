@@ -54,13 +54,13 @@ const getStatusMessage = (check: LimitCheck): string => {
   
   switch (check.status) {
     case 'warning':
-      return `Du hast ${periodText} bereits ${check.current_count} von ${check.limit_count} ${check.medication_name} genommen (${check.percentage}%).`;
+      return `Du hast ${periodText} bereits ${check.current_count}/${check.limit_count} ${check.medication_name} genommen (${check.percentage}%).`;
     case 'reached':
-      return `Du hast ${periodText} das Limit erreicht: ${check.current_count}/${check.limit_count} ${check.medication_name}!`;
+      return `Das Limit wurde ${periodText} erreicht: ${check.current_count}/${check.limit_count} ${check.medication_name}!`;
     case 'exceeded':
       const excess = check.current_count - check.limit_count;
       const unit = excess === 1 ? 'Tablette' : 'Tabletten';
-      return `Du hast ${periodText} das Limit um ${excess} ${unit} überschritten: ${check.current_count}/${check.limit_count} ${check.medication_name}!`;
+      return `Das Limit wurde ${periodText} um ${excess} ${unit} überschritten: ${check.current_count}/${check.limit_count} ${check.medication_name}!`;
     default:
       return '';
   }
@@ -99,14 +99,9 @@ export function MedicationLimitWarning({
           <AlertDialogDescription className="space-y-3">
             {criticalChecks.map((check, index) => (
               <div key={index} className="p-3 rounded-lg bg-muted/50">
-                <div className="flex items-start gap-2">
-                  {getStatusIcon(check.status)}
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-foreground">
-                      {getStatusMessage(check)}
-                    </p>
-                  </div>
-                </div>
+                <p className="text-sm font-medium text-foreground">
+                  {getStatusMessage(check)}
+                </p>
               </div>
             ))}
             
