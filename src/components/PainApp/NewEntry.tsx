@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { MigraineEntry } from "@/types/painApp";
 import { logAndSaveWeatherAt, logAndSaveWeatherAtCoords } from "@/utils/weatherLogger";
 import { updateUserProfileCoordinates } from "@/utils/coordinateUpdater";
-import { useCreateEntry, useUpdateEntry } from "@/features/entries/hooks/useEntryMutations";
+import { useCreateEntry, useUpdateEntry, useDeleteEntry } from "@/features/entries/hooks/useEntryMutations";
 import { useMeds, useAddMed, useDeleteMed } from "@/features/meds/hooks/useMeds";
 import { useSymptomCatalog, useEntrySymptoms, useSetEntrySymptoms } from "@/features/symptoms/hooks/useSymptoms";
 import { useCheckMedicationLimits, type LimitCheck } from "@/features/medication-limits/hooks/useMedicationLimits";
@@ -115,6 +115,7 @@ export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProp
   const delMedMut = useDeleteMed();
   const createMut = useCreateEntry();
   const updateMut = useUpdateEntry();
+  const deleteMut = useDeleteEntry();
 
   // Load user defaults for new entries
   useEffect(() => {
@@ -280,12 +281,25 @@ export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProp
 
       console.log('📤 Final payload:', payload);
 
+      // Always use createEntry (UPSERT) - overwrites existing entry with same date/time
       let savedId: string | number;
+      savedId = await createMut.mutateAsync(payload as any);
+
+      // If editing and time changed, delete old entry to prevent duplicates
       if (entry?.id) {
-        await updateMut.mutateAsync({ id: entry.id, patch: payload });
-        savedId = entry.id;
-      } else {
-        savedId = await createMut.mutateAsync(payload as any);
+        const oldDate = entry.selected_date;
+        const oldTime = entry.selected_time?.substring(0, 5);
+        const newDate = payload.selected_date;
+        const newTime = payload.selected_time;
+        
+        if (oldDate !== newDate || oldTime !== newTime) {
+          try {
+            await deleteMut.mutateAsync(entry.id);
+            console.log('🗑️ Deleted old entry after time change:', entry.id);
+          } catch (err) {
+            console.warn('Failed to delete old entry (might already be replaced by UPSERT):', err);
+          }
+        }
       }
 
       // Symptome setzen (idempotent)
