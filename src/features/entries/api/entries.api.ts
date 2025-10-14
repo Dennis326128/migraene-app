@@ -102,13 +102,33 @@ export async function createEntry(payload: PainEntryPayload) {
     ...parsed,
   };
 
+  // UPSERT statt INSERT - vermeidet Duplikate bei gleichem Datum+Uhrzeit
   const { data, error } = await supabase
     .from("pain_entries")
-    .insert(insert)
+    .upsert(insert, { 
+      onConflict: 'user_id,selected_date,selected_time',
+      ignoreDuplicates: false // Bei Konflikt: UPDATE
+    })
     .select("id")
     .single();
 
-  if (error) throw error;
+  if (error) {
+    // Bei Date/Timestamp-Fehlern: Version-Check triggern
+    if (error.code === '23505' || /timestamp|date/i.test(error.message)) {
+      console.warn('⚠️ Potential version mismatch detected');
+      import('@/lib/version').then(m => m.triggerVersionCheckFromAPI()).catch(() => {});
+    }
+    
+    console.error('Entry save failed:', {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      buildId: import.meta.env.VITE_BUILD_ID
+    });
+    
+    throw error;
+  }
+  
   return data.id as string;
 }
 
