@@ -58,6 +58,9 @@ serve(async (req) => {
       throw new Error('Medikamentenliste erforderlich');
     }
 
+    console.log('🔍 Checking medications:', medications);
+    console.log('👤 For user:', user.id);
+
     // Get user's medication limits
     const { data: limits, error: limitsError } = await supabase
       .from('user_medication_limits')
@@ -68,6 +71,13 @@ serve(async (req) => {
 
     if (limitsError) {
       throw limitsError;
+    }
+
+    console.log('📋 Active limits found:', limits?.length || 0);
+    if (limits && limits.length > 0) {
+      for (const limit of limits) {
+        console.log(`  - ${limit.medication_name}: ${limit.limit_count}/${limit.period_type}`);
+      }
     }
 
     const results: LimitCheck[] = [];

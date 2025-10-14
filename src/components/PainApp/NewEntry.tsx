@@ -265,6 +265,8 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
     }
 
     try {
+      console.log('📦 Building payload with selectedMedications:', selectedMedications);
+      
       const payload = {
         selected_date: selectedDate,
         selected_time: selectedTime,
@@ -277,6 +279,8 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
         latitude,
         longitude,
       };
+
+      console.log('📤 Final payload:', payload);
 
       let savedId: string | number;
       if (entry?.id) {
@@ -317,24 +321,36 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
       // Medication effectiveness is now tracked in the medications array of pain_entries
       // No separate entry_medications table needed
 
-      // Post-save medication limit check (non-blocking, informational only)
-      const savedMedications = payload.medications;
+      // Post-save medication limit check (truly non-blocking, fire-and-forget)
+      const savedMedications = payload.medications || [];
+      console.log('🔍 Checking limits for medications:', savedMedications);
+      
       if (savedMedications.length > 0) {
-        try {
-          const limitResults = await checkLimits.mutateAsync(savedMedications);
-          const warningNeeded = limitResults.some(r => 
-            r.status === 'warning' || r.status === 'reached' || r.status === 'exceeded'
-          );
-          
-          if (warningNeeded) {
-            setLimitChecks(limitResults);
-            // Show warning after toast with delay
-            setTimeout(() => setShowLimitWarning(true), 1500);
-          }
-        } catch (error) {
-          console.error('Post-save limit check failed:', error);
-          // Silent fail: User has already saved
-        }
+        // Don't await - fire and forget for non-blocking behavior
+        checkLimits.mutateAsync(savedMedications)
+          .then((limitResults) => {
+            console.log('✅ Limit check results:', limitResults);
+            const warningNeeded = limitResults.some(r => 
+              r.status === 'warning' || r.status === 'reached' || r.status === 'exceeded'
+            );
+            
+            if (warningNeeded) {
+              console.log('⚠️ Showing warning dialog for:', limitResults.filter(r => 
+                r.status === 'warning' || r.status === 'reached' || r.status === 'exceeded'
+              ));
+              setLimitChecks(limitResults);
+              // Show warning after toast with delay
+              setTimeout(() => setShowLimitWarning(true), 1500);
+            } else {
+              console.log('✅ No warnings needed - all limits safe');
+            }
+          })
+          .catch((error) => {
+            console.error('❌ Post-save limit check failed:', error);
+            // Silent fail: User has already saved
+          });
+      } else {
+        console.log('ℹ️ No medications to check');
       }
 
       toast({ 
