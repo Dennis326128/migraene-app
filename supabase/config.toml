@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.batch-weather-import]
 verify_jwt = false
+
+[functions.extract-voice-entry]
+verify_jwt = false

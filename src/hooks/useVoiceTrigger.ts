@@ -66,10 +66,59 @@ export function useVoiceTrigger(options: VoiceTriggerOptions = {}) {
     }
   };
 
-  const stopVoiceEntry = () => {
+  const stopVoiceEntry = async () => {
+    console.log('🛑 Stopping voice entry and triggering parse...');
     speechRecognition.stopRecording();
-    setIsListening(false);
-    setRemainingSeconds(undefined);
+    
+    // Wait a moment for final transcript
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Get final transcript
+    const finalTranscript = speechRecognition.state.transcript;
+    if (finalTranscript) {
+      console.log('🎤 Final transcript:', finalTranscript);
+      
+      // Call Edge Function for server-side parsing
+      try {
+        const { supabase } = await import('@/integrations/supabase/client');
+        const { data: medData } = await supabase.from('user_medications').select('name');
+        const userMedsArray = medData || [];
+        
+        const { data, error } = await supabase.functions.invoke('extract-voice-entry', {
+          body: { 
+            transcript: finalTranscript,
+            userMeds: userMedsArray 
+          }
+        });
+        
+        if (error) {
+          console.error('❌ Edge function error:', error);
+          throw error;
+        }
+        
+        console.log('✅ Server-side parse result:', data);
+        
+        // Convert to QuickEntry format
+        const quickEntryData = convertToQuickEntryData(data, userMedsArray, finalTranscript);
+        
+        setIsListening(false);
+        setRemainingSeconds(undefined);
+        options.onParsed?.(quickEntryData);
+        
+      } catch (error) {
+        console.error('❌ Failed to parse with Edge Function, falling back to client-side:', error);
+        // Fallback to client-side parsing
+        const parsed = parseGermanVoiceEntry(finalTranscript, userMeds || []);
+        const voiceData = convertToQuickEntryData(parsed, userMeds || [], finalTranscript);
+        
+        setIsListening(false);
+        setRemainingSeconds(undefined);
+        options.onParsed?.(voiceData);
+      }
+    } else {
+      setIsListening(false);
+      setRemainingSeconds(undefined);
+    }
   };
 
   return {
@@ -126,12 +175,59 @@ function findBestMedicationMatch(spokenMed: string, userMeds: any[]): any | null
   return null;
 }
 
-function convertToQuickEntryData(parsed: ParsedVoiceEntry, userMeds: any[] = [], originalText: string = ''): VoiceTriggerData {
+function convertToQuickEntryData(parsed: any, userMeds: any[] = [], originalText: string = ''): VoiceTriggerData {
   console.log('🔄 Converting parsed entry to VoiceTriggerData:', parsed);
   console.log('🔄 Available user medications:', userMeds?.map(m => m.name) || []);
   console.log('🔄 Original voice text:', originalText);
   
-  // Convert pain level to string (0-10)
+  // Handle server-side response format
+  if (parsed.painIntensity !== undefined) {
+    // Server-side format
+    const painLevel = parsed.painIntensity?.toString() || '';
+    const medications: Record<string, boolean> = {};
+    
+    // Initialize all to false
+    userMeds.forEach(med => { medications[med.name] = false; });
+    
+    // Set taken medications to true
+    if (parsed.meds && parsed.meds.length > 0) {
+      parsed.meds.forEach((med: any) => {
+        medications[med.name] = true;
+      });
+    }
+    
+    // Convert ISO timestamp to date/time
+    let selectedTime = 'jetzt';
+    let customDate: string | undefined;
+    let customTime: string | undefined;
+    
+    if (parsed.timestampISO) {
+      const timestamp = new Date(parsed.timestampISO);
+      const now = new Date();
+      const diffMinutes = (now.getTime() - timestamp.getTime()) / (1000 * 60);
+      
+      if (Math.abs(diffMinutes) < 5) {
+        selectedTime = 'jetzt';
+      } else if (Math.abs(diffMinutes - 60) < 15) {
+        selectedTime = '1h';
+      } else {
+        selectedTime = 'custom';
+        customDate = timestamp.toISOString().split('T')[0];
+        customTime = timestamp.toTimeString().slice(0, 5);
+      }
+    }
+    
+    return {
+      painLevel,
+      selectedTime,
+      customDate,
+      customTime,
+      medicationStates: medications,
+      notes: parsed.notes || undefined
+    };
+  }
+  
+  // Client-side format (fallback)
   let painLevel = '';
   if (parsed.painLevel) {
     const numericPain = parseInt(parsed.painLevel);

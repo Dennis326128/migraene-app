@@ -62,6 +62,8 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
   const [customDate, setCustomDate] = useState<string>("");
   const [medicationStates, setMedicationStates] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [isVoiceEntry, setIsVoiceEntry] = useState(false);
 
   // Initialize form - use voice data or defaults
   useEffect(() => {
@@ -82,6 +84,17 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
         newStates[med.name] = initialMedicationStates?.[med.name] ?? false;
       });
       setMedicationStates(newStates);
+      
+      // Check if this is a voice entry
+      const hasVoiceData = initialPainLevel !== undefined || 
+                          initialSelectedTime !== undefined || 
+                          initialMedicationStates !== undefined;
+      setIsVoiceEntry(hasVoiceData);
+      
+      // Show confirmation dialog for voice entries
+      if (hasVoiceData) {
+        setShowConfirmDialog(true);
+      }
     }
   }, [open, medOptions, initialPainLevel, initialSelectedTime, initialCustomTime, initialCustomDate, initialMedicationStates]);
 
@@ -239,14 +252,62 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-md mx-auto max-h-[90vh] overflow-y-auto bg-card border-quick-entry">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-quick-entry">
-            <Zap className="h-5 w-5" />
-            Migräne Schnelleintrag
-          </DialogTitle>
-        </DialogHeader>
+    <>
+      {/* Confirmation Dialog for Voice Entries */}
+      {showConfirmDialog && isVoiceEntry && (
+        <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Spracheintrag bestätigen</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Ich habe folgendes verstanden:
+              </p>
+              <div className="space-y-2 p-3 bg-muted/50 rounded-lg text-sm">
+                <div><strong>Schmerzstärke:</strong> {painLevel}/10</div>
+                <div><strong>Zeitpunkt:</strong> {selectedTime === "jetzt" ? "Jetzt" : selectedTime === "1h" ? "Vor 1 Stunde" : "Eigene Zeit"}</div>
+                {getSelectedMedications().length > 0 && (
+                  <div><strong>Medikamente:</strong> {getSelectedMedications().join(", ")}</div>
+                )}
+                {initialNotes && (
+                  <div><strong>Notizen:</strong> {initialNotes}</div>
+                )}
+              </div>
+              <p className="text-sm font-medium">Ist das korrekt?</p>
+            </div>
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setShowConfirmDialog(false);
+                  onClose();
+                }}
+                className="flex-1"
+              >
+                Abbrechen
+              </Button>
+              <Button 
+                onClick={() => {
+                  setShowConfirmDialog(false);
+                }}
+                className="flex-1 bg-success hover:bg-success/90"
+              >
+                Ja, korrekt
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      <Dialog open={open} onOpenChange={onClose}>
+        <DialogContent className="max-w-md mx-auto max-h-[90vh] overflow-y-auto bg-card border-quick-entry">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-quick-entry">
+              {isVoiceEntry ? <Mic className="h-5 w-5" /> : <Zap className="h-5 w-5" />}
+              {isVoiceEntry ? "Spracheintrag" : "Migräne Schnelleintrag"}
+            </DialogTitle>
+          </DialogHeader>
 
         <div className="space-y-4">
           {/* Pain Level Selection */}
@@ -363,5 +424,6 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
         </div>
       </DialogContent>
     </Dialog>
+    </>
   );
 };

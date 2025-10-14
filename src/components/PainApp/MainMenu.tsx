@@ -135,6 +135,18 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               title={getVoiceButtonTitle()}
               subtitle={getVoiceButtonSubtitle()}
             />
+            {voiceTrigger.isListening && (
+              <Button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  voiceTrigger.stopVoiceEntry();
+                }}
+                className="mt-3 w-full bg-success hover:bg-success/90"
+                size="lg"
+              >
+                ✅ Fertig & Verarbeiten
+              </Button>
+            )}
           </StartPageCard>
 
           {/* Secondary Actions Grid */}

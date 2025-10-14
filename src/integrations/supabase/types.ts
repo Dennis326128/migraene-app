@@ -284,6 +284,36 @@ export type Database = {
         }
         Relationships: []
       }
+      voice_entries_debug: {
+        Row: {
+          confidence_scores: Json | null
+          created_at: string | null
+          id: string
+          missing_fields: string[] | null
+          parsed_json: Json | null
+          source_text: string
+          user_id: string
+        }
+        Insert: {
+          confidence_scores?: Json | null
+          created_at?: string | null
+          id?: string
+          missing_fields?: string[] | null
+          parsed_json?: Json | null
+          source_text: string
+          user_id: string
+        }
+        Update: {
+          confidence_scores?: Json | null
+          created_at?: string | null
+          id?: string
+          missing_fields?: string[] | null
+          parsed_json?: Json | null
+          source_text?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       weather_logs: {
         Row: {
           condition_icon: string | null
