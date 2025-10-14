@@ -120,11 +120,20 @@ serve(async (req) => {
     // Parse the date
     const requestDate = new Date(at);
     const today = new Date();
-    const daysDiff = Math.floor((today.getTime() - requestDate.getTime()) / (1000 * 60 * 60 * 24));
-    
+
+    // Calculate daysDiff based on DATE ONLY (ignore time)
+    const todayDateOnly = today.toISOString().split('T')[0];      // "2025-10-14"
+    const requestDateOnly = requestDate.toISOString().split('T')[0]; // "2025-10-13"
+
+    const todayDate = new Date(todayDateOnly + 'T00:00:00.000Z');
+    const requestDateNormalized = new Date(requestDateOnly + 'T00:00:00.000Z');
+    const daysDiff = Math.floor((todayDate.getTime() - requestDateNormalized.getTime()) / (1000 * 60 * 60 * 24));
+
     console.log('📅 Date analysis:', { 
       requestDate: requestDate.toISOString(), 
-      today: today.toISOString(), 
+      requestDateOnly: requestDateOnly,
+      today: today.toISOString(),
+      todayDateOnly: todayDateOnly,
       daysDiff 
     });
 
