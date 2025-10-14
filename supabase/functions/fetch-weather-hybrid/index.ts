@@ -136,54 +136,61 @@ serve(async (req) => {
     const roundedLat = Math.round(lat * 1000) / 1000; // 3 decimal places = ~111m precision
     const roundedLon = Math.round(lon * 1000) / 1000;
 
-    // First: Check if ANY weather log exists for this user and date (regardless of location)
-    const { data: existingForDay, error: dayCheckError } = await supabaseService
-      .from('weather_logs')
-      .select('id, latitude, longitude')
-      .eq('user_id', userId)
-      .eq('snapshot_date', dateString)
-      .limit(1)
-      .maybeSingle();
+    // Only check for reuse if it's the SAME DAY (daysDiff === 0)
+    // For past entries (daysDiff > 0), always fetch fresh historical data
+    if (daysDiff === 0) {
+      console.log('📅 Same day request, checking for recent existing data...');
+      
+      // Check for existing weather log within the last 3 hours
+      const threeHoursAgo = new Date(today.getTime() - (3 * 60 * 60 * 1000));
+      
+      const { data: existingForDay, error: dayCheckError } = await supabaseService
+        .from('weather_logs')
+        .select('id, latitude, longitude, created_at')
+        .eq('user_id', userId)
+        .eq('snapshot_date', dateString)
+        .gte('created_at', threeHoursAgo.toISOString())
+        .limit(1)
+        .maybeSingle();
 
-    if (dayCheckError) {
-      console.log('❌ Error checking existing data for day:', dayCheckError);
-    } else if (existingForDay) {
-      // Calculate distance between existing log and requested location
-      const existingLat = Number(existingForDay.latitude);
-      const existingLon = Number(existingForDay.longitude);
-      
-      // Approximate distance in km using Haversine formula (simplified)
-      const R = 6371; // Earth's radius in km
-      const dLat = (roundedLat - existingLat) * Math.PI / 180;
-      const dLon = (roundedLon - existingLon) * Math.PI / 180;
-      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                Math.cos(existingLat * Math.PI / 180) * Math.cos(roundedLat * Math.PI / 180) *
-                Math.sin(dLon/2) * Math.sin(dLon/2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-      const distance = R * c;
-      
-      console.log(`📏 Distance to existing weather log: ${distance.toFixed(2)} km`);
-      
-      // If within ~1km, reuse existing weather data (weather doesn't change much over 1km)
-      if (distance < 1.0) {
-        console.log('✅ Reusing nearby weather data:', existingForDay.id);
-        return new Response(JSON.stringify({ weather_id: existingForDay.id }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      } else {
-        console.log('⚠️ Existing weather log too far away, but cannot create duplicate for same day');
-        console.log('✅ Reusing existing weather data despite distance:', existingForDay.id);
-        return new Response(JSON.stringify({ weather_id: existingForDay.id }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
+      if (dayCheckError) {
+        console.log('❌ Error checking existing data for day:', dayCheckError);
+      } else if (existingForDay) {
+        // Calculate distance between existing log and requested location
+        const existingLat = Number(existingForDay.latitude);
+        const existingLon = Number(existingForDay.longitude);
+        
+        // Approximate distance in km using Haversine formula (simplified)
+        const R = 6371; // Earth's radius in km
+        const dLat = (roundedLat - existingLat) * Math.PI / 180;
+        const dLon = (roundedLon - existingLon) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(existingLat * Math.PI / 180) * Math.cos(roundedLat * Math.PI / 180) *
+                  Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        const distance = R * c;
+        
+        console.log(`📏 Distance to existing weather log: ${distance.toFixed(2)} km`);
+        console.log(`⏰ Log age: ${Math.floor((today.getTime() - new Date(existingForDay.created_at).getTime()) / 60000)} minutes`);
+        
+        // If within ~1km and created within last 3 hours, reuse existing weather data
+        if (distance < 1.0) {
+          console.log('✅ Reusing recent nearby weather data:', existingForDay.id);
+          return new Response(JSON.stringify({ weather_id: existingForDay.id }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
       }
+    } else {
+      console.log('📅 Past entry request (daysDiff:', daysDiff, '), fetching historical data...');
     }
 
     let weatherData = null;
 
-    // For recent dates (within 7 days), try current weather API
-    if (daysDiff <= 7) {
-      console.log('🌍 Fetching current weather data from Open-Meteo');
+    // Only use current weather API for same-day requests (daysDiff === 0)
+    // For past entries, always use historical API
+    if (daysDiff === 0) {
+      console.log('🌍 Fetching current weather data from Open-Meteo (same day)');
       try {
         const currentWeatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,surface_pressure,wind_speed_10m,dewpoint_2m&timezone=auto`;
         
