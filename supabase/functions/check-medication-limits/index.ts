@@ -30,24 +30,30 @@ serve(async (req) => {
   }
 
   try {
+    // Extract JWT token FIRST
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      throw new Error('Keine Authentifizierung');
+    }
+
+    // Create Supabase client WITH the JWT token in the auth context
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
       {
+        global: {
+          headers: {
+            Authorization: authHeader, // ✅ Set auth header for ALL requests
+          },
+        },
         auth: {
           persistSession: false,
         },
       }
     );
 
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      throw new Error('Keine Authentifizierung');
-    }
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser(
-      authHeader.replace('Bearer ', '')
-    );
+    // Verify user (now with proper auth context)
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
       throw new Error('Ungültiger Nutzer');
