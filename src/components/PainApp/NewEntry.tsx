@@ -103,7 +103,6 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
   // Medication limit checking
   const [showLimitWarning, setShowLimitWarning] = useState(false);
   const [limitChecks, setLimitChecks] = useState<LimitCheck[]>([]);
-  const [pendingSave, setPendingSave] = useState(false);
   const checkLimits = useCheckMedicationLimits();
   
   // Set entry symptoms when data loads
@@ -193,61 +192,12 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
       return;
     }
 
-    // Check medication limits before saving with optimistic counting
-    const activeMedications = selectedMedications.filter((m) => m !== "-" && m.trim() !== "");
-    if (activeMedications.length > 0 && !pendingSave) {
-      try {
-        const limitResults = await checkLimits.mutateAsync(activeMedications);
-        
-        // Apply optimistic counting: add 1 to current_count for selected medications
-        const optimisticResults = limitResults.map(result => {
-          const willTakeThisMed = activeMedications.includes(result.medication_name);
-          if (!willTakeThisMed) return result;
-          
-          const optimisticCount = result.current_count + 1;
-          const optimisticPercentage = Math.round((optimisticCount / result.limit_count) * 100);
-          
-          // Recalculate status with optimistic count
-          let newStatus: 'safe' | 'warning' | 'reached' | 'exceeded';
-          if (optimisticCount > result.limit_count) {
-            newStatus = 'exceeded';
-          } else if (optimisticCount === result.limit_count) {
-            newStatus = 'reached';
-          } else if (optimisticPercentage >= 90) {
-            newStatus = 'warning';
-          } else {
-            newStatus = 'safe';
-          }
-          
-          return {
-            ...result,
-            current_count: optimisticCount,
-            percentage: optimisticPercentage,
-            status: newStatus
-          };
-        });
-        
-        const warningNeeded = optimisticResults.some(result => 
-          result.status === 'warning' || result.status === 'reached' || result.status === 'exceeded'
-        );
-        
-        if (warningNeeded) {
-          setLimitChecks(optimisticResults);
-          setShowLimitWarning(true);
-          return;
-        }
-      } catch (error) {
-        console.error('Error checking medication limits:', error);
-        // Continue with save if limit check fails
-      }
-    }
-
+    // No pre-save check - save directly
     await performSave();
   };
 
   const performSave = async () => {
     setSaving(true);
-    setPendingSave(false);
     
     // Smart coordinate capture for retroactive entries
     let latitude = null;
@@ -366,6 +316,26 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
 
       // Medication effectiveness is now tracked in the medications array of pain_entries
       // No separate entry_medications table needed
+
+      // Post-save medication limit check (non-blocking, informational only)
+      const savedMedications = payload.medications;
+      if (savedMedications.length > 0) {
+        try {
+          const limitResults = await checkLimits.mutateAsync(savedMedications);
+          const warningNeeded = limitResults.some(r => 
+            r.status === 'warning' || r.status === 'reached' || r.status === 'exceeded'
+          );
+          
+          if (warningNeeded) {
+            setLimitChecks(limitResults);
+            // Show warning after toast with delay
+            setTimeout(() => setShowLimitWarning(true), 1500);
+          }
+        } catch (error) {
+          console.error('Post-save limit check failed:', error);
+          // Silent fail: User has already saved
+        }
+      }
 
       toast({ 
         title: "Migräne-Eintrag gespeichert", 
@@ -615,15 +585,6 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
         isOpen={showLimitWarning}
         onOpenChange={setShowLimitWarning}
         limitChecks={limitChecks}
-        onContinue={() => {
-          setPendingSave(true);
-          setShowLimitWarning(false);
-          handleSave();
-        }}
-        onCancel={() => {
-          setShowLimitWarning(false);
-          setPendingSave(false);
-        }}
       />
     </div>
   );

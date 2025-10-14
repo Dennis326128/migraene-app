@@ -25,8 +25,6 @@ interface MedicationLimitWarningProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   limitChecks: LimitCheck[];
-  onContinue: () => void;
-  onCancel: () => void;
 }
 
 const getPeriodText = (periodType: string): string => {
@@ -51,19 +49,18 @@ const getStatusIcon = (status: string) => {
   }
 };
 
-const getStatusMessage = (check: LimitCheck, isBeforeSave: boolean): string => {
+const getStatusMessage = (check: LimitCheck): string => {
   const periodText = getPeriodText(check.period_type);
-  const currentWithoutNew = check.current_count - 1; // Subtract the pending intake
   
   switch (check.status) {
     case 'warning':
-      return `Du hast ${periodText} bereits ${currentWithoutNew} von ${check.limit_count} ${check.medication_name} genommen. Mit dieser Einnahme: ${check.current_count}/${check.limit_count}.`;
+      return `Du hast ${periodText} bereits ${check.current_count} von ${check.limit_count} ${check.medication_name} genommen (${check.percentage}%).`;
     case 'reached':
-      return `Du hast ${periodText} bereits ${currentWithoutNew} ${check.medication_name} genommen. Mit dieser Einnahme erreichst du das Limit: ${check.current_count}/${check.limit_count}!`;
+      return `Du hast ${periodText} das Limit erreicht: ${check.current_count}/${check.limit_count} ${check.medication_name}!`;
     case 'exceeded':
       const excess = check.current_count - check.limit_count;
       const unit = excess === 1 ? 'Tablette' : 'Tabletten';
-      return `Du hast ${periodText} bereits ${currentWithoutNew} von ${check.limit_count} ${check.medication_name} genommen. Mit dieser Einnahme überschreitest du das Limit um ${excess} ${unit}!`;
+      return `Du hast ${periodText} das Limit um ${excess} ${unit} überschritten: ${check.current_count}/${check.limit_count} ${check.medication_name}!`;
     default:
       return '';
   }
@@ -83,25 +80,13 @@ const getDialogTitle = (checks: LimitCheck[]): string => {
 export function MedicationLimitWarning({
   isOpen,
   onOpenChange,
-  limitChecks,
-  onContinue,
-  onCancel
+  limitChecks
 }: MedicationLimitWarningProps) {
   const criticalChecks = limitChecks.filter(c => 
     c.status === 'warning' || c.status === 'reached' || c.status === 'exceeded'
   );
 
   if (criticalChecks.length === 0) return null;
-
-  const handleContinue = () => {
-    onContinue();
-    onOpenChange(false);
-  };
-
-  const handleCancel = () => {
-    onCancel();
-    onOpenChange(false);
-  };
 
   return (
     <AlertDialog open={isOpen} onOpenChange={onOpenChange}>
@@ -118,11 +103,8 @@ export function MedicationLimitWarning({
                   {getStatusIcon(check.status)}
                   <div className="flex-1">
                     <p className="text-sm font-medium text-foreground">
-                      {getStatusMessage(check, true)}
+                      {getStatusMessage(check)}
                     </p>
-                    <div className="mt-2 text-xs text-muted-foreground">
-                      Mit Einnahme: {check.current_count}/{check.limit_count} ({check.percentage}%)
-                    </div>
                   </div>
                 </div>
               </div>
@@ -138,12 +120,9 @@ export function MedicationLimitWarning({
           </AlertDialogDescription>
         </AlertDialogHeader>
         
-        <AlertDialogFooter className="flex-col space-y-2 sm:flex-row sm:space-y-0">
-          <AlertDialogCancel onClick={handleCancel} className="w-full sm:w-auto">
-            Abbrechen
-          </AlertDialogCancel>
-          <AlertDialogAction onClick={handleContinue} className="w-full sm:w-auto">
-            Trotzdem fortfahren
+        <AlertDialogFooter>
+          <AlertDialogAction onClick={() => onOpenChange(false)} className="w-full">
+            Verstanden
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
