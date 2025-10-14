@@ -347,6 +347,13 @@ export const NewEntry = ({ onBack, onSave, entry }: NewEntryProps) => {
           })
           .catch((error) => {
             console.error('❌ Post-save limit check failed:', error);
+            console.error('Error details:', {
+              message: error?.message,
+              status: error?.status,
+              data: error?.data,
+              stack: error?.stack,
+              full: error
+            });
             // Silent fail: User has already saved
           });
       } else {
