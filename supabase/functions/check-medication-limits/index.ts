@@ -61,20 +61,24 @@ serve(async (req) => {
     console.log('🔍 Checking medications:', medications);
     console.log('👤 For user:', user.id);
 
-    // Get user's medication limits
-    const { data: limits, error: limitsError } = await supabase
+    // Get ALL active limits for this user first
+    const { data: allLimits, error: limitsError } = await supabase
       .from('user_medication_limits')
       .select('*')
       .eq('user_id', user.id)
-      .eq('is_active', true)
-      .in('medication_name', medications);
+      .eq('is_active', true);
 
     if (limitsError) {
       throw limitsError;
     }
 
-    console.log('📋 Active limits found:', limits?.length || 0);
-    if (limits && limits.length > 0) {
+    // Filter client-side to match requested medications
+    const limits = (allLimits || []).filter(limit => 
+      medications.includes(limit.medication_name)
+    ) as MedicationLimit[];
+
+    console.log('📋 Active limits found:', limits.length);
+    if (limits.length > 0) {
       for (const limit of limits) {
         console.log(`  - ${limit.medication_name}: ${limit.limit_count}/${limit.period_type}`);
       }
