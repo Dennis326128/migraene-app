@@ -176,6 +176,13 @@ Signup:                   5 Registrierungen / Stunde / IP
 - [ ] ✅ PostgreSQL auf neueste Version
 - [x] ⚠️ Extensions-Migration (nicht möglich, geringes Risiko)
 
+### Datenschutz (Code):
+- [x] ✅ Impressum erstellt (`/imprint`)
+- [x] ✅ AGB erstellt (`/terms`)
+- [x] ✅ Datenschutzerklärung vervollständigt
+- [x] ✅ Cookie-Banner erweitert (Links zu Impressum, AGB, Datenschutz)
+- [x] ✅ Routing für alle Seiten konfiguriert
+
 ### Nach Soft-Launch:
 - [ ] ✅ Rate Limiting konfiguriert
 - [ ] ✅ Site URL auf Produktions-Domain gesetzt

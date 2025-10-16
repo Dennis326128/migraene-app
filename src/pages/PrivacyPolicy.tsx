@@ -48,9 +48,10 @@ export default function PrivacyPolicy() {
             <div className="space-y-2">
               <p><strong>Verantwortlich für die Datenverarbeitung:</strong></p>
               <div className="bg-muted/50 p-4 rounded-lg">
-                <p>[Ihr Name/Unternehmen]</p>
-                <p>[Adresse]</p>
-                <p>E-Mail: [kontakt@email.de]</p>
+                <p>[Name/Firma des Betreibers]</p>
+                <p>[Straße und Hausnummer]</p>
+                <p>[PLZ und Ort]</p>
+                <p>E-Mail: [kontakt@ihre-domain.de]</p>
               </div>
             </div>
           </CardContent>
@@ -249,7 +250,7 @@ export default function PrivacyPolicy() {
             </p>
             <div className="mt-4 bg-muted/50 p-4 rounded-lg">
               <p><strong>Datenschutz-Kontakt:</strong></p>
-              <p>E-Mail: datenschutz@[domain].de</p>
+              <p>E-Mail: [datenschutz@ihre-domain.de]</p>
               <p>Antwortzeit: Innerhalb von 30 Tagen</p>
             </div>
           </CardContent>

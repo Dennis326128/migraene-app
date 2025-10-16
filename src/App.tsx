@@ -11,6 +11,8 @@ import Index from "./pages/Index";
 import AuthPage from "./pages/AuthPage";
 import NotFound from "./pages/NotFound";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
+import Imprint from "./pages/Imprint";
+import TermsOfService from "./pages/TermsOfService";
 import { registerOfflineSupport } from "@/hooks/useOptimizedCache";
 
 // Create QueryClient with error recovery
@@ -97,6 +99,8 @@ function App() {
             <Routes>
               <Route path="/auth" element={<AuthPage />} />
               <Route path="/privacy" element={<PrivacyPolicy />} />
+              <Route path="/imprint" element={<Imprint />} />
+              <Route path="/terms" element={<TermsOfService />} />
               <Route 
                 path="/" 
                 element={

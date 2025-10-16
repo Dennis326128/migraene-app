@@ -73,13 +73,29 @@ export function CookieConsent() {
         
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Wir verwenden Cookies, um Ihnen die bestmögliche Erfahrung zu bieten. 
-            Lesen Sie unsere <button 
-              className="text-primary underline" 
+            Wir verwenden Cookies und lokale Speicherung für die beste Erfahrung.
+            Lesen Sie unsere{' '}
+            <button 
+              className="text-primary underline hover:no-underline"
               onClick={() => window.location.href = '/privacy'}
             >
               Datenschutzerklärung
-            </button>.
+            </button>
+            ,{' '}
+            <button 
+              className="text-primary underline hover:no-underline"
+              onClick={() => window.location.href = '/terms'}
+            >
+              AGB
+            </button>
+            {' '}und{' '}
+            <button 
+              className="text-primary underline hover:no-underline"
+              onClick={() => window.location.href = '/imprint'}
+            >
+              Impressum
+            </button>
+            .
           </p>
 
           {showDetails && (
