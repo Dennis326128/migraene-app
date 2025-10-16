@@ -197,10 +197,21 @@ export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProp
 
   const performSave = async () => {
     setSaving(true);
+    
+    // Detect if date/time has changed (for existing entries)
+    const dateTimeChanged = entry && (
+      entry.selected_date !== selectedDate || 
+      entry.selected_time?.substring(0, 5) !== selectedTime.substring(0, 5)
+    );
+    
     /**
-     * 🌤️ AUTOMATISCHES WETTER-LOGGING
+     * 🌤️ BEDINGTES WETTER-LOGGING
      * 
-     * Erfasst Wetterdaten für jeden Eintrag:
+     * Erfasst Wetterdaten nur wenn:
+     * - Neuer Eintrag (!entry)
+     * - ODER Datum/Zeit hat sich geändert (dateTimeChanged)
+     * 
+     * Wetter-Abruf-Logik:
      * - Retroaktive Einträge (>1h Vergangenheit): Nutzt gespeicherte Profilkoordinaten
      * - Aktuelle Einträge: Nutzt Live-GPS-Daten
      * - Fetch via fetch-weather-hybrid Edge Function
@@ -254,22 +265,30 @@ export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProp
       console.warn('GPS coordinates capture failed:', gpsError);
     }
     
-    let weatherId = null;
-    try {
-      // Use captured coordinates for weather data
-      const atISO = new Date(`${selectedDate}T${selectedTime}:00`).toISOString();
-      if (latitude && longitude) {
-        weatherId = await logAndSaveWeatherAtCoords(atISO, latitude, longitude);
-      } else {
-        weatherId = await logAndSaveWeatherAt(atISO);
+    // Retain existing weather_id or fetch new weather data conditionally
+    let weatherId = entry?.weather_id ?? null;
+    let weatherFetched = false;
+    
+    if (!entry || dateTimeChanged) {
+      try {
+        // Use captured coordinates for weather data
+        const atISO = new Date(`${selectedDate}T${selectedTime}:00`).toISOString();
+        if (latitude && longitude) {
+          weatherId = await logAndSaveWeatherAtCoords(atISO, latitude, longitude);
+        } else {
+          weatherId = await logAndSaveWeatherAt(atISO);
+        }
+        weatherFetched = true;
+      } catch (weatherError) {
+        console.warn('Weather data fetch failed, continuing without weather data:', weatherError);
+        toast({ 
+          title: "⚠️ Wetterdaten nicht verfügbar", 
+          description: dateTimeChanged 
+            ? "Neue Wetterdaten konnten nicht abgerufen werden. Alte Wetterdaten bleiben erhalten."
+            : "Eintrag wird ohne Wetterdaten gespeichert.",
+          variant: "default"
+        });
       }
-    } catch (weatherError) {
-      console.warn('Weather data fetch failed, continuing without weather data:', weatherError);
-      toast({ 
-        title: "⚠️ Wetterdaten nicht verfügbar", 
-        description: "Eintrag wird ohne Wetterdaten gespeichert.",
-        variant: "default"
-      });
     }
 
     try {
@@ -381,8 +400,10 @@ export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProp
       }
 
       toast({ 
-        title: "Migräne-Eintrag gespeichert", 
-        description: "Erfolgreich gespeichert. Ihre Daten sind sicher gespeichert." 
+        title: entry ? "Eintrag aktualisiert" : "Migräne-Eintrag gespeichert", 
+        description: dateTimeChanged && weatherFetched 
+          ? "✅ Wetterdaten für neuen Zeitpunkt abgerufen"
+          : "Erfolgreich gespeichert. Ihre Daten sind sicher gespeichert." 
       });
       
       // Success animation delay
