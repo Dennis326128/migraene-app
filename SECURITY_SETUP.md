@@ -183,6 +183,13 @@ Signup:                   5 Registrierungen / Stunde / IP
 - [x] ✅ Cookie-Banner erweitert (Links zu Impressum, AGB, Datenschutz)
 - [x] ✅ Routing für alle Seiten konfiguriert
 
+### Rechtliche Absicherung (Phase 4):
+- [x] ✅ Medical Disclaimer beim ersten App-Start implementiert
+- [x] ✅ Consent-Flow beim Signup (AGB + Datenschutz Checkboxen)
+- [x] ✅ Consent-Speicherung in `user_consents` Tabelle
+- [x] ✅ Audit-Log für Consent-Änderungen konfiguriert
+- [x] ✅ Zod-Validierung für Auth-Formulare (Passwort-Stärke, Email)
+
 ### Nach Soft-Launch:
 - [ ] ✅ Rate Limiting konfiguriert
 - [ ] ✅ Site URL auf Produktions-Domain gesetzt

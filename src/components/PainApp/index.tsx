@@ -9,6 +9,7 @@ import { MedicationOverviewPage } from "@/pages/MedicationOverviewPage";
 import { useOnboarding } from "@/hooks/useOnboarding";
 import type { PainEntry } from "@/types/painApp";
 import { MedicationLimitWarning } from "./MedicationLimitWarning";
+import { MedicalDisclaimerAlert } from "./MedicalDisclaimerAlert";
 
 type View = "menu" | "new" | "list" | "analysis" | "settings" | "medication-overview";
 
@@ -43,7 +44,8 @@ export const PainApp: React.FC = () => {
 
   return (
     <div className="min-h-screen">
-      {/* Global Components - No ReminderNotifications anymore */}
+      {/* Global Components */}
+      <MedicalDisclaimerAlert />
       
       {view === "menu" && (
         <MainMenu
