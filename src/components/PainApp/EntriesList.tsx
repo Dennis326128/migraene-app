@@ -7,7 +7,6 @@ import { formatPainLevel, formatAuraType, formatPainLocation } from "@/lib/utils
 import { PainEntry, MigraineEntry } from "@/types/painApp";
 import { useEntries } from "@/features/entries/hooks/useEntries";
 import { useDeleteEntry } from "@/features/entries/hooks/useEntryMutations";
-import { backfillWeatherForRecentEntries } from "@/utils/backfillWeather";
 import { useSymptomCatalog, useEntrySymptoms } from "@/features/symptoms/hooks/useSymptoms";
 import { EmptyState } from "@/components/ui/empty-state";
 

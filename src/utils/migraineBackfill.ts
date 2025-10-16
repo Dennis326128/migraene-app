@@ -1,3 +1,16 @@
+/**
+ * 🔄 WETTER-BACKFILL SYSTEM
+ * 
+ * Funktionen zum Nachtragen fehlender Wetterdaten für Migräne-Einträge:
+ * 
+ * 1. backfillMigrainWeatherEntries(days) - Manuell/Automatisch aufrufbar
+ * 2. dailyMigraineWeatherBackfill() - Täglicher automatischer Job
+ * 
+ * Verwendung:
+ * - EntriesList.tsx: Button "🌤️ Wetter nachtragen" (manuelle Auslösung)
+ * - Index.tsx: Auto-Start beim App-Laden (1x täglich, letzten 7 Tage)
+ * - auto-weather-backfill Edge Function: Serverseitiger Cron-Job
+ */
 import { supabase } from "@/lib/supabaseClient";
 import { logAndSaveWeatherAt } from "@/utils/weatherLogger";
 import type { MigraineEntry } from "@/types/painApp";

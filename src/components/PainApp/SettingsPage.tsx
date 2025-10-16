@@ -5,10 +5,8 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useUserSettings } from "@/features/settings/hooks/useUserSettings";
-import { WeatherBackfillManager } from "@/components/WeatherBackfillManager";
-import { WeatherImportButton } from "@/components/WeatherImportButton";
-import { WeatherSystemDiagnostics } from "@/components/WeatherSystemDiagnostics";
 import { AccountDeletion } from "@/components/AccountDeletion";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { MedicationLimitsSettings } from "./MedicationLimitsSettings";
 import { Separator } from "@/components/ui/separator";
 import { useMeds, useAddMed, useDeleteMed } from "@/features/meds/hooks/useMeds";
@@ -157,13 +155,11 @@ const SettingsPage = ({ onBack }: { onBack: () => void }) => {
       {/* Weather Backfill Section */}
       <Card className="p-6 mb-4">
         <h2 className="text-lg font-medium mb-4">🌤️ Wetter-Daten Management</h2>
-        <div className="space-y-4">
-          <WeatherSystemDiagnostics />
-          <Separator />
-          <WeatherImportButton />
-          <Separator />
-          <WeatherBackfillManager />
-        </div>
+        <Alert>
+          <AlertDescription>
+            💡 <strong>Tipp:</strong> Nutzen Sie den "🌤️ Wetter nachtragen"-Button in der Einträge-Liste für manuelles Backfill der letzten 30 Tage.
+          </AlertDescription>
+        </Alert>
       </Card>
     </div>
   );

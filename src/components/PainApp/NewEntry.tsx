@@ -197,6 +197,15 @@ export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProp
 
   const performSave = async () => {
     setSaving(true);
+    /**
+     * 🌤️ AUTOMATISCHES WETTER-LOGGING
+     * 
+     * Erfasst Wetterdaten für jeden Eintrag:
+     * - Retroaktive Einträge (>1h Vergangenheit): Nutzt gespeicherte Profilkoordinaten
+     * - Aktuelle Einträge: Nutzt Live-GPS-Daten
+     * - Fetch via fetch-weather-hybrid Edge Function
+     * - Historische Daten: Open-Meteo Archive API
+     */
     
     // Smart coordinate capture for retroactive entries
     let latitude = null;

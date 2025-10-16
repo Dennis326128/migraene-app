@@ -1,7 +1,6 @@
 import { useEffect } from "react";
 import { PainApp } from "@/components/PainApp";
 import { logDailyWeatherSnapshots } from "@/utils/weatherLogger";
-import { backfillWeatherForRecentEntries } from "@/utils/backfillWeather";
 import { getUserSettings } from "@/features/settings/api/settings.api";
 import { useOptimizedCache } from "@/hooks/useOptimizedCache";
 import { getMigrationStatus, migratePainEntriesToEvents } from "@/services/migration.service";
