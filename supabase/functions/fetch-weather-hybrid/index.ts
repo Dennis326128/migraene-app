@@ -135,12 +135,22 @@ serve(async (req) => {
     const requestDateNormalized = new Date(requestDateOnly + 'T00:00:00.000Z');
     const daysDiff = Math.floor((todayDate.getTime() - requestDateNormalized.getTime()) / (1000 * 60 * 60 * 24));
 
+    // Calculate time difference in HOURS (not just days)
+    const hoursDiff = Math.floor((today.getTime() - requestDate.getTime()) / (1000 * 60 * 60));
+    
+    // Decision logic:
+    // - If entry is >1 hour in the past: Use HOURLY archive API
+    // - If entry is within last hour: Use current API
+    const useHistoricalAPI = hoursDiff >= 1;
+
     console.log('📅 Date analysis:', { 
       requestDate: requestDate.toISOString(), 
       requestDateOnly: requestDateOnly,
       today: today.toISOString(),
       todayDateOnly: todayDateOnly,
-      daysDiff 
+      daysDiff,
+      hoursDiff,
+      useHistoricalAPI
     });
 
     // Check for existing weather data with proximity-based reuse strategy
@@ -202,10 +212,10 @@ serve(async (req) => {
 
     let weatherData = null;
 
-    // Only use current weather API for same-day requests (daysDiff === 0)
-    // For past entries, always use historical API
-    if (daysDiff === 0) {
-      console.log('🌍 Fetching current weather data from Open-Meteo (same day)');
+    // Only use current weather API for requests within the last hour
+    // For older entries, always use historical API
+    if (!useHistoricalAPI) {
+      console.log('🌍 Fetching current weather data from Open-Meteo (recent entry)');
       try {
         const currentWeatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,surface_pressure,wind_speed_10m,dewpoint_2m&timezone=auto`;
         
@@ -253,48 +263,102 @@ serve(async (req) => {
 
     // If current weather failed or for older dates, use historical API
     if (!weatherData) {
-      console.log('🌍 Fetching historical weather data from Open-Meteo');
-      try {
-        // Fetch current date and previous day for pressure change calculation
-        const prevDate = new Date(requestDate);
-        prevDate.setDate(prevDate.getDate() - 1);
-        const prevDateString = prevDate.toISOString().split('T')[0];
-        
-        const historicalUrl = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${prevDateString}&end_date=${dateString}&daily=temperature_2m_mean,relative_humidity_2m_mean,surface_pressure_mean,wind_speed_10m_mean,dewpoint_2m_mean&timezone=auto`;
-        
-        const response = await fetch(historicalUrl);
-        const data = await response.json();
-        
-        console.log('📊 Historical weather response:', data);
-
-        if (data.daily && data.daily.temperature_2m_mean && data.daily.temperature_2m_mean.length > 0) {
-          const currentIndex = data.daily.temperature_2m_mean.length - 1; // Last day = requested date
-          let pressureChange24h = null;
+      // Try HOURLY historical data first (for time-accurate data)
+      if (useHistoricalAPI) {
+        console.log('📅 Fetching HOURLY historical weather from Open-Meteo Archive');
+        try {
+          const hourUrl = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${dateString}&end_date=${dateString}&hourly=temperature_2m,relative_humidity_2m,surface_pressure,wind_speed_10m,dewpoint_2m&timezone=auto`;
           
-          // Calculate pressure change if we have both days
-          if (data.daily.surface_pressure_mean && data.daily.surface_pressure_mean.length >= 2) {
-            const currentPressure = data.daily.surface_pressure_mean[currentIndex];
-            const previousPressure = data.daily.surface_pressure_mean[currentIndex - 1];
-            if (currentPressure && previousPressure) {
-              pressureChange24h = currentPressure - previousPressure;
-              console.log('📈 Calculated historical 24h pressure change:', pressureChange24h, 'hPa');
+          const response = await fetch(hourUrl);
+          const data = await response.json();
+          
+          console.log('📊 Hourly archive response:', data);
+          
+          if (data.hourly && data.hourly.time && data.hourly.time.length > 0) {
+            // Find the closest hour to requested time
+            const requestHour = requestDate.getUTCHours();
+            let closestIndex = -1;
+            let minDiff = Infinity;
+            
+            // Find closest time match
+            for (let i = 0; i < data.hourly.time.length; i++) {
+              const apiTime = new Date(data.hourly.time[i]);
+              const apiHour = apiTime.getUTCHours();
+              const diff = Math.abs(apiHour - requestHour);
+              
+              if (diff < minDiff) {
+                minDiff = diff;
+                closestIndex = i;
+              }
+            }
+            
+            if (closestIndex !== -1 && data.hourly.temperature_2m[closestIndex] !== null) {
+              const matchedTime = new Date(data.hourly.time[closestIndex]);
+              const formattedTime = `${matchedTime.getUTCHours()}:00`;
+              
+              weatherData = {
+                temperature_c: data.hourly.temperature_2m[closestIndex],
+                humidity: data.hourly.relative_humidity_2m[closestIndex],
+                pressure_mb: data.hourly.surface_pressure[closestIndex],
+                pressure_change_24h: null, // Not available in hourly data
+                wind_kph: data.hourly.wind_speed_10m[closestIndex] * 3.6, // Convert m/s to km/h
+                dewpoint_c: data.hourly.dewpoint_2m?.[closestIndex],
+                condition_text: `Historical data (${formattedTime})`,
+                location: `${lat.toFixed(2)}, ${lon.toFixed(2)}`
+              };
+              console.log('✅ Using hourly historical weather data for', formattedTime);
             }
           }
-
-          weatherData = {
-            temperature_c: data.daily.temperature_2m_mean[currentIndex],
-            humidity: data.daily.relative_humidity_2m_mean[currentIndex],
-            pressure_mb: data.daily.surface_pressure_mean[currentIndex],
-            pressure_change_24h: pressureChange24h,
-            wind_kph: data.daily.wind_speed_10m_mean[currentIndex], // Already in km/h from archive API
-            dewpoint_c: data.daily.dewpoint_2m_mean ? data.daily.dewpoint_2m_mean[currentIndex] : null,
-            condition_text: 'Historical data',
-            location: `${lat.toFixed(2)}, ${lon.toFixed(2)}`
-          };
-          console.log('✅ Using historical weather data');
+        } catch (error) {
+          console.log('⚠️ Hourly archive API failed:', error);
         }
-      } catch (error) {
-        console.log('⚠️ Historical weather API failed:', error);
+      }
+      
+      // Fallback to DAILY historical data if hourly failed
+      if (!weatherData) {
+        console.log('🌍 Fetching DAILY historical weather data from Open-Meteo');
+        try {
+          // Fetch current date and previous day for pressure change calculation
+          const prevDate = new Date(requestDate);
+          prevDate.setDate(prevDate.getDate() - 1);
+          const prevDateString = prevDate.toISOString().split('T')[0];
+          
+          const historicalUrl = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${prevDateString}&end_date=${dateString}&daily=temperature_2m_mean,relative_humidity_2m_mean,surface_pressure_mean,wind_speed_10m_mean,dewpoint_2m_mean&timezone=auto`;
+          
+          const response = await fetch(historicalUrl);
+          const data = await response.json();
+        
+          console.log('📊 Daily historical weather response:', data);
+
+          if (data.daily && data.daily.temperature_2m_mean && data.daily.temperature_2m_mean.length > 0) {
+            const currentIndex = data.daily.temperature_2m_mean.length - 1; // Last day = requested date
+            let pressureChange24h = null;
+            
+            // Calculate pressure change if we have both days
+            if (data.daily.surface_pressure_mean && data.daily.surface_pressure_mean.length >= 2) {
+              const currentPressure = data.daily.surface_pressure_mean[currentIndex];
+              const previousPressure = data.daily.surface_pressure_mean[currentIndex - 1];
+              if (currentPressure && previousPressure) {
+                pressureChange24h = currentPressure - previousPressure;
+                console.log('📈 Calculated historical 24h pressure change:', pressureChange24h, 'hPa');
+              }
+            }
+
+            weatherData = {
+              temperature_c: data.daily.temperature_2m_mean[currentIndex],
+              humidity: data.daily.relative_humidity_2m_mean[currentIndex],
+              pressure_mb: data.daily.surface_pressure_mean[currentIndex],
+              pressure_change_24h: pressureChange24h,
+              wind_kph: data.daily.wind_speed_10m_mean[currentIndex], // Already in km/h from archive API
+              dewpoint_c: data.daily.dewpoint_2m_mean ? data.daily.dewpoint_2m_mean[currentIndex] : null,
+              condition_text: 'Historical data (daily average)',
+              location: `${lat.toFixed(2)}, ${lon.toFixed(2)}`
+            };
+            console.log('✅ Using daily historical weather data');
+          }
+        } catch (error) {
+          console.log('⚠️ Daily historical weather API failed:', error);
+        }
       }
     }
 
