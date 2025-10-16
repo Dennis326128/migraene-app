@@ -4,9 +4,6 @@ import App from './App.tsx'
 import { CookieConsent } from './components/CookieConsent.tsx'
 import './index.css'
 
-// Import weather test for dev console
-import './utils/weatherSystemTest.ts';
-
 // Version Watcher für Auto-Reload bei neuen Deployments
 import { initVersionWatcher } from './lib/version';
 
