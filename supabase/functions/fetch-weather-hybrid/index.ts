@@ -41,6 +41,12 @@ serve(async (req) => {
       });
     }
 
+    // Check if caller wants to skip cache (e.g., when editing entry with changed date/time)
+    const forceRefresh = requestBody.forceRefresh === true;
+    if (forceRefresh) {
+      console.log('🔄 Force refresh requested, skipping cache checks');
+    }
+
     // Authentication - support both user JWT and service role
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
@@ -145,9 +151,9 @@ serve(async (req) => {
     const roundedLat = Math.round(lat * 1000) / 1000; // 3 decimal places = ~111m precision
     const roundedLon = Math.round(lon * 1000) / 1000;
 
-    // Only check for reuse if it's the SAME DAY (daysDiff === 0)
-    // For past entries (daysDiff > 0), always fetch fresh historical data
-    if (daysDiff === 0) {
+    // Only check for reuse if it's the SAME DAY (daysDiff === 0) AND not forcing refresh
+    // For past entries (daysDiff > 0) or forced refresh, always fetch fresh data
+    if (daysDiff === 0 && !forceRefresh) {
       console.log('📅 Same day request, checking for recent existing data...');
       
       // Check for existing weather log within the last 3 hours

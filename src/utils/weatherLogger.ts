@@ -49,7 +49,12 @@ async function getCoords(): Promise<Coords | null> {
 }
 
 /** Holt & speichert Wetter für spezifische Koordinaten und Zeitpunkt */
-export async function logAndSaveWeatherAtCoords(atISO: string, lat: number, lon: number): Promise<number | null> {
+export async function logAndSaveWeatherAtCoords(
+  atISO: string, 
+  lat: number, 
+  lon: number, 
+  forceRefresh: boolean = false
+): Promise<number | null> {
   const userId = await getUserId();
   if (!userId) return null;
 
@@ -65,7 +70,7 @@ export async function logAndSaveWeatherAtCoords(atISO: string, lat: number, lon:
       apikey: VITE_SUPABASE_ANON_KEY,
       Authorization: `Bearer ${accessToken}`,
     },
-    body: JSON.stringify({ lat, lon, at: atISO }),
+    body: JSON.stringify({ lat, lon, at: atISO, forceRefresh }),
   });
 
   if (!res.ok) return null;
@@ -74,14 +79,14 @@ export async function logAndSaveWeatherAtCoords(atISO: string, lat: number, lon:
 }
 
 /** Holt & speichert Wetter für einen konkreten Zeitpunkt (ISO) und gibt weather_logs.id zurück. */
-export async function logAndSaveWeatherAt(atISO: string): Promise<number | null> {
+export async function logAndSaveWeatherAt(atISO: string, forceRefresh: boolean = false): Promise<number | null> {
   const userId = await getUserId();
   if (!userId) return null;
 
   const coords = await getCoords();
   if (!coords) return null;
 
-  return logAndSaveWeatherAtCoords(atISO, coords.lat, coords.lon);
+  return logAndSaveWeatherAtCoords(atISO, coords.lat, coords.lon, forceRefresh);
 }
 
 async function getSnapshotHours(): Promise<number[]> {

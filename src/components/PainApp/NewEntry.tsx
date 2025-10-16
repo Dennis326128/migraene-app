@@ -273,10 +273,11 @@ export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProp
       try {
         // Use captured coordinates for weather data
         const atISO = new Date(`${selectedDate}T${selectedTime}:00`).toISOString();
+        const forceRefresh = dateTimeChanged === true; // Skip cache when date/time changed
         if (latitude && longitude) {
-          weatherId = await logAndSaveWeatherAtCoords(atISO, latitude, longitude);
+          weatherId = await logAndSaveWeatherAtCoords(atISO, latitude, longitude, forceRefresh);
         } else {
-          weatherId = await logAndSaveWeatherAt(atISO);
+          weatherId = await logAndSaveWeatherAt(atISO, forceRefresh);
         }
         weatherFetched = true;
       } catch (weatherError) {
