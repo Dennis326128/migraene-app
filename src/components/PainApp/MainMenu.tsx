@@ -151,6 +151,21 @@ export const MainMenu: React.FC<MainMenuProps> = ({
 
           {/* Secondary Actions Grid */}
           <StartPageButtonGrid columns={2} gap="md">
+            {/* Voice Notes */}
+            <StartPageCard 
+              variant="neutral" 
+              touchFeedback 
+              onClick={() => onNavigate?.('voice-notes')}
+            >
+              <div className="text-center space-y-2">
+                <div className="text-2xl">🎙️</div>
+                <div>
+                  <h4 className="font-semibold text-sm">Voice-Notizen</h4>
+                  <p className="text-xs opacity-75">Sprachaufnahmen</p>
+                </div>
+              </div>
+            </StartPageCard>
+
             {/* Medication Overview */}
             <StartPageCard 
               variant="warning" 

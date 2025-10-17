@@ -350,6 +350,45 @@ export type Database = {
         }
         Relationships: []
       }
+      voice_notes: {
+        Row: {
+          captured_at: string
+          deleted_at: string | null
+          id: string
+          occurred_at: string
+          source: string
+          stt_confidence: number | null
+          text: string
+          text_fts: unknown | null
+          tz: string
+          user_id: string
+        }
+        Insert: {
+          captured_at?: string
+          deleted_at?: string | null
+          id?: string
+          occurred_at: string
+          source?: string
+          stt_confidence?: number | null
+          text: string
+          text_fts?: unknown | null
+          tz?: string
+          user_id: string
+        }
+        Update: {
+          captured_at?: string
+          deleted_at?: string | null
+          id?: string
+          occurred_at?: string
+          source?: string
+          stt_confidence?: number | null
+          text?: string
+          text_fts?: unknown | null
+          tz?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       weather_logs: {
         Row: {
           condition_icon: string | null

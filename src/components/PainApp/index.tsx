@@ -10,8 +10,10 @@ import { useOnboarding } from "@/hooks/useOnboarding";
 import type { PainEntry } from "@/types/painApp";
 import { MedicationLimitWarning } from "./MedicationLimitWarning";
 import { MedicalDisclaimerAlert } from "./MedicalDisclaimerAlert";
+import { VoiceNoteButton } from "./VoiceNoteButton";
+import { VoiceNotesList } from "./VoiceNotesList";
 
-type View = "menu" | "new" | "list" | "analysis" | "settings" | "medication-overview";
+type View = "menu" | "new" | "list" | "analysis" | "settings" | "medication-overview" | "voice-notes";
 
 export const PainApp: React.FC = () => {
   const [view, setView] = useState<View>("menu");
@@ -57,6 +59,8 @@ export const PainApp: React.FC = () => {
           onNavigate={(target) => {
             if (target === 'medication-overview') {
               setView('medication-overview');
+            } else if (target === 'voice-notes') {
+              setView('voice-notes');
             }
           }}
           onLimitWarning={handleLimitWarning}
@@ -89,6 +93,26 @@ export const PainApp: React.FC = () => {
 
       {view === "medication-overview" && (
         <MedicationOverviewPage onBack={goHome} />
+      )}
+
+      {view === "voice-notes" && (
+        <div className="min-h-screen bg-background p-4">
+          <div className="max-w-2xl mx-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h1 className="text-2xl font-bold">Voice-Notizen</h1>
+              <button 
+                onClick={goHome}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                Zurück
+              </button>
+            </div>
+            <VoiceNoteButton />
+            <div className="mt-6">
+              <VoiceNotesList />
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Onboarding Modal */}
