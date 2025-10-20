@@ -106,10 +106,7 @@ export const PainApp: React.FC = () => {
                 Zurück
               </button>
             </div>
-            <div className="mb-4 p-4 bg-muted/50 rounded-lg text-sm text-muted-foreground">
-              💡 Nutzen Sie den Voice-Eingabe Button im Hauptmenü, um neue Einträge oder Notizen zu erstellen
-            </div>
-            <VoiceNotesList />
+            <VoiceNotesList onNavigate={(view) => setView(view as View)} />
           </div>
         </div>
       )}

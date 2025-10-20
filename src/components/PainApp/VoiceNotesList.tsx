@@ -8,6 +8,7 @@ import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { toZonedTime } from 'date-fns-tz';
 import { VoiceNoteEditModal } from './VoiceNoteEditModal';
+import { EmptyState } from '@/components/ui/empty-state';
 
 interface VoiceNote {
   id: string;
@@ -17,7 +18,11 @@ interface VoiceNote {
   stt_confidence: number | null;
 }
 
-export function VoiceNotesList() {
+interface VoiceNotesListProps {
+  onNavigate?: (view: string) => void;
+}
+
+export function VoiceNotesList({ onNavigate }: VoiceNotesListProps = {}) {
   const [notes, setNotes] = useState<VoiceNote[]>([]);
   const [search, setSearch] = useState('');
   const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set());
@@ -105,9 +110,24 @@ export function VoiceNotesList() {
       {isLoading ? (
         <div className="text-center py-8 text-muted-foreground">Lädt...</div>
       ) : Object.keys(groupedNotes).length === 0 ? (
-        <div className="text-center py-8 text-muted-foreground">
-          Keine Notizen gefunden
-        </div>
+        search.trim() ? (
+          <EmptyState
+            icon="🔍"
+            title="Keine Notizen gefunden"
+            description="Versuchen Sie andere Suchbegriffe oder löschen Sie die Suche."
+          />
+        ) : (
+          <EmptyState
+            icon="🎙️"
+            title="Noch keine Voice-Notizen"
+            description="Verwenden Sie den Voice-Eingabe Button im Hauptmenü, um Ihre ersten Notizen aufzunehmen."
+            action={onNavigate ? {
+              label: "Zum Hauptmenü",
+              onClick: () => onNavigate('menu'),
+              variant: "default"
+            } : undefined}
+          />
+        )
       ) : (
         Object.entries(groupedNotes).map(([dateKey, dayNotes]) => (
           <div key={dateKey} className="space-y-2">
