@@ -46,7 +46,7 @@ serve(async (req) => {
     }
 
     // Fetch voice notes
-    const { data: notes, error: notesError } = await supabase
+    const { data: voiceNotes, error: voiceError } = await supabase
       .from('voice_notes')
       .select('occurred_at, text')
       .eq('user_id', user.id)
@@ -54,11 +54,37 @@ serve(async (req) => {
       .lte('occurred_at', toDate)
       .order('occurred_at', { ascending: true });
 
-    if (notesError) throw notesError;
+    if (voiceError) throw voiceError;
 
-    if (!notes || notes.length === 0) {
+    // Fetch notes from pain entries
+    const { data: painEntries, error: painError } = await supabase
+      .from('pain_entries')
+      .select('timestamp_created, notes, pain_level, aura_type, pain_location')
+      .eq('user_id', user.id)
+      .gte('timestamp_created', fromDate)
+      .lte('timestamp_created', toDate)
+      .not('notes', 'is', null)
+      .order('timestamp_created', { ascending: true });
+
+    if (painError) throw painError;
+
+    // Combine both data sources
+    const allNotes = [
+      ...(voiceNotes || []).map(n => ({
+        timestamp: new Date(n.occurred_at).toISOString().split('T')[0],
+        text: n.text,
+        type: 'voice'
+      })),
+      ...(painEntries || []).map(n => ({
+        timestamp: new Date(n.timestamp_created).toISOString().split('T')[0],
+        text: `${n.notes} (Schmerzlevel: ${n.pain_level}, Aura: ${n.aura_type}, Lokalisation: ${n.pain_location || 'keine'})`,
+        type: 'entry'
+      }))
+    ];
+
+    if (allNotes.length === 0) {
       return new Response(JSON.stringify({ 
-        insights: 'Keine Voice-Notizen im gewählten Zeitraum gefunden.',
+        insights: 'Keine Notizen oder Einträge im gewählten Zeitraum gefunden.',
         analyzed_notes: 0,
         date_range: { from: fromDate, to: toDate }
       }), { 
@@ -66,19 +92,16 @@ serve(async (req) => {
       });
     }
 
-    // Anonymize data for LLM (only date, not exact time)
-    const anonymizedNotes = notes.map(n => ({
-      timestamp: new Date(n.occurred_at).toISOString().split('T')[0],
-      text: n.text
-    }));
+    // Sort by timestamp
+    allNotes.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
 
     // Call Lovable AI
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) throw new Error('LOVABLE_API_KEY nicht konfiguriert');
 
-    const prompt = `Du bist ein medizinischer Assistent für Migräne-Analyse. Analysiere folgende Voice-Notizen eines Migräne-Patienten:
+    const prompt = `Du bist ein medizinischer Assistent für Migräne-Analyse. Analysiere folgende Notizen eines Migräne-Patienten (aus Voice-Notizen und Schmerz-Einträgen):
 
-${anonymizedNotes.map(n => `[${n.timestamp}] ${n.text}`).join('\n\n')}
+${allNotes.map(n => `[${n.timestamp}] ${n.text}`).join('\n\n')}
 
 Erstelle eine strukturierte Analyse mit folgenden Punkten:
 
@@ -137,14 +160,18 @@ Sei konkret und nenne Beispiele aus den Texten. Verwende deutsche Sprache und ma
       table_name: 'voice_notes',
       old_data: {
         model: 'gemini-2.5-flash',
-        notes_count: notes.length,
+        voice_notes_count: voiceNotes?.length || 0,
+        pain_entries_count: painEntries?.length || 0,
+        total_notes_count: allNotes.length,
         tokens: aiData.usage?.total_tokens || 0
       }
     });
 
     return new Response(JSON.stringify({
       insights,
-      analyzed_notes: notes.length,
+      analyzed_notes: allNotes.length,
+      voice_notes_count: voiceNotes?.length || 0,
+      pain_entries_count: painEntries?.length || 0,
       date_range: { from: fromDate, to: toDate }
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
