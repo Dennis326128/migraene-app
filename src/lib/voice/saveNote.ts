@@ -16,6 +16,16 @@ export interface SaveVoiceNoteOptions {
 export async function saveVoiceNote(options: SaveVoiceNoteOptions): Promise<string> {
   const { rawText, sttConfidence, source = 'voice' } = options;
   
+  // Check if user has voice notes enabled
+  const { data: profile, error: profileError } = await supabase
+    .from('user_profiles')
+    .select('voice_notes_enabled')
+    .single();
+
+  if (profileError || !profile?.voice_notes_enabled) {
+    throw new Error('Voice-Notizen sind in den Einstellungen deaktiviert');
+  }
+
   // Validierung
   const trimmed = rawText.trim();
   if (!trimmed) {

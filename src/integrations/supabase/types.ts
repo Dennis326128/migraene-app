@@ -297,6 +297,7 @@ export type Database = {
           quick_entry_mode: boolean | null
           updated_at: string | null
           user_id: string
+          voice_notes_enabled: boolean
         }
         Insert: {
           default_pain_location?: string | null
@@ -307,6 +308,7 @@ export type Database = {
           quick_entry_mode?: boolean | null
           updated_at?: string | null
           user_id: string
+          voice_notes_enabled?: boolean
         }
         Update: {
           default_pain_location?: string | null
@@ -317,6 +319,7 @@ export type Database = {
           quick_entry_mode?: boolean | null
           updated_at?: string | null
           user_id?: string
+          voice_notes_enabled?: boolean
         }
         Relationships: []
       }

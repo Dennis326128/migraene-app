@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { useUserSettings, useUpsertUserSettings } from "@/features/settings/hooks/useUserSettings";
+import { useUserSettings, useUpsertUserSettings, useUserDefaults, useUpsertUserDefaults } from "@/features/settings/hooks/useUserSettings";
 
 type Preset = "3m" | "6m" | "12m";
 
@@ -17,11 +17,14 @@ function normalizeHours(input: string): number[] {
 export default function SettingsForm() {
   const { data: settings, isFetching } = useUserSettings();
   const upsert = useUpsertUserSettings();
+  const { data: defaults } = useUserDefaults();
+  const upsertDefaults = useUpsertUserDefaults();
 
   const [preset, setPreset] = useState<Preset>("3m");
   const [includeNoMeds, setIncludeNoMeds] = useState<boolean>(true);
   const [hoursStr, setHoursStr] = useState<string>("6,12,18");
   const [backfillDays, setBackfillDays] = useState<number>(30);
+  const [voiceNotesEnabled, setVoiceNotesEnabled] = useState<boolean>(true);
 
   useEffect(() => {
     if (!settings) return;
@@ -30,6 +33,11 @@ export default function SettingsForm() {
     setHoursStr((settings.snapshot_hours?.length ? settings.snapshot_hours : [6,12,18]).join(","));
     setBackfillDays(settings.backfill_days ?? 30);
   }, [settings]);
+
+  useEffect(() => {
+    if (!defaults) return;
+    setVoiceNotesEnabled(defaults.voice_notes_enabled ?? true);
+  }, [defaults]);
 
   const hoursError = useMemo(() => {
     const arr = normalizeHours(hoursStr);
@@ -49,12 +57,17 @@ export default function SettingsForm() {
 
   const handleSave = async () => {
     if (hasError) return;
-    await upsert.mutateAsync({
-      default_report_preset: preset,
-      include_no_meds: includeNoMeds,
-      snapshot_hours: normalizeHours(hoursStr),
-      backfill_days: backfillDays,
-    });
+    await Promise.all([
+      upsert.mutateAsync({
+        default_report_preset: preset,
+        include_no_meds: includeNoMeds,
+        snapshot_hours: normalizeHours(hoursStr),
+        backfill_days: backfillDays,
+      }),
+      upsertDefaults.mutateAsync({
+        voice_notes_enabled: voiceNotesEnabled,
+      }),
+    ]);
     // optional: leichte Rückmeldung
     alert("Einstellungen gespeichert.");
   };
@@ -64,6 +77,7 @@ export default function SettingsForm() {
     setIncludeNoMeds(true);
     setHoursStr("6,12,18");
     setBackfillDays(30);
+    setVoiceNotesEnabled(true);
   };
 
   return (
@@ -91,6 +105,14 @@ export default function SettingsForm() {
             <p className="text-sm text-muted-foreground">Gilt als Vorauswahl im Kopfschmerztagebuch.</p>
           </div>
           <Switch checked={includeNoMeds} onCheckedChange={setIncludeNoMeds} />
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div>
+            <Label className="block mb-1">Voice-Notizen aktivieren</Label>
+            <p className="text-sm text-muted-foreground">Erlaubt das Speichern und Analysieren von Sprachnotizen.</p>
+          </div>
+          <Switch checked={voiceNotesEnabled} onCheckedChange={setVoiceNotesEnabled} />
         </div>
 
         <div>
@@ -122,10 +144,10 @@ export default function SettingsForm() {
         </div>
 
         <div className="flex gap-2">
-          <Button onClick={handleSave} disabled={hasError || isFetching || upsert.isPending}>
-            {upsert.isPending ? "Speichern…" : "Speichern"}
+          <Button onClick={handleSave} disabled={hasError || isFetching || upsert.isPending || upsertDefaults.isPending}>
+            {(upsert.isPending || upsertDefaults.isPending) ? "Speichern…" : "Speichern"}
           </Button>
-          <Button variant="outline" onClick={handleReset} disabled={upsert.isPending}>Zurücksetzen</Button>
+          <Button variant="outline" onClick={handleReset} disabled={upsert.isPending || upsertDefaults.isPending}>Zurücksetzen</Button>
         </div>
       </Card>
     </div>
