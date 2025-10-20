@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, FileText, BarChart3, Activity, Calendar, BookOpen, Database, Badge } from "lucide-react";
+import { ArrowLeft, FileText, BarChart3, Activity, Calendar, BookOpen, Database, Badge, Brain } from "lucide-react";
 // Import fix for DiaryReport default export
 import DiaryReport from "./DiaryReport";
 import TimeSeriesChart from "@/components/TimeSeriesChart";
@@ -13,6 +13,7 @@ import { StatisticsCards } from "./StatisticsCards";
 import { TimeDistributionChart } from "./TimeDistributionChart";
 import { MigrationPanel } from "./MigrationPanel";
 import { MedicationLimitsOverview } from "./MedicationLimitsOverview";
+import { VoiceNotesAIAnalysis } from "./VoiceNotesAIAnalysis";
 import { useFilteredEntries, useMigraineStats, useTimeDistribution } from "@/features/statistics/hooks/useStatistics";
 import { Pill, AlertTriangle } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -25,7 +26,7 @@ interface AnalysisViewProps {
 
 export function AnalysisView({ onBack }: AnalysisViewProps) {
   const isMobile = useIsMobile();
-  const [viewMode, setViewMode] = useState<"tagebuch" | "analyse" | "grafik" | "ueberverbrauch" | "migration">("grafik");
+  const [viewMode, setViewMode] = useState<"tagebuch" | "analyse" | "grafik" | "ki-analyse" | "ueberverbrauch" | "migration">("grafik");
   const [timeRange, setTimeRange] = useState("alle");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
@@ -257,7 +258,8 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
               { id: "tagebuch", label: isMobile ? "📋" : "📋 Tagebuch", icon: FileText },
               { id: "analyse", label: isMobile ? "📊" : "📊 Analyse", icon: BarChart3 },
               { id: "grafik", label: isMobile ? "📈" : "📈 Grafik", icon: Activity },
-              { id: "ueberverbrauch", label: isMobile ? "📊" : "Übergebrauch", icon: AlertTriangle },
+              { id: "ki-analyse", label: isMobile ? "🤖" : "🤖 KI-Analyse", icon: Brain },
+              { id: "ueberverbrauch", label: isMobile ? "💊" : "💊 Übergebrauch", icon: AlertTriangle },
               { id: "migration", label: isMobile ? "🔄" : "🔄 Migration", icon: Database },
             ].map(({ id, label, icon: Icon }) => (
               <Button
@@ -504,6 +506,9 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
         </>
       )}
 
+      {viewMode === "ki-analyse" && (
+        <VoiceNotesAIAnalysis />
+      )}
 
       {viewMode === "ueberverbrauch" && (
         <MedicationLimitsOverview />

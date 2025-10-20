@@ -289,6 +289,7 @@ export type Database = {
       }
       user_profiles: {
         Row: {
+          ai_enabled: boolean
           default_pain_location: string | null
           default_symptoms: string[] | null
           latitude: number | null
@@ -300,6 +301,7 @@ export type Database = {
           voice_notes_enabled: boolean
         }
         Insert: {
+          ai_enabled?: boolean
           default_pain_location?: string | null
           default_symptoms?: string[] | null
           latitude?: number | null
@@ -311,6 +313,7 @@ export type Database = {
           voice_notes_enabled?: boolean
         }
         Update: {
+          ai_enabled?: boolean
           default_pain_location?: string | null
           default_symptoms?: string[] | null
           latitude?: number | null

@@ -25,6 +25,7 @@ export default function SettingsForm() {
   const [hoursStr, setHoursStr] = useState<string>("6,12,18");
   const [backfillDays, setBackfillDays] = useState<number>(30);
   const [voiceNotesEnabled, setVoiceNotesEnabled] = useState<boolean>(true);
+  const [aiEnabled, setAiEnabled] = useState<boolean>(true);
 
   useEffect(() => {
     if (!settings) return;
@@ -37,6 +38,7 @@ export default function SettingsForm() {
   useEffect(() => {
     if (!defaults) return;
     setVoiceNotesEnabled(defaults.voice_notes_enabled ?? true);
+    setAiEnabled(defaults.ai_enabled ?? true);
   }, [defaults]);
 
   const hoursError = useMemo(() => {
@@ -66,6 +68,7 @@ export default function SettingsForm() {
       }),
       upsertDefaults.mutateAsync({
         voice_notes_enabled: voiceNotesEnabled,
+        ai_enabled: aiEnabled,
       }),
     ]);
     // optional: leichte Rückmeldung
@@ -78,6 +81,7 @@ export default function SettingsForm() {
     setHoursStr("6,12,18");
     setBackfillDays(30);
     setVoiceNotesEnabled(true);
+    setAiEnabled(true);
   };
 
   return (
@@ -113,6 +117,14 @@ export default function SettingsForm() {
             <p className="text-sm text-muted-foreground">Erlaubt das Speichern und Analysieren von Sprachnotizen.</p>
           </div>
           <Switch checked={voiceNotesEnabled} onCheckedChange={setVoiceNotesEnabled} />
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div>
+            <Label className="block mb-1">KI-Analyse aktivieren</Label>
+            <p className="text-sm text-muted-foreground">Ermöglicht automatische Muster-Erkennung (anonymisiert, DSGVO-konform).</p>
+          </div>
+          <Switch checked={aiEnabled} onCheckedChange={setAiEnabled} />
         </div>
 
         <div>

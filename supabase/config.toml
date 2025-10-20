@@ -15,6 +15,9 @@ additional_redirect_urls = ["https://localhost:3000"]
 jwt_expiry = 3600
 enable_signup = true
 
+[functions.analyze-voice-notes]
+verify_jwt = true
+
 [functions.daily-weather-backfill]
 verify_jwt = false
 
