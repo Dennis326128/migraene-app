@@ -9,7 +9,7 @@ import { StartPageCard, StartPageCardHeader, StartPageButtonGrid } from "@/compo
 import { useIsMobile } from "@/hooks/use-mobile";
 
 import { useOnboarding } from "@/hooks/useOnboarding";
-import { useVoiceTrigger, type VoiceTriggerData } from "@/hooks/useVoiceTrigger";
+import { useSmartVoiceRouter } from "@/hooks/useSmartVoiceRouter";
 import { toast } from "sonner";
 
 interface MainMenuProps {
@@ -33,48 +33,46 @@ export const MainMenu: React.FC<MainMenuProps> = ({
 }) => {
   const { needsOnboarding, completeOnboarding, isLoading: onboardingLoading } = useOnboarding();
   const [showQuickEntry, setShowQuickEntry] = useState(false);
-  const [voiceData, setVoiceData] = useState<VoiceTriggerData | null>(null);
+  const [voiceData, setVoiceData] = useState<any>(null);
   
-
-  // New voice trigger system
-  const voiceTrigger = useVoiceTrigger({
-    onParsed: (data) => {
-      console.log('🎯 Voice data parsed, opening QuickEntry:', data);
+  // Smart Voice Router - automatically detects pain entry vs voice note
+  const voiceRouter = useSmartVoiceRouter({
+    onEntryDetected: (data) => {
+      console.log('📝 Pain entry detected, opening QuickEntry:', data);
       setVoiceData(data);
       setShowQuickEntry(true);
     },
-    onError: (error) => {
-      toast.error(`Spracheingabe Fehler: ${error}`);
+    onNoteCreated: () => {
+      console.log('🎙️ Voice note saved');
     }
   });
 
   const handleVoiceEntry = () => {
-    if (voiceTrigger.isListening) {
-      voiceTrigger.stopVoiceEntry();
+    if (voiceRouter.isListening) {
+      voiceRouter.stopVoice();
     } else {
-      toast.info('🎤 Sprechen Sie jetzt...');
-      voiceTrigger.startVoiceEntry();
+      voiceRouter.startVoice();
     }
   };
 
   const getVoiceButtonTitle = () => {
-    if (voiceTrigger.remainingSeconds) {
-      return `Beende in ${voiceTrigger.remainingSeconds}s`;
+    if (voiceRouter.remainingSeconds) {
+      return `Beende in ${voiceRouter.remainingSeconds}s`;
     }
-    if (voiceTrigger.isListening) {
+    if (voiceRouter.isListening) {
       return 'Hört zu...';
     }
-    return 'Sprach-Eintrag';
+    return 'Voice-Eingabe';
   };
 
   const getVoiceButtonSubtitle = () => {
-    if (voiceTrigger.remainingSeconds) {
+    if (voiceRouter.remainingSeconds) {
       return 'Weiter sprechen oder warten...';
     }
-    if (voiceTrigger.isListening) {
+    if (voiceRouter.isListening) {
       return 'Sprechen Sie jetzt! (3s Pause beendet)';
     }
-    return 'Erstellen Sie einen Schnelleintrag per Sprach-Eingabe';
+    return 'Schmerz oder Notiz - automatisch erkannt';
   };
 
   const handleQuickEntryClose = () => {
@@ -123,23 +121,23 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             />
           </StartPageCard>
 
-          {/* Voice Entry Button */}
+          {/* Unified Voice Entry Button */}
           <StartPageCard 
             variant="voice" 
             touchFeedback 
             onClick={handleVoiceEntry}
-            className={voiceTrigger.isListening ? 'ring-2 ring-blue-400 animate-pulse' : ''}
+            className={voiceRouter.isListening ? 'ring-2 ring-blue-400 animate-pulse' : ''}
           >
             <StartPageCardHeader
-              icon={voiceTrigger.isListening ? '🔴' : '🎙️'}
+              icon={voiceRouter.isListening ? '🔴' : '🎙️'}
               title={getVoiceButtonTitle()}
               subtitle={getVoiceButtonSubtitle()}
             />
-            {voiceTrigger.isListening && (
+            {voiceRouter.isListening && (
               <Button 
                 onClick={(e) => {
                   e.stopPropagation();
-                  voiceTrigger.stopVoiceEntry();
+                  voiceRouter.stopVoice();
                 }}
                 className="mt-3 w-full bg-success hover:bg-success/90"
                 size="lg"

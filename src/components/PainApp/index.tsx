@@ -10,7 +10,6 @@ import { useOnboarding } from "@/hooks/useOnboarding";
 import type { PainEntry } from "@/types/painApp";
 import { MedicationLimitWarning } from "./MedicationLimitWarning";
 import { MedicalDisclaimerAlert } from "./MedicalDisclaimerAlert";
-import { VoiceNoteButton } from "./VoiceNoteButton";
 import { VoiceNotesList } from "./VoiceNotesList";
 
 type View = "menu" | "new" | "list" | "analysis" | "settings" | "medication-overview" | "voice-notes";
@@ -107,10 +106,10 @@ export const PainApp: React.FC = () => {
                 Zurück
               </button>
             </div>
-            <VoiceNoteButton />
-            <div className="mt-6">
-              <VoiceNotesList />
+            <div className="mb-4 p-4 bg-muted/50 rounded-lg text-sm text-muted-foreground">
+              💡 Nutzen Sie den Voice-Eingabe Button im Hauptmenü, um neue Einträge oder Notizen zu erstellen
             </div>
+            <VoiceNotesList />
           </div>
         </div>
       )}
