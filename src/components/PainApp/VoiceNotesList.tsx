@@ -3,10 +3,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
+import { Search, ChevronDown, ChevronUp, Trash2, Edit } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { toZonedTime } from 'date-fns-tz';
+import { VoiceNoteEditModal } from './VoiceNoteEditModal';
 
 interface VoiceNote {
   id: string;
@@ -21,6 +22,7 @@ export function VoiceNotesList() {
   const [search, setSearch] = useState('');
   const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
+  const [editingNote, setEditingNote] = useState<VoiceNote | null>(null);
 
   // Lade Notizen
   useEffect(() => {
@@ -166,17 +168,28 @@ export function VoiceNotesList() {
                           </Button>
                         )}
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          if (confirm('Notiz wirklich löschen?')) {
-                            deleteNote(note.id);
-                          }
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
+                      <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setEditingNote(note)}
+                          title="Bearbeiten"
+                        >
+                          <Edit className="h-4 w-4 text-primary" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            if (confirm('Notiz wirklich löschen?')) {
+                              deleteNote(note.id);
+                            }
+                          }}
+                          title="Löschen"
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -185,6 +198,17 @@ export function VoiceNotesList() {
           </div>
         ))
       )}
+
+      {/* Edit Modal */}
+      <VoiceNoteEditModal
+        note={editingNote}
+        open={!!editingNote}
+        onClose={() => setEditingNote(null)}
+        onSaved={() => {
+          loadNotes();
+          setEditingNote(null);
+        }}
+      />
     </div>
   );
 }
