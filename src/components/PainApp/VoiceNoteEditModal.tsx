@@ -41,7 +41,10 @@ export function VoiceNoteEditModal({ note, open, onClose, onSaved }: Props) {
 
   async function handleSave() {
     if (!note) return;
-    if (!text.trim()) {
+    
+    const trimmedText = text.trim();
+    
+    if (!trimmedText) {
       toast({ 
         title: '❌ Fehler', 
         description: 'Text darf nicht leer sein', 
@@ -50,7 +53,7 @@ export function VoiceNoteEditModal({ note, open, onClose, onSaved }: Props) {
       return;
     }
 
-    if (text.length > 5000) {
+    if (trimmedText.length > 5000) {
       toast({ 
         title: '❌ Fehler', 
         description: 'Text darf maximal 5000 Zeichen haben', 
@@ -68,7 +71,7 @@ export function VoiceNoteEditModal({ note, open, onClose, onSaved }: Props) {
       const { error } = await supabase
         .from('voice_notes')
         .update({
-          text: text.trim(),
+          text: trimmedText,
           occurred_at: utcDate.toISOString()
         })
         .eq('id', note.id);

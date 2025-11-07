@@ -32,7 +32,7 @@ export async function saveVoiceNote(options: SaveVoiceNoteOptions): Promise<stri
     throw new Error('Voice-Notiz darf nicht leer sein');
   }
   if (trimmed.length > 5000) {
-    throw new Error('Voice-Notiz zu lang (max. 5000 Zeichen)');
+    throw new Error(`Voice-Notiz zu lang (max. 5000 Zeichen, aktuell: ${trimmed.length})`);
   }
 
   // Zeit parsen
