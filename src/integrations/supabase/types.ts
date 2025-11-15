@@ -201,7 +201,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
-          ip_address: unknown | null
+          ip_address: unknown
           privacy_accepted_at: string
           privacy_version: string
           terms_accepted_at: string
@@ -212,7 +212,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           privacy_accepted_at?: string
           privacy_version?: string
           terms_accepted_at?: string
@@ -223,7 +223,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           privacy_accepted_at?: string
           privacy_version?: string
           terms_accepted_at?: string
@@ -365,7 +365,7 @@ export type Database = {
           source: string
           stt_confidence: number | null
           text: string
-          text_fts: unknown | null
+          text_fts: unknown
           tz: string
           user_id: string
         }
@@ -377,7 +377,7 @@ export type Database = {
           source?: string
           stt_confidence?: number | null
           text: string
-          text_fts?: unknown | null
+          text_fts?: unknown
           tz?: string
           user_id: string
         }
@@ -389,7 +389,7 @@ export type Database = {
           source?: string
           stt_confidence?: number | null
           text?: string
-          text_fts?: unknown | null
+          text_fts?: unknown
           tz?: string
           user_id?: string
         }
@@ -466,18 +466,9 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      delete_user_account: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
-      invoke_auto_weather: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
-      invoke_auto_weather_backfill: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
+      delete_user_account: { Args: never; Returns: undefined }
+      invoke_auto_weather: { Args: never; Returns: undefined }
+      invoke_auto_weather_backfill: { Args: never; Returns: undefined }
       rpc_entries_filtered: {
         Args: {
           p_aura_types?: string[]
@@ -502,6 +493,12 @@ export type Database = {
           user_id: string | null
           weather_id: number | null
         }[]
+        SetofOptions: {
+          from: "*"
+          to: "pain_entries"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       rpc_migraine_stats: {
         Args: { p_from: string; p_to: string; p_user: string }
