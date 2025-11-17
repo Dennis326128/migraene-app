@@ -82,31 +82,18 @@ function extractMedications(text: string, userMeds: Array<{ name: string }>): st
   const medications: string[] = [];
   const lowerText = text.toLowerCase();
   
-  // User-Medikamente erkennen
+  // User-Medikamente erkennen (case insensitive)
   userMeds.forEach(med => {
-    const pattern = new RegExp(`\\b${med.name.toLowerCase()}\\b`, 'i');
-    if (pattern.test(lowerText)) {
-      medications.push(med.name);
+    // Escape special regex characters in medication name
+    const escapedName = med.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const pattern = new RegExp(`\\b${escapedName}\\b`, 'i');
+    if (pattern.test(text)) {
+      // Prevent duplicates
+      if (!medications.some(m => m.toLowerCase() === med.name.toLowerCase())) {
+        medications.push(med.name);
+      }
     }
   });
-  
-  // "und" zwischen Wörtern erkennen und prüfen ob es Medikamente sind
-  const andPattern = /(\w+)\s+und\s+(\w+)/gi;
-  const matches = text.matchAll(andPattern);
-  for (const match of matches) {
-    const word1 = match[1];
-    const word2 = match[2];
-    
-    const med1 = userMeds.find(m => m.name.toLowerCase() === word1.toLowerCase());
-    const med2 = userMeds.find(m => m.name.toLowerCase() === word2.toLowerCase());
-    
-    if (med1 && !medications.includes(med1.name)) {
-      medications.push(med1.name);
-    }
-    if (med2 && !medications.includes(med2.name)) {
-      medications.push(med2.name);
-    }
-  }
   
   return medications;
 }
@@ -122,18 +109,9 @@ function parseTimeForReminder(text: string): {
   let timeOfDay: 'morning' | 'noon' | 'evening' | 'night' | null = null;
   let confidence: 'high' | 'medium' | 'low' = 'low';
   
-  // Check for time of day patterns
-  for (const [tod, config] of Object.entries(TIME_OF_DAY_PATTERNS)) {
-    if (config.pattern.test(text)) {
-      timeOfDay = tod as 'morning' | 'noon' | 'evening' | 'night';
-      time = config.defaultTime;
-      confidence = 'high';
-      break;
-    }
-  }
-  
-  // Check for explicit time (HH:mm or HH Uhr)
-  const timePattern = /(\d{1,2}):?(\d{2})?\s*(?:uhr)?/i;
+  // Check for explicit time FIRST (higher priority than time of day)
+  // Pattern: HH:mm, HH:mm Uhr, HH Uhr
+  const timePattern = /\b(\d{1,2}):?(\d{2})?\s*(?:uhr)?\b/i;
   const timeMatch = text.match(timePattern);
   if (timeMatch) {
     const hours = parseInt(timeMatch[1]);
@@ -149,6 +127,16 @@ function parseTimeForReminder(text: string): {
       else if (hours >= 14 && hours < 21) timeOfDay = 'evening';
       else timeOfDay = 'night';
     }
+  } else {
+    // Check for time of day patterns only if no explicit time found
+    for (const [tod, config] of Object.entries(TIME_OF_DAY_PATTERNS)) {
+      if (config.pattern.test(text)) {
+        timeOfDay = tod as 'morning' | 'noon' | 'evening' | 'night';
+        time = config.defaultTime;
+        confidence = 'high';
+        break;
+      }
+    }
   }
   
   // Check for relative date patterns
@@ -160,7 +148,7 @@ function parseTimeForReminder(text: string): {
         days = parseInt(match[1]);
       }
       date = format(addDays(new Date(), days), 'yyyy-MM-dd');
-      confidence = 'high';
+      if (confidence === 'low') confidence = 'medium';
       break;
     }
   }
@@ -189,12 +177,21 @@ function generateTitle(
   
   if (type === 'appointment') {
     // Versuche Termin-Titel zu extrahieren
-    const appointmentWords = text
-      .replace(/erinner(e|ung)|nicht vergessen|an|um|uhr|\d+:\d+/gi, '')
+    let appointmentTitle = text;
+    
+    // Entferne Trigger-Wörter und Zeit-Informationen
+    appointmentTitle = appointmentTitle
+      .replace(/erinner(e|ung)|reminder|nicht vergessen|benachrichtig/gi, '')
+      .replace(/\ban\b|\bum\b|\buhr\b/gi, '')
+      .replace(/\d{1,2}:?\d{0,2}/g, '')
+      .replace(/heute|morgen|übermorgen|in \d+ tagen?|nächste woche/gi, '')
+      .replace(/täglich|wöchentlich|monatlich/gi, '')
       .trim();
     
-    if (appointmentWords.length > 3) {
-      return appointmentWords.slice(0, 50);
+    if (appointmentTitle.length > 3) {
+      // Capitalize first letter
+      appointmentTitle = appointmentTitle.charAt(0).toUpperCase() + appointmentTitle.slice(1);
+      return appointmentTitle.slice(0, 50);
     }
     return 'Termin';
   }
@@ -203,14 +200,24 @@ function generateTitle(
 }
 
 function extractNotes(text: string): string {
-  // Entferne Trigger-Wörter und extrahiere Rest als Notizen
+  // Entferne Trigger-Wörter und Zeit-Informationen, behalte Rest als Kontext
   let notes = text;
   
+  // Entferne Trigger-Wörter
   REMINDER_TRIGGERS.forEach(pattern => {
     notes = notes.replace(pattern, '');
   });
   
-  return notes.trim();
+  // Entferne Zeit-Informationen
+  notes = notes
+    .replace(/\d{1,2}:?\d{0,2}\s*(?:uhr)?/gi, '')
+    .replace(/morgens?|mittags?|abends?|nachts?|früh/gi, '')
+    .replace(/heute|morgen|übermorgen|in \d+ tagen?|nächste woche/gi, '')
+    .replace(/täglich|wöchentlich|monatlich/gi, '')
+    .replace(/\ban\b|\bum\b/gi, '')
+    .trim();
+  
+  return notes;
 }
 
 function calculateConfidence(
