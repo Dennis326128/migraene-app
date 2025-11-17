@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, History, TrendingUp, Settings, Zap, Mic, Bell } from "lucide-react";
+import { Plus, History, TrendingUp, Settings, Zap, Mic, Bell, BookOpen, Sparkles } from "lucide-react";
 import { LogoutButton } from "@/components/LogoutButton";
 import { WelcomeModal } from "./WelcomeModal";
 import { QuickEntryModal } from "./QuickEntryModal";
@@ -17,6 +17,7 @@ import { CreateReminderInput } from "@/types/reminder.types";
 import { toast } from "sonner";
 import { VoiceNoteReviewModal } from "./VoiceNoteReviewModal";
 import { saveVoiceNote } from "@/lib/voice/saveNote";
+import { QuickContextNoteModal } from "./QuickContextNoteModal";
 
 interface MainMenuProps {
   onNewEntry: () => void;
@@ -44,6 +45,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   const [prefilledReminderData, setPrefilledReminderData] = useState<any>(null);
   const [showVoiceNoteReview, setShowVoiceNoteReview] = useState(false);
   const [pendingVoiceNote, setPendingVoiceNote] = useState<string>('');
+  const [showQuickContextNote, setShowQuickContextNote] = useState(false);
   
   const createReminder = useCreateReminder();
   const createMultipleReminders = useCreateMultipleReminders();
