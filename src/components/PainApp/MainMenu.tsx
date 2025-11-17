@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, History, TrendingUp, Settings, Zap, Mic } from "lucide-react";
+import { Plus, History, TrendingUp, Settings, Zap, Mic, Bell } from "lucide-react";
 import { LogoutButton } from "@/components/LogoutButton";
 import { WelcomeModal } from "./WelcomeModal";
 import { QuickEntryModal } from "./QuickEntryModal";
@@ -175,6 +175,21 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 <div>
                   <h4 className="font-semibold text-sm">Medikamenten-Wirkung</h4>
                   <p className="text-xs opacity-75">Nachträglich bewerten</p>
+                </div>
+              </div>
+            </StartPageCard>
+
+            {/* Reminders */}
+            <StartPageCard 
+              variant="neutral" 
+              touchFeedback 
+              onClick={() => onNavigate?.('reminders')}
+            >
+              <div className="text-center space-y-2">
+                <div className="text-2xl">⏰</div>
+                <div>
+                  <h4 className="font-semibold text-sm">Erinnerungen</h4>
+                  <p className="text-xs opacity-75">Medikamente & Termine</p>
                 </div>
               </div>
             </StartPageCard>

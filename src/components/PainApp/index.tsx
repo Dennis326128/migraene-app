@@ -11,8 +11,9 @@ import type { PainEntry } from "@/types/painApp";
 import { MedicationLimitWarning } from "./MedicationLimitWarning";
 import { MedicalDisclaimerAlert } from "./MedicalDisclaimerAlert";
 import { VoiceNotesList } from "./VoiceNotesList";
+import { RemindersPage } from "@/components/Reminders/RemindersPage";
 
-type View = "menu" | "new" | "list" | "analysis" | "settings" | "medication-overview" | "voice-notes";
+type View = "menu" | "new" | "list" | "analysis" | "settings" | "medication-overview" | "voice-notes" | "reminders";
 
 export const PainApp: React.FC = () => {
   const [view, setView] = useState<View>("menu");
@@ -60,6 +61,8 @@ export const PainApp: React.FC = () => {
               setView('medication-overview');
             } else if (target === 'voice-notes') {
               setView('voice-notes');
+            } else if (target === 'reminders') {
+              setView('reminders');
             }
           }}
           onLimitWarning={handleLimitWarning}
@@ -107,6 +110,22 @@ export const PainApp: React.FC = () => {
               </button>
             </div>
             <VoiceNotesList onNavigate={(view) => setView(view as View)} />
+          </div>
+        </div>
+      )}
+
+      {view === "reminders" && (
+        <div className="min-h-screen bg-background">
+          <div className="max-w-4xl mx-auto">
+            <div className="flex justify-between items-center px-4 py-4">
+              <button 
+                onClick={goHome}
+                className="text-muted-foreground hover:text-foreground flex items-center gap-2"
+              >
+                ← Zurück
+              </button>
+            </div>
+            <RemindersPage />
           </div>
         </div>
       )}
