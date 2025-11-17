@@ -5,13 +5,11 @@ import { ArrowLeft, FileText, BarChart3, Activity, Calendar, BookOpen, Database,
 import DiaryReport from "./DiaryReport";
 import TimeSeriesChart from "@/components/TimeSeriesChart";
 import { useEntries } from "@/features/entries/hooks/useEntries";
-import { useSystemStatus } from "@/hooks/useCompatibleEntries";
 import { useDeleteEntry } from "@/features/entries/hooks/useEntryMutations";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatisticsFilter } from "./StatisticsFilter";
 import { StatisticsCards } from "./StatisticsCards";
 import { TimeDistributionChart } from "./TimeDistributionChart";
-import { MigrationPanel } from "./MigrationPanel";
 import { MedicationLimitsOverview } from "./MedicationLimitsOverview";
 import { VoiceNotesAIAnalysis } from "./VoiceNotesAIAnalysis";
 import { useFilteredEntries, useMigraineStats, useTimeDistribution } from "@/features/statistics/hooks/useStatistics";
@@ -26,7 +24,7 @@ interface AnalysisViewProps {
 
 export function AnalysisView({ onBack }: AnalysisViewProps) {
   const isMobile = useIsMobile();
-  const [viewMode, setViewMode] = useState<"tagebuch" | "analyse" | "grafik" | "ki-analyse" | "ueberverbrauch" | "migration">("grafik");
+  const [viewMode, setViewMode] = useState<"tagebuch" | "analyse" | "grafik" | "ki-analyse" | "ueberverbrauch">("grafik");
   const [timeRange, setTimeRange] = useState("alle");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
@@ -34,9 +32,6 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
   const [selectedAuraTypes, setSelectedAuraTypes] = useState<string[]>([]);
   const [selectedPainLocations, setSelectedPainLocations] = useState<string[]>([]);
   const [analysisReport, setAnalysisReport] = useState("");
-
-  // Check system status for migration recommendations
-  const { data: systemStatus } = useSystemStatus();
 
   // Load ALL entries first to calculate date range for "alle"
   const { data: allEntries = [], isLoading: entriesLoading, error: entriesError, refetch } = useEntries();
@@ -260,7 +255,6 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
               { id: "grafik", label: isMobile ? "📈" : "📈 Grafik", icon: Activity },
               { id: "ki-analyse", label: isMobile ? "🤖" : "🤖 KI-Analyse", icon: Brain },
               { id: "ueberverbrauch", label: isMobile ? "💊" : "💊 Übergebrauch", icon: AlertTriangle },
-              { id: "migration", label: isMobile ? "🔄" : "🔄 Migration", icon: Database },
             ].map(({ id, label, icon: Icon }) => (
               <Button
                 key={id}
@@ -322,21 +316,18 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
               />
             </div>
            ) : entries.length === 0 ? (
-             <div className="flex justify-center py-8">
-               <EmptyState
-                 icon="📊"
-                 title="Keine Daten für Analyse"
-                 description={systemStatus?.needsMigration 
-                   ? `Es sind ${systemStatus.painEntries} Legacy-Einträge vorhanden. Führen Sie die Migration durch, um sie zu analysieren.`
-                   : "Erstellen Sie mindestens 3-5 Migräne-Einträge, um aussagekräftige Statistiken zu erhalten."
-                 }
-                 action={{
-                   label: systemStatus?.needsMigration ? "Zur Migration" : "Ersten Eintrag erstellen",
-                   onClick: systemStatus?.needsMigration ? () => setViewMode("migration") : onBack,
-                   variant: "default"
-                 }}
-               />
-             </div>
+              <div className="flex justify-center py-8">
+                <EmptyState
+                  icon="📊"
+                  title="Keine Daten für Analyse"
+                  description="Erstellen Sie mindestens 3-5 Migräne-Einträge, um aussagekräftige Statistiken zu erhalten."
+                  action={{
+                    label: "Ersten Eintrag erstellen",
+                    onClick: onBack,
+                    variant: "default"
+                  }}
+                />
+              </div>
           ) : (
             <>
               {stats && (
@@ -512,39 +503,6 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
 
       {viewMode === "ueberverbrauch" && (
         <MedicationLimitsOverview />
-      )}
-
-      {viewMode === "migration" && (
-        <div className="space-y-6">
-          <MigrationPanel />
-          <Card>
-            <CardHeader>
-              <CardTitle>Was bietet das neue System?</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <h4 className="font-medium">📊 Erweiterte Analysen</h4>
-                  <ul className="text-sm text-muted-foreground space-y-1">
-                    <li>• Medikamenten-Wirksamkeit tracking</li>
-                    <li>• Detaillierte Symptom-Korrelationen</li>
-                    <li>• Verbesserte Wetter-Analysen</li>
-                    <li>• Zeitbasierte Trend-Erkennung</li>
-                  </ul>
-                </div>
-                <div className="space-y-2">
-                  <h4 className="font-medium">💊 Smart Medication</h4>
-                  <ul className="text-sm text-muted-foreground space-y-1">
-                    <li>• Automatische Wirksamkeits-Erinnerungen</li>
-                    <li>• Dosierung und Einnahme-Zeitpunkte</li>
-                    <li>• Überverbrauch-Warnungen</li>
-                    <li>• Medikamenten-Interaktionen</li>
-                  </ul>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
       )}
     </div>
   );

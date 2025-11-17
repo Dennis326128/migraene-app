@@ -3,8 +3,6 @@ import { PainApp } from "@/components/PainApp";
 import { logDailyWeatherSnapshots } from "@/utils/weatherLogger";
 import { getUserSettings } from "@/features/settings/api/settings.api";
 import { useOptimizedCache } from "@/hooks/useOptimizedCache";
-import { getMigrationStatus, migratePainEntriesToEvents } from "@/services/migration.service";
-import { toast } from "sonner";
 
 const Index = () => {
   const { prefetchEssentials } = useOptimizedCache();
@@ -41,37 +39,6 @@ const Index = () => {
           console.warn('⚠️ Wetter-Backfill Fehler:', error);
         } finally {
           localStorage.setItem(keyB, today);
-        }
-      })();
-    }
-
-    // c) Auto-Migration von Legacy Pain Entries
-    const keyC = "auto-migration-last";
-    const lastC = localStorage.getItem(keyC);
-    if (lastC !== today) {
-      (async () => {
-        try {
-          const status = await getMigrationStatus();
-          
-          // Nur migrieren wenn tatsächlich Legacy-Daten existieren
-          if (status && status.painEntries > 0 && (status.needsMigration || status.events < status.painEntries * 0.8)) {
-            toast.info("Migräne-Daten werden aktualisiert...");
-            
-            const result = await migratePainEntriesToEvents();
-            
-            if (result.successful > 0) {
-              toast.success(`System aktualisiert! ${result.successful} Einträge migriert.`, {
-                duration: 5000
-              });
-            } else if (result.errors.length > 0) {
-              toast.error("Migration teilweise fehlgeschlagen. Bitte prüfen Sie die Einstellungen.");
-            }
-          }
-        } catch (error) {
-          console.warn('⚠️ Auto-Migration Fehler:', error);
-          toast.error("Migration fehlgeschlagen. Sie können sie manuell in den Einstellungen starten.");
-        } finally {
-          localStorage.setItem(keyC, today);
         }
       })();
     }
