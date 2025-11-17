@@ -175,47 +175,69 @@ self.addEventListener('sync', (event) => {
 
 // Push Notifications für Erinnerungen
 self.addEventListener('push', (event) => {
-  if (event.data) {
-    const data = event.data.json();
-    
-    const options = {
-      body: data.body || 'Vergessen Sie nicht Ihren Migräne-Eintrag!',
-      icon: '/favicon.ico',
-      badge: '/favicon.ico',
-      actions: [
-        {
-          action: 'open-app',
-          title: 'App öffnen'
-        },
-        {
-          action: 'dismiss',
-          title: 'Später'
-        }
-      ],
-      requireInteraction: true,
-      tag: 'migraine-reminder'
-    };
+  console.log('Push received:', event);
+  
+  const data = event.data ? event.data.json() : {};
+  const title = data.title || 'Migräne Tagebuch';
+  const options = {
+    body: data.body || 'Zeit für deine Erinnerung',
+    icon: data.icon || '/favicon.ico',
+    badge: data.badge || '/favicon.ico',
+    tag: data.tag || 'migraine-reminder',
+    data: data.data || {},
+    requireInteraction: true,
+    actions: [
+      {
+        action: 'open',
+        title: 'Öffnen'
+      },
+      {
+        action: 'dismiss',
+        title: 'Schließen'
+      }
+    ]
+  };
 
-    event.waitUntil(
-      self.registration.showNotification(data.title || 'Migräne-App', options)
-    );
-  }
+  event.waitUntil(
+    self.registration.showNotification(title, options)
+  );
 });
 
 // Notification Click Handler
 self.addEventListener('notificationclick', (event) => {
+  console.log('Notification click:', event);
+  
   event.notification.close();
 
-  if (event.action === 'open-app') {
-    event.waitUntil(
-      clients.matchAll({ type: 'window' }).then(clientList => {
-        if (clientList.length > 0) {
-          return clientList[0].focus();
-        }
-        return clients.openWindow('/');
-      })
-    );
+  if (event.action === 'dismiss') {
+    return;
   }
+
+  // Get the URL from notification data or default to home
+  const urlToOpen = event.notification.data?.url || '/';
+
+  // Open or focus the app window
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true })
+      .then((windowClients) => {
+        // Check if there's already a window open
+        for (let client of windowClients) {
+          if (client.url.includes(self.location.origin) && 'focus' in client) {
+            return client.focus().then((client) => {
+              // Navigate to the specific URL
+              if (client.navigate) {
+                return client.navigate(urlToOpen);
+              }
+              return client;
+            });
+          }
+        }
+        // If no window is open, open a new one
+        if (clients.openWindow) {
+          return clients.openWindow(urlToOpen);
+        }
+      })
+  );
 });
 
 // Hilfsfunktion für Background Sync

@@ -35,3 +35,9 @@ verify_jwt = true
 
 [functions.extract-voice-entry]
 verify_jwt = true
+
+[functions.send-push-notification]
+verify_jwt = false
+
+[functions.reminder-processor]
+verify_jwt = false

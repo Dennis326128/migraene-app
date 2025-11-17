@@ -13,130 +13,145 @@ serve(async (req) => {
   }
 
   try {
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false
-        }
+    console.log('Starting reminder processor...');
+
+    // Initialize Supabase client
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    
+    if (!supabaseUrl || !serviceRoleKey) {
+      throw new Error('Missing Supabase credentials');
+    }
+
+    const supabase = createClient(supabaseUrl, serviceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
       }
-    );
+    });
 
-    console.log('🔄 Processing medication effect reminders...');
-
-    // Get all pending reminders that are due  
-    const { data: pendingReminders, error: fetchError } = await supabaseClient
-      .from('reminder_queue')
+    // Fetch reminders that are due (within next 5 minutes to account for cron intervals)
+    const now = new Date();
+    const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000);
+    
+    const { data: reminders, error: fetchError } = await supabase
+      .from('reminders')
       .select('*')
       .eq('status', 'pending')
-      .lte('scheduled_for', new Date().toISOString())
+      .eq('notification_enabled', true)
+      .gte('date_time', now.toISOString())
+      .lte('date_time', fiveMinutesFromNow.toISOString())
       .limit(50);
 
     if (fetchError) {
-      console.error('❌ Error fetching reminders:', fetchError);
+      console.error('Error fetching reminders:', fetchError);
       throw fetchError;
     }
 
-    if (!pendingReminders || pendingReminders.length === 0) {
-      console.log('✅ No pending reminders found');
-      return new Response(
-        JSON.stringify({ message: 'No pending reminders', processed: 0 }),
-        { 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 200 
-        }
-      );
-    }
-
-    console.log(`📋 Found ${pendingReminders.length} pending reminders`);
+    console.log(`Found ${reminders?.length || 0} pending reminders`);
 
     let processed = 0;
     let failed = 0;
 
     // Process each reminder
-    for (const reminder of pendingReminders) {
-      try {
-        console.log(`📲 Processing reminder ID: ${reminder.id} for event_med_id: ${reminder.event_med_id}`);
+    if (reminders && reminders.length > 0) {
+      for (const reminder of reminders) {
+        try {
+          // Send push notification
+          const notificationResponse = await fetch(
+            `${supabaseUrl}/functions/v1/send-push-notification`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${serviceRoleKey}`,
+              },
+              body: JSON.stringify({
+                userId: reminder.user_id,
+                title: 'Erinnerung',
+                body: reminder.type === 'medication' 
+                  ? `Zeit für dein Medikament: ${reminder.title}`
+                  : `Termin: ${reminder.title}`,
+                icon: '/favicon.ico',
+                badge: '/favicon.ico',
+                tag: reminder.id,
+                data: {
+                  reminderId: reminder.id,
+                  type: reminder.type,
+                  url: `/reminders?id=${reminder.id}`,
+                },
+              }),
+            }
+          );
 
-        // Update reminder status to 'sent'
-        const { error: updateError } = await supabaseClient
-          .from('reminder_queue')
-          .update({ 
-            status: 'sent',
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', reminder.id);
+          if (notificationResponse.ok) {
+            // Update reminder status to 'completed'
+            const { error: updateError } = await supabase
+              .from('reminders')
+              .update({ 
+                status: 'completed',
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', reminder.id);
 
-        if (updateError) {
-          console.error(`❌ Failed to update reminder ${reminder.id}:`, updateError);
-          
-          // Increment retry count for failed reminders
-          await supabaseClient
-            .from('reminder_queue')
-            .update({ 
-              retry_count: reminder.retry_count + 1,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', reminder.id);
-          
+            if (updateError) {
+              console.error(`Failed to update reminder ${reminder.id}:`, updateError);
+              failed++;
+            } else {
+              processed++;
+              console.log(`Successfully processed reminder ${reminder.id}`);
+            }
+          } else {
+            console.error(`Failed to send notification for reminder ${reminder.id}`);
+            failed++;
+          }
+        } catch (error) {
+          console.error(`Error processing reminder ${reminder.id}:`, error);
           failed++;
-        } else {
-          console.log(`✅ Reminder ${reminder.id} marked as sent`);
-          processed++;
         }
-
-      } catch (error) {
-        console.error(`❌ Error processing reminder ${reminder.id}:`, error);
-        failed++;
       }
     }
 
-    // Clean up old completed/cancelled reminders (older than 7 days)
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-    const { error: cleanupError } = await supabaseClient
-      .from('reminder_queue')
+    // Clean up old completed reminders (older than 7 days)
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const { error: cleanupError } = await supabase
+      .from('reminders')
       .delete()
-      .in('status', ['completed', 'cancelled'])
-      .lt('created_at', sevenDaysAgo.toISOString());
+      .eq('status', 'completed')
+      .lt('updated_at', sevenDaysAgo);
 
     if (cleanupError) {
-      console.warn('⚠️ Error during cleanup:', cleanupError);
-    } else {
-      console.log('🧹 Cleaned up old reminders');
+      console.error('Error cleaning up old reminders:', cleanupError);
     }
 
     const result = {
-      message: 'Reminder processing completed',
+      success: true,
       processed,
       failed,
-      total: pendingReminders.length
+      total: reminders?.length || 0,
+      timestamp: new Date().toISOString()
     };
 
-    console.log(`📊 Processing summary:`, result);
+    console.log('Reminder processor completed:', result);
 
     return new Response(
       JSON.stringify(result),
       { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200 
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );
-
   } catch (error) {
-    console.error('❌ Reminder processor error:', error);
+    console.error('Error in reminder processor:', error);
     
     return new Response(
       JSON.stringify({ 
-        error: 'Internal server error',
-        message: error instanceof Error ? error.message : 'Unknown error'
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown error'
       }),
       { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500 
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );
   }
