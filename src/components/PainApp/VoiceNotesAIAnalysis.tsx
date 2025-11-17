@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -20,6 +21,13 @@ interface AnalysisResult {
   total_analyzed: number;
   has_weather_data: boolean;
   date_range: { from: string; to: string };
+  tags?: {
+    total_tags: number;
+    unique_tags: number;
+    top_tags: Array<{ tag: string; label: string; count: number }>;
+    top_hashtags: Array<{ tag: string; count: number }>;
+    tags_by_category: Array<{ category: string; count: number }>;
+  };
 }
 
 export function VoiceNotesAIAnalysis() {
@@ -75,9 +83,10 @@ export function VoiceNotesAIAnalysis() {
           <ul className="list-disc ml-4 mt-2 space-y-1">
             <li>Schmerzeinträge mit Notizen</li>
             <li>Kontext-Notizen (per Sprache oder Text)</li>
+            <li>🏷️ <strong>Automatisch erkannte Tags</strong> (Stimmung, Schlaf, Stress, etc.)</li>
             <li>Wetterdaten & Medikamente</li>
           </ul>
-          <p className="mt-2">So erkennt sie Muster, Trigger und Zusammenhänge. <strong>Anonymisiert & DSGVO-konform.</strong></p>
+          <p className="mt-2">So erkennt sie Muster, Trigger und Zusammenhänge zwischen Tags und Schmerzeinträgen. <strong>Anonymisiert & DSGVO-konform.</strong></p>
         </AlertDescription>
       </Alert>
 
@@ -85,7 +94,7 @@ export function VoiceNotesAIAnalysis() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Brain className="h-5 w-5" />
-            Voice-Notizen KI-Analyse
+            KI-Analyse mit Kontext-Tags
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -210,24 +219,63 @@ export function VoiceNotesAIAnalysis() {
 
           {/* Statistics Cards */}
           {analysisResult && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
-              <Card className="p-3">
-                <div className="text-2xl font-bold">{analysisResult.total_analyzed}</div>
-                <div className="text-xs text-muted-foreground">Gesamt</div>
-              </Card>
-              <Card className="p-3">
-                <div className="text-2xl font-bold">{analysisResult.analyzed_entries}</div>
-                <div className="text-xs text-muted-foreground">Einträge</div>
-              </Card>
-              <Card className="p-3">
-                <div className="text-2xl font-bold">{analysisResult.voice_notes_count}</div>
-                <div className="text-xs text-muted-foreground">Notizen</div>
-              </Card>
-              <Card className="p-3">
-                <div className="text-2xl font-bold">{analysisResult.has_weather_data ? '✅' : '⚠️'}</div>
-                <div className="text-xs text-muted-foreground">Wetter</div>
-              </Card>
-            </div>
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+                <Card className="p-3">
+                  <div className="text-2xl font-bold">{analysisResult.total_analyzed}</div>
+                  <div className="text-xs text-muted-foreground">Gesamt</div>
+                </Card>
+                <Card className="p-3">
+                  <div className="text-2xl font-bold">{analysisResult.analyzed_entries}</div>
+                  <div className="text-xs text-muted-foreground">Einträge</div>
+                </Card>
+                <Card className="p-3">
+                  <div className="text-2xl font-bold">{analysisResult.voice_notes_count}</div>
+                  <div className="text-xs text-muted-foreground">Notizen</div>
+                </Card>
+                <Card className="p-3">
+                  <div className="text-2xl font-bold">{analysisResult.has_weather_data ? '✅' : '⚠️'}</div>
+                  <div className="text-xs text-muted-foreground">Wetter</div>
+                </Card>
+              </div>
+
+              {/* Tag Statistics */}
+              {analysisResult.tags && analysisResult.tags.total_tags > 0 && (
+                <Card className="p-4 bg-gradient-to-br from-purple-500/5 to-pink-500/5 border-purple-200/20">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold text-sm">🏷️ Erkannte Kontext-Tags</h3>
+                      <Badge variant="outline" className="text-xs">
+                        {analysisResult.tags.total_tags} Tags
+                      </Badge>
+                    </div>
+                    
+                    {analysisResult.tags.top_tags.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {analysisResult.tags.top_tags.slice(0, 8).map((tag, idx) => (
+                          <Badge key={idx} variant="secondary" className="text-xs">
+                            {tag.label} ({tag.count}x)
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+
+                    {analysisResult.tags.top_hashtags.length > 0 && (
+                      <div className="pt-2 border-t border-border/50">
+                        <p className="text-xs text-muted-foreground mb-2">Hashtags:</p>
+                        <div className="flex flex-wrap gap-1">
+                          {analysisResult.tags.top_hashtags.slice(0, 6).map((tag, idx) => (
+                            <Badge key={idx} variant="outline" className="text-xs">
+                              {tag.tag} ({tag.count}x)
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              )}
+            </>
           )}
 
           {insights && (
