@@ -15,6 +15,8 @@ import { ReminderFormWithVoiceData } from "@/components/Reminders/ReminderFormWi
 import { useCreateReminder, useCreateMultipleReminders } from "@/features/reminders/hooks/useReminders";
 import { CreateReminderInput } from "@/types/reminder.types";
 import { toast } from "sonner";
+import { VoiceNoteReviewModal } from "./VoiceNoteReviewModal";
+import { saveVoiceNote } from "@/lib/voice/saveNote";
 
 interface MainMenuProps {
   onNewEntry: () => void;
@@ -40,6 +42,8 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   const [voiceData, setVoiceData] = useState<any>(null);
   const [showReminderForm, setShowReminderForm] = useState(false);
   const [prefilledReminderData, setPrefilledReminderData] = useState<any>(null);
+  const [showVoiceNoteReview, setShowVoiceNoteReview] = useState(false);
+  const [pendingVoiceNote, setPendingVoiceNote] = useState<string>('');
   
   const createReminder = useCreateReminder();
   const createMultipleReminders = useCreateMultipleReminders();
@@ -51,8 +55,10 @@ export const MainMenu: React.FC<MainMenuProps> = ({
       setVoiceData(data);
       setShowQuickEntry(true);
     },
-    onNoteCreated: () => {
-      console.log('🎙️ Voice note saved');
+    onNoteDetected: (transcript) => {
+      console.log('🎙️ Voice note detected, opening review:', transcript);
+      setPendingVoiceNote(transcript);
+      setShowVoiceNoteReview(true);
     },
     onReminderDetected: (data) => {
       console.log('📋 Reminder detected, opening form:', data);
@@ -86,12 +92,31 @@ export const MainMenu: React.FC<MainMenuProps> = ({
     if (voiceRouter.isListening) {
       return 'Sprechen Sie jetzt! (3s Pause beendet)';
     }
-    return 'Schmerz oder Notiz';
+    return 'Schmerz • Erinnerung • Notiz';
   };
 
   const handleQuickEntryClose = () => {
     setShowQuickEntry(false);
     setVoiceData(null); // Reset voice data
+  };
+
+  const handleVoiceNoteSave = async (text: string) => {
+    try {
+      await saveVoiceNote({
+        rawText: text,
+        sttConfidence: 0.95,
+        source: 'voice'
+      });
+      toast.success('✅ Voice-Notiz gespeichert');
+      setShowVoiceNoteReview(false);
+      setPendingVoiceNote('');
+      
+      // Trigger reload in VoiceNotesList
+      window.dispatchEvent(new Event('voice-note-saved'));
+    } catch (error) {
+      console.error('Error saving voice note:', error);
+      throw error;
+    }
   };
 
   const handleReminderSubmit = async (data: CreateReminderInput | CreateReminderInput[]) => {
@@ -325,6 +350,17 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           />
         </DialogContent>
       </Dialog>
+
+      {/* Voice Note Review Modal */}
+      <VoiceNoteReviewModal
+        open={showVoiceNoteReview}
+        onClose={() => {
+          setShowVoiceNoteReview(false);
+          setPendingVoiceNote('');
+        }}
+        transcript={pendingVoiceNote}
+        onSave={handleVoiceNoteSave}
+      />
     </div>
   );
 };
