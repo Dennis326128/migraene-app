@@ -7,11 +7,11 @@ const startPageCardVariants = cva(
   {
     variants: {
       variant: {
-        success: "bg-green-100 text-green-800 hover:bg-green-200 active:bg-green-300",
-        quick: "bg-red-100 text-red-800 hover:bg-red-200 active:bg-red-300",
-        neutral: "bg-slate-100 text-slate-900 hover:bg-slate-200 active:bg-slate-300",
-        voice: "bg-blue-100 text-blue-900 hover:bg-blue-200 active:bg-blue-300",
-        warning: "bg-amber-100 text-amber-900 hover:bg-amber-200 active:bg-amber-300",
+        success: "bg-success/20 text-success-foreground hover:bg-success/30 border border-success/30",
+        quick: "bg-destructive/20 text-destructive-foreground hover:bg-destructive/30 border border-destructive/30",
+        neutral: "bg-card hover:bg-muted/50 border border-border",
+        voice: "bg-primary/20 text-primary-foreground hover:bg-primary/30 border border-primary/30",
+        warning: "bg-yellow-500/20 text-yellow-200 hover:bg-yellow-500/30 border border-yellow-500/30",
       },
       size: {
         default: "p-4",

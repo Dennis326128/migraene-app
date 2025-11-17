@@ -42,9 +42,9 @@ const DialogContent = React.forwardRef<
       {...props}
     >
       {children}
-      <DialogPrimitive.Close className="absolute right-3 top-3 h-9 w-9 rounded-full flex items-center justify-center hover:bg-destructive/10 transition-colors touch-manipulation focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
-        <X className="h-5 w-5 text-muted-foreground hover:text-destructive transition-colors" />
-        <span className="sr-only">Close</span>
+      <DialogPrimitive.Close className="absolute right-3 top-3 h-9 w-9 rounded-full flex items-center justify-center hover:bg-muted/80 transition-colors touch-manipulation focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
+        <X className="h-5 w-5 text-muted-foreground hover:text-foreground transition-colors" />
+        <span className="sr-only">Schließen</span>
       </DialogPrimitive.Close>
     </DialogPrimitive.Content>
   </DialogPortal>
@@ -71,7 +71,9 @@ const DialogFooter = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      "flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2",
+      "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-0 sm:space-x-2",
+      "[&>button:first-child]:w-full sm:[&>button:first-child]:w-auto",
+      "[&>button:last-child]:w-full sm:[&>button:last-child]:w-auto",
       className
     )}
     {...props}

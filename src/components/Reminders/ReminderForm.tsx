@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/select';
 import type { Reminder, CreateReminderInput, UpdateReminderInput } from '@/types/reminder.types';
 import { format } from 'date-fns';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Trash2 } from 'lucide-react';
 import { MedicationSelector } from './MedicationSelector';
 import { TimeOfDaySelector, getDefaultTimeSlots, type TimeSlot } from './TimeOfDaySelector';
 
@@ -302,34 +302,36 @@ export const ReminderForm = ({ reminder, onSubmit, onCancel, onDelete }: Reminde
             </div>
           )}
 
-          <div className="flex gap-3 pt-4">
+          <div className="flex gap-3 pt-4 items-center">
+            {isEditing && onDelete && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={onDelete}
+                className="mr-auto text-destructive hover:text-destructive hover:bg-destructive/10"
+              >
+                Löschen
+              </Button>
+            )}
             <Button
               type="button"
               variant="outline"
               onClick={onCancel}
-              className="flex-1 touch-manipulation min-h-11"
+              disabled={isSubmitting}
+              className="touch-manipulation min-h-11"
             >
               Abbrechen
             </Button>
             <Button
               type="submit"
+              variant="success"
               disabled={isSubmitting}
-              className="flex-1 touch-manipulation min-h-11"
+              className="touch-manipulation min-h-11 min-w-[120px]"
             >
-              {isSubmitting ? 'Speichern...' : 'Speichern'}
+              {isSubmitting ? 'Speichern...' : '💾 Speichern'}
             </Button>
           </div>
-
-          {isEditing && onDelete && (
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={onDelete}
-              className="w-full touch-manipulation min-h-11"
-            >
-              Löschen
-            </Button>
-          )}
         </form>
       </Card>
     </div>

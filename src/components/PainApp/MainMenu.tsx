@@ -189,7 +189,8 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             variant="voice" 
             touchFeedback 
             onClick={handleVoiceEntry}
-            className={voiceRouter.isListening ? 'ring-2 ring-blue-400 animate-pulse' : ''}
+            className={voiceRouter.isListening ? 'ring-2 ring-primary shadow-lg shadow-primary/50' : ''}
+            style={voiceRouter.isListening ? { animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite' } : undefined}
           >
             <StartPageCardHeader
               icon={voiceRouter.isListening ? '🔴' : '🎙️'}
