@@ -167,60 +167,48 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) throw new Error('LOVABLE_API_KEY nicht konfiguriert');
 
-    const prompt = `Du bist ein medizinischer Datenanalyst für Migräne-Patienten. Analysiere folgende REALE Daten aus einem Schmerztagebuch.
-
-**WICHTIG: Nur faktenbasierte Analyse! Keine Spekulationen oder erfundenen Zusammenhänge.**
+    const prompt = `Sie erhalten eine ausführliche, faktenbasierte Analyse von Migräne-Daten (inkl. Wetter, Wochentage, Medikamente, Schmerzlevel usw.). 
 
 DATENSATZ (${allData.length} Einträge von ${fromDate.split('T')[0]} bis ${toDate.split('T')[0]}):
 
 ${dataText}
 
-ANALYSIERE NUR DIESE DATEN - KEINE ANNAHMEN TREFFEN!
+AUFGABE:
+Erstellen Sie eine kurze, leicht verständliche Zusammenfassung für Betroffene.
 
-Erstelle eine strukturierte Analyse:
+VORGEHEN:
+1. Schreiben Sie in klaren, einfachen Sätzen und verwenden Sie die Höflichkeitsform „Sie"
+2. Geben Sie nur die wichtigsten 3–6 Kernaussagen wieder – keine langen Listen, Tabellen oder Aufzählungen von Einträgen
+3. Vermeiden Sie Rohdaten und Details wie:
+   - ISO-Zeitstempel (z.B. 2025-10-04 15:39:00)
+   - Lange Zahlen mit vielen Nachkommastellen (z.B. -8.199999999999932)
+   - Vollständige Auflistungen einzelner Messwerte
+   Fassen Sie solche Informationen stattdessen zusammen (z.B. „Mehrere Anfälle traten bei hoher Luftfeuchtigkeit über 80 % auf.")
 
-## 1️⃣ Häufigste Migräne-Trigger
-- Liste NUR Trigger, die in den Daten explizit erwähnt werden (z.B. in Notizen)
-- Falls keine erkennbar: "Keine expliziten Trigger in den Notizen dokumentiert"
+DATUMS- UND ZAHLENFORMAT:
+4. Schreiben Sie Daten im deutschen, gut lesbaren Format:
+   - „am 04.10.2025 gegen 15:30 Uhr" oder
+   - „am 4. Oktober 2025"
+   Verwenden Sie KEINE Sekunden und KEINE technischen Zeitstempel
+5. Runden Sie Zahlen sinnvoll:
+   - Luftdruckänderungen auf ganze hPa
+   - Temperatur auf ganze °C
+   - Prozentwerte auf ganze Prozent
 
-## 2️⃣ Wetter-Korrelationen${!hasWeatherData ? ' (⚠️ KEINE WETTER-DATEN VERFÜGBAR)' : ''}
-${hasWeatherData ? `- Analysiere, ob Migräne-Einträge mit bestimmten Wetter-Mustern korrelieren
-- Wichtig: Luftdruckänderungen (Δ24h > ±5 hPa = signifikant)
-- Temperatursprünge (>10°C = signifikant)
-- Hohe/Niedrige Luftfeuchtigkeit (>80% oder <30%)
-- Falls keine Korrelation erkennbar: "Keine eindeutigen Wetter-Korrelationen erkennbar"` : '- "Keine Wetter-Daten verfügbar für Korrelationsanalyse"'}
+INHALTLICHE STRUKTUR (insgesamt ca. 150–220 Wörter):
+a) Kurze Überschrift (z.B. „Kurz-Auswertung Ihrer Migräne-Einträge")
+b) 1 kurzer Absatz zur Häufigkeit der Migräne (z.B. welcher Monat auffällig war)
+c) 1 kurzer Absatz zu möglichen Mustern (z.B. Tageszeiten, Wetter wie hohe Luftfeuchtigkeit oder Luftdruckwechsel – nur wenn in den Daten erwähnt)
+d) 1 kurzer Absatz zu Medikamenten (häufig genutzte Mittel, aber ohne alle Dosierungen und jede einzelne Einnahme aufzuzählen)
+e) 1 kurzer Absatz zu Symptomen (z.B. typische Schmerzlokalisation, ob Aura vorhanden ist oder nicht)
+f) Optional: 2–3 Stichpunkte „Für Ihr nächstes Arztgespräch", in einfachen Formulierungen
 
-## 3️⃣ Zeitliche Muster
-- Wochentag-Häufung (nur wenn genug Daten vorhanden)
-- Uhrzeit-Häufung (nur wenn genug Daten vorhanden)
-- Frequenz pro Woche/Monat
+STIL UND SICHERHEIT:
+7. Bleiben Sie streng faktenbasiert und spekulieren Sie nicht
+8. Wenn die Datenlage begrenzt ist, erwähnen Sie das EINMAL am Ende in einem kurzen Satz (z.B. „Die Ergebnisse sind vorläufig, weil bisher nur eine begrenzte Anzahl an Einträgen vorliegt.")
+9. Nutzen Sie eine freundliche, unterstützende Formulierung, aber machen Sie klar, dass die Auswertung keinen ärztlichen Rat ersetzt und als Grundlage für ein Arztgespräch dienen soll
 
-## 4️⃣ Medikations-Muster
-- Welche Medikamente werden verwendet?
-- Wie häufig werden Medikamente eingenommen?
-- Hinweis: "Wirksamkeits-Bewertung nur möglich wenn Medication-Effects erfasst wurden"
-
-## 5️⃣ Aura & Symptom-Muster
-- Häufigkeit von Aura-Typen
-- Muster aus Notizen (z.B. "Vorboten", "Frühwarnzeichen")
-- Lokalisation der Schmerzen
-
-## 6️⃣ Empfehlungen für Arztgespräch
-- Nur auf Basis der TATSÄCHLICHEN Daten
-- Konkrete Fragen, die der Patient stellen sollte
-- Hinweise auf Dokumentationslücken (z.B. "Medikations-Wirksamkeit nicht dokumentiert")
-
-**WICHTIG:** Markiere ALLE Aussagen, die auf unvollständigen Daten basieren, mit "⚠️ Begrenzte Datenlage"
-
-Formatiere die Antwort in Markdown mit klarer Struktur.
-
-1. **Häufigste Trigger** (Schlaf, Stress, Ernährung, Wetter, etc.)
-2. **Zeitliche Muster** (Wochentag, Uhrzeit, Frequenz)
-3. **Medikations-Effizienz** (falls erwähnt)
-4. **Frühwarn-Signale** (Aura, Vorankündigung)
-5. **Empfehlungen** (was sollte der Patient mit dem Arzt besprechen)
-
-Sei konkret und nenne Beispiele aus den Texten. Verwende deutsche Sprache und markdown-Formatierung.`;
+Formatieren Sie die Antwort in gut lesbarem Markdown OHNE Rohdaten-Listen und OHNE technischen Fachjargon.`;
 
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -231,7 +219,7 @@ Sei konkret und nenne Beispiele aus den Texten. Verwende deutsche Sprache und ma
       body: JSON.stringify({
         model: 'google/gemini-2.5-flash',
         messages: [
-          { role: 'system', content: 'Du bist ein hilfreicher medizinischer Assistent für Migräne-Patienten.' },
+          { role: 'system', content: 'Sie sind ein hilfreicher medizinischer Assistent, der Migräne-Patienten dabei unterstützt, ihre Daten zu verstehen. Schreiben Sie klar, verständlich und patientenfreundlich. Verwenden Sie die Höflichkeitsform "Sie".' },
           { role: 'user', content: prompt }
         ],
       }),
