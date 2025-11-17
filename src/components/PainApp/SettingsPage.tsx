@@ -3,8 +3,9 @@ import { SettingsLayout } from "./Settings/SettingsLayout";
 import { SettingsOverview } from "./Settings/SettingsOverview";
 import { SettingsMedications } from "./Settings/SettingsMedications";
 import { SettingsPrivacy } from "./Settings/SettingsPrivacy";
+import { SettingsHelp } from "./Settings/SettingsHelp";
 
-type SettingsSection = 'overview' | 'medications' | 'privacy';
+type SettingsSection = 'overview' | 'medications' | 'privacy' | 'help';
 
 const SettingsPage = ({ onBack }: { onBack: () => void }) => {
   const [section, setSection] = useState<SettingsSection>('overview');
@@ -23,6 +24,8 @@ const SettingsPage = ({ onBack }: { onBack: () => void }) => {
         return 'Medikamente';
       case 'privacy':
         return 'Datenschutz & Sicherheit';
+      case 'help':
+        return 'Hilfe & Tutorial';
       default:
         return 'Einstellungen';
     }
@@ -35,6 +38,7 @@ const SettingsPage = ({ onBack }: { onBack: () => void }) => {
       )}
       {section === 'medications' && <SettingsMedications />}
       {section === 'privacy' && <SettingsPrivacy />}
+      {section === 'help' && <SettingsHelp />}
     </SettingsLayout>
   );
 };

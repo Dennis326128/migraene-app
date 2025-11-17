@@ -1,12 +1,14 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { NewEntry } from "./NewEntry";
 import { EntriesList } from "./EntriesList";
 import { MainMenu } from "./MainMenu";
 import { AnalysisView } from "./AnalysisView";
 import SettingsPage from "./SettingsPage";
 import { OnboardingModal } from "./OnboardingModal";
+import { AppTutorialModal } from "./AppTutorialModal";
 import { MedicationOverviewPage } from "@/pages/MedicationOverviewPage";
 import { useOnboarding } from "@/hooks/useOnboarding";
+import { useAppTutorial } from "@/hooks/useAppTutorial";
 import type { PainEntry } from "@/types/painApp";
 import { MedicationLimitWarning } from "./MedicationLimitWarning";
 import { MedicalDisclaimerAlert } from "./MedicalDisclaimerAlert";
@@ -19,10 +21,24 @@ export const PainApp: React.FC = () => {
   const [view, setView] = useState<View>("menu");
   const [editing, setEditing] = useState<PainEntry | null>(null);
   const { needsOnboarding, isLoading, completeOnboarding } = useOnboarding();
+  const { 
+    showTutorial, 
+    tutorialCompleted, 
+    isLoading: tutorialLoading,
+    completeTutorial,
+    setShowTutorial 
+  } = useAppTutorial();
   
   // Medication limit warnings on app level
   const [showLimitWarning, setShowLimitWarning] = useState(false);
   const [limitChecks, setLimitChecks] = useState<any[]>([]);
+
+  // Show tutorial after onboarding is completed
+  useEffect(() => {
+    if (!isLoading && !needsOnboarding && !tutorialLoading && !tutorialCompleted) {
+      setShowTutorial(true);
+    }
+  }, [isLoading, needsOnboarding, tutorialLoading, tutorialCompleted, setShowTutorial]);
 
   const goHome = () => { setEditing(null); setView("menu"); };
   
@@ -134,6 +150,13 @@ export const PainApp: React.FC = () => {
       <OnboardingModal 
         open={needsOnboarding} 
         onComplete={completeOnboarding} 
+      />
+
+      {/* App Tutorial Modal */}
+      <AppTutorialModal
+        open={showTutorial}
+        onComplete={completeTutorial}
+        canSkip={tutorialCompleted}
       />
 
       {/* Medication Limit Warning - App Level */}
