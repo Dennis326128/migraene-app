@@ -70,19 +70,6 @@ export const EntriesList = ({
         <h1 className="text-xl font-semibold">📊 Migräne-Verlauf</h1>
         <div className="w-16"></div>
       </div>
-      
-      <div className="mb-4">
-        <Button variant="outline" onClick={async () => {
-          const btn = document.activeElement as HTMLButtonElement | null;
-          if (btn) btn.disabled = true;
-          const { backfillMigrainWeatherEntries } = await import("@/utils/migraineBackfill");
-          const res = await backfillMigrainWeatherEntries(30);
-          alert(`🌤️ Wetter nachgetragen:\n✅ Erfolgreich: ${res.success}\n❌ Fehlgeschlagen: ${res.failed}\n📊 Gesamt: ${res.total}`);
-          if (btn) btn.disabled = false;
-        }}>
-          🌤️ Wetter nachtragen (30 Tage)
-        </Button>
-      </div>
 
       {sorted.length === 0 ? (
         <div className="flex justify-center py-8">
