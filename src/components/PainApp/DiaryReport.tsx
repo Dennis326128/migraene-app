@@ -10,7 +10,7 @@ import { mapTextLevelToScore } from "@/lib/utils/pain";
 import { useMedicationEffectsForEntries } from "@/features/medication-effects/hooks/useMedicationEffects";
 import MedicationStatisticsCard from "./MedicationStatisticsCard";
 import TimeSeriesChart from "@/components/TimeSeriesChart";
-import { FileText, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 
@@ -41,7 +41,6 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
   const [customEnd, setCustomEnd] = useState<string>(fmt(today));
   const [selectedMeds, setSelectedMeds] = useState<string[]>([]);
   const [medOptions, setMedOptions] = useState<string[]>([]);
-  const [includeNoMeds, setIncludeNoMeds] = useState<boolean>(true);
   
   // Content inclusion flags
   const [includeStats, setIncludeStats] = useState<boolean>(true);
@@ -61,9 +60,6 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
       const s = await getUserSettings().catch(() => null);
       if (s?.default_report_preset && (["3m","6m","12m"] as const).includes(s.default_report_preset)) {
         setPreset(s.default_report_preset);
-      }
-      if (typeof s?.include_no_meds === "boolean") {
-        setIncludeNoMeds(s.include_no_meds);
       }
       if (s?.selected_report_medications && Array.isArray(s.selected_report_medications)) {
         setSelectedMeds(s.selected_report_medications);
@@ -127,18 +123,19 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
     })();
   }, [entries]);
 
-  // Automatisch gefilterte Einträge (Live-Vorschau)
   const filteredEntries = useMemo(() => {
+    // Wenn keine Medikamente ausgewählt: ALLE Einträge zurückgeben
+    if (selectedMeds.length === 0) {
+      return entries;
+    }
+    
+    // Wenn Medikamente ausgewählt: Einträge mit diesen Medikamenten ODER ohne Medikamente (immer einbeziehen)
     const medsSet = new Set(selectedMeds);
     return entries.filter(e => {
       const meds = e.medications || [];
-      const hasAny = meds.some(m => medsSet.has(m));
-      if (selectedMeds.length === 0) {
-        return includeNoMeds ? true : meds.length > 0;
-      }
-      return hasAny || (includeNoMeds && meds.length === 0);
+      return meds.some(m => medsSet.has(m)) || meds.length === 0;
     });
-  }, [entries, selectedMeds, includeNoMeds]);
+  }, [entries, selectedMeds]);
 
   const avgPain = useMemo(() => {
     if (!filteredEntries.length) return 0;
@@ -188,10 +185,52 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
     return date.toLocaleDateString("de-DE", { day: "numeric", month: "long", year: "numeric" });
   };
 
-  const printPDF = () => {
-    const win = window.open("", "_blank");
-    if (!win) return;
-    const style = `
+  const ensureAnalysisReport = async (): Promise<string> => {
+    // Wenn Analyse nicht aktiviert, nichts tun
+    if (!includeAnalysis) return "";
+    
+    // Wenn bereits vorhanden, zurückgeben
+    if (analysisReport) return analysisReport;
+    
+    // Sonst generieren
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-diary-analysis', {
+        body: { 
+          fromDate: `${from}T00:00:00Z`, 
+          toDate: `${to}T23:59:59Z` 
+        }
+      });
+
+      if (error) throw error;
+      if (data.error) {
+        toast.error(data.error);
+        return "";
+      }
+
+      const report = data.report;
+      setAnalysisReport(report);
+      return report;
+    } catch (error) {
+      console.error('Fehler beim Generieren des Analyseberichts:', error);
+      toast.error("Fehler beim Generieren des Analyseberichts");
+      return "";
+    }
+  };
+
+  const printPDF = async () => {
+    if (!filteredEntries.length) {
+      toast.error("Keine Einträge zum Drucken gefunden.");
+      return;
+    }
+    
+    setIsGeneratingReport(true);
+    try {
+      // Analysebericht sicherstellen (falls aktiviert)
+      const currentReport = await ensureAnalysisReport();
+      
+      const win = window.open("", "_blank");
+      if (!win) return;
+      const style = `
       <style>
       body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; padding: 24px; }
       h1 { font-size: 20px; margin: 0 0 8px; }
@@ -241,10 +280,13 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
       </body>
       </html>
     `;
-    win.document.write(html);
-    win.document.close();
-    win.focus();
-    win.print();
+      win.document.write(html);
+      win.document.close();
+      win.focus();
+      win.print();
+    } finally {
+      setIsGeneratingReport(false);
+    }
   };
 
   const exportCSV = () => {
@@ -271,62 +313,39 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
   };
 
   const savePDF = async () => {
-    if (!filteredEntries.length) return;
-    
-    const bytes = await buildDiaryPdf({
-      title: "Kopfschmerztagebuch",
-      from, to,
-      entries: filteredEntries,
-      selectedMeds,
-      includeNoMeds,
-      includeStats,
-      includeChart,
-      includeAnalysis,
-      includeEntriesList,
-      analysisReport: includeAnalysis ? analysisReport : undefined,
-      medicationStats: includeStats ? medicationStats : undefined,
-    });
-    
-    const blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `kopfschmerztagebuch_${from}_bis_${to}.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  };
-
-  const generateAnalysisReport = async () => {
     if (!filteredEntries.length) {
-      toast.error("Keine Einträge für den gewählten Zeitraum vorhanden");
+      toast.error("Keine Einträge im ausgewählten Zeitraum gefunden.");
       return;
     }
-
+    
     setIsGeneratingReport(true);
-    setAnalysisReport("");
-
     try {
-      const { data, error } = await supabase.functions.invoke('generate-diary-analysis', {
-        body: { 
-          fromDate: `${from}T00:00:00Z`, 
-          toDate: `${to}T23:59:59Z` 
-        }
+      // Analysebericht sicherstellen (falls aktiviert)
+      const currentReport = await ensureAnalysisReport();
+    
+      const bytes = await buildDiaryPdf({
+        title: "Kopfschmerztagebuch",
+        from, to,
+        entries: filteredEntries,
+        selectedMeds,
+        includeStats,
+        includeChart,
+        includeAnalysis,
+        includeEntriesList,
+        analysisReport: currentReport || undefined,
+        medicationStats: includeStats ? medicationStats : undefined,
       });
-
-      if (error) throw error;
-
-      if (data.error) {
-        toast.error(data.error);
-        return;
-      }
-
-      setAnalysisReport(data.report);
-      toast.success("Analysebericht erfolgreich erstellt");
-    } catch (error) {
-      console.error('Fehler beim Generieren des Analyseberichts:', error);
-      toast.error("Fehler beim Generieren des Analyseberichts");
+      
+      const blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `kopfschmerztagebuch_${from}_bis_${to}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success("PDF wurde heruntergeladen");
     } finally {
       setIsGeneratingReport(false);
     }
@@ -407,10 +426,6 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
               );
             })}
           </div>
-          <label className="inline-flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={includeNoMeds} onChange={e=>setIncludeNoMeds(e.target.checked)} />
-            Einträge ohne Medikamente einbeziehen
-          </label>
         </div>
 
         {/* Content Selection */}
@@ -480,57 +495,44 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <Button 
-              variant="default" 
-              size="lg"
-              onClick={printPDF} 
-              disabled={!filteredEntries.length || isLoading}
-              className="flex-1 sm:flex-none"
-            >
-              📄 PDF erstellen
-            </Button>
+          <Button 
+            variant="default" 
+            size="lg"
+            onClick={printPDF} 
+            disabled={!filteredEntries.length || isLoading || isGeneratingReport}
+            className="flex-1 sm:flex-none"
+          >
+            {isGeneratingReport ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Erstelle PDF...
+              </>
+            ) : (
+              "📄 PDF erstellen"
+            )}
+          </Button>
             <Button 
               variant="secondary" 
               onClick={savePDF} 
-              disabled={!filteredEntries.length || isLoading}
-            >
-              💾 Als PDF speichern
-            </Button>
-            <Button 
-              variant="outline" 
-              onClick={exportCSV} 
-              disabled={!filteredEntries.length || isLoading}
-            >
-              📊 CSV Export
-            </Button>
-          </div>
-
-          {includeAnalysis && !analysisReport && (
-            <Button 
-              variant="outline" 
-              onClick={generateAnalysisReport} 
               disabled={!filteredEntries.length || isLoading || isGeneratingReport}
-              className="w-full sm:w-auto"
             >
               {isGeneratingReport ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Erstelle Bericht...
+                  Erstelle PDF...
                 </>
               ) : (
-                <>
-                  <FileText className="h-4 w-4 mr-2" />
-                  Analysebericht jetzt erstellen
-                </>
+                "💾 Als PDF speichern"
               )}
             </Button>
-          )}
-
-          {includeAnalysis && analysisReport && (
-            <div className="text-sm text-green-600 dark:text-green-400">
-              ✓ Analysebericht wurde erstellt und wird im PDF eingebunden
-            </div>
-          )}
+            <Button 
+              variant="outline" 
+              onClick={exportCSV} 
+              disabled={!filteredEntries.length || isLoading || isGeneratingReport}
+            >
+              📊 CSV Export
+            </Button>
+          </div>
         </div>
       </Card>
     </div>
