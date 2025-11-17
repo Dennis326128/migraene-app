@@ -22,7 +22,7 @@ const reminderSchema = z.object({
   title: z.string().min(1, 'Titel ist erforderlich'),
   date: z.string().min(1, 'Datum ist erforderlich'),
   time: z.string().min(1, 'Uhrzeit ist erforderlich'),
-  repeat: z.enum(['none', 'daily', 'weekly']),
+  repeat: z.enum(['none', 'daily', 'weekly', 'monthly']),
   notes: z.string().optional(),
   notification_enabled: z.boolean(),
   status: z.enum(['pending', 'done', 'missed']).optional(),
@@ -140,7 +140,7 @@ export const ReminderForm = ({ reminder, onSubmit, onCancel, onDelete }: Reminde
           <Label htmlFor="repeat">Wiederholung</Label>
           <Select
             value={watch('repeat')}
-            onValueChange={(value) => setValue('repeat', value as 'none' | 'daily' | 'weekly')}
+            onValueChange={(value) => setValue('repeat', value as 'none' | 'daily' | 'weekly' | 'monthly')}
           >
             <SelectTrigger>
               <SelectValue />
@@ -149,6 +149,7 @@ export const ReminderForm = ({ reminder, onSubmit, onCancel, onDelete }: Reminde
               <SelectItem value="none">Keine</SelectItem>
               <SelectItem value="daily">Täglich</SelectItem>
               <SelectItem value="weekly">Wöchentlich</SelectItem>
+              <SelectItem value="monthly">Monatlich</SelectItem>
             </SelectContent>
           </Select>
         </div>
