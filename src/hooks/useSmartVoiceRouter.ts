@@ -30,6 +30,7 @@ interface ReminderData {
 
 interface SmartVoiceRouterOptions {
   onEntryDetected?: (data: QuickEntryData) => void;
+  onNoteDetected?: (transcript: string) => void;
   onNoteCreated?: () => void;
   onReminderDetected?: (data: ReminderData) => void;
 }
@@ -137,18 +138,29 @@ export function useSmartVoiceRouter(options: SmartVoiceRouterOptions) {
           // 3. Fallback: Kein Schmerzlevel → Voice-Notiz
           console.log('🎙️ Voice-Notiz erkannt (kein Schmerzlevel)');
           
-          await saveVoiceNote({
-            rawText: transcript,
-            sttConfidence: confidence,
-            source: 'voice'
-          });
-          
           toast({
-            title: '🎙️ Voice-Notiz gespeichert',
-            description: 'Erfolgreich in Datenbank gespeichert'
+            title: '🎙️ Voice-Notiz',
+            description: 'Bitte überprüfen und speichern'
           });
           
-          options.onNoteCreated?.();
+          // NEU: Callback statt direktes Speichern
+          if (options.onNoteDetected) {
+            options.onNoteDetected(transcript);
+          } else {
+            // Fallback: direktes Speichern (backward compatibility)
+            await saveVoiceNote({
+              rawText: transcript,
+              sttConfidence: confidence,
+              source: 'voice'
+            });
+            
+            toast({
+              title: '🎙️ Voice-Notiz gespeichert',
+              description: 'Erfolgreich in Datenbank gespeichert'
+            });
+            
+            options.onNoteCreated?.();
+          }
         }
         
       } catch (error) {
