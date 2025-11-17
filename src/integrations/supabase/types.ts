@@ -179,6 +179,48 @@ export type Database = {
           },
         ]
       }
+      reminders: {
+        Row: {
+          created_at: string
+          date_time: string
+          id: string
+          notes: string | null
+          notification_enabled: boolean
+          repeat: string
+          status: string
+          title: string
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          date_time: string
+          id?: string
+          notes?: string | null
+          notification_enabled?: boolean
+          repeat?: string
+          status?: string
+          title: string
+          type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          date_time?: string
+          id?: string
+          notes?: string | null
+          notification_enabled?: boolean
+          repeat?: string
+          status?: string
+          title?: string
+          type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       symptom_catalog: {
         Row: {
           id: string
