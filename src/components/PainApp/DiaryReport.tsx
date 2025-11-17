@@ -9,6 +9,7 @@ import { getUserSettings, upsertUserSettings } from "@/features/settings/api/set
 import { mapTextLevelToScore } from "@/lib/utils/pain";
 import { useMedicationEffectsForEntries } from "@/features/medication-effects/hooks/useMedicationEffects";
 import MedicationStatisticsCard from "./MedicationStatisticsCard";
+import TimeSeriesChart from "@/components/TimeSeriesChart";
 
 type Preset = "3m" | "6m" | "12m" | "custom";
 
@@ -374,6 +375,27 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
           to={to}
           medications={medicationStats}
         />
+      )}
+
+      {/* Zeitreihen-Chart */}
+      {!isLoading && filteredEntries.length > 0 && (
+        <Card className="p-4 mb-4">
+          <div className="mb-3">
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              <span>📈</span>
+              <span>Intensitätsverlauf</span>
+            </h3>
+            <p className="text-sm text-muted-foreground mt-1">
+              Zeitlicher Verlauf der Schmerzintensität im ausgewählten Zeitraum
+            </p>
+          </div>
+          <div className="h-80">
+            <TimeSeriesChart 
+              entries={filteredEntries} 
+              dateRange={{ from, to }} 
+            />
+          </div>
+        </Card>
       )}
 
       <Card className="p-4">
