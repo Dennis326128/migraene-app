@@ -374,6 +374,8 @@ export type Database = {
           longitude: number | null
           notes_layout: string | null
           quick_entry_mode: boolean | null
+          tutorial_completed: boolean | null
+          tutorial_completed_at: string | null
           updated_at: string | null
           user_id: string
           voice_notes_enabled: boolean
@@ -386,6 +388,8 @@ export type Database = {
           longitude?: number | null
           notes_layout?: string | null
           quick_entry_mode?: boolean | null
+          tutorial_completed?: boolean | null
+          tutorial_completed_at?: string | null
           updated_at?: string | null
           user_id: string
           voice_notes_enabled?: boolean
@@ -398,6 +402,8 @@ export type Database = {
           longitude?: number | null
           notes_layout?: string | null
           quick_entry_mode?: boolean | null
+          tutorial_completed?: boolean | null
+          tutorial_completed_at?: string | null
           updated_at?: string | null
           user_id?: string
           voice_notes_enabled?: boolean

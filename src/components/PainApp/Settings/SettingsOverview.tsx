@@ -1,10 +1,10 @@
 import { Card } from "@/components/ui/card";
-import { ChevronRight, Pill, Shield, Settings } from "lucide-react";
+import { ChevronRight, Pill, Shield, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 interface SettingsOverviewProps {
-  onNavigate: (section: 'medications' | 'privacy') => void;
+  onNavigate: (section: 'medications' | 'privacy' | 'help') => void;
 }
 
 export const SettingsOverview = ({ onNavigate }: SettingsOverviewProps) => {
@@ -24,6 +24,13 @@ export const SettingsOverview = ({ onNavigate }: SettingsOverviewProps) => {
       title: 'Datenschutz & Sicherheit',
       description: 'Datenschutzeinstellungen und Account-Verwaltung',
       gradient: 'from-secondary/10 to-secondary/5',
+    },
+    {
+      id: 'help' as const,
+      icon: HelpCircle,
+      title: 'Hilfe & Tutorial',
+      description: 'App-Tour wiederholen und Hilfe erhalten',
+      gradient: 'from-accent/10 to-accent/5',
     },
   ];
 
