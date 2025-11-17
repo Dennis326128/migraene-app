@@ -5,6 +5,7 @@ import {
   createMedicationEffects,
   getMedicationEffects,
   getRecentMedicationsWithEffects,
+  getMedicationEffectsForPeriod,
   type MedicationEffectPayload 
 } from "../api/medicationEffects.api";
 
@@ -50,5 +51,14 @@ export function useRecentMedicationsWithEffects() {
     queryKey: ["recentMedicationsWithEffects"],
     queryFn: getRecentMedicationsWithEffects,
     staleTime: 1 * 60 * 1000, // 1 minute
+  });
+}
+
+export function useMedicationEffectsForEntries(entryIds: number[]) {
+  return useQuery({
+    queryKey: ["medicationEffectsForEntries", entryIds],
+    queryFn: () => getMedicationEffectsForPeriod(entryIds),
+    enabled: entryIds.length > 0,
+    staleTime: 2 * 60 * 1000, // 2 minutes
   });
 }

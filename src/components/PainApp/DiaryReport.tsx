@@ -7,6 +7,8 @@ import { useEntries } from "@/features/entries/hooks/useEntries";
 import { buildDiaryPdf } from "@/lib/pdf/report";
 import { getUserSettings, upsertUserSettings } from "@/features/settings/api/settings.api";
 import { mapTextLevelToScore } from "@/lib/utils/pain";
+import { useMedicationEffectsForEntries } from "@/features/medication-effects/hooks/useMedicationEffects";
+import MedicationStatisticsCard from "./MedicationStatisticsCard";
 
 type Preset = "3m" | "6m" | "12m" | "custom";
 
@@ -16,6 +18,17 @@ function addMonths(d: Date, m: number) {
   return dd;
 }
 function fmt(d: Date) { return d.toISOString().slice(0,10); }
+
+function mapEffectToNumber(rating: string): number {
+  const map: Record<string, number> = {
+    'none': 0,
+    'poor': 2.5,
+    'moderate': 5,
+    'good': 7.5,
+    'very_good': 10
+  };
+  return map[rating] || 0;
+}
 
 export default function DiaryReport({ onBack }: { onBack: () => void }) {
   const today = useMemo(() => new Date(), []);
@@ -60,6 +73,10 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
 
   // Einträge laden
   const { data: entries = [], isLoading } = useEntries({ from, to });
+
+  // Medication effects für Statistiken laden
+  const entryIds = useMemo(() => entries.map(e => Number(e.id)), [entries]);
+  const { data: medicationEffects = [] } = useMedicationEffectsForEntries(entryIds);
 
   // Save selected medications to settings (debounced)
   useEffect(() => {
@@ -120,6 +137,38 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
     const sum = validEntries.reduce((s, e) => s + mapTextLevelToScore(e.pain_level), 0);
     return (sum / validEntries.length).toFixed(2);
   }, [filteredEntries]);
+
+  // Medikamenten-Statistiken berechnen
+  const medicationStats = useMemo(() => {
+    const stats = new Map<string, { count: number; totalEffect: number; ratedCount: number }>();
+    
+    filteredEntries.forEach(entry => {
+      entry.medications?.forEach(med => {
+        if (!stats.has(med)) {
+          stats.set(med, { count: 0, totalEffect: 0, ratedCount: 0 });
+        }
+        const s = stats.get(med)!;
+        s.count++;
+        
+        // Finde Wirkung für dieses Medikament in diesem Eintrag
+        const effect = medicationEffects.find(e => 
+          e.entry_id === Number(entry.id) && e.med_name === med
+        );
+        
+        if (effect) {
+          s.totalEffect += mapEffectToNumber(effect.effect_rating);
+          s.ratedCount++;
+        }
+      });
+    });
+    
+    return Array.from(stats.entries()).map(([name, data]) => ({
+      name,
+      count: data.count,
+      avgEffect: data.ratedCount > 0 ? data.totalEffect / data.ratedCount : null,
+      ratedCount: data.ratedCount
+    }));
+  }, [filteredEntries, medicationEffects]);
 
   const formatGermanDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -317,6 +366,15 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
           <Button variant="outline" onClick={exportCSV} disabled={!filteredEntries.length || isLoading}>📊 CSV Export</Button>
         </div>
       </Card>
+
+      {/* Medikamenten-Statistiken */}
+      {!isLoading && medicationStats.length > 0 && (
+        <MedicationStatisticsCard
+          from={from}
+          to={to}
+          medications={medicationStats}
+        />
+      )}
 
       <Card className="p-4">
         <div className="flex items-end justify-between mb-3">

@@ -179,3 +179,16 @@ export async function getRecentMedicationsWithEffects(): Promise<RecentMedicatio
     medication_effects: effectsByEntry[entry.id] || []
   }));
 }
+
+export async function getMedicationEffectsForPeriod(entryIds: number[]): Promise<MedicationEffect[]> {
+  if (entryIds.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("medication_effects")
+    .select("*")
+    .in("entry_id", entryIds)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return data as MedicationEffect[];
+}
