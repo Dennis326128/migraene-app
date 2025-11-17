@@ -119,8 +119,8 @@ export function VoiceNotesList({ onNavigate }: VoiceNotesListProps = {}) {
         ) : (
           <EmptyState
             icon="🎙️"
-            title="Noch keine Voice-Notizen"
-            description="Verwenden Sie den Voice-Eingabe Button im Hauptmenü, um Ihre ersten Notizen aufzunehmen."
+            title="Noch keine Kontext-Notizen"
+            description="Verwenden Sie den Voice-Eingabe Button im Hauptmenü, um Kontext-Informationen per Sprache zu erfassen."
             action={onNavigate ? {
               label: "Zum Hauptmenü",
               onClick: () => onNavigate('menu'),

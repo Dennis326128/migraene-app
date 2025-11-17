@@ -71,8 +71,13 @@ export function VoiceNotesAIAnalysis() {
       <Alert>
         <Brain className="h-4 w-4" />
         <AlertDescription>
-          KI-Analyse wertet Ihre Voice-Notizen aus und erkennt Muster, Trigger und Zusammenhänge.
-          <strong> Anonymisiert & DSGVO-konform.</strong>
+          <strong>Die KI-Analyse wertet alle Ihre Einträge aus:</strong>
+          <ul className="list-disc ml-4 mt-2 space-y-1">
+            <li>Schmerzeinträge mit Notizen</li>
+            <li>Kontext-Notizen (per Sprache oder Text)</li>
+            <li>Wetterdaten & Medikamente</li>
+          </ul>
+          <p className="mt-2">So erkennt sie Muster, Trigger und Zusammenhänge. <strong>Anonymisiert & DSGVO-konform.</strong></p>
         </AlertDescription>
       </Alert>
 
