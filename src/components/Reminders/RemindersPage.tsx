@@ -9,6 +9,7 @@ import {
   useUpcomingReminders,
   usePastReminders,
   useCreateReminder,
+  useCreateMultipleReminders,
   useUpdateReminder,
   useDeleteReminder,
   useMarkReminderDone,
@@ -31,6 +32,7 @@ export const RemindersPage = () => {
   const { data: pastReminders = [], isLoading: loadingPast } = usePastReminders();
 
   const createMutation = useCreateReminder();
+  const createMultipleMutation = useCreateMultipleReminders();
   const updateMutation = useUpdateReminder();
   const deleteMutation = useDeleteReminder();
   const markDoneMutation = useMarkReminderDone();
@@ -62,15 +64,30 @@ export const RemindersPage = () => {
     return reminders.filter((r) => r.type === filterType);
   };
 
-  const handleCreate = (data: CreateReminderInput) => {
-    createMutation.mutate(data, {
-      onSuccess: (newReminder) => {
-        setViewMode('list');
-        if (newReminder.notification_enabled && hasNotificationPermission) {
-          notificationService.scheduleReminder(newReminder);
-        }
-      },
-    });
+  const handleCreate = (data: CreateReminderInput | CreateReminderInput[]) => {
+    if (Array.isArray(data)) {
+      createMultipleMutation.mutate(data, {
+        onSuccess: (newReminders) => {
+          setViewMode('list');
+          if (hasNotificationPermission) {
+            newReminders.forEach((reminder) => {
+              if (reminder.notification_enabled) {
+                notificationService.scheduleReminder(reminder);
+              }
+            });
+          }
+        },
+      });
+    } else {
+      createMutation.mutate(data, {
+        onSuccess: (newReminder) => {
+          setViewMode('list');
+          if (newReminder.notification_enabled && hasNotificationPermission) {
+            notificationService.scheduleReminder(newReminder);
+          }
+        },
+      });
+    }
   };
 
   const handleUpdate = (data: UpdateReminderInput) => {

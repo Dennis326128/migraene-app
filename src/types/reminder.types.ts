@@ -1,6 +1,7 @@
 export type ReminderType = 'medication' | 'appointment';
 export type ReminderRepeat = 'none' | 'daily' | 'weekly' | 'monthly';
 export type ReminderStatus = 'pending' | 'done' | 'missed';
+export type TimeOfDay = 'morning' | 'noon' | 'evening' | 'night';
 
 export interface Reminder {
   id: string;
@@ -12,6 +13,8 @@ export interface Reminder {
   notes: string | null;
   status: ReminderStatus;
   notification_enabled: boolean;
+  medications?: string[];
+  time_of_day?: TimeOfDay | null;
   created_at: string;
   updated_at: string;
 }
@@ -23,6 +26,8 @@ export interface CreateReminderInput {
   repeat?: ReminderRepeat;
   notes?: string;
   notification_enabled?: boolean;
+  medications?: string[];
+  time_of_day?: TimeOfDay;
 }
 
 export interface UpdateReminderInput {
@@ -33,4 +38,6 @@ export interface UpdateReminderInput {
   notes?: string;
   status?: ReminderStatus;
   notification_enabled?: boolean;
+  medications?: string[];
+  time_of_day?: TimeOfDay;
 }

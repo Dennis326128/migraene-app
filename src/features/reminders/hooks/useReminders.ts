@@ -64,6 +64,29 @@ export const useCreateReminder = () => {
   });
 };
 
+export const useCreateMultipleReminders = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (inputs: CreateReminderInput[]) => remindersApi.createMultiple(inputs),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+      toast({
+        title: 'Erinnerungen erstellt',
+        description: `${data.length} Erinnerung(en) wurden erfolgreich angelegt.`,
+      });
+    },
+    onError: (error) => {
+      console.error('Failed to create reminders:', error);
+      toast({
+        title: 'Fehler',
+        description: 'Erinnerungen konnten nicht erstellt werden.',
+        variant: 'destructive',
+      });
+    },
+  });
+};
+
 export const useUpdateReminder = () => {
   const queryClient = useQueryClient();
 

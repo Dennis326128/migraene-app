@@ -86,6 +86,24 @@ export const remindersApi = {
     return data;
   },
 
+  async createMultiple(inputs: CreateReminderInput[]): Promise<Reminder[]> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    const reminders = inputs.map(input => ({
+      user_id: user.id,
+      ...input,
+    }));
+
+    const { data, error } = await supabase
+      .from('reminders')
+      .insert(reminders)
+      .select();
+
+    if (error) throw error;
+    return data;
+  },
+
   async update(id: string, input: UpdateReminderInput): Promise<Reminder> {
     const { data, error } = await supabase
       .from('reminders')
