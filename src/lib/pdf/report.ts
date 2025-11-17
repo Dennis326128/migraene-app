@@ -7,7 +7,6 @@ type BuildReportParams = {
   to: string;
   entries: PainEntry[];
   selectedMeds: string[];
-  includeNoMeds: boolean;
   includeStats?: boolean;
   includeChart?: boolean;
   includeAnalysis?: boolean;
