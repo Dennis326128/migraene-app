@@ -1,5 +1,5 @@
 export type ReminderType = 'medication' | 'appointment';
-export type ReminderRepeat = 'none' | 'daily' | 'weekly';
+export type ReminderRepeat = 'none' | 'daily' | 'weekly' | 'monthly';
 export type ReminderStatus = 'pending' | 'done' | 'missed';
 
 export interface Reminder {
