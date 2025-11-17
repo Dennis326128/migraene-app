@@ -14,11 +14,7 @@ serve(async (req) => {
   try {
     console.log('🚀 Batch weather import started');
 
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
-    );
-
+    // JWT verification is now handled by Supabase automatically (verify_jwt = true)
     const serviceSupabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''

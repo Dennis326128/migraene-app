@@ -15,18 +15,14 @@ serve(async (req) => {
   try {
     console.log('🌤️ Fetch-weather-hybrid function called');
 
-    // Create two clients: one for auth validation, one for database operations
-    const supabaseAuth = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
-    );
-
+    // JWT verification is now handled by Supabase automatically (verify_jwt = true)
+    // Create service role client for database operations
     const supabaseService = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Parse request body once
+    // Parse request body
     let requestBody: any;
     try {
       requestBody = await req.json();
@@ -41,13 +37,13 @@ serve(async (req) => {
       });
     }
 
-    // Check if caller wants to skip cache (e.g., when editing entry with changed date/time)
+    // Check if caller wants to skip cache
     const forceRefresh = requestBody.forceRefresh === true;
     if (forceRefresh) {
       console.log('🔄 Force refresh requested, skipping cache checks');
     }
 
-    // Authentication - support both user JWT and service role
+    // Get authenticated user from JWT (already validated by Supabase)
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       console.error('❌ Missing Authorization header');
@@ -61,54 +57,22 @@ serve(async (req) => {
     }
 
     const token = authHeader.replace('Bearer ', '');
-    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    let userId: string;
-    let lat: number, lon: number, at: string;
+    const { data: { user }, error: authError } = await supabaseService.auth.getUser(token);
 
-    if (token === serviceRoleKey) {
-      // Service role authentication - get userId from request body
-      const { lat: reqLat, lon: reqLon, at: reqAt, userId: requestUserId } = requestBody;
-      
-      if (!requestUserId) {
-        console.error('❌ userId required for service role authentication');
-        return new Response(JSON.stringify({ 
-          error: 'userId required for service role authentication',
-          weather_id: null 
-        }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-      
-      userId = requestUserId;
-      lat = reqLat;
-      lon = reqLon;
-      at = reqAt;
-      console.log('🔑 Service role authentication for user:', userId);
-    } else {
-      // User JWT authentication - use ANON client for auth validation
-      const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(token);
-
-      if (authError || !user) {
-        console.error('❌ Invalid user authentication:', authError?.message);
-        return new Response(JSON.stringify({ 
-          error: 'Invalid authentication',
-          weather_id: null 
-        }), {
-          status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-
-      userId = user.id;
-      console.log('👤 User JWT authentication:', userId);
-      
-      // Parse request data
-      const { lat: reqLat, lon: reqLon, at: reqAt } = requestBody;
-      lat = reqLat;
-      lon = reqLon;
-      at = reqAt;
+    if (authError || !user) {
+      console.error('❌ Invalid user authentication:', authError?.message);
+      return new Response(JSON.stringify({ 
+        error: 'Invalid authentication',
+        weather_id: null 
+      }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
+
+    const userId = user.id;
+    const { lat, lon, at } = requestBody;
+    console.log('👤 User authentication successful:', userId);
 
     console.log('📍 Weather request for:', { lat, lon, at, userId });
 
