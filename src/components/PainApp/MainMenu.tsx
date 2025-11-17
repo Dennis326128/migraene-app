@@ -92,7 +92,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
     if (voiceRouter.isListening) {
       return 'Sprechen Sie jetzt! (3s Pause beendet)';
     }
-    return 'Schmerz • Erinnerung • Notiz';
+    return 'Schmerzeinträge, Kontext-Notizen oder Erinnerungen';
   };
 
   const handleQuickEntryClose = () => {

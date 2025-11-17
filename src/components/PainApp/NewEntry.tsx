@@ -619,19 +619,22 @@ export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProp
         </Card>
       </Collapsible>
 
-      {/* Auslöser/Notizen */}
+      {/* Kontext & Notizen */}
       <Card className="p-6 mb-4">
         <Label htmlFor="notes-input" className="text-base font-medium mb-3 block">
-          Auslöser / Besonderheiten
+          Kontext & Notizen
         </Label>
         <Input
           id="notes-input"
           type="text"
-          placeholder="z. B. Stress, helles Licht, Wetterumschwung, Schlafmangel..."
+          placeholder="z.B. Stress, Stimmung, Aktivitäten, Schlafqualität, Ernährung, Wetter-Gefühl..."
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          aria-label="Migräne-Auslöser oder Notizen"
+          aria-label="Kontext und Notizen zum Eintrag"
         />
+        <p className="text-xs text-muted-foreground mt-2">
+          Alle Notizen (per Sprache oder Text) werden in der KI-Analyse berücksichtigt.
+        </p>
       </Card>
 
       {/* Speichern Button */}

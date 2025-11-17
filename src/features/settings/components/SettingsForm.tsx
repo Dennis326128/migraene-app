@@ -113,8 +113,8 @@ export default function SettingsForm() {
 
         <div className="flex items-center justify-between">
           <div>
-            <Label className="block mb-1">Voice-Notizen aktivieren</Label>
-            <p className="text-sm text-muted-foreground">Erlaubt das Speichern und Analysieren von Sprachnotizen.</p>
+            <Label className="block mb-1">Kontext-Notizen per Sprache</Label>
+            <p className="text-sm text-muted-foreground">Erlaubt das Speichern von Kontext-Informationen (Stimmung, Aktivitäten, etc.) per Spracheingabe.</p>
           </div>
           <Switch checked={voiceNotesEnabled} onCheckedChange={setVoiceNotesEnabled} />
         </div>

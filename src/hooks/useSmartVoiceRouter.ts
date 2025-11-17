@@ -135,11 +135,11 @@ export function useSmartVoiceRouter(options: SmartVoiceRouterOptions) {
           options.onEntryDetected?.(quickEntryData);
           
         } else {
-          // 3. Fallback: Kein Schmerzlevel → Voice-Notiz
-          console.log('🎙️ Voice-Notiz erkannt (kein Schmerzlevel)');
+          // 3. Fallback: Kein Schmerzlevel → Kontext-Notiz
+          console.log('📝 Kontext-Notiz erkannt (kein Schmerzlevel)');
           
           toast({
-            title: '🎙️ Voice-Notiz',
+            title: '📝 Kontext-Notiz',
             description: 'Bitte überprüfen und speichern'
           });
           
@@ -155,8 +155,8 @@ export function useSmartVoiceRouter(options: SmartVoiceRouterOptions) {
             });
             
             toast({
-              title: '🎙️ Voice-Notiz gespeichert',
-              description: 'Erfolgreich in Datenbank gespeichert'
+              title: '📝 Kontext-Notiz gespeichert',
+              description: 'Wird in der nächsten Analyse berücksichtigt'
             });
             
             options.onNoteCreated?.();
