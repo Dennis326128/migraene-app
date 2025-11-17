@@ -25,13 +25,13 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.fetch-weather-hybrid]
-verify_jwt = false
+verify_jwt = true
 
 [functions.clean-weather-import]
-verify_jwt = false
+verify_jwt = true
 
 [functions.batch-weather-import]
-verify_jwt = false
+verify_jwt = true
 
 [functions.extract-voice-entry]
-verify_jwt = false
+verify_jwt = true

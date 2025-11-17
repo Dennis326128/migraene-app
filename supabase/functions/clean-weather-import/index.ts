@@ -15,18 +15,12 @@ serve(async (req) => {
   try {
     console.log('🧹 Clean weather import started');
 
-    // Create both regular and service role clients
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
-    );
-
+    // JWT verification is now handled by Supabase automatically (verify_jwt = true)
     const serviceSupabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Get authenticated user - use service role for auth to avoid token issues
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       throw new Error('Missing Authorization header');
@@ -35,7 +29,6 @@ serve(async (req) => {
     console.log('🔐 Auth header present, length:', authHeader.length);
     const authToken = authHeader.replace('Bearer ', '');
 
-    // Use service role for auth to bypass potential RLS issues
     const { data: { user }, error: authError } = await serviceSupabase.auth.getUser(authToken);
 
     if (authError || !user) {
