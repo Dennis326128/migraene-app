@@ -8,6 +8,17 @@ type BuildReportParams = {
   entries: PainEntry[];
   selectedMeds: string[];
   includeNoMeds: boolean;
+  includeStats?: boolean;
+  includeChart?: boolean;
+  includeAnalysis?: boolean;
+  includeEntriesList?: boolean;
+  analysisReport?: string;
+  medicationStats?: Array<{
+    name: string;
+    count: number;
+    avgEffect: number;
+    ratedCount: number;
+  }>;
 };
 
 function toLabel(e: PainEntry) {
@@ -183,32 +194,137 @@ function drawSimpleChart(
 }
 
 export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Array> {
-  const { title = "Kopfschmerztagebuch", from, to, entries, selectedMeds, includeNoMeds } = params;
+  const { 
+    title = "Kopfschmerztagebuch",
+    from,
+    to,
+    entries,
+    includeStats = true,
+    includeChart = true,
+    includeAnalysis = false,
+    includeEntriesList = true,
+    analysisReport = "",
+    medicationStats = [],
+  } = params;
 
-  const pdf = await PDFDocument.create();
-  let page = pdf.addPage([595.28, 841.89]); // A4 portrait (pt)
-  const font = await pdf.embedFont(StandardFonts.Helvetica);
-  const fontBold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const pdfDoc = await PDFDocument.create();
+  let page = pdfDoc.addPage([595.28, 841.89]);
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-  const margin = 40;
-  let y = page.getHeight() - margin;
+  let yPos = page.getHeight() - 50;
 
-  // Header
-  page.drawText(title, { x: margin, y, size: 18, font: fontBold, color: rgb(0,0,0) });
-  y -= 22;
-  page.drawText(`Zeitraum: ${formatDateRange(from, to)}`, { x: margin, y, size: 11, font });
-  y -= 30;
+  page.drawText(title, { x: 50, y: yPos, size: 16, font: fontBold });
+  yPos -= 20;
 
-  // Draw chart if there are entries
-  if (entries.length > 0) {
-    const chartWidth = page.getWidth() - 2 * margin;
-    const chartHeight = 180;
-    drawSimpleChart(page, entries, from, to, margin, y, chartWidth, chartHeight, font, fontBold);
-    y -= chartHeight + 40;
+  const dateRangeText = `Zeitraum: ${formatDateRange(from, to)}`;
+  page.drawText(dateRangeText, { x: 50, y: yPos, size: 10, font });
+  yPos -= 30;
+
+  // Analysis Report (if included)
+  if (includeAnalysis && analysisReport) {
+    const maxWidth = 495;
+    const lines = analysisReport.split('\n');
+    
+    page.drawText("Professioneller Analysebericht", { x: 50, y: yPos, size: 12, font: fontBold });
+    yPos -= 20;
+    
+    for (const line of lines) {
+      if (yPos < 80) {
+        page = pdfDoc.addPage([595.28, 841.89]);
+        yPos = 841.89 - 50;
+      }
+      
+      // Simple text wrapping
+      const words = line.split(' ');
+      let currentLine = '';
+      
+      for (const word of words) {
+        const testLine = currentLine + (currentLine ? ' ' : '') + word;
+        const width = font.widthOfTextAtSize(testLine, 10);
+        
+        if (width > maxWidth && currentLine) {
+          page.drawText(currentLine, { x: 50, y: yPos, size: 10, font });
+          yPos -= 14;
+          currentLine = word;
+          
+          if (yPos < 80) {
+            page = pdfDoc.addPage([595.28, 841.89]);
+            yPos = 841.89 - 50;
+          }
+        } else {
+          currentLine = testLine;
+        }
+      }
+      
+      if (currentLine) {
+        page.drawText(currentLine, { x: 50, y: yPos, size: 10, font });
+        yPos -= 14;
+      }
+      
+      yPos -= 6;
+    }
+    
+    yPos -= 20;
+  }
+
+  // Medication Statistics (if included)
+  if (includeStats && medicationStats && medicationStats.length > 0) {
+    if (yPos < 150) {
+      page = pdfDoc.addPage([595.28, 841.89]);
+      yPos = 841.89 - 50;
+    }
+    
+    page.drawText("Medikamenten-Statistiken", { x: 50, y: yPos, size: 12, font: fontBold });
+    yPos -= 20;
+    
+    for (const stat of medicationStats) {
+      if (yPos < 80) {
+        page = pdfDoc.addPage([595.28, 841.89]);
+        yPos = 841.89 - 50;
+      }
+      
+      page.drawText(`${stat.name}: ${stat.count}x verwendet`, { x: 50, y: yPos, size: 10, font });
+      yPos -= 14;
+      
+      if (stat.ratedCount > 0 && stat.avgEffect !== null) {
+        page.drawText(`  Durchschn. Wirkung: ${stat.avgEffect.toFixed(1)}/10 (${stat.ratedCount} Bewertungen)`, 
+          { x: 60, y: yPos, size: 9, font });
+        yPos -= 14;
+      }
+    }
+    
+    yPos -= 20;
+  }
+
+  // Chart (if included)
+  if (includeChart && entries.length > 0) {
+    const chartHeight = 200;
+    if (yPos - chartHeight < 60) {
+      page = pdfDoc.addPage([595.28, 841.89]);
+      yPos = 841.89 - 50;
+    }
+    drawSimpleChart(page, entries, from, to, 50, yPos, 495, chartHeight, font, fontBold);
+    yPos -= chartHeight + 20;
+  }
+
+  // Entries list (if included)
+  if (!includeEntriesList) {
+    const pdfBytes = await pdfDoc.save();
+    return pdfBytes;
   }
 
   // Table header
+  if (yPos < 150) {
+    page = pdfDoc.addPage([595.28, 841.89]);
+    yPos = 841.89 - 50;
+  }
+  
+  // Table header for entries list
+  const margin = 50;
   const colX = { dt: margin, pain: margin + 180, meds: margin + 260, note: margin + 420 };
+  let y = yPos;
+  
   page.drawText("Datum/Zeit", { x: colX.dt, y, size: 10, font: fontBold });
   page.drawText("Schmerz",    { x: colX.pain, y, size: 10, font: fontBold });
   page.drawText("Medikamente",{ x: colX.meds, y, size: 10, font: fontBold });
@@ -216,6 +332,8 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   y -= 12;
   page.drawLine({ start: { x: margin, y }, end: { x: page.getWidth()-margin, y }, thickness: 0.5, color: rgb(0.8,0.8,0.8) });
   y -= 8;
+  
+  let pdf = pdfDoc; // For compatibility with existing helper functions
 
   const drawRow = (e: PainEntry) => {
     const dt = toLabel(e);

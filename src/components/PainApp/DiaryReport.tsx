@@ -42,7 +42,13 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
   const [selectedMeds, setSelectedMeds] = useState<string[]>([]);
   const [medOptions, setMedOptions] = useState<string[]>([]);
   const [includeNoMeds, setIncludeNoMeds] = useState<boolean>(true);
-  const [includeAnalysisReport, setIncludeAnalysisReport] = useState<boolean>(false);
+  
+  // Content inclusion flags
+  const [includeStats, setIncludeStats] = useState<boolean>(true);
+  const [includeChart, setIncludeChart] = useState<boolean>(true);
+  const [includeAnalysis, setIncludeAnalysis] = useState<boolean>(false);
+  const [includeEntriesList, setIncludeEntriesList] = useState<boolean>(true);
+  
   const [generated, setGenerated] = useState<PainEntry[]>([]);
   const [previousSelection, setPreviousSelection] = useState<string[]>([]);
   const [allSelected, setAllSelected] = useState<boolean>(false);
@@ -273,6 +279,12 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
       entries: filteredEntries,
       selectedMeds,
       includeNoMeds,
+      includeStats,
+      includeChart,
+      includeAnalysis,
+      includeEntriesList,
+      analysisReport: includeAnalysis ? analysisReport : undefined,
+      medicationStats: includeStats ? medicationStats : undefined,
     });
     
     const blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
@@ -395,37 +407,110 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
               );
             })}
           </div>
+          <label className="inline-flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={includeNoMeds} onChange={e=>setIncludeNoMeds(e.target.checked)} />
+            Einträge ohne Medikamente einbeziehen
+          </label>
+        </div>
+
+        {/* Content Selection */}
+        <div className="space-y-3 pt-4 border-t">
+          <label className="block text-sm font-medium">
+            Was soll ins Tagebuch?
+          </label>
+          
           <div className="space-y-2">
-            <label className="inline-flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={includeNoMeds} onChange={e=>setIncludeNoMeds(e.target.checked)} />
-              Einträge ohne Medikamente einbeziehen
-            </label>
-            <label className="inline-flex items-center gap-2 text-sm">
+            <label className="flex items-center gap-2 text-sm">
               <input 
                 type="checkbox" 
-                checked={includeAnalysisReport} 
+                checked={includeStats} 
+                onChange={e => setIncludeStats(e.target.checked)} 
+              />
+              Medikamenten-Statistiken (Häufigkeit & Wirksamkeit)
+            </label>
+            
+            <label className="flex items-center gap-2 text-sm">
+              <input 
+                type="checkbox" 
+                checked={includeChart} 
+                onChange={e => setIncludeChart(e.target.checked)} 
+              />
+              Intensitätsverlauf-Chart (Zeitreihen-Diagramm)
+            </label>
+            
+            <label className="flex items-center gap-2 text-sm">
+              <input 
+                type="checkbox" 
+                checked={includeAnalysis} 
                 onChange={e => {
-                  setIncludeAnalysisReport(e.target.checked);
+                  setIncludeAnalysis(e.target.checked);
                   if (!e.target.checked) {
                     setAnalysisReport("");
                   }
                 }} 
               />
-              Professionellen Analysebericht einbeziehen
+              Professioneller Analysebericht (KI-generiert)
+            </label>
+            
+            <label className="flex items-center gap-2 text-sm">
+              <input 
+                type="checkbox" 
+                checked={includeEntriesList} 
+                onChange={e => setIncludeEntriesList(e.target.checked)} 
+              />
+              Detaillierte Einträge-Liste (alle Einzeleinträge)
             </label>
           </div>
         </div>
+      </Card>
 
-        <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" onClick={printPDF} disabled={!filteredEntries.length || isLoading}>📄 PDF / Drucken</Button>
-          <Button variant="secondary" onClick={savePDF} disabled={!filteredEntries.length || isLoading}>💾 PDF speichern</Button>
-          <Button variant="outline" onClick={exportCSV} disabled={!filteredEntries.length || isLoading}>📊 CSV Export</Button>
-          {includeAnalysisReport && (
+      {/* Export Actions */}
+      <Card className="p-6">
+        <div className="space-y-4">
+          <div className="text-sm text-muted-foreground">
+            {filteredEntries.length > 0 ? (
+              <p>
+                <strong>{filteredEntries.length}</strong> Einträge gefunden im Zeitraum{" "}
+                <strong>{new Date(from).toLocaleDateString("de-DE")}</strong> bis{" "}
+                <strong>{new Date(to).toLocaleDateString("de-DE")}</strong>
+              </p>
+            ) : (
+              <p>Keine Einträge im ausgewählten Zeitraum</p>
+            )}
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <Button 
+              variant="default" 
+              size="lg"
+              onClick={printPDF} 
+              disabled={!filteredEntries.length || isLoading}
+              className="flex-1 sm:flex-none"
+            >
+              📄 PDF erstellen
+            </Button>
+            <Button 
+              variant="secondary" 
+              onClick={savePDF} 
+              disabled={!filteredEntries.length || isLoading}
+            >
+              💾 Als PDF speichern
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={exportCSV} 
+              disabled={!filteredEntries.length || isLoading}
+            >
+              📊 CSV Export
+            </Button>
+          </div>
+
+          {includeAnalysis && !analysisReport && (
             <Button 
               variant="outline" 
               onClick={generateAnalysisReport} 
               disabled={!filteredEntries.length || isLoading || isGeneratingReport}
-              className="ml-auto"
+              className="w-full sm:w-auto"
             >
               {isGeneratingReport ? (
                 <>
@@ -435,94 +520,18 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
               ) : (
                 <>
                   <FileText className="h-4 w-4 mr-2" />
-                  Analysebericht erstellen
+                  Analysebericht jetzt erstellen
                 </>
               )}
             </Button>
           )}
+
+          {includeAnalysis && analysisReport && (
+            <div className="text-sm text-green-600 dark:text-green-400">
+              ✓ Analysebericht wurde erstellt und wird im PDF eingebunden
+            </div>
+          )}
         </div>
-      </Card>
-
-      {/* Analysebericht */}
-      {analysisReport && (
-        <Card className="p-6 mb-4 bg-card">
-          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Professioneller Analysebericht
-          </h3>
-          <div className="prose prose-sm max-w-none dark:prose-invert">
-            <ReactMarkdown>{analysisReport}</ReactMarkdown>
-          </div>
-        </Card>
-      )}
-
-      {/* Medikamenten-Statistiken */}
-      {!isLoading && medicationStats.length > 0 && (
-        <MedicationStatisticsCard
-          from={from}
-          to={to}
-          medications={medicationStats}
-        />
-      )}
-
-      {/* Zeitreihen-Chart */}
-      {!isLoading && filteredEntries.length > 0 && (
-        <Card className="p-4 mb-4">
-          <div className="mb-3">
-            <h3 className="text-lg font-semibold flex items-center gap-2">
-              <span>📈</span>
-              <span>Intensitätsverlauf</span>
-            </h3>
-            <p className="text-sm text-muted-foreground mt-1">
-              Zeitlicher Verlauf der Schmerzintensität im ausgewählten Zeitraum
-            </p>
-          </div>
-          <div className="h-80">
-            <TimeSeriesChart 
-              entries={filteredEntries} 
-              dateRange={{ from, to }} 
-            />
-          </div>
-        </Card>
-      )}
-
-      <Card className="p-4">
-        <div className="flex items-end justify-between mb-3">
-          <div>
-            <div className="text-sm text-muted-foreground">Zeitraum</div>
-            <div className="font-medium">{from} – {to}</div>
-          </div>
-          <div className="text-right">
-            <div className="text-sm text-muted-foreground">Einträge</div>
-            <div className="font-medium">{filteredEntries.length}</div>
-          </div>
-        </div>
-
-        {isLoading ? (
-          <div className="text-sm text-muted-foreground">⏳ Lade Einträge...</div>
-        ) : filteredEntries.length === 0 ? (
-          <div className="text-sm text-muted-foreground">📋 Keine Einträge für den gewählten Zeitraum und Filter gefunden.</div>
-        ) : (
-          <ul className="space-y-2">
-            {filteredEntries.map(e => {
-              const dt = e.selected_date && e.selected_time
-                ? `${e.selected_date} ${e.selected_time}`
-                : new Date(e.timestamp_created).toLocaleString();
-              return (
-                <li key={e.id} className="p-3 border rounded-lg">
-                  <div className="flex justify-between">
-                    <div className="font-medium">{dt}</div>
-                    <div>{mapTextLevelToScore(e.pain_level)}</div>
-                  </div>
-                  {(e.medications?.length ?? 0) > 0 && (
-                    <div className="text-xs text-muted-foreground mt-1">{e.medications.join(", ")}</div>
-                  )}
-                  {e.notes && <div className="text-xs mt-1">📝 {e.notes}</div>}
-                </li>
-              );
-            })}
-          </ul>
-        )}
       </Card>
     </div>
   );
