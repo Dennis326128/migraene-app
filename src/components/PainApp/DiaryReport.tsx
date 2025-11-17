@@ -42,6 +42,7 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
   const [selectedMeds, setSelectedMeds] = useState<string[]>([]);
   const [medOptions, setMedOptions] = useState<string[]>([]);
   const [includeNoMeds, setIncludeNoMeds] = useState<boolean>(true);
+  const [includeAnalysisReport, setIncludeAnalysisReport] = useState<boolean>(false);
   const [generated, setGenerated] = useState<PainEntry[]>([]);
   const [previousSelection, setPreviousSelection] = useState<string[]>([]);
   const [allSelected, setAllSelected] = useState<boolean>(false);
@@ -394,34 +395,51 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
               );
             })}
           </div>
-          <label className="inline-flex items-center gap-2 text-sm mt-2">
-            <input type="checkbox" checked={includeNoMeds} onChange={e=>setIncludeNoMeds(e.target.checked)} />
-            Einträge ohne Medikamente einbeziehen
-          </label>
+          <div className="space-y-2">
+            <label className="inline-flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={includeNoMeds} onChange={e=>setIncludeNoMeds(e.target.checked)} />
+              Einträge ohne Medikamente einbeziehen
+            </label>
+            <label className="inline-flex items-center gap-2 text-sm">
+              <input 
+                type="checkbox" 
+                checked={includeAnalysisReport} 
+                onChange={e => {
+                  setIncludeAnalysisReport(e.target.checked);
+                  if (!e.target.checked) {
+                    setAnalysisReport("");
+                  }
+                }} 
+              />
+              Professionellen Analysebericht einbeziehen
+            </label>
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-2">
           <Button variant="secondary" onClick={printPDF} disabled={!filteredEntries.length || isLoading}>📄 PDF / Drucken</Button>
           <Button variant="secondary" onClick={savePDF} disabled={!filteredEntries.length || isLoading}>💾 PDF speichern</Button>
           <Button variant="outline" onClick={exportCSV} disabled={!filteredEntries.length || isLoading}>📊 CSV Export</Button>
-          <Button 
-            variant="outline" 
-            onClick={generateAnalysisReport} 
-            disabled={!filteredEntries.length || isLoading || isGeneratingReport}
-            className="ml-auto"
-          >
-            {isGeneratingReport ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Erstelle Bericht...
-              </>
-            ) : (
-              <>
-                <FileText className="h-4 w-4 mr-2" />
-                Analysebericht
-              </>
-            )}
-          </Button>
+          {includeAnalysisReport && (
+            <Button 
+              variant="outline" 
+              onClick={generateAnalysisReport} 
+              disabled={!filteredEntries.length || isLoading || isGeneratingReport}
+              className="ml-auto"
+            >
+              {isGeneratingReport ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Erstelle Bericht...
+                </>
+              ) : (
+                <>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Analysebericht erstellen
+                </>
+              )}
+            </Button>
+          )}
         </div>
       </Card>
 
