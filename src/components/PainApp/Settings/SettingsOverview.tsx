@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 interface SettingsOverviewProps {
-  onNavigate: (section: 'medications' | 'privacy' | 'advanced') => void;
+  onNavigate: (section: 'medications' | 'privacy') => void;
 }
 
 export const SettingsOverview = ({ onNavigate }: SettingsOverviewProps) => {
@@ -24,13 +24,6 @@ export const SettingsOverview = ({ onNavigate }: SettingsOverviewProps) => {
       title: 'Datenschutz & Sicherheit',
       description: 'Datenschutzeinstellungen und Account-Verwaltung',
       gradient: 'from-secondary/10 to-secondary/5',
-    },
-    {
-      id: 'advanced' as const,
-      icon: Settings,
-      title: 'Erweitert',
-      description: 'Erweiterte Einstellungen und Tools',
-      gradient: 'from-accent/10 to-accent/5',
     },
   ];
 
