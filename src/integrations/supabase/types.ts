@@ -214,10 +214,12 @@ export type Database = {
           created_at: string
           date_time: string
           id: string
+          medications: string[] | null
           notes: string | null
           notification_enabled: boolean
           repeat: string
           status: string
+          time_of_day: string | null
           title: string
           type: string
           updated_at: string
@@ -227,10 +229,12 @@ export type Database = {
           created_at?: string
           date_time: string
           id?: string
+          medications?: string[] | null
           notes?: string | null
           notification_enabled?: boolean
           repeat?: string
           status?: string
+          time_of_day?: string | null
           title: string
           type: string
           updated_at?: string
@@ -240,10 +244,12 @@ export type Database = {
           created_at?: string
           date_time?: string
           id?: string
+          medications?: string[] | null
           notes?: string | null
           notification_enabled?: boolean
           repeat?: string
           status?: string
+          time_of_day?: string | null
           title?: string
           type?: string
           updated_at?: string
