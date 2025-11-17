@@ -7,9 +7,13 @@ import { QuickEntryModal } from "./QuickEntryModal";
 import { FloatingActionButton } from "@/components/ui/floating-action-button";
 import { StartPageCard, StartPageCardHeader, StartPageButtonGrid } from "@/components/ui/start-page-card";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 import { useOnboarding } from "@/hooks/useOnboarding";
 import { useSmartVoiceRouter } from "@/hooks/useSmartVoiceRouter";
+import { ReminderFormWithVoiceData } from "@/components/Reminders/ReminderFormWithVoiceData";
+import { useCreateReminder, useCreateMultipleReminders } from "@/features/reminders/hooks/useReminders";
+import { CreateReminderInput } from "@/types/reminder.types";
 import { toast } from "sonner";
 
 interface MainMenuProps {
@@ -34,8 +38,13 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   const { needsOnboarding, completeOnboarding, isLoading: onboardingLoading } = useOnboarding();
   const [showQuickEntry, setShowQuickEntry] = useState(false);
   const [voiceData, setVoiceData] = useState<any>(null);
+  const [showReminderForm, setShowReminderForm] = useState(false);
+  const [prefilledReminderData, setPrefilledReminderData] = useState<any>(null);
   
-  // Smart Voice Router - automatically detects pain entry vs voice note
+  const createReminder = useCreateReminder();
+  const createMultipleReminders = useCreateMultipleReminders();
+  
+  // Smart Voice Router - automatically detects pain entry vs voice note vs reminder
   const voiceRouter = useSmartVoiceRouter({
     onEntryDetected: (data) => {
       console.log('📝 Pain entry detected, opening QuickEntry:', data);
@@ -44,6 +53,11 @@ export const MainMenu: React.FC<MainMenuProps> = ({
     },
     onNoteCreated: () => {
       console.log('🎙️ Voice note saved');
+    },
+    onReminderDetected: (data) => {
+      console.log('📋 Reminder detected, opening form:', data);
+      setPrefilledReminderData(data);
+      setShowReminderForm(true);
     }
   });
 
@@ -78,6 +92,30 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   const handleQuickEntryClose = () => {
     setShowQuickEntry(false);
     setVoiceData(null); // Reset voice data
+  };
+
+  const handleReminderSubmit = async (data: CreateReminderInput | CreateReminderInput[]) => {
+    try {
+      if (Array.isArray(data)) {
+        // Multiple reminders (z.B. täglich mit mehreren Tageszeiten)
+        await createMultipleReminders.mutateAsync(data);
+      } else {
+        // Single reminder
+        await createReminder.mutateAsync(data);
+      }
+      
+      toast.success('✅ Erinnerung erstellt', {
+        description: 'Die Erinnerung wurde erfolgreich gespeichert'
+      });
+      
+      setShowReminderForm(false);
+      setPrefilledReminderData(null);
+    } catch (error) {
+      console.error('Error creating reminder:', error);
+      toast.error('Fehler', {
+        description: 'Erinnerung konnte nicht erstellt werden'
+      });
+    }
   };
 
   const isMobile = useIsMobile();
@@ -259,14 +297,34 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           onQuickEntry?.();
         }}
         // Voice input pre-filling
-        initialPainLevel={voiceData?.painLevel ? parseInt(voiceData.painLevel) : undefined}
-        initialSelectedTime={voiceData?.selectedTime}
-        initialCustomDate={voiceData?.customDate}
-        initialCustomTime={voiceData?.customTime}
-        initialMedicationStates={voiceData?.medicationStates}
-        initialNotes={voiceData?.notes}
+        initialPainLevel={voiceData?.initialPainLevel}
+        initialSelectedTime={voiceData?.initialSelectedTime}
+        initialCustomDate={voiceData?.initialCustomDate}
+        initialCustomTime={voiceData?.initialCustomTime}
+        initialMedicationStates={voiceData?.initialMedicationStates}
+        initialNotes={voiceData?.initialNotes}
         onLimitWarning={onLimitWarning}
       />
+
+      {/* Reminder Form Dialog */}
+      <Dialog open={showReminderForm} onOpenChange={setShowReminderForm}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {prefilledReminderData?.type === 'medication' ? '💊' : '📅'} Erinnerung erstellen
+            </DialogTitle>
+          </DialogHeader>
+          
+          <ReminderFormWithVoiceData
+            initialData={prefilledReminderData}
+            onSubmit={handleReminderSubmit}
+            onCancel={() => {
+              setShowReminderForm(false);
+              setPrefilledReminderData(null);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

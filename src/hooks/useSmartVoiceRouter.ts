@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useSpeechRecognition } from './useSpeechRecognition';
 import { parseGermanVoiceEntry } from '@/lib/voice/germanParser';
+import { parseGermanReminderEntry, isReminderTrigger } from '@/lib/voice/reminderParser';
 import { saveVoiceNote } from '@/lib/voice/saveNote';
 import { toast } from '@/hooks/use-toast';
 import { useMeds } from '@/features/meds/hooks/useMeds';
@@ -15,9 +16,22 @@ interface QuickEntryData {
   initialNotes: string;
 }
 
+interface ReminderData {
+  type: 'medication' | 'appointment';
+  title: string;
+  medications?: string[];
+  date: string;
+  time: string;
+  timeOfDay?: 'morning' | 'noon' | 'evening' | 'night';
+  repeat: 'none' | 'daily' | 'weekly' | 'monthly';
+  notes: string;
+  notification_enabled: boolean;
+}
+
 interface SmartVoiceRouterOptions {
   onEntryDetected?: (data: QuickEntryData) => void;
   onNoteCreated?: () => void;
+  onReminderDetected?: (data: ReminderData) => void;
 }
 
 export function useSmartVoiceRouter(options: SmartVoiceRouterOptions) {
@@ -34,7 +48,36 @@ export function useSmartVoiceRouter(options: SmartVoiceRouterOptions) {
       setIsSaving(true);
       
       try {
-        // Parse with German parser
+        // 1. Check: Ist es eine Erinnerung?
+        if (isReminderTrigger(transcript)) {
+          console.log('⏰ Erinnerung erkannt');
+          
+          const parsedReminder = parseGermanReminderEntry(transcript, userMeds);
+          
+          if (parsedReminder.type) {
+            const reminderData: ReminderData = {
+              type: parsedReminder.type,
+              title: parsedReminder.title,
+              medications: parsedReminder.medications,
+              date: parsedReminder.date,
+              time: parsedReminder.time,
+              timeOfDay: parsedReminder.timeOfDay || undefined,
+              repeat: parsedReminder.repeat,
+              notes: parsedReminder.notes,
+              notification_enabled: true
+            };
+            
+            toast({
+              title: '⏰ Erinnerung erkannt',
+              description: `${parsedReminder.type === 'medication' ? 'Medikament' : 'Termin'}: ${parsedReminder.title}`
+            });
+            
+            options.onReminderDetected?.(reminderData);
+            return;
+          }
+        }
+        
+        // 2. Check: Ist es ein Schmerz-Eintrag?
         const parsed = parseGermanVoiceEntry(transcript, userMeds);
         
         console.log('📊 Parsed result:', parsed);
@@ -91,7 +134,7 @@ export function useSmartVoiceRouter(options: SmartVoiceRouterOptions) {
           options.onEntryDetected?.(quickEntryData);
           
         } else {
-          // Kein Schmerzlevel → Voice-Notiz
+          // 3. Fallback: Kein Schmerzlevel → Voice-Notiz
           console.log('🎙️ Voice-Notiz erkannt (kein Schmerzlevel)');
           
           await saveVoiceNote({
