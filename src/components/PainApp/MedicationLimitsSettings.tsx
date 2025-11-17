@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -7,10 +6,17 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Plus, Clock, Calendar, CalendarDays, Trash2, Loader2 } from "lucide-react";
+import { Plus, Clock, Calendar, CalendarDays, Trash2, Loader2, ChevronDown } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useMeds } from "@/features/meds/hooks/useMeds";
 import { useDebounce } from "@/hooks/useDebounce";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   useMedicationLimits,
   useCreateMedicationLimit,
@@ -33,6 +39,7 @@ const periodLabels = {
 };
 
 export function MedicationLimitsSettings() {
+  const isMobile = useIsMobile();
   const { data: medications = [] } = useMeds();
   const { data: serverLimits = [] } = useMedicationLimits();
   const createLimit = useCreateMedicationLimit();
@@ -43,6 +50,7 @@ export function MedicationLimitsSettings() {
   const [localLimits, setLocalLimits] = useState<MedicationLimit[]>([]);
   const [pendingChanges, setPendingChanges] = useState<Set<string>>(new Set());
   const [savingStates, setSavingStates] = useState<Map<string, 'pending' | 'saving' | 'saved'>>(new Map());
+  const [expandedLimits, setExpandedLimits] = useState<Set<string>>(new Set());
   
   const [showAddForm, setShowAddForm] = useState(false);
   const [newLimit, setNewLimit] = useState<CreateMedicationLimitPayload>({
@@ -272,230 +280,238 @@ export function MedicationLimitsSettings() {
     return null;
   };
 
-  return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            Medikamenten-Limits
-            <Badge variant="secondary">{localLimits.length}</Badge>
-          </CardTitle>
-          <CardDescription>
-            Setze individuelle Limits für deine Medikamente, um Übergebrauch zu vermeiden.
-            Du erhältst Warnungen, wenn du dich dem Limit näherst.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Bulk Actions */}
-          {localLimits.length > 0 && (
-            <div className="flex items-center justify-between p-5 bg-muted/50 rounded-lg">
-              <span className="text-base font-semibold">Alle Limits</span>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => toggleAllLimits(true)}
-                  disabled={updateLimit.isPending}
-                >
-                  Alle aktivieren
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => toggleAllLimits(false)}
-                  disabled={updateLimit.isPending}
-                >
-                  Alle deaktivieren
-                </Button>
-              </div>
-            </div>
-          )}
+  const toggleExpanded = (id: string) => {
+    setExpandedLimits(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
-          {/* Existing Limits */}
-          <div className="space-y-5">
-            {localLimits.map((limit) => {
-              const Icon = periodIcons[limit.period_type];
-              const savingState = savingStates.get(limit.id);
-              const isDisabled = savingState === 'saving' || !limit.is_active;
-              
-              return (
-                <Card key={limit.id} className={`transition-opacity ${!limit.is_active ? 'opacity-60' : ''}`}>
-                  <CardContent className="p-5">
-                    <div className="flex items-center justify-between mb-5">
-                      <div className="flex items-center gap-3 flex-wrap">
-                        <div className="text-base font-semibold">{limit.medication_name}</div>
-                        <Badge variant={limit.is_active ? "default" : "secondary"}>
-                          <Icon className="h-3 w-3 mr-1" />
-                          {limit.limit_count} {periodLabels[limit.period_type]}
-                        </Badge>
-                        {getSavingBadge(limit.id)}
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="flex items-center justify-center min-w-[44px] min-h-[44px]">
-                          <Switch
-                            checked={limit.is_active}
-                            onCheckedChange={(checked) =>
-                              handleImmediateSwitchUpdate(limit.id, checked)
-                            }
-                            disabled={updateLimit.isPending}
-                          />
-                        </div>
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className={cn("font-medium", isMobile && "text-sm")}>Medikamentenlimits</h3>
+        {localLimits.length > 0 && (
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => toggleAllLimits(true)}
+              disabled={localLimits.every(l => l.is_active)}
+              className={cn(isMobile && "text-xs px-2")}
+            >
+              Alle an
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => toggleAllLimits(false)}
+              disabled={localLimits.every(l => !l.is_active)}
+              className={cn(isMobile && "text-xs px-2")}
+            >
+              Alle aus
+            </Button>
+          </div>
+        )}
+      </div>
+
+      <p className={cn("text-sm text-muted-foreground mb-4", isMobile && "text-xs")}>
+        Verwalten Sie Ihre individuellen Medikamentenlimits, um Überkonsum zu vermeiden.
+      </p>
+
+      {/* Existing Limits */}
+      <div className="space-y-2">
+        {localLimits.map((limit) => {
+          const PeriodIcon = periodIcons[limit.period_type as keyof typeof periodIcons];
+          const isExpanded = expandedLimits.has(limit.id);
+          
+          return (
+            <Collapsible
+              key={limit.id}
+              open={isExpanded}
+              onOpenChange={() => toggleExpanded(limit.id)}
+            >
+              <div className="border rounded-lg overflow-hidden bg-secondary/5">
+                <CollapsibleTrigger className="w-full p-3 flex items-center justify-between hover:bg-secondary/10 transition-colors">
+                  <div className="flex items-center gap-2">
+                    <PeriodIcon className={cn("h-4 w-4 text-muted-foreground", isMobile && "h-3 w-3")} />
+                    <span className={cn("font-medium", isMobile && "text-sm")}>{limit.medication_name}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {getSavingBadge(limit.id)}
+                    <Badge variant={limit.is_active ? "default" : "secondary"} className={cn(isMobile && "text-xs px-1.5")}>
+                      {limit.limit_count}x {periodLabels[limit.period_type]}
+                    </Badge>
+                    <ChevronDown className={cn("h-4 w-4 transition-transform", isExpanded && "rotate-180", isMobile && "h-3 w-3")} />
+                  </div>
+                </CollapsibleTrigger>
+
+                <CollapsibleContent>
+                  <div className={cn("p-4 space-y-4 border-t", isMobile && "p-3 space-y-3")}>
+                    <div className="flex items-center justify-between">
+                      <Label className={cn("text-sm", isMobile && "text-xs")}>Aktiv</Label>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={limit.is_active}
+                          onCheckedChange={(checked) => handleImmediateSwitchUpdate(limit.id, checked)}
+                        />
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => handleDeleteLimit(limit.id, limit.medication_name)}
                           disabled={deleteLimit.isPending}
+                          className="text-destructive hover:text-destructive"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className={cn("h-4 w-4", isMobile && "h-3 w-3")} />
                         </Button>
                       </div>
                     </div>
-                    
-                    <div className="space-y-5">
-                      <div className="min-h-[60px]">
-                        <Label className="text-base font-medium">Anzahl: {limit.limit_count}</Label>
-                        <Slider
-                          value={[limit.limit_count]}
-                          onValueChange={([value]) =>
-                            handleOptimisticUpdate(limit.id, { limit_count: value })
-                          }
-                          max={30}
-                          min={1}
-                          step={1}
-                          className="mt-2 py-6"
-                          disabled={isDisabled}
-                        />
-                      </div>
-                      
-                      <div>
-                        <Label className="text-base font-medium">Zeitraum</Label>
-                        <Select
-                          value={limit.period_type}
-                          onValueChange={(value: 'day' | 'week' | 'month') =>
-                            handleOptimisticUpdate(limit.id, { period_type: value })
-                          }
-                          disabled={isDisabled}
-                        >
-                          <SelectTrigger className="mt-2">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="day">pro Tag</SelectItem>
-                            <SelectItem value="week">pro Woche</SelectItem>
-                            <SelectItem value="month">pro Monat</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
 
-          {/* Add New Limit */}
-          {availableMedications.length > 0 && (
-            <>
-              <Separator />
-              
-              {!showAddForm ? (
-                <Button 
-                  onClick={() => setShowAddForm(true)}
-                  className="w-full"
-                  variant="outline"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Neues Limit hinzufügen
-                </Button>
-              ) : (
-                <Card>
-                  <CardContent className="p-4 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-medium">Neues Limit</h4>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setShowAddForm(false)}
-                      >
-                        Abbrechen
-                      </Button>
-                    </div>
-                    
-                    <div>
-                      <Label>Medikament</Label>
-                      <Select
-                        value={newLimit.medication_name}
-                        onValueChange={(value) =>
-                          setNewLimit(prev => ({ ...prev, medication_name: value }))
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Medikament auswählen" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {availableMedications.map((med) => (
-                            <SelectItem key={med.id} value={med.name}>
-                              {med.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    <div>
-                      <Label>Anzahl: {newLimit.limit_count}</Label>
+                    <div className="space-y-2">
+                      <Label className={cn("text-sm text-muted-foreground", isMobile && "text-xs")}>
+                        Maximale Anzahl: {limit.limit_count}x
+                      </Label>
                       <Slider
-                        value={[newLimit.limit_count]}
-                        onValueChange={([value]) =>
-                          setNewLimit(prev => ({ ...prev, limit_count: value }))
-                        }
-                        max={30}
+                        value={[limit.limit_count]}
+                        onValueChange={([value]) => handleOptimisticUpdate(limit.id, { limit_count: value })}
                         min={1}
+                        max={30}
                         step={1}
-                        className="mt-2"
+                        className="w-full"
                       />
                     </div>
-                    
-                    <div>
-                      <Label>Zeitraum</Label>
+
+                    <div className="space-y-2">
+                      <Label className={cn("text-sm text-muted-foreground", isMobile && "text-xs")}>Zeitraum</Label>
                       <Select
-                        value={newLimit.period_type}
-                        onValueChange={(value: 'day' | 'week' | 'month') =>
-                          setNewLimit(prev => ({ ...prev, period_type: value }))
-                        }
+                        value={limit.period_type}
+                        onValueChange={(value) => handleOptimisticUpdate(limit.id, { period_type: value as 'day' | 'week' | 'month' })}
                       >
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="day">pro Tag</SelectItem>
-                          <SelectItem value="week">pro Woche</SelectItem>
-                          <SelectItem value="month">pro Monat</SelectItem>
+                          <SelectItem value="day">Pro Tag</SelectItem>
+                          <SelectItem value="week">Pro Woche</SelectItem>
+                          <SelectItem value="month">Pro Monat</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
-                    
-                    <Button 
-                      onClick={handleCreateLimit}
-                      disabled={createLimit.isPending || !newLimit.medication_name}
-                      className="w-full"
-                    >
-                      Limit erstellen
-                    </Button>
-                  </CardContent>
-                </Card>
-              )}
-            </>
-          )}
+                  </div>
+                </CollapsibleContent>
+              </div>
+            </Collapsible>
+          );
+        })}
 
-          {localLimits.length === 0 && availableMedications.length === 0 && (
-            <div className="text-center p-8 text-muted-foreground">
-              <p>Keine Medikamente verfügbar.</p>
-              <p className="text-sm">Füge zuerst Medikamente hinzu, um Limits zu setzen.</p>
+        {localLimits.length === 0 && (
+          <div className={cn("text-center py-8 text-muted-foreground", isMobile && "py-6 text-sm")}>
+            Noch keine Medikamentenlimits festgelegt
+          </div>
+        )}
+      </div>
+
+      <Separator />
+
+      {/* Add New Limit */}
+      {availableMedications.length > 0 ? (
+        <>
+          {!showAddForm ? (
+            <Button
+              onClick={() => setShowAddForm(true)}
+              variant="outline"
+              className="w-full"
+              size={isMobile ? "sm" : "default"}
+            >
+              <Plus className={cn("mr-2 h-4 w-4", isMobile && "h-3 w-3")} />
+              Neues Limit hinzufügen
+            </Button>
+          ) : (
+            <div className={cn("p-4 border-2 border-dashed rounded-lg space-y-4", isMobile && "p-3 space-y-3")}>
+              <div className="flex items-center justify-between">
+                <h3 className={cn("font-medium", isMobile && "text-sm")}>Neues Limit erstellen</h3>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowAddForm(false)}
+                >
+                  Abbrechen
+                </Button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label className={cn(isMobile && "text-sm")}>Medikament</Label>
+                  <Select
+                    value={newLimit.medication_name}
+                    onValueChange={(value) => setNewLimit({ ...newLimit, medication_name: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Medikament wählen..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableMedications.map((med) => (
+                        <SelectItem key={med.id} value={med.name}>
+                          {med.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className={cn(isMobile && "text-sm")}>Maximale Anzahl: {newLimit.limit_count}x</Label>
+                  <Slider
+                    value={[newLimit.limit_count]}
+                    onValueChange={([value]) => setNewLimit({ ...newLimit, limit_count: value })}
+                    min={1}
+                    max={30}
+                    step={1}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className={cn(isMobile && "text-sm")}>Zeitraum</Label>
+                  <Select
+                    value={newLimit.period_type}
+                    onValueChange={(value) => setNewLimit({ ...newLimit, period_type: value as 'day' | 'week' | 'month' })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="day">Pro Tag</SelectItem>
+                      <SelectItem value="week">Pro Woche</SelectItem>
+                      <SelectItem value="month">Pro Monat</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Button
+                  onClick={handleCreateLimit}
+                  disabled={!newLimit.medication_name || createLimit.isPending}
+                  className="w-full"
+                  size={isMobile ? "sm" : "default"}
+                >
+                  {createLimit.isPending && <Loader2 className={cn("mr-2 h-4 w-4 animate-spin", isMobile && "h-3 w-3")} />}
+                  Limit erstellen
+                </Button>
+              </div>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </>
+      ) : (
+        <div className={cn("text-center py-4 text-sm text-muted-foreground", isMobile && "text-xs")}>
+          Alle verfügbaren Medikamente haben bereits Limits.
+          <br />
+          Fügen Sie zuerst neue Medikamente hinzu.
+        </div>
+      )}
     </div>
   );
 }
