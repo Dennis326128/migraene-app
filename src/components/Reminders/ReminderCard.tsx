@@ -1,4 +1,4 @@
-import { Clock, Pill, Calendar, Check, Edit } from 'lucide-react';
+import { Clock, Pill, Calendar, Check, Edit2 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -43,7 +43,7 @@ export const ReminderCard = ({ reminder, onEdit, onMarkDone, showDate = false }:
   };
 
   return (
-    <Card className="p-4 hover:shadow-md transition-shadow">
+    <Card className="p-4 hover:shadow-md transition-shadow touch-manipulation">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3 flex-1 min-w-0">
           <div className="p-2 rounded-lg bg-primary/10 text-primary shrink-0">
@@ -79,22 +79,22 @@ export const ReminderCard = ({ reminder, onEdit, onMarkDone, showDate = false }:
         <div className="flex flex-col gap-2 shrink-0">
           {reminder.status === 'pending' && (
             <Button
-              size="sm"
+              size="icon"
               variant="outline"
               onClick={() => onMarkDone(reminder.id)}
-              className="h-9 w-9 p-0"
+              className="h-11 w-11 touch-manipulation"
             >
-              <Check className="h-4 w-4" />
+              <Check className="h-5 w-5" />
             </Button>
           )}
           
           <Button
-            size="sm"
+            size="icon"
             variant="ghost"
             onClick={() => onEdit(reminder)}
-            className="h-9 w-9 p-0"
+            className="h-11 w-11 touch-manipulation"
           >
-            <Edit className="h-4 w-4" />
+            <Edit2 className="h-5 w-5" />
           </Button>
         </div>
       </div>

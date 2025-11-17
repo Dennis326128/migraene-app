@@ -222,3 +222,8 @@ All colors MUST be HSL.
     transition: transform 0.1s ease;
   }
 }
+
+/* Safe area padding for notched displays (iPhone X+) */
+.pb-safe {
+  padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
+}
