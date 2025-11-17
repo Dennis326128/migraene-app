@@ -10,6 +10,9 @@ import { mapTextLevelToScore } from "@/lib/utils/pain";
 import { useMedicationEffectsForEntries } from "@/features/medication-effects/hooks/useMedicationEffects";
 import MedicationStatisticsCard from "./MedicationStatisticsCard";
 import TimeSeriesChart from "@/components/TimeSeriesChart";
+import { FileText, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import ReactMarkdown from "react-markdown";
 
 type Preset = "3m" | "6m" | "12m" | "custom";
 
@@ -43,6 +46,8 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
   const [previousSelection, setPreviousSelection] = useState<string[]>([]);
   const [allSelected, setAllSelected] = useState<boolean>(false);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [analysisReport, setAnalysisReport] = useState<string>("");
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -280,6 +285,40 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
     URL.revokeObjectURL(url);
   };
 
+  const generateAnalysisReport = async () => {
+    if (!filteredEntries.length) {
+      toast.error("Keine Einträge für den gewählten Zeitraum vorhanden");
+      return;
+    }
+
+    setIsGeneratingReport(true);
+    setAnalysisReport("");
+
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-diary-analysis', {
+        body: { 
+          fromDate: `${from}T00:00:00Z`, 
+          toDate: `${to}T23:59:59Z` 
+        }
+      });
+
+      if (error) throw error;
+
+      if (data.error) {
+        toast.error(data.error);
+        return;
+      }
+
+      setAnalysisReport(data.report);
+      toast.success("Analysebericht erfolgreich erstellt");
+    } catch (error) {
+      console.error('Fehler beim Generieren des Analyseberichts:', error);
+      toast.error("Fehler beim Generieren des Analyseberichts");
+    } finally {
+      setIsGeneratingReport(false);
+    }
+  };
+
   return (
     <div className="p-4">
       <h1 className="text-2xl font-bold mb-4 relative" style={{ textDecoration: 'none', lineHeight: '1.2' }}>
@@ -361,12 +400,43 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
           </label>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="secondary" onClick={printPDF} disabled={!filteredEntries.length || isLoading}>📄 PDF / Drucken</Button>
           <Button variant="secondary" onClick={savePDF} disabled={!filteredEntries.length || isLoading}>💾 PDF speichern</Button>
           <Button variant="outline" onClick={exportCSV} disabled={!filteredEntries.length || isLoading}>📊 CSV Export</Button>
+          <Button 
+            variant="outline" 
+            onClick={generateAnalysisReport} 
+            disabled={!filteredEntries.length || isLoading || isGeneratingReport}
+            className="ml-auto"
+          >
+            {isGeneratingReport ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Erstelle Bericht...
+              </>
+            ) : (
+              <>
+                <FileText className="h-4 w-4 mr-2" />
+                Analysebericht
+              </>
+            )}
+          </Button>
         </div>
       </Card>
+
+      {/* Analysebericht */}
+      {analysisReport && (
+        <Card className="p-6 mb-4 bg-card">
+          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Professioneller Analysebericht
+          </h3>
+          <div className="prose prose-sm max-w-none dark:prose-invert">
+            <ReactMarkdown>{analysisReport}</ReactMarkdown>
+          </div>
+        </Card>
+      )}
 
       {/* Medikamenten-Statistiken */}
       {!isLoading && medicationStats.length > 0 && (

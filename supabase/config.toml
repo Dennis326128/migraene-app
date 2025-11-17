@@ -18,6 +18,9 @@ enable_signup = true
 [functions.analyze-voice-notes]
 verify_jwt = true
 
+[functions.generate-diary-analysis]
+verify_jwt = true
+
 [functions.daily-weather-backfill]
 verify_jwt = false
 
