@@ -38,11 +38,155 @@ function painLevelToNumber(painLevel: string): string {
   return painLevel; // fallback
 }
 
+function painLevelToNumericValue(painLevel: string): number {
+  const str = painLevelToNumber(painLevel);
+  const num = parseInt(str);
+  return isNaN(num) ? 0 : num;
+}
+
+function drawSimpleChart(
+  page: any, 
+  entries: PainEntry[], 
+  from: string, 
+  to: string, 
+  x: number, 
+  y: number, 
+  width: number, 
+  height: number,
+  font: any,
+  fontBold: any
+) {
+  // Chart frame
+  page.drawRectangle({
+    x,
+    y: y - height,
+    width,
+    height,
+    borderColor: rgb(0.7, 0.7, 0.7),
+    borderWidth: 1,
+  });
+  
+  // Title
+  page.drawText("Intensitätsverlauf", {
+    x: x + width / 2 - 50,
+    y: y + 10,
+    size: 12,
+    font: fontBold,
+  });
+  
+  // Group entries by date and get max pain per day
+  const painByDate = new Map<string, number>();
+  entries.forEach(entry => {
+    const date = entry.selected_date || entry.timestamp_created?.split('T')[0] || '';
+    const pain = painLevelToNumericValue(entry.pain_level);
+    const existing = painByDate.get(date);
+    if (existing === undefined || pain > existing) {
+      painByDate.set(date, pain);
+    }
+  });
+  
+  // Sort dates
+  const sortedDates = Array.from(painByDate.keys()).sort();
+  
+  if (sortedDates.length === 0) return;
+  
+  // Calculate chart dimensions
+  const chartMargin = 30;
+  const chartWidth = width - 2 * chartMargin;
+  const chartHeight = height - 2 * chartMargin;
+  const chartX = x + chartMargin;
+  const chartY = y - height + chartMargin;
+  
+  // Y-axis (0-10)
+  for (let i = 0; i <= 10; i += 2) {
+    const yPos = chartY + (i / 10) * chartHeight;
+    page.drawLine({
+      start: { x: chartX - 5, y: yPos },
+      end: { x: chartX, y: yPos },
+      thickness: 0.5,
+      color: rgb(0.5, 0.5, 0.5),
+    });
+    page.drawText(i.toString(), {
+      x: chartX - 20,
+      y: yPos - 4,
+      size: 8,
+      font,
+    });
+  }
+  
+  // Draw grid lines
+  for (let i = 0; i <= 10; i += 2) {
+    const yPos = chartY + (i / 10) * chartHeight;
+    page.drawLine({
+      start: { x: chartX, y: yPos },
+      end: { x: chartX + chartWidth, y: yPos },
+      thickness: 0.3,
+      color: rgb(0.9, 0.9, 0.9),
+    });
+  }
+  
+  // Draw data points and lines
+  const maxPoints = Math.min(sortedDates.length, 30); // Limit to 30 points
+  const step = Math.ceil(sortedDates.length / maxPoints);
+  const displayDates = sortedDates.filter((_, i) => i % step === 0);
+  
+  const pointSpacing = chartWidth / (displayDates.length - 1 || 1);
+  
+  let prevX: number | null = null;
+  let prevY: number | null = null;
+  
+  displayDates.forEach((date, i) => {
+    const pain = painByDate.get(date) || 0;
+    const pointX = chartX + i * pointSpacing;
+    const pointY = chartY + (pain / 10) * chartHeight;
+    
+    // Draw line to previous point
+    if (prevX !== null && prevY !== null) {
+      page.drawLine({
+        start: { x: prevX, y: prevY },
+        end: { x: pointX, y: pointY },
+        thickness: 2,
+        color: rgb(0.93, 0.27, 0.27), // red color
+      });
+    }
+    
+    // Draw point
+    page.drawCircle({
+      x: pointX,
+      y: pointY,
+      size: 3,
+      color: rgb(0.93, 0.27, 0.27),
+    });
+    
+    // Draw date label (only every few dates to avoid overlap)
+    if (i % Math.ceil(displayDates.length / 8) === 0) {
+      const shortDate = date.slice(5); // MM-DD
+      page.drawText(shortDate, {
+        x: pointX - 12,
+        y: chartY - 15,
+        size: 7,
+        font,
+      });
+    }
+    
+    prevX = pointX;
+    prevY = pointY;
+  });
+  
+  // Y-axis label
+  page.drawText("Schmerzstärke", {
+    x: chartX - 25,
+    y: chartY + chartHeight + 10,
+    size: 9,
+    font: fontBold,
+  });
+}
+
 export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Array> {
   const { title = "Kopfschmerztagebuch", from, to, entries, selectedMeds, includeNoMeds } = params;
 
   const pdf = await PDFDocument.create();
-  const page = pdf.addPage([595.28, 841.89]); // A4 portrait (pt)
+  let page = pdf.addPage([595.28, 841.89]); // A4 portrait (pt)
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const fontBold = await pdf.embedFont(StandardFonts.HelveticaBold);
 
@@ -53,7 +197,15 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   page.drawText(title, { x: margin, y, size: 18, font: fontBold, color: rgb(0,0,0) });
   y -= 22;
   page.drawText(`Zeitraum: ${formatDateRange(from, to)}`, { x: margin, y, size: 11, font });
-  y -= 20;
+  y -= 30;
+
+  // Draw chart if there are entries
+  if (entries.length > 0) {
+    const chartWidth = page.getWidth() - 2 * margin;
+    const chartHeight = 180;
+    drawSimpleChart(page, entries, from, to, margin, y, chartWidth, chartHeight, font, fontBold);
+    y -= chartHeight + 40;
+  }
 
   // Table header
   const colX = { dt: margin, pain: margin + 180, meds: margin + 260, note: margin + 420 };
@@ -106,18 +258,15 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
 
   const addPageIfNeeded = () => {
     if (y < margin + 40) {
-      const p = pdf.addPage([595.28, 841.89]);
-      y = p.getHeight() - margin;
-      // Re-assign current page reference
-      const pages = pdf.getPages();
-      const last = pages[pages.length - 1];
+      page = pdf.addPage([595.28, 841.89]);
+      y = page.getHeight() - margin;
       // draw header row again on new page
-      last.drawText("Datum/Zeit", { x: colX.dt, y, size: 10, font: fontBold });
-      last.drawText("Schmerz",    { x: colX.pain, y, size: 10, font: fontBold });
-      last.drawText("Medikamente",{ x: colX.meds, y, size: 10, font: fontBold });
-      last.drawText("Notiz",      { x: colX.note, y, size: 10, font: fontBold });
+      page.drawText("Datum/Zeit", { x: colX.dt, y, size: 10, font: fontBold });
+      page.drawText("Schmerz",    { x: colX.pain, y, size: 10, font: fontBold });
+      page.drawText("Medikamente",{ x: colX.meds, y, size: 10, font: fontBold });
+      page.drawText("Notiz",      { x: colX.note, y, size: 10, font: fontBold });
       y -= 12;
-      last.drawLine({ start: { x: margin, y }, end: { x: last.getWidth()-margin, y }, thickness: 0.5, color: rgb(0.8,0.8,0.8) });
+      page.drawLine({ start: { x: margin, y }, end: { x: page.getWidth()-margin, y }, thickness: 0.5, color: rgb(0.8,0.8,0.8) });
       y -= 8;
     }
   };
