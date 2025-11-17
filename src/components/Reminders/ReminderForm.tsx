@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/select';
 import type { Reminder, CreateReminderInput, UpdateReminderInput } from '@/types/reminder.types';
 import { format } from 'date-fns';
+import { ArrowLeft } from 'lucide-react';
 
 const reminderSchema = z.object({
   type: z.enum(['medication', 'appointment']),
@@ -61,10 +62,12 @@ export const ReminderForm = ({ reminder, onSubmit, onCancel, onDelete }: Reminde
         notification_enabled: true,
       };
 
-  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, watch, setValue, formState } = useForm<FormData>({
     resolver: zodResolver(reminderSchema),
     defaultValues,
   });
+
+  const { errors, isSubmitting } = formState;
 
   const type = watch('type');
   const notificationEnabled = watch('notification_enabled');
@@ -86,132 +89,159 @@ export const ReminderForm = ({ reminder, onSubmit, onCancel, onDelete }: Reminde
   };
 
   return (
-    <Card className="p-6">
-      <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-6">
-        <div className="space-y-2">
-          <Label htmlFor="type">Typ</Label>
-          <Select
-            value={type}
-            onValueChange={(value) => setValue('type', value as 'medication' | 'appointment')}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="medication">Medikament</SelectItem>
-              <SelectItem value="appointment">Termin</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+    <div className="px-3 sm:px-4 py-4 sm:py-6 pb-safe">
+      <div className="flex items-center gap-3 mb-6">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={onCancel}
+          className="touch-manipulation min-h-11 min-w-11"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        
+        <h1 className="text-2xl font-bold text-foreground">
+          {isEditing ? 'Erinnerung bearbeiten' : 'Neue Erinnerung'}
+        </h1>
+      </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="title">
-            {type === 'medication' ? 'Name des Medikaments' : 'Terminbezeichnung'}
-          </Label>
-          <Input
-            id="title"
-            placeholder={type === 'medication' ? 'z.B. Ibuprofen 400mg' : 'z.B. Hausarzt'}
-            {...register('title')}
-          />
-          {errors.title && (
-            <p className="text-sm text-destructive">{errors.title.message}</p>
-          )}
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
+      <Card className="p-4 sm:p-6">
+        <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-6">
           <div className="space-y-2">
-            <Label htmlFor="date">Datum</Label>
-            <Input id="date" type="date" {...register('date')} />
-            {errors.date && (
-              <p className="text-sm text-destructive">{errors.date.message}</p>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="time">Uhrzeit</Label>
-            <Input id="time" type="time" {...register('time')} />
-            {errors.time && (
-              <p className="text-sm text-destructive">{errors.time.message}</p>
-            )}
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="repeat">Wiederholung</Label>
-          <Select
-            value={watch('repeat')}
-            onValueChange={(value) => setValue('repeat', value as 'none' | 'daily' | 'weekly' | 'monthly')}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">Keine</SelectItem>
-              <SelectItem value="daily">Täglich</SelectItem>
-              <SelectItem value="weekly">Wöchentlich</SelectItem>
-              <SelectItem value="monthly">Monatlich</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {isEditing && (
-          <div className="space-y-2">
-            <Label htmlFor="status">Status</Label>
+            <Label htmlFor="type">Typ</Label>
             <Select
-              value={watch('status')}
-              onValueChange={(value) => setValue('status', value as 'pending' | 'done' | 'missed')}
+              value={type}
+              onValueChange={(value) => setValue('type', value as 'medication' | 'appointment')}
             >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="pending">Ausstehend</SelectItem>
-                <SelectItem value="done">Erledigt</SelectItem>
-                <SelectItem value="missed">Verpasst</SelectItem>
+                <SelectItem value="medication">Medikament</SelectItem>
+                <SelectItem value="appointment">Termin</SelectItem>
               </SelectContent>
             </Select>
           </div>
-        )}
 
-        <div className="space-y-2">
-          <Label htmlFor="notes">Notizen</Label>
-          <Textarea
-            id="notes"
-            placeholder={type === 'medication' ? 'z.B. 2 Tabletten' : 'z.B. Röntgenbilder mitbringen'}
-            rows={3}
-            {...register('notes')}
-          />
-        </div>
+          <div className="space-y-2">
+            <Label htmlFor="title">
+              {type === 'medication' ? 'Name des Medikaments' : 'Terminbezeichnung'}
+            </Label>
+            <Input
+              id="title"
+              placeholder={type === 'medication' ? 'z.B. Ibuprofen 400mg' : 'z.B. Hausarzt'}
+              {...register('title')}
+            />
+            {errors.title && (
+              <p className="text-sm text-destructive">{errors.title.message}</p>
+            )}
+          </div>
 
-        <div className="flex items-center justify-between py-2">
-          <Label htmlFor="notification">Benachrichtigung aktivieren</Label>
-          <Switch
-            id="notification"
-            checked={notificationEnabled}
-            onCheckedChange={(checked) => setValue('notification_enabled', checked)}
-          />
-        </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="date">Datum</Label>
+              <Input id="date" type="date" {...register('date')} />
+              {errors.date && (
+                <p className="text-sm text-destructive">{errors.date.message}</p>
+              )}
+            </div>
 
-        <div className="flex gap-3 pt-4">
-          <Button type="submit" className="flex-1">
-            {isEditing ? 'Speichern' : 'Erstellen'}
-          </Button>
-          <Button type="button" variant="outline" onClick={onCancel} className="flex-1">
-            Abbrechen
-          </Button>
-        </div>
+            <div className="space-y-2">
+              <Label htmlFor="time">Uhrzeit</Label>
+              <Input id="time" type="time" {...register('time')} />
+              {errors.time && (
+                <p className="text-sm text-destructive">{errors.time.message}</p>
+              )}
+            </div>
+          </div>
 
-        {isEditing && onDelete && (
-          <Button
-            type="button"
-            variant="destructive"
-            onClick={onDelete}
-            className="w-full"
-          >
-            Löschen
-          </Button>
-        )}
-      </form>
-    </Card>
+          <div className="space-y-2">
+            <Label htmlFor="repeat">Wiederholung</Label>
+            <Select
+              value={watch('repeat')}
+              onValueChange={(value) => setValue('repeat', value as 'none' | 'daily' | 'weekly' | 'monthly')}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Keine</SelectItem>
+                <SelectItem value="daily">Täglich</SelectItem>
+                <SelectItem value="weekly">Wöchentlich</SelectItem>
+                <SelectItem value="monthly">Monatlich</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {isEditing && (
+            <div className="space-y-2">
+              <Label htmlFor="status">Status</Label>
+              <Select
+                value={watch('status')}
+                onValueChange={(value) => setValue('status', value as 'pending' | 'done' | 'missed')}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">Ausstehend</SelectItem>
+                  <SelectItem value="done">Erledigt</SelectItem>
+                  <SelectItem value="missed">Verpasst</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label htmlFor="notes">Notizen</Label>
+            <Textarea
+              id="notes"
+              placeholder={type === 'medication' ? 'z.B. 2 Tabletten' : 'z.B. Röntgenbilder mitbringen'}
+              rows={3}
+              {...register('notes')}
+            />
+          </div>
+
+          <div className="flex items-center justify-between py-2">
+            <Label htmlFor="notification">Benachrichtigung aktivieren</Label>
+            <Switch
+              id="notification"
+              checked={notificationEnabled}
+              onCheckedChange={(checked) => setValue('notification_enabled', checked)}
+            />
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Button 
+              type="submit" 
+              disabled={isSubmitting}
+              className="touch-manipulation min-h-11 flex-1"
+            >
+              {isSubmitting ? 'Speichern...' : 'Speichern'}
+            </Button>
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={onCancel}
+              className="touch-manipulation min-h-11 flex-1"
+            >
+              Abbrechen
+            </Button>
+          </div>
+          
+          {onDelete && (
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={onDelete}
+              className="w-full touch-manipulation min-h-11"
+            >
+              Löschen
+            </Button>
+          )}
+        </form>
+      </Card>
+    </div>
   );
 };

@@ -1,14 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Plus, Filter, Bell, BellOff } from 'lucide-react';
+import { Plus, ArrowLeft, Bell, BellOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { ReminderCard } from './ReminderCard';
 import { ReminderForm } from './ReminderForm';
 import {
@@ -136,41 +129,74 @@ export const RemindersPage = () => {
   }
 
   return (
-    <div className="container max-w-4xl mx-auto px-4 py-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Erinnerungen</h1>
+    <div className="container max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-6 pb-safe">
+      <div className="flex items-center gap-3 mb-6">
+        <Button
+          variant="ghost"
+          size="lg"
+          onClick={() => window.history.back()}
+          className="touch-manipulation min-h-11 min-w-11"
+        >
+          <ArrowLeft className="h-5 w-5 mr-2" />
+          Zurück
+        </Button>
         
-        <div className="flex gap-2">
-          {!hasNotificationPermission && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={requestNotificationPermission}
-            >
-              <BellOff className="h-4 w-4 mr-2" />
-              Benachrichtigungen
-            </Button>
-          )}
-          
-          <Button onClick={() => setViewMode('form')}>
-            <Plus className="h-4 w-4 mr-2" />
-            Neue Erinnerung
-          </Button>
-        </div>
+        <h1 className="text-2xl font-bold text-foreground flex-1 text-center">
+          Erinnerungen
+        </h1>
+        
+        <div className="w-[100px]" /> {/* Spacer for centering */}
       </div>
 
-      <div className="flex items-center gap-3 mb-6">
-        <Filter className="h-4 w-4 text-muted-foreground" />
-        <Select value={filterType} onValueChange={(v) => setFilterType(v as FilterType)}>
-          <SelectTrigger className="w-48">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Alle</SelectItem>
-            <SelectItem value="medication">Medikamente</SelectItem>
-            <SelectItem value="appointment">Termine</SelectItem>
-          </SelectContent>
-        </Select>
+      {!hasNotificationPermission && (
+        <div className="mb-4">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={requestNotificationPermission}
+            className="w-full touch-manipulation min-h-11"
+          >
+            <BellOff className="h-4 w-4 mr-2" />
+            Benachrichtigungen aktivieren
+          </Button>
+        </div>
+      )}
+
+      <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-2">
+        <Button
+          variant={filterType === 'all' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setFilterType('all')}
+          className="touch-manipulation min-h-11 whitespace-nowrap"
+        >
+          Alle
+        </Button>
+        <Button
+          variant={filterType === 'medication' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setFilterType('medication')}
+          className="touch-manipulation min-h-11 whitespace-nowrap"
+        >
+          Medikamente
+        </Button>
+        <Button
+          variant={filterType === 'appointment' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setFilterType('appointment')}
+          className="touch-manipulation min-h-11 whitespace-nowrap"
+        >
+          Termine
+        </Button>
+      </div>
+
+      <div className="mb-4">
+        <Button 
+          onClick={() => setViewMode('form')}
+          className="w-full touch-manipulation min-h-11"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Neue Erinnerung
+        </Button>
       </div>
 
       <Tabs defaultValue="today" className="w-full">
