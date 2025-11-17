@@ -1,16 +1,18 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Plus, Clock, Calendar, CalendarDays, Trash2, Loader2 } from "lucide-react";
+import { Plus, Clock, Calendar, CalendarDays, Trash2, Loader2, ChevronDown } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useMeds } from "@/features/meds/hooks/useMeds";
 import { useDebounce } from "@/hooks/useDebounce";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
 import {
   useMedicationLimits,
   useCreateMedicationLimit,
@@ -33,6 +35,7 @@ const periodLabels = {
 };
 
 export function MedicationLimitsSettings() {
+  const isMobile = useIsMobile();
   const { data: medications = [] } = useMeds();
   const { data: serverLimits = [] } = useMedicationLimits();
   const createLimit = useCreateMedicationLimit();

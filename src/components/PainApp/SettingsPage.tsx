@@ -1,20 +1,22 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { useUserSettings } from "@/features/settings/hooks/useUserSettings";
 import { AccountDeletion } from "@/components/AccountDeletion";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { MedicationLimitsSettings } from "./MedicationLimitsSettings";
 import { Separator } from "@/components/ui/separator";
 import { useMeds, useAddMed, useDeleteMed } from "@/features/meds/hooks/useMeds";
-import { Trash2, Plus, Pill } from "lucide-react";
+import { Trash2, Plus, Pill, Shield, Settings as SettingsIcon, Cloud } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
 
 const SettingsPage = ({ onBack }: { onBack: () => void }) => {
   const { toast } = useToast();
-  const { data: settings, isLoading } = useUserSettings();
+  const isMobile = useIsMobile();
 
   const [newMedName, setNewMedName] = useState("");
   
