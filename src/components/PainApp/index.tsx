@@ -14,8 +14,10 @@ import { MedicationLimitWarning } from "./MedicationLimitWarning";
 import { MedicalDisclaimerAlert } from "./MedicalDisclaimerAlert";
 import { VoiceNotesList } from "./VoiceNotesList";
 import { RemindersPage } from "@/components/Reminders/RemindersPage";
+import { DiaryTimeline } from "./DiaryTimeline";
+import { ContextTagsView } from "./ContextTagsView";
 
-type View = "menu" | "new" | "list" | "analysis" | "settings" | "medication-overview" | "voice-notes" | "reminders";
+type View = "menu" | "new" | "list" | "analysis" | "settings" | "medication-overview" | "voice-notes" | "reminders" | "diary-timeline" | "context-tags";
 
 export const PainApp: React.FC = () => {
   const [view, setView] = useState<View>("menu");
@@ -129,6 +131,10 @@ export const PainApp: React.FC = () => {
           </div>
         </div>
       )}
+
+      {view === "diary-timeline" && <DiaryTimeline onBack={goHome} />}
+
+      {view === "context-tags" && <ContextTagsView onBack={goHome} />}
 
       {view === "reminders" && (
         <div className="min-h-screen bg-background">
