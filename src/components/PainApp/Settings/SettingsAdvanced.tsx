@@ -13,8 +13,7 @@ export const SettingsAdvanced = () => {
         <Alert>
           <Info className="h-4 w-4" />
           <AlertDescription className={cn(isMobile && "text-xs")}>
-            <strong>Tipp:</strong> Fehlende Wetterdaten können manuell nachgetragen werden.
-            Die App holt automatisch Wetterdaten für neue Einträge.
+            <strong>Automatische Wetterdaten:</strong> Die App ergänzt fehlende Wetterdaten automatisch im Hintergrund für deine Einträge der letzten 7 Tage.
           </AlertDescription>
         </Alert>
       </Card>
