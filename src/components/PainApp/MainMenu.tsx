@@ -215,6 +215,51 @@ export const MainMenu: React.FC<MainMenuProps> = ({
 
           {/* Secondary Actions Grid */}
           <StartPageButtonGrid columns={2} gap="md">
+            {/* Diary Timeline */}
+            <StartPageCard 
+              variant="neutral" 
+              touchFeedback 
+              onClick={() => onNavigate?.('diary-timeline')}
+            >
+              <div className="text-center space-y-2">
+                <div className="text-2xl">📖</div>
+                <div>
+                  <h4 className="font-semibold text-sm">Tagebuch</h4>
+                  <p className="text-xs opacity-75">Alle Einträge</p>
+                </div>
+              </div>
+            </StartPageCard>
+
+            {/* Quick Context Note */}
+            <StartPageCard 
+              variant="neutral" 
+              touchFeedback 
+              onClick={() => setShowQuickContextNote(true)}
+            >
+              <div className="text-center space-y-2">
+                <div className="text-2xl">✨</div>
+                <div>
+                  <h4 className="font-semibold text-sm">Kontext-Notiz</h4>
+                  <p className="text-xs opacity-75">Schnell erfassen</p>
+                </div>
+              </div>
+            </StartPageCard>
+
+            {/* Context Tags */}
+            <StartPageCard 
+              variant="neutral" 
+              touchFeedback 
+              onClick={() => onNavigate?.('context-tags')}
+            >
+              <div className="text-center space-y-2">
+                <div className="text-2xl">🏷️</div>
+                <div>
+                  <h4 className="font-semibold text-sm">Tags</h4>
+                  <p className="text-xs opacity-75">Muster erkennen</p>
+                </div>
+              </div>
+            </StartPageCard>
+
             {/* Voice Notes */}
             <StartPageCard 
               variant="neutral" 
@@ -363,6 +408,16 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         }}
         transcript={pendingVoiceNote}
         onSave={handleVoiceNoteSave}
+      />
+
+      {/* Quick Context Note Modal */}
+      <QuickContextNoteModal
+        isOpen={showQuickContextNote}
+        onClose={() => setShowQuickContextNote(false)}
+        onStartVoice={() => {
+          setShowQuickContextNote(false);
+          handleVoiceEntry();
+        }}
       />
     </div>
   );
