@@ -256,6 +256,27 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             </StartPageButtonGrid>
           </div>
 
+          {/* Medikamente - Bereich */}
+          <div className="mb-4">
+            <h2 className="text-lg font-medium text-foreground/80 mb-3 px-1">Medikamente</h2>
+            <StartPageButtonGrid columns={2} gap="md">
+              {/* Medication Overview */}
+              <StartPageCard 
+                variant="warning" 
+                touchFeedback 
+                onClick={() => onNavigate?.('medication-overview')}
+              >
+                <div className="text-center space-y-2">
+                  <div className="text-2xl">💊</div>
+                  <div>
+                    <h4 className="font-semibold text-sm">Medikamente & Wirkung</h4>
+                    <p className="text-xs opacity-75">Einnahme nachtragen & bewerten</p>
+                  </div>
+                </div>
+              </StartPageCard>
+            </StartPageButtonGrid>
+          </div>
+
           {/* Tagebuch & Analyse - Bereich */}
           <div className="mb-4">
             <h2 className="text-lg font-medium text-foreground/80 mb-3 px-1">Tagebuch & Analyse</h2>
@@ -301,21 +322,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                   <div>
                     <h4 className="font-semibold text-sm">Auswertungen</h4>
                     <p className="text-xs opacity-75">Trends & Muster</p>
-                  </div>
-                </div>
-              </StartPageCard>
-
-              {/* Medication Overview */}
-              <StartPageCard 
-                variant="warning" 
-                touchFeedback 
-                onClick={() => onNavigate?.('medication-overview')}
-              >
-                <div className="text-center space-y-2">
-                  <div className="text-2xl">💊</div>
-                  <div>
-                    <h4 className="font-semibold text-sm">Medikamente & Wirkung</h4>
-                    <p className="text-xs opacity-75">Einnahme nachtragen & bewerten</p>
                   </div>
                 </div>
               </StartPageCard>
