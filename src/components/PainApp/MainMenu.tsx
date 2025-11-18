@@ -291,25 +291,8 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 <div className="text-center space-y-2">
                   <div className="text-2xl">📖</div>
                   <div>
-                    <h4 className="font-semibold text-sm">Mein Tagebuch</h4>
-                    <p className="text-xs opacity-75">Alle Einträge chronologisch</p>
-                  </div>
-                </div>
-              </StartPageCard>
-            </StartPageButtonGrid>
-
-            {/* Arzt-Report - Full width */}
-            <StartPageButtonGrid columns={1} gap="md">
-              <StartPageCard 
-                variant="neutral" 
-                touchFeedback 
-                onClick={() => onNavigate?.('diary-report')}
-              >
-                <div className="text-center space-y-2">
-                  <div className="text-2xl">📄</div>
-                  <div>
-                    <h4 className="font-semibold text-sm">Arzt-Report erstellen</h4>
-                    <p className="text-xs opacity-75">PDF für Arztbesuche</p>
+                    <h4 className="font-semibold text-sm">Kopfschmerztagebuch</h4>
+                    <p className="text-xs opacity-75">Chronologische Übersicht</p>
                   </div>
                 </div>
               </StartPageCard>

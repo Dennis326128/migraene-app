@@ -156,7 +156,16 @@ export const PainApp: React.FC = () => {
         </div>
       )}
 
-      {view === "diary-timeline" && <DiaryTimeline onBack={goHome} />}
+      {view === "diary-timeline" && (
+        <DiaryTimeline 
+          onBack={goHome} 
+          onNavigate={(target) => {
+            if (target === 'diary-report') {
+              setView('diary-report');
+            }
+          }}
+        />
+      )}
 
       {view === "context-tags" && <ContextTagsView onBack={goHome} />}
 
