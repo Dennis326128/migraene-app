@@ -17,6 +17,47 @@ const VoiceEntryRequestSchema = z.object({
   })).optional().default([])
 });
 
+// Generic error handler to prevent exposing internal structures
+function handleError(error: unknown, context: string): Response {
+  // Log detailed error internally
+  console.error(`❌ [${context}] Error:`, error);
+  if (error instanceof Error) {
+    console.error('Stack trace:', error.stack);
+  }
+
+  // Determine error type and return generic message
+  if (error instanceof z.ZodError) {
+    return new Response(JSON.stringify({ 
+      error: 'Ungültige Eingabedaten',
+      missing: ['time', 'pain', 'meds']
+    }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+
+  // Check for authentication errors
+  const errorMessage = error instanceof Error ? error.message.toLowerCase() : '';
+  if (errorMessage.includes('authorization') || errorMessage.includes('authentication') || errorMessage.includes('unauthorized')) {
+    return new Response(JSON.stringify({ 
+      error: 'Authentifizierung fehlgeschlagen',
+      missing: ['time', 'pain', 'meds']
+    }), {
+      status: 401,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+
+  // Generic server error
+  return new Response(JSON.stringify({ 
+    error: 'Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.',
+    missing: ['time', 'pain', 'meds']
+  }), {
+    status: 500,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+  });
+}
+
 interface VoiceEntrySchema {
   timestampISO: string | null;
   painIntensity: number | null;
@@ -304,16 +345,6 @@ serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('❌ Error:', error);
-    return new Response(
-      JSON.stringify({ 
-        error: error.message || 'Unknown error',
-        missing: ['time', 'pain', 'meds']
-      }),
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
-    );
+    return handleError(error, 'extract-voice-entry');
   }
 });

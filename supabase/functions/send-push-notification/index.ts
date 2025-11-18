@@ -21,6 +21,44 @@ const PushNotificationSchema = z.object({
   data: z.record(z.any()).optional()
 });
 
+// Generic error handler to prevent exposing internal structures
+function handleError(error: unknown, context: string): Response {
+  // Log detailed error internally
+  console.error(`❌ [${context}] Error:`, error);
+  if (error instanceof Error) {
+    console.error('Stack trace:', error.stack);
+  }
+
+  // Determine error type and return generic message
+  if (error instanceof z.ZodError) {
+    return new Response(JSON.stringify({ 
+      error: 'Ungültige Notification-Daten'
+    }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+
+  // Check for authentication errors
+  const errorMessage = error instanceof Error ? error.message.toLowerCase() : '';
+  if (errorMessage.includes('authorization') || errorMessage.includes('authentication') || errorMessage.includes('unauthorized')) {
+    return new Response(JSON.stringify({ 
+      error: 'Authentifizierung fehlgeschlagen'
+    }), {
+      status: 401,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+
+  // Generic server error
+  return new Response(JSON.stringify({ 
+    error: 'Fehler beim Senden der Push-Benachrichtigung'
+  }), {
+    status: 500,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+  });
+}
+
 interface PushSubscription {
   endpoint: string;
   p256dh: string;
@@ -198,10 +236,6 @@ serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('Error in send-push-notification:', error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return handleError(error, 'send-push-notification');
   }
 });
