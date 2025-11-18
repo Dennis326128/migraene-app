@@ -18,7 +18,7 @@ import { RemindersPage } from "@/components/Reminders/RemindersPage";
 import { DiaryTimeline } from "./DiaryTimeline";
 import { ContextTagsView } from "./ContextTagsView";
 import DiaryReport from "./DiaryReport";
-import { MedicationLimitsOverview } from "./MedicationLimitsOverview";
+import { MedicationLimitsPage } from "./MedicationLimitsPage";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -193,23 +193,7 @@ export const PainApp: React.FC = () => {
       {view === "diary-report" && <DiaryReport onBack={goHome} />}
 
       {view === "medication-limits" && (
-        <div className="min-h-screen bg-background">
-          <div className="sticky top-0 z-10 bg-background border-b border-border px-4 py-3 flex items-center gap-3">
-            <Button 
-              variant="ghost" 
-              onClick={goHome}
-              className="p-2 hover:bg-secondary/80"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <h1 className="text-xl font-semibold flex-1">Medikamenten-Übergebrauch</h1>
-          </div>
-          <div className="container mx-auto p-4">
-            <MedicationLimitsOverview 
-              onSetupLimits={() => setView('medication-management')}
-            />
-          </div>
-        </div>
+        <MedicationLimitsPage onBack={goHome} />
       )}
 
       {/* Onboarding Modal */}

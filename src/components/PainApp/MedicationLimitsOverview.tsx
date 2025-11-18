@@ -1,17 +1,13 @@
 import React, { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { AlertTriangle, CheckCircle, Clock, Settings } from "lucide-react";
+import { AlertTriangle, CheckCircle, Clock, XCircle } from "lucide-react";
 import { useMedicationLimits, useCheckMedicationLimits } from "@/features/medication-limits/hooks/useMedicationLimits";
 import { useMeds } from "@/features/meds/hooks/useMeds";
 import { useEntries } from "@/features/entries/hooks/useEntries";
+import { cn } from "@/lib/utils";
 
-interface MedicationLimitsOverviewProps {
-  onSetupLimits?: () => void;
-}
-
-export function MedicationLimitsOverview({ onSetupLimits }: MedicationLimitsOverviewProps) {
+export function MedicationLimitsOverview() {
   const { data: limits = [], isLoading: limitsLoading } = useMedicationLimits();
   const { data: medications = [] } = useMeds();
   const { mutate: checkLimits, data: limitChecks = [], isPending: checking } = useCheckMedicationLimits();
@@ -76,14 +72,14 @@ export function MedicationLimitsOverview({ onSetupLimits }: MedicationLimitsOver
     );
   }
 
-  // No limits set up
+  // No limits set up - simplified view
   if (limits.length === 0) {
     return (
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Settings className="h-5 w-5" />
-            Medikamenten-Limits einrichten
+            <Clock className="h-5 w-5" />
+            Noch keine Limits eingerichtet
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -102,14 +98,9 @@ export function MedicationLimitsOverview({ onSetupLimits }: MedicationLimitsOver
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">Noch keine Einträge mit Medikamenten erstellt. <br/>Erstellen Sie Ihren ersten Eintrag im Tagebuch.</p>
+              <p className="text-sm text-muted-foreground">Noch keine Einträge mit Medikamenten erstellt.</p>
             )}
           </div>
-          {onSetupLimits && (
-            <Button onClick={onSetupLimits} className="w-full">
-              Limits jetzt einrichten
-            </Button>
-          )}
         </CardContent>
       </Card>
     );
@@ -239,17 +230,6 @@ export function MedicationLimitsOverview({ onSetupLimits }: MedicationLimitsOver
           )}
         </CardContent>
       </Card>
-
-      {onSetupLimits && (
-        <Card>
-          <CardContent className="p-4">
-            <Button onClick={onSetupLimits} variant="outline" className="w-full">
-              <Settings className="h-4 w-4 mr-2" />
-              Limits verwalten
-            </Button>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }
