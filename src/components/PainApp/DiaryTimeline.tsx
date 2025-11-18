@@ -152,14 +152,18 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
       <div className="max-w-4xl mx-auto px-4 pt-4">
         <Button
           onClick={() => onNavigate?.('diary-report')}
-          variant="outline"
-          className="w-full justify-start gap-3 h-auto py-3 border-primary/20 hover:bg-primary/5 hover:border-primary/40"
+          variant="default"
+          size="lg"
+          className="w-full justify-start gap-4 h-auto py-4 bg-success hover:bg-success/90 shadow-sm"
         >
-          <FileText className="h-5 w-5 text-primary" />
+          <FileText className="h-6 w-6" />
           <div className="text-left flex-1">
-            <div className="font-semibold">PDF-Report erstellen</div>
-            <div className="text-xs text-muted-foreground">Für Arztbesuche</div>
+            <div className="font-semibold text-base">Kopfschmerztagebuch erstellen</div>
+            <div className="text-xs opacity-90">PDF für Arztbesuche</div>
           </div>
+          <Badge variant="secondary" className="ml-auto">
+            Neu
+          </Badge>
         </Button>
       </div>
 
