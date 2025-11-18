@@ -7,6 +7,7 @@ import SettingsPage from "./SettingsPage";
 import { OnboardingModal } from "./OnboardingModal";
 import { AppTutorialModal } from "./AppTutorialModal";
 import { MedicationOverviewPage } from "@/pages/MedicationOverviewPage";
+import { MedicationManagement } from "./MedicationManagement";
 import { useOnboarding } from "@/hooks/useOnboarding";
 import { useAppTutorial } from "@/hooks/useAppTutorial";
 import type { PainEntry } from "@/types/painApp";
@@ -17,7 +18,7 @@ import { RemindersPage } from "@/components/Reminders/RemindersPage";
 import { DiaryTimeline } from "./DiaryTimeline";
 import { ContextTagsView } from "./ContextTagsView";
 
-type View = "menu" | "new" | "list" | "analysis" | "settings" | "medication-overview" | "voice-notes" | "reminders" | "diary-timeline" | "context-tags";
+type View = "menu" | "new" | "list" | "analysis" | "settings" | "medication-overview" | "medication-management" | "voice-notes" | "reminders" | "diary-timeline" | "context-tags";
 
 export const PainApp: React.FC = () => {
   const [view, setView] = useState<View>("menu");
@@ -77,10 +78,16 @@ export const PainApp: React.FC = () => {
           onNavigate={(target) => {
             if (target === 'medication-overview') {
               setView('medication-overview');
+            } else if (target === 'medication-management') {
+              setView('medication-management');
             } else if (target === 'voice-notes') {
               setView('voice-notes');
             } else if (target === 'reminders') {
               setView('reminders');
+            } else if (target === 'diary-timeline') {
+              setView('diary-timeline');
+            } else if (target === 'context-tags') {
+              setView('context-tags');
             }
           }}
           onLimitWarning={handleLimitWarning}
@@ -113,6 +120,10 @@ export const PainApp: React.FC = () => {
 
       {view === "medication-overview" && (
         <MedicationOverviewPage onBack={goHome} />
+      )}
+
+      {view === "medication-management" && (
+        <MedicationManagement onBack={goHome} />
       )}
 
       {view === "voice-notes" && (

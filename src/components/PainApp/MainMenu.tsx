@@ -260,7 +260,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           <div className="mb-4">
             <h2 className="text-lg font-medium text-foreground/80 mb-3 px-1">Medikamente</h2>
             <StartPageButtonGrid columns={2} gap="md">
-              {/* Medication Overview */}
+              {/* Medication Effects */}
               <StartPageCard 
                 variant="warning" 
                 touchFeedback 
@@ -269,8 +269,23 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 <div className="text-center space-y-2">
                   <div className="text-2xl">💊</div>
                   <div>
-                    <h4 className="font-semibold text-sm">Medikamente & Wirkung</h4>
+                    <h4 className="font-semibold text-sm">Wirkung eintragen</h4>
                     <p className="text-xs opacity-75">Einnahme nachtragen & bewerten</p>
+                  </div>
+                </div>
+              </StartPageCard>
+
+              {/* Medication Management */}
+              <StartPageCard 
+                variant="neutral" 
+                touchFeedback 
+                onClick={() => onNavigate?.('medication-management')}
+              >
+                <div className="text-center space-y-2">
+                  <div className="text-2xl">📋</div>
+                  <div>
+                    <h4 className="font-semibold text-sm">Medikamente verwalten</h4>
+                    <p className="text-xs opacity-75">Hinzufügen & Erinnerungen</p>
                   </div>
                 </div>
               </StartPageCard>
