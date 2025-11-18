@@ -327,8 +327,8 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 <div className="text-center space-y-2">
                   <div className="text-2xl">📊</div>
                   <div>
-                    <h4 className="font-semibold text-sm">Statistiken & Trends</h4>
-                    <p className="text-xs opacity-75">Grafische Auswertung</p>
+                    <h4 className="font-semibold text-sm">Statistik</h4>
+                    <p className="text-xs opacity-75">Zahlen & Verläufe</p>
                   </div>
                 </div>
               </StartPageCard>
@@ -339,10 +339,10 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 onClick={() => onNavigate?.('analysis-ki')}
               >
                 <div className="text-center space-y-2">
-                  <div className="text-2xl">🧠</div>
+                  <div className="text-2xl">🤖</div>
                   <div>
-                    <h4 className="font-semibold text-sm">KI-Analyse</h4>
-                    <p className="text-xs opacity-75">Muster finden</p>
+                    <h4 className="font-semibold text-sm">KI-Muster</h4>
+                    <p className="text-xs opacity-75">Muster & Hinweise</p>
                   </div>
                 </div>
               </StartPageCard>
