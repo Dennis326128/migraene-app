@@ -25,7 +25,7 @@ interface MainMenuProps {
   onViewAnalysis: () => void;
   onViewSettings: () => void;
   onQuickEntry?: () => void;
-  onNavigate?: (view: 'medication-overview' | 'medication-management' | 'voice-notes' | 'reminders' | 'diary-timeline' | 'context-tags' | 'analysis-grafik' | 'analysis-ki' | 'analysis-limits' | 'diary-report') => void;
+  onNavigate?: (view: 'medication-overview' | 'medication-management' | 'voice-notes' | 'reminders' | 'diary-timeline' | 'context-tags' | 'analysis-grafik' | 'analysis-ki' | 'analysis-limits' | 'diary-report' | 'medication-limits') => void;
   onLimitWarning?: (checks: any[]) => void;
 }
 
@@ -242,8 +242,27 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           </div>
 
           {/* Medikamente - Bereich */}
-          <div className="mb-4">
+          <div className="mb-4 space-y-3">
             <h2 className="text-lg font-medium text-foreground/80 mb-3 px-1">Medikamente</h2>
+            
+            {/* Medikamenten-Übergebrauch - Full width, prominent */}
+            <StartPageButtonGrid columns={1} gap="md">
+              <StartPageCard 
+                variant="warning" 
+                touchFeedback 
+                onClick={() => onNavigate?.('medication-limits')}
+              >
+                <div className="text-center space-y-2">
+                  <div className="text-2xl">⚠️</div>
+                  <div>
+                    <h4 className="font-semibold text-sm">Medikamenten-Übergebrauch</h4>
+                    <p className="text-xs opacity-75">Grenzen & Warnungen</p>
+                  </div>
+                </div>
+              </StartPageCard>
+            </StartPageButtonGrid>
+
+            {/* Other medication actions */}
             <StartPageButtonGrid columns={2} gap="md">
               {/* Medication Effects */}
               <StartPageCard 
