@@ -84,7 +84,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
     if (voiceRouter.isListening) {
       return 'Hört zu...';
     }
-    return 'Voice-Eingabe';
+    return 'Einsprechen';
   };
 
   const getVoiceButtonSubtitle = () => {
@@ -94,7 +94,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
     if (voiceRouter.isListening) {
       return 'Sprechen Sie jetzt! (3s Pause beendet)';
     }
-    return 'Schmerzeinträge, Kontext-Notizen oder Erinnerungen';
+    return 'Migräne oder Notiz per Sprache';
   };
 
   const handleQuickEntryClose = () => {
@@ -159,197 +159,204 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         </div>
 
         <div className="space-y-4 sm:space-y-6 w-full max-w-md px-2 sm:px-0">
-          {/* New Entry Button */}
-          <StartPageCard 
-            variant="success" 
-            touchFeedback 
-            onClick={onNewEntry}
-          >
-            <StartPageCardHeader
-              icon="➕"
-              title="Neuer Eintrag"
-              subtitle="Detaillierte Migräne-Dokumentation"
-            />
-          </StartPageCard>
-
-          {/* Quick Entry Button - Schnelleintrag */}
-          <StartPageCard 
-            variant="quick" 
-            size="default"
-            touchFeedback 
-            onClick={() => setShowQuickEntry(true)}
-          >
-            <StartPageCardHeader
-              icon="⚡"
-              title="Schnelleintrag"
-              subtitle="Sofortige Migräne-Erfassung"
-            />
-          </StartPageCard>
-
-          {/* Unified Voice Entry Button */}
-          <StartPageCard 
-            variant="voice" 
-            touchFeedback 
-            onClick={handleVoiceEntry}
-            className={voiceRouter.isListening ? 'ring-2 ring-primary shadow-lg shadow-primary/50' : ''}
-            style={voiceRouter.isListening ? { animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite' } : undefined}
-          >
-            <StartPageCardHeader
-              icon={voiceRouter.isListening ? '🔴' : '🎙️'}
-              title={getVoiceButtonTitle()}
-              subtitle={getVoiceButtonSubtitle()}
-            />
-            {voiceRouter.isListening && (
-              <Button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  voiceRouter.stopVoice();
-                }}
-                className="mt-3 w-full bg-success hover:bg-success/90"
-                size="lg"
+          {/* Schnell erfassen - Bereich */}
+          <div className="mb-4">
+            <h2 className="text-lg font-medium text-foreground/80 mb-3 px-1">Schnell erfassen</h2>
+            
+            <div className="space-y-3">
+              {/* New Entry Button */}
+              <StartPageCard 
+                variant="success" 
+                touchFeedback 
+                onClick={onNewEntry}
               >
-                ✅ Fertig & Verarbeiten
-              </Button>
-            )}
-          </StartPageCard>
+                <StartPageCardHeader
+                  icon="➕"
+                  title="Neuer Migräne-Eintrag"
+                  subtitle="Detaillierte Dokumentation"
+                />
+              </StartPageCard>
 
-          {/* Secondary Actions Grid */}
-          <StartPageButtonGrid columns={2} gap="md">
-            {/* Diary Timeline */}
-            <StartPageCard 
-              variant="neutral" 
-              touchFeedback 
-              onClick={() => onNavigate?.('diary-timeline')}
-            >
-              <div className="text-center space-y-2">
-                <div className="text-2xl">📖</div>
-                <div>
-                  <h4 className="font-semibold text-sm">Tagebuch</h4>
-                  <p className="text-xs opacity-75">Alle Einträge</p>
-                </div>
-              </div>
-            </StartPageCard>
+              {/* Quick Entry Button - Schnelleintrag */}
+              <StartPageCard 
+                variant="quick" 
+                size="default"
+                touchFeedback 
+                onClick={() => setShowQuickEntry(true)}
+              >
+                <StartPageCardHeader
+                  icon="⚡"
+                  title="Migräne-Schnelleintrag"
+                  subtitle="Schmerz jetzt schnell festhalten"
+                />
+              </StartPageCard>
 
-            {/* Quick Context Note */}
-            <StartPageCard 
-              variant="neutral" 
-              touchFeedback 
-              onClick={() => setShowQuickContextNote(true)}
-            >
-              <div className="text-center space-y-2">
-                <div className="text-2xl">✨</div>
-                <div>
-                  <h4 className="font-semibold text-sm">Kontext-Notiz</h4>
-                  <p className="text-xs opacity-75">Schnell erfassen</p>
-                </div>
-              </div>
-            </StartPageCard>
+              {/* Unified Voice Entry Button */}
+              <StartPageCard 
+                variant="voice" 
+                touchFeedback 
+                onClick={handleVoiceEntry}
+                className={voiceRouter.isListening ? 'ring-2 ring-primary shadow-lg shadow-primary/50' : ''}
+                style={voiceRouter.isListening ? { animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite' } : undefined}
+              >
+                <StartPageCardHeader
+                  icon={voiceRouter.isListening ? '🔴' : '🎙️'}
+                  title={getVoiceButtonTitle()}
+                  subtitle={getVoiceButtonSubtitle()}
+                />
+                {voiceRouter.isListening && (
+                  <Button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      voiceRouter.stopVoice();
+                    }}
+                    className="mt-3 w-full bg-success hover:bg-success/90"
+                    size="lg"
+                  >
+                    ✅ Fertig & Verarbeiten
+                  </Button>
+                )}
+              </StartPageCard>
+            </div>
+          </div>
 
-            {/* Context Tags */}
-            <StartPageCard 
-              variant="neutral" 
-              touchFeedback 
-              onClick={() => onNavigate?.('context-tags')}
-            >
-              <div className="text-center space-y-2">
-                <div className="text-2xl">🏷️</div>
-                <div>
-                  <h4 className="font-semibold text-sm">Tags</h4>
-                  <p className="text-xs opacity-75">Muster erkennen</p>
+          {/* Alltag & Faktoren - Bereich */}
+          <div className="mb-4">
+            <h2 className="text-lg font-medium text-foreground/80 mb-3 px-1">Alltag & Faktoren</h2>
+            <StartPageButtonGrid columns={2} gap="md">
+              {/* Quick Context Note */}
+              <StartPageCard 
+                variant="neutral" 
+                touchFeedback 
+                onClick={() => setShowQuickContextNote(true)}
+              >
+                <div className="text-center space-y-2">
+                  <div className="text-2xl">✨</div>
+                  <div>
+                    <h4 className="font-semibold text-sm">Tagesnotiz & Faktoren</h4>
+                    <p className="text-xs opacity-75">Schlaf, Trinken, Stimmung …</p>
+                  </div>
                 </div>
-              </div>
-            </StartPageCard>
+              </StartPageCard>
 
-            {/* Voice Notes */}
-            <StartPageCard 
-              variant="neutral" 
-              touchFeedback 
-              onClick={() => onNavigate?.('voice-notes')}
-            >
-              <div className="text-center space-y-2">
-                <div className="text-2xl">🎙️</div>
-                <div>
-                  <h4 className="font-semibold text-sm">Voice-Notizen</h4>
-                  <p className="text-xs opacity-75">Sprachaufnahmen</p>
+              {/* Context Tags */}
+              <StartPageCard 
+                variant="neutral" 
+                touchFeedback 
+                onClick={() => onNavigate?.('context-tags')}
+              >
+                <div className="text-center space-y-2">
+                  <div className="text-2xl">🏷️</div>
+                  <div>
+                    <h4 className="font-semibold text-sm">Auslöser & Kategorien</h4>
+                    <p className="text-xs opacity-75">Eigene Muster verwalten</p>
+                  </div>
                 </div>
-              </div>
-            </StartPageCard>
+              </StartPageCard>
+            </StartPageButtonGrid>
+          </div>
 
-            {/* Medication Overview */}
-            <StartPageCard 
-              variant="warning" 
-              touchFeedback 
-              onClick={() => onNavigate?.('medication-overview')}
-            >
-              <div className="text-center space-y-2">
-                <div className="text-2xl">💊</div>
-                <div>
-                  <h4 className="font-semibold text-sm">Medikamenten-Wirkung</h4>
-                  <p className="text-xs opacity-75">Nachträglich bewerten</p>
+          {/* Tagebuch & Analyse - Bereich */}
+          <div className="mb-4">
+            <h2 className="text-lg font-medium text-foreground/80 mb-3 px-1">Tagebuch & Analyse</h2>
+            <StartPageButtonGrid columns={2} gap="md">
+              {/* Diary Timeline */}
+              <StartPageCard 
+                variant="neutral" 
+                touchFeedback 
+                onClick={() => onNavigate?.('diary-timeline')}
+              >
+                <div className="text-center space-y-2">
+                  <div className="text-2xl">📖</div>
+                  <div>
+                    <h4 className="font-semibold text-sm">Tagebuch</h4>
+                    <p className="text-xs opacity-75">Alle Einträge</p>
+                  </div>
                 </div>
-              </div>
-            </StartPageCard>
+              </StartPageCard>
 
-            {/* Reminders */}
-            <StartPageCard 
-              variant="neutral" 
-              touchFeedback 
-              onClick={() => onNavigate?.('reminders')}
-            >
-              <div className="text-center space-y-2">
-                <div className="text-2xl">⏰</div>
-                <div>
-                  <h4 className="font-semibold text-sm">Erinnerungen</h4>
-                  <p className="text-xs opacity-75">Medikamente & Termine</p>
+              {/* View Entries */}
+              <StartPageCard 
+                variant="neutral" 
+                touchFeedback 
+                onClick={onViewEntries}
+              >
+                <div className="text-center space-y-2">
+                  <div className="text-2xl">📋</div>
+                  <div>
+                    <h4 className="font-semibold text-sm">Verlauf</h4>
+                    <p className="text-xs opacity-75">Einträge nach Datum</p>
+                  </div>
                 </div>
-              </div>
-            </StartPageCard>
+              </StartPageCard>
 
-            {/* View Entries */}
-            <StartPageCard 
-              variant="neutral" 
-              touchFeedback 
-              onClick={onViewEntries}
-            >
-              <div className="text-center space-y-2">
-                <div className="text-2xl">📋</div>
-                <div>
-                  <h4 className="font-semibold text-sm">Verlauf</h4>
-                  <p className="text-xs opacity-75">Einträge</p>
+              {/* Analysis */}
+              <StartPageCard 
+                variant="neutral" 
+                touchFeedback 
+                onClick={onViewAnalysis}
+              >
+                <div className="text-center space-y-2">
+                  <div className="text-2xl">📊</div>
+                  <div>
+                    <h4 className="font-semibold text-sm">Auswertungen</h4>
+                    <p className="text-xs opacity-75">Trends & Muster</p>
+                  </div>
                 </div>
-              </div>
-            </StartPageCard>
+              </StartPageCard>
 
-            {/* Analysis */}
-            <StartPageCard 
-              variant="neutral" 
-              touchFeedback 
-              onClick={onViewAnalysis}
-            >
-              <div className="text-center space-y-2">
-                <div className="text-2xl">📊</div>
-                <div>
-                  <h4 className="font-semibold text-sm">Auswertungen</h4>
-                  <p className="text-xs opacity-75">Trends</p>
+              {/* Medication Overview */}
+              <StartPageCard 
+                variant="warning" 
+                touchFeedback 
+                onClick={() => onNavigate?.('medication-overview')}
+              >
+                <div className="text-center space-y-2">
+                  <div className="text-2xl">💊</div>
+                  <div>
+                    <h4 className="font-semibold text-sm">Medikamente & Wirkung</h4>
+                    <p className="text-xs opacity-75">Einnahme nachtragen & bewerten</p>
+                  </div>
                 </div>
-              </div>
-            </StartPageCard>
+              </StartPageCard>
+            </StartPageButtonGrid>
+          </div>
 
-            {/* Settings */}
-            <StartPageCard 
-              variant="neutral" 
-              touchFeedback 
-              onClick={onViewSettings}
-            >
-              <div className="text-center space-y-2">
-                <div className="text-2xl">⚙️</div>
-                <div>
-                  <h4 className="font-semibold text-sm">Einstellungen</h4>
-                  <p className="text-xs opacity-75">Konfiguration</p>
+          {/* Organisation - Bereich */}
+          <div className="mb-4">
+            <h2 className="text-lg font-medium text-foreground/80 mb-3 px-1">Organisation</h2>
+            <StartPageButtonGrid columns={2} gap="md">
+              {/* Reminders */}
+              <StartPageCard 
+                variant="neutral" 
+                touchFeedback 
+                onClick={() => onNavigate?.('reminders')}
+              >
+                <div className="text-center space-y-2">
+                  <div className="text-2xl">⏰</div>
+                  <div>
+                    <h4 className="font-semibold text-sm">Erinnerungen</h4>
+                    <p className="text-xs opacity-75">Medikamente & Termine</p>
+                  </div>
                 </div>
-              </div>
-            </StartPageCard>
-          </StartPageButtonGrid>
+              </StartPageCard>
+
+              {/* Settings */}
+              <StartPageCard 
+                variant="neutral" 
+                touchFeedback 
+                onClick={onViewSettings}
+              >
+                <div className="text-center space-y-2">
+                  <div className="text-2xl">⚙️</div>
+                  <div>
+                    <h4 className="font-semibold text-sm">Einstellungen</h4>
+                    <p className="text-xs opacity-75">App & Profil</p>
+                  </div>
+                </div>
+              </StartPageCard>
+            </StartPageButtonGrid>
+          </div>
         </div>
 
       </div>
