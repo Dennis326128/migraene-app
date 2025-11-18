@@ -20,12 +20,12 @@ import { useIsMobile } from "@/hooks/use-mobile";
 
 interface AnalysisViewProps {
   onBack: () => void;
-  initialView?: "tagebuch" | "analyse" | "grafik" | "ki-analyse";
+  initialView?: "statistik" | "ki-muster";
 }
 
-export function AnalysisView({ onBack, initialView = "grafik" }: AnalysisViewProps) {
+export function AnalysisView({ onBack, initialView = "statistik" }: AnalysisViewProps) {
   const isMobile = useIsMobile();
-  const [viewMode, setViewMode] = useState<"tagebuch" | "analyse" | "grafik" | "ki-analyse">(initialView);
+  const [viewMode, setViewMode] = useState<"statistik" | "ki-muster">(initialView);
   const [timeRange, setTimeRange] = useState("alle");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
@@ -146,7 +146,7 @@ export function AnalysisView({ onBack, initialView = "grafik" }: AnalysisViewPro
   const { data: timeDistribution = [], isLoading: timeLoading } = useTimeDistribution({ from, to });
 
   useEffect(() => {
-    if (viewMode === "analyse") {
+    if (viewMode === "statistik") {
       refetch();
     }
   }, [viewMode, refetch]);
@@ -251,26 +251,21 @@ export function AnalysisView({ onBack, initialView = "grafik" }: AnalysisViewPro
         <CardContent className="p-4">
           <div className={`flex gap-2 ${isMobile ? 'overflow-x-auto scrollbar-hide pb-2' : 'flex-wrap'}`}>
             {[
-              { id: "tagebuch", label: isMobile ? "📋" : "📋 Tagebuch", icon: FileText },
-              { id: "analyse", label: isMobile ? "📊" : "📊 Analyse", icon: BarChart3 },
-              { id: "grafik", label: isMobile ? "📈" : "📈 Grafik", icon: Activity },
-              { id: "ki-analyse", label: isMobile ? "🤖" : "🤖 KI-Analyse", icon: Brain },
-            ].map(({ id, label, icon: Icon }) => (
+              { id: "statistik", label: "📊 Statistik", subtitle: "Zahlen & Verläufe", icon: BarChart3 },
+              { id: "ki-muster", label: "🤖 KI-Muster", subtitle: "Automatisch erkannte Zusammenhänge", icon: Brain },
+            ].map(({ id, label, subtitle, icon: Icon }) => (
               <Button
                 key={id}
                 variant={viewMode === id ? "default" : "outline"}
-                size={isMobile ? "sm" : "sm"}
+                size="sm"
                 onClick={() => setViewMode(id as any)}
-                className={`${isMobile ? 'text-xs min-w-fit px-3 whitespace-nowrap' : 'text-xs'} touch-manipulation`}
+                className={`flex-1 flex-col h-auto py-3 ${isMobile ? 'text-xs' : 'text-sm'} touch-manipulation`}
               >
-                {isMobile ? (
-                  <span className="text-sm">{label}</span>
-                ) : (
-                  <>
-                    <Icon className="mr-1 h-3 w-3" />
-                    {label}
-                  </>
-                )}
+                <div className="flex items-center gap-2 mb-1">
+                  <Icon className="h-4 w-4" />
+                  <span className="font-semibold">{label.split(' ')[1]}</span>
+                </div>
+                <span className="text-xs opacity-75 whitespace-normal">{subtitle}</span>
               </Button>
             ))}
           </div>
@@ -278,11 +273,7 @@ export function AnalysisView({ onBack, initialView = "grafik" }: AnalysisViewPro
       </Card>
 
       {/* Content based on view mode */}
-      {viewMode === "tagebuch" && (
-        <DiaryReport onBack={() => setViewMode("tagebuch")} />
-      )}
-
-      {viewMode === "analyse" && (
+      {viewMode === "statistik" && (
         <>
           <StatisticsFilter
             timeRange={timeRange}
@@ -395,110 +386,22 @@ export function AnalysisView({ onBack, initialView = "grafik" }: AnalysisViewPro
         </>
       )}
 
-      {viewMode === "grafik" && (
-        <>
-          {isLoading ? (
-            <div className="text-center py-8">Lade Daten...</div>
-          ) : error ? (
-            <div className="flex justify-center py-8">
-              <EmptyState
-                icon="⚠️"
-                title="Fehler beim Laden"
-                description={`Es gab ein Problem beim Laden der Daten: ${error.message}`}
-                action={{
-                  label: "Erneut versuchen",
-                  onClick: () => window.location.reload(),
-                  variant: "outline"
-                }}
-              />
-            </div>
-          ) : entries.length === 0 ? (
-            <div className="flex justify-center py-8">
-              <EmptyState
-                icon="📈"
-                title="Keine Daten für Grafik"
-                description="Erstellen Sie mindestens 3-5 Migräne-Einträge, um grafische Auswertungen zu sehen."
-                action={{
-                  label: "Ersten Eintrag erstellen",
-                  onClick: onBack,
-                  variant: "default"
-                }}
-              />
-            </div>
-          ) : (
-            <Card>
-              <CardHeader>
-                <CardTitle>Intensitätsverlauf</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Grafische Darstellung der Migräne-Einträge über Zeit
-                </p>
-                <div className="flex flex-wrap gap-2 mt-4">
-                  <Button
-                    variant={timeRange === "30d" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => {
-                      console.log("Setting timeRange to 30d, current from/to:", from, to);
-                      setTimeRange("30d");
-                    }}
-                  >
-                    30 Tage
-                  </Button>
-                  <Button
-                    variant={timeRange === "3m" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => {
-                      console.log("Setting timeRange to 3m, current from/to:", from, to);
-                      setTimeRange("3m");
-                    }}
-                  >
-                    3 Monate
-                  </Button>
-                  <Button
-                    variant={timeRange === "6m" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => {
-                      console.log("Setting timeRange to 6m, current from/to:", from, to);
-                      setTimeRange("6m");
-                    }}
-                  >
-                    6 Monate
-                  </Button>
-                  <Button
-                    variant={timeRange === "1y" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => {
-                      console.log("Setting timeRange to 1y, current from/to:", from, to);
-                      setTimeRange("1y");
-                    }}
-                  >
-                    12 Monate
-                  </Button>
-                  <Button
-                    variant={timeRange === "alle" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => {
-                      console.log("Setting timeRange to alle, current from/to:", from, to);
-                      setTimeRange("alle");
-                    }}
-                  >
-                    Alle
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <TimeSeriesChart 
-                  key={`${timeRange}-${from}-${to}`}
-                  entries={entries} 
-                  dateRange={{ from, to }}
-                />
-              </CardContent>
-            </Card>
-          )}
-        </>
-      )}
 
-      {viewMode === "ki-analyse" && (
-        <VoiceNotesAIAnalysis />
+      {viewMode === "ki-muster" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Brain className="h-5 w-5" />
+              KI-Muster
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="mb-4 text-sm text-muted-foreground">
+              Hier zeigt dir die App mögliche Muster. Die Hinweise ersetzen keine ärztliche Diagnose.
+            </div>
+            <VoiceNotesAIAnalysis />
+          </CardContent>
+        </Card>
       )}
     </div>
   );

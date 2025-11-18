@@ -27,7 +27,7 @@ type View = "menu" | "new" | "list" | "analysis" | "settings" | "medication-over
 export const PainApp: React.FC = () => {
   const [view, setView] = useState<View>("menu");
   const [editing, setEditing] = useState<PainEntry | null>(null);
-  const [analysisInitialView, setAnalysisInitialView] = useState<"tagebuch" | "analyse" | "grafik" | "ki-analyse">("grafik");
+  const [analysisInitialView, setAnalysisInitialView] = useState<"statistik" | "ki-muster">("statistik");
   const { needsOnboarding, isLoading, completeOnboarding } = useOnboarding();
   const { 
     showTutorial, 
@@ -98,10 +98,10 @@ export const PainApp: React.FC = () => {
             } else if (target === 'medication-limits') {
               setView('medication-limits');
             } else if (target === 'analysis-grafik') {
-              setAnalysisInitialView('grafik');
+              setAnalysisInitialView('statistik');
               setView('analysis');
             } else if (target === 'analysis-ki') {
-              setAnalysisInitialView('ki-analyse');
+              setAnalysisInitialView('ki-muster');
               setView('analysis');
             } else if (target === 'analysis-limits') {
               // Removed: now navigates to medication-limits instead
