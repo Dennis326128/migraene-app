@@ -18,13 +18,16 @@ import { RemindersPage } from "@/components/Reminders/RemindersPage";
 import { DiaryTimeline } from "./DiaryTimeline";
 import { ContextTagsView } from "./ContextTagsView";
 import DiaryReport from "./DiaryReport";
+import { MedicationLimitsOverview } from "./MedicationLimitsOverview";
+import { ArrowLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
-type View = "menu" | "new" | "list" | "analysis" | "settings" | "medication-overview" | "medication-management" | "voice-notes" | "reminders" | "diary-timeline" | "context-tags" | "diary-report";
+type View = "menu" | "new" | "list" | "analysis" | "settings" | "medication-overview" | "medication-management" | "voice-notes" | "reminders" | "diary-timeline" | "context-tags" | "diary-report" | "medication-limits";
 
 export const PainApp: React.FC = () => {
   const [view, setView] = useState<View>("menu");
   const [editing, setEditing] = useState<PainEntry | null>(null);
-  const [analysisInitialView, setAnalysisInitialView] = useState<"tagebuch" | "analyse" | "grafik" | "ki-analyse" | "ueberverbrauch">("grafik");
+  const [analysisInitialView, setAnalysisInitialView] = useState<"tagebuch" | "analyse" | "grafik" | "ki-analyse">("grafik");
   const { needsOnboarding, isLoading, completeOnboarding } = useOnboarding();
   const { 
     showTutorial, 
@@ -92,6 +95,8 @@ export const PainApp: React.FC = () => {
               setView('context-tags');
             } else if (target === 'diary-report') {
               setView('diary-report');
+            } else if (target === 'medication-limits') {
+              setView('medication-limits');
             } else if (target === 'analysis-grafik') {
               setAnalysisInitialView('grafik');
               setView('analysis');
@@ -99,8 +104,8 @@ export const PainApp: React.FC = () => {
               setAnalysisInitialView('ki-analyse');
               setView('analysis');
             } else if (target === 'analysis-limits') {
-              setAnalysisInitialView('ueberverbrauch');
-              setView('analysis');
+              // Removed: now navigates to medication-limits instead
+              setView('medication-limits');
             }
           }}
           onLimitWarning={handleLimitWarning}
@@ -186,6 +191,26 @@ export const PainApp: React.FC = () => {
       )}
 
       {view === "diary-report" && <DiaryReport onBack={goHome} />}
+
+      {view === "medication-limits" && (
+        <div className="min-h-screen bg-background">
+          <div className="sticky top-0 z-10 bg-background border-b border-border px-4 py-3 flex items-center gap-3">
+            <Button 
+              variant="ghost" 
+              onClick={goHome}
+              className="p-2 hover:bg-secondary/80"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <h1 className="text-xl font-semibold flex-1">Medikamenten-Übergebrauch</h1>
+          </div>
+          <div className="container mx-auto p-4">
+            <MedicationLimitsOverview 
+              onSetupLimits={() => setView('medication-management')}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Onboarding Modal */}
       <OnboardingModal 

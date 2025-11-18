@@ -20,12 +20,12 @@ import { useIsMobile } from "@/hooks/use-mobile";
 
 interface AnalysisViewProps {
   onBack: () => void;
-  initialView?: "tagebuch" | "analyse" | "grafik" | "ki-analyse" | "ueberverbrauch";
+  initialView?: "tagebuch" | "analyse" | "grafik" | "ki-analyse";
 }
 
 export function AnalysisView({ onBack, initialView = "grafik" }: AnalysisViewProps) {
   const isMobile = useIsMobile();
-  const [viewMode, setViewMode] = useState<"tagebuch" | "analyse" | "grafik" | "ki-analyse" | "ueberverbrauch">(initialView);
+  const [viewMode, setViewMode] = useState<"tagebuch" | "analyse" | "grafik" | "ki-analyse">(initialView);
   const [timeRange, setTimeRange] = useState("alle");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
@@ -255,7 +255,6 @@ export function AnalysisView({ onBack, initialView = "grafik" }: AnalysisViewPro
               { id: "analyse", label: isMobile ? "📊" : "📊 Analyse", icon: BarChart3 },
               { id: "grafik", label: isMobile ? "📈" : "📈 Grafik", icon: Activity },
               { id: "ki-analyse", label: isMobile ? "🤖" : "🤖 KI-Analyse", icon: Brain },
-              { id: "ueberverbrauch", label: isMobile ? "💊" : "💊 Übergebrauch", icon: AlertTriangle },
             ].map(({ id, label, icon: Icon }) => (
               <Button
                 key={id}
@@ -500,10 +499,6 @@ export function AnalysisView({ onBack, initialView = "grafik" }: AnalysisViewPro
 
       {viewMode === "ki-analyse" && (
         <VoiceNotesAIAnalysis />
-      )}
-
-      {viewMode === "ueberverbrauch" && (
-        <MedicationLimitsOverview />
       )}
     </div>
   );
