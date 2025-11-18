@@ -278,7 +278,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           </div>
 
           {/* Tagebuch & Auswertungen - Bereich */}
-          <div className="mb-4">
+          <div className="mb-4 space-y-3">
             <h2 className="text-lg font-medium text-foreground/80 mb-3 px-1">Tagebuch & Auswertungen</h2>
             
             {/* Mein Tagebuch - Full width */}
