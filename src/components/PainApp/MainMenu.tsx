@@ -245,24 +245,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           <div className="mb-4 space-y-3">
             <h2 className="text-lg font-medium text-foreground/80 mb-3 px-1">Medikamente</h2>
             
-            {/* Medikamenten-Übergebrauch - Full width, prominent */}
-            <StartPageButtonGrid columns={1} gap="md">
-              <StartPageCard 
-                variant="warning" 
-                touchFeedback 
-                onClick={() => onNavigate?.('medication-limits')}
-              >
-                <div className="text-center space-y-2">
-                  <div className="text-2xl">⚠️</div>
-                  <div>
-                    <h4 className="font-semibold text-sm">Medikamenten-Übergebrauch</h4>
-                    <p className="text-xs opacity-75">Grenzen & Warnungen</p>
-                  </div>
-                </div>
-              </StartPageCard>
-            </StartPageButtonGrid>
-
-            {/* Other medication actions */}
+            {/* Medication actions in grid */}
             <StartPageButtonGrid columns={2} gap="md">
               {/* Medication Effects */}
               <StartPageCard 
@@ -290,6 +273,23 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                   <div>
                     <h4 className="font-semibold text-sm">Medikamente verwalten</h4>
                     <p className="text-xs opacity-75">Hinzufügen & Erinnerungen</p>
+                  </div>
+                </div>
+              </StartPageCard>
+            </StartPageButtonGrid>
+
+            {/* Medikamenten-Übergebrauch - Full width below */}
+            <StartPageButtonGrid columns={1} gap="md">
+              <StartPageCard 
+                variant="neutral" 
+                touchFeedback 
+                onClick={() => onNavigate?.('medication-limits')}
+              >
+                <div className="text-center space-y-2">
+                  <div className="text-2xl">📊</div>
+                  <div>
+                    <h4 className="font-semibold text-sm">Medikamenten-Übergebrauch</h4>
+                    <p className="text-xs opacity-75">Grenzen & Warnungen</p>
                   </div>
                 </div>
               </StartPageCard>
