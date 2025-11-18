@@ -27,6 +27,47 @@ const WeatherRequestSchema = z.object({
   forceRefresh: z.boolean().optional()
 });
 
+// Generic error handler to prevent exposing internal structures
+function handleError(error: unknown, context: string): Response {
+  // Log detailed error internally
+  console.error(`❌ [${context}] Error:`, error);
+  if (error instanceof Error) {
+    console.error('Stack trace:', error.stack);
+  }
+
+  // Determine error type and return generic message
+  if (error instanceof z.ZodError) {
+    return new Response(JSON.stringify({ 
+      error: 'Ungültige Eingabedaten',
+      weather_id: null 
+    }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+
+  // Check for authentication errors
+  const errorMessage = error instanceof Error ? error.message.toLowerCase() : '';
+  if (errorMessage.includes('authorization') || errorMessage.includes('authentication') || errorMessage.includes('unauthorized')) {
+    return new Response(JSON.stringify({ 
+      error: 'Authentifizierung fehlgeschlagen',
+      weather_id: null 
+    }), {
+      status: 401,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+
+  // Generic server error
+  return new Response(JSON.stringify({ 
+    error: 'Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.',
+    weather_id: null 
+  }), {
+    status: 500,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+  });
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -434,23 +475,6 @@ serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('❌ Function error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    
-    // Determine appropriate status code based on error type
-    let statusCode = 500;
-    if (errorMessage.includes('Missing Authorization') || errorMessage.includes('Invalid authentication')) {
-      statusCode = 401;
-    } else if (errorMessage.includes('Missing required parameters') || errorMessage.includes('Invalid JSON')) {
-      statusCode = 400;
-    }
-    
-    return new Response(JSON.stringify({ 
-      error: errorMessage,
-      weather_id: null 
-    }), {
-      status: statusCode,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
+    return handleError(error, 'fetch-weather-hybrid');
   }
 });

@@ -31,6 +31,73 @@ const DiaryAnalysisRequestSchema = z.object({
   message: 'Datumsbereich ungültig: fromDate darf nicht in der Zukunft liegen, toDate muss >= fromDate sein, und max. 365 Tage Spanne'
 });
 
+// Generic error handler to prevent exposing internal structures
+function handleError(error: unknown, context: string): Response {
+  // Log detailed error internally
+  console.error(`❌ [${context}] Error:`, error);
+  if (error instanceof Error) {
+    console.error('Stack trace:', error.stack);
+  }
+
+  // Determine error type and return generic message
+  if (error instanceof z.ZodError) {
+    return new Response(JSON.stringify({ 
+      error: 'Ungültige Datumseingabe'
+    }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+
+  // Check for authentication errors
+  const errorMessage = error instanceof Error ? error.message.toLowerCase() : '';
+  if (errorMessage.includes('authorization') || errorMessage.includes('authentifizierung') || errorMessage.includes('unauthorized')) {
+    return new Response(JSON.stringify({ 
+      error: 'Authentifizierung fehlgeschlagen'
+    }), {
+      status: 401,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+
+  // Check for AI analysis disabled
+  if (errorMessage.includes('ai-analyse') && errorMessage.includes('deaktiviert')) {
+    return new Response(JSON.stringify({ 
+      error: 'AI-Analyse ist in den Einstellungen deaktiviert'
+    }), {
+      status: 403,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+
+  // Check for rate limit / credit errors (preserve these as they're user-facing)
+  if (errorMessage.includes('rate limit') || errorMessage.includes('429')) {
+    return new Response(JSON.stringify({ 
+      error: 'Rate Limit erreicht. Bitte später erneut versuchen.'
+    }), {
+      status: 429,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+
+  if (errorMessage.includes('guthaben') || errorMessage.includes('402') || errorMessage.includes('credits')) {
+    return new Response(JSON.stringify({ 
+      error: 'Guthaben aufgebraucht. Bitte Credits hinzufügen.'
+    }), {
+      status: 402,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+
+  // Generic server error
+  return new Response(JSON.stringify({ 
+    error: 'Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.'
+  }), {
+    status: 500,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+  });
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -266,12 +333,6 @@ Formatieren Sie die Antwort in gut strukturiertem Markdown mit klaren Überschri
     });
 
   } catch (error) {
-    console.error('Error:', error);
-    return new Response(JSON.stringify({ 
-      error: error instanceof Error ? error.message : 'Unbekannter Fehler' 
-    }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return handleError(error, 'generate-diary-analysis');
   }
 });
