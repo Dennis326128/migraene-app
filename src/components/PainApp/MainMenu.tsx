@@ -347,23 +347,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 </div>
               </StartPageCard>
             </StartPageButtonGrid>
-
-            {/* Medication Limits - Full width warning */}
-            <StartPageButtonGrid columns={1} gap="md">
-              <StartPageCard 
-                variant="warning" 
-                touchFeedback 
-                onClick={() => onNavigate?.('analysis-limits')}
-              >
-                <div className="text-center space-y-2">
-                  <div className="text-2xl">⚠️</div>
-                  <div>
-                    <h4 className="font-semibold text-sm">Medikamenten-Limits</h4>
-                    <p className="text-xs opacity-75">Überverbrauch kontrollieren</p>
-                  </div>
-                </div>
-              </StartPageCard>
-            </StartPageButtonGrid>
           </div>
 
           {/* Organisation - Bereich */}
