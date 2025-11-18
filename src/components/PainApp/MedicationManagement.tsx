@@ -6,12 +6,15 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useMeds, useAddMed, useDeleteMed } from "@/features/meds/hooks/useMeds";
-import { useReminders } from "@/features/reminders/hooks/useReminders";
+import { useReminders, useCreateReminder } from "@/features/reminders/hooks/useReminders";
 import { Pill, Plus, Pencil, Trash2, Bell, ArrowLeft, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/lib/supabaseClient";
+import { MedicationReminderModal } from "@/components/Reminders/MedicationReminderModal";
+import { format, addMinutes } from "date-fns";
+import type { ReminderRepeat } from "@/types/reminder.types";
 
 interface MedicationManagementProps {
   onBack: () => void;
@@ -22,11 +25,12 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
   const { data: reminders } = useReminders();
   const addMed = useAddMed();
   const deleteMed = useDeleteMed();
+  const createReminder = useCreateReminder();
   
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [showReminderDialog, setShowReminderDialog] = useState(false);
+  const [showReminderModal, setShowReminderModal] = useState(false);
   
   const [selectedMedication, setSelectedMedication] = useState<any>(null);
   const [medicationName, setMedicationName] = useState("");
@@ -112,7 +116,38 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
 
   const openReminderDialog = (med: any) => {
     setSelectedMedication(med);
-    setShowReminderDialog(true);
+    setShowReminderModal(true);
+  };
+
+  const handleCreateReminders = async (reminders: {
+    time: string;
+    repeat: ReminderRepeat;
+    notification_enabled: boolean;
+  }[]) => {
+    if (!selectedMedication) return;
+
+    try {
+      // Create reminders for each time slot
+      for (const reminderData of reminders) {
+        const today = format(new Date(), 'yyyy-MM-dd');
+        const dateTime = `${today}T${reminderData.time}:00`;
+        
+        await createReminder.mutateAsync({
+          type: 'medication',
+          title: selectedMedication.name,
+          date_time: dateTime,
+          repeat: reminderData.repeat,
+          notification_enabled: reminderData.notification_enabled,
+          medications: [selectedMedication.name],
+        });
+      }
+
+      const count = reminders.length;
+      toast.success(`${count} Erinnerung${count > 1 ? 'en' : ''} erstellt`);
+    } catch (error) {
+      toast.error("Fehler beim Erstellen der Erinnerungen");
+      throw error;
+    }
   };
 
   if (isLoading) {
@@ -324,72 +359,22 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Reminder Management Dialog */}
-      <Dialog open={showReminderDialog} onOpenChange={setShowReminderDialog}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Erinnerungen für {selectedMedication?.name}</DialogTitle>
-            <DialogDescription>
-              Verwalten Sie Erinnerungen für die Einnahme dieses Medikaments
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            <div className="space-y-3 mb-4">
-              {reminders?.filter(r => 
-                r.type === 'medication' && 
-                r.medications?.includes(selectedMedication?.name || '') &&
-                r.status === 'pending'
-              ).map((reminder) => (
-                <Card key={reminder.id}>
-                  <CardContent className="p-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium">{reminder.title}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {reminder.repeat !== 'none' ? `Wiederholt: ${reminder.repeat}` : 'Einmalig'}
-                        </p>
-                      </div>
-                      <Badge variant={reminder.notification_enabled ? "default" : "secondary"}>
-                        {reminder.notification_enabled ? 'Aktiv' : 'Inaktiv'}
-                      </Badge>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-              {(!reminders || reminders.filter(r => 
-                r.type === 'medication' && 
-                r.medications?.includes(selectedMedication?.name || '')
-              ).length === 0) && (
-                <p className="text-center text-muted-foreground py-4">
-                  Noch keine Erinnerungen für dieses Medikament
-                </p>
-              )}
-            </div>
-            
-            <Button 
-              className="w-full" 
-              onClick={() => {
-                setShowReminderDialog(false);
-                // Navigate to reminders page with pre-filled medication
-                window.dispatchEvent(new CustomEvent('navigate-reminders', { 
-                  detail: { medication: selectedMedication?.name } 
-                }));
-              }}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Neue Erinnerung erstellen
-            </Button>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => {
-              setShowReminderDialog(false);
-              setSelectedMedication(null);
-            }}>
-              Schließen
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Medication Reminder Modal */}
+      {selectedMedication && (
+        <MedicationReminderModal
+          isOpen={showReminderModal}
+          onClose={() => {
+            setShowReminderModal(false);
+            setSelectedMedication(null);
+          }}
+          medicationName={selectedMedication.name}
+          existingReminders={reminders?.filter(r => 
+            r.type === 'medication' && 
+            r.medications?.includes(selectedMedication.name)
+          )}
+          onSubmit={handleCreateReminders}
+        />
+      )}
     </div>
   );
 };
