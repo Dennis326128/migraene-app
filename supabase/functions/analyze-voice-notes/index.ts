@@ -1,10 +1,35 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
+import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Validation schema for date range requests
+const AnalysisRequestSchema = z.object({
+  fromDate: z.string()
+    .datetime({ message: 'fromDate muss ISO 8601 Format haben' }),
+  toDate: z.string()
+    .datetime({ message: 'toDate muss ISO 8601 Format haben' })
+}).refine(data => {
+  const from = new Date(data.fromDate);
+  const to = new Date(data.toDate);
+  const now = new Date();
+  
+  // Check: fromDate not in future
+  if (from > now) return false;
+  
+  // Check: toDate >= fromDate
+  if (to < from) return false;
+  
+  // Check: Max 365 days range
+  const daysDiff = (to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24);
+  return daysDiff <= 365;
+}, {
+  message: 'Datumsbereich ungültig: fromDate darf nicht in der Zukunft liegen, toDate muss >= fromDate sein, und max. 365 Tage Spanne'
+});
 
 // Tag-Extraktion (inline für Edge Function)
 interface ExtractedTag {
@@ -76,7 +101,26 @@ serve(async (req) => {
   }
 
   try {
-    const { fromDate, toDate } = await req.json();
+    // Validate request body
+    let requestBody: z.infer<typeof AnalysisRequestSchema>;
+    try {
+      const rawBody = await req.json();
+      requestBody = AnalysisRequestSchema.parse(rawBody);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        console.error('❌ Validation error:', error.errors);
+        return new Response(JSON.stringify({ 
+          error: 'Ungültige Datumseingabe',
+          details: error.errors.map(e => e.message)
+        }), { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+      throw error;
+    }
+
+    const { fromDate, toDate } = requestBody;
     
     // Auth check
     const authHeader = req.headers.get('Authorization');

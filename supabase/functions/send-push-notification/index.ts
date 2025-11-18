@@ -1,10 +1,25 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
+import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Validation schema for push notification
+const PushNotificationSchema = z.object({
+  title: z.string()
+    .min(1, 'Titel darf nicht leer sein')
+    .max(100, 'Titel darf maximal 100 Zeichen lang sein'),
+  body: z.string()
+    .min(1, 'Nachricht darf nicht leer sein')
+    .max(500, 'Nachricht darf maximal 500 Zeichen lang sein'),
+  icon: z.string().url().optional(),
+  badge: z.string().url().optional(),
+  tag: z.string().optional(),
+  data: z.record(z.any()).optional()
+});
 
 interface PushSubscription {
   endpoint: string;
@@ -99,14 +114,30 @@ serve(async (req) => {
     }
 
     const userId = user.id; // Use authenticated user's ID, not request body
-    const { title, body, icon, badge, tag, data } = await req.json();
-
-    if (!title || !body) {
+    
+    // Validate request body
+    let payload: z.infer<typeof PushNotificationSchema>;
+    try {
+      const rawBody = await req.json();
+      payload = PushNotificationSchema.parse(rawBody);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        console.error('❌ Validation error:', error.errors);
+        return new Response(JSON.stringify({ 
+          error: 'Ungültige Notification-Daten',
+          details: error.errors.map(e => `${e.path.join('.')}: ${e.message}`)
+        }), { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
       return new Response(
-        JSON.stringify({ error: 'Missing required fields: title and body' }),
+        JSON.stringify({ error: 'Invalid JSON in request body' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    const { title, body, icon, badge, tag, data } = payload;
 
     // Get all push subscriptions for this user
     const { data: subscriptions, error: fetchError } = await supabase

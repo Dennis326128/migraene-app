@@ -1,10 +1,31 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
+import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Validation schema for weather request
+const WeatherRequestSchema = z.object({
+  lat: z.number()
+    .min(-90, 'Breitengrad muss zwischen -90 und 90 liegen')
+    .max(90, 'Breitengrad muss zwischen -90 und 90 liegen'),
+  lon: z.number()
+    .min(-180, 'Längengrad muss zwischen -180 und 180 liegen')
+    .max(180, 'Längengrad muss zwischen -180 und 180 liegen'),
+  at: z.string()
+    .datetime({ message: 'Ungültiges ISO 8601 Datum-Format' })
+    .refine((date) => {
+      const d = new Date(date);
+      const now = new Date();
+      const fiveYearsAgo = new Date(now.getFullYear() - 5, now.getMonth(), now.getDate());
+      const oneYearFuture = new Date(now.getFullYear() + 1, now.getMonth(), now.getDate());
+      return d >= fiveYearsAgo && d <= oneYearFuture;
+    }, 'Datum muss innerhalb der letzten 5 Jahre und nicht mehr als 1 Jahr in der Zukunft liegen'),
+  forceRefresh: z.boolean().optional()
+});
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -22,11 +43,23 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Parse request body
-    let requestBody: any;
+    // Parse and validate request body
+    let requestBody: z.infer<typeof WeatherRequestSchema>;
     try {
-      requestBody = await req.json();
+      const rawBody = await req.json();
+      requestBody = WeatherRequestSchema.parse(rawBody);
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        console.error('❌ Validation error:', error.errors);
+        return new Response(JSON.stringify({ 
+          error: 'Ungültige Eingabedaten',
+          details: error.errors.map(e => `${e.path.join('.')}: ${e.message}`),
+          weather_id: null 
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
       console.error('❌ Invalid JSON in request body');
       return new Response(JSON.stringify({ 
         error: 'Invalid JSON in request body',
