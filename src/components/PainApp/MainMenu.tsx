@@ -286,7 +286,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 onClick={() => onNavigate?.('medication-limits')}
               >
                 <div className="text-center space-y-2">
-                  <div className="text-2xl">📊</div>
+                  <div className="text-2xl">⚠️</div>
                   <div>
                     <h4 className="font-semibold text-sm">Medikamenten-Übergebrauch</h4>
                     <p className="text-xs opacity-75">Grenzen & Warnungen</p>
