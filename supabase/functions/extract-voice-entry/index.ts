@@ -1,10 +1,21 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Validation schema for voice entry requests
+const VoiceEntryRequestSchema = z.object({
+  transcript: z.string()
+    .min(1, 'Transcript darf nicht leer sein')
+    .max(5000, 'Transcript darf maximal 5000 Zeichen lang sein'),
+  userMeds: z.array(z.object({
+    name: z.string()
+  })).optional().default([])
+});
 
 interface VoiceEntrySchema {
   timestampISO: string | null;
@@ -202,12 +213,27 @@ serve(async (req) => {
       throw new Error('User not authenticated');
     }
 
-    const { transcript, userMeds = [] } = await req.json();
-    
-    if (!transcript || typeof transcript !== 'string') {
-      throw new Error('Invalid transcript');
+    // Validate request body
+    let requestBody: z.infer<typeof VoiceEntryRequestSchema>;
+    try {
+      const rawBody = await req.json();
+      requestBody = VoiceEntryRequestSchema.parse(rawBody);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        console.error('❌ Validation error:', error.errors);
+        return new Response(JSON.stringify({ 
+          error: 'Ungültige Eingabedaten',
+          details: error.errors.map(e => `${e.path.join('.')}: ${e.message}`)
+        }), { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+      throw error;
     }
 
+    const { transcript, userMeds = [] } = requestBody;
+    
     console.log('🎤 Processing transcript:', transcript);
     console.log('👤 User medications:', userMeds);
 
