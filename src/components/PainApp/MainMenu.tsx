@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, History, TrendingUp, Settings, Zap, Mic, Bell, BookOpen, Sparkles } from "lucide-react";
+import { Plus, History, TrendingUp, Settings, Zap, Mic, Bell, BookOpen, Sparkles, BarChart3, Brain, AlertTriangle, Database, Calendar } from "lucide-react";
 import { LogoutButton } from "@/components/LogoutButton";
 import { WelcomeModal } from "./WelcomeModal";
 import { QuickEntryModal } from "./QuickEntryModal";
@@ -25,7 +25,7 @@ interface MainMenuProps {
   onViewAnalysis: () => void;
   onViewSettings: () => void;
   onQuickEntry?: () => void;
-  onNavigate?: (view: string) => void;
+  onNavigate?: (view: 'medication-overview' | 'medication-management' | 'voice-notes' | 'reminders' | 'diary-timeline' | 'context-tags' | 'analysis-grafik' | 'analysis-ki' | 'analysis-limits') => void;
   onLimitWarning?: (checks: any[]) => void;
 }
 
@@ -277,11 +277,12 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             </StartPageButtonGrid>
           </div>
 
-          {/* Tagebuch & Analyse - Bereich */}
+          {/* Tagebuch & Auswertungen - Bereich */}
           <div className="mb-4">
-            <h2 className="text-lg font-medium text-foreground/80 mb-3 px-1">Tagebuch & Analyse</h2>
-            <StartPageButtonGrid columns={2} gap="md">
-              {/* Diary Timeline */}
+            <h2 className="text-lg font-medium text-foreground/80 mb-3 px-1">Tagebuch & Auswertungen</h2>
+            
+            {/* Mein Tagebuch - Full width */}
+            <StartPageButtonGrid columns={1} gap="md">
               <StartPageCard 
                 variant="neutral" 
                 touchFeedback 
@@ -290,38 +291,56 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 <div className="text-center space-y-2">
                   <div className="text-2xl">📖</div>
                   <div>
-                    <h4 className="font-semibold text-sm">Tagebuch</h4>
-                    <p className="text-xs opacity-75">Alle Einträge</p>
+                    <h4 className="font-semibold text-sm">Mein Tagebuch</h4>
+                    <p className="text-xs opacity-75">Alle Einträge chronologisch</p>
                   </div>
                 </div>
               </StartPageCard>
+            </StartPageButtonGrid>
 
-              {/* View Entries */}
+            {/* Statistics & KI - Two columns */}
+            <StartPageButtonGrid columns={2} gap="md">
               <StartPageCard 
                 variant="neutral" 
                 touchFeedback 
-                onClick={onViewEntries}
-              >
-                <div className="text-center space-y-2">
-                  <div className="text-2xl">📋</div>
-                  <div>
-                    <h4 className="font-semibold text-sm">Verlauf</h4>
-                    <p className="text-xs opacity-75">Einträge nach Datum</p>
-                  </div>
-                </div>
-              </StartPageCard>
-
-              {/* Analysis */}
-              <StartPageCard 
-                variant="neutral" 
-                touchFeedback 
-                onClick={onViewAnalysis}
+                onClick={() => onNavigate?.('analysis-grafik')}
               >
                 <div className="text-center space-y-2">
                   <div className="text-2xl">📊</div>
                   <div>
-                    <h4 className="font-semibold text-sm">Auswertungen</h4>
-                    <p className="text-xs opacity-75">Trends & Muster</p>
+                    <h4 className="font-semibold text-sm">Statistiken & Trends</h4>
+                    <p className="text-xs opacity-75">Grafische Auswertung</p>
+                  </div>
+                </div>
+              </StartPageCard>
+
+              <StartPageCard 
+                variant="neutral" 
+                touchFeedback 
+                onClick={() => onNavigate?.('analysis-ki')}
+              >
+                <div className="text-center space-y-2">
+                  <div className="text-2xl">🧠</div>
+                  <div>
+                    <h4 className="font-semibold text-sm">KI-Analyse</h4>
+                    <p className="text-xs opacity-75">Muster finden</p>
+                  </div>
+                </div>
+              </StartPageCard>
+            </StartPageButtonGrid>
+
+            {/* Medication Limits - Full width warning */}
+            <StartPageButtonGrid columns={1} gap="md">
+              <StartPageCard 
+                variant="warning" 
+                touchFeedback 
+                onClick={() => onNavigate?.('analysis-limits')}
+              >
+                <div className="text-center space-y-2">
+                  <div className="text-2xl">⚠️</div>
+                  <div>
+                    <h4 className="font-semibold text-sm">Medikamenten-Limits</h4>
+                    <p className="text-xs opacity-75">Überverbrauch kontrollieren</p>
                   </div>
                 </div>
               </StartPageCard>

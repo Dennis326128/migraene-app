@@ -23,6 +23,7 @@ type View = "menu" | "new" | "list" | "analysis" | "settings" | "medication-over
 export const PainApp: React.FC = () => {
   const [view, setView] = useState<View>("menu");
   const [editing, setEditing] = useState<PainEntry | null>(null);
+  const [analysisInitialView, setAnalysisInitialView] = useState<"tagebuch" | "analyse" | "grafik" | "ki-analyse" | "ueberverbrauch">("grafik");
   const { needsOnboarding, isLoading, completeOnboarding } = useOnboarding();
   const { 
     showTutorial, 
@@ -88,6 +89,15 @@ export const PainApp: React.FC = () => {
               setView('diary-timeline');
             } else if (target === 'context-tags') {
               setView('context-tags');
+            } else if (target === 'analysis-grafik') {
+              setAnalysisInitialView('grafik');
+              setView('analysis');
+            } else if (target === 'analysis-ki') {
+              setAnalysisInitialView('ki-analyse');
+              setView('analysis');
+            } else if (target === 'analysis-limits') {
+              setAnalysisInitialView('ueberverbrauch');
+              setView('analysis');
             }
           }}
           onLimitWarning={handleLimitWarning}
@@ -111,7 +121,7 @@ export const PainApp: React.FC = () => {
       )}
 
       {view === "analysis" && (
-        <AnalysisView onBack={goHome} />
+        <AnalysisView onBack={goHome} initialView={analysisInitialView} />
       )}
 
       {view === "settings" && (
