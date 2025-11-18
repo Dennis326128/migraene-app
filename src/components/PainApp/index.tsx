@@ -169,6 +169,10 @@ export const PainApp: React.FC = () => {
               setView('diary-report');
             }
           }}
+          onEdit={(entry) => {
+            setEditing(entry);
+            setView("new");
+          }}
         />
       )}
 
