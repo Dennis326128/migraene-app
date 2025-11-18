@@ -129,7 +129,7 @@ export type Database = {
           selected_date: string | null
           selected_time: string | null
           timestamp_created: string | null
-          user_id: string | null
+          user_id: string
           weather_id: number | null
         }
         Insert: {
@@ -144,7 +144,7 @@ export type Database = {
           selected_date?: string | null
           selected_time?: string | null
           timestamp_created?: string | null
-          user_id?: string | null
+          user_id: string
           weather_id?: number | null
         }
         Update: {
@@ -159,7 +159,7 @@ export type Database = {
           selected_date?: string | null
           selected_time?: string | null
           timestamp_created?: string | null
-          user_id?: string | null
+          user_id?: string
           weather_id?: number | null
         }
         Relationships: [
@@ -349,19 +349,19 @@ export type Database = {
           created_at: string | null
           id: string
           name: string
-          user_id: string | null
+          user_id: string
         }
         Insert: {
           created_at?: string | null
           id?: string
           name: string
-          user_id?: string | null
+          user_id: string
         }
         Update: {
           created_at?: string | null
           id?: string
           name?: string
-          user_id?: string | null
+          user_id?: string
         }
         Relationships: []
       }
@@ -498,7 +498,7 @@ export type Database = {
           pressure_trend_24h: number | null
           snapshot_date: string | null
           temperature_c: number | null
-          user_id: string | null
+          user_id: string
           wind_kph: number | null
         }
         Insert: {
@@ -519,7 +519,7 @@ export type Database = {
           pressure_trend_24h?: number | null
           snapshot_date?: string | null
           temperature_c?: number | null
-          user_id?: string | null
+          user_id: string
           wind_kph?: number | null
         }
         Update: {
@@ -540,7 +540,7 @@ export type Database = {
           pressure_trend_24h?: number | null
           snapshot_date?: string | null
           temperature_c?: number | null
-          user_id?: string | null
+          user_id?: string
           wind_kph?: number | null
         }
         Relationships: []
@@ -574,7 +574,7 @@ export type Database = {
           selected_date: string | null
           selected_time: string | null
           timestamp_created: string | null
-          user_id: string | null
+          user_id: string
           weather_id: number | null
         }[]
         SetofOptions: {

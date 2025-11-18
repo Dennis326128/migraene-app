@@ -40,7 +40,7 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.send-push-notification]
-verify_jwt = false
+verify_jwt = true
 
 [functions.reminder-processor]
 verify_jwt = false
