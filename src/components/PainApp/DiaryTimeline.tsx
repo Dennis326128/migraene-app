@@ -2,12 +2,14 @@ import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Filter, FileText, Calendar as CalendarIcon, Activity } from 'lucide-react';
+import { ArrowLeft, Filter, FileText, Calendar as CalendarIcon, Activity, Edit, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { toZonedTime } from 'date-fns-tz';
 import { useEntries } from '@/features/entries/hooks/useEntries';
+import { useDeleteEntry } from '@/features/entries/hooks/useEntryMutations';
 import { supabase } from '@/integrations/supabase/client';
+import type { MigraineEntry } from '@/types/painApp';
 import { useQuery } from '@tanstack/react-query';
 import { EmptyState } from '@/components/ui/empty-state';
 import { cn } from '@/lib/utils';
@@ -17,6 +19,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 interface DiaryTimelineProps {
   onBack: () => void;
   onNavigate?: (target: 'diary-report') => void;
+  onEdit?: (entry: MigraineEntry) => void;
 }
 
 type TimelineItemType = {
@@ -28,9 +31,17 @@ type TimelineItemType = {
   data: any;
 };
 
-export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate }) => {
+export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate, onEdit }) => {
   const isMobile = useIsMobile();
   const [filterType, setFilterType] = useState<'all' | 'pain_entry' | 'context_note'>('all');
+  
+  // Delete mutation
+  const { mutate: deleteMutate } = useDeleteEntry();
+  
+  const handleDelete = (id: string) => {
+    if (!confirm("Diesen Eintrag wirklich löschen?")) return;
+    deleteMutate(id);
+  };
 
   // Schmerzeinträge laden
   const { data: painEntries = [], isLoading: loadingEntries } = useEntries();
@@ -260,7 +271,33 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
                                 </p>
                               )}
                             </div>
-                            <Activity className="h-4 w-4 text-primary flex-shrink-0" />
+                            <div className="flex items-center gap-1">
+                              {onEdit && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onEdit(item.data);
+                                  }}
+                                  className="h-8 w-8 p-0"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                              )}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDelete(item.data.id);
+                                }}
+                                className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                              <Activity className="h-4 w-4 text-primary flex-shrink-0" />
+                            </div>
                           </div>
                         </CardContent>
                       </Card>
