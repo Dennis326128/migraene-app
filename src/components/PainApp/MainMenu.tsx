@@ -172,7 +172,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               >
                 <StartPageCardHeader
                   icon="➕"
-                  title="Neuer Migräne-Eintrag"
+                  title="Migräne-Eintrag erstellen"
                   subtitle="Detaillierte Dokumentation"
                 />
               </StartPageCard>
