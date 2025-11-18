@@ -20,11 +20,12 @@ import { useIsMobile } from "@/hooks/use-mobile";
 
 interface AnalysisViewProps {
   onBack: () => void;
+  initialView?: "tagebuch" | "analyse" | "grafik" | "ki-analyse" | "ueberverbrauch";
 }
 
-export function AnalysisView({ onBack }: AnalysisViewProps) {
+export function AnalysisView({ onBack, initialView = "grafik" }: AnalysisViewProps) {
   const isMobile = useIsMobile();
-  const [viewMode, setViewMode] = useState<"tagebuch" | "analyse" | "grafik" | "ki-analyse" | "ueberverbrauch">("grafik");
+  const [viewMode, setViewMode] = useState<"tagebuch" | "analyse" | "grafik" | "ki-analyse" | "ueberverbrauch">(initialView);
   const [timeRange, setTimeRange] = useState("alle");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
