@@ -17,8 +17,9 @@ import { VoiceNotesList } from "./VoiceNotesList";
 import { RemindersPage } from "@/components/Reminders/RemindersPage";
 import { DiaryTimeline } from "./DiaryTimeline";
 import { ContextTagsView } from "./ContextTagsView";
+import DiaryReport from "./DiaryReport";
 
-type View = "menu" | "new" | "list" | "analysis" | "settings" | "medication-overview" | "medication-management" | "voice-notes" | "reminders" | "diary-timeline" | "context-tags";
+type View = "menu" | "new" | "list" | "analysis" | "settings" | "medication-overview" | "medication-management" | "voice-notes" | "reminders" | "diary-timeline" | "context-tags" | "diary-report";
 
 export const PainApp: React.FC = () => {
   const [view, setView] = useState<View>("menu");
@@ -89,6 +90,8 @@ export const PainApp: React.FC = () => {
               setView('diary-timeline');
             } else if (target === 'context-tags') {
               setView('context-tags');
+            } else if (target === 'diary-report') {
+              setView('diary-report');
             } else if (target === 'analysis-grafik') {
               setAnalysisInitialView('grafik');
               setView('analysis');
@@ -172,6 +175,8 @@ export const PainApp: React.FC = () => {
           </div>
         </div>
       )}
+
+      {view === "diary-report" && <DiaryReport onBack={goHome} />}
 
       {/* Onboarding Modal */}
       <OnboardingModal 

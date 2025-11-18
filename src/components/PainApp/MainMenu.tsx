@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, History, TrendingUp, Settings, Zap, Mic, Bell, BookOpen, Sparkles, BarChart3, Brain, AlertTriangle, Database, Calendar } from "lucide-react";
+import { Plus, History, TrendingUp, Settings, Zap, Mic, Bell, BookOpen, Sparkles, BarChart3, Brain, AlertTriangle, Database, Calendar, FileText } from "lucide-react";
 import { LogoutButton } from "@/components/LogoutButton";
 import { WelcomeModal } from "./WelcomeModal";
 import { QuickEntryModal } from "./QuickEntryModal";
@@ -25,7 +25,7 @@ interface MainMenuProps {
   onViewAnalysis: () => void;
   onViewSettings: () => void;
   onQuickEntry?: () => void;
-  onNavigate?: (view: 'medication-overview' | 'medication-management' | 'voice-notes' | 'reminders' | 'diary-timeline' | 'context-tags' | 'analysis-grafik' | 'analysis-ki' | 'analysis-limits') => void;
+  onNavigate?: (view: 'medication-overview' | 'medication-management' | 'voice-notes' | 'reminders' | 'diary-timeline' | 'context-tags' | 'analysis-grafik' | 'analysis-ki' | 'analysis-limits' | 'diary-report') => void;
   onLimitWarning?: (checks: any[]) => void;
 }
 
@@ -293,6 +293,23 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                   <div>
                     <h4 className="font-semibold text-sm">Mein Tagebuch</h4>
                     <p className="text-xs opacity-75">Alle Einträge chronologisch</p>
+                  </div>
+                </div>
+              </StartPageCard>
+            </StartPageButtonGrid>
+
+            {/* Arzt-Report - Full width */}
+            <StartPageButtonGrid columns={1} gap="md">
+              <StartPageCard 
+                variant="neutral" 
+                touchFeedback 
+                onClick={() => onNavigate?.('diary-report')}
+              >
+                <div className="text-center space-y-2">
+                  <div className="text-2xl">📄</div>
+                  <div>
+                    <h4 className="font-semibold text-sm">Arzt-Report erstellen</h4>
+                    <p className="text-xs opacity-75">PDF für Arztbesuche</p>
                   </div>
                 </div>
               </StartPageCard>
