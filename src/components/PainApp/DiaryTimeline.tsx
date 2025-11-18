@@ -16,6 +16,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 interface DiaryTimelineProps {
   onBack: () => void;
+  onNavigate?: (target: 'diary-report') => void;
 }
 
 type TimelineItemType = {
@@ -27,7 +28,7 @@ type TimelineItemType = {
   data: any;
 };
 
-export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack }) => {
+export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate }) => {
   const isMobile = useIsMobile();
   const [filterType, setFilterType] = useState<'all' | 'pain_entry' | 'context_note'>('all');
 
@@ -141,10 +142,25 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack }) => {
         >
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <h1 className="text-xl font-semibold flex-1">Tagebuch-Übersicht</h1>
+        <h1 className="text-xl font-semibold flex-1">Kopfschmerztagebuch</h1>
         <Badge variant="outline" className="text-xs">
           {filteredItems.length}
         </Badge>
+      </div>
+
+      {/* PDF Report Button */}
+      <div className="max-w-4xl mx-auto px-4 pt-4">
+        <Button
+          onClick={() => onNavigate?.('diary-report')}
+          variant="outline"
+          className="w-full justify-start gap-3 h-auto py-3 border-primary/20 hover:bg-primary/5 hover:border-primary/40"
+        >
+          <FileText className="h-5 w-5 text-primary" />
+          <div className="text-left flex-1">
+            <div className="font-semibold">PDF-Report erstellen</div>
+            <div className="text-xs text-muted-foreground">Für Arztbesuche</div>
+          </div>
+        </Button>
       </div>
 
       <div className={cn("max-w-4xl mx-auto p-4 space-y-4", isMobile && "px-3")}>

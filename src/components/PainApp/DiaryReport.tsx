@@ -10,7 +10,7 @@ import { mapTextLevelToScore } from "@/lib/utils/pain";
 import { useMedicationEffectsForEntries } from "@/features/medication-effects/hooks/useMedicationEffects";
 import MedicationStatisticsCard from "./MedicationStatisticsCard";
 import TimeSeriesChart from "@/components/TimeSeriesChart";
-import { Loader2 } from "lucide-react";
+import { Loader2, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 
@@ -352,10 +352,20 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
   };
 
   return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4 relative" style={{ textDecoration: 'none', lineHeight: '1.2' }}>
-        Kopfschmerztagebuch (PDF)
-      </h1>
+    <div className="min-h-screen bg-background pb-20">
+      {/* Header */}
+      <div className="sticky top-0 z-10 bg-background border-b border-border px-4 py-3 flex items-center gap-3">
+        <Button 
+          variant="ghost" 
+          onClick={onBack} 
+          className="p-2 hover:bg-secondary/80"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <h1 className="text-xl font-semibold flex-1">Kopfschmerztagebuch (PDF)</h1>
+      </div>
+
+      <div className="p-4">
 
       <Card className="p-4 mb-4 space-y-3">
         <div>
@@ -535,6 +545,7 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
           </div>
         </div>
       </Card>
+      </div>
     </div>
   );
 }
