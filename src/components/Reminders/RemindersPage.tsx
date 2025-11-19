@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import { Plus, Bell, BellOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/ui/page-header';
@@ -153,14 +152,24 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
   }
 
   return (
-    <>
-      <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background">
       <PageHeader 
         title="Erinnerungen" 
         onBack={onBack}
       />
-      
-      <div className="container mx-auto px-4 pb-24">
+
+      <div className="container mx-auto px-4 pb-6">
+        {/* Prominenter Button für neue Erinnerung */}
+        <div className="mb-6">
+          <Button
+            onClick={() => setViewMode('form')}
+            className="w-full touch-manipulation min-h-14 text-lg font-semibold shadow-md"
+            size="lg"
+          >
+            <Plus className="w-6 h-6 mr-3" />
+            Neue Erinnerung
+          </Button>
+        </div>
         {!hasNotificationPermission && (
           <div className="mb-4">
             <Button
@@ -266,22 +275,6 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
         </TabsContent>
       </Tabs>
       </div>
-      </div>
-      
-      {viewMode === 'list' && createPortal(
-        <FloatingActionButton
-          variant="primary"
-          size="lg"
-          position="bottom-right"
-          onClick={() => setViewMode('form')}
-          badge={!hasNotificationPermission ? "!" : undefined}
-          pulse={!hasNotificationPermission}
-          aria-label="Neue Erinnerung erstellen"
-        >
-          <Plus className="w-6 h-6" />
-        </FloatingActionButton>,
-        document.body
-      )}
-    </>
+    </div>
   );
 };
