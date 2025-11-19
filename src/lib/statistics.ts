@@ -125,11 +125,13 @@ export function computeStatistics(
     }
   });
 
+  const totalWithLocation = Array.from(locationCounts.values()).reduce((sum, count) => sum + count, 0);
+
   const locationDistribution = Array.from(locationCounts.entries())
     .map(([location, count]) => ({
       location,
       count,
-      percentage: totalEpisodes > 0 ? Math.round((count / totalEpisodes) * 100) : 0,
+      percentage: totalWithLocation > 0 ? Math.round((count / totalWithLocation) * 100) : 0,
     }))
     .sort((a, b) => b.count - a.count);
 
@@ -152,10 +154,12 @@ export function computeStatistics(
     .filter(([type]) => type !== 'keine')
     .sort((a, b) => b[1] - a[1]);
 
+  const totalWithAura = auraWithoutNone.reduce((sum, [, count]) => sum + count, 0);
+
   const mostCommonAura = auraWithoutNone.length > 0
     ? {
         type: auraWithoutNone[0][0],
-        percentage: totalEpisodes > 0 ? Math.round((auraWithoutNone[0][1] / totalEpisodes) * 100) : 0,
+        percentage: totalWithAura > 0 ? Math.round((auraWithoutNone[0][1] / totalWithAura) * 100) : 0,
       }
     : null;
 
