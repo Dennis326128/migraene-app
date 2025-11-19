@@ -159,6 +159,26 @@ All colors MUST be HSL.
   }
 }
 
+/* Chart Performance Optimizations */
+.recharts-responsive-container {
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  contain: layout style paint;
+}
+
+/* Prevent flickering during browser zoom */
+.recharts-wrapper,
+.recharts-surface {
+  transition: none !important;
+  will-change: auto;
+}
+
+/* Stabilize chart container during resize */
+[class*="recharts-"] {
+  contain: layout style paint;
+}
+
 @layer base {
   body {
     @apply bg-background text-foreground;
