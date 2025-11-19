@@ -62,7 +62,7 @@ const StartPageCardHeader: React.FC<StartPageCardHeaderProps> = ({
   subtitle,
 }) => {
   return (
-    <div className="flex items-center space-x-3">
+    <div className="flex items-center space-x-3 min-h-[64px]">
       {icon && (
         <div className="text-2xl flex-shrink-0">
           {icon}
