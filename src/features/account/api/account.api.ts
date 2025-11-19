@@ -9,6 +9,7 @@ export type PatientData = {
   postal_code?: string;
   city?: string;
   phone?: string;
+  fax?: string;
   date_of_birth?: string;
   health_insurance?: string;
   insurance_number?: string;
@@ -27,6 +28,7 @@ export type Doctor = {
   city?: string;
   phone?: string;
   email?: string;
+  fax?: string;
   created_at?: string;
   updated_at?: string;
 };

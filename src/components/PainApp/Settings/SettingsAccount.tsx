@@ -22,6 +22,7 @@ export const SettingsAccount = ({ onReturn }: { onReturn?: () => void }) => {
   const [postalCode, setPostalCode] = useState("");
   const [city, setCity] = useState("");
   const [phone, setPhone] = useState("");
+  const [fax, setFax] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
   const [healthInsurance, setHealthInsurance] = useState("");
   const [insuranceNumber, setInsuranceNumber] = useState("");
@@ -45,6 +46,7 @@ export const SettingsAccount = ({ onReturn }: { onReturn?: () => void }) => {
       setPostalCode(patientData.postal_code || "");
       setCity(patientData.city || "");
       setPhone(patientData.phone || "");
+      setFax(patientData.fax || "");
       setDateOfBirth(patientData.date_of_birth || "");
       setHealthInsurance(patientData.health_insurance || "");
       setInsuranceNumber(patientData.insurance_number || "");
@@ -95,6 +97,7 @@ export const SettingsAccount = ({ onReturn }: { onReturn?: () => void }) => {
         postal_code: postalCode,
         city: city,
         phone: phone,
+        fax: fax,
         date_of_birth: dateOfBirth,
         health_insurance: healthInsurance,
         insurance_number: insuranceNumber,
@@ -189,6 +192,14 @@ export const SettingsAccount = ({ onReturn }: { onReturn?: () => void }) => {
             <Input
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
+              placeholder="Optional"
+            />
+          </div>
+          <div>
+            <Label>Fax</Label>
+            <Input
+              value={fax}
+              onChange={(e) => setFax(e.target.value)}
               placeholder="Optional"
             />
           </div>
