@@ -93,7 +93,7 @@ export const SettingsHelp = () => {
                   "text-muted-foreground",
                   isMobile ? "text-xs" : "text-sm"
                 )}>
-                  <strong>Quick-Entry:</strong> Perfekt für unterwegs – nur 2 Klicks
+                  <strong>Schnell-Eintrag:</strong> Wenn es schnell gehen muss – Schmerz & Medikamente festhalten
                 </p>
               </div>
               <div className="flex items-start gap-2">
