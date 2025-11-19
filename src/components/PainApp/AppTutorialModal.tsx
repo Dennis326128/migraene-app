@@ -81,13 +81,13 @@ const tutorialSteps: TutorialStep[] = [
     id: "reports",
     icon: <FileText className="w-10 h-10 text-primary" />,
     title: "Arzt-Reports & Kopfschmerztagebuch",
-    description: "Erstelle mit wenigen Klicks Berichte für Arztpraxis oder Krankenkasse.",
+    description: "Erstelle mit wenigen Klicks Berichte für deine Arztpraxis oder Krankenkasse.",
     highlights: [
       "Automatisch aus deinen Einträgen zusammengestellt",
       "Individuell nach Zeitraum und Inhalt anpassbar",
-      "Als PDF speicherbar, ausdruckbar oder per E-Mail teilbar"
+      "Als PDF exportieren und direkt teilen"
     ],
-    benefit: "Spart Zeit im Arztgespräch und erleichtert Anträge bei der Krankenkasse."
+    benefit: "Spart Zeit im Arztgespräch und erleichtert die Kommunikation mit deiner Krankenkasse."
   },
   {
     id: "ready",
@@ -95,11 +95,11 @@ const tutorialSteps: TutorialStep[] = [
     title: "Du bist startklar!",
     description: "Nutze die App als täglichen Begleiter im Umgang mit deiner Migräne.",
     highlights: [
-      "Dokumentiere Episoden, wenn sie auftreten",
-      "Nutze Erinnerungen für Medikamente und Termine",
-      "Schau regelmäßig in deine Auswertungen und Berichte"
+      "Trage alles ein, was dir auffällt – auch Kleinigkeiten helfen bei der Analyse",
+      "Die App erfasst automatisch Wetter und verknüpft es mit deinen Episoden",
+      "Nutze deine Auswertungen, um Muster und Auslöser zu erkennen"
     ],
-    benefit: "Deine Migräne besser verstehen – für mehr Kontrolle im Alltag."
+    benefit: "Erkenne deine Auslöser und gewinne die Kontrolle zurück."
   }
 ];
 
