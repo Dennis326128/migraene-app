@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Plus, Bell, BellOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/ui/page-header';
@@ -152,7 +153,8 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <>
+      <div className="min-h-screen bg-background">
       <PageHeader 
         title="Erinnerungen" 
         onBack={onBack}
@@ -264,18 +266,22 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
         </TabsContent>
       </Tabs>
       </div>
-
-      <FloatingActionButton
-        variant="primary"
-        size="lg"
-        position="bottom-right"
-        onClick={() => setViewMode('form')}
-        badge={!hasNotificationPermission ? "!" : undefined}
-        pulse={!hasNotificationPermission}
-        aria-label="Neue Erinnerung erstellen"
-      >
-        <Plus className="w-6 h-6" />
-      </FloatingActionButton>
-    </div>
+      </div>
+      
+      {viewMode === 'list' && createPortal(
+        <FloatingActionButton
+          variant="primary"
+          size="lg"
+          position="bottom-right"
+          onClick={() => setViewMode('form')}
+          badge={!hasNotificationPermission ? "!" : undefined}
+          pulse={!hasNotificationPermission}
+          aria-label="Neue Erinnerung erstellen"
+        >
+          <Plus className="w-6 h-6" />
+        </FloatingActionButton>,
+        document.body
+      )}
+    </>
   );
 };
