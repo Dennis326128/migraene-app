@@ -81,11 +81,6 @@ export function VoiceNotesAIAnalysis() {
         from: earliestDate,
         to: new Date()
       });
-
-      toast({
-        title: 'Zeitraum gesetzt',
-        description: `Alle Daten ab ${format(earliestDate, 'dd.MM.yyyy', { locale: de })}`
-      });
     } catch (error) {
       console.error('Error loading first entry date:', error);
       toast({
