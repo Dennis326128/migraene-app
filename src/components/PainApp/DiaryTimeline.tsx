@@ -10,11 +10,13 @@ import { useEntries } from '@/features/entries/hooks/useEntries';
 import { useDeleteEntry } from '@/features/entries/hooks/useEntryMutations';
 import { supabase } from '@/integrations/supabase/client';
 import type { MigraineEntry } from '@/types/painApp';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { EmptyState } from '@/components/ui/empty-state';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { VoiceNoteEditModal } from './VoiceNoteEditModal';
+import { showSuccessToast, showErrorToast } from '@/lib/toastHelpers';
 
 interface DiaryTimelineProps {
   onBack: () => void;
@@ -33,7 +35,9 @@ type TimelineItemType = {
 
 export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate, onEdit }) => {
   const isMobile = useIsMobile();
+  const queryClient = useQueryClient();
   const [filterType, setFilterType] = useState<'all' | 'pain_entry' | 'context_note'>('all');
+  const [editingNote, setEditingNote] = useState<any>(null);
   
   // Delete mutation
   const { mutate: deleteMutate } = useDeleteEntry();
@@ -41,6 +45,24 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
   const handleDelete = (id: string) => {
     if (!confirm("Diesen Eintrag wirklich löschen?")) return;
     deleteMutate(id);
+  };
+
+  const handleDeleteNote = async (id: string) => {
+    if (!confirm("Diese Notiz wirklich löschen?")) return;
+    
+    try {
+      const { error } = await supabase
+        .from('voice_notes')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', id);
+        
+      if (error) throw error;
+      
+      showSuccessToast("Gelöscht", "Notiz wurde gelöscht");
+      queryClient.invalidateQueries({ queryKey: ['voice-notes-timeline'] });
+    } catch (error) {
+      showErrorToast("Fehler", error instanceof Error ? error.message : "Löschen fehlgeschlagen");
+    }
   };
 
   // Schmerzeinträge laden
@@ -319,7 +341,31 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
                               </div>
                               <p className="text-sm">{item.data.text}</p>
                             </div>
-                            <FileText className="h-4 w-4 text-accent flex-shrink-0" />
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingNote(item.data);
+                                }}
+                                className="h-8 w-8 p-0"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteNote(item.data.id);
+                                }}
+                                className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                              <FileText className="h-4 w-4 text-accent flex-shrink-0" />
+                            </div>
                           </div>
                         </CardContent>
                       </Card>
@@ -331,6 +377,17 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
           ))
         )}
       </div>
+
+      {/* Voice Note Edit Modal */}
+      <VoiceNoteEditModal
+        note={editingNote}
+        open={!!editingNote}
+        onClose={() => setEditingNote(null)}
+        onSaved={() => {
+          queryClient.invalidateQueries({ queryKey: ['voice-notes-timeline'] });
+          setEditingNote(null);
+        }}
+      />
     </div>
   );
 };
