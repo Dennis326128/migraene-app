@@ -12,14 +12,13 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { 
   BookOpen, 
-  Activity, 
   Bell,
-  Brain,
-  CloudSun,
   FileText,
   ChevronLeft,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  Heart,
+  BarChart3
 } from "lucide-react";
 
 interface TutorialStep {
@@ -34,104 +33,75 @@ interface TutorialStep {
 const tutorialSteps: TutorialStep[] = [
   {
     id: "welcome",
-    icon: <Sparkles className="w-10 h-10 text-primary" />,
+    icon: <Heart className="w-10 h-10 text-primary" />,
     title: "Willkommen bei deinem Migräne-Begleiter",
-    description: "Diese App unterstützt dich dabei, deine Migräne besser zu verstehen und deinen Alltag zu strukturieren.",
+    description: "Diese kurze Tour zeigt dir, wie die App dich im Alltag mit Migräne unterstützen kann.",
     highlights: [
       "Dokumentiere Migräne-Episoden schnell und einfach",
-      "Erkenne Muster und Zusammenhänge",
-      "Behalte den Überblick über Medikamente und Termine"
+      "Erhalte Auswertungen und erkenne mögliche Muster",
+      "Behalte Medikamente, Termine und Berichte im Blick"
     ],
-    benefit: "Alle wichtigen Informationen an einem Ort – für dich und dein Behandlungsteam."
+    benefit: "Alle wichtigen Informationen an einem Ort – für dich und deine Behandlung."
   },
   {
-    id: "entries",
+    id: "diary",
     icon: <BookOpen className="w-10 h-10 text-primary" />,
     title: "Migräne-Tagebuch führen",
-    description: "Erfasse deine Migräne-Episoden mit allen wichtigen Details.",
+    description: "Erfasse deine Migräne-Episoden strukturiert und vollständig.",
     highlights: [
-      "Schmerzintensität und betroffene Bereiche dokumentieren",
-      "Aura-Symptome und Begleitsymptome festhalten",
-      "Eingenommene Medikamente und deren Wirkung notieren",
-      "Notizen zu möglichen Auslösern hinzufügen"
+      "Schmerzstärke, Symptome und Medikamente in einem Eintrag erfassen",
+      "Notizen zu Alltag und möglichen Auslösern ergänzen",
+      "So entsteht nach und nach ein vollständiges Bild deiner Migräne"
     ],
-    benefit: "Ein vollständiges Bild deiner Migräne – hilfreich für Arztgespräche und deine eigene Übersicht."
-  },
-  {
-    id: "weather",
-    icon: <CloudSun className="w-10 h-10 text-primary" />,
-    title: "Wetter-Zusammenhänge erkennen",
-    description: "Die App erfasst automatisch Wetterdaten und verknüpft sie mit deinen Einträgen.",
-    highlights: [
-      "Luftdruck, Temperatur und weitere Faktoren werden gespeichert",
-      "Mögliche Zusammenhänge zwischen Wetter und Migräne werden sichtbar",
-      "Wetterbasierte Muster in Auswertungen erkennen"
-    ],
-    benefit: "Verstehe, ob Wetter bei deiner Migräne eine Rolle spielt – automatisch und ohne Aufwand."
+    benefit: "Hilfreich für deine eigene Übersicht und für Arztgespräche."
   },
   {
     id: "reminders",
     icon: <Bell className="w-10 h-10 text-primary" />,
     title: "Erinnerungen & Termine",
-    description: "Verpasse keine wichtigen Medikamente oder Arzttermine mehr.",
+    description: "Verpasse keine wichtige Medikamenteneinnahme oder Arzttermine mehr.",
     highlights: [
-      "Medikamenten-Erinnerungen mit flexiblen Wiederholungen",
-      "Arzttermine und Check-ups planen",
-      "Push-Benachrichtigungen zur richtigen Zeit",
-      "Übersicht über erledigte und anstehende Erinnerungen"
+      "Lass dich an Medikamente und Arzttermine erinnern",
+      "Flexible Wiederholungen für tägliche oder gelegentliche Einnahmen",
+      "Behalte anstehende und erledigte Erinnerungen im Blick"
     ],
-    benefit: "Deine Behandlung im Griff – strukturiert und zuverlässig."
+    benefit: "So verpasst du keine wichtige Einnahme oder Untersuchung."
   },
   {
-    id: "statistics",
-    icon: <Activity className="w-10 h-10 text-primary" />,
-    title: "Statistiken & Auswertungen",
-    description: "Erkenne Muster in deinen Migräne-Episoden durch übersichtliche Statistiken.",
+    id: "analysis",
+    icon: <BarChart3 className="w-10 h-10 text-primary" />,
+    title: "Auswertungen, Wetter & Muster",
+    description: "Die App analysiert deine Einträge und zeigt dir verständliche Auswertungen.",
     highlights: [
-      "Häufigkeit und Intensität deiner Migräne visualisieren",
-      "Zeitliche Verteilung und Trends erkennen",
-      "Zusammenhänge zwischen Symptomen, Medikamenten und Wetter",
-      "Filterbare Zeiträume für detaillierte Analysen"
+      "Diagramme zu Häufigkeit, Intensität und zeitlicher Verteilung deiner Migräne",
+      "Wetterdaten (z. B. Luftdruck, Temperatur) werden mit deinen Episoden verknüpft",
+      "KI hilft, mögliche Muster und Auslöser sichtbar zu machen"
     ],
     benefit: "Datenbasierte Einblicke – für besseres Verständnis und gezielte Gespräche mit Ärzten."
   },
   {
-    id: "ai-analysis",
-    icon: <Brain className="w-10 h-10 text-primary" />,
-    title: "KI-gestützte Mustererkennung",
-    description: "Die App analysiert deine Daten und hilft dir, versteckte Zusammenhänge zu entdecken.",
-    highlights: [
-      "Automatische Analyse deiner Einträge und Sprachnotizen",
-      "Erkennung von wiederkehrenden Mustern",
-      "Hinweise auf mögliche Auslöser und Einflussfaktoren"
-    ],
-    benefit: "Intelligente Unterstützung – aber kein Ersatz für ärztliche Diagnosen."
-  },
-  {
     id: "reports",
     icon: <FileText className="w-10 h-10 text-primary" />,
-    title: "Arzt-Reports erstellen",
-    description: "Erstelle professionelle PDF-Berichte für deine Ärzte mit allen relevanten Daten.",
+    title: "Arzt-Reports & Kopfschmerztagebuch",
+    description: "Erstelle mit wenigen Klicks Berichte für Arztpraxis oder Krankenkasse.",
     highlights: [
-      "Übersichtliche Zusammenfassung deiner Migräne-Episoden",
-      "Statistiken, Medikamente und Symptome aufbereitet",
-      "Individuell anpassbare Zeiträume und Inhalte",
-      "Direkt teilbar per E-Mail oder Ausdruck"
+      "Automatisch aus deinen Einträgen zusammengestellt",
+      "Individuell nach Zeitraum und Inhalt anpassbar",
+      "Als PDF speicherbar, ausdruckbar oder per E-Mail teilbar"
     ],
-    benefit: "Strukturierte Dokumentation – spart Zeit bei Arztbesuchen und verbessert die Behandlung."
+    benefit: "Spart Zeit im Arztgespräch und erleichtert Anträge bei der Krankenkasse."
   },
   {
-    id: "finish",
+    id: "ready",
     icon: <Sparkles className="w-10 h-10 text-primary" />,
     title: "Du bist startklar!",
-    description: "Alle wichtigen Funktionen im Überblick. Nutze die App als täglichen Begleiter im Umgang mit Migräne.",
+    description: "Nutze die App als täglichen Begleiter im Umgang mit deiner Migräne.",
     highlights: [
-      "Dokumentiere Episoden direkt, wenn sie auftreten",
-      "Richte Erinnerungen für deine Medikamente ein",
-      "Schau dir regelmäßig deine Statistiken an",
-      "Die Tour kannst du jederzeit in den Einstellungen erneut starten"
+      "Dokumentiere Episoden, wenn sie auftreten",
+      "Nutze Erinnerungen für Medikamente und Termine",
+      "Schau regelmäßig in deine Auswertungen und Berichte"
     ],
-    benefit: "Deine Migräne besser verstehen – für mehr Kontrolle und Lebensqualität im Alltag."
+    benefit: "Deine Migräne besser verstehen – für mehr Kontrolle im Alltag."
   }
 ];
 
@@ -213,7 +183,7 @@ export function AppTutorialModal({ open, onComplete, canSkip = true }: AppTutori
           </div>
 
           <div className="flex items-start gap-3 p-4 rounded-lg bg-primary/5 border border-primary/20">
-            <Activity className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
+            <Heart className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
             <p className="text-sm font-medium">{step.benefit}</p>
           </div>
         </div>
