@@ -1,10 +1,10 @@
 import { Card } from "@/components/ui/card";
-import { ChevronRight, Pill, Shield, HelpCircle } from "lucide-react";
+import { ChevronRight, Pill, Shield, HelpCircle, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 interface SettingsOverviewProps {
-  onNavigate: (section: 'medications' | 'privacy' | 'help') => void;
+  onNavigate: (section: 'medications' | 'privacy' | 'help' | 'account') => void;
 }
 
 export const SettingsOverview = ({ onNavigate }: SettingsOverviewProps) => {
@@ -17,6 +17,13 @@ export const SettingsOverview = ({ onNavigate }: SettingsOverviewProps) => {
       title: 'Medikamente',
       description: 'Medikamente verwalten und Limits festlegen',
       gradient: 'from-primary/10 to-primary/5',
+    },
+    {
+      id: 'account' as const,
+      icon: User,
+      title: 'Kontoeinstellungen',
+      description: 'Persönliche Daten, Ärzte und Abmeldung',
+      gradient: 'from-blue-500/10 to-blue-500/5',
     },
     {
       id: 'privacy' as const,

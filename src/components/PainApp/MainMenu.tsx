@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Plus, History, TrendingUp, Settings, Zap, Mic, Bell, BookOpen, Sparkles, BarChart3, Brain, AlertTriangle, Database, Calendar, FileText } from "lucide-react";
-import { LogoutButton } from "@/components/LogoutButton";
 import { WelcomeModal } from "./WelcomeModal";
 import { QuickEntryModal } from "./QuickEntryModal";
 import { FloatingActionButton } from "@/components/ui/floating-action-button";
@@ -149,9 +148,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({
 
   return (
     <div className="min-h-screen bg-background pt-2 px-4 pb-4 sm:pt-4 sm:px-6 sm:pb-6 flex flex-col relative">
-      <div className="absolute bottom-4 right-4 z-10">
-        <LogoutButton />
-      </div>
       <div className="flex-1 flex flex-col justify-start max-w-md mx-auto w-full">
         <div className="text-center mb-6 sm:mb-8 px-2">
           <h1 className="text-3xl sm:text-4xl font-light text-foreground mb-2">Migräne-App</h1>
