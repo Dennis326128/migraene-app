@@ -13,8 +13,9 @@ import TimeSeriesChart from "@/components/TimeSeriesChart";
 import { Loader2, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
+import { TimeRangeButtons, type TimeRangePreset } from "./TimeRangeButtons";
 
-type Preset = "3m" | "6m" | "12m" | "custom";
+type Preset = TimeRangePreset;
 
 function addMonths(d: Date, m: number) {
   const dd = new Date(d);
@@ -370,14 +371,7 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
       <Card className="p-4 mb-4 space-y-3">
         <div>
           <label className="block text-sm mb-1">Zeitraum</label>
-          <div className="grid grid-cols-4 gap-2">
-            {(["3m","6m","12m"] as Preset[]).map(p => (
-              <Button key={p} variant={preset===p?"default":"outline"} onClick={() => setPreset(p)}>
-                {p==="3m"?"3 Monate":p==="6m"?"6 Monate":"12 Monate"}
-              </Button>
-            ))}
-            <Button variant={preset==="custom"?"default":"outline"} onClick={() => setPreset("custom")}>Benutzerdefiniert</Button>
-          </div>
+          <TimeRangeButtons value={preset} onChange={setPreset} />
         </div>
 
         {preset === "custom" && (

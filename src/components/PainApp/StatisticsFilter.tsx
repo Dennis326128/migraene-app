@@ -1,15 +1,15 @@
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, CalendarDays, Clock, X } from "lucide-react";
+import { Clock, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { TimeRangeButtons, type TimeRangePreset } from "./TimeRangeButtons";
 
 interface StatisticsFilterProps {
-  timeRange: string;
-  onTimeRangeChange: (value: string) => void;
+  timeRange: TimeRangePreset;
+  onTimeRangeChange: (value: TimeRangePreset) => void;
   customFrom: string;
   customTo: string;
   onCustomFromChange: (value: string) => void;
@@ -84,19 +84,7 @@ export function StatisticsFilter({
         {/* Time Range Selection */}
         <div className="space-y-2">
           <Label className="text-sm font-medium">Zeitraum</Label>
-          <Select value={timeRange} onValueChange={onTimeRangeChange}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="7d">Letzte 7 Tage</SelectItem>
-              <SelectItem value="30d">Letzter Monat</SelectItem>
-              <SelectItem value="3m">Letzte 3 Monate</SelectItem>
-              <SelectItem value="6m">Letzte 6 Monate</SelectItem>
-              <SelectItem value="1y">Letztes Jahr</SelectItem>
-              <SelectItem value="custom">Benutzerdefiniert</SelectItem>
-            </SelectContent>
-          </Select>
+          <TimeRangeButtons value={timeRange} onChange={onTimeRangeChange} />
         </div>
 
         {/* Custom Date Range */}
