@@ -33,6 +33,20 @@ export const usePastReminders = () => {
   });
 };
 
+export const useActiveReminders = () => {
+  return useQuery({
+    queryKey: [QUERY_KEY, 'active'],
+    queryFn: remindersApi.getActive,
+  });
+};
+
+export const useHistoryReminders = () => {
+  return useQuery({
+    queryKey: [QUERY_KEY, 'history'],
+    queryFn: remindersApi.getHistory,
+  });
+};
+
 export const useReminder = (id: string | null) => {
   return useQuery({
     queryKey: [QUERY_KEY, id],

@@ -58,6 +58,33 @@ export const remindersApi = {
     return data || [];
   },
 
+  async getActive(): Promise<Reminder[]> {
+    const now = new Date();
+
+    const { data, error } = await supabase
+      .from('reminders')
+      .select('*')
+      .gte('date_time', now.toISOString())
+      .neq('status', 'done')
+      .order('date_time', { ascending: true });
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  async getHistory(): Promise<Reminder[]> {
+    const now = new Date();
+
+    const { data, error } = await supabase
+      .from('reminders')
+      .select('*')
+      .or(`date_time.lt.${now.toISOString()},status.eq.done`)
+      .order('date_time', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  },
+
   async getById(id: string): Promise<Reminder | null> {
     const { data, error } = await supabase
       .from('reminders')
