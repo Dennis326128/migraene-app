@@ -651,13 +651,24 @@ export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProp
         </p>
       </Card>
 
-      {/* Speichern Button */}
-      <SaveButton
-        onClick={handleSave}
-        isLoading={saving || createMut.isPending || updateMut.isPending || setEntrySymptomsMut.isPending}
-        fullWidth={true}
-        className="mt-4"
-      />
+      {/* Aktions-Buttons */}
+      <div className="flex gap-3 mt-4">
+        <Button
+          onClick={onBack}
+          variant="outline"
+          className="flex-1"
+          disabled={saving || createMut.isPending || updateMut.isPending || setEntrySymptomsMut.isPending}
+        >
+          Abbrechen
+        </Button>
+        <Button
+          onClick={handleSave}
+          className="flex-1"
+          disabled={saving || createMut.isPending || updateMut.isPending || setEntrySymptomsMut.isPending}
+        >
+          {(saving || createMut.isPending || updateMut.isPending || setEntrySymptomsMut.isPending) ? "Wird gespeichert..." : "Speichern"}
+        </Button>
+      </div>
       </div>
     </div>
   );
