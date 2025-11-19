@@ -12,7 +12,8 @@ const AnalysisRequestSchema = z.object({
   fromDate: z.string()
     .datetime({ message: 'fromDate muss ISO 8601 Format haben' }),
   toDate: z.string()
-    .datetime({ message: 'toDate muss ISO 8601 Format haben' })
+    .datetime({ message: 'toDate muss ISO 8601 Format haben' }),
+  mode: z.enum(['full', 'doctor_summary']).optional().default('full')
 }).refine(data => {
   const from = new Date(data.fromDate);
   const to = new Date(data.toDate);
@@ -383,7 +384,48 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) throw new Error('LOVABLE_API_KEY nicht konfiguriert');
 
-    const prompt = `Sie erhalten eine ausführliche, faktenbasierte Analyse von Migräne-Daten (inkl. Wetter, Wochentage, Medikamente, Schmerzlevel UND automatisch erkannte Kontext-Tags aus Notizen). 
+    // Build prompt based on mode
+    const { mode = 'full' } = validatedBody;
+    
+    let prompt: string;
+    let systemMessage: string;
+    
+    if (mode === 'doctor_summary') {
+      // Compact medical summary for doctors
+      systemMessage = 'Sie sind ein medizinischer Assistent für Fachpersonal. Schreiben Sie präzise, faktisch und kompakt.';
+      prompt = `Sie erhalten Migräne-Daten (${allData.length} Einträge von ${fromDate.split('T')[0]} bis ${toDate.split('T')[0]}) für eine KOMPAKTE ärztliche Zusammenfassung.
+
+DATENSATZ:
+
+${dataText}${tagsSummary}${hashtagsSummary}
+
+AUFGABE:
+Erstellen Sie eine KOMPAKTE Zusammenfassung (80-120 Wörter) für medizinisches Fachpersonal.
+
+FOKUS: Nur Muster, die NICHT offensichtlich aus Rohdaten erkennbar sind:
+• Wetter-Trigger (z.B. Luftdruckabfall >5 hPa/24h)
+• Kontext-Faktoren aus Tags/Notizen mit zeitlichem Zusammenhang (z.B. "Schlafmangel-Tags 1-2 Tage vor Anfällen")
+• Temporale Muster (z.B. Tageszeit-Cluster)
+
+WEGLASSEN (bereits in PDF-Statistiken enthalten):
+• Medikamentenhäufigkeit
+• Durchschnittliche Schmerzintensität
+• Aufzählung einzelner Einträge
+• Gesamtanzahl Anfälle
+
+FORMAT:
+• Stichpunktartig, keine Einleitung
+• 2-3 konkrete Handlungsempfehlungen für Diagnostik/Therapie
+• Medizinisch präzise, aber ohne Fachjargon
+
+BEISPIEL:
+• Auffälliger Zusammenhang: Luftdruckabfall >8 hPa/24h korreliert mit 70% der Anfälle
+• Kontext: "Schlecht geschlafen"-Tags treten 1-2 Tage vor Migräne auf (6 von 8 Fällen)
+• Empfehlung: Wetterbasierte Prophylaxe prüfen, Schlafhygiene fokussieren, Triggerdiary fortführen`;
+    } else {
+      // Full patient-friendly analysis
+      systemMessage = 'Sie sind ein hilfreicher medizinischer Assistent, der Migräne-Patienten dabei unterstützt, ihre Daten zu verstehen. Schreiben Sie klar, verständlich und patientenfreundlich. Verwenden Sie die Höflichkeitsform "Sie".';
+      prompt = `Sie erhalten eine ausführliche, faktenbasierte Analyse von Migräne-Daten (inkl. Wetter, Wochentage, Medikamente, Schmerzlevel UND automatisch erkannte Kontext-Tags aus Notizen). 
 
 DATENSATZ (${allData.length} Einträge von ${fromDate.split('T')[0]} bis ${toDate.split('T')[0]}):
 
@@ -428,6 +470,7 @@ STIL UND SICHERHEIT:
 11. Nutzen Sie eine freundliche, unterstützende Formulierung, aber machen Sie klar, dass die Auswertung keinen ärztlichen Rat ersetzt und als Grundlage für ein Arztgespräch dienen soll
 
 Formatieren Sie die Antwort in gut lesbarem Markdown OHNE Rohdaten-Listen und OHNE technischen Fachjargon.`;
+    }
 
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -438,7 +481,7 @@ Formatieren Sie die Antwort in gut lesbarem Markdown OHNE Rohdaten-Listen und OH
       body: JSON.stringify({
         model: 'google/gemini-2.5-flash',
         messages: [
-          { role: 'system', content: 'Sie sind ein hilfreicher medizinischer Assistent, der Migräne-Patienten dabei unterstützt, ihre Daten zu verstehen. Schreiben Sie klar, verständlich und patientenfreundlich. Verwenden Sie die Höflichkeitsform "Sie".' },
+          { role: 'system', content: systemMessage },
           { role: 'user', content: prompt }
         ],
       }),
