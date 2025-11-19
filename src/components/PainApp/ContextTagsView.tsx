@@ -1,8 +1,8 @@
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { ArrowLeft, TrendingUp, Hash } from 'lucide-react';
+import { PageHeader } from '@/components/ui/page-header';
+import { TrendingUp, Hash } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { extractTags, extractHashtags, getTagLabel, groupTagsByCategory, type ExtractedTag } from '@/lib/voice/tagExtractor';
@@ -132,21 +132,14 @@ export const ContextTagsView: React.FC<ContextTagsViewProps> = ({ onBack }) => {
   }, [tagStats, allTags]);
 
   return (
-    <div className="min-h-screen bg-background pb-20">
-      {/* Header */}
-      <div className="sticky top-0 z-10 bg-background border-b border-border px-4 py-3 flex items-center gap-3">
-        <Button 
-          variant="ghost" 
-          onClick={onBack} 
-          className="p-2 hover:bg-secondary/80"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <h1 className="text-xl font-semibold flex-1">Kontext-Tags</h1>
-        <Badge variant="outline" className="text-xs">
-          {tagStats.length} Tags
-        </Badge>
-      </div>
+    <div className="min-h-screen bg-background">
+      <PageHeader 
+        title={`Kontext-Tags (${allTags.length})`} 
+        onBack={onBack}
+        sticky={true}
+      />
+      
+      <div className="container mx-auto p-4 pb-20">
 
       <div className={cn("max-w-4xl mx-auto p-4 space-y-4", isMobile && "px-3")}>
         {isLoading ? (
@@ -260,6 +253,7 @@ export const ContextTagsView: React.FC<ContextTagsViewProps> = ({ onBack }) => {
             </Card>
           </>
         )}
+      </div>
       </div>
     </div>
   );

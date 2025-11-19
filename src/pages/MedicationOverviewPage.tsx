@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header";
 import { MedicationOverview } from "@/components/PainApp/MedicationOverview";
 import { MedicationSaveProvider, useMedicationSave } from "@/contexts/MedicationSaveContext";
 import { useRecentMedicationsWithEffects } from "@/features/medication-effects/hooks/useMedicationEffects";
@@ -30,18 +30,13 @@ function MedicationOverviewContent({ onBack }: MedicationOverviewPageProps) {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background p-4">
-        <div className="max-w-md mx-auto">
-          <div className="flex items-center justify-between mb-6">
-            <Button variant="ghost" size="sm" onClick={handleBack} disabled={isNavigating}>
-              {isNavigating ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <ArrowLeft className="w-4 h-4 mr-2" />
-              )}
-              {isNavigating ? "Speichere..." : "Zurück"}
-            </Button>
-          </div>
+      <div className="min-h-screen bg-background">
+        <PageHeader 
+          title="Medikamenten-Wirkung" 
+          onBack={handleBack}
+          isBackLoading={isNavigating}
+        />
+        <div className="container mx-auto p-4">
           <div className="text-center py-8">
             <div className="text-2xl mb-2">💊</div>
             <p className="text-muted-foreground">Lade Medikamenten-Wirkung...</p>
@@ -53,18 +48,13 @@ function MedicationOverviewContent({ onBack }: MedicationOverviewPageProps) {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-background p-4">
-        <div className="max-w-md mx-auto">
-          <div className="flex items-center justify-between mb-6">
-            <Button variant="ghost" size="sm" onClick={handleBack} disabled={isNavigating}>
-              {isNavigating ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <ArrowLeft className="w-4 h-4 mr-2" />
-              )}
-              {isNavigating ? "Speichere..." : "Zurück"}
-            </Button>
-          </div>
+      <div className="min-h-screen bg-background">
+        <PageHeader 
+          title="Medikamenten-Wirkung" 
+          onBack={handleBack}
+          isBackLoading={isNavigating}
+        />
+        <div className="container mx-auto p-4">
           <div className="text-center py-8">
             <div className="text-2xl mb-2">⚠️</div>
             <p className="text-muted-foreground mb-4">Fehler beim Laden der Medikamenten-Daten</p>
@@ -78,19 +68,13 @@ function MedicationOverviewContent({ onBack }: MedicationOverviewPageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-background p-4">
-      <div className="max-w-md mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <Button variant="ghost" size="sm" onClick={handleBack} disabled={isNavigating}>
-            {isNavigating ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <ArrowLeft className="w-4 h-4 mr-2" />
-            )}
-            {isNavigating ? "Speichere..." : "Zurück"}
-          </Button>
-        </div>
-        
+    <div className="min-h-screen bg-background">
+      <PageHeader 
+        title="Medikamenten-Wirkung" 
+        onBack={handleBack}
+        isBackLoading={isNavigating}
+      />
+      <div className="container mx-auto p-4 max-w-md">
         <MedicationOverview entries={entries} />
       </div>
     </div>

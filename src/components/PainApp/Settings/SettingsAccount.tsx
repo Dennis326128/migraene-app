@@ -1,12 +1,11 @@
 import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { SaveButton } from "@/components/ui/navigation-buttons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { usePatientData, useUpsertPatientData } from "@/features/account/hooks/useAccount";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
-import { Save } from "lucide-react";
 
 export const SettingsAccount = ({ onReturn }: { onReturn?: () => void }) => {
   const [userEmail, setUserEmail] = useState<string>("");
@@ -141,14 +140,11 @@ export const SettingsAccount = ({ onReturn }: { onReturn?: () => void }) => {
             />
           </div>
         </div>
-        <Button
+        <SaveButton
           onClick={handleSavePatientData}
+          isLoading={upsertPatient.isPending}
           className="mt-4"
-          disabled={upsertPatient.isPending}
-        >
-          <Save className="h-4 w-4 mr-2" />
-          Speichern
-        </Button>
+        />
       </Card>
     </div>
   );

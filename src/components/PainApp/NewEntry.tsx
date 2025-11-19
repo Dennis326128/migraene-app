@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
+import { SaveButton } from "@/components/ui/navigation-buttons";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ArrowLeft, Plus, X, Save, Trash2, ChevronDown } from "lucide-react";
+import { Plus, X, Trash2, ChevronDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { MigraineEntry } from "@/types/painApp";
 import { logAndSaveWeatherAt, logAndSaveWeatherAtCoords } from "@/utils/weatherLogger";
@@ -445,22 +447,13 @@ export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProp
   };
 
   return (
-    <div className="p-6 bg-gradient-to-br from-background to-secondary/20 min-h-screen">
-      <div className="flex items-center justify-between mb-6">
-        <Button 
-          variant="ghost" 
-          onClick={onBack} 
-          className="p-2 hover:bg-secondary/80"
-          aria-label="Zurück zum Hauptmenü"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <h1 className="text-xl font-semibold text-center flex-1">
-          {entry ? "Migräne-Eintrag bearbeiten" : "Neue Migräne erfassen"}
-        </h1>
-        <div className="w-9"></div>
-      </div>
-
+    <div className="min-h-screen bg-gradient-to-br from-background to-secondary/20">
+      <PageHeader 
+        title={entry ? "Eintrag bearbeiten" : "Neuer Eintrag"} 
+        onBack={onBack}
+      />
+      
+      <div className="container mx-auto p-6 max-w-2xl">
       {/* Migräne-Intensität - Slider */}
       <Card className="p-4 sm:p-6 mb-4">
         <Label className="text-base font-medium mb-3 block">
@@ -658,15 +651,13 @@ export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProp
       </Card>
 
       {/* Speichern Button */}
-      <Button 
-        className="w-full h-14 mt-4 text-lg font-medium" 
-        onClick={handleSave} 
-        disabled={saving || createMut.isPending || updateMut.isPending || setEntrySymptomsMut.isPending}
-        aria-label="Speichern"
-      >
-        <Save className="w-5 h-5 mr-2" /> 
-        {saving || createMut.isPending || updateMut.isPending || setEntrySymptomsMut.isPending ? "Speichere..." : "Speichern"}
-      </Button>
+      <SaveButton
+        onClick={handleSave}
+        isLoading={saving || createMut.isPending || updateMut.isPending || setEntrySymptomsMut.isPending}
+        fullWidth={true}
+        className="mt-4"
+      />
+      </div>
     </div>
   );
 };
