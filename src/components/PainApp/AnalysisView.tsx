@@ -335,7 +335,6 @@ export function AnalysisView({ onBack, onNavigateToLimits }: AnalysisViewProps) 
             dateRange={{ from, to }}
           />
         </FullscreenChartModal>
-      </div>
     </div>
   );
 }
