@@ -18,6 +18,21 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { VoiceNoteEditModal } from './VoiceNoteEditModal';
 import { showSuccessToast, showErrorToast } from '@/lib/toastHelpers';
 
+// Helper: Filtert technische/ungültige Wetterbedingungen
+const isValidWeatherCondition = (text: string | null | undefined): boolean => {
+  if (!text) return false;
+  
+  const invalidPatterns = [
+    /historical data/i,
+    /no data/i,
+    /undefined/i,
+    /null/i,
+    /\(\d{1,2}:\d{2}\)/ // Zeitstempel wie (5:00)
+  ];
+  
+  return !invalidPatterns.some(pattern => pattern.test(text));
+};
+
 interface DiaryTimelineProps {
   onBack: () => void;
   onNavigate?: (target: 'diary-report') => void;
@@ -86,7 +101,7 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
       'stark': { label: 'Stark', numeric: '7-8/10', color: 'bg-red-500/20 text-red-700 dark:bg-red-500/30 dark:text-red-300' },
       'sehr_stark': { label: 'Sehr stark', numeric: '9-10/10', color: 'bg-purple-500/20 text-purple-700 dark:bg-purple-500/30 dark:text-purple-300' },
     };
-    return mapping[level] || { label: level, numeric: '?', color: 'bg-muted' };
+    return mapping[level] || { label: 'Unbekannt', numeric: '-', color: 'bg-muted' };
   };
 
   // Schmerzeinträge laden
@@ -287,11 +302,20 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
                   )}
                 </div>
                               
-                              {/* Medikamente-Anzahl (kompakt wenn zugeklappt) */}
+                              {/* Medikamente als Liste (kompakt wenn zugeklappt) */}
                               {item.data.medications && item.data.medications.length > 0 && !expandedEntries.has(item.id) && (
-                                <Badge variant="secondary" className="text-xs">
-                                  💊 {item.data.medications.length} {item.data.medications.length === 1 ? 'Medikament' : 'Medikamente'}
-                                </Badge>
+                                <div className="flex flex-wrap gap-1">
+                                  {item.data.medications.slice(0, 3).map((med: string, i: number) => (
+                                    <Badge key={i} variant="secondary" className="text-xs">
+                                      💊 {med}
+                                    </Badge>
+                                  ))}
+                                  {item.data.medications.length > 3 && (
+                                    <Badge variant="secondary" className="text-xs">
+                                      +{item.data.medications.length - 3}
+                                    </Badge>
+                                  )}
+                                </div>
                               )}
                             </div>
                             
@@ -360,7 +384,7 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
                                     {item.data.weather.humidity !== null && (
                                       <div>💧 {item.data.weather.humidity}%</div>
                                     )}
-                                    {item.data.weather.condition_text && (
+                                    {item.data.weather.condition_text && isValidWeatherCondition(item.data.weather.condition_text) && (
                                       <div>☁️ {item.data.weather.condition_text}</div>
                                     )}
                                   </div>
