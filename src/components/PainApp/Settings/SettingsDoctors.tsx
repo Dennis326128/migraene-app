@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { SaveButton } from "@/components/ui/navigation-buttons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useDoctors, useCreateDoctor, useUpdateDoctor, useDeleteDoctor } from "@/features/account/hooks/useAccount";
 import { toast } from "sonner";
-import { Trash2, Plus, Save, Edit } from "lucide-react";
+import { Trash2, Plus, Edit } from "lucide-react";
 
 export const SettingsDoctors = () => {
   const { data: doctors = [] } = useDoctors();
@@ -182,10 +183,12 @@ export const SettingsDoctors = () => {
               </div>
             </div>
             <div className="flex gap-2 mt-3">
-              <Button size="sm" onClick={handleAddDoctor} disabled={createDoctor.isPending}>
-                <Save className="h-4 w-4 mr-2" />
-                Hinzufügen
-              </Button>
+              <SaveButton
+                onClick={handleAddDoctor}
+                isLoading={createDoctor.isPending}
+                text="Hinzufügen"
+                size="sm"
+              />
               <Button size="sm" variant="outline" onClick={() => setShowAddDoctor(false)}>
                 Abbrechen
               </Button>
@@ -266,10 +269,10 @@ export const SettingsDoctors = () => {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button size="sm" onClick={() => handleUpdateDoctor(doctor.id!)}>
-                      <Save className="h-4 w-4 mr-2" />
-                      Speichern
-                    </Button>
+                    <SaveButton
+                      onClick={() => handleUpdateDoctor(doctor.id!)}
+                      size="sm"
+                    />
                     <Button size="sm" variant="outline" onClick={() => setEditingDoctorId(null)}>
                       Abbrechen
                     </Button>

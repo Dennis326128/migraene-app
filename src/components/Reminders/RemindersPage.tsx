@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Plus, ArrowLeft, Bell, BellOff } from 'lucide-react';
+import { Plus, Bell, BellOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/components/ui/page-header';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ReminderCard } from './ReminderCard';
 import { ReminderForm } from './ReminderForm';
@@ -150,77 +151,61 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
   }
 
   return (
-    <div className="container max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-6 pb-safe">
-      <div className="flex items-center gap-3 mb-6">
-        <Button
-          variant="ghost"
-          size="lg"
-          onClick={() => onBack ? onBack() : window.history.back()}
-          className="touch-manipulation min-h-11 min-w-11"
-        >
-          <ArrowLeft className="h-5 w-5 mr-2" />
-          Zurück
-        </Button>
-        
-        <h1 className="text-2xl font-bold text-foreground flex-1 text-center">
-          Erinnerungen
-        </h1>
-        
-        <div className="w-[100px]" /> {/* Spacer for centering */}
-      </div>
-
-      {!hasNotificationPermission && (
-        <div className="mb-4">
-          <Button
-            variant="outline"
+    <div className="min-h-screen bg-background">
+      <PageHeader 
+        title="Erinnerungen" 
+        onBack={onBack}
+        action={
+          <Button 
+            onClick={() => setViewMode('form')}
             size="sm"
-            onClick={requestNotificationPermission}
-            className="w-full touch-manipulation min-h-11"
           >
-            <BellOff className="h-4 w-4 mr-2" />
-            Benachrichtigungen aktivieren
+            <Plus className="w-4 h-4 mr-2" />
+            Neue Erinnerung
+          </Button>
+        }
+      />
+      
+      <div className="container mx-auto px-4 pb-6">
+        {!hasNotificationPermission && (
+          <div className="mb-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={requestNotificationPermission}
+              className="w-full touch-manipulation min-h-11"
+            >
+              <BellOff className="h-4 w-4 mr-2" />
+              Benachrichtigungen aktivieren
+            </Button>
+          </div>
+        )}
+
+        <div className="mb-4 flex gap-2 flex-wrap">
+          <Button
+            variant={filterType === 'all' ? 'default' : 'outline'}
+            onClick={() => setFilterType('all')}
+            size="sm"
+          >
+            Alle
+          </Button>
+          <Button
+            variant={filterType === 'medication' ? 'default' : 'outline'}
+            onClick={() => setFilterType('medication')}
+            size="sm"
+          >
+            Medikamente
+          </Button>
+          <Button
+            variant={filterType === 'appointment' ? 'default' : 'outline'}
+            onClick={() => setFilterType('appointment')}
+            size="sm"
+          >
+            Termine
           </Button>
         </div>
-      )}
 
-      <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-2">
-        <Button
-          variant={filterType === 'all' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setFilterType('all')}
-          className="touch-manipulation min-h-11 whitespace-nowrap"
-        >
-          Alle
-        </Button>
-        <Button
-          variant={filterType === 'medication' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setFilterType('medication')}
-          className="touch-manipulation min-h-11 whitespace-nowrap"
-        >
-          Medikamente
-        </Button>
-        <Button
-          variant={filterType === 'appointment' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setFilterType('appointment')}
-          className="touch-manipulation min-h-11 whitespace-nowrap"
-        >
-          Termine
-        </Button>
-      </div>
-
-      <div className="mb-4">
-        <Button 
-          onClick={() => setViewMode('form')}
-          className="w-full touch-manipulation min-h-11"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Neue Erinnerung
-        </Button>
-      </div>
-
-      <Tabs defaultValue="today" className="w-full">
+        <Tabs defaultValue="today" className="w-full">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="today">Heute</TabsTrigger>
           <TabsTrigger value="upcoming">Zukünftig</TabsTrigger>
@@ -286,6 +271,7 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
           )}
         </TabsContent>
       </Tabs>
+      </div>
     </div>
   );
 };
