@@ -2,7 +2,12 @@ import { supabase } from "@/lib/supabaseClient";
 import type { PainEntry } from "@/types/painApp";
 import { EntryPayloadSchema, type EntryPayload } from "@/lib/zod/schemas";
 
-export type ListParams = { from?: string; to?: string };
+export type ListParams = { 
+  from?: string; 
+  to?: string;
+  limit?: number;
+  offset?: number;
+};
 
 export type PainEntryPayload = EntryPayload;
 
@@ -27,6 +32,8 @@ export async function listEntries(params: ListParams = {}): Promise<PainEntry[]>
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return [];
 
+  const { from, to, limit = 50, offset = 0 } = params;
+
   let q = supabase
     .from("pain_entries")
     .select(`
@@ -42,12 +49,13 @@ export async function listEntries(params: ListParams = {}): Promise<PainEntry[]>
       )
     `)
     .eq("user_id", user.id)
-    .order("timestamp_created", { ascending: false });
+    .order("timestamp_created", { ascending: false })
+    .range(offset, offset + limit - 1);
 
-  if (params.from) q = q.gte("timestamp_created", new Date(params.from).toISOString());
-  if (params.to) {
+  if (from) q = q.gte("timestamp_created", new Date(from).toISOString());
+  if (to) {
     // Fix: Include the entire "to" day by setting time to end of day
-    const toDate = new Date(params.to);
+    const toDate = new Date(to);
     toDate.setHours(23, 59, 59, 999);
     q = q.lte("timestamp_created", toDate.toISOString());
   }
