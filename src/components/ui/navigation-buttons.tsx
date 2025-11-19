@@ -22,7 +22,7 @@ export const BackButton = ({
   
   return (
     <Button
-      variant="ghost"
+      variant="outline"
       size={isMobile ? "touch" : "default"}
       onClick={onClick}
       disabled={disabled || isLoading}
