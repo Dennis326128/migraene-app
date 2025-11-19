@@ -17,6 +17,7 @@ import { Pill, AlertTriangle } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { buildModernDiaryPdf } from "@/lib/pdf/modernReport";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { FullscreenChartModal, FullscreenChartButton } from "./FullscreenChartModal";
 
 interface AnalysisViewProps {
   onBack: () => void;
@@ -31,6 +32,10 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
   const [selectedAuraTypes, setSelectedAuraTypes] = useState<string[]>([]);
   const [selectedPainLocations, setSelectedPainLocations] = useState<string[]>([]);
   const [analysisReport, setAnalysisReport] = useState("");
+  
+  // Fullscreen modals
+  const [timeDistributionFullscreen, setTimeDistributionFullscreen] = useState(false);
+  const [timeSeriesFullscreen, setTimeSeriesFullscreen] = useState(false);
 
   // Load ALL entries first to calculate date range for "alle"
   const { data: allEntries = [], isLoading: entriesLoading, error: entriesError, refetch } = useEntries();
@@ -309,17 +314,25 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
               )}
 
               <div className={`grid gap-6 mb-6 ${isMobile ? 'grid-cols-1' : 'lg:grid-cols-2'}`}>
-                <TimeDistributionChart 
-                  data={timeDistribution} 
-                  isLoading={timeLoading}
-                />
+                <div className="relative">
+                  <TimeDistributionChart 
+                    data={timeDistribution} 
+                    isLoading={timeLoading}
+                  />
+                  <div className="absolute top-4 right-4">
+                    <FullscreenChartButton onClick={() => setTimeDistributionFullscreen(true)} />
+                  </div>
+                </div>
                 
                 <Card>
-                  <CardHeader>
-                    <CardTitle>Intensitätsverlauf</CardTitle>
-                    <p className="text-sm text-muted-foreground">
-                      Zeitlicher Verlauf der Migräne-Intensität
-                    </p>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <div>
+                      <CardTitle>Intensitätsverlauf</CardTitle>
+                      <p className="text-sm text-muted-foreground">
+                        Zeitlicher Verlauf der Migräne-Intensität
+                      </p>
+                    </div>
+                    <FullscreenChartButton onClick={() => setTimeSeriesFullscreen(true)} />
                   </CardHeader>
                   <CardContent>
                      <div className={isMobile ? "h-[400px]" : "h-96"}>
@@ -376,6 +389,30 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
           <VoiceNotesAIAnalysis />
         </CardContent>
       </Card>
+
+      {/* Fullscreen Modals */}
+      <FullscreenChartModal
+        open={timeDistributionFullscreen}
+        onOpenChange={setTimeDistributionFullscreen}
+        title="Tageszeit-Verteilung"
+      >
+        <div className="h-[calc(90vh-120px)]">
+          <TimeDistributionChart 
+            data={timeDistribution} 
+            isLoading={timeLoading}
+          />
+        </div>
+      </FullscreenChartModal>
+
+      <FullscreenChartModal
+        open={timeSeriesFullscreen}
+        onOpenChange={setTimeSeriesFullscreen}
+        title="Intensitätsverlauf"
+      >
+        <div className="h-[calc(90vh-120px)]">
+          <TimeSeriesChart entries={entries} dateRange={{ from, to }} />
+        </div>
+      </FullscreenChartModal>
     </div>
   );
 }
