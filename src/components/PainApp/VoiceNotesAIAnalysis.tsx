@@ -82,7 +82,7 @@ export function VoiceNotesAIAnalysis() {
           Die KI-Analyse wertet alle Ihre Einträge aus:
           <ul className="list-disc ml-4 mt-2 space-y-1">
             <li>Schmerzeinträge mit Notizen</li>
-            <li>Notizen mit automatisch erkannten Schlagwörtern (Stimmung, Schlaf, Stress, etc.)</li>
+            <li>Potentielle Faktoren und Auslöser (Stimmung, Schlaf, Stress, etc.)</li>
             <li>Wetterdaten & Medikamente</li>
           </ul>
           <p className="mt-2">So erkennt sie Muster, Trigger und Zusammenhänge zwischen Schlagwörtern und Schmerzeinträgen. Anonymisiert & DSGVO-konform.</p>
