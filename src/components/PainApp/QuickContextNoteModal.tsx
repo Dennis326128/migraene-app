@@ -116,7 +116,7 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className={cn("max-w-3xl max-h-[90vh] overflow-y-auto", isMobile && "max-w-[95vw]")}>
         <DialogHeader>
-          <DialogTitle>Faktoren erfassen</DialogTitle>
+          <DialogTitle>Alltag & Auslöser eintragen</DialogTitle>
           <DialogDescription>
             Wählen Sie Kategorien und Details aus oder geben Sie eigene Informationen ein
           </DialogDescription>
