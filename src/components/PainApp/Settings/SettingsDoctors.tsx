@@ -25,6 +25,7 @@ export const SettingsDoctors = () => {
     city: "",
     phone: "",
     email: "",
+    fax: "",
   });
   
   const [editDoctor, setEditDoctor] = useState({
@@ -36,6 +37,7 @@ export const SettingsDoctors = () => {
     city: "",
     phone: "",
     email: "",
+    fax: "",
   });
 
   const handleAddDoctor = async () => {
@@ -50,6 +52,7 @@ export const SettingsDoctors = () => {
         city: "",
         phone: "",
         email: "",
+        fax: "",
       });
       setShowAddDoctor(false);
       toast.success("Arzt hinzugefügt");
@@ -69,6 +72,7 @@ export const SettingsDoctors = () => {
       city: doctor.city || "",
       phone: doctor.phone || "",
       email: doctor.email || "",
+      fax: doctor.fax || "",
     });
   };
 
@@ -181,6 +185,14 @@ export const SettingsDoctors = () => {
                   placeholder="Optional"
                 />
               </div>
+              <div>
+                <Label className="text-xs">Fax</Label>
+                <Input
+                  value={newDoctor.fax}
+                  onChange={(e) => setNewDoctor({ ...newDoctor, fax: e.target.value })}
+                  placeholder="Optional"
+                />
+              </div>
             </div>
             <div className="flex gap-2 mt-3">
               <SaveButton
@@ -267,6 +279,13 @@ export const SettingsDoctors = () => {
                         onChange={(e) => setEditDoctor({ ...editDoctor, email: e.target.value })}
                       />
                     </div>
+                    <div>
+                      <Label className="text-xs">Fax</Label>
+                      <Input
+                        value={editDoctor.fax}
+                        onChange={(e) => setEditDoctor({ ...editDoctor, fax: e.target.value })}
+                      />
+                    </div>
                   </div>
                   <div className="flex gap-2">
                     <SaveButton
@@ -317,6 +336,7 @@ export const SettingsDoctors = () => {
                     )}
                     {doctor.phone && <p>Tel: {doctor.phone}</p>}
                     {doctor.email && <p>E-Mail: {doctor.email}</p>}
+                    {doctor.fax && <p>Fax: {doctor.fax}</p>}
                   </div>
                 </>
               )}
