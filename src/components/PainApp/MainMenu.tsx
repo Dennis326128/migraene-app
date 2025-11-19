@@ -311,7 +311,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                   <div className="text-2xl">📖</div>
                   <div>
                     <h4 className="font-semibold text-sm">Kopfschmerztagebuch</h4>
-                    <p className="text-xs opacity-75">Chronologische Übersicht</p>
                   </div>
                 </div>
               </StartPageCard>
@@ -327,8 +326,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 <div className="text-center space-y-2">
                   <div className="text-2xl">📊</div>
                   <div>
-                    <h4 className="font-semibold text-sm">Auswertungen</h4>
-                    <p className="text-xs opacity-75">Statistik & KI-Muster</p>
+                    <h4 className="font-semibold text-sm">Auswertung & Analyse</h4>
                   </div>
                 </div>
               </StartPageCard>
