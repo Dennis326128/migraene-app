@@ -38,6 +38,65 @@ export function VoiceNotesAIAnalysis() {
     from: subMonths(new Date(), 3),
     to: new Date()
   });
+  const [isLoadingFirstEntry, setIsLoadingFirstEntry] = useState(false);
+
+  const loadFirstEntryDate = async () => {
+    setIsLoadingFirstEntry(true);
+    try {
+      // Get oldest pain entry
+      const { data: oldestEntry } = await supabase
+        .from('pain_entries')
+        .select('timestamp_created, selected_date')
+        .order('timestamp_created', { ascending: true })
+        .limit(1)
+        .single();
+
+      // Get oldest voice note
+      const { data: oldestVoiceNote } = await supabase
+        .from('voice_notes')
+        .select('occurred_at')
+        .order('occurred_at', { ascending: true })
+        .limit(1)
+        .single();
+
+      // Determine the earliest date
+      let earliestDate = new Date();
+      
+      if (oldestEntry) {
+        const entryDate = new Date(oldestEntry.selected_date || oldestEntry.timestamp_created);
+        if (entryDate < earliestDate) {
+          earliestDate = entryDate;
+        }
+      }
+
+      if (oldestVoiceNote) {
+        const voiceNoteDate = new Date(oldestVoiceNote.occurred_at);
+        if (voiceNoteDate < earliestDate) {
+          earliestDate = voiceNoteDate;
+        }
+      }
+
+      // Set date range from earliest to today
+      setDateRange({
+        from: earliestDate,
+        to: new Date()
+      });
+
+      toast({
+        title: 'Zeitraum gesetzt',
+        description: `Alle Daten ab ${format(earliestDate, 'dd.MM.yyyy', { locale: de })}`
+      });
+    } catch (error) {
+      console.error('Error loading first entry date:', error);
+      toast({
+        title: '⚠️ Hinweis',
+        description: 'Konnte erstes Eintragsdatum nicht laden, verwende Standardzeitraum',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsLoadingFirstEntry(false);
+    }
+  };
 
   const runAnalysis = async () => {
     // Validate date range before sending
@@ -207,12 +266,17 @@ export function VoiceNotesAIAnalysis() {
               <Button 
                 size="sm" 
                 variant="outline" 
-                onClick={() => setDateRange({
-                  from: new Date('2020-01-01'),
-                  to: new Date()
-                })}
+                onClick={loadFirstEntryDate}
+                disabled={isLoadingFirstEntry}
               >
-                Alle Daten
+                {isLoadingFirstEntry ? (
+                  <>
+                    <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                    Lade...
+                  </>
+                ) : (
+                  'Alle Daten'
+                )}
               </Button>
             </div>
           </div>
