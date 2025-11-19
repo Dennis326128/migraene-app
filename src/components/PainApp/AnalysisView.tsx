@@ -21,9 +21,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface AnalysisViewProps {
   onBack: () => void;
+  onNavigateToLimits?: () => void;
 }
 
-export function AnalysisView({ onBack }: AnalysisViewProps) {
+export function AnalysisView({ onBack, onNavigateToLimits }: AnalysisViewProps) {
   const isMobile = useIsMobile();
   const [timeRange, setTimeRange] = useState<"3m" | "6m" | "12m" | "all" | "custom">("3m");
   const [customFrom, setCustomFrom] = useState("");
@@ -137,13 +138,13 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
 
         {/* Tabs */}
         <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "statistik" | "ki-muster")} className="mb-6">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="statistik" className="flex items-center gap-2">
-              <BarChart3 className="h-4 w-4" />
+          <TabsList className="grid w-full grid-cols-2 h-14">
+            <TabsTrigger value="statistik" className="flex items-center gap-2 text-base px-6 py-3">
+              <BarChart3 className="h-5 w-5" />
               Statistik
             </TabsTrigger>
-            <TabsTrigger value="ki-muster" className="flex items-center gap-2">
-              <Brain className="h-4 w-4" />
+            <TabsTrigger value="ki-muster" className="flex items-center gap-2 text-base px-6 py-3">
+              <Brain className="h-5 w-5" />
               KI-Muster
             </TabsTrigger>
           </TabsList>
@@ -218,6 +219,30 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
               <>
                 <PatternCards statistics={patternStats} isLoading={entriesLoading} />
 
+                {onNavigateToLimits && (
+                  <Card className="border-primary/20 bg-primary/5 mb-6">
+                    <CardContent className="p-4">
+                      <div className="flex items-start gap-3">
+                        <AlertTriangle className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
+                        <div className="flex-1">
+                          <h4 className="font-medium mb-1">Medikamenten-Übergebrauch im Blick</h4>
+                          <p className="text-sm text-muted-foreground mb-3">
+                            Überwache deine Medikamenteneinnahme und vermeide Überkonsum durch individuelle Limits.
+                          </p>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={onNavigateToLimits}
+                            className="w-full sm:w-auto"
+                          >
+                            📊 Zur Limits-Übersicht
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
                 {/* Time Distribution Chart */}
                 <Card className="mb-6">
                   <CardHeader className="flex flex-row items-center justify-between">
@@ -255,22 +280,30 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
 
                 {/* Hint to AI Tab */}
                 <Card 
-                  className="mb-6 cursor-pointer hover:bg-accent/50 transition-colors"
-                  onClick={() => setViewMode("ki-muster")}
+                  className="mb-6 border-primary/20 bg-primary/5"
                 >
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <Brain className="h-5 w-5 text-primary" />
-                      Noch mehr Zusammenhänge sehen?
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground">
-                      Im Tab <strong>"KI-Muster"</strong> analysiert die KI deine Voice-Notizen, Eintragsnotizen, Symptome, Wetterdaten und Medikamente, um mögliche Trigger und Zusammenhänge zu erkennen.
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Diese KI-basierte Analyse dient als Orientierungshilfe und ersetzt keine ärztliche Diagnose.
-                    </p>
+                  <CardContent className="p-4">
+                    <div className="flex items-start gap-3">
+                      <Brain className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <h4 className="font-medium mb-1">Noch mehr Zusammenhänge sehen?</h4>
+                        <p className="text-sm text-muted-foreground mb-3">
+                          Im Tab <strong>"KI-Muster"</strong> analysiert die KI deine Voice-Notizen, Eintragsnotizen, Symptome, Wetterdaten und Medikamente, um mögliche Trigger und Zusammenhänge zu erkennen.
+                        </p>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => setViewMode("ki-muster")}
+                          className="w-full sm:w-auto"
+                        >
+                          <Brain className="h-4 w-4 mr-2" />
+                          Zur KI-Muster-Analyse
+                        </Button>
+                        <p className="text-xs text-muted-foreground mt-3">
+                          Diese KI-basierte Analyse dient als Orientierungshilfe und ersetzt keine ärztliche Diagnose.
+                        </p>
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
               </>

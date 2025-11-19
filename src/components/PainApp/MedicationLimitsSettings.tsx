@@ -38,7 +38,11 @@ const periodLabels = {
   month: 'pro Monat',
 };
 
-export function MedicationLimitsSettings() {
+interface MedicationLimitsSettingsProps {
+  onNavigateToMedications?: () => void;
+}
+
+export function MedicationLimitsSettings({ onNavigateToMedications }: MedicationLimitsSettingsProps = {}) {
   const isMobile = useIsMobile();
   const { data: medications = [] } = useMeds();
   const { data: serverLimits = [] } = useMedicationLimits();
@@ -70,6 +74,23 @@ export function MedicationLimitsSettings() {
   const availableMedications = medications.filter(
     med => !localLimits.some(limit => limit.medication_name === med.name)
   );
+
+  // Show hint if no medications available
+  if (medications.length === 0) {
+    return (
+      <div className="text-center py-8 px-4">
+        <p className="text-muted-foreground mb-4">Noch keine Medikamente angelegt</p>
+        {onNavigateToMedications && (
+          <Button 
+            variant="outline" 
+            onClick={onNavigateToMedications}
+          >
+            Medikamente verwalten
+          </Button>
+        )}
+      </div>
+    );
+  }
 
   const batchSave = async () => {
     const updates = Array.from(pendingUpdatesRef.current.entries());

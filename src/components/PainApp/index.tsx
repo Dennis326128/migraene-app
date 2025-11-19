@@ -55,6 +55,10 @@ export const PainApp: React.FC = () => {
     setShowLimitWarning(true);
   };
 
+  // Navigation callbacks
+  const handleNavigateToLimits = () => setView("medication-limits");
+  const handleNavigateToMedications = () => setView("medication-management");
+
   // Show loading state while checking onboarding status
   if (isLoading) {
     return (
@@ -127,7 +131,10 @@ export const PainApp: React.FC = () => {
       )}
 
       {view === "analysis" && (
-        <AnalysisView onBack={goHome} />
+        <AnalysisView 
+          onBack={goHome}
+          onNavigateToLimits={handleNavigateToLimits}
+        />
       )}
 
       {view === "settings" && (
@@ -139,7 +146,10 @@ export const PainApp: React.FC = () => {
       )}
 
       {view === "medication-management" && (
-        <MedicationManagement onBack={goHome} />
+        <MedicationManagement 
+          onBack={goHome}
+          onNavigateToLimits={handleNavigateToLimits}
+        />
       )}
 
       {view === "voice-notes" && (
@@ -185,7 +195,10 @@ export const PainApp: React.FC = () => {
       }} />}
 
       {view === "medication-limits" && (
-        <MedicationLimitsPage onBack={goHome} />
+        <MedicationLimitsPage 
+          onBack={goHome}
+          onNavigateToMedications={handleNavigateToMedications}
+        />
       )}
 
       {/* Onboarding Modal */}
