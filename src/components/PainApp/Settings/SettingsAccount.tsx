@@ -102,7 +102,7 @@ export const SettingsAccount = ({ onReturn }: { onReturn?: () => void }) => {
         health_insurance: healthInsurance,
         insurance_number: insuranceNumber,
       });
-      toast.success("Patientendaten gespeichert");
+      toast.success("Persönliche Daten wurden gespeichert");
       
       if (onReturn) {
         onReturn();
