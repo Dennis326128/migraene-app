@@ -25,7 +25,7 @@ interface AnalysisViewProps {
 
 export function AnalysisView({ onBack }: AnalysisViewProps) {
   const isMobile = useIsMobile();
-  const [timeRange, setTimeRange] = useState("alle");
+  const [timeRange, setTimeRange] = useState<"3m" | "6m" | "12m" | "custom">("3m");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
   const [selectedLevels, setSelectedLevels] = useState<string[]>([]);
@@ -46,80 +46,28 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
   const { from, to } = useMemo(() => {
     const now = new Date();
     
-    switch (timeRange) {
-      case "7d": {
-        const from = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        return {
-          from: from.toISOString().split('T')[0],
-          to: now.toISOString().split('T')[0]
-        };
+    if (timeRange === "custom") {
+      if (customFrom && customTo) {
+        return { from: customFrom, to: customTo };
       }
-      case "30d": {
-        const from = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        return {
-          from: from.toISOString().split('T')[0],
-          to: now.toISOString().split('T')[0]
-        };
-      }
-      case "3m": {
-        const from = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
-        return {
-          from: from.toISOString().split('T')[0],
-          to: now.toISOString().split('T')[0]
-        };
-      }
-      case "6m": {
-        const from = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
-        return {
-          from: from.toISOString().split('T')[0],
-          to: now.toISOString().split('T')[0]
-        };
-      }
-      case "1y": {
-        const from = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
-        return {
-          from: from.toISOString().split('T')[0],
-          to: now.toISOString().split('T')[0]
-        };
-      }
-      case "custom": {
-        const from = customFrom ? new Date(customFrom) : new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        const to = customTo ? new Date(customTo) : now;
-        return {
-          from: from.toISOString().split('T')[0],
-          to: to.toISOString().split('T')[0]
-        };
-      }
-      case "alle":
-      default:
-        // Calculate actual range from all entries
-        if (allEntries.length === 0) {
-          return {
-            from: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-            to: now.toISOString().split('T')[0],
-          };
-        }
-        
-        const dates = allEntries
-          .map(entry => new Date(entry.timestamp_created))
-          .filter(date => !isNaN(date.getTime()));
-        
-        if (dates.length === 0) {
-          return {
-            from: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-            to: now.toISOString().split('T')[0],
-          };
-        }
-        
-        const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
-        const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
-        
-        return {
-          from: minDate.toISOString().split('T')[0],
-          to: maxDate.toISOString().split('T')[0],
-        };
+      // Fallback if custom selected but no dates
+      const from = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+      return {
+        from: from.toISOString().split('T')[0],
+        to: now.toISOString().split('T')[0]
+      };
     }
-  }, [timeRange, customFrom, customTo, allEntries]);
+    
+    // Calculate months based on preset
+    const monthsMap = { "3m": 3, "6m": 6, "12m": 12 };
+    const months = monthsMap[timeRange] || 3;
+    
+    const from = new Date(now.getFullYear(), now.getMonth() - months, now.getDate());
+    return {
+      from: from.toISOString().split('T')[0],
+      to: now.toISOString().split('T')[0]
+    };
+  }, [timeRange, customFrom, customTo]);
 
   // Use the same entries data for consistency
   const entries = allEntries;
