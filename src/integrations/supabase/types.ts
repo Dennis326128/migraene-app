@@ -584,17 +584,29 @@ export type Database = {
           isSetofReturn: true
         }
       }
-      rpc_migraine_stats: {
-        Args: { p_from: string; p_to: string; p_user: string }
-        Returns: {
-          avg_intensity: number
-          most_common_aura: string
-          most_common_location: string
-          most_common_time_hour: number
-          total_entries: number
-          with_medication_count: number
-        }[]
-      }
+      rpc_migraine_stats:
+        | {
+            Args: { p_from: string; p_to: string; p_user: string }
+            Returns: {
+              avg_intensity: number
+              most_common_aura: string
+              most_common_location: string
+              most_common_time_hour: number
+              total_entries: number
+              with_medication_count: number
+            }[]
+          }
+        | {
+            Args: { p_from: string; p_to: string; p_user: string }
+            Returns: {
+              avg_intensity: number
+              most_common_aura: string
+              most_common_location: string
+              most_common_time_hour: number
+              total_entries: number
+              with_medication_count: number
+            }[]
+          }
       rpc_time_distribution: {
         Args: { p_from: string; p_to: string; p_user: string }
         Returns: {
