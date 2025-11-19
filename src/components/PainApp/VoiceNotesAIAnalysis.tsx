@@ -79,14 +79,14 @@ export function VoiceNotesAIAnalysis() {
       <Alert>
         <Brain className="h-4 w-4" />
         <AlertDescription>
-          <strong>Die KI-Analyse wertet alle Ihre Einträge aus:</strong>
+          Die KI-Analyse wertet alle Ihre Einträge aus:
           <ul className="list-disc ml-4 mt-2 space-y-1">
             <li>Schmerzeinträge mit Notizen</li>
             <li>Kontext-Notizen (per Sprache oder Text)</li>
-            <li>🏷️ <strong>Automatisch erkannte Tags</strong> (Stimmung, Schlaf, Stress, etc.)</li>
+            <li>Automatisch erkannte Schlagwörter (Stimmung, Schlaf, Stress, etc.)</li>
             <li>Wetterdaten & Medikamente</li>
           </ul>
-          <p className="mt-2">So erkennt sie Muster, Trigger und Zusammenhänge zwischen Tags und Schmerzeinträgen. <strong>Anonymisiert & DSGVO-konform.</strong></p>
+          <p className="mt-2">So erkennt sie Muster, Trigger und Zusammenhänge zwischen Schlagwörtern und Schmerzeinträgen. Anonymisiert & DSGVO-konform.</p>
         </AlertDescription>
       </Alert>
 
