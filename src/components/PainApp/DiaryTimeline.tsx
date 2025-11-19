@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Filter, FileText, Calendar as CalendarIcon, Activity, Edit, Trash2 } from 'lucide-react';
+import { ArrowLeft, Filter, FileText, Calendar as CalendarIcon, Activity, Edit, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { toZonedTime } from 'date-fns-tz';
@@ -38,6 +38,19 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
   const queryClient = useQueryClient();
   const [filterType, setFilterType] = useState<'all' | 'pain_entry' | 'context_note'>('all');
   const [editingNote, setEditingNote] = useState<any>(null);
+  const [expandedEntries, setExpandedEntries] = useState<Set<string>>(new Set());
+
+  const toggleExpanded = (id: string) => {
+    setExpandedEntries(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
   
   // Delete mutation
   const { mutate: deleteMutate } = useDeleteEntry();
@@ -63,6 +76,17 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
     } catch (error) {
       showErrorToast("Fehler", error instanceof Error ? error.message : "Löschen fehlgeschlagen");
     }
+  };
+
+  const getPainLevelDisplay = (level: string) => {
+    const mapping: Record<string, { label: string; numeric: string; color: string }> = {
+      'keine': { label: 'Keine Schmerzen', numeric: '0/10', color: 'bg-green-500/20 text-green-700 dark:bg-green-500/30 dark:text-green-300' },
+      'leicht': { label: 'Leicht', numeric: '1-3/10', color: 'bg-yellow-500/20 text-yellow-700 dark:bg-yellow-500/30 dark:text-yellow-300' },
+      'mittel': { label: 'Mittel', numeric: '4-6/10', color: 'bg-orange-500/20 text-orange-700 dark:bg-orange-500/30 dark:text-orange-300' },
+      'stark': { label: 'Stark', numeric: '7-8/10', color: 'bg-red-500/20 text-red-700 dark:bg-red-500/30 dark:text-red-300' },
+      'sehr_stark': { label: 'Sehr stark', numeric: '9-10/10', color: 'bg-purple-500/20 text-purple-700 dark:bg-purple-500/30 dark:text-purple-300' },
+    };
+    return mapping[level] || { label: level, numeric: '?', color: 'bg-muted' };
   };
 
   // Schmerzeinträge laden
@@ -143,26 +167,6 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
   }, [filteredItems]);
 
   const isLoading = loadingEntries || loadingNotes;
-
-  const getPainLevelColor = (level: string) => {
-    switch (level) {
-      case 'leicht': return 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-300';
-      case 'mittel': return 'bg-orange-500/20 text-orange-700 dark:text-orange-300';
-      case 'stark': return 'bg-red-500/20 text-red-700 dark:text-red-300';
-      case 'sehr_stark': return 'bg-purple-500/20 text-purple-700 dark:text-purple-300';
-      default: return 'bg-muted';
-    }
-  };
-
-  const getPainLevelLabel = (level: string) => {
-    switch (level) {
-      case 'leicht': return 'Leicht';
-      case 'mittel': return 'Mittel';
-      case 'stark': return 'Stark';
-      case 'sehr_stark': return 'Sehr stark';
-      default: return level;
-    }
-  };
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -261,71 +265,165 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
                     )} />
 
                     {item.type === 'pain_entry' ? (
-                      <Card className="hover:bg-accent/5 transition-colors">
+                      <Card 
+                        className="hover:bg-accent/5 transition-colors cursor-pointer"
+                        onClick={() => toggleExpanded(item.id)}
+                      >
                         <CardContent className="p-4">
+                          {/* KOMPAKTE ANSICHT */}
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex-1 space-y-2">
+                              {/* Zeit + Schmerzstärke (prominent) */}
                               <div className="flex items-center gap-2 flex-wrap">
-                                <Badge className={getPainLevelColor(item.data.pain_level)}>
-                                  {getPainLevelLabel(item.data.pain_level)}
+                                <span className="text-sm font-medium">{item.time} Uhr</span>
+                                <Badge className={getPainLevelDisplay(item.data.pain_level).color}>
+                                  {getPainLevelDisplay(item.data.pain_level).label} ({getPainLevelDisplay(item.data.pain_level).numeric})
                                 </Badge>
-                                <span className="text-xs text-muted-foreground">{item.time} Uhr</span>
                                 {item.data.pain_location && (
                                   <Badge variant="outline" className="text-xs">
-                                    {item.data.pain_location}
+                                    📍 {item.data.pain_location}
                                   </Badge>
                                 )}
                               </div>
                               
-                              {item.data.medications && item.data.medications.length > 0 && (
-                                <div className="flex flex-wrap gap-1">
-                                  {item.data.medications.map((med: string, i: number) => (
-                                    <Badge key={i} variant="secondary" className="text-xs">
-                                      💊 {med}
-                                    </Badge>
-                                  ))}
-                                </div>
-                              )}
-
-                              {item.data.notes && (
-                                <p className="text-sm text-muted-foreground bg-muted/50 rounded p-2">
-                                  {item.data.notes}
-                                </p>
+                              {/* Medikamente-Anzahl (kompakt wenn zugeklappt) */}
+                              {item.data.medications && item.data.medications.length > 0 && !expandedEntries.has(item.id) && (
+                                <Badge variant="secondary" className="text-xs">
+                                  💊 {item.data.medications.length} {item.data.medications.length === 1 ? 'Medikament' : 'Medikamente'}
+                                </Badge>
                               )}
                             </div>
-                            <div className="flex items-center gap-1">
-                              {onEdit && (
+                            
+                            {/* Expand/Collapse Icon */}
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="h-8 w-8 p-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleExpanded(item.id);
+                              }}
+                            >
+                              {expandedEntries.has(item.id) ? (
+                                <ChevronUp className="h-4 w-4" />
+                              ) : (
+                                <ChevronDown className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </div>
+
+                          {/* ERWEITERTE ANSICHT (ausgeklappt) */}
+                          {expandedEntries.has(item.id) && (
+                            <div className="mt-4 pt-4 border-t space-y-3 animate-in slide-in-from-top-2">
+                              {/* Medikamente (detailliert) */}
+                              {item.data.medications && item.data.medications.length > 0 && (
+                                <div>
+                                  <h4 className="text-xs font-semibold text-muted-foreground mb-1">Medikamente</h4>
+                                  <div className="flex flex-wrap gap-1">
+                                    {item.data.medications.map((med: string, i: number) => (
+                                      <Badge key={i} variant="secondary" className="text-xs">
+                                        💊 {med}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {/* Aura */}
+                              {item.data.aura_type && item.data.aura_type !== 'keine' && (
+                                <div>
+                                  <h4 className="text-xs font-semibold text-muted-foreground mb-1">Aura</h4>
+                                  <Badge variant="outline">✨ {item.data.aura_type}</Badge>
+                                </div>
+                              )}
+                              
+                              {/* Notizen */}
+                              {item.data.notes && (
+                                <div>
+                                  <h4 className="text-xs font-semibold text-muted-foreground mb-1">Notizen</h4>
+                                  <p className="text-sm bg-muted/50 rounded p-2">{item.data.notes}</p>
+                                </div>
+                              )}
+                              
+                              {/* Wetterdaten */}
+                              {item.data.weather && (
+                                <div>
+                                  <h4 className="text-xs font-semibold text-muted-foreground mb-1">Wetter</h4>
+                                  <div className="text-sm space-y-1">
+                                    {item.data.weather.temperature_c !== null && (
+                                      <div>🌡️ {item.data.weather.temperature_c}°C</div>
+                                    )}
+                                    {item.data.weather.pressure_mb !== null && (
+                                      <div>📊 {item.data.weather.pressure_mb} hPa</div>
+                                    )}
+                                    {item.data.weather.humidity !== null && (
+                                      <div>💧 {item.data.weather.humidity}%</div>
+                                    )}
+                                    {item.data.weather.condition_text && (
+                                      <div>☁️ {item.data.weather.condition_text}</div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {/* Mondphase */}
+                              {item.data.weather?.moon_phase !== null && item.data.weather?.moon_phase !== undefined && (
+                                <div>
+                                  <h4 className="text-xs font-semibold text-muted-foreground mb-1">Mondphase</h4>
+                                  <span className="text-sm">🌙 {item.data.weather.moon_phase}</span>
+                                </div>
+                              )}
+                              
+                              {/* Koordinaten */}
+                              {item.data.latitude && item.data.longitude && (
+                                <div>
+                                  <h4 className="text-xs font-semibold text-muted-foreground mb-1">Standort</h4>
+                                  <span className="text-xs text-muted-foreground">
+                                    📍 {item.data.latitude.toFixed(4)}, {item.data.longitude.toFixed(4)}
+                                  </span>
+                                </div>
+                              )}
+                              
+                              {/* Edit/Delete Buttons */}
+                              <div className="flex gap-2 pt-2">
+                                {onEdit && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onEdit(item.data);
+                                    }}
+                                    className="flex-1"
+                                  >
+                                    <Edit className="h-4 w-4 mr-2" />
+                                    Bearbeiten
+                                  </Button>
+                                )}
                                 <Button
-                                  variant="ghost"
+                                  variant="outline"
                                   size="sm"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    onEdit(item.data);
+                                    handleDelete(item.data.id);
                                   }}
-                                  className="h-8 w-8 p-0"
+                                  className="flex-1 text-destructive hover:text-destructive"
                                 >
-                                  <Edit className="h-4 w-4" />
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Löschen
                                 </Button>
-                              )}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDelete(item.data.id);
-                                }}
-                                className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                              <Activity className="h-4 w-4 text-primary flex-shrink-0" />
+                              </div>
                             </div>
-                          </div>
+                          )}
                         </CardContent>
                       </Card>
                     ) : (
-                      <Card className="hover:bg-accent/5 transition-colors">
+                      <Card 
+                        className="hover:bg-accent/5 transition-colors cursor-pointer"
+                        onClick={() => toggleExpanded(item.id)}
+                      >
                         <CardContent className="p-4">
+                          {/* KOMPAKTE ANSICHT */}
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex-1 space-y-2">
                               <div className="flex items-center gap-2">
@@ -339,34 +437,63 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
                                   </Badge>
                                 )}
                               </div>
-                              <p className="text-sm">{item.data.text}</p>
+                              
+                              {/* Text (gekürzt wenn zugeklappt) */}
+                              <p className="text-sm">
+                                {expandedEntries.has(item.id) 
+                                  ? item.data.text 
+                                  : `${item.data.text.slice(0, 80)}${item.data.text.length > 80 ? '...' : ''}`
+                                }
+                              </p>
                             </div>
-                            <div className="flex items-center gap-1">
+                            
+                            {/* Expand/Collapse Icon */}
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="h-8 w-8 p-0 flex-shrink-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleExpanded(item.id);
+                              }}
+                            >
+                              {expandedEntries.has(item.id) ? (
+                                <ChevronUp className="h-4 w-4" />
+                              ) : (
+                                <ChevronDown className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </div>
+
+                          {/* ERWEITERTE ANSICHT */}
+                          {expandedEntries.has(item.id) && (
+                            <div className="mt-4 pt-4 border-t flex gap-2 animate-in slide-in-from-top-2">
                               <Button
-                                variant="ghost"
+                                variant="outline"
                                 size="sm"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setEditingNote(item.data);
                                 }}
-                                className="h-8 w-8 p-0"
+                                className="flex-1"
                               >
-                                <Edit className="h-4 w-4" />
+                                <Edit className="h-4 w-4 mr-2" />
+                                Bearbeiten
                               </Button>
                               <Button
-                                variant="ghost"
+                                variant="outline"
                                 size="sm"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleDeleteNote(item.data.id);
                                 }}
-                                className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                className="flex-1 text-destructive hover:text-destructive"
                               >
-                                <Trash2 className="h-4 w-4" />
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Löschen
                               </Button>
-                              <FileText className="h-4 w-4 text-accent flex-shrink-0" />
                             </div>
-                          </div>
+                          )}
                         </CardContent>
                       </Card>
                     )}
