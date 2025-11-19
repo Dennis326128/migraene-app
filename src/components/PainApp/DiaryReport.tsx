@@ -2,18 +2,30 @@ import React, { useEffect, useMemo, useState, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import type { PainEntry } from "@/types/painApp";
 import { useEntries } from "@/features/entries/hooks/useEntries";
 import { buildDiaryPdf } from "@/lib/pdf/report";
 import { getUserSettings, upsertUserSettings } from "@/features/settings/api/settings.api";
 import { mapTextLevelToScore } from "@/lib/utils/pain";
 import { useMedicationEffectsForEntries } from "@/features/medication-effects/hooks/useMedicationEffects";
+import { usePatientData, useDoctors } from "@/features/account/hooks/useAccount";
 import MedicationStatisticsCard from "./MedicationStatisticsCard";
 import TimeSeriesChart from "@/components/TimeSeriesChart";
 import { Loader2, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import { TimeRangeButtons, type TimeRangePreset } from "./TimeRangeButtons";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type Preset = TimeRangePreset;
 
@@ -35,19 +47,22 @@ function mapEffectToNumber(rating: string): number {
   return map[rating] || 0;
 }
 
-export default function DiaryReport({ onBack }: { onBack: () => void }) {
+export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void; onNavigate?: (target: string) => void }) {
   const today = useMemo(() => new Date(), []);
   const [preset, setPreset] = useState<Preset>("3m");
   const [customStart, setCustomStart] = useState<string>("");
   const [customEnd, setCustomEnd] = useState<string>(fmt(today));
   const [selectedMeds, setSelectedMeds] = useState<string[]>([]);
   const [medOptions, setMedOptions] = useState<string[]>([]);
+  const [userEmail, setUserEmail] = useState<string>("");
   
   // Content inclusion flags
   const [includeStats, setIncludeStats] = useState<boolean>(true);
   const [includeChart, setIncludeChart] = useState<boolean>(true);
   const [includeAnalysis, setIncludeAnalysis] = useState<boolean>(false);
   const [includeEntriesList, setIncludeEntriesList] = useState<boolean>(true);
+  const [includePatientData, setIncludePatientData] = useState<boolean>(false);
+  const [includeDoctorData, setIncludeDoctorData] = useState<boolean>(false);
   
   const [generated, setGenerated] = useState<PainEntry[]>([]);
   const [previousSelection, setPreviousSelection] = useState<string[]>([]);
@@ -55,6 +70,19 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [analysisReport, setAnalysisReport] = useState<string>("");
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [showMissingDataDialog, setShowMissingDataDialog] = useState(false);
+
+  const { data: patientData } = usePatientData();
+  const { data: doctors = [] } = useDoctors();
+
+  // Load user email
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user?.email) {
+        setUserEmail(data.user.email);
+      }
+    });
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -318,6 +346,13 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
       toast.error("Keine Einträge im ausgewählten Zeitraum gefunden.");
       return;
     }
+
+    // Check if user wants to include data but hasn't set it up
+    if ((includePatientData || includeDoctorData) && 
+        (!patientData?.first_name && !patientData?.last_name && doctors.length === 0)) {
+      setShowMissingDataDialog(true);
+      return;
+    }
     
     setIsGeneratingReport(true);
     try {
@@ -335,6 +370,26 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
         includeEntriesList,
         analysisReport: currentReport || undefined,
         medicationStats: includeStats ? medicationStats : undefined,
+        patientData: includePatientData ? {
+          firstName: patientData?.first_name,
+          lastName: patientData?.last_name,
+          street: patientData?.street,
+          postalCode: patientData?.postal_code,
+          city: patientData?.city,
+          phone: patientData?.phone,
+          email: userEmail,
+          dateOfBirth: patientData?.date_of_birth,
+        } : undefined,
+        doctors: includeDoctorData ? doctors.map(d => ({
+          firstName: d.first_name,
+          lastName: d.last_name,
+          specialty: d.specialty,
+          street: d.street,
+          postalCode: d.postal_code,
+          city: d.city,
+          phone: d.phone,
+          email: d.email,
+        })) : undefined,
       });
       
       const blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
@@ -479,6 +534,24 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
               />
               Detaillierte Einträge-Liste (alle Einzeleinträge)
             </label>
+            
+            <label className="flex items-center gap-2 text-sm">
+              <input 
+                type="checkbox" 
+                checked={includePatientData} 
+                onChange={e => setIncludePatientData(e.target.checked)} 
+              />
+              Persönliche Daten einbeziehen
+            </label>
+            
+            <label className="flex items-center gap-2 text-sm">
+              <input 
+                type="checkbox" 
+                checked={includeDoctorData} 
+                onChange={e => setIncludeDoctorData(e.target.checked)} 
+              />
+              Arztdaten einbeziehen
+            </label>
           </div>
         </div>
       </Card>
@@ -540,6 +613,32 @@ export default function DiaryReport({ onBack }: { onBack: () => void }) {
         </div>
       </Card>
       </div>
+
+      {/* Missing Data Dialog */}
+      <AlertDialog open={showMissingDataDialog} onOpenChange={setShowMissingDataDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Daten nicht vorhanden</AlertDialogTitle>
+            <AlertDialogDescription>
+              Sie haben noch keine persönlichen Daten oder Arztdaten hinterlegt. 
+              Möchten Sie diese jetzt in den Kontoeinstellungen eingeben?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setShowMissingDataDialog(false);
+                if (onNavigate) {
+                  onNavigate('settings-account');
+                }
+              }}
+            >
+              Zu Kontoeinstellungen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

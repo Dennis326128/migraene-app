@@ -18,6 +18,26 @@ type BuildReportParams = {
     avgEffect: number;
     ratedCount: number;
   }>;
+  patientData?: {
+    firstName?: string;
+    lastName?: string;
+    street?: string;
+    postalCode?: string;
+    city?: string;
+    phone?: string;
+    email?: string;
+    dateOfBirth?: string;
+  };
+  doctors?: Array<{
+    firstName?: string;
+    lastName?: string;
+    specialty?: string;
+    street?: string;
+    postalCode?: string;
+    city?: string;
+    phone?: string;
+    email?: string;
+  }>;
 };
 
 function toLabel(e: PainEntry) {
@@ -204,6 +224,8 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     includeEntriesList = true,
     analysisReport = "",
     medicationStats = [],
+    patientData,
+    doctors = [],
   } = params;
 
   const pdfDoc = await PDFDocument.create();
@@ -219,6 +241,85 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   const dateRangeText = `Zeitraum: ${formatDateRange(from, to)}`;
   page.drawText(dateRangeText, { x: 50, y: yPos, size: 10, font });
   yPos -= 30;
+
+  // Patient Information (if provided)
+  if (patientData && (patientData.firstName || patientData.lastName)) {
+    page.drawText("PATIENT", { x: 50, y: yPos, size: 12, font: fontBold, color: rgb(0.2, 0.4, 0.8) });
+    yPos -= 18;
+    
+    if (patientData.firstName || patientData.lastName) {
+      const name = [patientData.firstName, patientData.lastName].filter(Boolean).join(" ");
+      page.drawText(`Name: ${name}`, { x: 50, y: yPos, size: 10, font });
+      yPos -= 14;
+    }
+    
+    if (patientData.dateOfBirth) {
+      page.drawText(`Geburtsdatum: ${patientData.dateOfBirth}`, { x: 50, y: yPos, size: 10, font });
+      yPos -= 14;
+    }
+    
+    if (patientData.street || patientData.postalCode || patientData.city) {
+      const address = [
+        patientData.street,
+        [patientData.postalCode, patientData.city].filter(Boolean).join(" ")
+      ].filter(Boolean).join(", ");
+      page.drawText(`Adresse: ${address}`, { x: 50, y: yPos, size: 10, font });
+      yPos -= 14;
+    }
+    
+    if (patientData.phone) {
+      page.drawText(`Telefon: ${patientData.phone}`, { x: 50, y: yPos, size: 10, font });
+      yPos -= 14;
+    }
+    
+    if (patientData.email) {
+      page.drawText(`E-Mail: ${patientData.email}`, { x: 50, y: yPos, size: 10, font });
+      yPos -= 14;
+    }
+    
+    yPos -= 10;
+  }
+
+  // Doctor Information (if provided)
+  if (doctors && doctors.length > 0) {
+    const doctorLabel = doctors.length === 1 ? "BEHANDELNDER ARZT" : "BEHANDELNDE ÄRZTE";
+    page.drawText(doctorLabel, { x: 50, y: yPos, size: 12, font: fontBold, color: rgb(0.2, 0.4, 0.8) });
+    yPos -= 18;
+    
+    for (const doctor of doctors) {
+      if (doctor.firstName || doctor.lastName) {
+        const name = [doctor.firstName, doctor.lastName].filter(Boolean).join(" ");
+        page.drawText(`Name: ${name}`, { x: 50, y: yPos, size: 10, font });
+        yPos -= 14;
+      }
+      
+      if (doctor.specialty) {
+        page.drawText(`Fachgebiet: ${doctor.specialty}`, { x: 50, y: yPos, size: 10, font });
+        yPos -= 14;
+      }
+      
+      if (doctor.street || doctor.postalCode || doctor.city) {
+        const address = [
+          doctor.street,
+          [doctor.postalCode, doctor.city].filter(Boolean).join(" ")
+        ].filter(Boolean).join(", ");
+        page.drawText(`Adresse: ${address}`, { x: 50, y: yPos, size: 10, font });
+        yPos -= 14;
+      }
+      
+      if (doctor.phone) {
+        page.drawText(`Telefon: ${doctor.phone}`, { x: 50, y: yPos, size: 10, font });
+        yPos -= 14;
+      }
+      
+      if (doctor.email) {
+        page.drawText(`E-Mail: ${doctor.email}`, { x: 50, y: yPos, size: 10, font });
+        yPos -= 14;
+      }
+      
+      yPos -= 10; // Space between doctors
+    }
+  }
 
   // Analysis Report (if included)
   if (includeAnalysis && analysisReport) {

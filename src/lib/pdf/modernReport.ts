@@ -25,6 +25,26 @@ type ModernReportParams = {
   includeWeather?: boolean;
   includeMedEffects?: boolean;
   includeDoctorSummary?: boolean;
+  patientData?: {
+    firstName?: string;
+    lastName?: string;
+    street?: string;
+    postalCode?: string;
+    city?: string;
+    phone?: string;
+    email?: string;
+    dateOfBirth?: string;
+  };
+  doctors?: Array<{
+    firstName?: string;
+    lastName?: string;
+    specialty?: string;
+    street?: string;
+    postalCode?: string;
+    city?: string;
+    phone?: string;
+    email?: string;
+  }>;
 };
 
 function formatDateTime(isoString: string): string {
@@ -56,7 +76,9 @@ export async function buildModernDiaryPdf(params: ModernReportParams): Promise<U
     events,
     includeWeather = true,
     includeMedEffects = true,
-    includeDoctorSummary = true
+    includeDoctorSummary = true,
+    patientData,
+    doctors = []
   } = params;
 
   const pdf = await PDFDocument.create();
@@ -66,6 +88,85 @@ export async function buildModernDiaryPdf(params: ModernReportParams): Promise<U
 
   const margin = 40;
   let y = page.getHeight() - margin;
+
+  // Patient Information (if provided)
+  if (patientData && (patientData.firstName || patientData.lastName)) {
+    page.drawText("PATIENT", { x: margin, y, size: 12, font: fontBold, color: rgb(0.2, 0.4, 0.8) });
+    y -= 18;
+    
+    if (patientData.firstName || patientData.lastName) {
+      const name = [patientData.firstName, patientData.lastName].filter(Boolean).join(" ");
+      page.drawText(`Name: ${name}`, { x: margin, y, size: 10, font });
+      y -= 14;
+    }
+    
+    if (patientData.dateOfBirth) {
+      page.drawText(`Geburtsdatum: ${patientData.dateOfBirth}`, { x: margin, y, size: 10, font });
+      y -= 14;
+    }
+    
+    if (patientData.street || patientData.postalCode || patientData.city) {
+      const address = [
+        patientData.street,
+        [patientData.postalCode, patientData.city].filter(Boolean).join(" ")
+      ].filter(Boolean).join(", ");
+      page.drawText(`Adresse: ${address}`, { x: margin, y, size: 10, font });
+      y -= 14;
+    }
+    
+    if (patientData.phone) {
+      page.drawText(`Telefon: ${patientData.phone}`, { x: margin, y, size: 10, font });
+      y -= 14;
+    }
+    
+    if (patientData.email) {
+      page.drawText(`E-Mail: ${patientData.email}`, { x: margin, y, size: 10, font });
+      y -= 14;
+    }
+    
+    y -= 10;
+  }
+
+  // Doctor Information (if provided)
+  if (doctors && doctors.length > 0) {
+    const doctorLabel = doctors.length === 1 ? "BEHANDELNDER ARZT" : "BEHANDELNDE ÄRZTE";
+    page.drawText(doctorLabel, { x: margin, y, size: 12, font: fontBold, color: rgb(0.2, 0.4, 0.8) });
+    y -= 18;
+    
+    for (const doctor of doctors) {
+      if (doctor.firstName || doctor.lastName) {
+        const name = [doctor.firstName, doctor.lastName].filter(Boolean).join(" ");
+        page.drawText(`Name: ${name}`, { x: margin, y, size: 10, font });
+        y -= 14;
+      }
+      
+      if (doctor.specialty) {
+        page.drawText(`Fachgebiet: ${doctor.specialty}`, { x: margin, y, size: 10, font });
+        y -= 14;
+      }
+      
+      if (doctor.street || doctor.postalCode || doctor.city) {
+        const address = [
+          doctor.street,
+          [doctor.postalCode, doctor.city].filter(Boolean).join(" ")
+        ].filter(Boolean).join(", ");
+        page.drawText(`Adresse: ${address}`, { x: margin, y, size: 10, font });
+        y -= 14;
+      }
+      
+      if (doctor.phone) {
+        page.drawText(`Telefon: ${doctor.phone}`, { x: margin, y, size: 10, font });
+        y -= 14;
+      }
+      
+      if (doctor.email) {
+        page.drawText(`E-Mail: ${doctor.email}`, { x: margin, y, size: 10, font });
+        y -= 14;
+      }
+      
+      y -= 10; // Space between doctors
+    }
+  }
 
   // Header with modern styling
   page.drawText(title, { x: margin, y, size: 20, font: fontBold, color: rgb(0.2, 0.4, 0.8) });

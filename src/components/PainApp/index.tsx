@@ -178,7 +178,11 @@ export const PainApp: React.FC = () => {
 
       {view === "reminders" && <RemindersPage onBack={goHome} />}
 
-      {view === "diary-report" && <DiaryReport onBack={goHome} />}
+      {view === "diary-report" && <DiaryReport onBack={goHome} onNavigate={(target) => {
+        if (target === 'settings-account') {
+          setView('settings');
+        }
+      }} />}
 
       {view === "medication-limits" && (
         <MedicationLimitsPage onBack={goHome} />
