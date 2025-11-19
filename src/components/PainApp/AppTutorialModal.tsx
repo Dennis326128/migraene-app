@@ -99,7 +99,7 @@ const tutorialSteps: TutorialStep[] = [
       "Die App erfasst automatisch Wetter und verknüpft es mit deinen Episoden",
       "Nutze deine Auswertungen, um Muster und Auslöser zu erkennen"
     ],
-    benefit: "Mehr Klarheit über deine Migräne – für mehr Kontrolle und Lebensqualität im Alltag."
+    benefit: "Analysiere deine Migräne – mit deinem Migräne-Manager."
   }
 ];
 
