@@ -11,7 +11,7 @@ const startPageCardVariants = cva(
         quick: "bg-destructive/20 text-destructive-foreground hover:bg-destructive/30 border border-destructive/30",
         neutral: "bg-card hover:bg-muted/50 border border-border",
         voice: "bg-primary/20 text-primary-foreground hover:bg-primary/30 border border-primary/30",
-        warning: "bg-yellow-500/20 text-yellow-200 hover:bg-yellow-500/30 border border-yellow-500/30",
+        warning: "bg-warning/20 text-warning-foreground hover:bg-warning/30 border border-warning/30",
       },
       size: {
         default: "p-4",
