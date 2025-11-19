@@ -97,11 +97,24 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
 
   const getPainLevelDisplay = (level: string) => {
     const mapping: Record<string, { label: string; numeric: string; color: string }> = {
+      // Text-Werte
       'keine': { label: 'Keine Schmerzen', numeric: '0/10', color: 'bg-green-500/20 text-green-700 dark:bg-green-500/30 dark:text-green-300' },
       'leicht': { label: 'Leicht', numeric: '1-3/10', color: 'bg-yellow-500/20 text-yellow-700 dark:bg-yellow-500/30 dark:text-yellow-300' },
       'mittel': { label: 'Mittel', numeric: '4-6/10', color: 'bg-orange-500/20 text-orange-700 dark:bg-orange-500/30 dark:text-orange-300' },
       'stark': { label: 'Stark', numeric: '7-8/10', color: 'bg-red-500/20 text-red-700 dark:bg-red-500/30 dark:text-red-300' },
       'sehr_stark': { label: 'Sehr stark', numeric: '9-10/10', color: 'bg-purple-500/20 text-purple-700 dark:bg-purple-500/30 dark:text-purple-300' },
+      // Numerische Werte (0-10)
+      '0': { label: 'Keine Schmerzen', numeric: '0/10', color: 'bg-green-500/20 text-green-700 dark:bg-green-500/30 dark:text-green-300' },
+      '1': { label: 'Leicht', numeric: '1/10', color: 'bg-yellow-500/20 text-yellow-700 dark:bg-yellow-500/30 dark:text-yellow-300' },
+      '2': { label: 'Leicht', numeric: '2/10', color: 'bg-yellow-500/20 text-yellow-700 dark:bg-yellow-500/30 dark:text-yellow-300' },
+      '3': { label: 'Leicht', numeric: '3/10', color: 'bg-yellow-500/20 text-yellow-700 dark:bg-yellow-500/30 dark:text-yellow-300' },
+      '4': { label: 'Mittel', numeric: '4/10', color: 'bg-orange-500/20 text-orange-700 dark:bg-orange-500/30 dark:text-orange-300' },
+      '5': { label: 'Mittel', numeric: '5/10', color: 'bg-orange-500/20 text-orange-700 dark:bg-orange-500/30 dark:text-orange-300' },
+      '6': { label: 'Mittel', numeric: '6/10', color: 'bg-orange-500/20 text-orange-700 dark:bg-orange-500/30 dark:text-orange-300' },
+      '7': { label: 'Stark', numeric: '7/10', color: 'bg-red-500/20 text-red-700 dark:bg-red-500/30 dark:text-red-300' },
+      '8': { label: 'Stark', numeric: '8/10', color: 'bg-red-500/20 text-red-700 dark:bg-red-500/30 dark:text-red-300' },
+      '9': { label: 'Sehr stark', numeric: '9/10', color: 'bg-purple-500/20 text-purple-700 dark:bg-purple-500/30 dark:text-purple-300' },
+      '10': { label: 'Sehr stark', numeric: '10/10', color: 'bg-purple-500/20 text-purple-700 dark:bg-purple-500/30 dark:text-purple-300' },
     };
     return mapping[level] || { label: 'Unbekannt', numeric: '-', color: 'bg-muted' };
   };
