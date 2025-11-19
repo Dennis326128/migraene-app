@@ -1,9 +1,10 @@
 import { berlinDateToday } from "@/lib/tz";
+import { mapTextLevelToScore } from "@/lib/utils/pain";
 
 export interface ParsedVoiceEntry {
   selectedDate: string;
   selectedTime: string;
-  painLevel: string;
+  painLevel: string; // NUMERIC VALUE (0-10) as string, e.g., "5", "7", "9"
   medications: string[];
   notes: string;
   isNow: boolean;
@@ -64,37 +65,37 @@ export function convertNumberWords(text: string): string {
   return result;
 }
 
-// German pain level mapping
+// German pain level mapping - NOW RETURNS NUMERIC VALUES
 const PAIN_LEVEL_PATTERNS = [
-  { pattern: /(schmerz|pain|migräne|kopfschmerz).{0,20}(10|zehn)/i, level: "sehr_stark" },
-  { pattern: /(schmerz|pain|migräne|kopfschmerz).{0,20}(9|neun)/i, level: "sehr_stark" },
-  { pattern: /(schmerz|pain|migräne|kopfschmerz).{0,20}(8|acht)/i, level: "sehr_stark" },
-  { pattern: /(schmerz|pain|migräne|kopfschmerz).{0,20}(7|sieben)/i, level: "stark" },
-  { pattern: /(schmerz|pain|migräne|kopfschmerz).{0,20}(6|sechs)/i, level: "stark" },
-  { pattern: /(schmerz|pain|migräne|kopfschmerz).{0,20}(5|fünf)/i, level: "mittel" },
-  { pattern: /(schmerz|pain|migräne|kopfschmerz).{0,20}(4|vier)/i, level: "mittel" },
-  { pattern: /(schmerz|pain|migräne|kopfschmerz).{0,20}(3|drei)/i, level: "leicht" },
-  { pattern: /(schmerz|pain|migräne|kopfschmerz).{0,20}(2|zwei)/i, level: "leicht" },
-  { pattern: /(schmerz|pain|migräne|kopfschmerz).{0,20}(1|eins)/i, level: "leicht" },
-  { pattern: /(schmerz|pain|migräne|kopfschmerz).{0,20}(0|null|kein)/i, level: "leicht" },
+  { pattern: /(schmerz|pain|migräne|kopfschmerz).{0,20}(10|zehn)/i, level: "10" },
+  { pattern: /(schmerz|pain|migräne|kopfschmerz).{0,20}(9|neun)/i, level: "9" },
+  { pattern: /(schmerz|pain|migräne|kopfschmerz).{0,20}(8|acht)/i, level: "8" },
+  { pattern: /(schmerz|pain|migräne|kopfschmerz).{0,20}(7|sieben)/i, level: "7" },
+  { pattern: /(schmerz|pain|migräne|kopfschmerz).{0,20}(6|sechs)/i, level: "6" },
+  { pattern: /(schmerz|pain|migräne|kopfschmerz).{0,20}(5|fünf)/i, level: "5" },
+  { pattern: /(schmerz|pain|migräne|kopfschmerz).{0,20}(4|vier)/i, level: "4" },
+  { pattern: /(schmerz|pain|migräne|kopfschmerz).{0,20}(3|drei)/i, level: "3" },
+  { pattern: /(schmerz|pain|migräne|kopfschmerz).{0,20}(2|zwei)/i, level: "2" },
+  { pattern: /(schmerz|pain|migräne|kopfschmerz).{0,20}(1|eins)/i, level: "1" },
+  { pattern: /(schmerz|pain|migräne|kopfschmerz).{0,20}(0|null|kein)/i, level: "0" },
   
   // Alternative patterns with numbers first
-  { pattern: /(10|zehn).{0,20}(schmerz|pain|migräne|kopfschmerz)/i, level: "sehr_stark" },
-  { pattern: /(9|neun).{0,20}(schmerz|pain|migräne|kopfschmerz)/i, level: "sehr_stark" },
-  { pattern: /(8|acht).{0,20}(schmerz|pain|migräne|kopfschmerz)/i, level: "sehr_stark" },
-  { pattern: /(7|sieben).{0,20}(schmerz|pain|migräne|kopfschmerz)/i, level: "stark" },
-  { pattern: /(6|sechs).{0,20}(schmerz|pain|migräne|kopfschmerz)/i, level: "stark" },
-  { pattern: /(5|fünf).{0,20}(schmerz|pain|migräne|kopfschmerz)/i, level: "mittel" },
-  { pattern: /(4|vier).{0,20}(schmerz|pain|migräne|kopfschmerz)/i, level: "mittel" },
-  { pattern: /(3|drei).{0,20}(schmerz|pain|migräne|kopfschmerz)/i, level: "leicht" },
-  { pattern: /(2|zwei).{0,20}(schmerz|pain|migräne|kopfschmerz)/i, level: "leicht" },
-  { pattern: /(1|eins).{0,20}(schmerz|pain|migräne|kopfschmerz)/i, level: "leicht" },
+  { pattern: /(10|zehn).{0,20}(schmerz|pain|migräne|kopfschmerz)/i, level: "10" },
+  { pattern: /(9|neun).{0,20}(schmerz|pain|migräne|kopfschmerz)/i, level: "9" },
+  { pattern: /(8|acht).{0,20}(schmerz|pain|migräne|kopfschmerz)/i, level: "8" },
+  { pattern: /(7|sieben).{0,20}(schmerz|pain|migräne|kopfschmerz)/i, level: "7" },
+  { pattern: /(6|sechs).{0,20}(schmerz|pain|migräne|kopfschmerz)/i, level: "6" },
+  { pattern: /(5|fünf).{0,20}(schmerz|pain|migräne|kopfschmerz)/i, level: "5" },
+  { pattern: /(4|vier).{0,20}(schmerz|pain|migräne|kopfschmerz)/i, level: "4" },
+  { pattern: /(3|drei).{0,20}(schmerz|pain|migräne|kopfschmerz)/i, level: "3" },
+  { pattern: /(2|zwei).{0,20}(schmerz|pain|migräne|kopfschmerz)/i, level: "2" },
+  { pattern: /(1|eins).{0,20}(schmerz|pain|migräne|kopfschmerz)/i, level: "1" },
 
-  // Intensity words
-  { pattern: /(sehr starke?|unerträglich|extremer?|heftige?).{0,30}(schmerz|migräne|kopfschmerz)/i, level: "sehr_stark" },
-  { pattern: /(starke?|schwere?|massive?).{0,30}(schmerz|migräne|kopfschmerz)/i, level: "stark" },
-  { pattern: /(mittlere?|mäßige?|normale?).{0,30}(schmerz|migräne|kopfschmerz)/i, level: "mittel" },
-  { pattern: /(leichte?|schwache?|geringe?).{0,30}(schmerz|migräne|kopfschmerz)/i, level: "leicht" },
+  // Intensity words - NOW MAPPED TO NUMERIC VALUES
+  { pattern: /(sehr starke?|unerträglich|extremer?|heftige?).{0,30}(schmerz|migräne|kopfschmerz)/i, level: "9" },
+  { pattern: /(starke?|schwere?|massive?).{0,30}(schmerz|migräne|kopfschmerz)/i, level: "7" },
+  { pattern: /(mittlere?|mäßige?|normale?).{0,30}(schmerz|migräne|kopfschmerz)/i, level: "5" },
+  { pattern: /(leichte?|schwache?|geringe?).{0,30}(schmerz|migräne|kopfschmerz)/i, level: "2" },
 ];
 
 // Generate dynamic medication patterns from user's saved medications
@@ -334,11 +335,11 @@ function parsePainLevel(text: string): string {
     }
   }
   
-  // Step 5: Fall back to category patterns (only if no numbers found)
+  // Step 5: Fall back to category patterns - NOW RETURNS NUMERIC VALUES
   for (const painPattern of PAIN_LEVEL_PATTERNS) {
     if (painPattern.pattern.test(convertedText)) {
       console.log(`🎯 [parsePainLevel] Found category match: ${painPattern.level} -> MEDIUM confidence`);
-      return painPattern.level; // Keep category for backward compatibility
+      return painPattern.level; // Now returns numeric string like "9", "7", "5"
     }
   }
   
@@ -459,18 +460,13 @@ function calculateConfidence(text: string, parsedTime: any, parsedPain: string, 
   // Pain confidence - treat "0" as valid (no pain)
   let painConfidence: 'high' | 'medium' | 'low' = 'low';
   if (parsedPain && parsedPain !== '' && parsedPain !== '-') {
-    // Direct numbers (0-10) get high confidence - "0" is valid!
-    const isDirectNumber = /^[0-9]|10$/.test(parsedPain);
+    // All pain levels are now numeric strings (0-10)
+    const isNumeric = /^([0-9]|10)$/.test(parsedPain);
     // Check if original text contained number words (including "null" for 0)
     const hasNumberWords = /\b(null|eins|zwei|drei|vier|fünf|sechs|sieben|acht|neun|zehn)\b/i.test(normalizedText);
-    // Check for category patterns
-    const hasCategoryPattern = /\b(leicht|mittel|stark|sehr.*stark)\b/i.test(parsedPain);
     
-    if (isDirectNumber || hasNumberWords) {
-      console.log(`[Confidence] Pain level "${parsedPain}" is direct number/word (0=no pain) -> HIGH confidence`);
-      painConfidence = 'high';
-    } else if (hasCategoryPattern) {
-      console.log(`[Confidence] Pain level "${parsedPain}" is category pattern -> HIGH confidence`);
+    if (isNumeric || hasNumberWords) {
+      console.log(`[Confidence] Pain level "${parsedPain}" is numeric (0=no pain) -> HIGH confidence`);
       painConfidence = 'high';
     } else {
       console.log(`[Confidence] Pain level "${parsedPain}" -> MEDIUM confidence`);
