@@ -246,7 +246,9 @@ export type Database = {
           last_name: string | null
           phone: string | null
           postal_code: string | null
+          salutation: string | null
           street: string | null
+          title: string | null
           updated_at: string | null
           user_id: string
         }
@@ -262,7 +264,9 @@ export type Database = {
           last_name?: string | null
           phone?: string | null
           postal_code?: string | null
+          salutation?: string | null
           street?: string | null
+          title?: string | null
           updated_at?: string | null
           user_id: string
         }
@@ -278,7 +282,9 @@ export type Database = {
           last_name?: string | null
           phone?: string | null
           postal_code?: string | null
+          salutation?: string | null
           street?: string | null
+          title?: string | null
           updated_at?: string | null
           user_id?: string
         }
@@ -512,6 +518,54 @@ export type Database = {
           updated_at?: string | null
           user_id?: string
           voice_notes_enabled?: boolean
+        }
+        Relationships: []
+      }
+      user_report_settings: {
+        Row: {
+          created_at: string | null
+          default_report_preset: string
+          include_ai_analysis: boolean | null
+          include_all_medications: boolean | null
+          include_chart: boolean | null
+          include_doctor_data: boolean | null
+          include_entries_list: boolean | null
+          include_medication_summary: boolean | null
+          include_patient_data: boolean | null
+          include_statistics: boolean | null
+          selected_medications: string[] | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          default_report_preset?: string
+          include_ai_analysis?: boolean | null
+          include_all_medications?: boolean | null
+          include_chart?: boolean | null
+          include_doctor_data?: boolean | null
+          include_entries_list?: boolean | null
+          include_medication_summary?: boolean | null
+          include_patient_data?: boolean | null
+          include_statistics?: boolean | null
+          selected_medications?: string[] | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          default_report_preset?: string
+          include_ai_analysis?: boolean | null
+          include_all_medications?: boolean | null
+          include_chart?: boolean | null
+          include_doctor_data?: boolean | null
+          include_entries_list?: boolean | null
+          include_medication_summary?: boolean | null
+          include_patient_data?: boolean | null
+          include_statistics?: boolean | null
+          selected_medications?: string[] | null
+          updated_at?: string | null
+          user_id?: string
         }
         Relationships: []
       }
