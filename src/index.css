@@ -230,3 +230,36 @@ All colors MUST be HSL.
 .pb-safe {
   padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
 }
+
+/* Touch interaction optimizations */
+.touch-manipulation {
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.touch-interactive {
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+}
+
+/* Disable hover effects on touch-only devices */
+@media (hover: none) and (pointer: coarse) {
+  .hover\:bg-accent:hover {
+    background-color: inherit !important;
+  }
+  
+  .hover\:bg-muted:hover {
+    background-color: inherit !important;
+  }
+  
+  .hover\:bg-primary:hover {
+    background-color: inherit !important;
+  }
+  
+  .hover\:scale-105:hover {
+    transform: none !important;
+  }
+}
