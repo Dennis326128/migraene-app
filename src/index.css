@@ -174,10 +174,23 @@ All colors MUST be HSL.
   html {
     scroll-behavior: smooth;
     -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
   }
   
   body {
     overscroll-behavior: contain;
+    overscroll-behavior-y: contain;
+  }
+
+  /* Charts sollen nur vertikal scrollbar sein */
+  .recharts-responsive-container {
+    touch-action: pan-y pinch-zoom;
+    overscroll-behavior-x: none;
+  }
+
+  /* Smooth scrolling für Chart-Container */
+  .recharts-wrapper {
+    -webkit-overflow-scrolling: touch;
   }
 
   /* Prevent zoom on input focus */

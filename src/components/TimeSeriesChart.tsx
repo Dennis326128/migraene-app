@@ -81,7 +81,7 @@ const chartConfig = {
   },
 };
 
-export default function TimeSeriesChart({ entries, dateRange }: Props) {
+const TimeSeriesChart = React.memo(function TimeSeriesChart({ entries, dateRange }: Props) {
   const isMobile = useIsMobile();
   
   // Always use today as end date, ignore dateRange.to
@@ -468,4 +468,10 @@ export default function TimeSeriesChart({ entries, dateRange }: Props) {
       </ResponsiveContainer>
     </ChartContainer>
   );
-}
+}, (prevProps, nextProps) => {
+  return prevProps.entries?.length === nextProps.entries?.length &&
+         prevProps.dateRange?.from === nextProps.dateRange?.from &&
+         prevProps.dateRange?.to === nextProps.dateRange?.to;
+});
+
+export default TimeSeriesChart;

@@ -17,7 +17,7 @@ interface Props {
   timeRange?: string;
 }
 
-export default function ChartComponent({ entries, dateRange, timeRange }: Props) {
+const ChartComponent = React.memo(function ChartComponent({ entries, dateRange, timeRange }: Props) {
   console.log("ChartComponent render:", { 
     entriesCount: entries?.length, 
     dateRange, 
@@ -379,4 +379,11 @@ export default function ChartComponent({ entries, dateRange, timeRange }: Props)
       </div>
     </div>
   );
-}
+}, (prevProps, nextProps) => {
+  return prevProps.entries?.length === nextProps.entries?.length &&
+         prevProps.dateRange?.from === nextProps.dateRange?.from &&
+         prevProps.dateRange?.to === nextProps.dateRange?.to &&
+         prevProps.timeRange === nextProps.timeRange;
+});
+
+export default ChartComponent;

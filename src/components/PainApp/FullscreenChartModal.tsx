@@ -13,11 +13,11 @@ interface FullscreenChartModalProps {
 export function FullscreenChartModal({ open, onOpenChange, title, children }: FullscreenChartModalProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] w-full h-[90vh] p-6">
+      <DialogContent className="max-w-[95vw] w-full h-[90vh] p-6 overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold">{title}</DialogTitle>
         </DialogHeader>
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-y-auto overscroll-behavior-contain touch-pan-y">
           {children}
         </div>
       </DialogContent>
