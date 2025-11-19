@@ -321,34 +321,123 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     }
   }
 
-  // Analysis Report (if included)
+  // AI Analysis Report (if included)
   if (includeAnalysis && analysisReport) {
-    const maxWidth = 495;
-    const lines = analysisReport.split('\n');
+    // Check if we need a new page
+    if (yPos < 200) {
+      page = pdfDoc.addPage([595.28, 841.89]);
+      yPos = 841.89 - 50;
+    }
     
-    page.drawText("Professioneller Analysebericht", { x: 50, y: yPos, size: 12, font: fontBold });
+    // Draw box background and border
+    const boxX = 50;
+    const boxWidth = 495;
+    const boxPadding = 12;
+    const contentStartY = yPos - 20;
+    
+    // Title with icon
+    page.drawText("🤖 KI-gestützte Muster-Analyse", { 
+      x: boxX, 
+      y: yPos, 
+      size: 11, 
+      font: fontBold,
+      color: rgb(0.2, 0.4, 0.7)
+    });
+    yPos -= 18;
+    
+    // Subtitle/hint
+    page.drawText("Automatisch erkannte Zusammenhänge zur Unterstützung der Diagnose", { 
+      x: boxX, 
+      y: yPos, 
+      size: 8, 
+      font,
+      color: rgb(0.4, 0.4, 0.4)
+    });
     yPos -= 20;
+    
+    // Draw box border (will be completed after content)
+    const boxTopY = yPos + 8;
+    
+    // Parse markdown-like formatting and render text
+    const maxWidth = boxWidth - (2 * boxPadding);
+    const lines = analysisReport.split('\n').filter(line => line.trim());
     
     for (const line of lines) {
       if (yPos < 80) {
+        // Complete current box
+        const boxHeight = boxTopY - (yPos - 8);
+        page.drawRectangle({
+          x: boxX,
+          y: yPos - 8,
+          width: boxWidth,
+          height: boxHeight,
+          borderColor: rgb(0.7, 0.8, 0.9),
+          borderWidth: 1,
+          color: rgb(0.97, 0.98, 1)
+        });
+        
+        // New page
         page = pdfDoc.addPage([595.28, 841.89]);
         yPos = 841.89 - 50;
       }
       
-      // Simple text wrapping
-      const words = line.split(' ');
-      let currentLine = '';
+      // Handle bullet points
+      const isBullet = line.trim().startsWith('•') || line.trim().startsWith('-');
+      const cleanLine = line.replace(/^[•\-]\s*/, '').trim();
       
-      for (const word of words) {
+      if (!cleanLine) {
+        yPos -= 6; // Empty line spacing
+        continue;
+      }
+      
+      // Check if line is bold (starts with **)
+      const isBold = cleanLine.startsWith('**') && cleanLine.includes('**');
+      const textContent = isBold ? cleanLine.replace(/\*\*/g, '') : cleanLine;
+      const currentFont = isBold ? fontBold : font;
+      
+      // Word wrapping
+      const words = textContent.split(' ');
+      let currentLine = '';
+      const indent = isBullet ? 12 : 0;
+      
+      for (let i = 0; i < words.length; i++) {
+        const word = words[i];
         const testLine = currentLine + (currentLine ? ' ' : '') + word;
-        const width = font.widthOfTextAtSize(testLine, 10);
+        const width = currentFont.widthOfTextAtSize(testLine, 9);
         
-        if (width > maxWidth && currentLine) {
-          page.drawText(currentLine, { x: 50, y: yPos, size: 10, font });
-          yPos -= 14;
+        if (width > maxWidth - indent && currentLine) {
+          // Draw bullet for first line only
+          if (isBullet && !currentLine.includes(' ')) {
+            page.drawText('•', { 
+              x: boxX + boxPadding, 
+              y: yPos, 
+              size: 9, 
+              font 
+            });
+          }
+          
+          page.drawText(currentLine, { 
+            x: boxX + boxPadding + indent, 
+            y: yPos, 
+            size: 9, 
+            font: currentFont 
+          });
+          yPos -= 12;
           currentLine = word;
           
           if (yPos < 80) {
+            // Complete current box
+            const boxHeight = boxTopY - (yPos - 8);
+            page.drawRectangle({
+              x: boxX,
+              y: yPos - 8,
+              width: boxWidth,
+              height: boxHeight,
+              borderColor: rgb(0.7, 0.8, 0.9),
+              borderWidth: 1,
+              color: rgb(0.97, 0.98, 1)
+            });
+            
             page = pdfDoc.addPage([595.28, 841.89]);
             yPos = 841.89 - 50;
           }
@@ -358,14 +447,39 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       }
       
       if (currentLine) {
-        page.drawText(currentLine, { x: 50, y: yPos, size: 10, font });
-        yPos -= 14;
+        if (isBullet) {
+          page.drawText('•', { 
+            x: boxX + boxPadding, 
+            y: yPos, 
+            size: 9, 
+            font 
+          });
+        }
+        page.drawText(currentLine, { 
+          x: boxX + boxPadding + indent, 
+          y: yPos, 
+          size: 9, 
+          font: currentFont 
+        });
+        yPos -= 12;
       }
       
-      yPos -= 6;
+      yPos -= 2; // Line spacing
     }
     
-    yPos -= 20;
+    // Complete the box
+    const boxHeight = boxTopY - (yPos - 8);
+    page.drawRectangle({
+      x: boxX,
+      y: yPos - 8,
+      width: boxWidth,
+      height: boxHeight,
+      borderColor: rgb(0.7, 0.8, 0.9),
+      borderWidth: 1,
+      color: rgb(0.97, 0.98, 1)
+    });
+    
+    yPos -= 25;
   }
 
   // Medication Statistics (if included)

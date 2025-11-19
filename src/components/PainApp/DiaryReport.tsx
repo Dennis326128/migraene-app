@@ -221,28 +221,33 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     // Wenn bereits vorhanden, zurückgeben
     if (analysisReport) return analysisReport;
     
-    // Sonst generieren
+    // Sonst generieren (im doctor_summary Modus)
+    setIsGeneratingReport(true);
     try {
-      const { data, error } = await supabase.functions.invoke('generate-diary-analysis', {
+      const { data, error } = await supabase.functions.invoke('analyze-voice-notes', {
         body: { 
           fromDate: `${from}T00:00:00Z`, 
-          toDate: `${to}T23:59:59Z` 
+          toDate: `${to}T23:59:59Z`,
+          mode: 'doctor_summary'
         }
       });
 
       if (error) throw error;
       if (data.error) {
-        toast.error(data.error);
+        console.error('AI-Analyse Fehler:', data.error);
+        // Fehler nicht anzeigen, sondern leeren Bericht zurückgeben
         return "";
       }
 
-      const report = data.report;
+      const report = data.insights || "";
       setAnalysisReport(report);
       return report;
     } catch (error) {
       console.error('Fehler beim Generieren des Analyseberichts:', error);
-      toast.error("Fehler beim Generieren des Analyseberichts");
+      // Fehler nicht anzeigen, sondern leeren Bericht zurückgeben (PDF kann trotzdem erstellt werden)
       return "";
+    } finally {
+      setIsGeneratingReport(false);
     }
   };
 
