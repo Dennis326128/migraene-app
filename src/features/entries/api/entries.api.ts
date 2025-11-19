@@ -170,3 +170,21 @@ export async function deleteEntry(id: string) {
   const { error } = await supabase.from("pain_entries").delete().eq("id", id);
   if (error) throw error;
 }
+
+export async function getFirstEntryDate(): Promise<string | null> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data, error } = await supabase
+    .from("pain_entries")
+    .select("timestamp_created")
+    .eq("user_id", user.id)
+    .order("timestamp_created", { ascending: true })
+    .limit(1)
+    .single();
+
+  if (error || !data) return null;
+  
+  // Nur das Datum zurückgeben (ohne Zeit)
+  return data.timestamp_created?.split('T')[0] || null;
+}
