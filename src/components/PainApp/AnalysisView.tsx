@@ -312,11 +312,12 @@ export function AnalysisView({ onBack, onNavigateToLimits }: AnalysisViewProps) 
 
           <TabsContent value="ki-muster" className="mt-6">
             <VoiceNotesAIAnalysis />
-          </TabsContent>
-        </Tabs>
+        </TabsContent>
+      </Tabs>
+      </div>
 
-        {/* Fullscreen Modals */}
-        <FullscreenChartModal
+      {/* Fullscreen Modals */}
+      <FullscreenChartModal
           open={timeDistributionFullscreen}
           onOpenChange={setTimeDistributionFullscreen}
           title="Tageszeit-Verteilung"

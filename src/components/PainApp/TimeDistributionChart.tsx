@@ -13,7 +13,10 @@ interface TimeDistributionChartProps {
   isLoading?: boolean;
 }
 
-export function TimeDistributionChart({ data, isLoading = false }: TimeDistributionChartProps) {
+export const TimeDistributionChart = React.memo(function TimeDistributionChart({ 
+  data, 
+  isLoading = false 
+}: TimeDistributionChartProps) {
   // Create full 24-hour data with zeros for missing hours
   const fullDayData = Array.from({ length: 24 }, (_, hour) => {
     const existing = data.find(d => d.hour_of_day === hour);
@@ -70,7 +73,7 @@ export function TimeDistributionChart({ data, isLoading = false }: TimeDistribut
         </p>
       </CardHeader>
       <CardContent>
-        <div className="h-80">
+        <div className="h-80" style={{ minHeight: '320px', maxHeight: '320px' }}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={fullDayData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -99,4 +102,7 @@ export function TimeDistributionChart({ data, isLoading = false }: TimeDistribut
       </CardContent>
     </Card>
   );
-}
+}, (prevProps, nextProps) => {
+  return prevProps.isLoading === nextProps.isLoading &&
+         JSON.stringify(prevProps.data) === JSON.stringify(nextProps.data);
+});
