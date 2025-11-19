@@ -15,8 +15,8 @@ import { cn } from "@/lib/utils";
 import {
   Collapsible,
   CollapsibleContent,
-  CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { TouchSafeCollapsibleTrigger } from "@/components/ui/touch-collapsible";
 import {
   useMedicationLimits,
   useCreateMedicationLimit,
@@ -337,7 +337,7 @@ export function MedicationLimitsSettings() {
               onOpenChange={() => toggleExpanded(limit.id)}
             >
               <div className="border rounded-lg overflow-hidden bg-secondary/5">
-                <CollapsibleTrigger className="w-full p-3 flex items-center justify-between hover:bg-secondary/10 transition-colors">
+                <TouchSafeCollapsibleTrigger className="w-full p-3 flex items-center justify-between hover:bg-secondary/10 transition-colors">
                   <div className="flex items-center gap-2">
                     <PeriodIcon className={cn("h-4 w-4 text-muted-foreground", isMobile && "h-3 w-3")} />
                     <span className={cn("font-medium", isMobile && "text-sm")}>{limit.medication_name}</span>
@@ -349,7 +349,7 @@ export function MedicationLimitsSettings() {
                     </Badge>
                     <ChevronDown className={cn("h-4 w-4 transition-transform", isExpanded && "rotate-180", isMobile && "h-3 w-3")} />
                   </div>
-                </CollapsibleTrigger>
+                </TouchSafeCollapsibleTrigger>
 
                 <CollapsibleContent>
                   <div className={cn("p-4 space-y-4 border-t", isMobile && "p-3 space-y-3")}>

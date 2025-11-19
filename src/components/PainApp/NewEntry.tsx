@@ -6,7 +6,8 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
+import { TouchSafeCollapsibleTrigger } from "@/components/ui/touch-collapsible";
 import { Plus, X, Trash2, ChevronDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { MigraineEntry } from "@/types/painApp";
@@ -556,12 +557,12 @@ export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProp
       {/* Schmerzlokalisation - Collapsible */}
       <Collapsible open={painLocationOpen} onOpenChange={setPainLocationOpen}>
         <Card className="p-6 mb-4">
-          <CollapsibleTrigger className="w-full flex items-center justify-between hover:opacity-80 transition-opacity">
+          <TouchSafeCollapsibleTrigger className="w-full flex items-center justify-between hover:opacity-80 transition-opacity">
             <Label className="text-base font-medium cursor-pointer">
               Schmerzlokalisation
             </Label>
             <ChevronDown className={`h-5 w-5 transition-transform duration-200 ${painLocationOpen ? 'rotate-180' : ''}`} />
-          </CollapsibleTrigger>
+          </TouchSafeCollapsibleTrigger>
           
           <CollapsibleContent className="mt-3">
             <div className="grid gap-2">
@@ -594,10 +595,10 @@ export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProp
       {/* Symptome - Collapsible */}
       <Collapsible open={symptomsOpen} onOpenChange={setSymptomsOpen}>
         <Card className="p-6 mb-4">
-          <CollapsibleTrigger className="w-full flex items-center justify-between hover:opacity-80 transition-opacity">
+          <TouchSafeCollapsibleTrigger className="w-full flex items-center justify-between hover:opacity-80 transition-opacity">
             <Label className="text-base font-medium cursor-pointer">Begleitsymptome</Label>
             <ChevronDown className={`h-5 w-5 transition-transform duration-200 ${symptomsOpen ? 'rotate-180' : ''}`} />
-          </CollapsibleTrigger>
+          </TouchSafeCollapsibleTrigger>
           
           <CollapsibleContent>
             {loadingSymptoms && entry ? (

@@ -9,6 +9,7 @@ import { MedicationEffectSlider } from "@/components/ui/medication-effect-slider
 import { useToast } from "@/hooks/use-toast";
 import { useCreateMedicationEffect } from "@/features/medication-effects/hooks/useMedicationEffects";
 import { useMedicationSave } from "@/contexts/MedicationSaveContext";
+import { useTouchClick } from "@/hooks/useTouchClick";
 import type { RecentMedicationEntry, MedicationEffect } from "@/features/medication-effects/api/medicationEffects.api";
 
 interface MedicationOverviewProps {
@@ -40,6 +41,11 @@ function MedicationCard({ entry, medication, existingEffect }: MedicationCardPro
   const [notes, setNotes] = useState(existingEffect?.notes || "");
   const [hasChanges, setHasChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  
+  // Touch-safe expand/collapse
+  const { handleTouchStart, handleTouchEnd } = useTouchClick(() => {
+    setIsExpanded(!isExpanded);
+  });
   
   // Store original values for cancel functionality
   const originalValues = React.useRef({
@@ -176,9 +182,11 @@ function MedicationCard({ entry, medication, existingEffect }: MedicationCardPro
   const { date, time } = formatDateTime(entry.selected_date, entry.selected_time);
 
   return (
-    <Card className="mb-3">
+    <Card className="mb-3 touch-manipulation">
       <CardHeader 
-        className="pb-3 cursor-pointer"
+        className="pb-3 cursor-pointer select-none"
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <div className="flex items-center justify-between">

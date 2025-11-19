@@ -3,7 +3,7 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const startPageCardVariants = cva(
-  "rounded-lg transition-all duration-200 touch-manipulation cursor-pointer",
+  "rounded-lg transition-all duration-200 touch-manipulation cursor-pointer select-none",
   {
     variants: {
       variant: {
@@ -54,12 +54,14 @@ interface StartPageCardHeaderProps {
   icon?: string
   title: string
   subtitle?: string
+  className?: string
 }
 
 const StartPageCardHeader: React.FC<StartPageCardHeaderProps> = ({
   icon,
   title,
   subtitle,
+  className,
 }) => {
   return (
     <div className="flex items-center space-x-3 min-h-[64px]">
@@ -69,7 +71,7 @@ const StartPageCardHeader: React.FC<StartPageCardHeaderProps> = ({
         </div>
       )}
       <div className="flex-1">
-        <h3 className="font-semibold text-base sm:text-lg leading-tight">
+        <h3 className={cn("font-semibold text-base sm:text-lg leading-tight", className)}>
           {title}
         </h3>
         {subtitle && (
