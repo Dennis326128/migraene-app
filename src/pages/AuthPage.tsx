@@ -52,9 +52,10 @@ export default function AuthPage() {
         });
       }
     } catch (validationError: any) {
+      const errorMsg = validationError.errors?.[0]?.message || "Ungültige Eingabe";
       toast({ 
         title: "Validierungsfehler", 
-        description: validationError.errors[0]?.message || "Ungültige Eingabe",
+        description: errorMsg,
         variant: "destructive" 
       });
       return;
@@ -63,36 +64,57 @@ export default function AuthPage() {
     setLoading(true);
     let result;
 
-    if (isLogin) {
-      result = await supabase.auth.signInWithPassword({ email, password });
-    } else {
-      const redirectUrl = `${window.location.origin}/`;
-      result = await supabase.auth.signUp({
-        email,
-        password,
-        options: { emailRedirectTo: redirectUrl }
-      });
-    }
-
-    setLoading(false);
-
-    if (result.error) {
-      toast({ title: "Fehler", description: result.error.message, variant: "destructive" });
-    } else {
-      toast({
-        title: isLogin ? "Erfolgreich eingeloggt" : "Registrierung erfolgreich",
-        description: isLogin ? "Sie werden weitergeleitet..." : "Bitte bestätigen Sie Ihre E-Mail.",
-      });
+    try {
       if (isLogin) {
-        await ensureUserProfile();
-        navigate("/");
+        result = await supabase.auth.signInWithPassword({ email, password });
       } else {
-        // Consent-Daten beim Signup speichern
-        await ensureUserProfile({
-          termsAccepted: acceptedTerms,
-          privacyAccepted: acceptedPrivacy
+        const redirectUrl = `${window.location.origin}/`;
+        result = await supabase.auth.signUp({
+          email,
+          password,
+          options: { emailRedirectTo: redirectUrl }
         });
       }
+
+      setLoading(false);
+
+      if (result.error) {
+        // Sanitize error message - don't leak info about whether email exists
+        let errorMsg = "Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.";
+        
+        if (result.error.message.includes("Invalid login credentials")) {
+          errorMsg = "E-Mail oder Passwort ist falsch.";
+        } else if (result.error.message.includes("Email not confirmed")) {
+          errorMsg = "Bitte bestätigen Sie zuerst Ihre E-Mail-Adresse.";
+        } else if (result.error.message.includes("User already registered")) {
+          errorMsg = "Ein Konto mit dieser E-Mail-Adresse existiert bereits.";
+        }
+        
+        toast({ title: "Fehler", description: errorMsg, variant: "destructive" });
+      } else {
+        toast({
+          title: isLogin ? "Erfolgreich eingeloggt" : "Registrierung erfolgreich",
+          description: isLogin ? "Sie werden weitergeleitet..." : "Bitte bestätigen Sie Ihre E-Mail.",
+        });
+        
+        if (isLogin) {
+          await ensureUserProfile();
+          navigate("/");
+        } else {
+          // Consent-Daten beim Signup speichern
+          await ensureUserProfile({
+            termsAccepted: acceptedTerms,
+            privacyAccepted: acceptedPrivacy
+          });
+        }
+      }
+    } catch (error) {
+      setLoading(false);
+      toast({ 
+        title: "Fehler", 
+        description: "Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.",
+        variant: "destructive" 
+      });
     }
   };
 
@@ -102,22 +124,49 @@ export default function AuthPage() {
       return;
     }
 
-    setLoading(true);
-    const redirectUrl = `${window.location.origin}/reset-password`;
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: redirectUrl,
-    });
-    setLoading(false);
-
-    if (error) {
-      toast({ title: "Fehler", description: error.message, variant: "destructive" });
-    } else {
-      toast({
-        title: "E-Mail versendet",
-        description: "Bitte prüfen Sie Ihr Postfach. Wir haben Ihnen einen Link zur Passwortwiederherstellung gesendet.",
+    // Validate email format
+    try {
+      loginSchema.pick({ email: true }).parse({ email });
+    } catch (validationError: any) {
+      const errorMsg = validationError.errors?.[0]?.message || "Ungültige E-Mail-Adresse";
+      toast({ 
+        title: "Validierungsfehler", 
+        description: errorMsg,
+        variant: "destructive" 
       });
-      setIsForgotPassword(false);
-      setIsLogin(true);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const redirectUrl = `${window.location.origin}/reset-password`;
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: redirectUrl,
+      });
+      setLoading(false);
+
+      if (error) {
+        // Don't reveal whether email exists or not - security best practice
+        toast({ 
+          title: "Fehler", 
+          description: "Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.",
+          variant: "destructive" 
+        });
+      } else {
+        toast({
+          title: "E-Mail versendet",
+          description: "Falls ein Konto mit dieser E-Mail existiert, haben wir Ihnen einen Link zur Passwortwiederherstellung gesendet.",
+        });
+        setIsForgotPassword(false);
+        setIsLogin(true);
+      }
+    } catch (error) {
+      setLoading(false);
+      toast({ 
+        title: "Fehler", 
+        description: "Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.",
+        variant: "destructive" 
+      });
     }
   };
 

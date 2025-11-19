@@ -45,34 +45,66 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
   };
 
   const handleAddMedication = async () => {
-    if (!medicationName.trim()) {
+    const trimmedName = medicationName.trim();
+    
+    if (!trimmedName) {
       toast.error("Bitte geben Sie einen Medikamentennamen ein");
       return;
     }
 
+    // Validate medication name
+    if (trimmedName.length > 100) {
+      toast.error("Medikamentenname darf maximal 100 Zeichen lang sein");
+      return;
+    }
+
+    if (!/^[a-zA-ZäöüÄÖÜß0-9\s\-/().]+$/.test(trimmedName)) {
+      toast.error("Medikamentenname enthält ungültige Zeichen. Nur Buchstaben, Zahlen und -/() sind erlaubt.");
+      return;
+    }
+
     try {
-      await addMed.mutateAsync(medicationName.trim());
+      await addMed.mutateAsync(trimmedName);
       toast.success("Medikament hinzugefügt");
       setMedicationName("");
       setShowAddDialog(false);
     } catch (error) {
-      toast.error("Fehler beim Hinzufügen des Medikaments");
+      if (import.meta.env.DEV) {
+        console.error('[MedicationManagement] Add medication error:', error);
+      }
+      toast.error("Fehler beim Hinzufügen des Medikaments. Bitte versuchen Sie es erneut.");
     }
   };
 
   const handleEditMedication = async () => {
-    if (!medicationName.trim() || !selectedMedication) {
+    const trimmedName = medicationName.trim();
+    
+    if (!trimmedName || !selectedMedication) {
       toast.error("Bitte geben Sie einen Medikamentennamen ein");
+      return;
+    }
+
+    // Validate medication name
+    if (trimmedName.length > 100) {
+      toast.error("Medikamentenname darf maximal 100 Zeichen lang sein");
+      return;
+    }
+
+    if (!/^[a-zA-ZäöüÄÖÜß0-9\s\-/().]+$/.test(trimmedName)) {
+      toast.error("Medikamentenname enthält ungültige Zeichen. Nur Buchstaben, Zahlen und -/() sind erlaubt.");
       return;
     }
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Nicht angemeldet");
+      if (!user) {
+        toast.error("Sie sind nicht angemeldet.");
+        return;
+      }
       
       const { error } = await supabase
         .from("user_medications")
-        .update({ name: medicationName.trim() })
+        .update({ name: trimmedName })
         .eq("id", selectedMedication.id)
         .eq("user_id", user.id);
       
@@ -86,7 +118,10 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
       // Invalidate query to refresh list
       await addMed.mutateAsync(""); // Trigger refetch
     } catch (error) {
-      toast.error("Fehler beim Aktualisieren des Medikaments");
+      if (import.meta.env.DEV) {
+        console.error('[MedicationManagement] Edit medication error:', error);
+      }
+      toast.error("Fehler beim Aktualisieren des Medikaments. Bitte versuchen Sie es erneut.");
     }
   };
 

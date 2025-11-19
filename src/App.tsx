@@ -39,15 +39,17 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       try {
         const { data: { session }, error } = await supabase.auth.getSession();
         if (mounted) {
-          if (error) {
-            console.error('Error getting session:', error);
+          if (error && import.meta.env.DEV) {
+            console.error('[AuthGuard] Error getting session:', error);
           }
           setSession(session);
           setUser(session?.user ?? null);
           setLoading(false);
         }
       } catch (error) {
-        console.error('Session error:', error);
+        if (import.meta.env.DEV) {
+          console.error('[AuthGuard] Session error:', error);
+        }
         if (mounted) {
           setLoading(false);
         }
@@ -58,7 +60,9 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         if (mounted) {
-          console.log('Auth state changed:', event, session?.user?.id);
+          if (import.meta.env.DEV) {
+            console.log('[AuthGuard] Auth state changed:', event, session?.user?.id ? 'user-id-present' : 'no-user');
+          }
           setSession(session);
           setUser(session?.user ?? null);
           setLoading(false);
