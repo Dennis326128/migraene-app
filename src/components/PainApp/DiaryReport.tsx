@@ -438,11 +438,11 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="block text-sm mb-1">Start</label>
-              <input className="border rounded px-2 h-10 w-full" type="date" value={customStart} onChange={e => setCustomStart(e.target.value)} />
+              <input className="border-border/30 border rounded px-2 h-10 w-full bg-background text-foreground" type="date" value={customStart} onChange={e => setCustomStart(e.target.value)} />
             </div>
             <div>
               <label className="block text-sm mb-1">Ende</label>
-              <input className="border rounded px-2 h-10 w-full" type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} />
+              <input className="border-border/30 border rounded px-2 h-10 w-full bg-background text-foreground" type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} />
             </div>
           </div>
         )}

@@ -357,7 +357,7 @@ export function MedicationLimitsSettings({ onNavigateToMedications }: Medication
               open={isExpanded}
               onOpenChange={() => toggleExpanded(limit.id)}
             >
-              <div className="border rounded-lg overflow-hidden bg-secondary/5">
+              <div className="border-border/30 border rounded-lg overflow-hidden bg-secondary/5">
                 <TouchSafeCollapsibleTrigger className="w-full p-3 flex items-center justify-between hover:bg-secondary/10 transition-colors">
                   <div className="flex items-center gap-2">
                     <PeriodIcon className={cn("h-4 w-4 text-muted-foreground", isMobile && "h-3 w-3")} />
