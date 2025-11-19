@@ -94,7 +94,7 @@ export function VoiceNotesAIAnalysis() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Brain className="h-5 w-5" />
-            KI-Analyse mit Kontext-Tags
+            KI-Analyse Voice-Notizen
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -244,9 +244,9 @@ export function VoiceNotesAIAnalysis() {
                 <Card className="p-4 bg-gradient-to-br from-purple-500/5 to-pink-500/5 border-purple-200/20">
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <h3 className="font-semibold text-sm">🏷️ Erkannte Kontext-Tags</h3>
+                      <h3 className="font-semibold text-sm">🏷️ Erkannte Muster aus Voice-Notizen</h3>
                       <Badge variant="outline" className="text-xs">
-                        {analysisResult.tags.total_tags} Tags
+                        {analysisResult.tags.total_tags} Schlagwörter
                       </Badge>
                     </div>
                     
@@ -290,7 +290,7 @@ export function VoiceNotesAIAnalysis() {
             <div className="text-center py-12 text-muted-foreground">
               <Brain className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>Klicken Sie auf "Analyse starten" für eine KI-gestützte Auswertung Ihrer Voice-Notizen</p>
-              <p className="text-sm mt-2">Die Analyse erkennt Muster, Trigger und gibt Empfehlungen für Ihr Arztgespräch.</p>
+              <p className="text-sm mt-2">Die Analyse erkennt automatisch Muster, Schlagwörter und Zusammenhänge aus Ihren Notizen und gibt Empfehlungen für Ihr Arztgespräch.</p>
             </div>
           )}
         </CardContent>
