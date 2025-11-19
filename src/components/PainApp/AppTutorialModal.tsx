@@ -99,7 +99,7 @@ const tutorialSteps: TutorialStep[] = [
       "Die App erfasst automatisch Wetter und verknüpft es mit deinen Episoden",
       "Nutze deine Auswertungen, um Muster und Auslöser zu erkennen"
     ],
-    benefit: "Erkenne deine Auslöser und gewinne die Kontrolle zurück."
+    benefit: "Mehr Klarheit über deine Migräne – für mehr Kontrolle und Lebensqualität im Alltag."
   }
 ];
 
@@ -181,7 +181,7 @@ export function AppTutorialModal({ open, onComplete, canSkip = true }: AppTutori
           </div>
 
           <div className="flex items-start gap-3 p-4 rounded-lg bg-primary/5 border border-primary/20">
-            <Heart className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
+            <BarChart3 className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
             <p className="text-sm font-medium">{step.benefit}</p>
           </div>
         </div>
