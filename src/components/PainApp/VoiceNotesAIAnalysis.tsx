@@ -244,7 +244,7 @@ export function VoiceNotesAIAnalysis() {
                 <Card className="p-4 bg-gradient-to-br from-purple-500/5 to-pink-500/5 border-purple-200/20">
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <h3 className="font-semibold text-sm">🏷️ Erkannte Muster aus Voice-Notizen</h3>
+                      <h3 className="text-sm">Erkannte Muster aus Voice-Notizen</h3>
                       <Badge variant="outline" className="text-xs">
                         {analysisResult.tags.total_tags} Schlagwörter
                       </Badge>
