@@ -78,6 +78,35 @@ function MedicationCard({ entry, medication, existingEffect }: MedicationCardPro
   };
 
   const handleSave = async () => {
+    if (!effectRating) {
+      toast({
+        title: "Wirkung erforderlich",
+        description: "Bitte Wirkung bewerten",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate notes length
+    if (notes && notes.length > 2000) {
+      toast({
+        title: "Notizen zu lang",
+        description: "Notizen dürfen maximal 2000 Zeichen enthalten",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate side effects count
+    if (sideEffects.length > 20) {
+      toast({
+        title: "Zu viele Nebenwirkungen",
+        description: "Maximal 20 Nebenwirkungen können eingetragen werden",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSaving(true);
     const saveId = `${entry.id}-${medication}`;
     const ratingValue = effectRating === 0 ? 'none' :
@@ -288,11 +317,14 @@ function MedicationCard({ entry, medication, existingEffect }: MedicationCardPro
 }
 
 export function MedicationOverview({ entries }: MedicationOverviewProps) {
-  // Flatten medications with their entries
+  const [limit, setLimit] = useState(50);
+  
+  // Flatten medications with their entries (paginated)
   const medicationList = React.useMemo(() => {
     const list: Array<{ entry: RecentMedicationEntry; medication: string; existingEffect?: MedicationEffect }> = [];
     
-    entries.forEach(entry => {
+    const limitedEntries = entries.slice(0, limit);
+    limitedEntries.forEach(entry => {
       entry.medications.forEach(med => {
         const existingEffect = entry.medication_effects.find(effect => effect.med_name === med);
         list.push({ entry, medication: med, existingEffect });
@@ -300,7 +332,7 @@ export function MedicationOverview({ entries }: MedicationOverviewProps) {
     });
 
     return list;
-  }, [entries]);
+  }, [entries, limit]);
 
   const unratedCount = medicationList.filter(item => !item.existingEffect).length;
 
@@ -339,6 +371,18 @@ export function MedicationOverview({ entries }: MedicationOverviewProps) {
           ))
         )}
       </div>
+      
+      {entries.length > limit && (
+        <div className="mt-4 text-center">
+          <Button 
+            variant="outline" 
+            onClick={() => setLimit(prev => prev + 50)}
+            className="w-full"
+          >
+            Mehr laden ({entries.length - limit} weitere)
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

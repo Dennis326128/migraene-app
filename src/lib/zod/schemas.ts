@@ -20,8 +20,8 @@ export const EntryPayloadSchema = z.object({
   medications: z.array(z.string().min(1)).max(20).default([]),
   notes: z.string().max(2000).nullable().optional(),
   weather_id: z.number().int().nullable().optional(),
-  latitude: z.number().nullable().optional(),
-  longitude: z.number().nullable().optional(),
+  latitude: z.number().min(-90).max(90).nullable().optional(),
+  longitude: z.number().min(-180).max(180).nullable().optional(),
 });
 
 export type EntryPayload = z.infer<typeof EntryPayloadSchema>;
