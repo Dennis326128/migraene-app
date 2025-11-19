@@ -135,12 +135,12 @@ export default function AuthPage() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md space-y-6">
         {/* App-Branding Header */}
-        <div className="text-center space-y-2 mb-8">
-          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-primary via-primary/80 to-primary/60 bg-clip-text text-transparent">
+        <div className="text-center space-y-2 mb-4">
+          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-primary via-primary/80 to-primary/60 bg-clip-text text-transparent pb-2 leading-tight relative z-10">
             Migräne-App
           </h1>
           <p className="text-muted-foreground text-sm md:text-base font-medium">
-            Dein Migräne-Manager im Alltag
+            Alles Wichtige rund ums Thema Migräne an einem Ort
           </p>
         </div>
 
