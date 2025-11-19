@@ -33,6 +33,9 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
   const [selectedPainLocations, setSelectedPainLocations] = useState<string[]>([]);
   const [analysisReport, setAnalysisReport] = useState("");
   
+  // View mode for tabs
+  const [viewMode, setViewMode] = useState<"statistik" | "ki-muster">("statistik");
+  
   // Fullscreen modals
   const [timeDistributionFullscreen, setTimeDistributionFullscreen] = useState(false);
   const [timeSeriesFullscreen, setTimeSeriesFullscreen] = useState(false);
@@ -243,8 +246,34 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
         <h1 className="text-2xl font-bold">Auswertung & Statistiken</h1>
       </div>
 
-      {/* BEREICH 1: STATISTIK */}
+      {/* Tab Navigation */}
       <Card>
+        <CardContent className="p-4">
+          <div className="flex gap-2">
+            <Button
+              variant={viewMode === "statistik" ? "default" : "outline"}
+              onClick={() => setViewMode("statistik")}
+              className="flex-1"
+            >
+              <BarChart3 className="h-4 w-4 mr-2" />
+              Statistik
+            </Button>
+            <Button
+              variant={viewMode === "ki-muster" ? "default" : "outline"}
+              onClick={() => setViewMode("ki-muster")}
+              className="flex-1"
+            >
+              <Brain className="h-4 w-4 mr-2" />
+              KI-Muster
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {viewMode === "statistik" ? (
+        <>
+          {/* BEREICH 1: STATISTIK */}
+          <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <BarChart3 className="h-5 w-5" />
@@ -373,22 +402,24 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
           )}
         </CardContent>
       </Card>
-
-      {/* BEREICH 2: KI-MUSTER */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Brain className="h-5 w-5" />
-            KI-Muster
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Automatisch erkannte Zusammenhänge. Diese Hinweise ersetzen keine ärztliche Diagnose.
-          </p>
-        </CardHeader>
-        <CardContent>
-          <VoiceNotesAIAnalysis />
-        </CardContent>
-      </Card>
+        </>
+      ) : (
+        /* KI-Muster View */
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Brain className="h-5 w-5" />
+              KI-Muster
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Automatisch erkannte Zusammenhänge aus Ihren Einträgen. Diese Hinweise ersetzen keine ärztliche Diagnose.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <VoiceNotesAIAnalysis />
+          </CardContent>
+        </Card>
+      )}
 
       {/* Fullscreen Modals */}
       <FullscreenChartModal
