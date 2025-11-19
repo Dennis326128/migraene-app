@@ -10,6 +10,8 @@ export type PatientData = {
   city?: string;
   phone?: string;
   date_of_birth?: string;
+  health_insurance?: string;
+  insurance_number?: string;
   created_at?: string;
   updated_at?: string;
 };
