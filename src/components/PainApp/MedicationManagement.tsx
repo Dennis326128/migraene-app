@@ -225,8 +225,8 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
             <div className="flex items-center gap-3">
               <AlertTriangle className="h-5 w-5 text-primary flex-shrink-0" />
               <div className="flex-1">
-                <p className="text-sm font-medium">Medikamenten-Übergebrauch vermeiden</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
+                <p className="text-lg font-semibold">Medikamenten-Übergebrauch vermeiden</p>
+                <p className="text-sm text-muted-foreground mt-0.5">
                   Setze Limits und überwache deine Einnahme
                 </p>
               </div>
