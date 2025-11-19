@@ -16,7 +16,6 @@ import { logAndSaveWeatherAt, logAndSaveWeatherAtCoords } from "@/utils/weatherL
 import { TTSEngine } from "@/lib/voice/ttsEngine";
 import { SlotFillingDialog } from "./SlotFillingDialog";
 import { berlinDateToday } from "@/lib/tz";
-import { convertNumericPainToCategory } from "@/lib/utils/pain";
 import { createTraceLogger, type VoiceTraceLogger } from "@/lib/voice/traceLogger";
 
 interface VoiceEntryModalProps {
@@ -861,9 +860,9 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
         console.log(`🕒 Voice Entry: Using current time ${selectedDate} ${selectedTime}`);
       }
       
-      // Convert pain level from numeric to category if needed
-      const painLevelCategory = convertNumericPainToCategory(finalEntry.painLevel);
-      console.log(`🎯 Voice Entry: Pain level conversion ${finalEntry.painLevel} -> ${painLevelCategory}`);
+      // Pain level is already numeric from parser (0-10 as string)
+      // No conversion needed - store directly as numeric string
+      console.log(`🎯 Voice Entry: Using numeric pain level directly: ${finalEntry.painLevel}`);
       
       // Prepare DTO payload
       const dtoPayload = {
@@ -871,7 +870,7 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
         timestamp_created: new Date().toISOString(),
         selected_date: selectedDate,
         selected_time: selectedTime,
-        pain_level: painLevelCategory,
+        pain_level: finalEntry.painLevel, // Now storing numeric values directly
         medications: Array.isArray(finalEntry.medications) ? finalEntry.medications : [finalEntry.medications].filter(Boolean),
         notes: finalEntry.notes?.trim() || "",
         latitude: null as number | null,
@@ -928,7 +927,7 @@ export function VoiceEntryModal({ open, onClose, onSuccess }: VoiceEntryModalPro
       const payload = {
         selected_date: selectedDate,
         selected_time: selectedTime,
-        pain_level: painLevelCategory,
+        pain_level: finalEntry.painLevel, // Store numeric value directly
         aura_type: "keine" as const,
         pain_location: null,
         medications: dtoPayload.medications,
