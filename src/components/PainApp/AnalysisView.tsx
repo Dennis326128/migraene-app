@@ -25,9 +25,10 @@ interface AnalysisViewProps {
 
 export function AnalysisView({ onBack }: AnalysisViewProps) {
   const isMobile = useIsMobile();
-  const [timeRange, setTimeRange] = useState<"3m" | "6m" | "12m" | "custom">("3m");
+  const [timeRange, setTimeRange] = useState<"3m" | "6m" | "12m" | "all" | "custom">("3m");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
+  const [firstEntryDate, setFirstEntryDate] = useState<string | null>(null);
   const [selectedLevels, setSelectedLevels] = useState<string[]>([]);
   const [selectedAuraTypes, setSelectedAuraTypes] = useState<string[]>([]);
   const [selectedPainLocations, setSelectedPainLocations] = useState<string[]>([]);
@@ -41,10 +42,24 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
   const [timeSeriesFullscreen, setTimeSeriesFullscreen] = useState(false);
 
   // Load entries for the "alle" option calculation (limited for performance)
-  const { data: allEntries = [], isLoading: entriesLoading, error: entriesError, refetch } = useEntries({ limit: 1000 });
+  const entriesLimit = timeRange === "all" ? 5000 : 1000;
+  const { data: allEntries = [], isLoading: entriesLoading, error: entriesError, refetch } = useEntries({ limit: entriesLimit });
+
+  // Lade das Datum des ersten Eintrags für "Alle"-Option
+  useEffect(() => {
+    async function loadFirstEntry() {
+      const { getFirstEntryDate } = await import("@/features/entries/api/entries.api");
+      const date = await getFirstEntryDate();
+      setFirstEntryDate(date);
+    }
+    if (timeRange === "all") {
+      loadFirstEntry();
+    }
+  }, [timeRange]);
 
   const { from, to } = useMemo(() => {
     const now = new Date();
+    const today = now.toISOString().split('T')[0];
     
     if (timeRange === "custom") {
       if (customFrom && customTo) {
@@ -54,7 +69,17 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
       const from = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
       return {
         from: from.toISOString().split('T')[0],
-        to: now.toISOString().split('T')[0]
+        to: today
+      };
+    }
+    
+    // "Alle" Option - vom ersten Eintrag bis heute
+    if (timeRange === "all") {
+      // Falls noch kein firstEntryDate geladen: 5 Jahre zurück als Fallback
+      const fallbackFrom = new Date(now.getFullYear() - 5, now.getMonth(), now.getDate());
+      return {
+        from: firstEntryDate || fallbackFrom.toISOString().split('T')[0],
+        to: today
       };
     }
     
@@ -65,9 +90,9 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
     const from = new Date(now.getFullYear(), now.getMonth() - months, now.getDate());
     return {
       from: from.toISOString().split('T')[0],
-      to: now.toISOString().split('T')[0]
+      to: today
     };
-  }, [timeRange, customFrom, customTo]);
+  }, [timeRange, customFrom, customTo, firstEntryDate]);
 
   // Use the same entries data for consistency
   const entries = allEntries;
