@@ -114,12 +114,7 @@ export function MedicationLimitsOverview() {
       {/* Status Overview */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            {hasIssues ? (
-              <AlertTriangle className="h-5 w-5 text-yellow-500" />
-            ) : (
-              <CheckCircle className="h-5 w-5 text-green-500" />
-            )}
+          <CardTitle>
             Medikamenten-Überverbrauch Status
           </CardTitle>
         </CardHeader>
