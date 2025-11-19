@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { useSpeechRecognition } from './useSpeechRecognition';
-import { parseGermanVoiceEntry } from '@/lib/voice/germanParser';
-import { parseGermanReminderEntry, isReminderTrigger } from '@/lib/voice/reminderParser';
+import { analyzeVoiceTranscript } from '@/lib/voice/voiceNlp';
 import { saveVoiceNote } from '@/lib/voice/saveNote';
 import { toast } from '@/hooks/use-toast';
 import { useMeds } from '@/features/meds/hooks/useMeds';
-import { normalizePainLevel } from '@/lib/utils/pain';
+import type { VoiceUserContext } from '@/types/voice.types';
 
 interface QuickEntryData {
   initialPainLevel: number;
@@ -49,118 +48,128 @@ export function useSmartVoiceRouter(options: SmartVoiceRouterOptions) {
       setIsSaving(true);
       
       try {
-        // 1. Check: Ist es eine Erinnerung?
-        if (isReminderTrigger(transcript)) {
-          console.log('⏰ Erinnerung erkannt');
-          
-          const parsedReminder = parseGermanReminderEntry(transcript, userMeds);
-          
-          if (parsedReminder.type) {
-            const reminderData: ReminderData = {
-              type: parsedReminder.type,
-              title: parsedReminder.title,
-              medications: parsedReminder.medications,
-              date: parsedReminder.date,
-              time: parsedReminder.time,
-              timeOfDay: parsedReminder.timeOfDay || undefined,
-              repeat: parsedReminder.repeat,
-              notes: parsedReminder.notes,
-              notification_enabled: true
-            };
-            
-            toast({
-              title: '⏰ Erinnerung erkannt',
-              description: `${parsedReminder.type === 'medication' ? 'Medikament' : 'Termin'}: ${parsedReminder.title}`
-            });
-            
-            options.onReminderDetected?.(reminderData);
-            return;
-          }
-        }
+        // NEU: Zentrale NLP-Analyse
+        const userContext: VoiceUserContext = {
+          userMeds,
+          timezone: 'Europe/Berlin',
+          language: 'de-DE'
+        };
+
+        const analysis = analyzeVoiceTranscript(transcript, userContext, confidence);
         
-        // 2. Check: Ist es ein Schmerz-Eintrag?
-        const parsed = parseGermanVoiceEntry(transcript, userMeds);
-        
-        console.log('📊 Parsed result:', parsed);
-        
-        // Decision: Schmerzlevel erkannt = Schmerz-Eintrag
-        if (parsed.painLevel) {
-          console.log('📝 Schmerz-Eintrag erkannt (painLevel:', parsed.painLevel, ')');
-          
-          // Convert parsed data to QuickEntry format
-          const painScore = normalizePainLevel(parsed.painLevel);
-          
-          // Build medication states
-          const medicationStates: Record<string, boolean> = {};
-          parsed.medications?.forEach(medName => {
-            medicationStates[medName] = true;
-          });
-          
-          // Determine time selection
-          let selectedTime = 'jetzt';
-          let customDate: string | undefined;
-          let customTime: string | undefined;
-          
-          if (parsed.isNow) {
-            selectedTime = 'jetzt';
-          } else if (parsed.selectedDate && parsed.selectedTime) {
-            // Check if it's approximately 1 hour ago
-            const parsedDateTime = new Date(`${parsed.selectedDate}T${parsed.selectedTime}`);
-            const now = new Date();
-            const diffMinutes = Math.abs((now.getTime() - parsedDateTime.getTime()) / 1000 / 60);
-            
-            if (diffMinutes >= 50 && diffMinutes <= 70) {
-              selectedTime = '1h';
-            } else {
-              selectedTime = 'custom';
-              customDate = parsed.selectedDate;
-              customTime = parsed.selectedTime;
+        console.log('🧠 Analysis Result:', {
+          intent: analysis.intent,
+          intentConfidence: analysis.intentConfidence,
+          sttConfidence: analysis.sttConfidence
+        });
+
+        // Intent-basiertes Routing
+        switch (analysis.intent) {
+          case 'reminder':
+            if (analysis.reminder) {
+              const reminderData: ReminderData = {
+                type: analysis.reminder.type || 'medication',
+                title: analysis.reminder.title || 'Erinnerung',
+                medications: analysis.reminder.medications?.map(m => m.name),
+                date: analysis.reminder.date || new Date().toISOString().split('T')[0],
+                time: analysis.reminder.time || '12:00',
+                timeOfDay: analysis.reminder.timeOfDay,
+                repeat: analysis.reminder.repeat || 'none',
+                notes: analysis.reminder.notes || '',
+                notification_enabled: true
+              };
+              
+              toast({
+                title: '⏰ Erinnerung erkannt',
+                description: `${reminderData.type === 'medication' ? 'Medikament' : 'Termin'}: ${reminderData.title}`
+              });
+              
+              options.onReminderDetected?.(reminderData);
             }
-          }
-          
-          const quickEntryData: QuickEntryData = {
-            initialPainLevel: painScore,
-            initialSelectedTime: selectedTime,
-            initialCustomDate: customDate,
-            initialCustomTime: customTime,
-            initialMedicationStates: medicationStates,
-            initialNotes: transcript // Full transcript as notes
-          };
-          
-          toast({
-            title: '📝 Schmerz-Eintrag erkannt',
-            description: `Schmerzstärke ${painScore}/10, ${parsed.medications?.length || 0} Medikament(e)`
-          });
-          
-          options.onEntryDetected?.(quickEntryData);
-          
-        } else {
-          // 3. Fallback: Kein Schmerzlevel → Kontext-Notiz
-          console.log('📝 Kontext-Notiz erkannt (kein Schmerzlevel)');
-          
-          toast({
-            title: '📝 Kontext-Notiz',
-            description: 'Bitte überprüfen und speichern'
-          });
-          
-          // NEU: Callback statt direktes Speichern
-          if (options.onNoteDetected) {
-            options.onNoteDetected(transcript);
-          } else {
-            // Fallback: direktes Speichern (backward compatibility)
-            await saveVoiceNote({
-              rawText: transcript,
-              sttConfidence: confidence,
-              source: 'voice'
-            });
+            break;
+
+          case 'pain_entry':
+            if (analysis.painEntry) {
+              const { painEntry } = analysis;
+              
+              // Build medication states (nur high/medium confidence)
+              const medicationStates: Record<string, boolean> = {};
+              painEntry.medications
+                ?.filter(m => m.confidence >= 0.6)
+                .forEach(med => {
+                  medicationStates[med.name] = true;
+                });
+              
+              // Determine time selection
+              let selectedTime = 'jetzt';
+              let customDate: string | undefined;
+              let customTime: string | undefined;
+              
+              if (painEntry.occurredAt) {
+                const occurredDate = new Date(painEntry.occurredAt);
+                const now = new Date();
+                const diffMinutes = Math.abs((now.getTime() - occurredDate.getTime()) / 1000 / 60);
+                
+                if (diffMinutes < 5) {
+                  selectedTime = 'jetzt';
+                } else if (diffMinutes >= 50 && diffMinutes <= 70) {
+                  selectedTime = '1h';
+                } else {
+                  selectedTime = 'custom';
+                  customDate = occurredDate.toISOString().split('T')[0];
+                  customTime = occurredDate.toISOString().split('T')[1].substring(0, 5);
+                }
+              }
+              
+              const quickEntryData: QuickEntryData = {
+                initialPainLevel: painEntry.painLevel || 5,
+                initialSelectedTime: selectedTime,
+                initialCustomDate: customDate,
+                initialCustomTime: customTime,
+                initialMedicationStates: medicationStates,
+                initialNotes: transcript // Full transcript as notes
+              };
+              
+              toast({
+                title: '📝 Schmerz-Eintrag erkannt',
+                description: `Schmerzstärke ${painEntry.painLevel || '?'}/10, ${Object.keys(medicationStates).length} Medikament(e)`
+              });
+              
+              options.onEntryDetected?.(quickEntryData);
+            }
+            break;
+
+          case 'note':
+          case 'unknown':
+            console.log('📝 Kontext-Notiz oder unbekannter Intent');
             
-            toast({
-              title: '📝 Kontext-Notiz gespeichert',
-              description: 'Wird in der nächsten Analyse berücksichtigt'
-            });
+            if (analysis.intentConfidence < 0.5) {
+              toast({
+                title: '⚠️ Unsicher',
+                description: 'Text als Notiz gespeichert - bitte prüfen',
+                variant: 'default'
+              });
+            } else {
+              toast({
+                title: '📝 Kontext-Notiz',
+                description: 'Gespeichert für spätere Analyse'
+              });
+            }
             
-            options.onNoteCreated?.();
-          }
+            // NEU: Callback statt direktes Speichern
+            if (options.onNoteDetected) {
+              options.onNoteDetected(transcript);
+            } else {
+              // Fallback: direktes Speichern
+              await saveVoiceNote({
+                rawText: transcript,
+                sttConfidence: confidence,
+                source: 'voice'
+              });
+              
+              options.onNoteCreated?.();
+            }
+            break;
         }
         
       } catch (error) {
