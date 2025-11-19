@@ -9,6 +9,8 @@ import { toast } from "sonner";
 
 export const SettingsAccount = ({ onReturn }: { onReturn?: () => void }) => {
   const [userEmail, setUserEmail] = useState<string>("");
+  const [newEmail, setNewEmail] = useState<string>("");
+  const [isUpdatingEmail, setIsUpdatingEmail] = useState(false);
 
   // Patient data state
   const { data: patientData } = usePatientData();
@@ -27,6 +29,7 @@ export const SettingsAccount = ({ onReturn }: { onReturn?: () => void }) => {
     supabase.auth.getUser().then(({ data }) => {
       if (data.user?.email) {
         setUserEmail(data.user.email);
+        setNewEmail(data.user.email);
       }
     });
   }, []);
@@ -43,6 +46,41 @@ export const SettingsAccount = ({ onReturn }: { onReturn?: () => void }) => {
       setDateOfBirth(patientData.date_of_birth || "");
     }
   }, [patientData]);
+
+  const handleUpdateEmail = async () => {
+    if (!newEmail || newEmail === userEmail) {
+      toast.error("Bitte geben Sie eine neue E-Mail-Adresse ein");
+      return;
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newEmail)) {
+      toast.error("Bitte geben Sie eine gültige E-Mail-Adresse ein");
+      return;
+    }
+
+    setIsUpdatingEmail(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ 
+        email: newEmail 
+      });
+
+      if (error) throw error;
+
+      toast.success("Bestätigungs-E-Mail gesendet", {
+        description: "Bitte bestätigen Sie Ihre neue E-Mail-Adresse über den Link in der E-Mail."
+      });
+      
+      // Reset the new email field to current email
+      setNewEmail(userEmail);
+    } catch (error: any) {
+      console.error("E-Mail-Update-Fehler:", error);
+      toast.error(error.message || "Fehler beim Ändern der E-Mail-Adresse");
+    } finally {
+      setIsUpdatingEmail(false);
+    }
+  };
 
   const handleSavePatientData = async () => {
     try {
@@ -67,15 +105,32 @@ export const SettingsAccount = ({ onReturn }: { onReturn?: () => void }) => {
 
   return (
     <div className="space-y-6">
-      {/* Email (Read-only) */}
+      {/* Email */}
       <Card className="p-6">
         <h3 className="text-lg font-semibold mb-4">E-Mail-Adresse</h3>
-        <div className="space-y-2">
-          <Label>E-Mail</Label>
-          <Input value={userEmail} disabled className="bg-muted" />
-          <p className="text-xs text-muted-foreground">
-            Ihre E-Mail-Adresse kann nicht geändert werden
-          </p>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>Aktuelle E-Mail</Label>
+            <Input value={userEmail} disabled className="bg-muted" />
+          </div>
+          <div className="space-y-2">
+            <Label>Neue E-Mail-Adresse</Label>
+            <Input 
+              type="email"
+              value={newEmail} 
+              onChange={(e) => setNewEmail(e.target.value)}
+              placeholder="neue@email.de"
+            />
+            <p className="text-xs text-muted-foreground">
+              Sie erhalten eine Bestätigungs-E-Mail an die neue Adresse. Die Änderung wird erst nach Bestätigung wirksam.
+            </p>
+          </div>
+          <SaveButton 
+            onClick={handleUpdateEmail}
+            isLoading={isUpdatingEmail}
+            disabled={!newEmail || newEmail === userEmail}
+            text="E-Mail ändern"
+          />
         </div>
       </Card>
 
