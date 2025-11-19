@@ -1,16 +1,23 @@
 import { Card } from "@/components/ui/card";
-import { ChevronRight, Pill, Shield, HelpCircle, User } from "lucide-react";
+import { ChevronRight, Pill, Shield, HelpCircle, User, Stethoscope, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 interface SettingsOverviewProps {
-  onNavigate: (section: 'medications' | 'privacy' | 'help' | 'account') => void;
+  onNavigate: (section: 'medications' | 'privacy' | 'help' | 'account' | 'doctors' | 'logout') => void;
 }
 
 export const SettingsOverview = ({ onNavigate }: SettingsOverviewProps) => {
   const isMobile = useIsMobile();
 
   const sections = [
+    {
+      id: 'account' as const,
+      icon: User,
+      title: 'Kontoeinstellungen',
+      description: 'Persönliche Daten und E-Mail-Adresse',
+      gradient: 'from-blue-500/10 to-blue-500/5',
+    },
     {
       id: 'medications' as const,
       icon: Pill,
@@ -19,11 +26,11 @@ export const SettingsOverview = ({ onNavigate }: SettingsOverviewProps) => {
       gradient: 'from-primary/10 to-primary/5',
     },
     {
-      id: 'account' as const,
-      icon: User,
-      title: 'Kontoeinstellungen',
-      description: 'Persönliche Daten, Ärzte und Abmeldung',
-      gradient: 'from-blue-500/10 to-blue-500/5',
+      id: 'doctors' as const,
+      icon: Stethoscope,
+      title: 'Behandelnde Ärzte',
+      description: 'Ärzte-Kontaktdaten hinzufügen und verwalten',
+      gradient: 'from-green-500/10 to-green-500/5',
     },
     {
       id: 'privacy' as const,
@@ -38,6 +45,13 @@ export const SettingsOverview = ({ onNavigate }: SettingsOverviewProps) => {
       title: 'Hilfe & Tutorial',
       description: 'App-Tour wiederholen und Hilfe erhalten',
       gradient: 'from-accent/10 to-accent/5',
+    },
+    {
+      id: 'logout' as const,
+      icon: LogOut,
+      title: 'Abmelden',
+      description: 'Von Ihrem Konto abmelden',
+      gradient: 'from-destructive/10 to-destructive/5',
     },
   ];
 
