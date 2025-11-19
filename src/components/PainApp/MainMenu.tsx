@@ -229,13 +229,11 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 touchFeedback 
                 onClick={() => setShowQuickContextNote(true)}
               >
-                <div className="text-center space-y-2">
-                  <div className="text-2xl">✨</div>
-                  <div>
-                    <h4 className="font-semibold text-sm">Alltag & Auslöser eintragen</h4>
-                    <p className="text-xs opacity-75">Schlaf, Stress, Stimmung, Ernährung, Wetter & mehr</p>
-                  </div>
-                </div>
+                <StartPageCardHeader
+                  icon="✨"
+                  title="Alltag & Auslöser eintragen"
+                  subtitle="Schlaf, Stress, Stimmung, Ernährung, Wetter & mehr"
+                />
               </StartPageCard>
             </StartPageButtonGrid>
           </div>
