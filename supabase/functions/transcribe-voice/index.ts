@@ -5,6 +5,22 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+type SttMode = 'browser_only' | 'provider';
+type SttProvider = 'none' | 'openai' | 'deepgram' | 'assemblyai';
+
+interface SttResult {
+  transcript: string;
+  source: 'browser' | 'provider';
+  confidence: number;
+  error?: 'NO_TRANSCRIPT' | 'PROVIDER_ERROR';
+}
+
+interface TranscribeRequest {
+  browserTranscript?: string;
+  audioBase64?: string;
+  language?: string;
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -15,117 +31,146 @@ serve(async (req) => {
     console.log('🎤 Transcribe Voice: Request received');
 
     // Parse request body
-    const { audioBase64, fallbackTranscript, language = 'de-DE' } = await req.json();
+    const { browserTranscript, audioBase64, language = 'de-DE' } = await req.json() as TranscribeRequest;
 
     // Get STT configuration from environment
-    const sttProvider = Deno.env.get('STT_PROVIDER') || 'none';
-    const sttApiKey = Deno.env.get('STT_API_KEY');
+    const sttMode: SttMode = (Deno.env.get('STT_MODE') === 'provider') ? 'provider' : 'browser_only';
+    const sttProvider: SttProvider = (Deno.env.get('STT_PROVIDER') as SttProvider) || 'none';
+    const sttApiKey = Deno.env.get('OPENAI_API_KEY');
 
-    console.log(`🔧 STT Config: provider=${sttProvider}, hasKey=${!!sttApiKey}`);
+    console.log(`🔧 STT Config: mode=${sttMode}, provider=${sttProvider}, hasKey=${!!sttApiKey}`);
 
-    // Fallback mode: No external provider or no API key
-    if (sttProvider === 'none' || !sttApiKey) {
-      console.log('📝 Using fallback transcript (no external STT provider)');
-      
-      if (!fallbackTranscript) {
+    // ============================================================
+    // MODE: browser_only (DEFAULT - KOSTENLOS)
+    // ============================================================
+    if (sttMode === 'browser_only') {
+      console.log('📱 Browser-only mode: Using browser transcript');
+
+      // Browser-Transkript vorhanden und nicht leer
+      if (browserTranscript && browserTranscript.trim().length > 0) {
+        const result: SttResult = {
+          transcript: browserTranscript.trim(),
+          source: 'browser',
+          confidence: 0.7, // Fixer Wert für Browser-API
+        };
+
+        console.log(`✅ Browser transcript: "${result.transcript}"`);
         return new Response(
-          JSON.stringify({ 
-            error: 'No fallback transcript provided and no STT provider configured' 
-          }),
-          { 
-            status: 400, 
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-          }
+          JSON.stringify(result),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
-      // Return fallback transcript with medium confidence
+      // Browser-Transkript leer oder nicht vorhanden
+      console.log('⚠️ No browser transcript available');
+      const result: SttResult = {
+        transcript: '',
+        source: 'browser',
+        confidence: 0,
+        error: 'NO_TRANSCRIPT',
+      };
+
       return new Response(
-        JSON.stringify({
-          transcript: fallbackTranscript,
-          confidence: 0.7,
-          provider: 'fallback'
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify(result),
+        { 
+          status: 200, // Kein 400/500 Fehler
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
       );
     }
 
-    // External STT provider mode
-    console.log(`🔊 Processing with ${sttProvider} provider`);
+    // ============================================================
+    // MODE: provider (FÜR SPÄTER - MIT OPENAI WHISPER)
+    // ============================================================
+    console.log(`🔊 Provider mode: Using ${sttProvider} provider`);
 
-    // Convert base64 to audio buffer if provided
-    let audioBuffer: Uint8Array | null = null;
-    if (audioBase64) {
+    // Provider konfiguriert und API-Key vorhanden
+    if (sttProvider === 'openai' && sttApiKey && audioBase64) {
       try {
+        console.log('🎯 Calling OpenAI Whisper API...');
+        
+        // Convert base64 to audio buffer
         const binaryString = atob(audioBase64);
-        audioBuffer = new Uint8Array(binaryString.length);
+        const audioBuffer = new Uint8Array(binaryString.length);
         for (let i = 0; i < binaryString.length; i++) {
           audioBuffer[i] = binaryString.charCodeAt(i);
         }
         console.log(`📊 Audio buffer size: ${audioBuffer.length} bytes`);
-      } catch (e) {
-        console.error('❌ Failed to decode audio:', e);
+
+        // TODO: Implement OpenAI Whisper API call here
+        // const formData = new FormData();
+        // formData.append('file', new Blob([audioBuffer]), 'audio.webm');
+        // formData.append('model', 'whisper-1');
+        // formData.append('language', language.split('-')[0]);
+        // 
+        // const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+        //   method: 'POST',
+        //   headers: { 'Authorization': `Bearer ${sttApiKey}` },
+        //   body: formData
+        // });
+        // 
+        // const data = await response.json();
+        // 
+        // const result: SttResult = {
+        //   transcript: data.text,
+        //   source: 'provider',
+        //   confidence: 0.9,
+        // };
+        // 
+        // return new Response(
+        //   JSON.stringify(result),
+        //   { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        // );
+
+        console.log('⚠️ OpenAI Whisper not yet implemented');
+      } catch (error) {
+        console.error('❌ Provider error:', error);
       }
     }
 
-    // Provider-specific implementation
-    switch (sttProvider) {
-      case 'whisper':
-        // TODO: Implement Whisper API call
-        // For now, return fallback
-        console.log('⚠️ Whisper not yet implemented, using fallback');
-        return new Response(
-          JSON.stringify({
-            transcript: fallbackTranscript || '',
-            confidence: 0.6,
-            provider: 'whisper-fallback',
-            note: 'Whisper integration pending'
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+    // Fallback auf Browser-Transkript, wenn Provider nicht verfügbar
+    if (browserTranscript && browserTranscript.trim().length > 0) {
+      console.log('📝 Provider not available, falling back to browser transcript');
+      const result: SttResult = {
+        transcript: browserTranscript.trim(),
+        source: 'browser',
+        confidence: 0.7,
+      };
 
-      case 'deepgram':
-        console.log('⚠️ Deepgram not yet implemented, using fallback');
-        return new Response(
-          JSON.stringify({
-            transcript: fallbackTranscript || '',
-            confidence: 0.6,
-            provider: 'deepgram-fallback'
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-
-      case 'assemblyai':
-        console.log('⚠️ AssemblyAI not yet implemented, using fallback');
-        return new Response(
-          JSON.stringify({
-            transcript: fallbackTranscript || '',
-            confidence: 0.6,
-            provider: 'assemblyai-fallback'
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-
-      default:
-        console.warn(`❓ Unknown provider: ${sttProvider}`);
-        return new Response(
-          JSON.stringify({
-            transcript: fallbackTranscript || '',
-            confidence: 0.5,
-            provider: 'unknown-fallback'
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+      return new Response(
+        JSON.stringify(result),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
+
+    // Kein Transkript verfügbar
+    console.log('⚠️ No transcript available from any source');
+    const result: SttResult = {
+      transcript: '',
+      source: 'browser',
+      confidence: 0,
+      error: 'NO_TRANSCRIPT',
+    };
+
+    return new Response(
+      JSON.stringify(result),
+      { 
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
+    );
 
   } catch (error) {
     console.error('❌ Transcribe error:', error);
+    const result: SttResult = {
+      transcript: '',
+      source: 'browser',
+      confidence: 0,
+      error: 'PROVIDER_ERROR',
+    };
+
     return new Response(
-      JSON.stringify({ 
-        error: error instanceof Error ? error.message : 'Unknown error',
-        transcript: '',
-        confidence: 0.0
-      }),
+      JSON.stringify(result),
       { 
         status: 500, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
