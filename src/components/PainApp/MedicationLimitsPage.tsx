@@ -1,14 +1,16 @@
 import React from "react";
 import { PageHeader } from "@/components/ui/page-header";
-import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MedicationLimitsOverview } from "./MedicationLimitsOverview";
 import { MedicationLimitsSettings } from "./MedicationLimitsSettings";
+import { BarChart3, Settings } from "lucide-react";
 
 interface MedicationLimitsPageProps {
   onBack: () => void;
+  onNavigateToMedications?: () => void;
 }
 
-export function MedicationLimitsPage({ onBack }: MedicationLimitsPageProps) {
+export function MedicationLimitsPage({ onBack, onNavigateToMedications }: MedicationLimitsPageProps) {
   return (
     <div className="min-h-screen bg-background">
       <PageHeader 
@@ -17,26 +19,27 @@ export function MedicationLimitsPage({ onBack }: MedicationLimitsPageProps) {
         sticky={true}
       />
 
-      <div className="container mx-auto p-4 space-y-6">
-        {/* Übersicht & Warnungen */}
-        <section>
-          <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-            <span>📊</span>
-            <span>Aktuelle Übersicht</span>
-          </h2>
-          <MedicationLimitsOverview />
-        </section>
+      <div className="container mx-auto p-4">
+        <Tabs defaultValue="overview" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 h-14 mb-6">
+            <TabsTrigger value="overview" className="text-base px-6 py-3">
+              <BarChart3 className="h-5 w-5 mr-2" />
+              Aktuelle Übersicht
+            </TabsTrigger>
+            <TabsTrigger value="settings" className="text-base px-6 py-3">
+              <Settings className="h-5 w-5 mr-2" />
+              Limits verwalten
+            </TabsTrigger>
+          </TabsList>
 
-        <Separator className="my-6" />
+          <TabsContent value="overview" className="space-y-4">
+            <MedicationLimitsOverview />
+          </TabsContent>
 
-        {/* Limits verwalten */}
-        <section>
-          <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-            <span>⚙️</span>
-            <span>Limits verwalten</span>
-          </h2>
-          <MedicationLimitsSettings />
-        </section>
+          <TabsContent value="settings" className="space-y-4">
+            <MedicationLimitsSettings onNavigateToMedications={onNavigateToMedications} />
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

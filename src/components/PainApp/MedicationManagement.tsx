@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useMeds, useAddMed, useDeleteMed } from "@/features/meds/hooks/useMeds";
 import { useReminders, useCreateReminder } from "@/features/reminders/hooks/useReminders";
-import { Pill, Plus, Pencil, Trash2, Bell, ArrowLeft, Clock } from "lucide-react";
+import { Pill, Plus, Pencil, Trash2, Bell, ArrowLeft, Clock, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -18,9 +18,10 @@ import type { ReminderRepeat } from "@/types/reminder.types";
 
 interface MedicationManagementProps {
   onBack: () => void;
+  onNavigateToLimits?: () => void;
 }
 
-export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBack }) => {
+export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBack, onNavigateToLimits }) => {
   const { data: medications, isLoading } = useMeds();
   const { data: reminders } = useReminders();
   const addMed = useAddMed();
@@ -216,6 +217,31 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
           <p className="text-sm text-muted-foreground">Ihre Medikamente und Erinnerungen</p>
         </div>
       </div>
+
+      {/* Cross-Link to Limits */}
+      {onNavigateToLimits && (
+        <Card className="border-primary/20 bg-primary/5">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="h-5 w-5 text-primary flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-medium">Medikamenten-Übergebrauch vermeiden</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Setze Limits und überwache deine Einnahme
+                </p>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={onNavigateToLimits}
+                className="shrink-0"
+              >
+                Öffnen →
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Add Button */}
       <Button 
