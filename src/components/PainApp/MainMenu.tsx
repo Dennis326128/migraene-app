@@ -250,13 +250,11 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 touchFeedback 
                 onClick={() => onNavigate?.('medication-overview')}
               >
-                <div className="text-center space-y-2">
-                  <div className="text-2xl">💊</div>
-                  <div>
-                    <h4 className="font-semibold text-sm">Wirkung eintragen</h4>
-                    <p className="text-xs opacity-75">Einnahme nachtragen & bewerten</p>
-                  </div>
-                </div>
+                <StartPageCardHeader
+                  icon="💊"
+                  title="Wirkung eintragen"
+                  subtitle="Einnahme nachtragen & bewerten"
+                />
               </StartPageCard>
 
               {/* Medication Management */}
@@ -265,13 +263,11 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 touchFeedback 
                 onClick={() => onNavigate?.('medication-management')}
               >
-                <div className="text-center space-y-2">
-                  <div className="text-2xl">📋</div>
-                  <div>
-                    <h4 className="font-semibold text-sm">Medikamente verwalten</h4>
-                    <p className="text-xs opacity-75">Hinzufügen & Erinnerungen</p>
-                  </div>
-                </div>
+                <StartPageCardHeader
+                  icon="📋"
+                  title="Medikamente verwalten"
+                  subtitle="Hinzufügen & Erinnerungen"
+                />
               </StartPageCard>
             </StartPageButtonGrid>
 
@@ -282,13 +278,11 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 touchFeedback 
                 onClick={() => onNavigate?.('medication-limits')}
               >
-                <div className="text-center space-y-2">
-                  <div className="text-2xl">⚠️</div>
-                  <div>
-                    <h4 className="font-semibold text-sm">Medikamenten-Übergebrauch</h4>
-                    <p className="text-xs opacity-75">Grenzen & Warnungen</p>
-                  </div>
-                </div>
+                <StartPageCardHeader
+                  icon="⚠️"
+                  title="Medikamenten-Übergebrauch"
+                  subtitle="Grenzen & Warnungen"
+                />
               </StartPageCard>
             </StartPageButtonGrid>
           </div>
@@ -304,12 +298,10 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 touchFeedback 
                 onClick={() => onNavigate?.('diary-timeline')}
               >
-                <div className="text-center space-y-2">
-                  <div className="text-2xl">📖</div>
-                  <div>
-                    <h4 className="font-semibold text-sm">Kopfschmerztagebuch</h4>
-                  </div>
-                </div>
+                <StartPageCardHeader
+                  icon="📖"
+                  title="Kopfschmerztagebuch"
+                />
               </StartPageCard>
             </StartPageButtonGrid>
 
@@ -320,12 +312,10 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 touchFeedback 
                 onClick={() => onNavigate?.('analysis')}
               >
-                <div className="text-center space-y-2">
-                  <div className="text-2xl">📊</div>
-                  <div>
-                    <h4 className="font-semibold text-sm">Auswertung & Analyse</h4>
-                  </div>
-                </div>
+                <StartPageCardHeader
+                  icon="📊"
+                  title="Auswertung & Analyse"
+                />
               </StartPageCard>
             </StartPageButtonGrid>
           </div>
@@ -340,13 +330,11 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 touchFeedback 
                 onClick={() => onNavigate?.('reminders')}
               >
-                <div className="text-center space-y-2">
-                  <div className="text-2xl">⏰</div>
-                  <div>
-                    <h4 className="font-semibold text-sm">Erinnerungen</h4>
-                    <p className="text-xs opacity-75">Medikamente & Termine</p>
-                  </div>
-                </div>
+                <StartPageCardHeader
+                  icon="⏰"
+                  title="Erinnerungen"
+                  subtitle="Medikamente & Termine"
+                />
               </StartPageCard>
 
               {/* Settings */}
@@ -355,13 +343,11 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 touchFeedback 
                 onClick={onViewSettings}
               >
-                <div className="text-center space-y-2">
-                  <div className="text-2xl">⚙️</div>
-                  <div>
-                    <h4 className="font-semibold text-sm">Einstellungen</h4>
-                    <p className="text-xs opacity-75">App & Profil</p>
-                  </div>
-                </div>
+                <StartPageCardHeader
+                  icon="⚙️"
+                  title="Einstellungen"
+                  subtitle="App & Profil"
+                />
               </StartPageCard>
             </StartPageButtonGrid>
           </div>
