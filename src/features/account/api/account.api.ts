@@ -20,6 +20,8 @@ export type PatientData = {
 export type Doctor = {
   id?: string;
   user_id: string;
+  salutation?: string;
+  title?: string;
   first_name?: string;
   last_name?: string;
   specialty?: string;
