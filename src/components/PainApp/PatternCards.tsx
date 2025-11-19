@@ -90,6 +90,12 @@ export function PatternCards({ statistics, isLoading = false }: PatternCardsProp
           <CardContent className="space-y-3">
             {painLocation.mostCommon ? (
               <>
+                {painLocation.distribution.length < 3 && (
+                  <div className="text-xs text-amber-500 mb-2 flex items-center gap-1">
+                    <span className="font-medium">⚠️</span>
+                    <span>Zu wenig Daten für aussagekräftige Statistik</span>
+                  </div>
+                )}
                 <div className="flex justify-between items-center pb-2 border-b border-border">
                   <span className="text-sm font-medium">Meistens:</span>
                   <span className="text-lg font-bold text-primary">
@@ -108,9 +114,14 @@ export function PatternCards({ statistics, isLoading = false }: PatternCardsProp
                 </div>
               </>
             ) : (
-              <p className="text-sm text-muted-foreground">
-                Keine Daten zur Schmerzlokalisation verfügbar.
-              </p>
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  Im gewählten Zeitraum wurden keine Einträge mit Schmerzlokalisation dokumentiert.
+                </p>
+                <p className="text-xs text-muted-foreground mt-2 p-2 bg-muted/50 rounded-md">
+                  💡 <span className="font-medium">Tipp:</span> Wähle einen längeren Zeitraum (z.B. "Alle") oder dokumentiere die Schmerzlokalisation bei neuen Einträgen.
+                </p>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -127,6 +138,12 @@ export function PatternCards({ statistics, isLoading = false }: PatternCardsProp
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
+            {auraAndSymptoms.mostCommonAura && auraAndSymptoms.mostCommonAura.percentage < 20 && (
+              <div className="text-xs text-amber-500 mb-2 flex items-center gap-1">
+                <span className="font-medium">⚠️</span>
+                <span>Wenige Aura-Einträge für aussagekräftige Statistik</span>
+              </div>
+            )}
             <div className="space-y-1.5 text-sm">
               <div className="flex justify-between pb-1">
                 <span className="text-muted-foreground">Keine Aura:</span>
@@ -155,9 +172,14 @@ export function PatternCards({ statistics, isLoading = false }: PatternCardsProp
               </>
             )}
             {auraAndSymptoms.topSymptoms.length === 0 && !auraAndSymptoms.mostCommonAura && (
-              <p className="text-xs text-muted-foreground">
-                Zu wenig Daten für eine sichere Aussage zu Symptomen.
-              </p>
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  Im gewählten Zeitraum wurden keine Symptome dokumentiert.
+                </p>
+                <p className="text-xs text-muted-foreground mt-2 p-2 bg-muted/50 rounded-md">
+                  💡 <span className="font-medium">Tipp:</span> Wähle einen längeren Zeitraum oder dokumentiere Symptome bei zukünftigen Einträgen.
+                </p>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -176,6 +198,12 @@ export function PatternCards({ statistics, isLoading = false }: PatternCardsProp
           <CardContent className="space-y-3">
             {medicationAndEffect.mostUsed ? (
               <>
+                {medicationAndEffect.topMedications.length < 2 && (
+                  <div className="text-xs text-amber-500 mb-2 flex items-center gap-1">
+                    <span className="font-medium">⚠️</span>
+                    <span>Wenige Medikations-Einträge für umfassende Statistik</span>
+                  </div>
+                )}
                 <div className="pb-2 border-b border-border">
                   <p className="text-sm font-medium mb-1">Am häufigsten:</p>
                   <p className="text-base font-bold text-primary">
@@ -213,9 +241,14 @@ export function PatternCards({ statistics, isLoading = false }: PatternCardsProp
                 )}
               </>
             ) : (
-              <p className="text-sm text-muted-foreground">
-                Keine Medikationsdaten im gewählten Zeitraum.
-              </p>
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  Im gewählten Zeitraum wurden keine Medikamente dokumentiert.
+                </p>
+                <p className="text-xs text-muted-foreground mt-2 p-2 bg-muted/50 rounded-md">
+                  💡 <span className="font-medium">Tipp:</span> Wähle einen längeren Zeitraum oder dokumentiere Medikamente bei zukünftigen Einträgen.
+                </p>
+              </div>
             )}
           </CardContent>
         </Card>
