@@ -24,11 +24,11 @@ const AnalysisRequestSchema = z.object({
   // Check: toDate >= fromDate
   if (to < from) return false;
   
-  // Check: Max 365 days range
+  // Check: Max 730 days range (2 years for medical long-term analysis)
   const daysDiff = (to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24);
-  return daysDiff <= 365;
+  return daysDiff <= 730;
 }, {
-  message: 'Datumsbereich ungültig: fromDate darf nicht in der Zukunft liegen, toDate muss >= fromDate sein, und max. 365 Tage Spanne'
+  message: 'Datumsbereich ungültig: fromDate darf nicht in der Zukunft liegen, toDate muss >= fromDate sein, und max. 730 Tage (2 Jahre) Spanne'
 });
 
 // Generic error handler to prevent exposing internal structures
