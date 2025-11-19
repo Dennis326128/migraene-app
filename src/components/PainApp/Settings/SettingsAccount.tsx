@@ -23,6 +23,8 @@ export const SettingsAccount = ({ onReturn }: { onReturn?: () => void }) => {
   const [city, setCity] = useState("");
   const [phone, setPhone] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
+  const [healthInsurance, setHealthInsurance] = useState("");
+  const [insuranceNumber, setInsuranceNumber] = useState("");
 
   // Load user email
   useEffect(() => {
@@ -44,6 +46,8 @@ export const SettingsAccount = ({ onReturn }: { onReturn?: () => void }) => {
       setCity(patientData.city || "");
       setPhone(patientData.phone || "");
       setDateOfBirth(patientData.date_of_birth || "");
+      setHealthInsurance(patientData.health_insurance || "");
+      setInsuranceNumber(patientData.insurance_number || "");
     }
   }, [patientData]);
 
@@ -92,6 +96,8 @@ export const SettingsAccount = ({ onReturn }: { onReturn?: () => void }) => {
         city: city,
         phone: phone,
         date_of_birth: dateOfBirth,
+        health_insurance: healthInsurance,
+        insurance_number: insuranceNumber,
       });
       toast.success("Patientendaten gespeichert");
       
@@ -192,6 +198,22 @@ export const SettingsAccount = ({ onReturn }: { onReturn?: () => void }) => {
               type="date"
               value={dateOfBirth}
               onChange={(e) => setDateOfBirth(e.target.value)}
+            />
+          </div>
+          <div>
+            <Label>Krankenversicherung</Label>
+            <Input
+              value={healthInsurance}
+              onChange={(e) => setHealthInsurance(e.target.value)}
+              placeholder="Optional"
+            />
+          </div>
+          <div>
+            <Label>Versichertennummer</Label>
+            <Input
+              value={insuranceNumber}
+              onChange={(e) => setInsuranceNumber(e.target.value)}
+              placeholder="Optional"
             />
           </div>
         </div>

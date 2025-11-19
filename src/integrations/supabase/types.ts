@@ -230,7 +230,9 @@ export type Database = {
           created_at: string | null
           date_of_birth: string | null
           first_name: string | null
+          health_insurance: string | null
           id: string
+          insurance_number: string | null
           last_name: string | null
           phone: string | null
           postal_code: string | null
@@ -243,7 +245,9 @@ export type Database = {
           created_at?: string | null
           date_of_birth?: string | null
           first_name?: string | null
+          health_insurance?: string | null
           id?: string
+          insurance_number?: string | null
           last_name?: string | null
           phone?: string | null
           postal_code?: string | null
@@ -256,7 +260,9 @@ export type Database = {
           created_at?: string | null
           date_of_birth?: string | null
           first_name?: string | null
+          health_insurance?: string | null
           id?: string
+          insurance_number?: string | null
           last_name?: string | null
           phone?: string | null
           postal_code?: string | null
