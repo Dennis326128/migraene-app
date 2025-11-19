@@ -155,7 +155,6 @@ export const SettingsDoctors = () => {
                     <SelectValue placeholder="Kein Titel" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Kein Titel</SelectItem>
                     <SelectItem value="Dr. med.">Dr. med.</SelectItem>
                     <SelectItem value="Prof. Dr. med.">Prof. Dr. med.</SelectItem>
                     <SelectItem value="PD Dr. med.">PD Dr. med.</SelectItem>
@@ -293,7 +292,6 @@ export const SettingsDoctors = () => {
                           <SelectValue placeholder="Kein Titel" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">Kein Titel</SelectItem>
                           <SelectItem value="Dr. med.">Dr. med.</SelectItem>
                           <SelectItem value="Prof. Dr. med.">Prof. Dr. med.</SelectItem>
                           <SelectItem value="PD Dr. med.">PD Dr. med.</SelectItem>
