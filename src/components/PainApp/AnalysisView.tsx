@@ -266,10 +266,10 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
                   </CardHeader>
                   <CardContent>
                     <p className="text-sm text-muted-foreground">
-                      Im Tab <strong>"KI-Muster"</strong> wertet die App zusätzlich deine Notizen, Kontext-Tags, Wetterdaten und Medikamente mit KI aus und zeigt mögliche Trigger & Muster.
+                      Im Tab <strong>"KI-Muster"</strong> analysiert die KI deine Voice-Notizen, Eintragsnotizen, Symptome, Wetterdaten und Medikamente, um mögliche Trigger und Zusammenhänge zu erkennen.
                     </p>
                     <p className="text-xs text-muted-foreground mt-2">
-                      Diese Hinweise ersetzen keine ärztliche Diagnose.
+                      Diese KI-basierte Analyse dient als Orientierungshilfe und ersetzt keine ärztliche Diagnose.
                     </p>
                   </CardContent>
                 </Card>
