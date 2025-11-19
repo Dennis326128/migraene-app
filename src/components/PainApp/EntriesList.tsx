@@ -90,7 +90,7 @@ export const EntriesList = ({
           {sorted.map((entry) => (
             <div
               key={entry.id}
-              className="p-4 border rounded-lg bg-card hover:bg-accent/50 cursor-pointer transition-colors"
+              className="p-4 border-border/30 border rounded-lg bg-card hover:bg-accent/50 cursor-pointer transition-colors"
               onClick={() => setSelectedEntry(entry)}
             >
               <div className="flex justify-between items-start">

@@ -365,7 +365,7 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
                     type="date" 
                     value={customDate}
                     onChange={(e) => setCustomDate(e.target.value)}
-                    className="w-full p-2 border border-border rounded text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full p-2 border border-border/30 rounded text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
                 <div>
@@ -374,7 +374,7 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
                     type="time" 
                     value={customTime}
                     onChange={(e) => setCustomTime(e.target.value)}
-                    className="w-full p-2 border border-border rounded text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full p-2 border border-border/30 rounded text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
               </div>
