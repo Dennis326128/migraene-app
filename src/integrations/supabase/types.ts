@@ -139,6 +139,7 @@ export type Database = {
           entry_id: number
           id: string
           med_name: string
+          medication_id: string | null
           method: string | null
           notes: string | null
           side_effects: string[] | null
@@ -151,6 +152,7 @@ export type Database = {
           entry_id: number
           id?: string
           med_name: string
+          medication_id?: string | null
           method?: string | null
           notes?: string | null
           side_effects?: string[] | null
@@ -163,12 +165,21 @@ export type Database = {
           entry_id?: number
           id?: string
           med_name?: string
+          medication_id?: string | null
           method?: string | null
           notes?: string | null
           side_effects?: string[] | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "medication_effects_medication_id_fkey"
+            columns: ["medication_id"]
+            isOneToOne: false
+            referencedRelation: "user_medications"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       pain_entries: {
         Row: {
@@ -176,6 +187,7 @@ export type Database = {
           id: number
           latitude: number | null
           longitude: number | null
+          medication_ids: string[] | null
           medications: string[] | null
           notes: string | null
           pain_level: string
@@ -191,6 +203,7 @@ export type Database = {
           id?: number
           latitude?: number | null
           longitude?: number | null
+          medication_ids?: string[] | null
           medications?: string[] | null
           notes?: string | null
           pain_level: string
@@ -206,6 +219,7 @@ export type Database = {
           id?: number
           latitude?: number | null
           longitude?: number | null
+          medication_ids?: string[] | null
           medications?: string[] | null
           notes?: string | null
           pain_level?: string
@@ -428,6 +442,7 @@ export type Database = {
           id: string
           is_active: boolean
           limit_count: number
+          medication_id: string | null
           medication_name: string
           period_type: string
           updated_at: string
@@ -438,6 +453,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           limit_count: number
+          medication_id?: string | null
           medication_name: string
           period_type: string
           updated_at?: string
@@ -448,12 +464,21 @@ export type Database = {
           id?: string
           is_active?: boolean
           limit_count?: number
+          medication_id?: string | null
           medication_name?: string
           period_type?: string
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "user_medication_limits_medication_id_fkey"
+            columns: ["medication_id"]
+            isOneToOne: false
+            referencedRelation: "user_medications"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_medications: {
         Row: {
@@ -710,6 +735,15 @@ export type Database = {
     }
     Functions: {
       delete_user_account: { Args: never; Returns: undefined }
+      get_recent_medications: {
+        Args: { p_limit?: number; p_user_id: string }
+        Returns: {
+          id: string
+          last_used: string
+          name: string
+          use_count: number
+        }[]
+      }
       invoke_auto_weather: { Args: never; Returns: undefined }
       invoke_auto_weather_backfill: { Args: never; Returns: undefined }
       rpc_entries_filtered: {
@@ -726,6 +760,7 @@ export type Database = {
           id: number
           latitude: number | null
           longitude: number | null
+          medication_ids: string[] | null
           medications: string[] | null
           notes: string | null
           pain_level: string

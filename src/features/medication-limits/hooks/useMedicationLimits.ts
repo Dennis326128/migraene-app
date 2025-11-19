@@ -47,11 +47,20 @@ async function createMedicationLimit(payload: CreateMedicationLimitPayload): Pro
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Kein Nutzer');
 
+  // Get medication ID from name
+  const { data: medData } = await supabase
+    .from('user_medications')
+    .select('id')
+    .eq('user_id', user.id)
+    .eq('name', payload.medication_name)
+    .single();
+
   const { data, error } = await supabase
     .from('user_medication_limits')
     .insert({
       user_id: user.id,
-      ...payload
+      ...payload,
+      medication_id: medData?.id || null, // NEW: Populate ID alongside name
     })
     .select()
     .single();
@@ -64,9 +73,26 @@ async function updateMedicationLimit(
   id: string, 
   payload: Partial<CreateMedicationLimitPayload>
 ): Promise<MedicationLimit> {
+  const updates: any = { ...payload };
+
+  // If medication_name is updated, also update medication_id
+  if (payload.medication_name) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: medData } = await supabase
+        .from('user_medications')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('name', payload.medication_name)
+        .single();
+      
+      updates.medication_id = medData?.id || null;
+    }
+  }
+
   const { data, error } = await supabase
     .from('user_medication_limits')
-    .update(payload)
+    .update(updates)
     .eq('id', id)
     .select()
     .single();

@@ -6,6 +6,11 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Helper function to normalize medication names for comparison
+const normalizeMedicationName = (name: string): string => {
+  return name.trim().toLowerCase();
+};
+
 interface MedicationLimit {
   id: string;
   medication_name: string;
@@ -78,10 +83,13 @@ serve(async (req) => {
       throw limitsError;
     }
 
-    // Filter client-side to match requested medications
-    const limits = (allLimits || []).filter(limit => 
-      medications.includes(limit.medication_name)
-    ) as MedicationLimit[];
+    // Filter client-side to match requested medications (case-insensitive, trimmed)
+    const limits = (allLimits || []).filter(limit => {
+      const normalizedLimitName = normalizeMedicationName(limit.medication_name);
+      return medications.some((med: string) => 
+        normalizeMedicationName(med) === normalizedLimitName
+      );
+    }) as MedicationLimit[];
 
     console.log('📋 Active limits found:', limits.length);
     if (limits.length > 0) {
@@ -129,14 +137,17 @@ serve(async (req) => {
         console.error('Pain entries error:', entriesError);
       }
 
-      // Calculate total usage from pain_entries
+      // Calculate total usage from pain_entries (case-insensitive, trimmed)
       let currentCount = 0;
+      const normalizedLimitName = normalizeMedicationName(limit.medication_name);
       
       if (painEntries) {
         for (const entry of painEntries) {
-          if (entry.medications && entry.medications.includes(limit.medication_name)) {
+          if (entry.medications) {
             // Count each occurrence of this medication in the array
-            const medicationCount = entry.medications.filter((med: string) => med === limit.medication_name).length;
+            const medicationCount = entry.medications.filter((med: string) => 
+              normalizeMedicationName(med) === normalizedLimitName
+            ).length;
             currentCount += medicationCount;
           }
         }

@@ -11,6 +11,31 @@ export type ListParams = {
 
 export type PainEntryPayload = EntryPayload;
 
+// Helper: Convert medication names to IDs
+async function getMedicationIds(userId: string, medicationNames: string[]): Promise<string[]> {
+  if (!medicationNames || medicationNames.length === 0) return [];
+  
+  const { data, error } = await supabase
+    .from('user_medications')
+    .select('id, name')
+    .eq('user_id', userId)
+    .in('name', medicationNames);
+  
+  if (error) {
+    console.error('Error fetching medication IDs:', error);
+    return [];
+  }
+  
+  // Map names to IDs (case-insensitive match)
+  const nameToId = new Map(
+    (data || []).map(med => [med.name.toLowerCase().trim(), med.id])
+  );
+  
+  return medicationNames
+    .map(name => nameToId.get(name.toLowerCase().trim()))
+    .filter((id): id is string => id !== undefined);
+}
+
 function normalizeWeather(w: any) {
   if (!w) return undefined;
   if (Array.isArray(w)) return w[0] ? {
@@ -141,9 +166,17 @@ export async function createEntry(payload: PainEntryPayload) {
 }
 
 export async function updateEntry(id: string, patch: Partial<PainEntryPayload>) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Kein Nutzer");
+
   // Zod-Validierung für Teilupdates
   const parsed = EntryPayloadSchema.partial().parse(patch);
   const update: any = { ...parsed };
+
+  // If medications are updated, also update medication_ids
+  if (parsed.medications) {
+    update.medication_ids = await getMedicationIds(user.id, parsed.medications);
+  }
 
   // Wenn Datum oder Uhrzeit geändert werden, timestamp_created neu setzen
   if (parsed.selected_date || parsed.selected_time) {
