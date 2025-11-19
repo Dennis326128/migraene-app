@@ -136,7 +136,7 @@ export function AppTutorialModal({ open, onComplete, canSkip = true }: AppTutori
   const isLastStep = currentStep === tutorialSteps.length - 1;
 
   return (
-    <Dialog open={open} onOpenChange={() => {}}>
+    <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onComplete(); }}>
       <DialogContent className="sm:max-w-[640px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center justify-between mb-2">
