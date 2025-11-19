@@ -133,12 +133,23 @@ export default function AuthPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle className="text-2xl font-bold text-center">
-            {isForgotPassword ? "Passwort zurücksetzen" : (isLogin ? "Einloggen" : "Registrieren")}
-          </CardTitle>
-        </CardHeader>
+      <div className="w-full max-w-md space-y-6">
+        {/* App-Branding Header */}
+        <div className="text-center space-y-2 mb-8">
+          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-primary via-primary/80 to-primary/60 bg-clip-text text-transparent">
+            Migräne-App
+          </h1>
+          <p className="text-muted-foreground text-sm md:text-base font-medium">
+            Dein Migräne-Manager im Alltag
+          </p>
+        </div>
+
+        <Card className="w-full">
+          <CardHeader>
+            <CardTitle className="text-2xl font-bold text-center">
+              {isForgotPassword ? "Passwort zurücksetzen" : (isLogin ? "Einloggen" : "Registrieren")}
+            </CardTitle>
+          </CardHeader>
         <CardContent className="space-y-4">
           <div>
             <Label htmlFor="email" className="mb-1 block">E-Mail</Label>
@@ -260,7 +271,8 @@ export default function AuthPage() {
             )}
           </div>
         </CardContent>
-      </Card>
+        </Card>
+      </div>
     </div>
   );
 }
