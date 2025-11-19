@@ -74,8 +74,11 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
       setCustomDate(initialCustomDate || now.toISOString().slice(0, 10));
       setCustomTime(initialCustomTime || now.toTimeString().slice(0, 5));
       
-      // Use voice input data or defaults
-      setPainLevel(initialPainLevel ?? 7);
+      // Use voice input data or defaults with validation
+      const validatedPainLevel = initialPainLevel !== undefined 
+        ? Math.min(10, Math.max(0, initialPainLevel)) 
+        : 7;
+      setPainLevel(validatedPainLevel);
       setSelectedTime(initialSelectedTime ?? "jetzt");
       
       // Set medication states from voice input or reset
@@ -126,6 +129,16 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
         title: "Fehler", 
         description: "Bitte Schmerzstärke auswählen", 
         variant: "destructive" 
+      });
+      return;
+    }
+
+    // Validate pain level range
+    if (painLevel < 0 || painLevel > 10) {
+      toast({
+        title: "Ungültiger Schmerzwert",
+        description: "Schmerzwert muss zwischen 0 und 10 liegen",
+        variant: "destructive",
       });
       return;
     }

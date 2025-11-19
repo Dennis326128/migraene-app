@@ -191,6 +191,26 @@ export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProp
       return;
     }
 
+    // Validate pain level range
+    if (painLevel < 0 || painLevel > 10) {
+      toast({
+        title: "Ungültiger Schmerzwert",
+        description: "Schmerzwert muss zwischen 0 und 10 liegen",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate notes length
+    if (notes && notes.length > 2000) {
+      toast({
+        title: "Notizen zu lang",
+        description: "Notizen dürfen maximal 2000 Zeichen enthalten",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // No pre-save check - save directly
     await performSave();
   };

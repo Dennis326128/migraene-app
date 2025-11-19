@@ -17,7 +17,8 @@ export const EntriesList = ({
   onBack: () => void;
   onEdit: (entry: MigraineEntry) => void;
 }) => {
-  const { data: entries = [], isLoading, isError } = useEntries();
+  const [limit, setLimit] = useState(50);
+  const { data: entries = [], isLoading, isError } = useEntries({ limit });
   const { mutate: deleteMutate } = useDeleteEntry();
   const [selectedEntry, setSelectedEntry] = useState<MigraineEntry | null>(null);
 
@@ -205,6 +206,18 @@ export const EntriesList = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      
+      {sorted.length >= limit && (
+        <div className="mt-4 text-center">
+          <Button 
+            variant="outline" 
+            onClick={() => setLimit(prev => prev + 50)}
+            className="w-full"
+          >
+            Mehr laden
+          </Button>
+        </div>
+      )}
     </div>
   );
 };

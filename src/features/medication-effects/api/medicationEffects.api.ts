@@ -134,11 +134,11 @@ export type RecentMedicationEntry = {
   medication_effects: MedicationEffect[];
 };
 
-export async function getRecentMedicationsWithEffects(): Promise<RecentMedicationEntry[]> {
+export async function getRecentMedicationsWithEffects(limit = 50, offset = 0): Promise<RecentMedicationEntry[]> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
 
-  // Get entries with medications from last 7 days
+  // Get entries with medications from last 7 days (with pagination)
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
@@ -149,7 +149,7 @@ export async function getRecentMedicationsWithEffects(): Promise<RecentMedicatio
     .not("medications", "is", null)
     .gte("timestamp_created", sevenDaysAgo.toISOString())
     .order("timestamp_created", { ascending: false })
-    .limit(20);
+    .range(offset, offset + limit - 1);
 
   if (entriesError) throw entriesError;
 

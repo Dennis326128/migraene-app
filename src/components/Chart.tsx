@@ -96,15 +96,20 @@ export default function ChartComponent({ entries, dateRange, timeRange }: Props)
     };
 
     dataWithPainAndWeather.forEach(d => {
-      if (d.pressure! < 1005) {
-        avgPainByPressure.low.pain += d.pain!;
-        avgPainByPressure.low.count++;
-      } else if (d.pressure! > 1020) {
-        avgPainByPressure.high.pain += d.pain!;
-        avgPainByPressure.high.count++;
-      } else {
-        avgPainByPressure.normal.pain += d.pain!;
-        avgPainByPressure.normal.count++;
+      const pressure = d.pressure;
+      const pain = d.pain;
+      
+      if (pressure !== null && pain !== null) {
+        if (pressure < 1005) {
+          avgPainByPressure.low.pain += pain;
+          avgPainByPressure.low.count++;
+        } else if (pressure > 1020) {
+          avgPainByPressure.high.pain += pain;
+          avgPainByPressure.high.count++;
+        } else {
+          avgPainByPressure.normal.pain += pain;
+          avgPainByPressure.normal.count++;
+        }
       }
     });
 

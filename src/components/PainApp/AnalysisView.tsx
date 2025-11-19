@@ -40,8 +40,8 @@ export function AnalysisView({ onBack }: AnalysisViewProps) {
   const [timeDistributionFullscreen, setTimeDistributionFullscreen] = useState(false);
   const [timeSeriesFullscreen, setTimeSeriesFullscreen] = useState(false);
 
-  // Load ALL entries first to calculate date range for "alle"
-  const { data: allEntries = [], isLoading: entriesLoading, error: entriesError, refetch } = useEntries();
+  // Load entries for the "alle" option calculation (limited for performance)
+  const { data: allEntries = [], isLoading: entriesLoading, error: entriesError, refetch } = useEntries({ limit: 1000 });
 
   const { from, to } = useMemo(() => {
     const now = new Date();

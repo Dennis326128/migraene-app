@@ -46,10 +46,10 @@ export function useMedicationEffects(entryId: number) {
   });
 }
 
-export function useRecentMedicationsWithEffects() {
+export function useRecentMedicationsWithEffects(limit = 50, offset = 0) {
   return useQuery({
-    queryKey: ["recentMedicationsWithEffects"],
-    queryFn: getRecentMedicationsWithEffects,
+    queryKey: ["recentMedicationsWithEffects", limit, offset],
+    queryFn: () => getRecentMedicationsWithEffects(limit, offset),
     staleTime: 1 * 60 * 1000, // 1 minute
   });
 }
