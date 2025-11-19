@@ -140,7 +140,7 @@ export default function AuthPage() {
             Migräne-App
           </h1>
           <p className="text-muted-foreground text-sm md:text-base font-medium">
-            Alles Wichtige rund ums Thema Migräne an einem Ort
+            Alles Wichtige zu deiner Migräne in einer App
           </p>
         </div>
 
