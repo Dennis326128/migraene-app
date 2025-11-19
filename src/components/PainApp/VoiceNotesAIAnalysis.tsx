@@ -40,6 +40,27 @@ export function VoiceNotesAIAnalysis() {
   });
 
   const runAnalysis = async () => {
+    // Validate date range before sending
+    const daysDiff = Math.ceil((dateRange.to.getTime() - dateRange.from.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (daysDiff > 730) {
+      toast({
+        title: '⚠️ Zeitraum zu groß',
+        description: 'Bitte wählen Sie einen Zeitraum von maximal 2 Jahren (730 Tage)',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (dateRange.from > new Date()) {
+      toast({
+        title: '⚠️ Ungültiges Datum',
+        description: 'Das Start-Datum darf nicht in der Zukunft liegen',
+        variant: 'destructive'
+      });
+      return;
+    }
+
     setIsAnalyzing(true);
     try {
       const { data, error } = await supabase.functions.invoke('analyze-voice-notes', {
