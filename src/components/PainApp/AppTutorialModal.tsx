@@ -61,9 +61,8 @@ const tutorialSteps: TutorialStep[] = [
     title: "Erinnerungen & Termine",
     description: "Verpasse keine wichtige Medikamenteneinnahme oder Arzttermine mehr.",
     highlights: [
-      "Lass dich an Medikamente und Arzttermine erinnern",
-      "Flexible Wiederholungen für tägliche oder gelegentliche Einnahmen",
-      "Behalte anstehende und erledigte Erinnerungen im Blick"
+      "Erhalte Erinnerungen für Medikamente und Arzttermine zur richtigen Zeit",
+      "Flexible Wiederholungen – täglich, wöchentlich oder individuell angepasst"
     ],
     benefit: "So verpasst du keine wichtige Einnahme oder Untersuchung."
   },
@@ -73,9 +72,8 @@ const tutorialSteps: TutorialStep[] = [
     title: "Auswertungen, Wetter & Muster",
     description: "Die App analysiert deine Einträge und zeigt dir verständliche Auswertungen.",
     highlights: [
-      "Diagramme zu Häufigkeit, Intensität und zeitlicher Verteilung deiner Migräne",
-      "Wetterdaten (z. B. Luftdruck, Temperatur) werden mit deinen Episoden verknüpft",
-      "KI hilft, mögliche Muster und Auslöser sichtbar zu machen"
+      "Die App wertet deine Migräne-Daten automatisch aus und erstellt verständliche Diagramme",
+      "KI analysiert Zusammenhänge zwischen deinen Episoden, Wetter und möglichen Auslösern"
     ],
     benefit: "Datenbasierte Einblicke – für besseres Verständnis und gezielte Gespräche mit Ärzten."
   },
