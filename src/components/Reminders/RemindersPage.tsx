@@ -1,15 +1,21 @@
 import { useState, useEffect } from 'react';
-import { Plus, Bell, BellOff } from 'lucide-react';
+import { Plus, Bell, BellOff, Clock, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/ui/page-header';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { FloatingActionButton } from '@/components/ui/floating-action-button';
 import { ReminderCard } from './ReminderCard';
 import { ReminderForm } from './ReminderForm';
+import { EmptyState } from '@/components/ui/empty-state';
 import {
-  useTodayReminders,
-  useUpcomingReminders,
-  usePastReminders,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  useActiveReminders,
+  useHistoryReminders,
   useCreateReminder,
   useCreateMultipleReminders,
   useUpdateReminder,
@@ -20,8 +26,10 @@ import type { Reminder, CreateReminderInput, UpdateReminderInput } from '@/types
 import { notificationService } from '@/lib/notifications';
 import { toast } from '@/hooks/use-toast';
 
-type FilterType = 'all' | 'medication' | 'appointment';
 type ViewMode = 'list' | 'form';
+type ActiveTab = 'active' | 'history';
+type FilterType = 'all' | 'medication' | 'appointment';
+type RangeFilter = 'today' | '7days' | '30days' | 'all';
 
 interface RemindersPageProps {
   onBack?: () => void;
@@ -30,12 +38,13 @@ interface RemindersPageProps {
 export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [editingReminder, setEditingReminder] = useState<Reminder | null>(null);
+  const [activeTab, setActiveTab] = useState<ActiveTab>('active');
   const [filterType, setFilterType] = useState<FilterType>('all');
+  const [rangeFilter, setRangeFilter] = useState<RangeFilter>('7days');
   const [hasNotificationPermission, setHasNotificationPermission] = useState(false);
 
-  const { data: todayReminders = [], isLoading: loadingToday } = useTodayReminders();
-  const { data: upcomingReminders = [], isLoading: loadingUpcoming } = useUpcomingReminders();
-  const { data: pastReminders = [], isLoading: loadingPast } = usePastReminders();
+  const { data: activeReminders = [], isLoading: loadingActive } = useActiveReminders();
+  const { data: historyReminders = [], isLoading: loadingHistory } = useHistoryReminders();
 
   const createMutation = useCreateReminder();
   const createMultipleMutation = useCreateMultipleReminders();
@@ -65,9 +74,59 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
     }
   };
 
-  const filterReminders = (reminders: Reminder[]) => {
-    if (filterType === 'all') return reminders;
-    return reminders.filter((r) => r.type === filterType);
+  const getFilteredReminders = () => {
+    let reminders = activeTab === 'active' ? activeReminders : historyReminders;
+    
+    // Typ-Filter
+    if (filterType !== 'all') {
+      reminders = reminders.filter(r => r.type === filterType);
+    }
+    
+    // Zeitraum-Filter (nur für "Aktiv"-Tab)
+    if (activeTab === 'active' && rangeFilter !== 'all') {
+      const now = new Date();
+      const endDate = new Date(now);
+      
+      switch (rangeFilter) {
+        case 'today':
+          endDate.setHours(23, 59, 59, 999);
+          break;
+        case '7days':
+          endDate.setDate(endDate.getDate() + 7);
+          break;
+        case '30days':
+          endDate.setDate(endDate.getDate() + 30);
+          break;
+      }
+      
+      reminders = reminders.filter(r => 
+        new Date(r.date_time) <= endDate
+      );
+    }
+    
+    return reminders;
+  };
+
+  const getTypeCounts = () => {
+    const reminders = activeTab === 'active' ? activeReminders : historyReminders;
+    
+    return {
+      all: reminders.length,
+      medication: reminders.filter(r => r.type === 'medication').length,
+      appointment: reminders.filter(r => r.type === 'appointment').length,
+    };
+  };
+
+  const typeCounts = getTypeCounts();
+  const filteredReminders = getFilteredReminders();
+
+  const handleEdit = (reminder: Reminder) => {
+    setEditingReminder(reminder);
+    setViewMode('form');
+  };
+
+  const handleMarkDone = async (id: string) => {
+    markDoneMutation.mutate(id);
   };
 
   const handleCreate = (data: CreateReminderInput | CreateReminderInput[]) => {
@@ -75,6 +134,7 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
       createMultipleMutation.mutate(data, {
         onSuccess: (newReminders) => {
           setViewMode('list');
+          setEditingReminder(null);
           if (hasNotificationPermission) {
             newReminders.forEach((reminder) => {
               if (reminder.notification_enabled) {
@@ -88,6 +148,7 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
       createMutation.mutate(data, {
         onSuccess: (newReminder) => {
           setViewMode('list');
+          setEditingReminder(null);
           if (newReminder.notification_enabled && hasNotificationPermission) {
             notificationService.scheduleReminder(newReminder);
           }
@@ -121,33 +182,60 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
     });
   };
 
-  const handleEdit = (reminder: Reminder) => {
-    setEditingReminder(reminder);
-    setViewMode('form');
-  };
-
-  const handleMarkDone = (id: string) => {
-    markDoneMutation.mutate(id);
-  };
-
   const handleCancel = () => {
     setViewMode('list');
     setEditingReminder(null);
   };
 
+  const getRangeLabel = () => {
+    switch (rangeFilter) {
+      case 'today':
+        return 'Heute';
+      case '7days':
+        return 'Nächste 7 Tage';
+      case '30days':
+        return 'Nächste 30 Tage';
+      case 'all':
+        return 'Alle';
+      default:
+        return 'Nächste 7 Tage';
+    }
+  };
+
+  const getEmptyStateForActive = () => {
+    if (activeReminders.length === 0) {
+      return {
+        icon: <Bell className="w-12 h-12" />,
+        title: 'Keine aktiven Erinnerungen',
+        description: 'Nutzen Sie "Neue Erinnerung", um Medikamente oder Termine hinzuzufügen.',
+      };
+    }
+    
+    if (filteredReminders.length === 0 && rangeFilter !== 'all') {
+      return {
+        icon: <Clock className="w-12 h-12" />,
+        title: `Keine Erinnerungen ${rangeFilter === 'today' ? 'für heute' : `in ${getRangeLabel()}`}`,
+        description: 'Sie haben noch Erinnerungen in einem anderen Zeitraum.',
+      };
+    }
+    
+    return {
+      icon: <Clock className="w-12 h-12" />,
+      title: 'Keine Erinnerungen gefunden',
+      description: 'Mit den aktuellen Filtern gibt es keine Erinnerungen.',
+    };
+  };
+
+  const isLoading = activeTab === 'active' ? loadingActive : loadingHistory;
+
   if (viewMode === 'form') {
     return (
-      <div className="container max-w-2xl mx-auto px-4 py-6">
-        <h1 className="text-2xl font-bold text-foreground mb-6">
-          {editingReminder ? 'Erinnerung bearbeiten' : 'Neue Erinnerung'}
-        </h1>
-        <ReminderForm
-          reminder={editingReminder || undefined}
-          onSubmit={editingReminder ? handleUpdate : handleCreate}
-          onCancel={handleCancel}
-          onDelete={editingReminder ? handleDelete : undefined}
-        />
-      </div>
+      <ReminderForm
+        reminder={editingReminder}
+        onSubmit={editingReminder ? handleUpdate : handleCreate}
+        onCancel={handleCancel}
+        onDelete={editingReminder ? handleDelete : undefined}
+      />
     );
   }
 
@@ -159,7 +247,6 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
       />
 
       <div className="container mx-auto px-4 pb-6">
-        {/* Prominenter Button für neue Erinnerung */}
         <div className="mb-6">
           <Button
             onClick={() => setViewMode('form')}
@@ -170,110 +257,152 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
             Neue Erinnerung
           </Button>
         </div>
+
         {!hasNotificationPermission && (
           <div className="mb-4">
             <Button
-              variant="outline"
-              size="sm"
               onClick={requestNotificationPermission}
-              className="w-full touch-manipulation min-h-11"
+              variant="outline"
+              className="w-full"
             >
-              <BellOff className="h-4 w-4 mr-2" />
+              <BellOff className="w-5 h-5 mr-2" />
               Benachrichtigungen aktivieren
             </Button>
           </div>
         )}
 
-        <div className="mb-4 flex gap-2 flex-wrap">
-          <Button
-            variant={filterType === 'all' ? 'default' : 'outline'}
-            onClick={() => setFilterType('all')}
-            size="sm"
-          >
-            Alle
-          </Button>
-          <Button
-            variant={filterType === 'medication' ? 'default' : 'outline'}
-            onClick={() => setFilterType('medication')}
-            size="sm"
-          >
-            Medikamente
-          </Button>
-          <Button
-            variant={filterType === 'appointment' ? 'default' : 'outline'}
-            onClick={() => setFilterType('appointment')}
-            size="sm"
-          >
-            Termine
-          </Button>
-        </div>
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as ActiveTab)} className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-4">
+            <TabsTrigger value="active">Aktiv</TabsTrigger>
+            <TabsTrigger value="history">Historie</TabsTrigger>
+          </TabsList>
 
-        <Tabs defaultValue="today" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="today">Heute</TabsTrigger>
-          <TabsTrigger value="upcoming">Zukünftig</TabsTrigger>
-          <TabsTrigger value="past">Vergangenheit</TabsTrigger>
-        </TabsList>
+          <TabsContent value="active" className="mt-0">
+            <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
+              <Button
+                size="sm"
+                variant={filterType === 'all' ? 'default' : 'outline'}
+                onClick={() => setFilterType('all')}
+                className="whitespace-nowrap touch-manipulation"
+              >
+                Alle {typeCounts.all > 0 && `(${typeCounts.all})`}
+              </Button>
+              <Button
+                size="sm"
+                variant={filterType === 'medication' ? 'default' : 'outline'}
+                onClick={() => setFilterType('medication')}
+                className="whitespace-nowrap touch-manipulation"
+              >
+                Medikamente {typeCounts.medication > 0 && `(${typeCounts.medication})`}
+              </Button>
+              <Button
+                size="sm"
+                variant={filterType === 'appointment' ? 'default' : 'outline'}
+                onClick={() => setFilterType('appointment')}
+                className="whitespace-nowrap touch-manipulation"
+              >
+                Termine {typeCounts.appointment > 0 && `(${typeCounts.appointment})`}
+              </Button>
+            </div>
 
-        <TabsContent value="today" className="space-y-3 mt-6">
-          {loadingToday ? (
-            <p className="text-center text-muted-foreground py-8">Laden...</p>
-          ) : filterReminders(todayReminders).length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">
-              Keine Erinnerungen für heute
-            </p>
-          ) : (
-            filterReminders(todayReminders).map((reminder) => (
-              <ReminderCard
-                key={reminder.id}
-                reminder={reminder}
-                onEdit={handleEdit}
-                onMarkDone={handleMarkDone}
+            <div className="flex justify-end mb-4">
+              <Select value={rangeFilter} onValueChange={(v) => setRangeFilter(v as RangeFilter)}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Zeitraum wählen" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="today">Heute</SelectItem>
+                  <SelectItem value="7days">Nächste 7 Tage</SelectItem>
+                  <SelectItem value="30days">Nächste 30 Tage</SelectItem>
+                  <SelectItem value="all">Alle</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {isLoading ? (
+              <div className="space-y-3">
+                <div className="h-24 bg-muted animate-pulse rounded-lg" />
+                <div className="h-24 bg-muted animate-pulse rounded-lg" />
+                <div className="h-24 bg-muted animate-pulse rounded-lg" />
+              </div>
+            ) : filteredReminders.length > 0 ? (
+              <div className="space-y-3">
+                {filteredReminders.map((reminder) => (
+                  <ReminderCard
+                    key={reminder.id}
+                    reminder={reminder}
+                    onEdit={handleEdit}
+                    onMarkDone={handleMarkDone}
+                  />
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                icon={getEmptyStateForActive().icon}
+                title={getEmptyStateForActive().title}
+                description={getEmptyStateForActive().description}
               />
-            ))
-          )}
-        </TabsContent>
+            )}
+          </TabsContent>
 
-        <TabsContent value="upcoming" className="space-y-3 mt-6">
-          {loadingUpcoming ? (
-            <p className="text-center text-muted-foreground py-8">Laden...</p>
-          ) : filterReminders(upcomingReminders).length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">
-              Keine zukünftigen Erinnerungen
-            </p>
-          ) : (
-            filterReminders(upcomingReminders).map((reminder) => (
-              <ReminderCard
-                key={reminder.id}
-                reminder={reminder}
-                onEdit={handleEdit}
-                onMarkDone={handleMarkDone}
-                showDate
-              />
-            ))
-          )}
-        </TabsContent>
+          <TabsContent value="history" className="mt-0">
+            <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
+              <Button
+                size="sm"
+                variant={filterType === 'all' ? 'default' : 'outline'}
+                onClick={() => setFilterType('all')}
+                className="whitespace-nowrap touch-manipulation"
+              >
+                Alle {typeCounts.all > 0 && `(${typeCounts.all})`}
+              </Button>
+              <Button
+                size="sm"
+                variant={filterType === 'medication' ? 'default' : 'outline'}
+                onClick={() => setFilterType('medication')}
+                className="whitespace-nowrap touch-manipulation"
+              >
+                Medikamente {typeCounts.medication > 0 && `(${typeCounts.medication})`}
+              </Button>
+              <Button
+                size="sm"
+                variant={filterType === 'appointment' ? 'default' : 'outline'}
+                onClick={() => setFilterType('appointment')}
+                className="whitespace-nowrap touch-manipulation"
+              >
+                Termine {typeCounts.appointment > 0 && `(${typeCounts.appointment})`}
+              </Button>
+            </div>
 
-        <TabsContent value="past" className="space-y-3 mt-6">
-          {loadingPast ? (
-            <p className="text-center text-muted-foreground py-8">Laden...</p>
-          ) : filterReminders(pastReminders).length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">
-              Keine vergangenen Erinnerungen
-            </p>
-          ) : (
-            filterReminders(pastReminders).map((reminder) => (
-              <ReminderCard
-                key={reminder.id}
-                reminder={reminder}
-                onEdit={handleEdit}
-                onMarkDone={handleMarkDone}
-                showDate
+            {isLoading ? (
+              <div className="space-y-3">
+                <div className="h-24 bg-muted animate-pulse rounded-lg" />
+                <div className="h-24 bg-muted animate-pulse rounded-lg" />
+                <div className="h-24 bg-muted animate-pulse rounded-lg" />
+              </div>
+            ) : filteredReminders.length > 0 ? (
+              <div className="space-y-3">
+                {filteredReminders.map((reminder) => (
+                  <ReminderCard
+                    key={reminder.id}
+                    reminder={reminder}
+                    onEdit={handleEdit}
+                    onMarkDone={handleMarkDone}
+                  />
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                icon={<Calendar className="w-12 h-12" />}
+                title={historyReminders.length === 0 ? "Noch keine Historie vorhanden" : "Keine Erinnerungen gefunden"}
+                description={
+                  historyReminders.length === 0
+                    ? "Sobald vergangene Erinnerungen vorliegen, werden diese hier angezeigt."
+                    : "Mit den aktuellen Filtern gibt es keine Erinnerungen."
+                }
               />
-            ))
-          )}
-        </TabsContent>
-      </Tabs>
+            )}
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
