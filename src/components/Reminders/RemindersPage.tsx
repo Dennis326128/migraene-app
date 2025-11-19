@@ -21,7 +21,11 @@ import { toast } from '@/hooks/use-toast';
 type FilterType = 'all' | 'medication' | 'appointment';
 type ViewMode = 'list' | 'form';
 
-export const RemindersPage = () => {
+interface RemindersPageProps {
+  onBack?: () => void;
+}
+
+export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [editingReminder, setEditingReminder] = useState<Reminder | null>(null);
   const [filterType, setFilterType] = useState<FilterType>('all');
@@ -151,7 +155,7 @@ export const RemindersPage = () => {
         <Button
           variant="ghost"
           size="lg"
-          onClick={() => window.history.back()}
+          onClick={() => onBack ? onBack() : window.history.back()}
           className="touch-manipulation min-h-11 min-w-11"
         >
           <ArrowLeft className="h-5 w-5 mr-2" />
