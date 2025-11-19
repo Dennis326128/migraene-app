@@ -1,8 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { listMeds, addMed, deleteMed } from "../api/meds.api";
+import { listMeds, addMed, deleteMed, listRecentMeds } from "../api/meds.api";
 
 export function useMeds() {
   return useQuery({ queryKey: ["meds"], queryFn: listMeds, staleTime: 10 * 60 * 1000 });
+}
+
+export function useRecentMeds(limit: number = 5) {
+  return useQuery({ 
+    queryKey: ["meds", "recent", limit], 
+    queryFn: () => listRecentMeds(limit), 
+    staleTime: 5 * 60 * 1000 
+  });
 }
 
 export function useAddMed() {

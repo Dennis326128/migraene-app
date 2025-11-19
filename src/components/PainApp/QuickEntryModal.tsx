@@ -5,9 +5,9 @@ import { PainSlider } from "@/components/ui/pain-slider";
 import { normalizePainLevel } from "@/lib/utils/pain";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { X, Clock, Save, Zap, Mic } from "lucide-react";
+import { X, Clock, Save, Zap, Mic, ChevronDown, ChevronUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useMeds } from "@/features/meds/hooks/useMeds";
+import { useMeds, useRecentMeds } from "@/features/meds/hooks/useMeds";
 import { useCreateEntry } from "@/features/entries/hooks/useEntryMutations";
 import { logAndSaveWeatherAt, logAndSaveWeatherAtCoords } from "@/utils/weatherLogger";
 import { useCheckMedicationLimits } from "@/features/medication-limits/hooks/useMedicationLimits";
@@ -53,6 +53,7 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
 }) => {
   const { toast } = useToast();
   const { data: medOptions = [] } = useMeds();
+  const { data: recentMeds = [] } = useRecentMeds(5);
   const createMut = useCreateEntry();
   const checkLimits = useCheckMedicationLimits();
 
@@ -64,6 +65,7 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
   const [saving, setSaving] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [isVoiceEntry, setIsVoiceEntry] = useState(false);
+  const [showAllMedications, setShowAllMedications] = useState(false);
 
   // Initialize form - use voice data or defaults
   useEffect(() => {
@@ -383,34 +385,89 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
           {medOptions.length > 0 && (
             <Card className="p-4">
               <Label className="text-base font-medium mb-3 block">Medikamente</Label>
-              <div className="flex flex-wrap gap-2">
-                {medOptions.map((med) => {
-                  const isSelected = medicationStates[med.name] || false;
-                  const isVoiceRecognized = initialMedicationStates?.[med.name];
+              
+              {/* Recently Used Medications */}
+              {recentMeds.length > 0 && (
+                <div className="space-y-2 mb-3">
+                  <div className="text-xs text-muted-foreground font-medium">Zuletzt verwendet</div>
+                  <div className="flex flex-wrap gap-2">
+                    {recentMeds.map((med) => {
+                      const isSelected = medicationStates[med.name] || false;
+                      const isVoiceRecognized = initialMedicationStates?.[med.name];
+                      
+                      return (
+                        <Button
+                          key={med.id}
+                          type="button"
+                          variant={isSelected ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => 
+                            setMedicationStates(prev => ({ 
+                              ...prev, 
+                              [med.name]: !isSelected 
+                            }))
+                          }
+                          className="gap-1.5"
+                          aria-pressed={isSelected}
+                        >
+                          {med.name}
+                          {isVoiceRecognized && <Mic className="h-3 w-3" />}
+                          {med.use_count > 0 && (
+                            <span className="text-xs opacity-70">({med.use_count}×)</span>
+                          )}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* All Medications (Collapsible) */}
+              {medOptions.length > recentMeds.length && (
+                <div className="space-y-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowAllMedications(!showAllMedications)}
+                    className="w-full justify-between text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    <span>Alle Medikamente ({medOptions.length})</span>
+                    {showAllMedications ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </Button>
                   
-                  return (
-                    <Button
-                      key={med.id}
-                      type="button"
-                      variant={isSelected ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => 
-                        setMedicationStates(prev => ({ 
-                          ...prev, 
-                          [med.name]: !prev[med.name]
-                        }))
-                      }
-                      className="gap-1.5"
-                      aria-pressed={isSelected}
-                    >
-                      {med.name}
-                      {isVoiceRecognized && (
-                        <Mic className="h-3 w-3" />
-                      )}
-                    </Button>
-                  );
-                })}
-              </div>
+                  {showAllMedications && (
+                    <div className="flex flex-wrap gap-2 pt-2 border-t">
+                      {medOptions
+                        .filter(med => !recentMeds.find(r => r.id === med.id))
+                        .map((med) => {
+                          const isSelected = medicationStates[med.name] || false;
+                          const isVoiceRecognized = initialMedicationStates?.[med.name];
+                          
+                          return (
+                            <Button
+                              key={med.id}
+                              type="button"
+                              variant={isSelected ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => 
+                                setMedicationStates(prev => ({ 
+                                  ...prev, 
+                                  [med.name]: !prev[med.name]
+                                }))
+                              }
+                              className="gap-1.5"
+                              aria-pressed={isSelected}
+                            >
+                              {med.name}
+                              {isVoiceRecognized && <Mic className="h-3 w-3" />}
+                            </Button>
+                          );
+                        })}
+                    </div>
+                  )}
+                </div>
+              )}
             </Card>
           )}
 
