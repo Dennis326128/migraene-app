@@ -5,8 +5,10 @@ import { SettingsMedications } from "./Settings/SettingsMedications";
 import { SettingsPrivacy } from "./Settings/SettingsPrivacy";
 import { SettingsHelp } from "./Settings/SettingsHelp";
 import { SettingsAccount } from "./Settings/SettingsAccount";
+import { SettingsDoctors } from "./Settings/SettingsDoctors";
+import { SettingsLogout } from "./Settings/SettingsLogout";
 
-type SettingsSection = 'overview' | 'medications' | 'privacy' | 'help' | 'account';
+type SettingsSection = 'overview' | 'medications' | 'privacy' | 'help' | 'account' | 'doctors' | 'logout';
 
 const SettingsPage = ({ onBack }: { onBack: () => void }) => {
   const [section, setSection] = useState<SettingsSection>('overview');
@@ -29,6 +31,10 @@ const SettingsPage = ({ onBack }: { onBack: () => void }) => {
         return 'Hilfe & Tutorial';
       case 'account':
         return 'Kontoeinstellungen';
+      case 'doctors':
+        return 'Behandelnde Ärzte';
+      case 'logout':
+        return 'Abmelden';
       default:
         return 'Einstellungen';
     }
@@ -39,10 +45,12 @@ const SettingsPage = ({ onBack }: { onBack: () => void }) => {
       {section === 'overview' && (
         <SettingsOverview onNavigate={setSection} />
       )}
-      {section === 'medications' && <SettingsMedications />}
-      {section === 'privacy' && <SettingsPrivacy />}
-      {section === 'help' && <SettingsHelp />}
-      {section === 'account' && <SettingsAccount onReturn={() => setSection('overview')} />}
+        {section === 'medications' && <SettingsMedications />}
+        {section === 'privacy' && <SettingsPrivacy />}
+        {section === 'help' && <SettingsHelp />}
+        {section === 'account' && <SettingsAccount onReturn={() => setSection('overview')} />}
+        {section === 'doctors' && <SettingsDoctors />}
+        {section === 'logout' && <SettingsLogout />}
     </SettingsLayout>
   );
 };
