@@ -9,6 +9,7 @@ import { Session, User } from "@supabase/supabase-js";
 import ErrorBoundary from "./components/ErrorBoundary";
 import Index from "./pages/Index";
 import AuthPage from "./pages/AuthPage";
+import PasswordResetPage from "./pages/PasswordResetPage";
 import NotFound from "./pages/NotFound";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Imprint from "./pages/Imprint";
@@ -98,6 +99,7 @@ function App() {
           <TooltipProvider>
             <Routes>
               <Route path="/auth" element={<AuthPage />} />
+              <Route path="/reset-password" element={<PasswordResetPage />} />
               <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route path="/imprint" element={<Imprint />} />
               <Route path="/terms" element={<TermsOfService />} />

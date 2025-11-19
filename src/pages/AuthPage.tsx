@@ -16,6 +16,7 @@ export default function AuthPage() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [isLogin, setIsLogin] = useState(true);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -95,8 +96,39 @@ export default function AuthPage() {
     }
   };
 
+  const handleForgotPassword = async () => {
+    if (!email) {
+      toast({ title: "Fehler", description: "Bitte E-Mail-Adresse eingeben.", variant: "destructive" });
+      return;
+    }
+
+    setLoading(true);
+    const redirectUrl = `${window.location.origin}/reset-password`;
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: redirectUrl,
+    });
+    setLoading(false);
+
+    if (error) {
+      toast({ title: "Fehler", description: error.message, variant: "destructive" });
+    } else {
+      toast({
+        title: "E-Mail versendet",
+        description: "Bitte prüfen Sie Ihr Postfach. Wir haben Ihnen einen Link zur Passwortwiederherstellung gesendet.",
+      });
+      setIsForgotPassword(false);
+      setIsLogin(true);
+    }
+  };
+
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') handleAuth();
+    if (e.key === 'Enter') {
+      if (isForgotPassword) {
+        handleForgotPassword();
+      } else {
+        handleAuth();
+      }
+    }
   };
 
   return (
@@ -104,7 +136,7 @@ export default function AuthPage() {
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="text-2xl font-bold text-center">
-            {isLogin ? "Einloggen" : "Registrieren"}
+            {isForgotPassword ? "Passwort zurücksetzen" : (isLogin ? "Einloggen" : "Registrieren")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -112,12 +144,14 @@ export default function AuthPage() {
             <Label htmlFor="email" className="mb-1 block">E-Mail</Label>
             <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} onKeyPress={handleKeyPress} disabled={loading}/>
           </div>
-          <div>
-            <Label htmlFor="password" className="mb-1 block">Passwort</Label>
-            <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyPress={handleKeyPress} disabled={loading}/>
-          </div>
+          {!isForgotPassword && (
+            <div>
+              <Label htmlFor="password" className="mb-1 block">Passwort</Label>
+              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyPress={handleKeyPress} disabled={loading}/>
+            </div>
+          )}
           
-          {!isLogin && (
+          {!isLogin && !isForgotPassword && (
             <div className="space-y-3 pt-2 border-t">
               <div className="flex items-start space-x-2">
                 <Checkbox 
@@ -171,30 +205,59 @@ export default function AuthPage() {
             </div>
           )}
           
-          {isLogin && (
-            <div className="flex items-center space-x-2">
-              <Checkbox 
-                id="remember" 
-                checked={rememberMe} 
-                onCheckedChange={(checked) => setRememberMe(checked === true)}
+          {isLogin && !isForgotPassword && (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="remember" 
+                  checked={rememberMe} 
+                  onCheckedChange={(checked) => setRememberMe(checked === true)}
+                  disabled={loading}
+                />
+                <Label htmlFor="remember" className="text-sm text-muted-foreground cursor-pointer">
+                  Eingeloggt bleiben
+                </Label>
+              </div>
+              <button 
+                onClick={() => setIsForgotPassword(true)} 
+                className="text-primary hover:underline text-sm"
                 disabled={loading}
-              />
-              <Label htmlFor="remember" className="text-sm text-muted-foreground cursor-pointer">
-                Eingeloggt bleiben (empfohlen)
-              </Label>
+              >
+                Passwort vergessen?
+              </button>
             </div>
           )}
+          
           <Button 
-            onClick={handleAuth} 
+            onClick={isForgotPassword ? handleForgotPassword : handleAuth} 
             className="w-full" 
-            disabled={loading || (!isLogin && (!acceptedTerms || !acceptedPrivacy))}
+            disabled={loading || (!isLogin && !isForgotPassword && (!acceptedTerms || !acceptedPrivacy))}
           >
-            {loading ? "Wird verarbeitet..." : (isLogin ? "Einloggen" : "Registrieren")}
+            {loading ? "Wird verarbeitet..." : (isForgotPassword ? "Link senden" : (isLogin ? "Einloggen" : "Registrieren"))}
           </Button>
-          <div className="text-center">
-            <button onClick={() => setIsLogin(!isLogin)} className="text-primary hover:underline text-sm" disabled={loading}>
-              {isLogin ? "Noch kein Konto? Jetzt registrieren" : "Bereits registriert? Hier einloggen"}
-            </button>
+          
+          <div className="text-center space-y-2">
+            {!isForgotPassword && (
+              <button 
+                onClick={() => setIsLogin(!isLogin)} 
+                className="text-primary hover:underline text-sm block w-full" 
+                disabled={loading}
+              >
+                {isLogin ? "Noch kein Konto? Jetzt registrieren" : "Bereits registriert? Hier einloggen"}
+              </button>
+            )}
+            {isForgotPassword && (
+              <button 
+                onClick={() => {
+                  setIsForgotPassword(false);
+                  setIsLogin(true);
+                }} 
+                className="text-muted-foreground hover:text-foreground text-sm block w-full" 
+                disabled={loading}
+              >
+                ← Zurück zum Login
+              </button>
+            )}
           </div>
         </CardContent>
       </Card>
