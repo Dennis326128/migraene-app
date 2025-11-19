@@ -25,7 +25,7 @@ interface MainMenuProps {
   onViewAnalysis: () => void;
   onViewSettings: () => void;
   onQuickEntry?: () => void;
-  onNavigate?: (view: 'medication-overview' | 'medication-management' | 'voice-notes' | 'reminders' | 'diary-timeline' | 'context-tags' | 'analysis-grafik' | 'analysis-ki' | 'analysis-limits' | 'diary-report' | 'medication-limits') => void;
+  onNavigate?: (view: 'medication-overview' | 'medication-management' | 'voice-notes' | 'reminders' | 'diary-timeline' | 'context-tags' | 'analysis' | 'analysis-grafik' | 'analysis-ki' | 'analysis-limits' | 'diary-report' | 'medication-limits') => void;
   onLimitWarning?: (checks: any[]) => void;
 }
 
@@ -317,32 +317,18 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               </StartPageCard>
             </StartPageButtonGrid>
 
-            {/* Statistics & KI - Two columns */}
-            <StartPageButtonGrid columns={2} gap="md">
+            {/* Auswertungen - Full width */}
+            <StartPageButtonGrid columns={1} gap="md">
               <StartPageCard 
                 variant="neutral" 
                 touchFeedback 
-                onClick={() => onNavigate?.('analysis-grafik')}
+                onClick={() => onNavigate?.('analysis')}
               >
                 <div className="text-center space-y-2">
                   <div className="text-2xl">📊</div>
                   <div>
-                    <h4 className="font-semibold text-sm">Statistik</h4>
-                    <p className="text-xs opacity-75">Zahlen & Verläufe</p>
-                  </div>
-                </div>
-              </StartPageCard>
-
-              <StartPageCard 
-                variant="neutral" 
-                touchFeedback 
-                onClick={() => onNavigate?.('analysis-ki')}
-              >
-                <div className="text-center space-y-2">
-                  <div className="text-2xl">🤖</div>
-                  <div>
-                    <h4 className="font-semibold text-sm">KI-Muster</h4>
-                    <p className="text-xs opacity-75">Muster & Hinweise</p>
+                    <h4 className="font-semibold text-sm">Auswertungen</h4>
+                    <p className="text-xs opacity-75">Statistik & KI-Muster</p>
                   </div>
                 </div>
               </StartPageCard>
