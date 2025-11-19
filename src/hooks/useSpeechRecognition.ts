@@ -62,6 +62,11 @@ export function useSpeechRecognition(options: SpeechRecognitionOptions = {}): Us
   const pauseTimerRef = useRef<NodeJS.Timeout | null>(null);
   const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastSpeechTimeRef = useRef<number>(0);
+  
+  // NEU: MediaRecorder für Audio-Aufnahme
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
 
   const log = useCallback((message: string) => {
     console.log(`[SpeechRecognition] ${message}`);
@@ -140,8 +145,33 @@ export function useSpeechRecognition(options: SpeechRecognitionOptions = {}): Us
 
       log('🎙️ Initialisiere Spracherkennung...');
 
-      // Request microphone permission
-      await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Request microphone permission mit optimierten Constraints
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 16000 // Optimal für STT
+        }
+      });
+      streamRef.current = stream;
+      
+      // NEU: MediaRecorder initialisieren
+      audioChunksRef.current = [];
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm') 
+        ? 'audio/webm' 
+        : 'audio/ogg';
+      
+      mediaRecorderRef.current = new MediaRecorder(stream, { mimeType });
+      
+      mediaRecorderRef.current.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorderRef.current.start(1000); // Collect data every 1s
+      log(`📹 MediaRecorder gestartet (${mimeType})`);
       
       // Create recognition instance
       const recognition = new SpeechRecognition();
@@ -222,30 +252,99 @@ export function useSpeechRecognition(options: SpeechRecognitionOptions = {}): Us
         handleError(errorMessage);
       };
 
-      recognition.onend = () => {
+      recognition.onend = async () => {
         log('🏁 Aufnahme beendet');
         clearTimers();
         
         // Use the stored transcript from refs (no race condition)
         const finalText = finalTranscriptRef.current;
         const fullText = fullTranscriptRef.current;
-        const bestTranscript = fullText || finalText;
+        const browserTranscript = fullText || finalText;
 
-        log(`📖 Verarbeite Transcript: "${bestTranscript}" (${bestTranscript.length} Zeichen)`);
+        log(`📖 Browser-Transcript: "${browserTranscript}" (${browserTranscript.length} Zeichen)`);
 
-        setState(prev => ({
-          ...prev,
-          isRecording: false,
-          transcript: bestTranscript,
-          isPaused: false,
-          remainingSeconds: undefined
-        }));
+        // NEU: Stop MediaRecorder und Audio verarbeiten
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+          mediaRecorderRef.current.stop();
+          
+          // Warte auf finale Daten
+          await new Promise<void>((resolve) => {
+            if (mediaRecorderRef.current) {
+              mediaRecorderRef.current.onstop = () => resolve();
+            } else {
+              resolve();
+            }
+          });
 
-        // Call callback with final result
-        if (bestTranscript.trim()) {
-          onTranscriptReady?.(bestTranscript, state.confidence);
+          const audioBlob = new Blob(audioChunksRef.current, { 
+            type: mediaRecorderRef.current.mimeType 
+          });
+          
+          log(`🎵 Audio erfasst: ${audioBlob.size} bytes`);
+
+          // Stop MediaStream
+          if (streamRef.current) {
+            streamRef.current.getTracks().forEach(track => track.stop());
+            streamRef.current = null;
+          }
+
+          // NEU: Audio an Backend-API schicken
+          setState(prev => ({ ...prev, isRecording: false, isProcessing: true }));
+          
+          try {
+            const finalTranscript = await transcribeAudio(audioBlob, browserTranscript);
+            
+            log(`✅ Final Transcript: "${finalTranscript}"`);
+            
+            setState(prev => ({
+              ...prev,
+              isProcessing: false,
+              transcript: finalTranscript,
+              isPaused: false,
+              remainingSeconds: undefined
+            }));
+
+            // Call callback with final result
+            if (finalTranscript.trim()) {
+              onTranscriptReady?.(finalTranscript, state.confidence);
+            } else {
+              handleError('Kein Text erkannt');
+            }
+            
+          } catch (error) {
+            log(`⚠️ STT API fehlgeschlagen, nutze Browser-Transcript: ${error}`);
+            
+            // Fallback: Nutze Browser-Transkript
+            setState(prev => ({
+              ...prev,
+              isRecording: false,
+              isProcessing: false,
+              transcript: browserTranscript,
+              isPaused: false,
+              remainingSeconds: undefined
+            }));
+
+            if (browserTranscript.trim()) {
+              onTranscriptReady?.(browserTranscript, state.confidence);
+            } else {
+              handleError('Kein Text erkannt');
+            }
+          }
         } else {
-          handleError('Kein Text erkannt');
+          // Kein MediaRecorder
+          setState(prev => ({
+            ...prev,
+            isRecording: false,
+            transcript: browserTranscript,
+            isPaused: false,
+            remainingSeconds: undefined
+          }));
+
+          if (browserTranscript.trim()) {
+            onTranscriptReady?.(browserTranscript, state.confidence);
+          } else {
+            handleError('Kein Text erkannt');
+          }
         }
       };
 
@@ -279,4 +378,44 @@ export function useSpeechRecognition(options: SpeechRecognitionOptions = {}): Us
     stopRecording,
     resetTranscript
   };
+}
+
+/**
+ * NEU: Transkribiert Audio über Backend-API
+ */
+async function transcribeAudio(audioBlob: Blob, fallbackTranscript: string): Promise<string> {
+  try {
+    // Audio zu Base64 konvertieren
+    const arrayBuffer = await audioBlob.arrayBuffer();
+    const bytes = new Uint8Array(arrayBuffer);
+    const base64 = btoa(String.fromCharCode(...bytes));
+
+    // API Call
+    const response = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/transcribe-voice`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`
+        },
+        body: JSON.stringify({
+          audioBase64: base64,
+          fallbackTranscript,
+          language: 'de-DE'
+        })
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.transcript || fallbackTranscript;
+    
+  } catch (error) {
+    console.error('📡 Transcription API error:', error);
+    throw error;
+  }
 }

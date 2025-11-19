@@ -42,5 +42,8 @@ verify_jwt = true
 [functions.send-push-notification]
 verify_jwt = true
 
+[functions.transcribe-voice]
+verify_jwt = true
+
 [functions.reminder-processor]
 verify_jwt = false
