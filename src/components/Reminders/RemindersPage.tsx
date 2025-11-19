@@ -3,6 +3,7 @@ import { Plus, Bell, BellOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/ui/page-header';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { FloatingActionButton } from '@/components/ui/floating-action-button';
 import { ReminderCard } from './ReminderCard';
 import { ReminderForm } from './ReminderForm';
 import {
@@ -155,18 +156,9 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
       <PageHeader 
         title="Erinnerungen" 
         onBack={onBack}
-        action={
-          <Button 
-            onClick={() => setViewMode('form')}
-            size="sm"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Neue Erinnerung
-          </Button>
-        }
       />
       
-      <div className="container mx-auto px-4 pb-6">
+      <div className="container mx-auto px-4 pb-24">
         {!hasNotificationPermission && (
           <div className="mb-4">
             <Button
@@ -272,6 +264,18 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
         </TabsContent>
       </Tabs>
       </div>
+
+      <FloatingActionButton
+        variant="primary"
+        size="lg"
+        position="bottom-right"
+        onClick={() => setViewMode('form')}
+        badge={!hasNotificationPermission ? "!" : undefined}
+        pulse={!hasNotificationPermission}
+        aria-label="Neue Erinnerung erstellen"
+      >
+        <Plus className="w-6 h-6" />
+      </FloatingActionButton>
     </div>
   );
 };
