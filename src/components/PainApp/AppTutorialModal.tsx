@@ -1,120 +1,138 @@
 import { useState } from "react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import { cn } from "@/lib/utils";
-import { useIsMobile } from "@/hooks/use-mobile";
 import {
-  Sparkles,
-  Edit3,
-  List,
-  BarChart3,
-  Pill,
-  Mic,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
+import { 
+  BookOpen, 
+  Activity, 
   Bell,
-  Check,
-  ChevronRight,
+  Brain,
+  CloudSun,
+  FileText,
   ChevronLeft,
-  X,
+  ChevronRight,
+  Sparkles
 } from "lucide-react";
 
 interface TutorialStep {
-  icon: any;
-  emoji: string;
+  id: string;
+  icon: React.ReactNode;
   title: string;
   description: string;
-  details: string[];
+  highlights: string[];
+  benefit: string;
 }
 
 const tutorialSteps: TutorialStep[] = [
   {
-    icon: Sparkles,
-    emoji: "🎉",
-    title: "Willkommen!",
-    description: "Schön, dass du da bist! Lass uns gemeinsam entdecken, wie du deine App am besten nutzt.",
-    details: [
-      "Diese Tour zeigt dir alle wichtigen Funktionen",
-      "Du kannst sie jederzeit in den Einstellungen wiederholen",
+    id: "welcome",
+    icon: <Sparkles className="w-10 h-10 text-primary" />,
+    title: "Willkommen bei deinem Migräne-Begleiter",
+    description: "Diese App unterstützt dich dabei, deine Migräne besser zu verstehen und deinen Alltag zu strukturieren.",
+    highlights: [
+      "Dokumentiere Migräne-Episoden schnell und einfach",
+      "Erkenne Muster und Zusammenhänge",
+      "Behalte den Überblick über Medikamente und Termine"
     ],
+    benefit: "Alle wichtigen Informationen an einem Ort – für dich und dein Behandlungsteam."
   },
   {
-    icon: Edit3,
-    emoji: "✏️",
-    title: "Einträge erfassen",
-    description: "Erfasse deine Schmerzeinträge auf drei verschiedene Arten:",
-    details: [
-      "📝 Detailliert: Alle Infos präzise festhalten",
-      "⚡ Schnell: Mit nur 2 Klicks einen Eintrag erstellen",
-      "🎙️ Voice: Einfach sprechen statt tippen",
+    id: "entries",
+    icon: <BookOpen className="w-10 h-10 text-primary" />,
+    title: "Migräne-Tagebuch führen",
+    description: "Erfasse deine Migräne-Episoden mit allen wichtigen Details.",
+    highlights: [
+      "Schmerzintensität und betroffene Bereiche dokumentieren",
+      "Aura-Symptome und Begleitsymptome festhalten",
+      "Eingenommene Medikamente und deren Wirkung notieren",
+      "Notizen zu möglichen Auslösern hinzufügen"
     ],
+    benefit: "Ein vollständiges Bild deiner Migräne – hilfreich für Arztgespräche und deine eigene Übersicht."
   },
   {
-    icon: List,
-    emoji: "📋",
-    title: "Einträge verwalten",
-    description: "Behalte den Überblick über alle deine Einträge:",
-    details: [
-      "Alle Einträge in chronologischer Reihenfolge",
-      "Bearbeiten oder löschen mit einem Tap",
-      "PDF-Export für deinen Arzt",
+    id: "weather",
+    icon: <CloudSun className="w-10 h-10 text-primary" />,
+    title: "Wetter-Zusammenhänge erkennen",
+    description: "Die App erfasst automatisch Wetterdaten und verknüpft sie mit deinen Einträgen.",
+    highlights: [
+      "Luftdruck, Temperatur und weitere Faktoren werden gespeichert",
+      "Mögliche Zusammenhänge zwischen Wetter und Migräne werden sichtbar",
+      "Wetterbasierte Muster in Auswertungen erkennen"
     ],
+    benefit: "Verstehe, ob Wetter bei deiner Migräne eine Rolle spielt – automatisch und ohne Aufwand."
   },
   {
-    icon: BarChart3,
-    emoji: "📊",
-    title: "Analysen nutzen",
-    description: "Erkenne Muster und Zusammenhänge in deinen Daten:",
-    details: [
-      "Visualisierung deiner Schmerzhäufigkeit",
-      "Wetter-Korrelationen erkennen",
-      "Medikamenten-Wirksamkeit bewerten",
+    id: "reminders",
+    icon: <Bell className="w-10 h-10 text-primary" />,
+    title: "Erinnerungen & Termine",
+    description: "Verpasse keine wichtigen Medikamente oder Arzttermine mehr.",
+    highlights: [
+      "Medikamenten-Erinnerungen mit flexiblen Wiederholungen",
+      "Arzttermine und Check-ups planen",
+      "Push-Benachrichtigungen zur richtigen Zeit",
+      "Übersicht über erledigte und anstehende Erinnerungen"
     ],
+    benefit: "Deine Behandlung im Griff – strukturiert und zuverlässig."
   },
   {
-    icon: Pill,
-    emoji: "💊",
-    title: "Medikamente tracken",
-    description: "Verwalte deine Medikamente intelligent:",
-    details: [
-      "Eigene Medikamente-Bibliothek anlegen",
-      "Limits setzen zur Übermedikations-Vermeidung",
-      "Warnungen bei Grenzwert-Überschreitung",
+    id: "statistics",
+    icon: <Activity className="w-10 h-10 text-primary" />,
+    title: "Statistiken & Auswertungen",
+    description: "Erkenne Muster in deinen Migräne-Episoden durch übersichtliche Statistiken.",
+    highlights: [
+      "Häufigkeit und Intensität deiner Migräne visualisieren",
+      "Zeitliche Verteilung und Trends erkennen",
+      "Zusammenhänge zwischen Symptomen, Medikamenten und Wetter",
+      "Filterbare Zeiträume für detaillierte Analysen"
     ],
+    benefit: "Datenbasierte Einblicke – für besseres Verständnis und gezielte Gespräche mit Ärzten."
   },
   {
-    icon: Mic,
-    emoji: "🎙️",
-    title: "Voice-Funktionen",
-    description: "Sprechen statt tippen – schneller und bequemer:",
-    details: [
-      "Schmerzeinträge per Sprache erstellen",
-      "Voice-Notizen für zusätzliche Details",
-      "Erinnerungen per Voice einrichten",
+    id: "ai-analysis",
+    icon: <Brain className="w-10 h-10 text-primary" />,
+    title: "KI-gestützte Mustererkennung",
+    description: "Die App analysiert deine Daten und hilft dir, versteckte Zusammenhänge zu entdecken.",
+    highlights: [
+      "Automatische Analyse deiner Einträge und Sprachnotizen",
+      "Erkennung von wiederkehrenden Mustern",
+      "Hinweise auf mögliche Auslöser und Einflussfaktoren"
     ],
+    benefit: "Intelligente Unterstützung – aber kein Ersatz für ärztliche Diagnosen."
   },
   {
-    icon: Bell,
-    emoji: "🔔",
-    title: "Erinnerungen",
-    description: "Vergiss nie wieder deine Medikamente:",
-    details: [
-      "Flexible Wiederholungen (täglich, wöchentlich, etc.)",
-      "Push-Benachrichtigungen aktivieren",
-      "Medikamente direkt zuordnen",
+    id: "reports",
+    icon: <FileText className="w-10 h-10 text-primary" />,
+    title: "Arzt-Reports erstellen",
+    description: "Erstelle professionelle PDF-Berichte für deine Ärzte mit allen relevanten Daten.",
+    highlights: [
+      "Übersichtliche Zusammenfassung deiner Migräne-Episoden",
+      "Statistiken, Medikamente und Symptome aufbereitet",
+      "Individuell anpassbare Zeiträume und Inhalte",
+      "Direkt teilbar per E-Mail oder Ausdruck"
     ],
+    benefit: "Strukturierte Dokumentation – spart Zeit bei Arztbesuchen und verbessert die Behandlung."
   },
   {
-    icon: Check,
-    emoji: "✅",
-    title: "Fertig!",
-    description: "Du bist jetzt bereit, die App voll zu nutzen!",
-    details: [
-      "Du findest diese Tour jederzeit wieder unter:",
-      "⚙️ Einstellungen → Hilfe & Tutorial",
-      "Viel Erfolg beim Tracking! 💪",
+    id: "finish",
+    icon: <Sparkles className="w-10 h-10 text-primary" />,
+    title: "Du bist startklar!",
+    description: "Alle wichtigen Funktionen im Überblick. Nutze die App als täglichen Begleiter im Umgang mit Migräne.",
+    highlights: [
+      "Dokumentiere Episoden direkt, wenn sie auftreten",
+      "Richte Erinnerungen für deine Medikamente ein",
+      "Schau dir regelmäßig deine Statistiken an",
+      "Die Tour kannst du jederzeit in den Einstellungen erneut starten"
     ],
-  },
+    benefit: "Deine Migräne besser verstehen – für mehr Kontrolle und Lebensqualität im Alltag."
+  }
 ];
 
 interface AppTutorialModalProps {
@@ -123,27 +141,20 @@ interface AppTutorialModalProps {
   canSkip?: boolean;
 }
 
-export const AppTutorialModal = ({ open, onComplete, canSkip = true }: AppTutorialModalProps) => {
+export function AppTutorialModal({ open, onComplete, canSkip = true }: AppTutorialModalProps) {
   const [currentStep, setCurrentStep] = useState(0);
-  const isMobile = useIsMobile();
-
-  const progress = ((currentStep + 1) / tutorialSteps.length) * 100;
-  const step = tutorialSteps[currentStep];
-  const Icon = step.icon;
-  const isFirstStep = currentStep === 0;
-  const isLastStep = currentStep === tutorialSteps.length - 1;
 
   const handleNext = () => {
-    if (isLastStep) {
-      onComplete();
+    if (currentStep < tutorialSteps.length - 1) {
+      setCurrentStep(currentStep + 1);
     } else {
-      setCurrentStep((prev) => prev + 1);
+      onComplete();
     }
   };
 
   const handlePrevious = () => {
-    if (!isFirstStep) {
-      setCurrentStep((prev) => prev - 1);
+    if (currentStep > 0) {
+      setCurrentStep(currentStep - 1);
     }
   };
 
@@ -151,123 +162,91 @@ export const AppTutorialModal = ({ open, onComplete, canSkip = true }: AppTutori
     onComplete();
   };
 
+  const progress = ((currentStep + 1) / tutorialSteps.length) * 100;
+  const step = tutorialSteps[currentStep];
+  const isFirstStep = currentStep === 0;
+  const isLastStep = currentStep === tutorialSteps.length - 1;
+
   return (
-    <Dialog open={open} onOpenChange={canSkip ? handleSkip : undefined}>
-      <DialogContent 
-        className={cn(
-          "max-w-lg p-0 gap-0 overflow-hidden",
-          isMobile && "max-w-[95vw]",
-          !canSkip && "[&>button]:hidden"
-        )}
-      >
-        {/* Progress Bar */}
-        <div className="px-6 pt-6 pb-2">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-sm text-muted-foreground font-medium">
+    <Dialog open={open} onOpenChange={() => {}}>
+      <DialogContent className="sm:max-w-[640px] max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <div className="flex items-center justify-between mb-2">
+            <Badge variant="secondary" className="text-xs">
               Schritt {currentStep + 1} von {tutorialSteps.length}
-            </span>
+            </Badge>
             {canSkip && !isLastStep && (
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={handleSkip}
-                className="h-auto p-0 hover:bg-transparent text-muted-foreground"
+                className="text-xs text-muted-foreground hover:text-foreground"
               >
                 Überspringen
               </Button>
             )}
           </div>
-          <Progress value={progress} className="h-2" />
-        </div>
+          <Progress value={progress} className="h-1.5" />
+        </DialogHeader>
 
-        {/* Content */}
-        <div className={cn("px-6 py-8", isMobile && "px-4 py-6")}>
-          <Card
-            className={cn(
-              "p-6 bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20",
-              isMobile && "p-4"
-            )}
-          >
-            {/* Icon */}
-            <div className="flex justify-center mb-6">
-              <div className="relative">
-                <div className="absolute inset-0 bg-primary/20 rounded-full blur-xl" />
-                <div className="relative bg-background rounded-full p-4">
-                  <Icon className="h-12 w-12 text-primary" />
-                </div>
+        <div className="py-6 space-y-6">
+          <div className="flex flex-col items-center text-center space-y-4">
+            <div className="p-4 rounded-full bg-primary/10">
+              {step.icon}
+            </div>
+            
+            <div className="space-y-2">
+              <DialogTitle className="text-2xl font-bold">{step.title}</DialogTitle>
+              <DialogDescription className="text-base text-muted-foreground max-w-md">
+                {step.description}
+              </DialogDescription>
+            </div>
+          </div>
+          
+          <div className="bg-muted/30 rounded-lg p-4 space-y-3">
+            {step.highlights.map((highlight, index) => (
+              <div key={index} className="flex items-start gap-3">
+                <div className="mt-0.5 w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />
+                <p className="text-sm leading-relaxed">{highlight}</p>
               </div>
-            </div>
+            ))}
+          </div>
 
-            {/* Title with Emoji */}
-            <div className="text-center mb-4">
-              <span className="text-4xl mb-2 block">{step.emoji}</span>
-              <h2 className={cn(
-                "font-bold text-foreground",
-                isMobile ? "text-xl" : "text-2xl"
-              )}>
-                {step.title}
-              </h2>
-            </div>
-
-            {/* Description */}
-            <p className={cn(
-              "text-center text-foreground/80 mb-6",
-              isMobile ? "text-sm" : "text-base"
-            )}>
-              {step.description}
-            </p>
-
-            {/* Details */}
-            <div className="space-y-3">
-              {step.details.map((detail, index) => (
-                <div
-                  key={index}
-                  className="flex items-start gap-3 text-sm text-muted-foreground bg-background/50 rounded-lg p-3"
-                >
-                  <div className="shrink-0 w-1.5 h-1.5 rounded-full bg-primary mt-1.5" />
-                  <span>{detail}</span>
-                </div>
-              ))}
-            </div>
-          </Card>
+          <div className="flex items-start gap-3 p-4 rounded-lg bg-primary/5 border border-primary/20">
+            <Activity className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
+            <p className="text-sm font-medium">{step.benefit}</p>
+          </div>
         </div>
 
-        {/* Navigation */}
-        <div className={cn(
-          "flex items-center justify-between gap-3 px-6 pb-6",
-          isMobile && "px-4 pb-4"
-        )}>
-          <Button
-            variant="outline"
-            onClick={handlePrevious}
-            disabled={isFirstStep}
-            className={cn(isMobile && "px-3")}
-          >
-            <ChevronLeft className="h-4 w-4 mr-1" />
-            Zurück
-          </Button>
-
+        <DialogFooter className="flex-row gap-2 sm:gap-2">
+          {!isFirstStep && (
+            <Button
+              variant="outline"
+              onClick={handlePrevious}
+              className="flex-1"
+            >
+              <ChevronLeft className="w-4 h-4 mr-1" />
+              Zurück
+            </Button>
+          )}
           <Button
             onClick={handleNext}
-            className={cn(
-              "flex-1 max-w-[200px]",
-              isMobile && "max-w-[150px]"
-            )}
+            className="flex-1"
           >
             {isLastStep ? (
               <>
-                Fertig
-                <Check className="h-4 w-4 ml-2" />
+                <Sparkles className="w-4 h-4 mr-2" />
+                Loslegen
               </>
             ) : (
               <>
                 Weiter
-                <ChevronRight className="h-4 w-4 ml-2" />
+                <ChevronRight className="w-4 h-4 ml-1" />
               </>
             )}
           </Button>
-        </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
-};
+}
