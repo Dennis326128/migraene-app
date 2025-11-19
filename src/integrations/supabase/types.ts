@@ -55,8 +55,10 @@ export type Database = {
           last_name: string | null
           phone: string | null
           postal_code: string | null
+          salutation: string | null
           specialty: string | null
           street: string | null
+          title: string | null
           updated_at: string | null
           user_id: string
         }
@@ -70,8 +72,10 @@ export type Database = {
           last_name?: string | null
           phone?: string | null
           postal_code?: string | null
+          salutation?: string | null
           specialty?: string | null
           street?: string | null
+          title?: string | null
           updated_at?: string | null
           user_id: string
         }
@@ -85,8 +89,10 @@ export type Database = {
           last_name?: string | null
           phone?: string | null
           postal_code?: string | null
+          salutation?: string | null
           specialty?: string | null
           street?: string | null
+          title?: string | null
           updated_at?: string | null
           user_id?: string
         }

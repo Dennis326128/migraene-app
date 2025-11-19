@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { SaveButton } from "@/components/ui/navigation-buttons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useDoctors, useCreateDoctor, useUpdateDoctor, useDeleteDoctor } from "@/features/account/hooks/useAccount";
 import { toast } from "sonner";
 import { Trash2, Plus, Edit } from "lucide-react";
@@ -17,6 +18,8 @@ export const SettingsDoctors = () => {
   const [editingDoctorId, setEditingDoctorId] = useState<string | null>(null);
   const [showAddDoctor, setShowAddDoctor] = useState(false);
   const [newDoctor, setNewDoctor] = useState({
+    salutation: "",
+    title: "",
     first_name: "",
     last_name: "",
     specialty: "",
@@ -29,6 +32,8 @@ export const SettingsDoctors = () => {
   });
   
   const [editDoctor, setEditDoctor] = useState({
+    salutation: "",
+    title: "",
     first_name: "",
     last_name: "",
     specialty: "",
@@ -44,6 +49,8 @@ export const SettingsDoctors = () => {
     try {
       await createDoctor.mutateAsync(newDoctor);
       setNewDoctor({
+        salutation: "",
+        title: "",
         first_name: "",
         last_name: "",
         specialty: "",
@@ -64,6 +71,8 @@ export const SettingsDoctors = () => {
   const handleStartEdit = (doctor: any) => {
     setEditingDoctorId(doctor.id);
     setEditDoctor({
+      salutation: doctor.salutation || "",
+      title: doctor.title || "",
       first_name: doctor.first_name || "",
       last_name: doctor.last_name || "",
       specialty: doctor.specialty || "",
@@ -120,6 +129,41 @@ export const SettingsDoctors = () => {
           <Card className="p-4 mb-4 bg-secondary/10">
             <h4 className="font-medium mb-3">Neuen Arzt hinzufügen</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Anrede</Label>
+                <Select
+                  value={newDoctor.salutation}
+                  onValueChange={(value) => setNewDoctor({ ...newDoctor, salutation: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Bitte wählen" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Herr">Herr</SelectItem>
+                    <SelectItem value="Frau">Frau</SelectItem>
+                    <SelectItem value="Divers">Divers</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Titel</Label>
+                <Select
+                  value={newDoctor.title}
+                  onValueChange={(value) => setNewDoctor({ ...newDoctor, title: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Kein Titel" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Kein Titel</SelectItem>
+                    <SelectItem value="Dr. med.">Dr. med.</SelectItem>
+                    <SelectItem value="Prof. Dr. med.">Prof. Dr. med.</SelectItem>
+                    <SelectItem value="PD Dr. med.">PD Dr. med.</SelectItem>
+                    <SelectItem value="Dr.">Dr.</SelectItem>
+                    <SelectItem value="Prof. Dr.">Prof. Dr.</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <div>
                 <Label className="text-xs">Vorname</Label>
                 <Input
@@ -224,6 +268,41 @@ export const SettingsDoctors = () => {
                   <h4 className="font-medium mb-3">Arzt bearbeiten</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
+                      <Label className="text-xs">Anrede</Label>
+                      <Select
+                        value={editDoctor.salutation}
+                        onValueChange={(value) => setEditDoctor({ ...editDoctor, salutation: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Bitte wählen" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Herr">Herr</SelectItem>
+                          <SelectItem value="Frau">Frau</SelectItem>
+                          <SelectItem value="Divers">Divers</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Titel</Label>
+                      <Select
+                        value={editDoctor.title}
+                        onValueChange={(value) => setEditDoctor({ ...editDoctor, title: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Kein Titel" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">Kein Titel</SelectItem>
+                          <SelectItem value="Dr. med.">Dr. med.</SelectItem>
+                          <SelectItem value="Prof. Dr. med.">Prof. Dr. med.</SelectItem>
+                          <SelectItem value="PD Dr. med.">PD Dr. med.</SelectItem>
+                          <SelectItem value="Dr.">Dr.</SelectItem>
+                          <SelectItem value="Prof. Dr.">Prof. Dr.</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
                       <Label className="text-xs">Vorname</Label>
                       <Input
                         value={editDoctor.first_name}
@@ -303,7 +382,9 @@ export const SettingsDoctors = () => {
                   <div className="flex items-start justify-between mb-2">
                     <div>
                       <h4 className="font-medium">
-                        {doctor.first_name} {doctor.last_name}
+                        {[doctor.salutation, doctor.title, doctor.first_name, doctor.last_name]
+                          .filter(Boolean)
+                          .join(' ')}
                       </h4>
                       {doctor.specialty && (
                         <p className="text-sm text-muted-foreground">{doctor.specialty}</p>
