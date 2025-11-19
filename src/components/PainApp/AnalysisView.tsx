@@ -20,12 +20,10 @@ import { useIsMobile } from "@/hooks/use-mobile";
 
 interface AnalysisViewProps {
   onBack: () => void;
-  initialView?: "statistik" | "ki-muster";
 }
 
-export function AnalysisView({ onBack, initialView = "statistik" }: AnalysisViewProps) {
+export function AnalysisView({ onBack }: AnalysisViewProps) {
   const isMobile = useIsMobile();
-  const [viewMode, setViewMode] = useState<"statistik" | "ki-muster">(initialView);
   const [timeRange, setTimeRange] = useState("alle");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
@@ -145,12 +143,6 @@ export function AnalysisView({ onBack, initialView = "statistik" }: AnalysisView
   const { data: stats, isLoading: statsLoading } = useMigraineStats({ from, to });
   const { data: timeDistribution = [], isLoading: timeLoading } = useTimeDistribution({ from, to });
 
-  useEffect(() => {
-    if (viewMode === "statistik") {
-      refetch();
-    }
-  }, [viewMode, refetch]);
-
   const handleLevelToggle = (level: string) => {
     setSelectedLevels(prev => 
       prev.includes(level) 
@@ -246,35 +238,18 @@ export function AnalysisView({ onBack, initialView = "statistik" }: AnalysisView
         <h1 className="text-2xl font-bold">Auswertung & Statistiken</h1>
       </div>
 
-      {/* View Mode Selector */}
-      <Card className={isMobile ? "mb-4 sticky top-0 z-10 shadow-md" : "mb-4"}>
-        <CardContent className="p-4">
-          <div className={`flex gap-2 ${isMobile ? 'overflow-x-auto scrollbar-hide pb-2' : 'flex-wrap'}`}>
-            {[
-              { id: "statistik", label: "📊 Statistik", subtitle: "Zahlen & Verläufe", icon: BarChart3 },
-              { id: "ki-muster", label: "🤖 KI-Muster", subtitle: "Automatisch erkannte Zusammenhänge", icon: Brain },
-            ].map(({ id, label, subtitle, icon: Icon }) => (
-              <Button
-                key={id}
-                variant={viewMode === id ? "default" : "outline"}
-                size="sm"
-                onClick={() => setViewMode(id as any)}
-                className={`flex-1 flex-col h-auto py-3 ${isMobile ? 'text-xs' : 'text-sm'} touch-manipulation`}
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <Icon className="h-4 w-4" />
-                  <span className="font-semibold">{label.split(' ')[1]}</span>
-                </div>
-                <span className="text-xs opacity-75 whitespace-normal">{subtitle}</span>
-              </Button>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Content based on view mode */}
-      {viewMode === "statistik" && (
-        <>
+      {/* BEREICH 1: STATISTIK */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BarChart3 className="h-5 w-5" />
+            Statistik
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Zahlen & Verläufe deiner Migräne-Einträge
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-6">
           <StatisticsFilter
             timeRange={timeRange}
             onTimeRangeChange={setTimeRange}
@@ -333,7 +308,7 @@ export function AnalysisView({ onBack, initialView = "statistik" }: AnalysisView
                 />
               )}
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+              <div className={`grid gap-6 mb-6 ${isMobile ? 'grid-cols-1' : 'lg:grid-cols-2'}`}>
                 <TimeDistributionChart 
                   data={timeDistribution} 
                   isLoading={timeLoading}
@@ -347,7 +322,7 @@ export function AnalysisView({ onBack, initialView = "statistik" }: AnalysisView
                     </p>
                   </CardHeader>
                   <CardContent>
-                     <div className="h-80">
+                     <div className={isMobile ? "h-[400px]" : "h-96"}>
                        <TimeSeriesChart entries={entries} dateRange={{ from, to }} />
                      </div>
                   </CardContent>
@@ -383,26 +358,24 @@ export function AnalysisView({ onBack, initialView = "statistik" }: AnalysisView
               </Card>
             </>
           )}
-        </>
-      )}
+        </CardContent>
+      </Card>
 
-
-      {viewMode === "ki-muster" && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Brain className="h-5 w-5" />
-              KI-Muster
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="mb-4 text-sm text-muted-foreground">
-              Hier zeigt dir die App mögliche Muster. Die Hinweise ersetzen keine ärztliche Diagnose.
-            </div>
-            <VoiceNotesAIAnalysis />
-          </CardContent>
-        </Card>
-      )}
+      {/* BEREICH 2: KI-MUSTER */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Brain className="h-5 w-5" />
+            KI-Muster
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Automatisch erkannte Zusammenhänge. Diese Hinweise ersetzen keine ärztliche Diagnose.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <VoiceNotesAIAnalysis />
+        </CardContent>
+      </Card>
     </div>
   );
 }
