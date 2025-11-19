@@ -40,63 +40,51 @@ function MedicationCard({ entry, medication, existingEffect }: MedicationCardPro
   const [notes, setNotes] = useState(existingEffect?.notes || "");
   const [hasChanges, setHasChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const saveTimeoutRef = React.useRef<NodeJS.Timeout>();
+  
+  // Store original values for cancel functionality
+  const originalValues = React.useRef({
+    effectRating: effectRating,
+    sideEffects: [...sideEffects],
+    notes: notes
+  });
 
   const handleEffectChange = (value: number) => {
     setEffectRating(value);
     setHasChanges(true);
-    saveEffect(value, sideEffects, notes);
   };
 
   const handleSideEffectAdd = (effect: string) => {
     const newSideEffects = [...sideEffects, effect];
     setSideEffects(newSideEffects);
     setHasChanges(true);
-    saveEffect(effectRating, newSideEffects, notes);
   };
 
   const handleSideEffectRemove = (effect: string) => {
     const newSideEffects = sideEffects.filter(e => e !== effect);
     setSideEffects(newSideEffects);
     setHasChanges(true);
-    saveEffect(effectRating, newSideEffects, notes);
   };
 
   const handleNotesChange = (value: string) => {
     setNotes(value);
     setHasChanges(true);
-    // Clear existing timeout
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current);
-    }
-    // Debounce notes saving
-    saveTimeoutRef.current = setTimeout(() => {
-      saveEffect(effectRating, sideEffects, value);
-    }, 1000);
   };
 
-  // Save on component unmount or when navigating away
-  React.useEffect(() => {
-    return () => {
-      if (hasChanges && !isSaving) {
-        saveEffect(effectRating, sideEffects, notes);
-      }
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-    };
-  }, [hasChanges, effectRating, sideEffects, notes, isSaving]);
+  const handleCancel = () => {
+    setEffectRating(originalValues.current.effectRating);
+    setSideEffects([...originalValues.current.sideEffects]);
+    setNotes(originalValues.current.notes);
+    setHasChanges(false);
+  };
 
-  const saveEffect = async (rating: number, effects: string[], noteText: string) => {
-    if (isSaving) return; // Prevent concurrent saves
-    
-    const saveId = `${entry.id}-${medication}`;
-    const ratingValue = rating === 0 ? 'none' :
-      rating <= 2 ? 'poor' :
-      rating <= 4 ? 'moderate' :
-      rating <= 7 ? 'good' : 'very_good';
-
+  const handleSave = async () => {
     setIsSaving(true);
+    const saveId = `${entry.id}-${medication}`;
+    const ratingValue = effectRating === 0 ? 'none' :
+      effectRating <= 2 ? 'poor' :
+      effectRating <= 4 ? 'moderate' :
+      effectRating <= 7 ? 'good' : 'very_good';
+
     addPendingSave(saveId);
     
     try {
@@ -104,23 +92,31 @@ function MedicationCard({ entry, medication, existingEffect }: MedicationCardPro
         entry_id: entry.id,
         med_name: medication,
         effect_rating: ratingValue,
-        side_effects: effects,
-        notes: noteText.trim(),
+        side_effects: sideEffects.length > 0 ? sideEffects : null,
+        notes: notes || null,
         method: 'ui',
         confidence: 'high'
       });
+
+      // Update original values after successful save
+      originalValues.current = {
+        effectRating,
+        sideEffects: [...sideEffects],
+        notes
+      };
+
       setHasChanges(false);
-    } catch (error) {
-      console.error('Save error:', error);
       toast({
-        title: "Fehler beim Speichern",
-        description: "Die Bewertung konnte nicht gespeichert werden. Versuche es erneut.",
+        title: "✅ Gespeichert",
+        description: `Wirkung von ${medication} wurde gespeichert`,
+      });
+    } catch (error) {
+      console.error('Failed to save medication effect:', error);
+      toast({
+        title: "❌ Fehler",
+        description: "Speichern fehlgeschlagen",
         variant: "destructive"
       });
-      // Retry mechanism
-      setTimeout(() => {
-        saveEffect(rating, effects, noteText);
-      }, 2000);
     } finally {
       setIsSaving(false);
       removePendingSave(saveId);
@@ -182,10 +178,15 @@ function MedicationCard({ entry, medication, existingEffect }: MedicationCardPro
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {(hasChanges || isSaving) && (
-              <div className="text-xs text-primary">
-                {isSaving ? "Speichert..." : "Nicht gespeichert"}
-              </div>
+            {hasChanges && (
+              <Badge variant="outline" className="text-xs text-warning">
+                Ungespeichert
+              </Badge>
+            )}
+            {isSaving && (
+              <Badge variant="outline" className="text-xs text-primary">
+                Speichert...
+              </Badge>
             )}
             {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </div>
@@ -256,6 +257,27 @@ function MedicationCard({ entry, medication, existingEffect }: MedicationCardPro
                   className="text-sm mt-1"
                   rows={2}
                 />
+              </div>
+            )}
+
+            {/* Save and Cancel Buttons */}
+            {hasChanges && (
+              <div className="flex gap-2 pt-2">
+                <Button 
+                  onClick={handleSave} 
+                  disabled={isSaving}
+                  className="flex-1"
+                >
+                  {isSaving ? "Speichert..." : "Speichern"}
+                </Button>
+                <Button 
+                  onClick={handleCancel}
+                  variant="outline"
+                  disabled={isSaving}
+                  className="flex-1"
+                >
+                  Abbrechen
+                </Button>
               </div>
             )}
           </div>
