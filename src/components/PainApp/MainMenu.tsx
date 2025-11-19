@@ -252,7 +252,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               >
                 <StartPageCardHeader
                   icon="💊"
-                  title="Medikamenten-Wirkung erfassen"
+                  title="Medikamenten-Wirkung"
                 />
               </StartPageCard>
 
