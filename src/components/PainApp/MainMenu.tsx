@@ -265,7 +265,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 <StartPageCardHeader
                   icon="📋"
                   title="Medikamente verwalten"
-                  subtitle="Hinzufügen & Erinnerungen"
                 />
               </StartPageCard>
             </StartPageButtonGrid>
