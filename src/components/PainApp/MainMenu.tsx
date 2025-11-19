@@ -222,7 +222,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({
 
           {/* Alltag & Faktoren - Bereich */}
           <div className="mb-4">
-            <h2 className="text-lg font-medium text-foreground/80 mb-3 px-1">Alltag & Faktoren</h2>
             <StartPageButtonGrid columns={1} gap="md">
               {/* Quick Context Note */}
               <StartPageCard 
@@ -233,8 +232,8 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 <div className="text-center space-y-2">
                   <div className="text-2xl">✨</div>
                   <div>
-                    <h4 className="font-semibold text-sm">Faktoren erfassen</h4>
-                    <p className="text-xs opacity-75">Schlaf, Stimmung, Sport, Wetter & mehr</p>
+                    <h4 className="font-semibold text-sm">Alltag & Auslöser eintragen</h4>
+                    <p className="text-xs opacity-75">Schlaf, Stress, Stimmung, Ernährung, Wetter & mehr</p>
                   </div>
                 </div>
               </StartPageCard>
