@@ -176,21 +176,7 @@ export const PainApp: React.FC = () => {
 
       {view === "context-tags" && <ContextTagsView onBack={goHome} />}
 
-      {view === "reminders" && (
-        <div className="min-h-screen bg-background">
-          <div className="max-w-4xl mx-auto">
-            <div className="flex justify-between items-center px-4 py-4">
-              <button 
-                onClick={goHome}
-                className="text-muted-foreground hover:text-foreground flex items-center gap-2"
-              >
-                ← Zurück
-              </button>
-            </div>
-            <RemindersPage />
-          </div>
-        </div>
-      )}
+      {view === "reminders" && <RemindersPage onBack={goHome} />}
 
       {view === "diary-report" && <DiaryReport onBack={goHome} />}
 
