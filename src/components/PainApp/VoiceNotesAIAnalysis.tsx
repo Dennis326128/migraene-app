@@ -82,8 +82,7 @@ export function VoiceNotesAIAnalysis() {
           Die KI-Analyse wertet alle Ihre Einträge aus:
           <ul className="list-disc ml-4 mt-2 space-y-1">
             <li>Schmerzeinträge mit Notizen</li>
-            <li>Kontext-Notizen (per Sprache oder Text)</li>
-            <li>Automatisch erkannte Schlagwörter (Stimmung, Schlaf, Stress, etc.)</li>
+            <li>Notizen mit automatisch erkannten Schlagwörtern (Stimmung, Schlaf, Stress, etc.)</li>
             <li>Wetterdaten & Medikamente</li>
           </ul>
           <p className="mt-2">So erkennt sie Muster, Trigger und Zusammenhänge zwischen Schlagwörtern und Schmerzeinträgen. Anonymisiert & DSGVO-konform.</p>
@@ -94,7 +93,7 @@ export function VoiceNotesAIAnalysis() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Brain className="h-5 w-5" />
-            KI-Analyse Voice-Notizen
+            KI-Analyse Tagebuch
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -289,7 +288,7 @@ export function VoiceNotesAIAnalysis() {
           {!insights && !isAnalyzing && (
             <div className="text-center py-12 text-muted-foreground">
               <Brain className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>Klicken Sie auf "Analyse starten" für eine KI-gestützte Auswertung Ihrer Voice-Notizen</p>
+              <p>Klicken Sie auf "Analyse starten" für eine KI-gestützte Auswertung Ihrer Tagebucheinträge</p>
               <p className="text-sm mt-2">Die Analyse erkennt automatisch Muster, Schlagwörter und Zusammenhänge aus Ihren Notizen und gibt Empfehlungen für Ihr Arztgespräch.</p>
             </div>
           )}
