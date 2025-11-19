@@ -40,7 +40,7 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
   const [editingReminder, setEditingReminder] = useState<Reminder | null>(null);
   const [activeTab, setActiveTab] = useState<ActiveTab>('active');
   const [filterType, setFilterType] = useState<FilterType>('all');
-  const [rangeFilter, setRangeFilter] = useState<RangeFilter>('7days');
+  const [rangeFilter, setRangeFilter] = useState<RangeFilter>('all');
   const [hasNotificationPermission, setHasNotificationPermission] = useState(false);
 
   const { data: activeReminders = [], isLoading: loadingActive } = useActiveReminders();
@@ -55,6 +55,52 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
   useEffect(() => {
     setHasNotificationPermission(notificationService.hasPermission());
   }, []);
+
+  // Intelligente Zeitraum-Auswahl basierend auf vorhandenen Erinnerungen
+  useEffect(() => {
+    if (activeTab === 'active' && activeReminders.length > 0) {
+      const now = new Date();
+      
+      // Prüfen, ob es heute Erinnerungen gibt
+      const todayEnd = new Date(now);
+      todayEnd.setHours(23, 59, 59, 999);
+      const hasToday = activeReminders.some(r => 
+        new Date(r.date_time) <= todayEnd
+      );
+      
+      if (hasToday) {
+        setRangeFilter('today');
+        return;
+      }
+      
+      // Prüfen, ob es Erinnerungen in den nächsten 7 Tagen gibt
+      const in7Days = new Date(now);
+      in7Days.setDate(in7Days.getDate() + 7);
+      const has7Days = activeReminders.some(r => 
+        new Date(r.date_time) <= in7Days
+      );
+      
+      if (has7Days) {
+        setRangeFilter('7days');
+        return;
+      }
+      
+      // Prüfen, ob es Erinnerungen in den nächsten 30 Tagen gibt
+      const in30Days = new Date(now);
+      in30Days.setDate(in30Days.getDate() + 30);
+      const has30Days = activeReminders.some(r => 
+        new Date(r.date_time) <= in30Days
+      );
+      
+      if (has30Days) {
+        setRangeFilter('30days');
+        return;
+      }
+      
+      // Ansonsten alle anzeigen
+      setRangeFilter('all');
+    }
+  }, [activeReminders, activeTab]);
 
   const requestNotificationPermission = async () => {
     const granted = await notificationService.requestPermission();
@@ -207,15 +253,21 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
       return {
         icon: <Bell className="w-12 h-12" />,
         title: 'Keine aktiven Erinnerungen',
-        description: 'Nutzen Sie "Neue Erinnerung", um Medikamente oder Termine hinzuzufügen.',
+        description: 'Nutze "Neue Erinnerung", um Medikamente oder Termine hinzuzufügen.',
       };
     }
     
     if (filteredReminders.length === 0 && rangeFilter !== 'all') {
+      const nextRangeHint = rangeFilter === 'today' 
+        ? 'in den nächsten Tagen' 
+        : rangeFilter === '7days'
+        ? 'in den nächsten 30 Tagen'
+        : 'später';
+        
       return {
         icon: <Clock className="w-12 h-12" />,
-        title: `Keine Erinnerungen ${rangeFilter === 'today' ? 'für heute' : `in ${getRangeLabel()}`}`,
-        description: 'Sie haben noch Erinnerungen in einem anderen Zeitraum.',
+        title: `Keine Erinnerungen ${rangeFilter === 'today' ? 'für heute' : getRangeLabel().toLowerCase()}`,
+        description: `Du hast noch Erinnerungen ${nextRangeHint}. Ändere den Zeitraum oben rechts.`,
       };
     }
     
@@ -308,7 +360,10 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
             <div className="flex justify-end mb-4">
               <Select value={rangeFilter} onValueChange={(v) => setRangeFilter(v as RangeFilter)}>
                 <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Zeitraum wählen" />
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4" />
+                    <SelectValue placeholder="Zeitraum wählen" />
+                  </div>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="today">Heute</SelectItem>
