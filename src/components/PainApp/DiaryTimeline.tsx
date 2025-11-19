@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Filter, FileText, Calendar as CalendarIcon, Activity, Edit, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowLeft, Filter, FileText, Calendar as CalendarIcon, Activity, Edit, Trash2, ChevronDown, ChevronUp, ArrowDown } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { toZonedTime } from 'date-fns-tz';
@@ -54,6 +54,8 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
   const [filterType, setFilterType] = useState<'all' | 'pain_entry' | 'context_note'>('all');
   const [editingNote, setEditingNote] = useState<any>(null);
   const [expandedEntries, setExpandedEntries] = useState<Set<string>>(new Set());
+  const [pageSize] = useState(50);
+  const [currentPage, setCurrentPage] = useState(0);
 
   const toggleExpanded = (id: string) => {
     setExpandedEntries(prev => {
@@ -104,19 +106,26 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
     return mapping[level] || { label: 'Unbekannt', numeric: '-', color: 'bg-muted' };
   };
 
-  // Schmerzeinträge laden
-  const { data: painEntries = [], isLoading: loadingEntries } = useEntries();
+  // Schmerzeinträge laden (mit Pagination)
+  const { data: painEntries = [], isLoading: loadingEntries } = useEntries({
+    limit: pageSize,
+    offset: currentPage * pageSize
+  });
 
-  // Kontext-Notizen laden
+  // Kontext-Notizen laden (mit Pagination)
   const { data: contextNotes = [], isLoading: loadingNotes } = useQuery({
-    queryKey: ['voice-notes-timeline'],
+    queryKey: ['voice-notes-timeline', currentPage],
     queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+      
+      const offset = currentPage * pageSize;
       const { data, error } = await supabase
         .from('voice_notes')
         .select('*')
         .is('deleted_at', null)
         .order('occurred_at', { ascending: false })
-        .limit(100);
+        .range(offset, offset + pageSize - 1);
       
       if (error) throw error;
       return data || [];
@@ -166,6 +175,9 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
     if (filterType === 'all') return timelineItems;
     return timelineItems.filter(item => item.type === filterType);
   }, [timelineItems, filterType]);
+
+  const totalEntries = filteredItems.length;
+  const hasMore = painEntries.length === pageSize || contextNotes.length === pageSize;
 
   // Nach Datum gruppieren
   const groupedByDate = useMemo(() => {
@@ -529,6 +541,28 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
           ))
         )}
       </div>
+
+      {/* Mehr laden Button */}
+      {hasMore && !loadingEntries && !loadingNotes && totalEntries > 0 && (
+        <div className="flex justify-center py-8">
+          <Button 
+            variant="outline" 
+            onClick={() => setCurrentPage(prev => prev + 1)}
+            className="gap-2"
+          >
+            <ArrowDown className="h-4 w-4" />
+            Mehr laden ({pageSize} weitere Einträge)
+          </Button>
+        </div>
+      )}
+
+      {/* Loading Indicator beim Nachladen */}
+      {loadingEntries && currentPage > 0 && (
+        <div className="flex justify-center py-4 text-muted-foreground">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mr-2" />
+          <span>Lade weitere Einträge...</span>
+        </div>
+      )}
 
       {/* Voice Note Edit Modal */}
       <VoiceNoteEditModal
