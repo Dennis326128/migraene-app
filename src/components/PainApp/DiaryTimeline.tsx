@@ -274,17 +274,18 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex-1 space-y-2">
                               {/* Zeit + Schmerzstärke (prominent) */}
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-sm font-medium">{item.time} Uhr</span>
-                                <Badge className={getPainLevelDisplay(item.data.pain_level).color}>
-                                  {getPainLevelDisplay(item.data.pain_level).label} ({getPainLevelDisplay(item.data.pain_level).numeric})
-                                </Badge>
-                                {item.data.pain_location && (
-                                  <Badge variant="outline" className="text-xs">
-                                    📍 {item.data.pain_location}
-                                  </Badge>
-                                )}
-                              </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-medium">{item.time} Uhr</span>
+                  <span className="text-sm text-muted-foreground">Schmerzstärke:</span>
+                  <Badge className={getPainLevelDisplay(item.data.pain_level).color}>
+                    {getPainLevelDisplay(item.data.pain_level).label} ({getPainLevelDisplay(item.data.pain_level).numeric})
+                  </Badge>
+                  {item.data.pain_location && (
+                    <Badge variant="outline" className="text-xs">
+                      📍 {item.data.pain_location}
+                    </Badge>
+                  )}
+                </div>
                               
                               {/* Medikamente-Anzahl (kompakt wenn zugeklappt) */}
                               {item.data.medications && item.data.medications.length > 0 && !expandedEntries.has(item.id) && (
