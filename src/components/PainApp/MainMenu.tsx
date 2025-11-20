@@ -248,7 +248,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               >
                 <StartPageCardHeader
                   icon="💊"
-                  title="Medikamenten-Wirkung"
+                  title="Med.-Wirkung"
                   className="text-white"
                 />
               </StartPageCard>
@@ -261,7 +261,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               >
                 <StartPageCardHeader
                   icon="📋"
-                  title="Medikamente verwalten"
+                  title="Medikamente"
                 />
               </StartPageCard>
             </StartPageButtonGrid>

@@ -64,18 +64,18 @@ const StartPageCardHeader: React.FC<StartPageCardHeaderProps> = ({
   className,
 }) => {
   return (
-    <div className="flex items-center space-x-3 min-h-[64px]">
+    <div className="flex items-center gap-2 sm:gap-3 min-h-[56px] sm:min-h-[64px]">
       {icon && (
-        <div className="text-2xl flex-shrink-0">
+        <div className="text-xl sm:text-2xl flex-shrink-0">
           {icon}
         </div>
       )}
-      <div className="flex-1">
-        <h3 className={cn("font-semibold text-base sm:text-lg leading-tight", className)}>
+      <div className="flex-1 min-w-0">
+        <h3 className={cn("font-semibold text-sm sm:text-base leading-tight break-words", className)}>
           {title}
         </h3>
         {subtitle && (
-          <p className="text-sm opacity-90 mt-1 leading-tight">
+          <p className="text-xs sm:text-sm opacity-90 mt-1 leading-tight break-words">
             {subtitle}
           </p>
         )}
