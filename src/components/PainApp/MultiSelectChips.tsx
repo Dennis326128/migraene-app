@@ -70,7 +70,8 @@ export const MultiSelectChips: React.FC<MultiSelectChipsProps> = ({
                   'hover:bg-[#0B1220]',
                   'hover:border-[#4B5563]/50',
                 ],
-                'active:scale-[0.98]',
+                'active:scale-[0.97]',
+                'transition-transform duration-100',
               )}
               aria-label={option.label}
               aria-pressed={isSelected}
