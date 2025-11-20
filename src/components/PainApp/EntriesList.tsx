@@ -9,6 +9,17 @@ import { useEntries } from "@/features/entries/hooks/useEntries";
 import { useDeleteEntry } from "@/features/entries/hooks/useEntryMutations";
 import { useSymptomCatalog, useEntrySymptoms } from "@/features/symptoms/hooks/useSymptoms";
 import { EmptyState } from "@/components/ui/empty-state";
+import { 
+  Thermometer, 
+  Droplets, 
+  Gauge, 
+  TrendingUp, 
+  TrendingDown, 
+  ArrowRight, 
+  MapPin,
+  CloudSun,
+  AlertCircle
+} from "lucide-react";
 
 export const EntriesList = ({
   onBack,
@@ -93,30 +104,59 @@ export const EntriesList = ({
               className="p-4 border-border/30 border rounded-lg bg-card hover:bg-accent/50 cursor-pointer transition-colors"
               onClick={() => setSelectedEntry(entry)}
             >
-              <div className="flex justify-between items-start">
-                <div>
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className="font-medium">
-                      {formatDate(entry.selected_date || entry.timestamp_created)}
-                    </span>
-                    <span className="text-sm text-muted-foreground">
-                      {entry.selected_time ?? new Date(entry.timestamp_created).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}
-                    </span>
-                  </div>
-                  <p className="text-sm">
-                    <strong>Intensität:</strong> {formatPainLevel(entry.pain_level)}
-                  </p>
-                  {entry.medications?.length > 0 && (
-                    <p className="text-xs text-muted-foreground mt-1 truncate">
-                      💊 {entry.medications.join(", ")}
+              <div className="space-y-2">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className="font-medium">
+                        {formatDate(entry.selected_date || entry.timestamp_created)}
+                      </span>
+                      <span className="text-sm text-muted-foreground">
+                        {entry.selected_time ?? new Date(entry.timestamp_created).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    </div>
+                    <p className="text-sm">
+                      <strong>Intensität:</strong> {formatPainLevel(entry.pain_level)}
                     </p>
-                  )}
+                    {entry.medications?.length > 0 && (
+                      <p className="text-xs text-muted-foreground mt-1 truncate">
+                        💊 {entry.medications.join(", ")}
+                      </p>
+                    )}
+                  </div>
+                  <div className="text-lg">
+                    {entry.pain_level === "sehr_stark" ? "🔴" : 
+                     entry.pain_level === "stark" ? "🟠" :
+                     entry.pain_level === "mittel" ? "💛" : "💚"}
+                  </div>
                 </div>
-                <div className="text-lg">
-                  {entry.pain_level === "sehr_stark" ? "🔴" : 
-                   entry.pain_level === "stark" ? "🟠" :
-                   entry.pain_level === "mittel" ? "💛" : "💚"}
-                </div>
+                
+                {/* Kompakte Wetter-Vorschau */}
+                {entry.weather && (
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground pt-2 border-t border-border/30">
+                    {entry.weather.temperature_c != null && (
+                      <span className="flex items-center gap-1">
+                        <Thermometer className="h-3 w-3" />
+                        {entry.weather.temperature_c}°C
+                      </span>
+                    )}
+                    {entry.weather.humidity != null && (
+                      <span className="flex items-center gap-1">
+                        <Droplets className="h-3 w-3" />
+                        {entry.weather.humidity}%
+                      </span>
+                    )}
+                    {entry.weather.pressure_mb != null && (
+                      <span className="flex items-center gap-1">
+                        <Gauge className="h-3 w-3" />
+                        {entry.weather.pressure_mb} hPa
+                      </span>
+                    )}
+                    {entry.weather.pressure_change_24h != null && Math.abs(entry.weather.pressure_change_24h) > 3 && (
+                      <span className="text-orange-600">⚠️</span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           ))}
@@ -163,28 +203,67 @@ export const EntriesList = ({
 
               {selectedEntry.weather && (
                 <div className="mt-4 pt-3 border-t">
-                  <p className="font-medium mb-2">🌤️ Wetterdaten:</p>
-                  <p><strong>🌍 Ort:</strong> {selectedEntry.weather.location || "Unbekannt"}</p>
-                  <p><strong>🌡 Temperatur:</strong> {selectedEntry.weather.temperature_c ?? "-"}°C</p>
-                  <p><strong>☁ Wetter:</strong> {selectedEntry.weather.condition_text || "-"}</p>
-                  <p><strong>💧 Luftfeuchtigkeit:</strong> {selectedEntry.weather.humidity ?? "-"}%</p>
-                  <p><strong>🔽 Luftdruck:</strong> {selectedEntry.weather.pressure_mb ?? "-"} hPa</p>
-                  <p><strong>📈 Luftdrucktrend (24h):</strong>{" "}
-                    {selectedEntry.weather.pressure_change_24h != null ? (
-                      <>
-                        {selectedEntry.weather.pressure_change_24h > 0 ? "↗️ +" : 
-                         selectedEntry.weather.pressure_change_24h < 0 ? "↘️ " : "➡️ "}
-                        {selectedEntry.weather.pressure_change_24h.toFixed(1)} hPa
-                        {Math.abs(selectedEntry.weather.pressure_change_24h) > 3 && (
-                          <span className="text-orange-600 ml-1">⚠️</span>
-                        )}
-                      </>
-                    ) : "-"}
+                  <p className="font-medium mb-3 flex items-center gap-2">
+                    <CloudSun className="h-5 w-5 text-primary" />
+                    Wetterdaten
                   </p>
+                  
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <Thermometer className="h-4 w-4 text-orange-500 shrink-0" />
+                      <span className="text-muted-foreground min-w-[140px]">Temperatur:</span>
+                      <span className="font-medium">{selectedEntry.weather.temperature_c ?? "-"}°C</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <Droplets className="h-4 w-4 text-blue-500 shrink-0" />
+                      <span className="text-muted-foreground min-w-[140px]">Luftfeuchtigkeit:</span>
+                      <span className="font-medium">{selectedEntry.weather.humidity ?? "-"}%</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <Gauge className="h-4 w-4 text-purple-500 shrink-0" />
+                      <span className="text-muted-foreground min-w-[140px]">Luftdruck:</span>
+                      <span className="font-medium">{selectedEntry.weather.pressure_mb ?? "-"} hPa</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      {selectedEntry.weather.pressure_change_24h != null && selectedEntry.weather.pressure_change_24h > 0 ? (
+                        <TrendingUp className="h-4 w-4 text-red-500 shrink-0" />
+                      ) : selectedEntry.weather.pressure_change_24h != null && selectedEntry.weather.pressure_change_24h < 0 ? (
+                        <TrendingDown className="h-4 w-4 text-blue-500 shrink-0" />
+                      ) : (
+                        <ArrowRight className="h-4 w-4 text-gray-500 shrink-0" />
+                      )}
+                      <span className="text-muted-foreground min-w-[140px]">Luftdrucktrend:</span>
+                      <span className="font-medium">
+                        {selectedEntry.weather.pressure_change_24h != null ? (
+                          <>
+                            {selectedEntry.weather.pressure_change_24h > 0 ? "+" : ""}
+                            {selectedEntry.weather.pressure_change_24h.toFixed(1)} hPa
+                            {Math.abs(selectedEntry.weather.pressure_change_24h) > 3 && (
+                              <span className="ml-2 text-orange-600">⚠️ Stark</span>
+                            )}
+                          </>
+                        ) : "-"}
+                      </span>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4 text-green-500 shrink-0" />
+                      <span className="text-muted-foreground min-w-[140px]">Ort:</span>
+                      <span className="font-medium truncate">{selectedEntry.weather.location || "Unbekannt"}</span>
+                    </div>
+                  </div>
+                  
+                  {/* Migräne-Trigger-Warnung */}
                   {selectedEntry.weather.pressure_change_24h != null && Math.abs(selectedEntry.weather.pressure_change_24h) > 3 && (
-                    <p className="text-xs text-orange-600 mt-1">
-                      💡 Starke Luftdruckänderung kann Migräne auslösen
-                    </p>
+                    <div className="mt-3 p-2 bg-orange-500/10 border border-orange-500/30 rounded-md flex items-start gap-2">
+                      <AlertCircle className="h-4 w-4 text-orange-500 shrink-0 mt-0.5" />
+                      <p className="text-xs text-orange-600">
+                        Starke Luftdruckänderung kann Migräne auslösen
+                      </p>
+                    </div>
                   )}
                 </div>
               )}
