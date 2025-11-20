@@ -47,3 +47,6 @@ verify_jwt = true
 
 [functions.reminder-processor]
 verify_jwt = false
+
+[functions.backfill-missing-weather]
+verify_jwt = true
