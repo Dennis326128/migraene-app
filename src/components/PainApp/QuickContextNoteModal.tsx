@@ -330,10 +330,21 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
           </div>
 
           {/* Block C: Freitext + Sprache - Direkt nach Tageszustand */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-[#E5E7EB] block">
-              Eigene Notiz (optional)
-            </label>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <label className="text-sm font-medium text-[#E5E7EB]">
+                Eigene Notiz (optional)
+              </label>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleVoiceClick}
+                className="h-8 px-3 gap-2 bg-[#14B8A6]/10 border border-[#14B8A6]/30 text-[#14B8A6] hover:bg-[#14B8A6]/20 hover:border-[#14B8A6]/50 hover:text-[#22C55E] transition-all duration-150"
+              >
+                <Mic className="h-4 w-4" />
+                <span className="text-xs font-medium">Einsprechen</span>
+              </Button>
+            </div>
             <Textarea
               placeholder="Z.B. viel Bildschirmarbeit oder Streit im Job..."
               value={customText}
@@ -341,15 +352,6 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
               className="min-h-[80px] bg-[#0B1220] border-[#1F2937] text-[#E5E7EB] placeholder:text-[#4B5563] focus:border-[#22C55E]/50 focus:ring-[#22C55E]/20"
               rows={3}
             />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleVoiceClick}
-              className="w-full sm:w-auto bg-[#0B1220] border-[#1F2937] text-[#E5E7EB] hover:bg-[#111827] hover:border-[#4B5563]"
-            >
-              <Mic className="h-4 w-4 mr-2" />
-              Einsprechen
-            </Button>
           </div>
 
           {/* Block B: Trigger - Einklappbar, standardmäßig geschlossen */}
