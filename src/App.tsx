@@ -15,6 +15,8 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Imprint from "./pages/Imprint";
 import TermsOfService from "./pages/TermsOfService";
 import { registerOfflineSupport } from "@/hooks/useOptimizedCache";
+import { OfflineIndicator } from "@/components/OfflineIndicator";
+import { initOfflineDB, syncPendingEntries } from "@/lib/offlineQueue";
 
 // Create QueryClient with error recovery
 const queryClient = new QueryClient({
@@ -75,6 +77,18 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     // Register service worker for offline support
     registerOfflineSupport();
 
+    // Initialize offline DB
+    initOfflineDB();
+
+    // Service Worker Message Listener for sync
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', async (event) => {
+        if (event.data?.type === 'SYNC_PENDING_ENTRIES') {
+          await syncPendingEntries();
+        }
+      });
+    }
+
     return () => {
       mounted = false;
       subscription.unsubscribe();
@@ -101,6 +115,7 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
           <TooltipProvider>
+            <OfflineIndicator />
             <Routes>
               <Route path="/auth" element={<AuthPage />} />
               <Route path="/reset-password" element={<PasswordResetPage />} />

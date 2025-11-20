@@ -294,15 +294,29 @@ export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProp
     
     if (!entry || dateTimeChanged) {
       try {
-        // Use captured coordinates for weather data
-        const atISO = new Date(`${selectedDate}T${selectedTime}:00`).toISOString();
-        const forceRefresh = dateTimeChanged === true; // Skip cache when date/time changed
-        if (latitude && longitude) {
-          weatherId = await logAndSaveWeatherAtCoords(atISO, latitude, longitude, forceRefresh);
+        const entryDateTime = new Date(`${selectedDate}T${selectedTime}:00`);
+        const now = new Date();
+        const isFutureEntry = entryDateTime > now;
+        
+        if (isFutureEntry) {
+          console.log('⏰ Future entry - weather data will be added later');
+          weatherId = null;
+          toast({
+            title: "ℹ️ Hinweis",
+            description: "Wetterdaten werden automatisch zum Ereigniszeitpunkt nachgetragen.",
+            variant: "default"
+          });
         } else {
-          weatherId = await logAndSaveWeatherAt(atISO, forceRefresh);
+          // Use captured coordinates for weather data
+          const atISO = entryDateTime.toISOString();
+          const forceRefresh = dateTimeChanged === true; // Skip cache when date/time changed
+          if (latitude && longitude) {
+            weatherId = await logAndSaveWeatherAtCoords(atISO, latitude, longitude, forceRefresh);
+          } else {
+            weatherId = await logAndSaveWeatherAt(atISO, forceRefresh);
+          }
+          weatherFetched = true;
         }
-        weatherFetched = true;
       } catch (weatherError) {
         console.warn('Weather data fetch failed, continuing without weather data:', weatherError);
         toast({ 
@@ -335,7 +349,27 @@ export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProp
 
       // Always use createEntry (UPSERT) - overwrites existing entry with same date/time
       let savedId: string | number;
-      savedId = await createMut.mutateAsync(payload as any);
+      
+      // Offline-Support: Check if online
+      if (!navigator.onLine) {
+        const { addToOfflineQueue } = await import('@/lib/offlineQueue');
+        await addToOfflineQueue('pain_entry', payload);
+        onBack();
+        return;
+      }
+      
+      try {
+        savedId = await createMut.mutateAsync(payload as any);
+      } catch (error: any) {
+        // Bei Netzwerkfehler: In Queue
+        if (error.message?.includes('network') || error.message?.includes('fetch') || !navigator.onLine) {
+          const { addToOfflineQueue } = await import('@/lib/offlineQueue');
+          await addToOfflineQueue('pain_entry', payload);
+          onBack();
+          return;
+        }
+        throw error;
+      }
 
       // If editing and time changed, delete old entry to prevent duplicates
       if (entry?.id) {

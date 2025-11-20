@@ -246,3 +246,34 @@ async function syncPendingData() {
   console.log('Background sync triggered');
   // Hier würden wir offline gespeicherte Einträge an die API senden
 }
+
+// Background Sync für Offline-Queue
+self.addEventListener('sync', async (event) => {
+  if (event.tag === 'sync-pending-entries') {
+    event.waitUntil(
+      (async () => {
+        console.log('🔄 Background Sync triggered');
+        
+        // Nachricht an Client senden, um Sync auszuführen
+        const clients = await self.clients.matchAll();
+        clients.forEach(client => {
+          client.postMessage({
+            type: 'SYNC_PENDING_ENTRIES'
+          });
+        });
+      })()
+    );
+  }
+});
+
+// Periodic Background Sync (wenn unterstützt)
+self.addEventListener('periodicsync', (event) => {
+  if (event.tag === 'sync-weather-backfill') {
+    event.waitUntil(
+      (async () => {
+        console.log('🌤️ Periodic weather backfill triggered');
+        // Wird von Client behandelt
+      })()
+    );
+  }
+});
