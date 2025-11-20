@@ -128,6 +128,39 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [showTriggers, setShowTriggers] = useState(false);
 
+  // Load previous values from localStorage
+  const loadPreviousValues = () => {
+    try {
+      const saved = localStorage.getItem('lastContextNoteValues');
+      if (saved) {
+        const values = JSON.parse(saved);
+        setMood(values.mood ?? null);
+        setStress(values.stress ?? null);
+        setSleep(values.sleep ?? null);
+        setEnergy(values.energy ?? null);
+        setNutritionTriggers(values.nutritionTriggers ?? []);
+        setMovementTriggers(values.movementTriggers ?? []);
+        setFluidTriggers(values.fluidTriggers ?? []);
+        setWeatherTriggers(values.weatherTriggers ?? []);
+        setScreenTriggers(values.screenTriggers ?? []);
+        setCycleTriggers(values.cycleTriggers ?? []);
+        setWellbeingTriggers(values.wellbeingTriggers ?? []);
+        toast.success('Werte vom letzten Eintrag übernommen');
+      }
+    } catch (error) {
+      console.error('Error loading previous values:', error);
+    }
+  };
+
+  const hasPreviousValues = () => {
+    try {
+      const saved = localStorage.getItem('lastContextNoteValues');
+      return !!saved;
+    } catch {
+      return false;
+    }
+  };
+
   const handleSave = async () => {
     // Zusammenstellen der Daten
     const parts: string[] = [];
@@ -156,23 +189,38 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
     }
     
     const finalText = parts.join(' • ');
-    
-    if (!finalText.trim()) {
-      toast.error('Bitte fülle mindestens einen Bereich aus');
-      return;
-    }
 
     setIsSaving(true);
     try {
-      await saveVoiceNote({
-        rawText: finalText,
-        sttConfidence: 1.0,
-        source: 'manual'
-      });
+      // Save current values to localStorage for "load previous" feature
+      localStorage.setItem('lastContextNoteValues', JSON.stringify({
+        mood,
+        stress,
+        sleep,
+        energy,
+        nutritionTriggers,
+        movementTriggers,
+        fluidTriggers,
+        weatherTriggers,
+        screenTriggers,
+        cycleTriggers,
+        wellbeingTriggers,
+      }));
 
-      toast.success('Alltag & Auslöser gespeichert', {
-        description: 'Wird in der nächsten Analyse berücksichtigt'
-      });
+      // Only save to voice notes if there's actual data
+      if (finalText.trim()) {
+        await saveVoiceNote({
+          rawText: finalText,
+          sttConfidence: 1.0,
+          source: 'manual'
+        });
+
+        toast.success('Alltag & Auslöser gespeichert', {
+          description: 'Wird in der nächsten Analyse berücksichtigt'
+        });
+      } else {
+        toast.success('Eintrag gespeichert');
+      }
 
       handleReset();
       onClose();
@@ -211,6 +259,8 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
     weatherTriggers.length > 0 || screenTriggers.length > 0 || cycleTriggers.length > 0 ||
     wellbeingTriggers.length > 0 || customText.trim() !== '';
 
+  const showLoadPrevious = hasPreviousValues();
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className={cn(
@@ -226,6 +276,17 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
             Erfasse schnell deine wichtigsten Tagesfaktoren. Alle Angaben sind optional.
           </DialogDescription>
         </DialogHeader>
+
+        {showLoadPrevious && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={loadPreviousValues}
+            className="w-full bg-[#0B1220] border-[#1F2937] text-[#9CA3AF] hover:bg-[#111827] hover:border-[#4B5563] hover:text-[#E5E7EB]"
+          >
+            Werte vom letzten Eintrag übernehmen
+          </Button>
+        )}
 
         <div className="space-y-4 py-2">
           {/* Block A: Tageszustand - Immer sichtbar */}
@@ -307,7 +368,7 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
             {showTriggers && (
               <div className="space-y-4 pt-2">
                 <p className="text-xs text-[#9CA3AF] leading-tight">
-                  Wähle alles aus, was heute besonders war. Du kannst mehrere auswählen. Wenn nichts davon passt, kannst du diesen Bereich einfach ignorieren.
+                  Wähle alles aus, was heute besonders war (mehrere möglich). Wenn nichts passt, lass diesen Bereich einfach zu.
                 </p>
                 <MultiSelectChips
                   title="Ernährung"
@@ -381,7 +442,7 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
             <div className="flex-1" />
             <Button
               onClick={handleSave}
-              disabled={isSaving || !hasAnyData}
+              disabled={isSaving}
               className="min-w-[140px] bg-[#22C55E] hover:bg-[#16A34A] text-[#020617] font-semibold shadow-sm disabled:bg-[#4B5563] disabled:text-[#9CA3AF]"
             >
               {isSaving ? 'Speichert...' : 'Speichern'}
