@@ -199,53 +199,60 @@ serve(async (req) => {
     const roundedLat = Math.round(lat * 1000) / 1000; // 3 decimal places = ~111m precision
     const roundedLon = Math.round(lon * 1000) / 1000;
 
-    // Only check for reuse if it's the SAME DAY (daysDiff === 0) AND not forcing refresh
-    // For past entries (daysDiff > 0) or forced refresh, always fetch fresh data
-    if (daysDiff === 0 && !forceRefresh) {
-      console.log('📅 Same day request, checking for recent existing data...');
+    // Hourly cache strategy with 5km proximity radius
+    if (!forceRefresh) {
+      console.log('🔍 Checking for recent hourly weather data...');
       
-      // Check for existing weather log within the last 3 hours
-      const threeHoursAgo = new Date(today.getTime() - (3 * 60 * 60 * 1000));
+      // Define hourly window for the requested time
+      const requestedHour = new Date(requestDate);
+      requestedHour.setMinutes(0, 0, 0);
+      const hourEndUTC = new Date(requestedHour);
+      hourEndUTC.setMinutes(59, 59, 999);
       
-      const { data: existingForDay, error: dayCheckError } = await supabaseService
+      const proximityKm = 5; // 5km radius for same weather
+      
+      const { data: recentLogs, error: cacheError } = await supabaseService
         .from('weather_logs')
-        .select('id, latitude, longitude, created_at')
+        .select('id, latitude, longitude, created_at, temperature_c')
         .eq('user_id', userId)
-        .eq('snapshot_date', dateString)
-        .gte('created_at', threeHoursAgo.toISOString())
-        .limit(1)
-        .maybeSingle();
+        .gte('created_at', requestedHour.toISOString())
+        .lte('created_at', hourEndUTC.toISOString())
+        .order('created_at', { ascending: false })
+        .limit(20);
 
-      if (dayCheckError) {
-        console.log('❌ Error checking existing data for day:', dayCheckError);
-      } else if (existingForDay) {
-        // Calculate distance between existing log and requested location
-        const existingLat = Number(existingForDay.latitude);
-        const existingLon = Number(existingForDay.longitude);
-        
-        // Approximate distance in km using Haversine formula (simplified)
-        const R = 6371; // Earth's radius in km
-        const dLat = (roundedLat - existingLat) * Math.PI / 180;
-        const dLon = (roundedLon - existingLon) * Math.PI / 180;
-        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                  Math.cos(existingLat * Math.PI / 180) * Math.cos(roundedLat * Math.PI / 180) *
-                  Math.sin(dLon/2) * Math.sin(dLon/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        const distance = R * c;
-        
-        console.log(`📏 Distance to existing weather log: ${distance.toFixed(2)} km`);
-        console.log(`⏰ Log age: ${Math.floor((today.getTime() - new Date(existingForDay.created_at).getTime()) / 60000)} minutes`);
-        
-        // If within ~1km and created within last 3 hours, reuse existing weather data
-        if (distance < 1.0) {
-          console.log('✅ Reusing recent nearby weather data:', existingForDay.id);
-          return new Response(JSON.stringify({ weather_id: existingForDay.id }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
+      if (cacheError) {
+        console.log('❌ Error checking hourly cache:', cacheError);
+      } else if (recentLogs && recentLogs.length > 0) {
+        // Find log within 5km radius
+        for (const log of recentLogs) {
+          const existingLat = Number(log.latitude);
+          const existingLon = Number(log.longitude);
+          
+          // Haversine distance calculation
+          const R = 6371; // Earth's radius in km
+          const dLat = (roundedLat - existingLat) * Math.PI / 180;
+          const dLon = (roundedLon - existingLon) * Math.PI / 180;
+          const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                    Math.cos(existingLat * Math.PI / 180) * Math.cos(roundedLat * Math.PI / 180) *
+                    Math.sin(dLon/2) * Math.sin(dLon/2);
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+          const distance = R * c;
+          
+          if (distance < proximityKm) {
+            const logTime = new Date(log.created_at);
+            console.log(`✅ Reusing hourly cache within ${distance.toFixed(2)} km from ${logTime.toISOString()}`);
+            return new Response(JSON.stringify({ 
+              weather_id: log.id,
+              source: 'cache_hourly' 
+            }), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+          }
         }
+        console.log(`📍 No cache within ${proximityKm}km radius for this hour`);
       }
     } else {
-      console.log('📅 Past entry request (daysDiff:', daysDiff, '), fetching historical data...');
+      console.log('🔄 Force refresh enabled, skipping cache...');
     }
 
     let weatherData = null;
