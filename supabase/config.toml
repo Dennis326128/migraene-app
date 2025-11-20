@@ -50,3 +50,6 @@ verify_jwt = false
 
 [functions.backfill-missing-weather]
 verify_jwt = true
+
+[functions.backfill-future-entries]
+verify_jwt = false

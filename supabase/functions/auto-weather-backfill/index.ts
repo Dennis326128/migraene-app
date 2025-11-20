@@ -58,7 +58,7 @@ serve(async (req) => {
       // Then get pain entries for those users
       const { data: painEntries, error: painEntriesError } = await supabase
         .from('pain_entries')
-        .select('id, user_id, timestamp_created, selected_date, selected_time')
+        .select('id, user_id, timestamp_created, selected_date, selected_time, latitude, longitude')
         .is('weather_id', null)
         .in('user_id', userIds)
         .order('timestamp_created', { ascending: false })
@@ -75,8 +75,12 @@ serve(async (req) => {
             // Find coordinates for this user
             const userCoords = usersWithCoords.find(u => u.user_id === entry.user_id);
             
-            if (!userCoords?.latitude || !userCoords?.longitude) {
-              console.log(`⚠️ No coordinates for pain entry ${entry.id}, user ${entry.user_id}`);
+            // Priorität: 1. Eintrag-Koordinaten, 2. Profil-Koordinaten
+            const lat = entry.latitude || userCoords?.latitude;
+            const lon = entry.longitude || userCoords?.longitude;
+            
+            if (!lat || !lon) {
+              console.log(`⚠️ No coordinates for entry ${entry.id}, skipping`);
               failCount++;
               continue;
             }
@@ -115,8 +119,8 @@ serve(async (req) => {
               .from('weather_logs')
               .select('id')
               .eq('user_id', entry.user_id)
-              .eq('latitude', userCoords.latitude)
-              .eq('longitude', userCoords.longitude)
+              .eq('latitude', lat)
+              .eq('longitude', lon)
               .eq('snapshot_date', dateStr)
               .limit(1);
 
@@ -129,8 +133,8 @@ serve(async (req) => {
             } else {
               // Fetch new weather data using fetch-weather-hybrid
               const weatherResult = await fetchWeatherViaHybrid(
-                userCoords.latitude,
-                userCoords.longitude,
+                lat,
+                lon,
                 targetTimestamp,
                 supabase,
                 entry.user_id

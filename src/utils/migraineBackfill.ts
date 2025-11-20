@@ -65,7 +65,7 @@ export async function backfillMigrainWeatherEntries(days = 30): Promise<{
 
   const { data, error } = await supabase
     .from("pain_entries")
-    .select("id, timestamp_created, selected_date, selected_time, weather_id")
+    .select("id, timestamp_created, selected_date, selected_time, weather_id, latitude, longitude")
     .eq("user_id", user.id)
     .is("weather_id", null)
     .gte("timestamp_created", since.toISOString())
@@ -91,7 +91,17 @@ export async function backfillMigrainWeatherEntries(days = 30): Promise<{
       const atISO = toAtISO(entry as any);
       console.log(`🔄 Hole Wetter für Eintrag ${entry.id} (${atISO})`);
       
-      const weatherId = await logAndSaveWeatherAt(atISO);
+      // Bevorzuge Eintrag-Koordinaten
+      let weatherId: number | null = null;
+      
+      if (entry.latitude && entry.longitude) {
+        // Nutze Eintrag-Koordinaten
+        const { logAndSaveWeatherAtCoords } = await import("@/utils/weatherLogger");
+        weatherId = await logAndSaveWeatherAtCoords(atISO, entry.latitude, entry.longitude, false);
+      } else {
+        // Fallback: GPS/Profil-Koordinaten
+        weatherId = await logAndSaveWeatherAt(atISO, false);
+      }
       
       if (weatherId) {
         const { error: updateError } = await supabase
