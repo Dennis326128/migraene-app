@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { format, parseISO, differenceInDays, startOfDay, endOfDay } from "date-fns";
 import { buildDailySeries, generateTimeTicks, formatTimeAxisLabel, timeDomain, type DailySeriesPoint } from "@/lib/chartDataUtils";
+import { Smartphone } from "lucide-react";
 
 interface Props {
   entries: MigraineEntry[];
@@ -232,11 +233,19 @@ const ChartComponent = React.memo(function ChartComponent({ entries, dateRange, 
         )}
       </div>
 
+      {/* Landscape orientation hint for mobile */}
+      {isMobile && hasWeatherData && (
+        <div className="text-xs text-muted-foreground flex items-center gap-2 px-3 py-2 bg-muted/30 rounded-md">
+          <Smartphone className="h-3.5 w-3.5 rotate-90 flex-shrink-0" />
+          <span>Für beste Ansicht: Gerät im Querformat verwenden</span>
+        </div>
+      )}
+
       {/* Weather Correlation Summary */}
       {weatherCorrelation && (
-        <div className="bg-muted/50 p-3 rounded-lg text-sm">
-          <div className="font-medium mb-2">Wetterkorrelation (Luftdruck):</div>
-          <div className="grid grid-cols-3 gap-2 text-xs">
+        <div className="bg-muted/50 p-3 rounded-lg">
+          <div className="font-medium mb-2 text-sm">Wetterkorrelation (Luftdruck):</div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs sm:text-sm">
             <div>Tiefdruck (&lt;1005mb): Ø {weatherCorrelation.low.pain.toFixed(1)}/10 ({weatherCorrelation.low.count}x)</div>
             <div>Normal (1005-1020mb): Ø {weatherCorrelation.normal.pain.toFixed(1)}/10 ({weatherCorrelation.normal.count}x)</div>
             <div>Hochdruck (&gt;1020mb): Ø {weatherCorrelation.high.pain.toFixed(1)}/10 ({weatherCorrelation.high.count}x)</div>
@@ -263,7 +272,7 @@ const ChartComponent = React.memo(function ChartComponent({ entries, dateRange, 
               domain={timeDomain(startDate)}
               ticks={xAxisTicks}
               tickFormatter={(ts) => formatTimeAxisLabel(ts, daysDiff)}
-              tick={{ fontSize: isMobile ? 10 : 12 }}
+              tick={{ fontSize: isMobile ? 11 : 12 }}
               angle={isMobile ? -45 : 0}
               textAnchor={isMobile ? "end" : "middle"}
               height={isMobile ? 60 : 30}
@@ -272,7 +281,7 @@ const ChartComponent = React.memo(function ChartComponent({ entries, dateRange, 
               yAxisId="pain"
               orientation="left"
               domain={[0, 10]}
-              tick={{ fontSize: isMobile ? 10 : 12 }}
+              tick={{ fontSize: isMobile ? 11 : 12 }}
               label={!isMobile ? { value: 'Schmerzstärke', angle: -90, position: 'insideLeft' } : undefined}
             />
             {hasWeatherData && (
@@ -281,14 +290,14 @@ const ChartComponent = React.memo(function ChartComponent({ entries, dateRange, 
                   yAxisId="temp"
                   orientation="right"
                   domain={['dataMin - 2', 'dataMax + 2']}
-                  tick={{ fontSize: isMobile ? 8 : 10 }}
+                  tick={{ fontSize: isMobile ? 10 : 11 }}
                   label={!isMobile ? { value: 'Temperatur (°C)', angle: 90, position: 'outside', offset: 10 } : undefined}
                 />
                 <YAxis
                   yAxisId="pressure"
                   orientation="right"
                   domain={['dataMin - 5', 'dataMax + 5']}
-                  tick={{ fontSize: isMobile ? 8 : 10 }}
+                  tick={{ fontSize: isMobile ? 10 : 11 }}
                   label={!isMobile ? { value: 'Luftdruck (mb)', angle: 90, position: 'outside', offset: 40 } : undefined}
                 />
               </>

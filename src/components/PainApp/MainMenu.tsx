@@ -150,14 +150,14 @@ export const MainMenu: React.FC<MainMenuProps> = ({
     <div className="min-h-screen bg-background pt-2 px-4 pb-4 sm:pt-4 sm:px-6 sm:pb-6 flex flex-col relative">
       <div className="flex-1 flex flex-col justify-start max-w-md mx-auto w-full">
         <div className="text-center mb-6 sm:mb-8 px-2">
-          <h1 className="text-3xl sm:text-4xl font-light text-foreground mb-2">Migräne-App</h1>
+          <h1 className="text-2xl sm:text-3xl font-light text-foreground mb-2">Migräne-App</h1>
           <p className="text-muted-foreground text-sm sm:text-base">Verfolgen Sie Ihre Migräne und finden Sie Muster</p>
         </div>
 
         <div className="space-y-4 sm:space-y-6 w-full max-w-md px-2 sm:px-0">
           {/* Schnell erfassen - Bereich */}
           <div className="mb-4">
-            <h2 className="text-lg font-medium text-foreground/80 mb-3 px-1">Schnell erfassen</h2>
+            <h2 className="text-base sm:text-lg font-medium text-foreground/80 mb-3 px-1">Schnell erfassen</h2>
             
             <div className="space-y-3">
               {/* New Entry Button */}
@@ -236,7 +236,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
 
           {/* Medikamente - Bereich */}
           <div className="mb-4 space-y-3">
-            <h2 className="text-lg font-medium text-foreground/80 mb-3 px-1">Medikamente</h2>
+            <h2 className="text-base sm:text-lg font-medium text-foreground/80 mb-3 px-1">Medikamente</h2>
             
             {/* Medication actions in grid */}
             <StartPageButtonGrid columns={2} gap="md">
@@ -284,7 +284,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
 
           {/* Tagebuch & Auswertungen - Bereich */}
           <div className="mb-4 space-y-3">
-            <h2 className="text-lg font-medium text-foreground/80 mb-3 px-1">Tagebuch & Auswertungen</h2>
+            <h2 className="text-base sm:text-lg font-medium text-foreground/80 mb-3 px-1">Tagebuch & Auswertungen</h2>
             
             {/* Mein Tagebuch - Full width */}
             <StartPageButtonGrid columns={1} gap="md">
@@ -317,7 +317,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
 
           {/* Organisation - Bereich */}
           <div className="mb-4">
-            <h2 className="text-lg font-medium text-foreground/80 mb-3 px-1">Organisation</h2>
+            <h2 className="text-base sm:text-lg font-medium text-foreground/80 mb-3 px-1">Organisation</h2>
             <StartPageButtonGrid columns={2} gap="md">
               {/* Reminders */}
               <StartPageCard 

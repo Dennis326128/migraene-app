@@ -148,7 +148,7 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onComplete }) 
       case 0: // Welcome
         return (
           <div className="text-center space-y-6">
-            <div className="text-6xl mb-4">🧠</div>
+            <div className="text-5xl mb-4">🧠</div>
             <div className="space-y-4">
               <h2 className="text-2xl font-bold">Willkommen bei Ihrer Migräne-App!</h2>
               <p className="text-muted-foreground max-w-md mx-auto leading-relaxed">
@@ -173,7 +173,7 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onComplete }) 
         return (
           <div className="space-y-6">
             <div className="text-center">
-              <div className="text-4xl mb-3">⚙️</div>
+              <div className="text-3xl mb-3">⚙️</div>
               <h2 className="text-xl font-bold mb-2">Grundeinstellungen</h2>
               <p className="text-muted-foreground">
                 Lassen Sie uns Ihre App personalisieren
@@ -223,7 +223,7 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onComplete }) 
         return (
           <div className="space-y-6">
             <div className="text-center">
-              <div className="text-4xl mb-3">💊</div>
+              <div className="text-3xl mb-3">💊</div>
               <h2 className="text-xl font-bold mb-2">Ihre Medikamente</h2>
               <p className="text-muted-foreground">
                 Wählen Sie Medikamente aus, die Sie regelmäßig nehmen
@@ -274,7 +274,7 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onComplete }) 
       case 3: // Complete
         return (
           <div className="text-center space-y-6">
-            <div className="text-6xl mb-4">🎉</div>
+            <div className="text-5xl mb-4">🎉</div>
             <div className="space-y-4">
               <h2 className="text-2xl font-bold">Alles bereit!</h2>
               <p className="text-muted-foreground max-w-md mx-auto">

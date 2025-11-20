@@ -192,8 +192,8 @@ function MedicationCard({ entry, medication, existingEffect }: MedicationCardPro
         <div className="flex items-center justify-between">
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-lg">💊</span>
-              <span className="font-medium">{medication}</span>
+              <span className="text-base">💊</span>
+              <span className="font-medium text-sm sm:text-base">{medication}</span>
               {existingEffect && (
                 <Badge variant="outline" className={getEffectColor(effectRating)}>
                   {effectRating}/10
@@ -348,7 +348,10 @@ export function MedicationOverview({ entries }: MedicationOverviewProps) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold">💊 Medikamenten-Wirkung</h2>
+          <h2 className="text-lg sm:text-xl font-semibold flex items-center gap-2">
+            <span className="text-xl">💊</span>
+            <span>Medikamenten-Wirkung</span>
+          </h2>
           <p className="text-sm text-muted-foreground">
             Letzte 7 Tage • {medicationList.length} Einnahmen
           </p>
@@ -364,8 +367,8 @@ export function MedicationOverview({ entries }: MedicationOverviewProps) {
         {medicationList.length === 0 ? (
           <Card className="p-6 text-center">
             <div className="text-muted-foreground">
-              <div className="text-4xl mb-2">💊</div>
-              <p>Keine Medikamente in den letzten 7 Tagen</p>
+              <div className="text-3xl mb-2">💊</div>
+              <p className="text-sm sm:text-base">Keine Medikamente in den letzten 7 Tagen</p>
             </div>
           </Card>
         ) : (
