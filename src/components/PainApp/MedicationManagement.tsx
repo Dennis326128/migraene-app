@@ -220,7 +220,10 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
 
       {/* Cross-Link to Limits */}
       {onNavigateToLimits && (
-        <Card className="border-primary/20 bg-primary/5">
+        <Card 
+          className="border-primary/20 bg-primary/5 cursor-pointer hover:bg-primary/10 hover:border-primary/30 transition-all"
+          onClick={onNavigateToLimits}
+        >
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <AlertTriangle className="h-5 w-5 text-primary flex-shrink-0" />
@@ -230,14 +233,6 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
                   Setze Limits und überwache deine Einnahme
                 </p>
               </div>
-              <Button 
-                variant="ghost" 
-                size="sm"
-                onClick={onNavigateToLimits}
-                className="shrink-0"
-              >
-                Öffnen →
-              </Button>
             </div>
           </CardContent>
         </Card>
