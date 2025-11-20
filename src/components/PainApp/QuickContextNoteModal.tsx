@@ -339,10 +339,10 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
                 variant="ghost"
                 size="sm"
                 onClick={handleVoiceClick}
-                className="h-8 px-3 gap-2 bg-[#14B8A6]/10 border border-[#14B8A6]/30 text-[#14B8A6] hover:bg-[#14B8A6]/20 hover:border-[#14B8A6]/50 hover:text-[#22C55E] transition-all duration-150"
+                className="h-10 px-4 gap-2.5 bg-[#14B8A6]/15 border border-[#14B8A6]/50 text-[#14B8A6] hover:bg-[#14B8A6]/25 hover:border-[#14B8A6]/70 hover:text-[#0D9488] transition-all duration-150 shadow-sm hover:shadow-[0_0_12px_rgba(20,184,166,0.25)]"
               >
-                <Mic className="h-4 w-4" />
-                <span className="text-xs font-medium">Einsprechen</span>
+                <Mic className="h-5 w-5" />
+                <span className="text-sm font-semibold">Einsprechen</span>
               </Button>
             </div>
             <Textarea
