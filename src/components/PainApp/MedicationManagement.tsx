@@ -268,12 +268,12 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <Pill className="h-4 w-4 text-primary shrink-0" />
-                        <h3 className="font-semibold text-base line-clamp-2 break-words">{med.name}</h3>
+                        <Pill className="h-5 w-5 text-primary shrink-0" />
+                        <h3 className="font-semibold text-sm leading-tight line-clamp-2 break-words">{med.name}</h3>
                       </div>
                       {reminderCount > 0 && (
-                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                          <Clock className="h-4 w-4" />
+                        <div className="flex items-center gap-1.5 text-xs sm:text-sm text-muted-foreground leading-tight">
+                          <Clock className="h-5 w-5" />
                           <span>{reminderCount} aktive Erinnerung{reminderCount !== 1 ? 'en' : ''}</span>
                         </div>
                       )}

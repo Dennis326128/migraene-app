@@ -14,7 +14,7 @@ const startPageCardVariants = cva(
         warning: "bg-warning/20 text-warning-foreground hover:bg-warning/30 border border-warning/30",
       },
       size: {
-        default: "p-4",
+        default: "p-3.5 sm:p-4",
         large: "p-6",
         small: "p-3",
       },
@@ -64,18 +64,18 @@ const StartPageCardHeader: React.FC<StartPageCardHeaderProps> = ({
   className,
 }) => {
   return (
-    <div className="flex items-center gap-2 sm:gap-3 min-h-[56px] sm:min-h-[64px]">
+    <div className="flex items-center gap-3 sm:gap-4 min-h-[56px] sm:min-h-[64px]">
       {icon && (
-        <div className="text-xl sm:text-2xl flex-shrink-0">
+        <div className="text-2xl flex-shrink-0 flex items-center justify-center">
           {icon}
         </div>
       )}
-      <div className="flex-1 min-w-0">
-        <h3 className={cn("font-semibold text-sm sm:text-base leading-tight break-words", className)}>
+      <div className="flex-1 min-w-0 flex flex-col justify-center">
+        <h3 className={cn("font-semibold text-sm sm:text-base leading-tight break-words line-clamp-2", className)}>
           {title}
         </h3>
         {subtitle && (
-          <p className="text-xs sm:text-sm opacity-90 mt-1 leading-tight break-words">
+          <p className="text-xs sm:text-sm opacity-90 mt-1 leading-tight break-words line-clamp-1">
             {subtitle}
           </p>
         )}
