@@ -8,12 +8,14 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
-import { Smile, Moon, Utensils, Activity, Coffee, Heart, Plus, Mic, Droplets, Sun, Calendar } from 'lucide-react';
+import { Mic, Utensils, Activity, Droplets, CloudRain, Calendar, Heart, Monitor } from 'lucide-react';
 import { toast } from 'sonner';
 import { saveVoiceNote } from '@/lib/voice/saveNote';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { FivePointScale, ScaleOption } from './FivePointScale';
+import { MultiSelectChips, ChipOption } from './MultiSelectChips';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 
 interface QuickContextNoteModalProps {
   isOpen: boolean;
@@ -21,16 +23,80 @@ interface QuickContextNoteModalProps {
   onStartVoice?: () => void;
 }
 
-const CONTEXT_CATEGORIES = [
-  { icon: Smile, label: 'Stimmung', examples: ['Gut gelaunt', 'Gestresst', 'Müde', 'Energiegeladen'] },
-  { icon: Moon, label: 'Schlaf', examples: ['Gut geschlafen', 'Schlecht geschlafen', 'Unruhig', 'Ausgeruht'] },
-  { icon: Activity, label: 'Stress', examples: ['Viel Stress', 'Entspannt', 'Hektisch', 'Ruhig'] },
-  { icon: Utensils, label: 'Ernährung', examples: ['Viel getrunken', 'Wenig gegessen', 'Gesund gegessen', 'Fastfood'] },
-  { icon: Coffee, label: 'Sport & Bewegung', examples: ['Joggen', 'Yoga', 'Spaziergang', 'Workout', 'Keine Bewegung'] },
-  { icon: Droplets, label: 'Flüssigkeit', examples: ['2L Wasser', 'Viel getrunken', 'Wenig getrunken', '1L Wasser'] },
-  { icon: Sun, label: 'Wetter', examples: ['Sonnig', 'Bewölkt', 'Regen', 'Gewitter', 'Wetterwechsel'] },
-  { icon: Calendar, label: 'Zyklus', examples: ['Periode', 'PMS', 'Ovulation', 'Zyklusmitte'] },
-  { icon: Heart, label: 'Wohlbefinden', examples: ['Fühle mich gut', 'Unwohl', 'Ausgeglichen', 'Angespannt'] },
+// 5-Punkt-Skalen Definitionen
+const MOOD_OPTIONS: ScaleOption[] = [
+  { value: 1, label: 'Sehr schlecht', emoji: '😣', color: 'negative' },
+  { value: 2, label: 'Eher schlecht', emoji: '🙁', color: 'warning' },
+  { value: 3, label: 'Neutral', emoji: '😐', color: 'neutral' },
+  { value: 4, label: 'Eher gut', emoji: '🙂', color: 'positive' },
+  { value: 5, label: 'Sehr gut', emoji: '😄', color: 'excellent' },
+];
+
+const STRESS_OPTIONS: ScaleOption[] = [
+  { value: 1, label: 'Kein Stress', emoji: '😌', color: 'excellent' },
+  { value: 2, label: 'Gering', emoji: '🙂', color: 'positive' },
+  { value: 3, label: 'Mittel', emoji: '😐', color: 'neutral' },
+  { value: 4, label: 'Hoch', emoji: '😰', color: 'warning' },
+  { value: 5, label: 'Sehr hoch', emoji: '😫', color: 'negative' },
+];
+
+const SLEEP_OPTIONS: ScaleOption[] = [
+  { value: 1, label: 'Sehr schlecht', emoji: '😴', color: 'negative' },
+  { value: 2, label: 'Eher schlecht', emoji: '😪', color: 'warning' },
+  { value: 3, label: 'Okay', emoji: '😐', color: 'neutral' },
+  { value: 4, label: 'Gut', emoji: '🙂', color: 'positive' },
+  { value: 5, label: 'Sehr gut', emoji: '😊', color: 'excellent' },
+];
+
+const ENERGY_OPTIONS: ScaleOption[] = [
+  { value: 1, label: 'Erschöpft', emoji: '🔋', color: 'negative' },
+  { value: 2, label: 'Müde', emoji: '🔋', color: 'warning' },
+  { value: 3, label: 'Mittel', emoji: '🔋', color: 'neutral' },
+  { value: 4, label: 'Fit', emoji: '🔋', color: 'positive' },
+  { value: 5, label: 'Energiegeladen', emoji: '⚡', color: 'excellent' },
+];
+
+// Trigger-Kategorien
+const NUTRITION_TRIGGERS: ChipOption[] = [
+  { id: 'meal_skipped', label: 'Mahlzeit ausgelassen' },
+  { id: 'high_sugar', label: 'Viel Zucker' },
+  { id: 'high_caffeine', label: 'Viel Koffein' },
+  { id: 'alcohol', label: 'Alkohol' },
+  { id: 'unusual_food', label: 'Ungewohntes Essen' },
+];
+
+const MOVEMENT_TRIGGERS: ChipOption[] = [
+  { id: 'no_movement', label: 'Fast keine Bewegung' },
+  { id: 'walk', label: 'Spaziergang' },
+  { id: 'intense_sport', label: 'Intensiver Sport' },
+];
+
+const FLUID_TRIGGERS: ChipOption[] = [
+  { id: 'too_little', label: 'Zu wenig getrunken' },
+  { id: 'too_much', label: 'Sehr viel getrunken' },
+];
+
+const WEATHER_TRIGGERS: ChipOption[] = [
+  { id: 'weather_change', label: 'Starker Wetterwechsel' },
+  { id: 'bright_light', label: 'Sehr helles Licht' },
+  { id: 'noise', label: 'Viel Lärm' },
+];
+
+const SCREEN_TRIGGERS: ChipOption[] = [
+  { id: 'much_screen', label: 'Viel Bildschirm' },
+  { id: 'late_screen', label: 'Späte Bildschirmzeit' },
+];
+
+const CYCLE_TRIGGERS: ChipOption[] = [
+  { id: 'period', label: 'Periode' },
+  { id: 'pms', label: 'PMS' },
+  { id: 'ovulation', label: 'Eisprung' },
+];
+
+const WELLBEING_TRIGGERS: ChipOption[] = [
+  { id: 'nausea', label: 'Übelkeit' },
+  { id: 'dizzy', label: 'Schwindel' },
+  { id: 'tense', label: 'Verspannt' },
 ];
 
 export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
@@ -39,38 +105,60 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
   onStartVoice,
 }) => {
   const isMobile = useIsMobile();
-  const [selectedCategories, setSelectedCategories] = useState<number[]>([]);
+  
+  // Block A: Tageszustand
+  const [mood, setMood] = useState<number | null>(null);
+  const [stress, setStress] = useState<number | null>(null);
+  const [sleep, setSleep] = useState<number | null>(null);
+  const [energy, setEnergy] = useState<number | null>(null);
+  
+  // Block B: Trigger
+  const [nutritionTriggers, setNutritionTriggers] = useState<string[]>([]);
+  const [movementTriggers, setMovementTriggers] = useState<string[]>([]);
+  const [fluidTriggers, setFluidTriggers] = useState<string[]>([]);
+  const [weatherTriggers, setWeatherTriggers] = useState<string[]>([]);
+  const [screenTriggers, setScreenTriggers] = useState<string[]>([]);
+  const [cycleTriggers, setCycleTriggers] = useState<string[]>([]);
+  const [wellbeingTriggers, setWellbeingTriggers] = useState<string[]>([]);
+  
+  // Block C: Freitext
   const [customText, setCustomText] = useState('');
-  const [selectedExamples, setSelectedExamples] = useState<string[]>([]);
+  
+  // UI state
   const [isSaving, setIsSaving] = useState(false);
-
-  const handleCategoryToggle = (index: number) => {
-    if (selectedCategories.includes(index)) {
-      // Deselect category and remove its examples
-      setSelectedCategories(selectedCategories.filter(i => i !== index));
-      const categoryExamples = CONTEXT_CATEGORIES[index].examples;
-      setSelectedExamples(selectedExamples.filter(e => !categoryExamples.includes(e)));
-    } else {
-      // Add category
-      setSelectedCategories([...selectedCategories, index]);
-    }
-  };
-
-  const handleExampleToggle = (example: string) => {
-    if (selectedExamples.includes(example)) {
-      setSelectedExamples(selectedExamples.filter(e => e !== example));
-    } else {
-      setSelectedExamples([...selectedExamples, example]);
-    }
-  };
+  const [showTriggers, setShowTriggers] = useState(false);
 
   const handleSave = async () => {
-    const categoryLabels = selectedCategories.map(i => CONTEXT_CATEGORIES[i].label).join(', ');
-    const examples = selectedExamples.join(', ');
-    const finalText = [categoryLabels, examples, customText].filter(Boolean).join(' • ');
-
+    // Zusammenstellen der Daten
+    const parts: string[] = [];
+    
+    if (mood !== null) parts.push(`Stimmung: ${MOOD_OPTIONS[mood - 1].label}`);
+    if (stress !== null) parts.push(`Stress: ${STRESS_OPTIONS[stress - 1].label}`);
+    if (sleep !== null) parts.push(`Schlaf: ${SLEEP_OPTIONS[sleep - 1].label}`);
+    if (energy !== null) parts.push(`Energie: ${ENERGY_OPTIONS[energy - 1].label}`);
+    
+    const allTriggers = [
+      ...nutritionTriggers,
+      ...movementTriggers,
+      ...fluidTriggers,
+      ...weatherTriggers,
+      ...screenTriggers,
+      ...cycleTriggers,
+      ...wellbeingTriggers,
+    ];
+    
+    if (allTriggers.length > 0) {
+      parts.push(`Trigger: ${allTriggers.join(', ')}`);
+    }
+    
+    if (customText.trim()) {
+      parts.push(customText.trim());
+    }
+    
+    const finalText = parts.join(' • ');
+    
     if (!finalText.trim()) {
-      toast.error('Bitte fügen Sie eine Notiz hinzu');
+      toast.error('Bitte fülle mindestens einen Bereich aus');
       return;
     }
 
@@ -82,14 +170,11 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
         source: 'manual'
       });
 
-      toast.success('Kontext-Notiz gespeichert', {
+      toast.success('Alltag & Auslöser gespeichert', {
         description: 'Wird in der nächsten Analyse berücksichtigt'
       });
 
-      // Reset und schließen
-      setSelectedCategories([]);
-      setCustomText('');
-      setSelectedExamples([]);
+      handleReset();
       onClose();
     } catch (error) {
       console.error('Error saving context note:', error);
@@ -107,121 +192,194 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
   };
 
   const handleReset = () => {
-    setSelectedCategories([]);
+    setMood(null);
+    setStress(null);
+    setSleep(null);
+    setEnergy(null);
+    setNutritionTriggers([]);
+    setMovementTriggers([]);
+    setFluidTriggers([]);
+    setWeatherTriggers([]);
+    setScreenTriggers([]);
+    setCycleTriggers([]);
+    setWellbeingTriggers([]);
     setCustomText('');
-    setSelectedExamples([]);
   };
+
+  const hasAnyData = mood !== null || stress !== null || sleep !== null || energy !== null ||
+    nutritionTriggers.length > 0 || movementTriggers.length > 0 || fluidTriggers.length > 0 ||
+    weatherTriggers.length > 0 || screenTriggers.length > 0 || cycleTriggers.length > 0 ||
+    wellbeingTriggers.length > 0 || customText.trim() !== '';
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className={cn("max-w-3xl max-h-[90vh] overflow-y-auto", isMobile && "max-w-[95vw]")}>
+      <DialogContent className={cn(
+        "max-w-2xl max-h-[90vh] overflow-y-auto",
+        "bg-[#0B1220] border-[#1F2937]",
+        isMobile && "max-w-[95vw]"
+      )}>
         <DialogHeader>
-          <DialogTitle>Alltag & Auslöser eintragen</DialogTitle>
-          <DialogDescription>
-            Wählen Sie Kategorien und Details aus oder geben Sie eigene Informationen ein
+          <DialogTitle className="text-xl text-[#E5E7EB]">
+            Alltag & Auslöser eintragen
+          </DialogTitle>
+          <DialogDescription className="text-sm text-[#9CA3AF]">
+            Erfasse schnell deine wichtigsten Tagesfaktoren
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6">
-          {/* Categories Grid */}
-          <div>
-            <label className="text-sm font-medium mb-3 block">Kategorien auswählen (mehrere möglich)</label>
-            <div className="grid grid-cols-3 gap-2">
-              {CONTEXT_CATEGORIES.map((category, index) => {
-                const Icon = category.icon;
-                const isSelected = selectedCategories.includes(index);
-                return (
-                  <Button
-                    key={index}
-                    variant={isSelected ? "default" : "outline"}
-                    className={cn(
-                      "h-auto py-3 flex flex-col items-center gap-2",
-                      isSelected && "ring-2 ring-primary"
-                    )}
-                    onClick={() => handleCategoryToggle(index)}
-                  >
-                    <Icon className="h-5 w-5" />
-                    <span className="text-xs font-medium">{category.label}</span>
-                  </Button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Examples for Selected Categories */}
-          {selectedCategories.length > 0 && (
-            <div>
-              <label className="text-sm font-medium mb-3 block">Details auswählen</label>
-              <div className="space-y-3">
-                {selectedCategories.map(categoryIndex => (
-                  <div key={categoryIndex} className="space-y-2">
-                    <div className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                      {React.createElement(CONTEXT_CATEGORIES[categoryIndex].icon, { className: "h-4 w-4" })}
-                      {CONTEXT_CATEGORIES[categoryIndex].label}
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {CONTEXT_CATEGORIES[categoryIndex].examples.map(example => (
-                        <Badge
-                          key={example}
-                          variant={selectedExamples.includes(example) ? "default" : "outline"}
-                          className="cursor-pointer hover:scale-105 transition-transform"
-                          onClick={() => handleExampleToggle(example)}
-                        >
-                          {example}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Custom Text */}
-          <div>
-            <label className="text-sm font-medium mb-2 block">Eigene Notizen (optional)</label>
-            <Textarea
-              placeholder="Z.B. 'Viel Bildschirmarbeit heute' oder 'Starker Wind draußen'"
-              value={customText}
-              onChange={(e) => setCustomText(e.target.value)}
-              className="min-h-[80px]"
+        <div className="space-y-6 py-2">
+          {/* Block A: Tageszustand - Immer sichtbar */}
+          <div className="space-y-5 p-4 bg-[#111827]/50 rounded-lg border border-[#1F2937]/50">
+            <h2 className="text-base font-semibold text-[#E5E7EB] flex items-center gap-2">
+              <Heart className="h-4 w-4" />
+              Tageszustand
+            </h2>
+            
+            <FivePointScale
+              title="Stimmung heute"
+              subtitle="Wie hast du dich über den Tag gefühlt?"
+              options={MOOD_OPTIONS}
+              value={mood}
+              onChange={setMood}
+            />
+            
+            <FivePointScale
+              title="Stress"
+              subtitle="Wie gestresst warst du heute?"
+              options={STRESS_OPTIONS}
+              value={stress}
+              onChange={setStress}
+            />
+            
+            <FivePointScale
+              title="Schlaf letzte Nacht"
+              subtitle="Wie gut hast du geschlafen?"
+              options={SLEEP_OPTIONS}
+              value={sleep}
+              onChange={setSleep}
+            />
+            
+            <FivePointScale
+              title="Energie"
+              subtitle="Wie energiegeladen fühlst du dich?"
+              options={ENERGY_OPTIONS}
+              value={energy}
+              onChange={setEnergy}
             />
           </div>
 
-          {/* Preview */}
-          {(selectedExamples.length > 0 || customText.trim()) && (
-            <div className="p-3 bg-muted rounded-lg">
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Vorschau:</label>
-              <p className="text-sm">
-                {[
-                  ...selectedExamples,
-                  customText.trim()
-                ].filter(Boolean).join(' • ')}
-              </p>
-            </div>
-          )}
+          {/* Block B: Trigger - Einklappbar */}
+          <div className="space-y-4 p-4 bg-[#111827]/50 rounded-lg border border-[#1F2937]/50">
+            <button
+              onClick={() => setShowTriggers(!showTriggers)}
+              className="w-full flex items-center justify-between text-base font-semibold text-[#E5E7EB] hover:text-[#22C55E] transition-colors"
+            >
+              <span className="flex items-center gap-2">
+                <Activity className="h-4 w-4" />
+                Was war heute besonders? (optional)
+              </span>
+              {showTriggers ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+            
+            {showTriggers && (
+              <div className="space-y-4 pt-2">
+                <MultiSelectChips
+                  title="Ernährung"
+                  icon={Utensils}
+                  options={NUTRITION_TRIGGERS}
+                  selected={nutritionTriggers}
+                  onChange={setNutritionTriggers}
+                />
+                
+                <MultiSelectChips
+                  title="Bewegung"
+                  icon={Activity}
+                  options={MOVEMENT_TRIGGERS}
+                  selected={movementTriggers}
+                  onChange={setMovementTriggers}
+                />
+                
+                <MultiSelectChips
+                  title="Flüssigkeit"
+                  icon={Droplets}
+                  options={FLUID_TRIGGERS}
+                  selected={fluidTriggers}
+                  onChange={setFluidTriggers}
+                />
+                
+                <MultiSelectChips
+                  title="Wetter & Umfeld"
+                  icon={CloudRain}
+                  options={WEATHER_TRIGGERS}
+                  selected={weatherTriggers}
+                  onChange={setWeatherTriggers}
+                />
+                
+                <MultiSelectChips
+                  title="Bildschirm & Reize"
+                  icon={Monitor}
+                  options={SCREEN_TRIGGERS}
+                  selected={screenTriggers}
+                  onChange={setScreenTriggers}
+                />
+                
+                <MultiSelectChips
+                  title="Zyklus"
+                  icon={Calendar}
+                  options={CYCLE_TRIGGERS}
+                  selected={cycleTriggers}
+                  onChange={setCycleTriggers}
+                />
+                
+                <MultiSelectChips
+                  title="Wohlbefinden"
+                  icon={Heart}
+                  options={WELLBEING_TRIGGERS}
+                  selected={wellbeingTriggers}
+                  onChange={setWellbeingTriggers}
+                />
+              </div>
+            )}
+          </div>
 
-          {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row gap-2 pt-4 border-t">
+          {/* Block C: Freitext + Sprache - Immer sichtbar */}
+          <div className="space-y-3">
+            <label className="text-sm font-medium text-[#E5E7EB] block">
+              Eigene Notiz (optional)
+            </label>
+            <Textarea
+              placeholder="Z.B. viel Bildschirmarbeit oder Streit im Job..."
+              value={customText}
+              onChange={(e) => setCustomText(e.target.value)}
+              className="min-h-[80px] bg-[#0B1220] border-[#1F2937] text-[#E5E7EB] placeholder:text-[#4B5563] focus:border-[#22C55E]/50 focus:ring-[#22C55E]/20"
+              rows={3}
+            />
             <Button
               variant="outline"
-              className="flex-1"
+              size="sm"
               onClick={handleVoiceClick}
+              className="w-full sm:w-auto bg-[#0B1220] border-[#1F2937] text-[#E5E7EB] hover:bg-[#111827] hover:border-[#4B5563]"
             >
               <Mic className="h-4 w-4 mr-2" />
-              Per Sprache eingeben
+              Einsprechen
             </Button>
+          </div>
+
+          {/* Footer */}
+          <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-[#1F2937]">
             <Button
-              variant="outline"
+              variant="ghost"
               onClick={handleReset}
-              disabled={selectedCategories.length === 0 && !customText.trim() && selectedExamples.length === 0}
+              disabled={!hasAnyData}
+              className="text-[#9CA3AF] hover:text-[#E5E7EB] hover:bg-[#111827]"
             >
               Zurücksetzen
             </Button>
+            <div className="flex-1" />
             <Button
               onClick={handleSave}
-              disabled={isSaving || (selectedExamples.length === 0 && !customText.trim())}
-              className="flex-1"
+              disabled={isSaving || !hasAnyData}
+              className="min-w-[140px] bg-[#22C55E] hover:bg-[#16A34A] text-[#020617] font-semibold shadow-sm disabled:bg-[#4B5563] disabled:text-[#9CA3AF]"
             >
               {isSaving ? 'Speichert...' : 'Speichern'}
             </Button>
