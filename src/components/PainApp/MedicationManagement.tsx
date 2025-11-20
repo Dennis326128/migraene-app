@@ -273,8 +273,8 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <Pill className="h-5 w-5 text-primary shrink-0" />
-                        <h3 className="font-semibold text-lg truncate">{med.name}</h3>
+                        <Pill className="h-4 w-4 text-primary shrink-0" />
+                        <h3 className="font-semibold text-base line-clamp-2 break-words">{med.name}</h3>
                       </div>
                       {reminderCount > 0 && (
                         <div className="flex items-center gap-1 text-sm text-muted-foreground">
@@ -290,6 +290,7 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
                         size="icon"
                         onClick={() => openReminderDialog(med)}
                         title="Erinnerungen verwalten"
+                        className="h-10 w-10"
                       >
                         <Bell className="h-4 w-4" />
                       </Button>
@@ -298,6 +299,7 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
                         size="icon"
                         onClick={() => openEditDialog(med)}
                         title="Bearbeiten"
+                        className="h-10 w-10"
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
@@ -306,6 +308,7 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
                         size="icon"
                         onClick={() => openDeleteDialog(med)}
                         title="Löschen"
+                        className="h-10 w-10"
                       >
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>

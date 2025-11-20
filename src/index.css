@@ -179,6 +179,35 @@ All colors MUST be HSL.
   contain: layout style paint;
 }
 
+/* Mobile Typography System */
+@media (max-width: 767px) {
+  .mobile-title {
+    font-size: 1.25rem; /* 20px */
+    line-height: 1.4;
+  }
+  
+  .mobile-subtitle {
+    font-size: 1rem; /* 16px */
+    line-height: 1.5;
+  }
+  
+  .mobile-body {
+    font-size: 0.875rem; /* 14px */
+    line-height: 1.5;
+  }
+  
+  .mobile-caption {
+    font-size: 0.75rem; /* 12px */
+    line-height: 1.4;
+  }
+  
+  /* Minimum touch target size */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
 @layer base {
   body {
     @apply bg-background text-foreground;
