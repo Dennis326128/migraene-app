@@ -223,13 +223,13 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
             Alltag & Auslöser eintragen
           </DialogTitle>
           <DialogDescription className="text-sm text-[#9CA3AF]">
-            Erfasse schnell deine wichtigsten Tagesfaktoren
+            Erfasse schnell deine wichtigsten Tagesfaktoren. Alle Angaben sind optional.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6 py-2">
+        <div className="space-y-4 py-2">
           {/* Block A: Tageszustand - Immer sichtbar */}
-          <div className="space-y-5 p-4 bg-[#111827]/50 rounded-lg border border-[#1F2937]/50">
+          <div className="space-y-3 p-4 bg-[#111827]/50 rounded-lg border border-[#1F2937]/50">
             <h2 className="text-base font-semibold text-[#E5E7EB] flex items-center gap-2">
               <Heart className="h-4 w-4" />
               Tageszustand
@@ -268,8 +268,31 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
             />
           </div>
 
-          {/* Block B: Trigger - Einklappbar */}
-          <div className="space-y-4 p-4 bg-[#111827]/50 rounded-lg border border-[#1F2937]/50">
+          {/* Block C: Freitext + Sprache - Direkt nach Tageszustand */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-[#E5E7EB] block">
+              Eigene Notiz (optional)
+            </label>
+            <Textarea
+              placeholder="Z.B. viel Bildschirmarbeit oder Streit im Job..."
+              value={customText}
+              onChange={(e) => setCustomText(e.target.value)}
+              className="min-h-[80px] bg-[#0B1220] border-[#1F2937] text-[#E5E7EB] placeholder:text-[#4B5563] focus:border-[#22C55E]/50 focus:ring-[#22C55E]/20"
+              rows={3}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleVoiceClick}
+              className="w-full sm:w-auto bg-[#0B1220] border-[#1F2937] text-[#E5E7EB] hover:bg-[#111827] hover:border-[#4B5563]"
+            >
+              <Mic className="h-4 w-4 mr-2" />
+              Einsprechen
+            </Button>
+          </div>
+
+          {/* Block B: Trigger - Einklappbar, standardmäßig geschlossen */}
+          <div className="space-y-3 p-4 bg-[#111827]/50 rounded-lg border border-[#1F2937]/50">
             <button
               onClick={() => setShowTriggers(!showTriggers)}
               className="w-full flex items-center justify-between text-base font-semibold text-[#E5E7EB] hover:text-[#22C55E] transition-colors"
@@ -283,6 +306,9 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
             
             {showTriggers && (
               <div className="space-y-4 pt-2">
+                <p className="text-xs text-[#9CA3AF] leading-tight">
+                  Wähle alles aus, was heute besonders war. Du kannst mehrere auswählen. Wenn nichts davon passt, kannst du diesen Bereich einfach ignorieren.
+                </p>
                 <MultiSelectChips
                   title="Ernährung"
                   icon={Utensils}
@@ -340,29 +366,6 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
                 />
               </div>
             )}
-          </div>
-
-          {/* Block C: Freitext + Sprache - Immer sichtbar */}
-          <div className="space-y-3">
-            <label className="text-sm font-medium text-[#E5E7EB] block">
-              Eigene Notiz (optional)
-            </label>
-            <Textarea
-              placeholder="Z.B. viel Bildschirmarbeit oder Streit im Job..."
-              value={customText}
-              onChange={(e) => setCustomText(e.target.value)}
-              className="min-h-[80px] bg-[#0B1220] border-[#1F2937] text-[#E5E7EB] placeholder:text-[#4B5563] focus:border-[#22C55E]/50 focus:ring-[#22C55E]/20"
-              rows={3}
-            />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleVoiceClick}
-              className="w-full sm:w-auto bg-[#0B1220] border-[#1F2937] text-[#E5E7EB] hover:bg-[#111827] hover:border-[#4B5563]"
-            >
-              <Mic className="h-4 w-4 mr-2" />
-              Einsprechen
-            </Button>
           </div>
 
           {/* Footer */}
