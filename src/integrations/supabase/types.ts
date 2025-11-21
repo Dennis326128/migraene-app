@@ -671,8 +671,10 @@ export type Database = {
           dewpoint_c: number | null
           humidity: number | null
           id: number
+          lat_rounded: number | null
           latitude: number
           location: string | null
+          lon_rounded: number | null
           longitude: number
           moon_phase: number | null
           moonrise: number | null
@@ -680,6 +682,7 @@ export type Database = {
           pressure_change_24h: number | null
           pressure_mb: number | null
           pressure_trend_24h: number | null
+          requested_at: string | null
           snapshot_date: string | null
           temperature_c: number | null
           user_id: string
@@ -692,8 +695,10 @@ export type Database = {
           dewpoint_c?: number | null
           humidity?: number | null
           id?: number
+          lat_rounded?: number | null
           latitude: number
           location?: string | null
+          lon_rounded?: number | null
           longitude: number
           moon_phase?: number | null
           moonrise?: number | null
@@ -701,6 +706,7 @@ export type Database = {
           pressure_change_24h?: number | null
           pressure_mb?: number | null
           pressure_trend_24h?: number | null
+          requested_at?: string | null
           snapshot_date?: string | null
           temperature_c?: number | null
           user_id: string
@@ -713,8 +719,10 @@ export type Database = {
           dewpoint_c?: number | null
           humidity?: number | null
           id?: number
+          lat_rounded?: number | null
           latitude?: number
           location?: string | null
+          lon_rounded?: number | null
           longitude?: number
           moon_phase?: number | null
           moonrise?: number | null
@@ -722,6 +730,7 @@ export type Database = {
           pressure_change_24h?: number | null
           pressure_mb?: number | null
           pressure_trend_24h?: number | null
+          requested_at?: string | null
           snapshot_date?: string | null
           temperature_c?: number | null
           user_id?: string
