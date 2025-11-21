@@ -53,3 +53,6 @@ verify_jwt = true
 
 [functions.backfill-future-entries]
 verify_jwt = false
+
+[functions.debug-weather-status]
+verify_jwt = true

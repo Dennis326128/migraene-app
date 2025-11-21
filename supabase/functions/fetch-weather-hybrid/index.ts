@@ -429,6 +429,7 @@ serve(async (req) => {
         latitude: roundedLat,
         longitude: roundedLon,
         snapshot_date: dateString,
+        requested_at: requestDate.toISOString(), // ✅ NEU: Zeitpunkt für den die Wetterdaten gelten
         temperature_c: weatherData.temperature_c,
         humidity: weatherData.humidity,
         pressure_mb: weatherData.pressure_mb,
@@ -442,27 +443,54 @@ serve(async (req) => {
       .maybeSingle();
 
     if (insertError) {
-      // If insert fails due to unique constraint violation, fetch existing
+      // ✅ VERBESSERTER FEHLERHANDLER: Prüfe Distanz statt nur Datum
       if (insertError.code === '23505') { // Unique violation
-        console.log('⚠️ Duplicate key conflict, fetching existing weather data...');
-        const { data: existingRecord, error: fetchError } = await supabaseService
+        console.log('⚠️ Duplicate key conflict, suche passenden Log innerhalb 5km...');
+        
+        // Suche alle Logs des Users am gleichen Tag
+        const { data: existingRecords, error: fetchError } = await supabaseService
           .from('weather_logs')
-          .select('id')
+          .select('id, latitude, longitude, requested_at')
           .eq('user_id', userId)
           .eq('snapshot_date', dateString)
-          .limit(1)
-          .maybeSingle();
+          .order('created_at', { ascending: false })
+          .limit(10);
         
         if (fetchError) {
-          console.error('❌ Failed to fetch existing record:', fetchError);
+          console.error('❌ Failed to fetch existing records:', fetchError);
           throw fetchError;
         }
         
-        if (existingRecord) {
-          console.log('✅ Returning existing weather data after conflict:', existingRecord.id);
-          return new Response(JSON.stringify({ weather_id: existingRecord.id }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
+        // Prüfe Distanz zu jedem Log (5km Radius)
+        const proximityKm = 5;
+        if (existingRecords && existingRecords.length > 0) {
+          for (const log of existingRecords) {
+            const existingLat = Number(log.latitude);
+            const existingLon = Number(log.longitude);
+            
+            // Haversine Distanzberechnung
+            const R = 6371;
+            const dLat = (roundedLat - existingLat) * Math.PI / 180;
+            const dLon = (roundedLon - existingLon) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(existingLat * Math.PI / 180) * Math.cos(roundedLat * Math.PI / 180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            const distance = R * c;
+            
+            if (distance < proximityKm) {
+              console.log(`✅ Reusing existing log ${log.id} within ${distance.toFixed(2)} km`);
+              return new Response(JSON.stringify({ 
+                weather_id: log.id,
+                source: 'duplicate_nearby' 
+              }), {
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+              });
+            }
+          }
+          
+          // Kein Log in der Nähe gefunden - das sollte nicht passieren mit neuem Schema
+          console.log('⚠️ No log within 5km found despite duplicate error - proceeding with error');
         }
       }
       
