@@ -1,3 +1,12 @@
+/**
+ * ⚠️ DEPRECATED - NUR FÜR LEGACY-SUPPORT
+ * 
+ * Diese Datei wird nicht mehr aktiv verwendet.
+ * Bitte verwenden Sie stattdessen: src/lib/pdf/report.ts → buildDiaryPdf()
+ * 
+ * Die zentrale PDF-Funktion für alle Nutzer:innen ist buildDiaryPdf() in report.ts
+ */
+
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
 // Types for modern event system
