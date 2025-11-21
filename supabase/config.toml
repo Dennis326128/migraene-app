@@ -56,3 +56,6 @@ verify_jwt = false
 
 [functions.debug-weather-status]
 verify_jwt = true
+
+[functions.generate-doctor-summary]
+verify_jwt = true
