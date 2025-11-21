@@ -408,8 +408,13 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         includeDoctorData
       });
       
-      const errorMessage = error instanceof Error ? error.message : "Unbekannter Fehler";
-      toast.error(`PDF konnte nicht erstellt werden: ${errorMessage}`);
+      // Spezifische Fehlerbehandlung für Encoding-Probleme
+      if (error instanceof Error && error.message.includes("cannot encode")) {
+        toast.error("PDF enthält nicht unterstützte Sonderzeichen. Bitte entfernen Sie Emojis oder spezielle Symbole aus Ihren Notizen.");
+      } else {
+        const errorMessage = error instanceof Error ? error.message : "Unbekannter Fehler";
+        toast.error(`PDF konnte nicht erstellt werden: ${errorMessage}`);
+      }
     } finally {
       setIsGeneratingReport(false);
     }

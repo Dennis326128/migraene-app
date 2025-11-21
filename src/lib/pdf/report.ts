@@ -2,6 +2,53 @@ import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import type { PainEntry } from "@/types/painApp";
 
 /**
+ * Bereinigt Text für WinAnsi-kompatibles PDF-Encoding
+ * Entfernt/ersetzt problematische Unicode-Zeichen
+ */
+function sanitizeForPDF(text: string | undefined | null): string {
+  if (!text) return "";
+  
+  const original = text;
+  const sanitized = text
+    // Durchschnittszeichen ersetzen
+    .replace(/⌀/g, "Ø")           // Diameter Sign → Ø
+    .replace(/∅/g, "Ø")           // Empty Set → Ø
+    
+    // Typografische Anführungszeichen → normale
+    .replace(/[""]/g, '"')
+    .replace(/['']/g, "'")
+    
+    // Gedankenstriche → Bindestriche
+    .replace(/[–—]/g, "-")
+    
+    // Bullet Points normalisieren
+    .replace(/•/g, "-")
+    
+    // Ellipsis
+    .replace(/…/g, "...")
+    
+    // Nicht-druckbare Zeichen entfernen
+    .replace(/[\u0000-\u001F\u007F-\u009F]/g, "")
+    
+    // Alle verbleibenden problematischen Unicode-Zeichen (außerhalb Latin-1)
+    .replace(/[^\u0020-\u007E\u00A0-\u00FF]/g, "")
+    
+    // Mehrfache Leerzeichen normalisieren
+    .replace(/\s+/g, " ")
+    .trim();
+  
+  // Warnung bei stark verändertem Text (für Debugging)
+  if (original !== sanitized && original.length > 10) {
+    console.warn("PDF Text sanitized:", { 
+      original: original.substring(0, 50), 
+      sanitized: sanitized.substring(0, 50) 
+    });
+  }
+  
+  return sanitized;
+}
+
+/**
  * PDF-Report-Optionen für Krankenkasse & Ärzte
  * Alle Flags steuern, welche Abschnitte im PDF erscheinen
  */
@@ -338,31 +385,32 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     
     if (patientData.firstName || patientData.lastName) {
       const name = [patientData.firstName, patientData.lastName].filter(Boolean).join(" ");
-      page.drawText(`Name: ${name}`, { x: 50, y: yPos, size: 10, font });
+      page.drawText(sanitizeForPDF(`Name: ${name}`), { x: 50, y: yPos, size: 10, font });
       yPos -= 14;
     }
     
     if (patientData.dateOfBirth) {
-      page.drawText(`Geburtsdatum: ${formatDate(patientData.dateOfBirth)}`, { x: 50, y: yPos, size: 10, font });
+      page.drawText(sanitizeForPDF(`Geburtsdatum: ${formatDate(patientData.dateOfBirth)}`), { x: 50, y: yPos, size: 10, font });
       yPos -= 14;
     }
     
     if (patientData.street || patientData.postalCode || patientData.city) {
       const address = [
         patientData.street,
-        [patientData.postalCode, patientData.city].filter(Boolean).join(" ")
+        patientData.postalCode,
+        patientData.city
       ].filter(Boolean).join(", ");
-      page.drawText(`Adresse: ${address}`, { x: 50, y: yPos, size: 10, font });
+      page.drawText(sanitizeForPDF(`Adresse: ${address}`), { x: 50, y: yPos, size: 10, font });
       yPos -= 14;
     }
     
     if (patientData.phone) {
-      page.drawText(`Telefon: ${patientData.phone}`, { x: 50, y: yPos, size: 10, font });
+      page.drawText(sanitizeForPDF(`Telefon: ${patientData.phone}`), { x: 50, y: yPos, size: 10, font });
       yPos -= 14;
     }
     
     if (patientData.email) {
-      page.drawText(`E-Mail: ${patientData.email}`, { x: 50, y: yPos, size: 10, font });
+      page.drawText(sanitizeForPDF(`E-Mail: ${patientData.email}`), { x: 50, y: yPos, size: 10, font });
       yPos -= 14;
     }
     
@@ -378,31 +426,32 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     for (const doctor of doctors) {
       if (doctor.firstName || doctor.lastName) {
         const name = [doctor.firstName, doctor.lastName].filter(Boolean).join(" ");
-        page.drawText(`Name: ${name}`, { x: 50, y: yPos, size: 10, font });
+        page.drawText(sanitizeForPDF(`Name: ${name}`), { x: 50, y: yPos, size: 10, font });
         yPos -= 14;
       }
       
       if (doctor.specialty) {
-        page.drawText(`Fachgebiet: ${doctor.specialty}`, { x: 50, y: yPos, size: 10, font });
+        page.drawText(sanitizeForPDF(`Fachgebiet: ${doctor.specialty}`), { x: 50, y: yPos, size: 10, font });
         yPos -= 14;
       }
       
       if (doctor.street || doctor.postalCode || doctor.city) {
         const address = [
           doctor.street,
-          [doctor.postalCode, doctor.city].filter(Boolean).join(" ")
+          doctor.postalCode,
+          doctor.city
         ].filter(Boolean).join(", ");
-        page.drawText(`Adresse: ${address}`, { x: 50, y: yPos, size: 10, font });
+        page.drawText(sanitizeForPDF(`Adresse: ${address}`), { x: 50, y: yPos, size: 10, font });
         yPos -= 14;
       }
       
       if (doctor.phone) {
-        page.drawText(`Telefon: ${doctor.phone}`, { x: 50, y: yPos, size: 10, font });
+        page.drawText(sanitizeForPDF(`Telefon: ${doctor.phone}`), { x: 50, y: yPos, size: 10, font });
         yPos -= 14;
       }
       
       if (doctor.email) {
-        page.drawText(`E-Mail: ${doctor.email}`, { x: 50, y: yPos, size: 10, font });
+        page.drawText(sanitizeForPDF(`E-Mail: ${doctor.email}`), { x: 50, y: yPos, size: 10, font });
         yPos -= 14;
       }
       
@@ -513,7 +562,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
             });
           }
           
-          page.drawText(currentLine, { 
+          page.drawText(sanitizeForPDF(currentLine), { 
             x: boxX + boxPadding + indent, 
             y: yPos, 
             size: 9, 
@@ -552,7 +601,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
             font 
           });
         }
-        page.drawText(currentLine, { 
+        page.drawText(sanitizeForPDF(currentLine), { 
           x: boxX + boxPadding + indent, 
           y: yPos, 
           size: 9, 
@@ -653,7 +702,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
         color: rgb(0.97, 0.97, 0.97),
       });
       
-      page.drawText(`${stat.name}`, { x: 65, y: yPos, size: 10, font: fontBold });
+      page.drawText(sanitizeForPDF(stat.name), { x: 65, y: yPos, size: 10, font: fontBold });
       yPos -= 14;
       
       // Two-column layout for better readability
@@ -661,7 +710,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       
       if (stat.ratedCount > 0 && stat.avgEffect !== null) {
         const effectPercent = Math.round((stat.avgEffect / 10) * 100);
-        page.drawText(`Wirksamkeit: ${effectPercent}% (⌀ aus ${stat.ratedCount} Bewertungen)`, 
+        page.drawText(`Wirksamkeit: ${effectPercent}% (Ø aus ${stat.ratedCount} Bewertungen)`, 
           { x: 250, y: yPos, size: 9, font });
       }
       yPos -= 30;
@@ -790,7 +839,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       if (line) lines.push(line);
 
       lines.forEach((ln, i) => {
-        page.drawText(ln, { x, y: outY - (i*11), size, font });
+        page.drawText(sanitizeForPDF(ln), { x, y: outY - (i*11), size, font });
       });
       return outY - (lines.length - 1) * 11;
     };
