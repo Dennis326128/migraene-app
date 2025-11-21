@@ -37,7 +37,15 @@ import {
  * 4. Optional: Kurzer Arzt-KI-Bericht via generate-doctor-summary Edge Function
  * 5. PDF wird als Blob heruntergeladen
  * 
- * Report-Builder: buildDiaryPdf (report.ts) - für Krankenkasse & Ärzte
+ * ✅ AKTIVE PDF-GENERIERUNG: buildDiaryPdf (src/lib/pdf/report.ts)
+ * 
+ * Features:
+ * - Deutsche Datumsformate (dd.mm.yyyy, dd.mm.yyyy HH:mm)
+ * - Patientendaten-Sektion (checkbox-gesteuert)
+ * - Arztkontakte-Sektion (checkbox-gesteuert)
+ * - KI-Analyse für Ärzte (kurzer Arztbericht, checkbox-gesteuert)
+ * - Executive Summary mit Statistiken
+ * - Professionelle Tabellen und Charts
  */
 
 type Preset = TimeRangePreset;
@@ -306,77 +314,6 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     }
   };
 
-  const printPDF = async () => {
-    if (!filteredEntries.length) {
-      toast.error("Keine Einträge zum Drucken gefunden.");
-      return;
-    }
-    
-    setIsGeneratingReport(true);
-    try {
-      // Analysebericht sicherstellen (falls aktiviert)
-      const currentReport = await ensureAnalysisReport();
-      
-      const win = window.open("", "_blank");
-      if (!win) return;
-      const style = `
-      <style>
-      body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; padding: 24px; }
-      h1 { font-size: 20px; margin: 0 0 8px; }
-      h2 { font-size: 16px; margin: 16px 0 8px; }
-      table { width: 100%; border-collapse: collapse; font-size: 12px; }
-      th, td { border: 1px solid #e5e7eb; padding: 6px 8px; text-align: left; }
-      thead { background: #f3f4f6; }
-      small { color: #6b7280; }
-      </style>
-    `;
-    const dateRange = `${formatGermanDate(from)} bis ${formatGermanDate(to)}`;
-    const header = `
-      <h1>Kopfschmerztagebuch</h1>
-      <small>Zeitraum: ${dateRange}${selectedMeds.length ? ` • Medikamente: ${selectedMeds.join(", ")}` : ""}</small>
-      <h2>Übersicht</h2>
-      <div>Einträge: ${filteredEntries.length}</div>
-      <div>Durchschnittliches Schmerzlevel: ${avgPain}</div>
-      <h2>Einträge</h2>
-    `;
-    const rows = filteredEntries.map(e => {
-      const dt = e.selected_date && e.selected_time
-        ? `${e.selected_date} ${e.selected_time}`
-        : new Date(e.timestamp_created).toLocaleString();
-      const meds = (e.medications || []).join(", ") || "–";
-      const painScore = mapTextLevelToScore(e.pain_level);
-      return `<tr>
-        <td>${dt}</td>
-        <td>${painScore}</td>
-        <td>${meds}</td>
-        <td>${e.notes ?? "–"}</td>
-      </tr>`;
-    }).join("");
-    const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <title>Kopfschmerztagebuch</title>
-        ${style}
-      </head>
-      <body>
-      ${header}
-      <table>
-        <thead><tr><th>Datum/Zeit</th><th>Schmerz</th><th>Medikamente</th><th>Notiz</th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-      </body>
-      </html>
-    `;
-      win.document.write(html);
-      win.document.close();
-      win.focus();
-      win.print();
-    } finally {
-      setIsGeneratingReport(false);
-    }
-  };
 
   const exportCSV = () => {
     if (!filteredEntries.length) return;
@@ -401,6 +338,11 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     URL.revokeObjectURL(url);
   };
 
+  /**
+   * PDF-Export für Ärzte & Krankenkassen
+   * Verwendet buildDiaryPdf() aus src/lib/pdf/report.ts
+   * Alle Checkbox-Einstellungen werden korrekt verarbeitet
+   */
   const savePDF = async () => {
     if (!filteredEntries.length) {
       toast.error("Keine Einträge im ausgewählten Zeitraum gefunden.");
@@ -637,26 +579,12 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
           </div>
 
           <div className="flex flex-wrap gap-3">
-          <Button 
-            variant="default" 
-            size="lg"
-            onClick={printPDF} 
-            disabled={!filteredEntries.length || isLoading || isGeneratingReport}
-            className="flex-1 sm:flex-none"
-          >
-            {isGeneratingReport ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Erstelle PDF...
-              </>
-            ) : (
-              "📄 PDF erstellen"
-            )}
-          </Button>
             <Button 
-              variant="secondary" 
+              variant="default" 
+              size="lg"
               onClick={savePDF} 
               disabled={!filteredEntries.length || isLoading || isGeneratingReport}
+              className="flex-1 sm:flex-none"
             >
               {isGeneratingReport ? (
                 <>
@@ -664,7 +592,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
                   Erstelle PDF...
                 </>
               ) : (
-                "💾 Als PDF speichern"
+                "📄 PDF für Arzt/Krankenkasse erstellen"
               )}
             </Button>
             <Button 
