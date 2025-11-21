@@ -287,6 +287,13 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
       return;
     }
 
+    // Pre-PDF Validierung
+    if (!from || !to) {
+      console.error("PDF Generierung - Ungültige Daten:", { from, to });
+      toast.error("Zeitraum ist nicht korrekt definiert.");
+      return;
+    }
+
     if ((includePatientData || includeDoctorData) && 
         (!patientData?.first_name && !patientData?.last_name && doctors.length === 0)) {
       setShowMissingDataDialog(true);
@@ -296,6 +303,18 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     setIsGeneratingReport(true);
     
     try {
+      console.log("PDF Generierung gestartet:", { 
+        from, 
+        to, 
+        entriesCount: filteredEntries.length,
+        includeAnalysis,
+        includeStats,
+        includeChart,
+        includeEntriesList,
+        includePatientData,
+        includeDoctorData
+      });
+
       let aiAnalysis = undefined;
       
       if (includeAnalysis) {
@@ -354,11 +373,20 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         })) : undefined
       });
 
+      console.log("PDF erfolgreich generiert, Größe:", pdfBytes.byteLength, "bytes");
+
       const blob = new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `Kopfschmerztagebuch_${format(new Date(from), 'yyyy-MM-dd')}_bis_${format(new Date(to), 'yyyy-MM-dd')}.pdf`;
+      
+      // Sicheres Date Formatting für Dateinamen
+      const fromDate = typeof from === 'string' ? new Date(from) : from;
+      const toDate = typeof to === 'string' ? new Date(to) : to;
+      const fromStr = `${fromDate.getFullYear()}-${String(fromDate.getMonth() + 1).padStart(2, '0')}-${String(fromDate.getDate()).padStart(2, '0')}`;
+      const toStr = `${toDate.getFullYear()}-${String(toDate.getMonth() + 1).padStart(2, '0')}-${String(toDate.getDate()).padStart(2, '0')}`;
+      
+      link.download = `Kopfschmerztagebuch_${fromStr}_bis_${toStr}.pdf`;
       link.click();
       URL.revokeObjectURL(url);
       
@@ -366,7 +394,22 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
       
     } catch (error) {
       console.error("PDF-Generierung fehlgeschlagen:", error);
-      toast.error("PDF konnte nicht erstellt werden. Bitte versuchen Sie es erneut.");
+      console.error("Error Details:", {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        from,
+        to,
+        entriesCount: filteredEntries.length,
+        includeAnalysis,
+        includeStats,
+        includeChart,
+        includeEntriesList,
+        includePatientData,
+        includeDoctorData
+      });
+      
+      const errorMessage = error instanceof Error ? error.message : "Unbekannter Fehler";
+      toast.error(`PDF konnte nicht erstellt werden: ${errorMessage}`);
     } finally {
       setIsGeneratingReport(false);
     }

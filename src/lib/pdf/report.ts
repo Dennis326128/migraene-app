@@ -64,12 +64,24 @@ function toLabel(e: PainEntry) {
  * Einheitliche Datumsformatierung für Ärzte/Krankenkassen: dd.mm.yyyy
  */
 function formatDate(dateStr: string): string {
-  const date = new Date(dateStr);
-  return date.toLocaleDateString("de-DE", { 
-    day: "2-digit", 
-    month: "2-digit", 
-    year: "numeric" 
-  });
+  try {
+    const date = new Date(dateStr);
+    
+    // Validierung: Prüfe ob Date-Objekt gültig ist
+    if (isNaN(date.getTime())) {
+      console.warn(`formatDate: Ungültiges Datum "${dateStr}", verwende Original-String`);
+      return dateStr;
+    }
+    
+    return date.toLocaleDateString("de-DE", { 
+      day: "2-digit", 
+      month: "2-digit", 
+      year: "numeric" 
+    });
+  } catch (error) {
+    console.error(`formatDate: Fehler beim Formatieren von "${dateStr}":`, error);
+    return dateStr; // Fallback: Original-String zurückgeben
+  }
 }
 
 /**
