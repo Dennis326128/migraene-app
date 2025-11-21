@@ -281,14 +281,9 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
   };
 
   const ensureAnalysisReport = async (): Promise<string> => {
-    // Wenn Analyse nicht aktiviert, nichts tun
     if (!includeAnalysis) return "";
-    
-    // Wenn bereits vorhanden, zurückgeben
     if (analysisReport) return analysisReport;
     
-    // Kurzen Arztbericht generieren (statt langer Analyse)
-    setIsGeneratingReport(true);
     try {
       const { data, error } = await supabase.functions.invoke('generate-doctor-summary', {
         body: { 
@@ -300,7 +295,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
       if (error) throw error;
       if (data.error) {
         console.error('AI-Kurzbericht Fehler:', data.error);
-        return "";
+        throw new Error(data.error);
       }
 
       const report = data.summary || "";
@@ -308,9 +303,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
       return report;
     } catch (error) {
       console.error('Fehler beim Generieren des Kurzberichts:', error);
-      return "";
-    } finally {
-      setIsGeneratingReport(false);
+      throw error;
     }
   };
 
@@ -339,7 +332,80 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
   };
 
   /**
-   * PDF-Export für Ärzte & Krankenkassen
+   * Schneller PDF-Export ohne KI-Analyse
+   * Für schnelle Ausdrucke und einfache Reports
+   */
+  const quickPDF = async () => {
+    if (!filteredEntries.length) {
+      toast.error("Keine Einträge im ausgewählten Zeitraum gefunden.");
+      return;
+    }
+    
+    if ((includePatientData || includeDoctorData) && 
+        (!patientData?.first_name && !patientData?.last_name && doctors.length === 0)) {
+      setShowMissingDataDialog(true);
+      return;
+    }
+    
+    setIsGeneratingReport(true);
+    try {
+      const bytes = await buildDiaryPdf({
+        title: "Kopfschmerztagebuch",
+        from, to,
+        entries: filteredEntries,
+        selectedMeds,
+        
+        includeStats,
+        includeChart,
+        includeAnalysis: false,
+        includeEntriesList,
+        includePatientData,
+        includeDoctorData,
+        
+        analysisReport: undefined,
+        medicationStats: includeStats ? medicationStats : undefined,
+        patientData: patientData ? {
+          firstName: patientData?.first_name,
+          lastName: patientData?.last_name,
+          street: patientData?.street,
+          postalCode: patientData?.postal_code,
+          city: patientData?.city,
+          phone: patientData?.phone,
+          email: userEmail,
+          dateOfBirth: patientData?.date_of_birth,
+        } : undefined,
+        doctors: doctors.length > 0 ? doctors.map(d => ({
+          firstName: d.first_name,
+          lastName: d.last_name,
+          specialty: d.specialty,
+          street: d.street,
+          postalCode: d.postal_code,
+          city: d.city,
+          phone: d.phone,
+          email: d.email,
+        })) : undefined,
+      });
+      
+      const blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `kopfschmerztagebuch_${from}_bis_${to}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success("PDF wurde heruntergeladen");
+    } catch (error) {
+      console.error("Fehler beim PDF-Export:", error);
+      toast.error("PDF konnte nicht erstellt werden. Bitte versuchen Sie es erneut.");
+    } finally {
+      setIsGeneratingReport(false);
+    }
+  };
+
+  /**
+   * Vollständiger PDF-Export mit KI-Analyse
    * Verwendet buildDiaryPdf() aus src/lib/pdf/report.ts
    * Alle Checkbox-Einstellungen werden korrekt verarbeitet
    */
@@ -349,7 +415,6 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
       return;
     }
 
-    // Check if user wants to include data but hasn't set it up
     if ((includePatientData || includeDoctorData) && 
         (!patientData?.first_name && !patientData?.last_name && doctors.length === 0)) {
       setShowMissingDataDialog(true);
@@ -358,8 +423,15 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     
     setIsGeneratingReport(true);
     try {
-      // Analysebericht sicherstellen (falls aktiviert)
-      const currentReport = await ensureAnalysisReport();
+      let currentReport = "";
+      if (includeAnalysis) {
+        try {
+          currentReport = await ensureAnalysisReport();
+        } catch (analysisError) {
+          console.error("KI-Analyse fehlgeschlagen:", analysisError);
+          toast.error("KI-Analyse konnte nicht erstellt werden. PDF wird ohne Analyse erstellt.");
+        }
+      }
     
       const bytes = await buildDiaryPdf({
         title: "Kopfschmerztagebuch",
@@ -367,13 +439,12 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         entries: filteredEntries,
         selectedMeds,
         
-        // Content flags - direkt von Checkboxen
         includeStats,
         includeChart,
         includeAnalysis,
         includeEntriesList,
-        includePatientData,  // NEU: an Builder übergeben
-        includeDoctorData,   // NEU: an Builder übergeben
+        includePatientData,
+        includeDoctorData,
         
         analysisReport: currentReport || undefined,
         medicationStats: includeStats ? medicationStats : undefined,
@@ -409,6 +480,9 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
       a.remove();
       URL.revokeObjectURL(url);
       toast.success("PDF wurde heruntergeladen");
+    } catch (error) {
+      console.error("Fehler beim PDF-Export:", error);
+      toast.error("PDF konnte nicht erstellt werden. Bitte versuchen Sie es erneut oder kontaktieren Sie den Support.");
     } finally {
       setIsGeneratingReport(false);
     }
@@ -582,6 +656,23 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
             <Button 
               variant="default" 
               size="lg"
+              onClick={quickPDF} 
+              disabled={!filteredEntries.length || isLoading || isGeneratingReport}
+              className="flex-1 sm:flex-none"
+            >
+              {isGeneratingReport ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Erstelle PDF...
+                </>
+              ) : (
+                "📄 Schneller PDF-Export"
+              )}
+            </Button>
+            
+            <Button 
+              variant="outline" 
+              size="lg"
               onClick={savePDF} 
               disabled={!filteredEntries.length || isLoading || isGeneratingReport}
               className="flex-1 sm:flex-none"
@@ -592,9 +683,10 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
                   Erstelle PDF...
                 </>
               ) : (
-                "📄 PDF für Arzt/Krankenkasse erstellen"
+                "💾 Vollständiger Export (mit KI)"
               )}
             </Button>
+            
             <Button 
               variant="outline" 
               onClick={exportCSV} 
@@ -603,6 +695,11 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
               📊 CSV Export
             </Button>
           </div>
+          
+          <p className="text-xs text-muted-foreground mt-3">
+            <strong>Schneller Export:</strong> Sofortiger PDF-Download ohne KI-Analyse<br/>
+            <strong>Vollständiger Export:</strong> Inkl. KI-gestützter Mustererkennung (dauert ca. 10-20 Sek.)
+          </p>
         </div>
       </Card>
       </div>
