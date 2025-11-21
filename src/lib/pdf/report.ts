@@ -235,12 +235,25 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
 
   let yPos = page.getHeight() - 50;
 
-  page.drawText(title, { x: 50, y: yPos, size: 16, font: fontBold });
+  // Professional header
+  page.drawText(title, { x: 50, y: yPos, size: 18, font: fontBold, color: rgb(0.15, 0.35, 0.65) });
+  yPos -= 15;
+  
+  // Horizontal line under title
+  page.drawLine({
+    start: { x: 50, y: yPos },
+    end: { x: 545, y: yPos },
+    thickness: 1,
+    color: rgb(0.15, 0.35, 0.65),
+  });
   yPos -= 20;
 
-  const dateRangeText = `Zeitraum: ${formatDateRange(from, to)}`;
-  page.drawText(dateRangeText, { x: 50, y: yPos, size: 10, font });
-  yPos -= 30;
+  const dateRangeText = `Berichtszeitraum: ${formatDateRange(from, to)}`;
+  page.drawText(dateRangeText, { x: 50, y: yPos, size: 11, font: fontBold });
+  yPos -= 10;
+  page.drawText(`Erstellt am: ${new Date().toLocaleDateString("de-DE", { day: "numeric", month: "long", year: "numeric" })}`, 
+    { x: 50, y: yPos, size: 9, font, color: rgb(0.4, 0.4, 0.4) });
+  yPos -= 25;
 
   // Patient Information (if provided)
   if (patientData && (patientData.firstName || patientData.lastName)) {
@@ -482,6 +495,42 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     yPos -= 25;
   }
 
+  // Executive Summary (at the beginning, after patient/doctor data)
+  if (includeStats || includeAnalysis) {
+    if (yPos < 200) {
+      page = pdfDoc.addPage([595.28, 841.89]);
+      yPos = 841.89 - 50;
+    }
+    
+    page.drawText("ZUSAMMENFASSUNG", { x: 50, y: yPos, size: 14, font: fontBold, color: rgb(0.15, 0.35, 0.65) });
+    yPos -= 5;
+    page.drawLine({
+      start: { x: 50, y: yPos },
+      end: { x: 200, y: yPos },
+      thickness: 0.5,
+      color: rgb(0.15, 0.35, 0.65),
+    });
+    yPos -= 20;
+    
+    // Key statistics
+    const validEntries = entries.filter(e => painLevelToNumericValue(e.pain_level) > 0);
+    const avgPain = validEntries.length > 0 
+      ? validEntries.reduce((sum, e) => sum + painLevelToNumericValue(e.pain_level), 0) / validEntries.length
+      : 0;
+    const maxPain = Math.max(...entries.map(e => painLevelToNumericValue(e.pain_level)));
+    const entriesWithMeds = entries.filter(e => e.medications && e.medications.length > 0).length;
+    
+    page.drawText(`• Anzahl Migräne-Episoden: ${entries.length}`, { x: 60, y: yPos, size: 10, font });
+    yPos -= 14;
+    page.drawText(`• Durchschnittliche Schmerzintensität: ${avgPain.toFixed(1)}/10`, { x: 60, y: yPos, size: 10, font });
+    yPos -= 14;
+    page.drawText(`• Maximale Schmerzintensität: ${maxPain}/10`, { x: 60, y: yPos, size: 10, font });
+    yPos -= 14;
+    page.drawText(`• Episoden mit Medikamenteneinnahme: ${entriesWithMeds} (${Math.round(entriesWithMeds/entries.length*100)}%)`, 
+      { x: 60, y: yPos, size: 10, font });
+    yPos -= 25;
+  }
+
   // Medication Statistics (if included)
   if (includeStats && medicationStats && medicationStats.length > 0) {
     if (yPos < 150) {
@@ -489,7 +538,17 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       yPos = 841.89 - 50;
     }
     
-    page.drawText("Medikamenten-Statistiken", { x: 50, y: yPos, size: 12, font: fontBold });
+    page.drawText("MEDIKAMENTEN-STATISTIK", { x: 50, y: yPos, size: 14, font: fontBold, color: rgb(0.15, 0.35, 0.65) });
+    yPos -= 5;
+    page.drawLine({
+      start: { x: 50, y: yPos },
+      end: { x: 230, y: yPos },
+      thickness: 0.5,
+      color: rgb(0.15, 0.35, 0.65),
+    });
+    yPos -= 15;
+    page.drawText("Häufigkeit und Wirksamkeit der verwendeten Medikamente", 
+      { x: 50, y: yPos, size: 9, font, color: rgb(0.4, 0.4, 0.4) });
     yPos -= 20;
     
     for (const stat of medicationStats) {
@@ -498,51 +557,124 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
         yPos = 841.89 - 50;
       }
       
-      page.drawText(`${stat.name}: ${stat.count}x verwendet`, { x: 50, y: yPos, size: 10, font });
+      // Professional medication box
+      const boxY = yPos - 5;
+      page.drawRectangle({
+        x: 55,
+        y: boxY - 45,
+        width: 485,
+        height: 43,
+        borderColor: rgb(0.85, 0.85, 0.85),
+        borderWidth: 0.5,
+        color: rgb(0.97, 0.97, 0.97),
+      });
+      
+      page.drawText(`${stat.name}`, { x: 65, y: yPos, size: 10, font: fontBold });
       yPos -= 14;
       
+      // Two-column layout for better readability
+      page.drawText(`Einnahmen: ${stat.count}x`, { x: 65, y: yPos, size: 9, font });
+      
       if (stat.ratedCount > 0 && stat.avgEffect !== null) {
-        page.drawText(`  Durchschn. Wirkung: ${stat.avgEffect.toFixed(1)}/10 (${stat.ratedCount} Bewertungen)`, 
-          { x: 60, y: yPos, size: 9, font });
-        yPos -= 14;
+        const effectPercent = Math.round((stat.avgEffect / 10) * 100);
+        page.drawText(`Wirksamkeit: ${effectPercent}% (⌀ aus ${stat.ratedCount} Bewertungen)`, 
+          { x: 250, y: yPos, size: 9, font });
       }
+      yPos -= 30;
     }
     
     yPos -= 20;
   }
 
-  // Chart (if included)
+  // Chart (if included) with professional styling
   if (includeChart && entries.length > 0) {
     const chartHeight = 200;
     if (yPos - chartHeight < 60) {
       page = pdfDoc.addPage([595.28, 841.89]);
       yPos = 841.89 - 50;
     }
+    
+    page.drawText("INTENSITÄTSVERLAUF", { x: 50, y: yPos, size: 14, font: fontBold, color: rgb(0.15, 0.35, 0.65) });
+    yPos -= 5;
+    page.drawLine({
+      start: { x: 50, y: yPos },
+      end: { x: 200, y: yPos },
+      thickness: 0.5,
+      color: rgb(0.15, 0.35, 0.65),
+    });
+    yPos -= 15;
+    page.drawText("Verlauf der Schmerzintensität über den Berichtszeitraum", 
+      { x: 50, y: yPos, size: 9, font, color: rgb(0.4, 0.4, 0.4) });
+    yPos -= 20;
+    
     drawSimpleChart(page, entries, from, to, 50, yPos, 495, chartHeight, font, fontBold);
     yPos -= chartHeight + 20;
   }
 
   // Entries list (if included)
   if (!includeEntriesList) {
+    // Add footer with disclaimer before finishing
+    const pages = pdfDoc.getPages();
+    pages.forEach((p, index) => {
+      p.drawText(`Seite ${index + 1} von ${pages.length}`, { 
+        x: 50, 
+        y: 30, 
+        size: 8, 
+        font, 
+        color: rgb(0.5, 0.5, 0.5) 
+      });
+      p.drawText(`Erstellt: ${new Date().toLocaleDateString("de-DE")} | Vertrauliches medizinisches Dokument`, { 
+        x: 250, 
+        y: 30, 
+        size: 8, 
+        font, 
+        color: rgb(0.5, 0.5, 0.5) 
+      });
+    });
+    
     const pdfBytes = await pdfDoc.save();
     return pdfBytes;
   }
 
-  // Table header
+  // Detailed entries list with professional styling
   if (yPos < 150) {
     page = pdfDoc.addPage([595.28, 841.89]);
     yPos = 841.89 - 50;
   }
   
-  // Table header for entries list
+  page.drawText("DETAILLIERTE EPISODEN-LISTE", { x: 50, y: yPos, size: 14, font: fontBold, color: rgb(0.15, 0.35, 0.65) });
+  yPos -= 5;
+  page.drawLine({
+    start: { x: 50, y: yPos },
+    end: { x: 260, y: yPos },
+    thickness: 0.5,
+    color: rgb(0.15, 0.35, 0.65),
+  });
+  yPos -= 15;
+  page.drawText("Chronologische Auflistung aller dokumentierten Migräne-Episoden", 
+    { x: 50, y: yPos, size: 9, font, color: rgb(0.4, 0.4, 0.4) });
+  yPos -= 20;
+  
+  // Professional table header
   const margin = 50;
-  const colX = { dt: margin, pain: margin + 180, meds: margin + 260, note: margin + 420 };
+  const colX = { dt: margin, pain: margin + 110, aura: margin + 170, meds: margin + 250, note: margin + 420 };
   let y = yPos;
   
-  page.drawText("Datum/Zeit", { x: colX.dt, y, size: 10, font: fontBold });
-  page.drawText("Schmerz",    { x: colX.pain, y, size: 10, font: fontBold });
-  page.drawText("Medikamente",{ x: colX.meds, y, size: 10, font: fontBold });
-  page.drawText("Notiz",      { x: colX.note, y, size: 10, font: fontBold });
+  // Draw header background with color
+  page.drawRectangle({
+    x: margin,
+    y: y - 12,
+    width: 495,
+    height: 14,
+    color: rgb(0.15, 0.35, 0.65),
+  });
+  
+  // White text on colored background
+  page.drawText("Datum/Zeit", { x: colX.dt + 2, y, size: 9, font: fontBold, color: rgb(1, 1, 1) });
+  page.drawText("Schmerz", { x: colX.pain + 2, y, size: 9, font: fontBold, color: rgb(1, 1, 1) });
+  page.drawText("Aura", { x: colX.aura + 2, y, size: 9, font: fontBold, color: rgb(1, 1, 1) });
+  page.drawText("Medikamente", { x: colX.meds + 2, y, size: 9, font: fontBold, color: rgb(1, 1, 1) });
+  page.drawText("Notizen", { x: colX.note + 2, y, size: 9, font: fontBold, color: rgb(1, 1, 1) });
   y -= 12;
   page.drawLine({ start: { x: margin, y }, end: { x: page.getWidth()-margin, y }, thickness: 0.5, color: rgb(0.8,0.8,0.8) });
   y -= 8;
@@ -551,11 +683,12 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
 
   const drawRow = (e: PainEntry) => {
     const dt = toLabel(e);
+    const auraText = e.aura_type === "keine" ? "–" : e.aura_type || "–";
     const meds = (e.medications || []).join(", ");
     const note = (e.notes || "").replace(/\s+/g, " ").trim();
 
-    // Umbruch-begrenzte Zeichnung
-    const write = (text: string, x: number, maxWidth: number, size = 10) => {
+    // Word-wrap text rendering
+    const write = (text: string, x: number, maxWidth: number, size = 9) => {
       const words = text.split(" ");
       let line = "";
       let outY = y;
@@ -573,30 +706,41 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       if (line) lines.push(line);
 
       lines.forEach((ln, i) => {
-        page.drawText(ln, { x, y: outY - (i*12), size, font });
+        page.drawText(ln, { x, y: outY - (i*11), size, font });
       });
-      return outY - (lines.length - 1) * 12;
+      return outY - (lines.length - 1) * 11;
     };
 
-    // Zeile schreiben
+    // Draw row with alternating background
     let rowBottomY = y;
-    rowBottomY = Math.min(rowBottomY, write(dt,   colX.dt,   160));
-    rowBottomY = Math.min(rowBottomY, write(painLevelToNumber(e.pain_level), colX.pain, 70));
-    rowBottomY = Math.min(rowBottomY, write(meds || "–",   colX.meds, 150));
+    rowBottomY = Math.min(rowBottomY, write(dt,   colX.dt,   100));
+    rowBottomY = Math.min(rowBottomY, write(painLevelToNumber(e.pain_level), colX.pain, 50));
+    rowBottomY = Math.min(rowBottomY, write(auraText, colX.aura, 70));
+    rowBottomY = Math.min(rowBottomY, write(meds || "–",   colX.meds, 160));
     rowBottomY = Math.min(rowBottomY, write(note || "–",   colX.note, page.getWidth() - margin - colX.note));
 
-    y = rowBottomY - 10;
+    y = rowBottomY - 8;
   };
 
   const addPageIfNeeded = () => {
     if (y < margin + 40) {
       page = pdf.addPage([595.28, 841.89]);
       y = page.getHeight() - margin;
-      // draw header row again on new page
-      page.drawText("Datum/Zeit", { x: colX.dt, y, size: 10, font: fontBold });
-      page.drawText("Schmerz",    { x: colX.pain, y, size: 10, font: fontBold });
-      page.drawText("Medikamente",{ x: colX.meds, y, size: 10, font: fontBold });
-      page.drawText("Notiz",      { x: colX.note, y, size: 10, font: fontBold });
+      
+      // Redraw professional header on new page
+      page.drawRectangle({
+        x: margin,
+        y: y - 12,
+        width: 495,
+        height: 14,
+        color: rgb(0.15, 0.35, 0.65),
+      });
+      
+      page.drawText("Datum/Zeit", { x: colX.dt + 2, y, size: 9, font: fontBold, color: rgb(1, 1, 1) });
+      page.drawText("Schmerz", { x: colX.pain + 2, y, size: 9, font: fontBold, color: rgb(1, 1, 1) });
+      page.drawText("Aura", { x: colX.aura + 2, y, size: 9, font: fontBold, color: rgb(1, 1, 1) });
+      page.drawText("Medikamente", { x: colX.meds + 2, y, size: 9, font: fontBold, color: rgb(1, 1, 1) });
+      page.drawText("Notizen", { x: colX.note + 2, y, size: 9, font: fontBold, color: rgb(1, 1, 1) });
       y -= 12;
       page.drawLine({ start: { x: margin, y }, end: { x: page.getWidth()-margin, y }, thickness: 0.5, color: rgb(0.8,0.8,0.8) });
       y -= 8;
@@ -607,6 +751,25 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     drawRow(e);
     addPageIfNeeded();
   }
+
+  // Add professional footer to all pages
+  const pages = pdf.getPages();
+  pages.forEach((p, index) => {
+    p.drawText(`Seite ${index + 1} von ${pages.length}`, { 
+      x: 50, 
+      y: 30, 
+      size: 8, 
+      font, 
+      color: rgb(0.5, 0.5, 0.5) 
+    });
+    p.drawText(`Erstellt: ${new Date().toLocaleDateString("de-DE")} | Vertrauliches medizinisches Dokument`, { 
+      x: 250, 
+      y: 30, 
+      size: 8, 
+      font, 
+      color: rgb(0.5, 0.5, 0.5) 
+    });
+  });
 
   return await pdf.save();
 }

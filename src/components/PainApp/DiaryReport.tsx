@@ -84,14 +84,40 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     });
   }, []);
 
+  // Load report settings from database
   useEffect(() => {
     (async () => {
-      const s = await getUserSettings().catch(() => null);
-      if (s?.default_report_preset && (["3m","6m","12m"] as const).includes(s.default_report_preset)) {
-        setPreset(s.default_report_preset);
-      }
-      if (s?.selected_report_medications && Array.isArray(s.selected_report_medications)) {
-        setSelectedMeds(s.selected_report_medications);
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        
+        const { data: settings } = await supabase
+          .from("user_report_settings")
+          .select("*")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        
+        if (settings) {
+          // Load time range
+          if (settings.default_report_preset && (["3m","6m","12m","custom"] as const).includes(settings.default_report_preset as any)) {
+            setPreset(settings.default_report_preset as Preset);
+          }
+          
+          // Load medication selection
+          if (settings.selected_medications && Array.isArray(settings.selected_medications)) {
+            setSelectedMeds(settings.selected_medications);
+          }
+          
+          // Load content inclusion flags
+          if (settings.include_statistics !== null) setIncludeStats(settings.include_statistics);
+          if (settings.include_chart !== null) setIncludeChart(settings.include_chart);
+          if (settings.include_ai_analysis !== null) setIncludeAnalysis(settings.include_ai_analysis);
+          if (settings.include_entries_list !== null) setIncludeEntriesList(settings.include_entries_list);
+          if (settings.include_patient_data !== null) setIncludePatientData(settings.include_patient_data);
+          if (settings.include_doctor_data !== null) setIncludeDoctorData(settings.include_doctor_data);
+        }
+      } catch (error) {
+        console.error("Error loading report settings:", error);
       }
     })();
   }, []);
@@ -116,13 +142,32 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
   const entryIds = useMemo(() => entries.map(e => Number(e.id)), [entries]);
   const { data: medicationEffects = [] } = useMedicationEffectsForEntries(entryIds);
 
-  // Save selected medications to settings (debounced)
+  // Save all report settings to database (debounced)
   useEffect(() => {
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
-    saveTimeoutRef.current = setTimeout(() => {
-      upsertUserSettings({ selected_report_medications: selectedMeds }).catch(console.error);
+    
+    saveTimeoutRef.current = setTimeout(async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        
+        await supabase
+          .from("user_report_settings")
+          .upsert({
+            user_id: user.id,
+            selected_medications: selectedMeds,
+            include_statistics: includeStats,
+            include_chart: includeChart,
+            include_ai_analysis: includeAnalysis,
+            include_entries_list: includeEntriesList,
+            include_patient_data: includePatientData,
+            include_doctor_data: includeDoctorData,
+          }, { onConflict: "user_id" });
+      } catch (error) {
+        console.error("Error saving report settings:", error);
+      }
     }, 1000);
     
     return () => {
@@ -130,7 +175,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [selectedMeds]);
+  }, [selectedMeds, includeStats, includeChart, includeAnalysis, includeEntriesList, includePatientData, includeDoctorData]);
 
   // Medikamenten-Optionen (aus user_medications, Fallback: aus Einträgen)
   useEffect(() => {
