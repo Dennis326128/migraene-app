@@ -12,7 +12,8 @@ import { useMedicationEffectsForEntries } from "@/features/medication-effects/ho
 import { usePatientData, useDoctors } from "@/features/account/hooks/useAccount";
 import MedicationStatisticsCard from "./MedicationStatisticsCard";
 import TimeSeriesChart from "@/components/TimeSeriesChart";
-import { Loader2, ArrowLeft } from "lucide-react";
+import { Loader2, ArrowLeft, FileText, Table } from "lucide-react";
+import { format } from "date-fns";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import { TimeRangeButtons, type TimeRangePreset } from "./TimeRangeButtons";
@@ -280,36 +281,103 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     return date.toLocaleDateString("de-DE", { day: "numeric", month: "long", year: "numeric" });
   };
 
-  const ensureAnalysisReport = async (): Promise<string> => {
-    if (!includeAnalysis) return "";
-    if (analysisReport) return analysisReport;
+  const generatePDF = async () => {
+    if (!filteredEntries.length) {
+      toast.error("Keine Einträge im ausgewählten Zeitraum");
+      return;
+    }
+
+    if ((includePatientData || includeDoctorData) && 
+        (!patientData?.first_name && !patientData?.last_name && doctors.length === 0)) {
+      setShowMissingDataDialog(true);
+      return;
+    }
+
+    setIsGeneratingReport(true);
     
     try {
-      const { data, error } = await supabase.functions.invoke('generate-doctor-summary', {
-        body: { 
-          fromDate: `${from}T00:00:00Z`, 
-          toDate: `${to}T23:59:59Z`
+      let aiAnalysis = undefined;
+      
+      if (includeAnalysis) {
+        try {
+          const { data, error } = await supabase.functions.invoke('generate-doctor-summary', {
+            body: { 
+              fromDate: `${from}T00:00:00Z`, 
+              toDate: `${to}T23:59:59Z`
+            }
+          });
+          
+          if (!error && data?.summary) {
+            aiAnalysis = data.summary;
+            setAnalysisReport(data.summary);
+          }
+        } catch (err) {
+          console.warn("KI-Analyse übersprungen:", err);
         }
-      });
-
-      if (error) throw error;
-      if (data.error) {
-        console.error('AI-Kurzbericht Fehler:', data.error);
-        throw new Error(data.error);
       }
 
-      const report = data.summary || "";
-      setAnalysisReport(report);
-      return report;
+      const pdfBytes = await buildDiaryPdf({
+        title: "Kopfschmerztagebuch",
+        from,
+        to,
+        entries: filteredEntries,
+        selectedMeds,
+        
+        includeStats,
+        includeChart,
+        includeAnalysis: includeAnalysis && !!aiAnalysis,
+        includeEntriesList,
+        includePatientData,
+        includeDoctorData,
+        
+        analysisReport: aiAnalysis,
+        medicationStats: medicationStats,
+        patientData: patientData ? {
+          firstName: patientData.first_name || "",
+          lastName: patientData.last_name || "",
+          street: patientData.street || "",
+          postalCode: patientData.postal_code || "",
+          city: patientData.city || "",
+          phone: patientData.phone || "",
+          email: userEmail || "",
+          dateOfBirth: patientData.date_of_birth || ""
+        } : undefined,
+        doctors: doctors.length > 0 ? doctors.map(d => ({
+          firstName: d.first_name || "",
+          lastName: d.last_name || "",
+          specialty: d.specialty || "",
+          street: d.street || "",
+          postalCode: d.postal_code || "",
+          city: d.city || "",
+          phone: d.phone || "",
+          email: d.email || ""
+        })) : undefined
+      });
+
+      const blob = new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Kopfschmerztagebuch_${format(new Date(from), 'yyyy-MM-dd')}_bis_${format(new Date(to), 'yyyy-MM-dd')}.pdf`;
+      link.click();
+      URL.revokeObjectURL(url);
+      
+      toast.success("PDF erfolgreich erstellt");
+      
     } catch (error) {
-      console.error('Fehler beim Generieren des Kurzberichts:', error);
-      throw error;
+      console.error("PDF-Generierung fehlgeschlagen:", error);
+      toast.error("PDF konnte nicht erstellt werden. Bitte versuchen Sie es erneut.");
+    } finally {
+      setIsGeneratingReport(false);
     }
   };
 
 
   const exportCSV = () => {
-    if (!filteredEntries.length) return;
+    if (!filteredEntries.length) {
+      toast.error("Keine Einträge im ausgewählten Zeitraum");
+      return;
+    }
     const header = ["Datum/Zeit","Schmerzlevel","Medikamente","Notiz"];
     const rows = filteredEntries.map(e => {
       const dt = e.selected_date && e.selected_time
@@ -320,7 +388,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
       return [dt, e.pain_level, meds, `"${note}"`];
     });
     const lines = [header.join(","), ...rows.map(r => r.join(","))].join("\n");
-    const blob = new Blob(["\ufeff" + lines], { type: "text/csv;charset=utf-8" }); // BOM für Excel
+    const blob = new Blob(["\ufeff" + lines], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -329,163 +397,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-  };
-
-  /**
-   * Schneller PDF-Export ohne KI-Analyse
-   * Für schnelle Ausdrucke und einfache Reports
-   */
-  const quickPDF = async () => {
-    if (!filteredEntries.length) {
-      toast.error("Keine Einträge im ausgewählten Zeitraum gefunden.");
-      return;
-    }
-    
-    if ((includePatientData || includeDoctorData) && 
-        (!patientData?.first_name && !patientData?.last_name && doctors.length === 0)) {
-      setShowMissingDataDialog(true);
-      return;
-    }
-    
-    setIsGeneratingReport(true);
-    try {
-      const bytes = await buildDiaryPdf({
-        title: "Kopfschmerztagebuch",
-        from, to,
-        entries: filteredEntries,
-        selectedMeds,
-        
-        includeStats,
-        includeChart,
-        includeAnalysis: false,
-        includeEntriesList,
-        includePatientData,
-        includeDoctorData,
-        
-        analysisReport: undefined,
-        medicationStats: includeStats ? medicationStats : undefined,
-        patientData: patientData ? {
-          firstName: patientData?.first_name,
-          lastName: patientData?.last_name,
-          street: patientData?.street,
-          postalCode: patientData?.postal_code,
-          city: patientData?.city,
-          phone: patientData?.phone,
-          email: userEmail,
-          dateOfBirth: patientData?.date_of_birth,
-        } : undefined,
-        doctors: doctors.length > 0 ? doctors.map(d => ({
-          firstName: d.first_name,
-          lastName: d.last_name,
-          specialty: d.specialty,
-          street: d.street,
-          postalCode: d.postal_code,
-          city: d.city,
-          phone: d.phone,
-          email: d.email,
-        })) : undefined,
-      });
-      
-      const blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `kopfschmerztagebuch_${from}_bis_${to}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      toast.success("PDF wurde heruntergeladen");
-    } catch (error) {
-      console.error("Fehler beim PDF-Export:", error);
-      toast.error("PDF konnte nicht erstellt werden. Bitte versuchen Sie es erneut.");
-    } finally {
-      setIsGeneratingReport(false);
-    }
-  };
-
-  /**
-   * Vollständiger PDF-Export mit KI-Analyse
-   * Verwendet buildDiaryPdf() aus src/lib/pdf/report.ts
-   * Alle Checkbox-Einstellungen werden korrekt verarbeitet
-   */
-  const savePDF = async () => {
-    if (!filteredEntries.length) {
-      toast.error("Keine Einträge im ausgewählten Zeitraum gefunden.");
-      return;
-    }
-
-    if ((includePatientData || includeDoctorData) && 
-        (!patientData?.first_name && !patientData?.last_name && doctors.length === 0)) {
-      setShowMissingDataDialog(true);
-      return;
-    }
-    
-    setIsGeneratingReport(true);
-    try {
-      let currentReport = "";
-      if (includeAnalysis) {
-        try {
-          currentReport = await ensureAnalysisReport();
-        } catch (analysisError) {
-          console.error("KI-Analyse fehlgeschlagen:", analysisError);
-          toast.error("KI-Analyse konnte nicht erstellt werden. PDF wird ohne Analyse erstellt.");
-        }
-      }
-    
-      const bytes = await buildDiaryPdf({
-        title: "Kopfschmerztagebuch",
-        from, to,
-        entries: filteredEntries,
-        selectedMeds,
-        
-        includeStats,
-        includeChart,
-        includeAnalysis,
-        includeEntriesList,
-        includePatientData,
-        includeDoctorData,
-        
-        analysisReport: currentReport || undefined,
-        medicationStats: includeStats ? medicationStats : undefined,
-        patientData: patientData ? {
-          firstName: patientData?.first_name,
-          lastName: patientData?.last_name,
-          street: patientData?.street,
-          postalCode: patientData?.postal_code,
-          city: patientData?.city,
-          phone: patientData?.phone,
-          email: userEmail,
-          dateOfBirth: patientData?.date_of_birth,
-        } : undefined,
-        doctors: doctors.length > 0 ? doctors.map(d => ({
-          firstName: d.first_name,
-          lastName: d.last_name,
-          specialty: d.specialty,
-          street: d.street,
-          postalCode: d.postal_code,
-          city: d.city,
-          phone: d.phone,
-          email: d.email,
-        })) : undefined,
-      });
-      
-      const blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `kopfschmerztagebuch_${from}_bis_${to}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      toast.success("PDF wurde heruntergeladen");
-    } catch (error) {
-      console.error("Fehler beim PDF-Export:", error);
-      toast.error("PDF konnte nicht erstellt werden. Bitte versuchen Sie es erneut oder kontaktieren Sie den Support.");
-    } finally {
-      setIsGeneratingReport(false);
-    }
+    toast.success("CSV erfolgreich exportiert");
   };
 
   return (
@@ -640,66 +552,62 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
       {/* Export Actions */}
       <Card className="p-6">
         <div className="space-y-4">
-          <div className="text-sm text-muted-foreground">
-            {filteredEntries.length > 0 ? (
-              <p>
-                <strong>{filteredEntries.length}</strong> Einträge gefunden im Zeitraum{" "}
-                <strong>{new Date(from).toLocaleDateString("de-DE")}</strong> bis{" "}
-                <strong>{new Date(to).toLocaleDateString("de-DE")}</strong>
-              </p>
-            ) : (
-              <p>Keine Einträge im ausgewählten Zeitraum</p>
-            )}
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold">Export</h3>
+            <div className="text-sm text-muted-foreground">
+              {filteredEntries.length > 0 ? (
+                <span>
+                  <span className="font-semibold text-foreground">{filteredEntries.length}</span> Einträge 
+                  {" "}({format(new Date(from), 'dd.MM.yyyy')} - {format(new Date(to), 'dd.MM.yyyy')})
+                </span>
+              ) : (
+                <span className="text-destructive">Keine Einträge</span>
+              )}
+            </div>
           </div>
 
-          <div className="flex flex-wrap gap-3">
-            <Button 
-              variant="default" 
-              size="lg"
-              onClick={quickPDF} 
-              disabled={!filteredEntries.length || isLoading || isGeneratingReport}
-              className="flex-1 sm:flex-none"
-            >
-              {isGeneratingReport ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Erstelle PDF...
-                </>
-              ) : (
-                "📄 Schneller PDF-Export"
-              )}
-            </Button>
-            
-            <Button 
-              variant="outline" 
-              size="lg"
-              onClick={savePDF} 
-              disabled={!filteredEntries.length || isLoading || isGeneratingReport}
-              className="flex-1 sm:flex-none"
-            >
-              {isGeneratingReport ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Erstelle PDF...
-                </>
-              ) : (
-                "💾 Vollständiger Export (mit KI)"
-              )}
-            </Button>
-            
-            <Button 
-              variant="outline" 
-              onClick={exportCSV} 
-              disabled={!filteredEntries.length || isLoading || isGeneratingReport}
-            >
-              📊 CSV Export
-            </Button>
-          </div>
-          
-          <p className="text-xs text-muted-foreground mt-3">
-            <strong>Schneller Export:</strong> Sofortiger PDF-Download ohne KI-Analyse<br/>
-            <strong>Vollständiger Export:</strong> Inkl. KI-gestützter Mustererkennung (dauert ca. 10-20 Sek.)
-          </p>
+          <Button 
+            onClick={generatePDF}
+            disabled={!filteredEntries.length || isGeneratingReport}
+            size="lg"
+            className="w-full"
+          >
+            {isGeneratingReport ? (
+              <>
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                PDF wird erstellt...
+              </>
+            ) : (
+              <>
+                <FileText className="mr-2 h-5 w-5" />
+                PDF erstellen
+              </>
+            )}
+          </Button>
+
+          <Button 
+            onClick={exportCSV}
+            disabled={!filteredEntries.length || isGeneratingReport}
+            variant="outline"
+            className="w-full"
+          >
+            <Table className="mr-2 h-4 w-4" />
+            CSV-Export (für Excel)
+          </Button>
+
+          {filteredEntries.length > 0 && (
+            <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-md">
+              <p className="font-medium mb-1">Das PDF enthält:</p>
+              <ul className="list-disc list-inside space-y-0.5 ml-1">
+                {includeStats && <li>Medikamenten-Statistiken</li>}
+                {includeChart && <li>Schmerzintensität-Verlauf (Diagramm)</li>}
+                {includeAnalysis && <li>KI-gestützte Mustererkennung (dauert ca. 10-15 Sek.)</li>}
+                {includeEntriesList && <li>Detaillierte Einträge-Tabelle</li>}
+                {includePatientData && <li>Persönliche Daten</li>}
+                {includeDoctorData && <li>Arztkontakte</li>}
+              </ul>
+            </div>
+          )}
         </div>
       </Card>
       </div>
