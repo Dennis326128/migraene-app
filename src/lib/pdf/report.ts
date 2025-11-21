@@ -254,8 +254,25 @@ function drawSimpleChart(
 }
 
 /**
+ * ✅ AKTIVE PDF-FUNKTION für Kopfschmerztagebuch
+ * 
  * Standard-PDF-Report für Krankenkasse & Ärzte
- * Verwendet buildDiaryPdf (report.ts)
+ * 
+ * Features:
+ * - Deutsche Datumsformate: dd.mm.yyyy, dd.mm.yyyy HH:mm
+ * - Checkbox-gesteuerte Abschnitte:
+ *   - Patientendaten (includePatientData)
+ *   - Arztkontakte (includeDoctorData)
+ *   - Statistiken (includeStats)
+ *   - Chart (includeChart)
+ *   - KI-Analyse (includeAnalysis)
+ *   - Einträge-Liste (includeEntriesList)
+ * - Professionelles Layout mit blauem Header
+ * - Executive Summary
+ * - Medikamenten-Statistiken
+ * - Footer mit Seitenzahlen
+ * 
+ * Aufgerufen von: DiaryReport.tsx → savePDF()
  */
 export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Array> {
   const { 
