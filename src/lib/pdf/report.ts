@@ -1,16 +1,26 @@
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import type { PainEntry } from "@/types/painApp";
 
+/**
+ * PDF-Report-Optionen für Krankenkasse & Ärzte
+ * Alle Flags steuern, welche Abschnitte im PDF erscheinen
+ */
 type BuildReportParams = {
   title?: string;
   from: string;
   to: string;
   entries: PainEntry[];
   selectedMeds: string[];
+  
+  // Content inclusion flags
   includeStats?: boolean;
   includeChart?: boolean;
   includeAnalysis?: boolean;
   includeEntriesList?: boolean;
+  includePatientData?: boolean;  // NEU: Patientendaten anzeigen
+  includeDoctorData?: boolean;   // NEU: Arztkontakte anzeigen
+  
+  // Optional content
   analysisReport?: string;
   medicationStats?: Array<{
     name: string;
@@ -40,20 +50,51 @@ type BuildReportParams = {
   }>;
 };
 
+/**
+ * Eintrag-Label formatieren: dd.mm.yyyy, HH:mm
+ */
 function toLabel(e: PainEntry) {
-  if (e.selected_date && e.selected_time) return `${e.selected_date} ${e.selected_time}`;
-  const d = new Date(e.timestamp_created);
-  const ds = d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
-  const ts = d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
-  return `${ds} ${ts}`;
+  if (e.selected_date && e.selected_time) {
+    return formatDateTime(e.selected_date, e.selected_time);
+  }
+  return formatDateTime(e.timestamp_created);
 }
 
+/**
+ * Einheitliche Datumsformatierung für Ärzte/Krankenkassen: dd.mm.yyyy
+ */
+function formatDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString("de-DE", { 
+    day: "2-digit", 
+    month: "2-digit", 
+    year: "numeric" 
+  });
+}
+
+/**
+ * Datumsbereich formatieren: dd.mm.yyyy - dd.mm.yyyy
+ */
 function formatDateRange(from: string, to: string): string {
-  const fromDate = new Date(from);
-  const toDate = new Date(to);
-  const fromFormatted = fromDate.toLocaleDateString("de-DE", { day: "numeric", month: "long", year: "numeric" });
-  const toFormatted = toDate.toLocaleDateString("de-DE", { day: "numeric", month: "long", year: "numeric" });
-  return `${fromFormatted} bis ${toFormatted}`;
+  return `${formatDate(from)} - ${formatDate(to)}`;
+}
+
+/**
+ * Datum + Uhrzeit formatieren: dd.mm.yyyy, HH:mm
+ */
+function formatDateTime(dateStr: string, timeStr?: string): string {
+  const date = new Date(dateStr);
+  const dateFormatted = formatDate(dateStr);
+  
+  if (timeStr) {
+    return `${dateFormatted}, ${timeStr}`;
+  }
+  
+  const time = date.toLocaleTimeString("de-DE", { 
+    hour: "2-digit", 
+    minute: "2-digit" 
+  });
+  return `${dateFormatted}, ${time}`;
 }
 
 function painLevelToNumber(painLevel: string): string {
@@ -212,6 +253,10 @@ function drawSimpleChart(
   });
 }
 
+/**
+ * Standard-PDF-Report für Krankenkasse & Ärzte
+ * Verwendet buildDiaryPdf (report.ts)
+ */
 export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Array> {
   const { 
     title = "Kopfschmerztagebuch",
@@ -222,6 +267,8 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     includeChart = true,
     includeAnalysis = false,
     includeEntriesList = true,
+    includePatientData = false,   // NEU: Checkbox-gesteuert
+    includeDoctorData = false,    // NEU: Checkbox-gesteuert
     analysisReport = "",
     medicationStats = [],
     patientData,
@@ -251,12 +298,12 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   const dateRangeText = `Berichtszeitraum: ${formatDateRange(from, to)}`;
   page.drawText(dateRangeText, { x: 50, y: yPos, size: 11, font: fontBold });
   yPos -= 10;
-  page.drawText(`Erstellt am: ${new Date().toLocaleDateString("de-DE", { day: "numeric", month: "long", year: "numeric" })}`, 
+  page.drawText(`Erstellt am: ${formatDate(new Date().toISOString())}`, 
     { x: 50, y: yPos, size: 9, font, color: rgb(0.4, 0.4, 0.4) });
   yPos -= 25;
 
-  // Patient Information (if provided)
-  if (patientData && (patientData.firstName || patientData.lastName)) {
+  // PATIENTENDATEN - nur bei aktivierter Option und vorhandenen Daten
+  if (includePatientData && patientData && (patientData.firstName || patientData.lastName)) {
     page.drawText("PATIENT", { x: 50, y: yPos, size: 12, font: fontBold, color: rgb(0.2, 0.4, 0.8) });
     yPos -= 18;
     
@@ -267,7 +314,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     }
     
     if (patientData.dateOfBirth) {
-      page.drawText(`Geburtsdatum: ${patientData.dateOfBirth}`, { x: 50, y: yPos, size: 10, font });
+      page.drawText(`Geburtsdatum: ${formatDate(patientData.dateOfBirth)}`, { x: 50, y: yPos, size: 10, font });
       yPos -= 14;
     }
     
@@ -293,8 +340,8 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     yPos -= 10;
   }
 
-  // Doctor Information (if provided)
-  if (doctors && doctors.length > 0) {
+  // ARZTKONTAKTE - nur bei aktivierter Option und vorhandenen Daten
+  if (includeDoctorData && doctors && doctors.length > 0) {
     const doctorLabel = doctors.length === 1 ? "BEHANDELNDER ARZT" : "BEHANDELNDE ÄRZTE";
     page.drawText(doctorLabel, { x: 50, y: yPos, size: 12, font: fontBold, color: rgb(0.2, 0.4, 0.8) });
     yPos -= 18;
@@ -334,7 +381,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     }
   }
 
-  // AI Analysis Report (if included)
+  // KI-KURZBERICHT FÜR ÄRZTE - nur bei aktivierter Option
   if (includeAnalysis && analysisReport) {
     // Check if we need a new page
     if (yPos < 200) {
@@ -346,20 +393,28 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     const boxX = 50;
     const boxWidth = 495;
     const boxPadding = 12;
-    const contentStartY = yPos - 20;
     
-    // Title with icon
-    page.drawText("🤖 KI-gestützte Muster-Analyse", { 
+    // Title - professionell für Ärzte
+    page.drawText("ÄRZTLICHE AUSWERTUNG", { 
       x: boxX, 
       y: yPos, 
-      size: 11, 
+      size: 12, 
       font: fontBold,
-      color: rgb(0.2, 0.4, 0.7)
+      color: rgb(0.2, 0.4, 0.8)
+    });
+    yPos -= 15;
+    
+    // Horizontal line
+    page.drawLine({
+      start: { x: boxX, y: yPos },
+      end: { x: boxX + boxWidth, y: yPos },
+      thickness: 2,
+      color: rgb(0.2, 0.4, 0.8),
     });
     yPos -= 18;
     
-    // Subtitle/hint
-    page.drawText("Automatisch erkannte Zusammenhänge zur Unterstützung der Diagnose", { 
+    // Subtitle
+    page.drawText("KI-gestützte Mustererkennung zur diagnostischen Unterstützung", { 
       x: boxX, 
       y: yPos, 
       size: 8, 

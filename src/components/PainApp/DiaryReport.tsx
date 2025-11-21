@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { PainEntry } from "@/types/painApp";
 import { useEntries } from "@/features/entries/hooks/useEntries";
-import { buildDiaryPdf } from "@/lib/pdf/report";
+import { buildDiaryPdf } from "@/lib/pdf/report"; // ← STANDARD-REPORT für Krankenkasse/Ärzte
 import { getUserSettings, upsertUserSettings } from "@/features/settings/api/settings.api";
 import { mapTextLevelToScore } from "@/lib/utils/pain";
 import { useMedicationEffectsForEntries } from "@/features/medication-effects/hooks/useMedicationEffects";
@@ -26,6 +26,19 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+
+/**
+ * DiaryReport - PDF-Export-Komponente für Kopfschmerztagebuch
+ * 
+ * Flow:
+ * 1. User wählt Zeitraum, Medikamente und Inhalte (Checkboxen)
+ * 2. Daten werden aus Supabase geladen (pain_entries, medication_effects, patient_data, doctors)
+ * 3. Bei PDF-Erstellung wird buildDiaryPdf() aus src/lib/pdf/report.ts aufgerufen
+ * 4. Optional: Kurzer Arzt-KI-Bericht via generate-doctor-summary Edge Function
+ * 5. PDF wird als Blob heruntergeladen
+ * 
+ * Report-Builder: buildDiaryPdf (report.ts) - für Krankenkasse & Ärzte
+ */
 
 type Preset = TimeRangePreset;
 
@@ -266,30 +279,27 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     // Wenn bereits vorhanden, zurückgeben
     if (analysisReport) return analysisReport;
     
-    // Sonst generieren (im doctor_summary Modus)
+    // Kurzen Arztbericht generieren (statt langer Analyse)
     setIsGeneratingReport(true);
     try {
-      const { data, error } = await supabase.functions.invoke('analyze-voice-notes', {
+      const { data, error } = await supabase.functions.invoke('generate-doctor-summary', {
         body: { 
           fromDate: `${from}T00:00:00Z`, 
-          toDate: `${to}T23:59:59Z`,
-          mode: 'doctor_summary'
+          toDate: `${to}T23:59:59Z`
         }
       });
 
       if (error) throw error;
       if (data.error) {
-        console.error('AI-Analyse Fehler:', data.error);
-        // Fehler nicht anzeigen, sondern leeren Bericht zurückgeben
+        console.error('AI-Kurzbericht Fehler:', data.error);
         return "";
       }
 
-      const report = data.insights || "";
+      const report = data.summary || "";
       setAnalysisReport(report);
       return report;
     } catch (error) {
-      console.error('Fehler beim Generieren des Analyseberichts:', error);
-      // Fehler nicht anzeigen, sondern leeren Bericht zurückgeben (PDF kann trotzdem erstellt werden)
+      console.error('Fehler beim Generieren des Kurzberichts:', error);
       return "";
     } finally {
       setIsGeneratingReport(false);
@@ -414,13 +424,18 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         from, to,
         entries: filteredEntries,
         selectedMeds,
+        
+        // Content flags - direkt von Checkboxen
         includeStats,
         includeChart,
         includeAnalysis,
         includeEntriesList,
+        includePatientData,  // NEU: an Builder übergeben
+        includeDoctorData,   // NEU: an Builder übergeben
+        
         analysisReport: currentReport || undefined,
         medicationStats: includeStats ? medicationStats : undefined,
-        patientData: includePatientData ? {
+        patientData: patientData ? {
           firstName: patientData?.first_name,
           lastName: patientData?.last_name,
           street: patientData?.street,
@@ -430,7 +445,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
           email: userEmail,
           dateOfBirth: patientData?.date_of_birth,
         } : undefined,
-        doctors: includeDoctorData ? doctors.map(d => ({
+        doctors: doctors.length > 0 ? doctors.map(d => ({
           firstName: d.first_name,
           lastName: d.last_name,
           specialty: d.specialty,
