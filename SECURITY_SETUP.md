@@ -55,7 +55,29 @@ Diese Dokumentation beschreibt die **manuellen Schritte**, die im Supabase Dashb
 
 ---
 
-### 4. Extension-Migration ⚠️ NICHT MÖGLICH
+### 4. Symptom-Katalog Zugriff abgesichert ✅
+
+**Status:** ✅ **ABGESCHLOSSEN (Automatisch via Migration)**
+
+**Was wurde geändert:**
+- RLS Policy `sc_select_all` entfernt (erlaubte öffentlichen Zugriff)
+- Neue Policy `sc_select_authenticated` erstellt
+- Nur authentifizierte Nutzer können jetzt `symptom_catalog` lesen
+
+**SQL-Migration:**
+```sql
+DROP POLICY IF EXISTS "sc_select_all" ON symptom_catalog;
+
+CREATE POLICY "sc_select_authenticated" ON symptom_catalog
+FOR SELECT 
+USING (auth.uid() IS NOT NULL);
+```
+
+**Warum:** Verhindert unbefugten Zugriff auf medizinische Datenbank-Inhalte
+
+---
+
+### 5. Extension-Migration ⚠️ NICHT MÖGLICH
 
 **Status:** ⚠️ **Technische Limitation - kein Handlungsbedarf**
 
@@ -78,7 +100,7 @@ Diese Dokumentation beschreibt die **manuellen Schritte**, die im Supabase Dashb
 
 ## 🟡 WICHTIGE SCHRITTE (NACH SOFT-LAUNCH)
 
-### 5. Rate Limiting aktivieren
+### 6. Rate Limiting aktivieren
 
 **Priorität:** 🟡 WICHTIG
 
@@ -101,7 +123,7 @@ Signup:                   5 Registrierungen / Stunde / IP
 
 ---
 
-### 6. Site URL & Redirect URLs konfigurieren
+### 7. Site URL & Redirect URLs konfigurieren
 
 **Priorität:** 🟡 WICHTIG
 
@@ -121,7 +143,7 @@ Signup:                   5 Registrierungen / Stunde / IP
 
 ---
 
-### 7. Email Templates anpassen
+### 8. Email Templates anpassen
 
 **Priorität:** 🟡 WICHTIG
 
@@ -146,7 +168,7 @@ Signup:                   5 Registrierungen / Stunde / IP
 
 ## 🟢 OPTIONALE SCHRITTE
 
-### 8. Eigener SMTP-Server (Empfohlen für Production)
+### 9. Eigener SMTP-Server (Empfohlen für Production)
 
 **Priorität:** 🟢 OPTIONAL
 
@@ -170,7 +192,10 @@ Signup:                   5 Registrierungen / Stunde / IP
 
 ## 📋 CHECKLISTE
 
-### Vor Publikation:
+### Vor Publikation (Code):
+- [x] ✅ Symptom-Katalog Zugriff auf authentifizierte Nutzer beschränkt
+
+### Vor Publikation (Dashboard):
 - [ ] ✅ Leaked Password Protection aktiviert
 - [ ] ✅ OTP Expiry auf 60 Minuten reduziert
 - [ ] ✅ PostgreSQL auf neueste Version
@@ -217,4 +242,18 @@ Bei Fragen zur Konfiguration:
 - [Supabase Dokumentation](https://supabase.com/docs)
 - [Lovable Support](https://lovable.app/support)
 
-**Letzte Aktualisierung:** 2025-10-16
+---
+
+## 🎯 ZUSAMMENFASSUNG DER OFFENEN DASHBOARD-KONFIGURATIONEN
+
+Folgende Schritte müssen **manuell im Supabase Dashboard** durchgeführt werden:
+
+| Schritt | Priorität | Link | Status |
+|---------|-----------|------|--------|
+| Leaked Password Protection | 🔴 KRITISCH | [Auth Policies](https://supabase.com/dashboard/project/lzcbjciqrhsezxkjeyhb/auth/policies) | ⏳ Offen |
+| OTP Expiry (60 min) | 🟠 WICHTIG | [Email Templates](https://supabase.com/dashboard/project/lzcbjciqrhsezxkjeyhb/auth/templates) | ⏳ Offen |
+| PostgreSQL Upgrade | 🟠 WICHTIG | [Database Config](https://supabase.com/dashboard/project/lzcbjciqrhsezxkjeyhb/database/configuration) | ⏳ Offen |
+| Rate Limiting | 🟡 WICHTIG | [Rate Limits](https://supabase.com/dashboard/project/lzcbjciqrhsezxkjeyhb/auth/rate-limits) | ⏳ Offen |
+| Site URL & Redirects | 🟡 WICHTIG | [URL Config](https://supabase.com/dashboard/project/lzcbjciqrhsezxkjeyhb/auth/url-configuration) | ⏳ Offen |
+
+**Letzte Aktualisierung:** 2025-11-24
