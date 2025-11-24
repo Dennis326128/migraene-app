@@ -755,6 +755,18 @@ export type Database = {
       }
       invoke_auto_weather: { Args: never; Returns: undefined }
       invoke_auto_weather_backfill: { Args: never; Returns: undefined }
+      record_med_effect: {
+        Args: {
+          p_effect_rating_0_4: number
+          p_event_med_id: number
+          p_onset_min?: number
+          p_pain_after_0_10?: number
+          p_pain_before_0_10?: number
+          p_relief_duration_min?: number
+          p_side_effects_text?: string
+        }
+        Returns: undefined
+      }
       rpc_entries_filtered: {
         Args: {
           p_aura_types?: string[]
