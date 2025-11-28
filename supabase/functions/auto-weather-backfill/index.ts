@@ -17,10 +17,18 @@ serve(async (req) => {
   try {
     // Verify cron secret for automated calls
     const cronSecret = req.headers.get('x-cron-secret');
-    const expectedSecret = Deno.env.get('CRON_SECRET') || 'dev-test-secret';
+    const expectedSecret = Deno.env.get('CRON_SECRET');
     
-    if (cronSecret !== expectedSecret) {
-      console.error('❌ Invalid cron secret');
+    if (!expectedSecret) {
+      console.error('❌ CRON_SECRET not configured');
+      return new Response(JSON.stringify({ error: 'Server configuration error' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    
+    if (!cronSecret || cronSecret !== expectedSecret) {
+      console.error('❌ Invalid or missing cron secret');
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
