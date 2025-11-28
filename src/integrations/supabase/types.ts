@@ -753,8 +753,6 @@ export type Database = {
           use_count: number
         }[]
       }
-      invoke_auto_weather: { Args: never; Returns: undefined }
-      invoke_auto_weather_backfill: { Args: never; Returns: undefined }
       record_med_effect: {
         Args: {
           p_effect_rating_0_4: number
