@@ -15,7 +15,8 @@
  *   - Kopfbereich (Titel, Berichtszeitraum, Erstellungsdatum)
  *   - Patient:innen-Daten (wenn aktiviert)
  *   - Behandelnde:r Arzt/Ärztin (wenn aktiviert)
- *   - Ärztliche KI-Kurzauswertung (wenn aktiviert)
+ *   - Anmerkungen des Patienten (wenn Text vorhanden)
+ *   - Auswertung für die ärztliche Beurteilung (KI-Analyse, wenn aktiviert)
  *   - Zusammenfassung (KPIs)
  * 
  * Seite 2+:
@@ -76,8 +77,10 @@ type BuildReportParams = {
   includeEntriesList?: boolean;
   includePatientData?: boolean;
   includeDoctorData?: boolean;
+  includePatientNotes?: boolean;
   
   analysisReport?: string;
+  patientNotes?: string;
   medicationStats?: Array<{
     name: string;
     count: number;
@@ -1042,7 +1045,9 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     includeEntriesList = true,
     includePatientData = false,
     includeDoctorData = false,
+    includePatientNotes = true,
     analysisReport = "",
+    patientNotes = "",
     medicationStats = [],
     patientData,
     doctors = [],
@@ -1156,7 +1161,59 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // ÄRZTLICHE KI-KURZAUSWERTUNG (optional)
+  // ANMERKUNGEN DES PATIENTEN (optional)
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  const trimmedPatientNotes = (patientNotes || "").trim();
+  if (includePatientNotes && trimmedPatientNotes) {
+    // Berechne benötigten Platz basierend auf Textlänge
+    const notesLines = wrapText(trimmedPatientNotes, LAYOUT.pageWidth - 2 * LAYOUT.margin - 20, 9, font);
+    const estimatedHeight = Math.max(60, notesLines.length * 12 + 30);
+    
+    const spaceCheck = ensureSpace(pdfDoc, page, yPos, estimatedHeight + 30);
+    page = spaceCheck.page;
+    yPos = spaceCheck.yPos;
+    
+    yPos = drawSectionHeader(page, "ANMERKUNGEN DES PATIENTEN", yPos, fontBold, 12);
+    
+    // Box-Höhe berechnen
+    const boxPadding = 10;
+    const boxHeight = Math.min(Math.max(50, notesLines.length * 12 + 20), 300);
+    
+    // Box-Hintergrund
+    page.drawRectangle({
+      x: LAYOUT.margin,
+      y: yPos - boxHeight,
+      width: LAYOUT.pageWidth - 2 * LAYOUT.margin,
+      height: boxHeight,
+      borderColor: COLORS.border,
+      borderWidth: 1,
+      color: rgb(0.98, 0.98, 0.96), // Leicht cremefarbener Hintergrund
+    });
+    
+    // Text rendern mit Zeilenumbruch
+    let textY = yPos - boxPadding - 4;
+    for (const line of notesLines) {
+      if (textY < yPos - boxHeight + boxPadding) {
+        // Bei sehr langem Text: neue Seite beginnen
+        page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
+        textY = LAYOUT.pageHeight - LAYOUT.margin - 20;
+      }
+      page.drawText(sanitizeForPDF(line), {
+        x: LAYOUT.margin + boxPadding,
+        y: textY,
+        size: 9,
+        font,
+        color: COLORS.text,
+      });
+      textY -= 12;
+    }
+    
+    yPos -= boxHeight + LAYOUT.sectionGap;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // AUSWERTUNG FÜR DIE ÄRZTLICHE BEURTEILUNG (optional)
   // ═══════════════════════════════════════════════════════════════════════════
   
   if (includeAnalysis && analysisReport) {
@@ -1164,7 +1221,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     page = spaceCheck.page;
     yPos = spaceCheck.yPos;
     
-    yPos = drawSectionHeader(page, "ARZTLICHE AUSWERTUNG", yPos, fontBold, 12);
+    yPos = drawSectionHeader(page, "AUSWERTUNG FUR DIE ARZTLICHE BEURTEILUNG", yPos, fontBold, 12);
     
     page.drawText("KI-gestutzte Mustererkennung zur diagnostischen Unterstutzung", {
       x: LAYOUT.margin,

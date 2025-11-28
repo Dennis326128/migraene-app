@@ -85,6 +85,8 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
   const [includeEntriesList, setIncludeEntriesList] = useState<boolean>(true);
   const [includePatientData, setIncludePatientData] = useState<boolean>(false);
   const [includeDoctorData, setIncludeDoctorData] = useState<boolean>(false);
+  const [includePatientNotes, setIncludePatientNotes] = useState<boolean>(true);
+  const [patientNotes, setPatientNotes] = useState<string>("");
   
   const [generated, setGenerated] = useState<PainEntry[]>([]);
   const [previousSelection, setPreviousSelection] = useState<string[]>([]);
@@ -348,8 +350,10 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         includeEntriesList,
         includePatientData,
         includeDoctorData,
+        includePatientNotes: includePatientNotes && !!patientNotes.trim(),
         
         analysisReport: aiAnalysis,
+        patientNotes: includePatientNotes ? patientNotes : "",
         medicationStats: medicationStats,
         patientData: patientData ? {
           firstName: patientData.first_name || "",
@@ -594,6 +598,48 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
               Arztdaten einbeziehen
             </label>
           </div>
+
+          {/* Patient Notes Section */}
+          <div className="pt-4 border-t space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="block text-sm font-medium">
+                Anmerkungen für den Arzt (optional)
+              </label>
+              {patientNotes.trim() && (
+                <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <input 
+                    type="checkbox" 
+                    checked={includePatientNotes} 
+                    onChange={e => setIncludePatientNotes(e.target.checked)} 
+                    className="h-3 w-3"
+                  />
+                  Im Bericht anzeigen
+                </label>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground -mt-1">
+              Dieser Text erscheint im Arztbericht im Abschnitt „Anmerkungen des Patienten".
+            </p>
+            <textarea
+              value={patientNotes}
+              onChange={e => {
+                const newValue = e.target.value.slice(0, 1000);
+                setPatientNotes(newValue);
+                // Automatisch aktivieren wenn Text eingegeben wird
+                if (newValue.trim() && !includePatientNotes) {
+                  setIncludePatientNotes(true);
+                }
+              }}
+              placeholder="Hier kannst du wichtige Hinweise, besondere Ereignisse oder Fragen an deinen Arzt notieren (optional)."
+              className="w-full min-h-[100px] max-h-[200px] p-3 text-sm border border-border/50 rounded-md bg-background resize-y focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50"
+              rows={4}
+            />
+            <div className="flex justify-end">
+              <span className={`text-xs ${patientNotes.length > 900 ? 'text-destructive' : 'text-muted-foreground'}`}>
+                {patientNotes.length}/1000
+              </span>
+            </div>
+          </div>
         </div>
       </Card>
 
@@ -653,6 +699,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
                 {includeEntriesList && <li>Detaillierte Einträge-Tabelle</li>}
                 {includePatientData && <li>Persönliche Daten</li>}
                 {includeDoctorData && <li>Arztkontakte</li>}
+                {includePatientNotes && patientNotes.trim() && <li>Anmerkungen des Patienten</li>}
               </ul>
             </div>
           )}
