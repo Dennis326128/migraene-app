@@ -529,9 +529,10 @@ function drawIntensityChart(
       color: COLORS.chartLine,
     });
     
-    // Datum-Labels (nur alle paar Punkte)
+    // Datum-Labels (nur alle paar Punkte) - Deutsches Format: Tag.Monat.
     if (i % Math.ceil(displayDates.length / 8) === 0) {
-      const shortDate = date.slice(5).replace('-', '.');
+      const parts = date.split('-'); // ["2024", "10", "02"]
+      const shortDate = `${parts[2]}.${parts[1]}.`; // "02.10." (DD.MM.)
       page.drawText(shortDate, {
         x: pointX - 12,
         y: chartY - 15,
@@ -847,9 +848,10 @@ function drawWeatherTimeSeriesChart(
       prevPressureY = pressureY;
     }
 
-    // Datum-Labels
+    // Datum-Labels - Deutsches Format: Tag.Monat.
     if (i % Math.ceil(displayDates.length / 8) === 0) {
-      const shortDate = date.slice(5).replace('-', '.');
+      const parts = date.split('-'); // ["2024", "10", "02"]
+      const shortDate = `${parts[2]}.${parts[1]}.`; // "02.10." (DD.MM.)
       page.drawText(shortDate, {
         x: pointX - 12,
         y: chartY - 15,
@@ -960,9 +962,9 @@ function drawTableRow(
   const notesText = entry.notes || '-';
   const notesLines = wrapText(notesText, colWidths.notes, 8, font);
   
-  // Berechne Zeilenhöhe (höchste Spalte bestimmt)
+  // Berechne Zeilenhöhe (höchste Spalte bestimmt) - mit mehr Padding für Zentrierung
   const maxLines = Math.max(medsLines.length, notesLines.length, 1);
-  const rowHeight = maxLines * 11 + 8;
+  const rowHeight = maxLines * 11 + 12; // Erhöht von +8 auf +12 für bessere Zentrierung
   
   // Prüfe ob Platz für Zeile, sonst neue Seite
   if (yPos - rowHeight < LAYOUT.margin + 30) {
@@ -971,8 +973,9 @@ function drawTableRow(
     yPos = drawTableHeader(page, yPos, font);
   }
   
-  // Zeichne Zeile
-  const rowTop = yPos;
+  // Zeichne Zeile - Text vertikal zentriert zwischen den Trennlinien
+  const verticalPadding = 4; // Padding von oben für vertikale Zentrierung
+  const rowTop = yPos - verticalPadding;
   
   page.drawText(sanitizeForPDF(dateTime), { x: cols.date, y: rowTop, size: 8, font });
   page.drawText(sanitizeForPDF(painText), { x: cols.pain, y: rowTop, size: 8, font });
@@ -1320,7 +1323,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     page.drawText("Einnahmen", { x: cols.count, y: yPos - 12, size: 9, font: fontBold });
     page.drawText("Ø Wirksamkeit", { x: cols.effectiveness, y: yPos - 12, size: 9, font: fontBold });
     page.drawText("Bemerkung", { x: cols.note, y: yPos - 12, size: 9, font: fontBold });
-    yPos -= 25;
+    yPos -= 30; // Erhöht von 25 auf 30 für mehr Abstand nach Header
     
     // Medikamente
     for (const stat of medicationStats) {
@@ -1434,7 +1437,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     yPos = LAYOUT.pageHeight - LAYOUT.margin;
     
     yPos = drawSectionHeader(page, "DIAGRAMME", yPos, fontBold, 13);
-    yPos -= 10;
+    yPos -= 15; // Mehr Abstand nach Hauptüberschrift (von 10 auf 15)
 
     // 1. Tageszeit-Verteilung
     page.drawText("Tageszeit-Verteilung", {
@@ -1444,7 +1447,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       font: fontBold,
       color: COLORS.text,
     });
-    yPos -= 5;
+    yPos -= 12; // Erhöht von 5 auf 12
 
     page.drawText("Verteilung der Attacken uber den Tag", {
       x: LAYOUT.margin,
@@ -1453,12 +1456,12 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       font,
       color: COLORS.textLight,
     });
-    yPos -= 15;
+    yPos -= 18; // Erhöht von 15 auf 18
 
     const chart1Height = 160;
     const chartWidth = LAYOUT.pageWidth - 2 * LAYOUT.margin;
     drawTimeDistributionChart(page, entries, LAYOUT.margin, yPos, chartWidth, chart1Height, font, fontBold);
-    yPos -= chart1Height + 35;
+    yPos -= chart1Height + 40; // Erhöht von 35 auf 40
 
     // 2. Schmerz- & Wetterverlauf
     page.drawText("Schmerz- & Wetterverlauf", {
@@ -1468,7 +1471,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       font: fontBold,
       color: COLORS.text,
     });
-    yPos -= 5;
+    yPos -= 12; // Erhöht von 5 auf 12
 
     page.drawText("Zeitreihen-Diagramm mit Schmerzintensitat und Luftdruck", {
       x: LAYOUT.margin,
@@ -1477,7 +1480,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       font,
       color: COLORS.textLight,
     });
-    yPos -= 15;
+    yPos -= 18; // Erhöht von 15 auf 18
 
     const chart2Height = 200;
     drawWeatherTimeSeriesChart(page, entries, LAYOUT.margin, yPos, chartWidth, chart2Height, font, fontBold);
