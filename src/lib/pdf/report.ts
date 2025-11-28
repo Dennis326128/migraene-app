@@ -236,6 +236,14 @@ function calculateDays(from: string, to: string): number {
   return Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 }
 
+/**
+ * Formatiert Dezimalzahl nach deutschem Standard: Komma statt Punkt
+ * Beispiel: 6.5 → "6,5"
+ */
+function formatGermanDecimal(value: number, decimals: number = 1): string {
+  return value.toFixed(decimals).replace('.', ',');
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // PAGE MANAGEMENT
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1236,7 +1244,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     
     const kpis = [
       { label: "Attacken im Zeitraum", value: totalEntries.toString() },
-      { label: "O Schmerzintensitat (0-10)", value: avgIntensity > 0 ? avgIntensity.toFixed(1) : "N/A" },
+      { label: "Ø Schmerzintensitat (0-10)", value: avgIntensity > 0 ? formatGermanDecimal(avgIntensity, 1) : "N/A" },
       { label: "Tage mit Schmerzen", value: daysWithPain.toString() },
       { label: "Tage mit Medikation", value: daysWithMedication.toString() },
     ];
@@ -1310,7 +1318,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     
     page.drawText("Medikament", { x: cols.name, y: yPos - 12, size: 9, font: fontBold });
     page.drawText("Einnahmen", { x: cols.count, y: yPos - 12, size: 9, font: fontBold });
-    page.drawText("O Wirksamkeit", { x: cols.effectiveness, y: yPos - 12, size: 9, font: fontBold });
+    page.drawText("Ø Wirksamkeit", { x: cols.effectiveness, y: yPos - 12, size: 9, font: fontBold });
     page.drawText("Bemerkung", { x: cols.note, y: yPos - 12, size: 9, font: fontBold });
     yPos -= 25;
     
@@ -1326,8 +1334,8 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       
       if (stat.ratedCount > 0) {
         const effectPercent = Math.round((stat.avgEffect / 10) * 100);
-        page.drawText(`${effectPercent} %`, { x: cols.effectiveness, y: yPos, size: 9, font });
-        page.drawText(`(O aus ${stat.ratedCount} Bewertungen)`, { 
+        page.drawText(`${effectPercent}%`, { x: cols.effectiveness, y: yPos, size: 9, font });
+        page.drawText(`(Ø aus ${stat.ratedCount} Bewertungen)`, {
           x: cols.note, 
           y: yPos, 
           size: 8, 

@@ -134,36 +134,46 @@ WICHTIGE VORGABEN:
 - KEINE Selbstdiagnosen, KEINE Therapieempfehlungen, KEINE Spekulationen
 - Kein Smalltalk, keine Anrede, keine Emojis
 - Sprache: Deutsch
+- DEUTSCHES ZAHLENFORMAT: Dezimaltrennzeichen ist KOMMA (z.B. "6,5" statt "6.5", "20,6" statt "20.6")
 - Format: KEIN Markdown (keine *, **, #), nur normaler Fließtext
 - Maximal 6-7 kurze Absätze, jeder 1-2 Sätze
 - Jeder Absatz beginnt mit fett hervorgehobener Überschrift gefolgt von Doppelpunkt (Format: "Überschrift: Text")
 - Einheitlich "Attacken" statt "Episoden" verwenden
 
 ZEITRAUM:
-Auswertungszeitraum: ${fromFormatted} - ${toFormatted} (${daysCount} Tage)
+Auswertungszeitraum: ${fromFormatted} – ${toFormatted} (${daysCount} Tage)
 
 STRUKTUR (nur auffällige Punkte erwähnen, irrelevante Abschnitte komplett weglassen):
 
-1. Attackenfrequenz: Anzahl der Attacken im Zeitraum, ggf. Durchschnitt pro Monat/Woche.
-   Beispiel: "Attackenfrequenz: Im Auswertungszeitraum wurden 62 Attacken dokumentiert (durchschnittlich 20,6 Attacken pro Monat)."
+1. Attackenfrequenz: Gesamtzahl der Attacken im Zeitraum, Durchschnitt pro Monat (30 Tage).
+   Beispiel: "Attackenfrequenz: Im Auswertungszeitraum wurden 62 Attacken dokumentiert, entsprechend durchschnittlich 20,6 Attacken pro Monat."
+   WICHTIG: Die Gesamtzahl muss EXAKT ${entries.length} sein!
 
-2. Schmerzintensitat: Typischer Bereich (z.B. NRS 7-9) und mittlere Intensitat. NUR erwähnen, wenn Intensitat eher hoch (>6) oder stark schwankend ist.
+2. Schmerzintensität: Typischer Bereich (z.B. NRS 7–9) und mittlere Intensität mit Komma (z.B. "6,5/10"). NUR erwähnen, wenn Intensität eher hoch (>6) oder stark schwankend ist.
+   Beispiel: "Schmerzintensität: Die Attacken liegen überwiegend im Bereich NRS 7–9, mit einer mittleren Schmerzintensität von 6,5/10."
 
-3. Zeitliche Muster: Nur nennen, wenn es KLARE Muster gibt (z.B. Haufung morgens, an bestimmten Wochentagen, um die Menstruation). Wenn kein klares Muster erkennbar ist, diesen Abschnitt KOMPLETT WEGLASSEN.
+3. Medikation: Kompakte Übersicht der Akutmedikamente im Format "Wirkstoff Dosis Anzahl×".
+   Beispiel: "Medikation: Sumatriptan 100 mg 30×, Rizatriptan 10 mg 4×, Ibuprofen 800 mg 10×."
+   NUR erwähnen wenn mindestens 3 Einnahmen dokumentiert.
 
-4. Medikation: Haufig verwendete Akutmedikamente und deren dokumentierte Wirksamkeit. NUR erwähnen wenn mindestens 5 Einnahmen dokumentiert.
+4. Medikamentenübergebrauch: Konkrete Monate mit Triptantagen oder Analgetikatagen auflisten.
+   Beispiel: "Medikamentenübergebrauch: Tage mit Sumatriptan-Einnahme: September 10, Oktober 14, November 10. Oktober und November liegen im Bereich eines möglichen Triptan-Übergebrauchs (Grenzwert >10 Tage/Monat)."
+   Wenn KEIN Hinweis auf Übergebrauch: "Medikamentenübergebrauch: In den vorliegenden Daten aktuell kein Hinweis auf einen Medikamentenübergebrauch."
 
-5. Medikamentenübergebrauch: Konkrete Monate nennen, in denen die Grenzwerte überschritten wurden (z.B. >10 Triptantage/Monat). Wenn KEIN Hinweis auf Übergebrauch: EIN kurzer Satz: "Hinweise auf Medikamentenübergebrauch: In den vorliegenden Daten aktuell kein Hinweis auf Übergebrauch."
+5. Wetter / Luftdruck: NUR dann einen Absatz, wenn die Daten einen erkennbaren Zusammenhang zeigen.
+   Beispiel: "Wetter / Luftdruck: Attacken häufen sich nach ausgeprägten Luftdruckabfällen, insbesondere am 04.10.2025 und 23.11.2025 mit Abfällen von jeweils >20 hPa."
+   Wenn kein relevanter Zusammenhang: diesen Abschnitt KOMPLETT WEGLASSEN.
 
-6. Wetter / Luftdruck: NUR dann einen Absatz, wenn die Daten einen erkennbaren Zusammenhang zeigen (z.B. Haufung von Attacken nach starken Luftdruckabfällen). Wenn kein relevanter Zusammenhang erkennbar ist: diesen Abschnitt KOMPLETT WEGLASSEN (nicht explizit "kein Zusammenhang" schreiben).
+6. Besondere Auffälligkeiten: Nur klinisch relevante Besonderheiten erwähnen.
+   Beispiel: "Besondere Auffälligkeiten: Auffällig sind die hohe Attackenfrequenz und wiederholte Mehrfacheinnahmen von Akutmedikation an einzelnen Tagen."
+   Maximal 2-3 Sätze.
 
-7. Besondere Auffälligkeiten: Nur klinisch relevante Besonderheiten (z.B. haufiger Einsatz von Benzodiazepinen, sehr hohe Attackenzahl, mehrere Medikationsgaben an einzelnen Tagen). Maximal 2-3 Sätze.
-
-8. Am Ende IMMER: "Hinweis: Automatisch aus den eingegebenen Daten generiert; ersetzt keine ärztliche Diagnose oder Therapieentscheidung."
+7. Am Ende IMMER: "Hinweis: Automatisch aus den eingegebenen Daten generiert; ersetzt keine ärztliche Diagnose oder Therapieentscheidung."
 
 DATEN:
 Anzahl Attacken: ${entries.length}
 Tage im Zeitraum: ${daysCount}
+Durchschnitt Attacken pro Monat: ${(entries.length / (daysCount / 30)).toFixed(1).replace('.', ',')}
 ${limits && limits.length > 0 ? `Medikamentenlimits: ${limits.map(l => `${l.medication_name}: max. ${l.limit_count}/${l.period_type}`).join(', ')}` : ''}
 
 Einträge:
