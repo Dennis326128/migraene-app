@@ -9,12 +9,26 @@ const corsHeaders = {
 /**
  * Edge Function: generate-doctor-summary
  * 
- * Generiert einen extrem kurzen, arztorientierten KI-Kurzbericht
+ * Generiert einen strukturierten, arztorientierten KI-Kurzbericht
  * aus Migräne-Tagebuch-Daten für PDF-Reports.
  * 
  * Input: { fromDate, toDate }
- * Output: { summary: string } - max. 5-6 Bulletpoints, je ~150 Zeichen
+ * Output: { summary: string } - Fließtext mit fett hervorgehobenen Überschriften
  */
+
+// Helper: Berechnet Tage zwischen zwei Daten
+function calculateDays(from: string, to: string): number {
+  const start = new Date(from);
+  const end = new Date(to);
+  return Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+}
+
+// Helper: Formatiert Datum deutsch
+function formatDateGerman(dateStr: string): string {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -52,7 +66,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Tagebuch-Einträge laden
+    // Tagebuch-Einträge mit Wetterdaten laden
     const { data: entries, error: entriesError } = await supabaseClient
       .from('pain_entries')
       .select(`
@@ -64,7 +78,13 @@ Deno.serve(async (req) => {
         aura_type,
         pain_location,
         medications,
-        notes
+        notes,
+        weather:weather_logs!pain_entries_weather_id_fkey (
+          pressure_mb,
+          pressure_change_24h,
+          temperature_c,
+          humidity
+        )
       `)
       .eq('user_id', user.id)
       .gte('selected_date', fromDate.split('T')[0])
@@ -79,10 +99,14 @@ Deno.serve(async (req) => {
       );
     }
 
+    const daysCount = calculateDays(fromDate, toDate);
+    const fromFormatted = formatDateGerman(fromDate);
+    const toFormatted = formatDateGerman(toDate);
+
     if (!entries || entries.length === 0) {
       return new Response(
         JSON.stringify({ 
-          summary: "**Keine Einträge im Berichtszeitraum**\n\n• Datenlage unzureichend für Analyse.\n• Patient sollte regelmäßiger dokumentieren." 
+          summary: `Attackenfrequenz: Im Auswertungszeitraum ${fromFormatted} - ${toFormatted} (${daysCount} Tage) wurden keine Attacken dokumentiert.\n\nHinweis: Automatisch aus den eingegebenen Daten generiert; ersetzt keine ärztliche Diagnose oder Therapieentscheidung.`
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -95,35 +119,52 @@ Deno.serve(async (req) => {
       .select('entry_id, med_name, effect_rating')
       .in('entry_id', entryIds);
 
-    // Prompt für kurzen Arztbericht
+    // Medikamentenlimits laden
+    const { data: limits } = await supabaseClient
+      .from('user_medication_limits')
+      .select('medication_name, limit_count, period_type')
+      .eq('user_id', user.id)
+      .eq('is_active', true);
+
+    // Prompt für strukturierten Arztbericht
     const prompt = `Du bist eine medizinisch neutrale KI. Werte Migräne-Tagebuchdaten aus und erstelle einen sehr kurzen, sachlichen Kurzbericht für Ärzt:innen.
 
 WICHTIGE VORGABEN:
-- Fokus auf Auffälligkeiten und relevante Muster, nicht auf allgemeine Erklärungen
+- Fokus NUR auf Auffälligkeiten und klinisch relevante Muster
 - KEINE Selbstdiagnosen, KEINE Therapieempfehlungen, KEINE Spekulationen
 - Kein Smalltalk, keine Anrede, keine Emojis
 - Sprache: Deutsch
-- Maximal 5-6 Bulletpoints, jede Bullet maximal ca. 150 Zeichen
-- Wenn Datenlage dünn ist, kurz erwähnen ohne lange Ausführung
+- Format: KEIN Markdown (keine *, **, #), nur normaler Fließtext
+- Maximal 6-7 kurze Absätze, jeder 1-2 Sätze
+- Jeder Absatz beginnt mit fett hervorgehobener Überschrift gefolgt von Doppelpunkt (Format: "Überschrift: Text")
+- Einheitlich "Attacken" statt "Episoden" verwenden
 
-STRUKTUR:
-Überschrift: "**Kurzbericht – Migränedaten (ärztliche Übersicht)**"
+ZEITRAUM:
+Auswertungszeitraum: ${fromFormatted} - ${toFormatted} (${daysCount} Tage)
 
-Danach 3-6 Bulletpoints:
-• Verlauf (z.B. Häufigkeit, Zunahme/Abnahme)
-• Intensität (z.B. typische Schmerzstärke, Spitzen)
-• Auffällige Zeitmuster (z.B. zyklisch, am Wochenende etc., nur falls klar)
-• Medikation: Wirksamkeit / fehlende Wirkung / Übergebrauchstendenz
-• Besondere Warnhinweise (z.B. sehr lange Attacken, Status-ähnlich, häufige Notfallmedikation)
+STRUKTUR (nur auffällige Punkte erwähnen, irrelevante Abschnitte komplett weglassen):
 
-VERMEIDE:
-- Formulierungen wie "Sie sollten...", "Empfohlen wäre..."
-- Laienerklärungen von Migräne an sich
+1. Attackenfrequenz: Anzahl der Attacken im Zeitraum, ggf. Durchschnitt pro Monat/Woche.
+   Beispiel: "Attackenfrequenz: Im Auswertungszeitraum wurden 62 Attacken dokumentiert (durchschnittlich 20,6 Attacken pro Monat)."
+
+2. Schmerzintensitat: Typischer Bereich (z.B. NRS 7-9) und mittlere Intensitat. NUR erwähnen, wenn Intensitat eher hoch (>6) oder stark schwankend ist.
+
+3. Zeitliche Muster: Nur nennen, wenn es KLARE Muster gibt (z.B. Haufung morgens, an bestimmten Wochentagen, um die Menstruation). Wenn kein klares Muster erkennbar ist, diesen Abschnitt KOMPLETT WEGLASSEN.
+
+4. Medikation: Haufig verwendete Akutmedikamente und deren dokumentierte Wirksamkeit. NUR erwähnen wenn mindestens 5 Einnahmen dokumentiert.
+
+5. Medikamentenübergebrauch: Konkrete Monate nennen, in denen die Grenzwerte überschritten wurden (z.B. >10 Triptantage/Monat). Wenn KEIN Hinweis auf Übergebrauch: EIN kurzer Satz: "Hinweise auf Medikamentenübergebrauch: In den vorliegenden Daten aktuell kein Hinweis auf Übergebrauch."
+
+6. Wetter / Luftdruck: NUR dann einen Absatz, wenn die Daten einen erkennbaren Zusammenhang zeigen (z.B. Haufung von Attacken nach starken Luftdruckabfällen). Wenn kein relevanter Zusammenhang erkennbar ist: diesen Abschnitt KOMPLETT WEGLASSEN (nicht explizit "kein Zusammenhang" schreiben).
+
+7. Besondere Auffälligkeiten: Nur klinisch relevante Besonderheiten (z.B. haufiger Einsatz von Benzodiazepinen, sehr hohe Attackenzahl, mehrere Medikationsgaben an einzelnen Tagen). Maximal 2-3 Sätze.
+
+8. Am Ende IMMER: "Hinweis: Automatisch aus den eingegebenen Daten generiert; ersetzt keine ärztliche Diagnose oder Therapieentscheidung."
 
 DATEN:
-
-Berichtszeitraum: ${fromDate.split('T')[0]} bis ${toDate.split('T')[0]}
-Anzahl Einträge: ${entries.length}
+Anzahl Attacken: ${entries.length}
+Tage im Zeitraum: ${daysCount}
+${limits && limits.length > 0 ? `Medikamentenlimits: ${limits.map(l => `${l.medication_name}: max. ${l.limit_count}/${l.period_type}`).join(', ')}` : ''}
 
 Einträge:
 ${entries.map(e => {
@@ -131,6 +172,9 @@ ${entries.map(e => {
   const time = e.selected_time || '';
   const pain = e.pain_level || 'unbekannt';
   const meds = e.medications?.join(', ') || 'keine';
+  const weather = Array.isArray(e.weather) ? e.weather[0] : e.weather;
+  const pressure = weather?.pressure_mb ? `${weather.pressure_mb}hPa` : '';
+  const pressureChange = weather?.pressure_change_24h ? `(${weather.pressure_change_24h > 0 ? '+' : ''}${weather.pressure_change_24h}hPa/24h)` : '';
   
   // Finde Effekte für diesen Eintrag
   const entryEffects = effects?.filter(eff => eff.entry_id === e.id) || [];
@@ -138,10 +182,10 @@ ${entries.map(e => {
     ? entryEffects.map(eff => `${eff.med_name}:${eff.effect_rating}`).join(', ')
     : 'keine Bewertung';
   
-  return `${date} ${time}: Schmerz ${pain}, Aura ${e.aura_type || 'keine'}, Meds ${meds}, Wirkung ${effectsText}`;
+  return `${date} ${time}: Schmerz ${pain}, Aura ${e.aura_type || 'keine'}, Meds ${meds}, Wirkung ${effectsText}${pressure ? `, Druck ${pressure}${pressureChange}` : ''}`;
 }).join('\n')}
 
-Gib NUR den fertig formatierten Text zurück.`;
+Gib NUR den fertig formatierten Text zurück, KEIN Markdown.`;
 
     // Lovable AI aufrufen
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
@@ -161,7 +205,7 @@ Gib NUR den fertig formatierten Text zurück.`;
       body: JSON.stringify({
         model: 'google/gemini-2.5-flash',
         messages: [
-          { role: 'system', content: 'Du bist ein medizinischer KI-Assistent, der prägnante, arztorientierte Zusammenfassungen erstellt.' },
+          { role: 'system', content: 'Du bist ein medizinischer KI-Assistent, der prägnante, arztorientierte Zusammenfassungen erstellt. Du verwendest kein Markdown, sondern normalen Fließtext mit Überschriften gefolgt von Doppelpunkt.' },
           { role: 'user', content: prompt }
         ],
         temperature: 0.3,
@@ -193,7 +237,16 @@ Gib NUR den fertig formatierten Text zurück.`;
     }
 
     const aiData = await aiResponse.json();
-    const summary = aiData.choices?.[0]?.message?.content || 'Keine Analyse verfügbar';
+    let summary = aiData.choices?.[0]?.message?.content || 'Keine Analyse verfügbar';
+    
+    // Clean up any remaining markdown artifacts
+    summary = summary
+      .replace(/\*\*/g, '')
+      .replace(/\*/g, '')
+      .replace(/^#+\s*/gm, '')
+      .replace(/^-\s+/gm, '')
+      .replace(/•/g, '')
+      .trim();
 
     return new Response(
       JSON.stringify({ summary }),

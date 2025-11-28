@@ -21,7 +21,8 @@
  * Seite 2+:
  *   - Medikamenten-Statistik
  *   - Intensitätsverlauf (Chart)
- *   - Detaillierte Episoden-Liste (mit automatischem Pagebreak)
+ *   - Detaillierte Attacken-Liste (mit automatischem Pagebreak)
+ *   - Diagramme (Tageszeit-Verteilung, Schmerz- & Wetterverlauf)
  * 
  * FEATURES:
  * ─────────
@@ -50,6 +51,7 @@ const COLORS = {
   textLight: rgb(0.4, 0.4, 0.4),       // Sekundärtext
   border: rgb(0.7, 0.7, 0.7),          // Rahmenlinien
   chartLine: rgb(0.93, 0.27, 0.27),    // Rot für Schmerzlinie
+  chartBlue: rgb(0.3, 0.6, 0.9),       // Blau für Wetterlinie
   gridLine: rgb(0.9, 0.9, 0.9),        // Gitternetzlinien
 };
 
@@ -179,16 +181,6 @@ function formatDateTimeGerman(dateStr: string, timeStr?: string): string {
 }
 
 /**
- * Formatiert Prozent mit deutschem Komma: 58,3 %
- */
-function formatPercentGerman(value: number): string {
-  return value.toLocaleString("de-DE", { 
-    minimumFractionDigits: 1, 
-    maximumFractionDigits: 1 
-  }) + " %";
-}
-
-/**
  * Konvertiert Schmerz-Level in numerischen Wert (0-10)
  */
 function painLevelToNumericValue(painLevel: string): number {
@@ -233,6 +225,15 @@ function wrapText(text: string, maxWidth: number, fontSize: number, font: PDFFon
   
   if (currentLine) lines.push(currentLine);
   return lines;
+}
+
+/**
+ * Berechnet Anzahl Tage zwischen zwei Daten
+ */
+function calculateDays(from: string, to: string): number {
+  const start = new Date(from);
+  const end = new Date(to);
+  return Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -317,6 +318,102 @@ function drawKeyValue(
   return yPos - LAYOUT.lineHeight;
 }
 
+/**
+ * Zeichnet strukturierten Text mit fett hervorgehobenen Überschriften
+ * Format erwartet: "Überschrift: Text" pro Absatz
+ */
+function drawStructuredText(
+  page: PDFPage,
+  text: string,
+  startY: number,
+  minY: number,
+  font: PDFFont,
+  fontBold: PDFFont,
+  maxWidth: number,
+  padding: number,
+  pdfDoc: any
+): { yPos: number; page: PDFPage } {
+  let yPos = startY;
+  let currentPage = page;
+  const paragraphs = text.split('\n').filter(p => p.trim());
+  
+  for (const para of paragraphs) {
+    if (yPos < minY) {
+      currentPage = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
+      yPos = LAYOUT.pageHeight - LAYOUT.margin - padding;
+    }
+    
+    // Check if paragraph starts with bold heading (ends with :)
+    const colonIndex = para.indexOf(':');
+    if (colonIndex > 0 && colonIndex < 60) {
+      const heading = para.substring(0, colonIndex + 1);
+      const content = para.substring(colonIndex + 1).trim();
+      
+      // Draw bold heading
+      currentPage.drawText(sanitizeForPDF(heading), {
+        x: LAYOUT.margin + padding,
+        y: yPos,
+        size: 9,
+        font: fontBold,
+        color: COLORS.text,
+      });
+      
+      // Draw content after heading on same line if short enough
+      if (content) {
+        const headingWidth = fontBold.widthOfTextAtSize(sanitizeForPDF(heading), 9);
+        const remainingWidth = maxWidth - headingWidth - 5;
+        
+        if (font.widthOfTextAtSize(sanitizeForPDF(content), 9) <= remainingWidth) {
+          // Fits on same line
+          currentPage.drawText(sanitizeForPDF(content), {
+            x: LAYOUT.margin + padding + headingWidth + 5,
+            y: yPos,
+            size: 9,
+            font,
+            color: COLORS.text,
+          });
+          yPos -= 14;
+        } else {
+          // Wrap content to multiple lines
+          yPos -= 12;
+          const wrappedLines = wrapText(content, maxWidth, 9, font);
+          for (const line of wrappedLines) {
+            if (yPos < minY) break;
+            currentPage.drawText(sanitizeForPDF(line), {
+              x: LAYOUT.margin + padding,
+              y: yPos,
+              size: 9,
+              font,
+              color: COLORS.text,
+            });
+            yPos -= 12;
+          }
+        }
+      } else {
+        yPos -= 14;
+      }
+    } else {
+      // Normal paragraph without heading
+      const wrappedLines = wrapText(para, maxWidth, 9, font);
+      for (const line of wrappedLines) {
+        if (yPos < minY) break;
+        currentPage.drawText(sanitizeForPDF(line), {
+          x: LAYOUT.margin + padding,
+          y: yPos,
+          size: 9,
+          font,
+          color: COLORS.text,
+        });
+        yPos -= 12;
+      }
+    }
+    
+    yPos -= 4; // Gap between paragraphs
+  }
+  
+  return { yPos, page: currentPage };
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // CHART DRAWING
 // ═══════════════════════════════════════════════════════════════════════════
@@ -386,7 +483,7 @@ function drawIntensityChart(
   }
   
   // Y-Achsen-Label
-  page.drawText("Schmerzstärke", {
+  page.drawText("Schmerzstarke", {
     x: chartX - 30,
     y: chartY + chartHeight + 5,
     size: 9,
@@ -440,12 +537,346 @@ function drawIntensityChart(
   });
 }
 
+/**
+ * Zeichnet Tageszeit-Verteilungs-Balkendiagramm
+ */
+function drawTimeDistributionChart(
+  page: PDFPage,
+  entries: PainEntry[],
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  font: PDFFont,
+  fontBold: PDFFont
+) {
+  // Rahmen
+  page.drawRectangle({
+    x,
+    y: y - height,
+    width,
+    height,
+    borderColor: COLORS.border,
+    borderWidth: 1,
+  });
+
+  // Gruppiere nach Stunde
+  const hourCounts = new Map<number, number>();
+  entries.forEach(entry => {
+    const time = entry.selected_time || entry.timestamp_created?.split('T')[1] || '';
+    const hour = parseInt(time.split(':')[0] || '0');
+    if (!isNaN(hour) && hour >= 0 && hour < 24) {
+      hourCounts.set(hour, (hourCounts.get(hour) || 0) + 1);
+    }
+  });
+
+  if (hourCounts.size === 0) {
+    page.drawText("Keine Zeitdaten verfugbar", {
+      x: x + width / 2 - 60,
+      y: y - height / 2,
+      size: 10,
+      font,
+      color: COLORS.textLight,
+    });
+    return;
+  }
+
+  const chartMargin = 40;
+  const chartWidth = width - 2 * chartMargin;
+  const chartHeight = height - 2 * chartMargin - 10;
+  const chartX = x + chartMargin;
+  const chartY = y - height + chartMargin + 10;
+
+  const maxCount = Math.max(...Array.from(hourCounts.values()), 1);
+  const barWidth = chartWidth / 24;
+
+  // Y-Achse
+  const ySteps = Math.min(5, maxCount);
+  for (let i = 0; i <= ySteps; i++) {
+    const yVal = Math.round((maxCount / ySteps) * i);
+    const yAxisPos = chartY + (i / ySteps) * chartHeight;
+    
+    page.drawLine({
+      start: { x: chartX - 5, y: yAxisPos },
+      end: { x: chartX, y: yAxisPos },
+      thickness: 0.5,
+      color: COLORS.textLight,
+    });
+    
+    page.drawText(yVal.toString(), {
+      x: chartX - 25,
+      y: yAxisPos - 4,
+      size: 7,
+      font,
+    });
+    
+    // Gitternetz
+    page.drawLine({
+      start: { x: chartX, y: yAxisPos },
+      end: { x: chartX + chartWidth, y: yAxisPos },
+      thickness: 0.3,
+      color: COLORS.gridLine,
+    });
+  }
+
+  // Balken zeichnen
+  for (let hour = 0; hour < 24; hour++) {
+    const count = hourCounts.get(hour) || 0;
+    const barX = chartX + hour * barWidth;
+
+    if (count > 0) {
+      const barHeight = (count / maxCount) * chartHeight;
+      page.drawRectangle({
+        x: barX + 1,
+        y: chartY,
+        width: barWidth - 2,
+        height: barHeight,
+        color: COLORS.primaryLight,
+      });
+    }
+
+    // X-Achsen-Labels (nur jede 3. Stunde)
+    if (hour % 3 === 0) {
+      page.drawText(`${hour}`, {
+        x: barX + barWidth / 2 - 4,
+        y: chartY - 12,
+        size: 7,
+        font,
+      });
+    }
+  }
+
+  // Achsen-Labels
+  page.drawText("Attacken", {
+    x: chartX - 35,
+    y: chartY + chartHeight + 8,
+    size: 8,
+    font: fontBold,
+    color: COLORS.text,
+  });
+
+  page.drawText("Uhrzeit", {
+    x: chartX + chartWidth / 2 - 15,
+    y: chartY - 25,
+    size: 8,
+    font: fontBold,
+    color: COLORS.text,
+  });
+}
+
+/**
+ * Zeichnet kombiniertes Schmerz- & Wetterdiagramm
+ */
+function drawWeatherTimeSeriesChart(
+  page: PDFPage,
+  entries: PainEntry[],
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  font: PDFFont,
+  fontBold: PDFFont
+) {
+  // Rahmen
+  page.drawRectangle({
+    x,
+    y: y - height,
+    width,
+    height,
+    borderColor: COLORS.border,
+    borderWidth: 1,
+  });
+
+  // Gruppiere nach Datum
+  const dataByDate = new Map<string, { pain: number; pressure: number | null }>();
+  entries.forEach(entry => {
+    const date = entry.selected_date || entry.timestamp_created?.split('T')[0] || '';
+    const pain = painLevelToNumericValue(entry.pain_level);
+    const weather = entry.weather;
+    const pressure = weather?.pressure_mb || null;
+    
+    const existing = dataByDate.get(date);
+    if (!existing || pain > existing.pain) {
+      dataByDate.set(date, { pain, pressure: pressure || existing?.pressure || null });
+    }
+  });
+
+  const sortedDates = Array.from(dataByDate.keys()).sort();
+  if (sortedDates.length === 0) {
+    page.drawText("Keine Daten verfugbar", {
+      x: x + width / 2 - 50,
+      y: y - height / 2,
+      size: 10,
+      font,
+      color: COLORS.textLight,
+    });
+    return;
+  }
+
+  const chartMargin = 45;
+  const chartWidth = width - 2 * chartMargin - 40; // Extra Platz für rechte Y-Achse
+  const chartHeight = height - 2 * chartMargin;
+  const chartX = x + chartMargin;
+  const chartY = y - height + chartMargin;
+
+  // Linke Y-Achse (Schmerz 0-10)
+  for (let i = 0; i <= 10; i += 2) {
+    const yAxisPos = chartY + (i / 10) * chartHeight;
+    page.drawLine({
+      start: { x: chartX - 5, y: yAxisPos },
+      end: { x: chartX, y: yAxisPos },
+      thickness: 0.5,
+      color: COLORS.textLight,
+    });
+    page.drawText(i.toString(), {
+      x: chartX - 20,
+      y: yAxisPos - 4,
+      size: 7,
+      font,
+      color: COLORS.chartLine,
+    });
+    
+    // Gitternetz
+    page.drawLine({
+      start: { x: chartX, y: yAxisPos },
+      end: { x: chartX + chartWidth, y: yAxisPos },
+      thickness: 0.3,
+      color: COLORS.gridLine,
+    });
+  }
+
+  // Rechte Y-Achse (Luftdruck)
+  const pressureValues = sortedDates
+    .map(d => dataByDate.get(d)?.pressure)
+    .filter((p): p is number => p !== null && p > 0);
+  
+  const hasPressureData = pressureValues.length > 0;
+  let minPressure = 990;
+  let maxPressure = 1030;
+  
+  if (hasPressureData) {
+    minPressure = Math.min(...pressureValues) - 5;
+    maxPressure = Math.max(...pressureValues) + 5;
+    const pressureRange = maxPressure - minPressure || 20;
+    
+    for (let i = 0; i <= 5; i++) {
+      const pressure = Math.round(minPressure + (pressureRange / 5) * i);
+      const yAxisPos = chartY + (i / 5) * chartHeight;
+      
+      page.drawLine({
+        start: { x: chartX + chartWidth, y: yAxisPos },
+        end: { x: chartX + chartWidth + 5, y: yAxisPos },
+        thickness: 0.5,
+        color: COLORS.textLight,
+      });
+      
+      page.drawText(pressure.toString(), {
+        x: chartX + chartWidth + 10,
+        y: yAxisPos - 4,
+        size: 7,
+        font,
+        color: COLORS.chartBlue,
+      });
+    }
+  }
+
+  // Datenpunkte & Linien
+  const maxPoints = Math.min(sortedDates.length, 30);
+  const step = Math.ceil(sortedDates.length / maxPoints);
+  const displayDates = sortedDates.filter((_, i) => i % step === 0);
+  const pointSpacing = chartWidth / (displayDates.length - 1 || 1);
+
+  let prevPainX: number | null = null;
+  let prevPainY: number | null = null;
+  let prevPressureX: number | null = null;
+  let prevPressureY: number | null = null;
+
+  displayDates.forEach((date, i) => {
+    const data = dataByDate.get(date)!;
+    const pointX = chartX + i * pointSpacing;
+    
+    // Schmerz-Linie (rot)
+    const painY = chartY + (data.pain / 10) * chartHeight;
+    if (prevPainX !== null && prevPainY !== null) {
+      page.drawLine({
+        start: { x: prevPainX, y: prevPainY },
+        end: { x: pointX, y: painY },
+        thickness: 2,
+        color: COLORS.chartLine,
+      });
+    }
+    page.drawCircle({
+      x: pointX,
+      y: painY,
+      size: 3,
+      color: COLORS.chartLine,
+    });
+    prevPainX = pointX;
+    prevPainY = painY;
+
+    // Luftdruck-Linie (blau)
+    if (hasPressureData && data.pressure !== null) {
+      const pressureRange = maxPressure - minPressure || 20;
+      const pressureNorm = (data.pressure - minPressure) / pressureRange;
+      const pressureY = chartY + pressureNorm * chartHeight;
+      
+      if (prevPressureX !== null && prevPressureY !== null) {
+        page.drawLine({
+          start: { x: prevPressureX, y: prevPressureY },
+          end: { x: pointX, y: pressureY },
+          thickness: 1.5,
+          color: COLORS.chartBlue,
+          dashArray: [4, 2],
+        });
+      }
+      page.drawCircle({
+        x: pointX,
+        y: pressureY,
+        size: 2,
+        color: COLORS.chartBlue,
+      });
+      prevPressureX = pointX;
+      prevPressureY = pressureY;
+    }
+
+    // Datum-Labels
+    if (i % Math.ceil(displayDates.length / 8) === 0) {
+      const shortDate = date.slice(5).replace('-', '.');
+      page.drawText(shortDate, {
+        x: pointX - 12,
+        y: chartY - 15,
+        size: 7,
+        font,
+      });
+    }
+  });
+
+  // Legenden
+  page.drawText("Schmerzintensitat (0-10)", {
+    x: chartX,
+    y: chartY + chartHeight + 10,
+    size: 8,
+    font: fontBold,
+    color: COLORS.chartLine,
+  });
+
+  if (hasPressureData) {
+    page.drawText("Luftdruck (hPa)", {
+      x: chartX + chartWidth - 80,
+      y: chartY + chartHeight + 10,
+      size: 8,
+      font: fontBold,
+      color: COLORS.chartBlue,
+    });
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // TABLE DRAWING WITH PAGEBREAK LOGIC
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Zeichnet Tabellenkopf für Episoden-Liste
+ * Zeichnet Tabellenkopf für Attacken-Liste
  */
 function drawTableHeader(page: PDFPage, yPos: number, font: PDFFont): number {
   const cols = {
@@ -509,16 +940,16 @@ function drawTableRow(
   const painText = formatPainLevel(entry.pain_level);
   
   // Aura
-  const auraText = entry.aura_type && entry.aura_type !== 'keine' ? entry.aura_type : '–';
+  const auraText = entry.aura_type && entry.aura_type !== 'keine' ? entry.aura_type : '-';
   
   // Medikamente (mit Umbruch)
   const medsText = entry.medications && entry.medications.length > 0 
     ? entry.medications.join(", ") 
-    : '–';
+    : '-';
   const medsLines = wrapText(medsText, colWidths.meds, 8, font);
   
   // Notizen (mit Umbruch)
-  const notesText = entry.notes || '–';
+  const notesText = entry.notes || '-';
   const notesLines = wrapText(notesText, colWidths.notes, 8, font);
   
   // Berechne Zeilenhöhe (höchste Spalte bestimmt)
@@ -604,6 +1035,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
   let yPos = LAYOUT.pageHeight - LAYOUT.margin;
+  const daysCount = calculateDays(from, to);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // SEITE 1: KOPFBEREICH
@@ -626,7 +1058,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   });
   yPos -= 20;
 
-  page.drawText(`Berichtszeitraum: ${formatDateGerman(from)} – ${formatDateGerman(to)}`, 
+  page.drawText(`Berichtszeitraum: ${formatDateGerman(from)} - ${formatDateGerman(to)}`, 
     { x: LAYOUT.margin, y: yPos, size: 11, font: fontBold, color: COLORS.text });
   yPos -= 12;
   
@@ -672,7 +1104,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   // ═══════════════════════════════════════════════════════════════════════════
   
   if (includeDoctorData && doctors && doctors.length > 0) {
-    const doctorLabel = doctors.length === 1 ? "BEHANDELNDER ARZT" : "BEHANDELNDE ÄRZTE";
+    const doctorLabel = doctors.length === 1 ? "BEHANDELNDER ARZT" : "BEHANDELNDE ARZTE";
     yPos = drawSectionHeader(page, doctorLabel, yPos, fontBold, 12);
     
     for (const doctor of doctors) {
@@ -709,23 +1141,37 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   // ═══════════════════════════════════════════════════════════════════════════
   
   if (includeAnalysis && analysisReport) {
-    const spaceCheck = ensureSpace(pdfDoc, page, yPos, 150);
+    const spaceCheck = ensureSpace(pdfDoc, page, yPos, 180);
     page = spaceCheck.page;
     yPos = spaceCheck.yPos;
     
-    yPos = drawSectionHeader(page, "ÄRZTLICHE AUSWERTUNG", yPos, fontBold, 12);
+    yPos = drawSectionHeader(page, "ARZTLICHE AUSWERTUNG", yPos, fontBold, 12);
     
-    page.drawText("KI-gestützte Mustererkennung zur diagnostischen Unterstützung", {
+    page.drawText("KI-gestutzte Mustererkennung zur diagnostischen Unterstutzung", {
       x: LAYOUT.margin,
       y: yPos,
       size: 8,
       font,
       color: COLORS.textLight,
     });
+    yPos -= 12;
+    
+    // Zeitraum-Zeile
+    const periodText = `Auswertungszeitraum: ${formatDateGerman(from)} - ${formatDateGerman(to)} (${daysCount} Tage)`;
+    page.drawText(periodText, {
+      x: LAYOUT.margin,
+      y: yPos,
+      size: 9,
+      font: fontBold,
+      color: COLORS.text,
+    });
     yPos -= 18;
     
+    // Berechne Box-Höhe basierend auf Text-Länge
+    const estimatedLines = analysisReport.split('\n').length * 2;
+    const boxHeight = Math.min(Math.max(100, estimatedLines * 12 + 20), 250);
+    
     // Box-Hintergrund
-    const boxHeight = Math.min(120, yPos - LAYOUT.margin - 80);
     page.drawRectangle({
       x: LAYOUT.margin,
       y: yPos - boxHeight,
@@ -736,29 +1182,23 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       color: rgb(0.98, 0.99, 1.0),
     });
     
-    // Analyse-Text mit Umbruch
+    // Strukturierten Text rendern
     const boxPadding = 10;
     const maxWidth = LAYOUT.pageWidth - 2 * LAYOUT.margin - 2 * boxPadding;
-    let boxY = yPos - boxPadding - 4;
+    const boxY = yPos - boxPadding - 4;
     
-    const lines = analysisReport.split('\n');
-    for (const line of lines) {
-      if (boxY < yPos - boxHeight + boxPadding) break;
-      
-      const wrappedLines = wrapText(line, maxWidth, 9, font);
-      for (const wrappedLine of wrappedLines) {
-        if (boxY < yPos - boxHeight + boxPadding) break;
-        
-        page.drawText(sanitizeForPDF(wrappedLine), {
-          x: LAYOUT.margin + boxPadding,
-          y: boxY,
-          size: 9,
-          font,
-          color: COLORS.text,
-        });
-        boxY -= 12;
-      }
-    }
+    const result = drawStructuredText(
+      page,
+      analysisReport,
+      boxY,
+      yPos - boxHeight + boxPadding,
+      font,
+      fontBold,
+      maxWidth,
+      boxPadding,
+      pdfDoc
+    );
+    page = result.page;
     
     yPos -= boxHeight + LAYOUT.sectionGap;
   }
@@ -785,6 +1225,9 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       : 0;
     const daysWithPain = new Set(entries.map(e => e.selected_date || e.timestamp_created?.split('T')[0])).size;
     const medEntries = entries.filter(e => e.medications && e.medications.length > 0);
+    const daysWithMedication = new Set(
+      medEntries.map(e => e.selected_date || e.timestamp_created?.split('T')[0])
+    ).size;
     
     // KPI-Boxen
     const boxWidth = (LAYOUT.pageWidth - 2 * LAYOUT.margin - 30) / 4;
@@ -792,10 +1235,10 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     const boxY = yPos - 10;
     
     const kpis = [
-      { label: "Episoden gesamt", value: totalEntries.toString() },
-      { label: "Ø Schmerzintensität", value: avgIntensity > 0 ? `${avgIntensity.toFixed(1)}/10` : "N/A" },
+      { label: "Attacken im Zeitraum", value: totalEntries.toString() },
+      { label: "O Schmerzintensitat (0-10)", value: avgIntensity > 0 ? avgIntensity.toFixed(1) : "N/A" },
       { label: "Tage mit Schmerzen", value: daysWithPain.toString() },
-      { label: "Tage mit Medikation", value: medEntries.length.toString() },
+      { label: "Tage mit Medikation", value: daysWithMedication.toString() },
     ];
     
     kpis.forEach((kpi, i) => {
@@ -821,14 +1264,17 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
         color: COLORS.primaryLight,
       });
       
-      // Label (klein)
-      const labelWidth = font.widthOfTextAtSize(kpi.label, 8);
-      page.drawText(kpi.label, {
-        x: x + boxWidth / 2 - labelWidth / 2,
-        y: boxY - 50,
-        size: 8,
-        font,
-        color: COLORS.textLight,
+      // Label (klein, zentriert)
+      const labelLines = wrapText(kpi.label, boxWidth - 10, 7, font);
+      labelLines.forEach((line, li) => {
+        const labelWidth = font.widthOfTextAtSize(line, 7);
+        page.drawText(line, {
+          x: x + boxWidth / 2 - labelWidth / 2,
+          y: boxY - 48 - li * 9,
+          size: 7,
+          font,
+          color: COLORS.textLight,
+        });
       });
     });
     
@@ -864,7 +1310,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     
     page.drawText("Medikament", { x: cols.name, y: yPos - 12, size: 9, font: fontBold });
     page.drawText("Einnahmen", { x: cols.count, y: yPos - 12, size: 9, font: fontBold });
-    page.drawText("Ø Wirksamkeit", { x: cols.effectiveness, y: yPos - 12, size: 9, font: fontBold });
+    page.drawText("O Wirksamkeit", { x: cols.effectiveness, y: yPos - 12, size: 9, font: fontBold });
     page.drawText("Bemerkung", { x: cols.note, y: yPos - 12, size: 9, font: fontBold });
     yPos -= 25;
     
@@ -881,7 +1327,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       if (stat.ratedCount > 0) {
         const effectPercent = Math.round((stat.avgEffect / 10) * 100);
         page.drawText(`${effectPercent} %`, { x: cols.effectiveness, y: yPos, size: 9, font });
-        page.drawText(`(Ø aus ${stat.ratedCount} Bewertungen)`, { 
+        page.drawText(`(O aus ${stat.ratedCount} Bewertungen)`, { 
           x: cols.note, 
           y: yPos, 
           size: 8, 
@@ -889,7 +1335,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
           color: COLORS.textLight 
         });
       } else {
-        page.drawText("–", { x: cols.effectiveness, y: yPos, size: 9, font });
+        page.drawText("-", { x: cols.effectiveness, y: yPos, size: 9, font });
         page.drawText("Keine Wirksamkeitsbewertung", { 
           x: cols.note, 
           y: yPos, 
@@ -915,9 +1361,9 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     page = spaceCheck.page;
     yPos = spaceCheck.yPos;
     
-    yPos = drawSectionHeader(page, "INTENSITÄTSVERLAUF", yPos, fontBold, 12);
+    yPos = drawSectionHeader(page, "INTENSITATSVERLAUF", yPos, fontBold, 12);
     
-    page.drawText("Verlauf der Schmerzintensität über den Berichtszeitraum", {
+    page.drawText("Verlauf der Schmerzintensitat uber den Berichtszeitraum", {
       x: LAYOUT.margin,
       y: yPos,
       size: 8,
@@ -933,7 +1379,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // DETAILLIERTE EPISODEN-LISTE (mit Pagebreak)
+  // DETAILLIERTE ATTACKEN-LISTE (mit Pagebreak)
   // ═══════════════════════════════════════════════════════════════════════════
   
   if (includeEntriesList && entries.length > 0) {
@@ -941,33 +1387,112 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     page = spaceCheck.page;
     yPos = spaceCheck.yPos;
     
-    yPos = drawSectionHeader(page, "DETAILLIERTE EPISODEN-LISTE", yPos, fontBold, 12);
+    yPos = drawSectionHeader(page, "DETAILLIERTE ATTACKEN-LISTE", yPos, fontBold, 12);
+    
+    page.drawText(`${entries.length} Attacken im Zeitraum`, {
+      x: LAYOUT.margin,
+      y: yPos,
+      size: 8,
+      font,
+      color: COLORS.textLight,
+    });
+    yPos -= 15;
+    
     yPos = drawTableHeader(page, yPos, fontBold);
     
-    for (const entry of entries) {
+    // Sortiere Einträge nach Datum (neueste zuerst)
+    const sortedEntries = [...entries].sort((a, b) => {
+      const dateA = new Date(a.selected_date || a.timestamp_created || '');
+      const dateB = new Date(b.selected_date || b.timestamp_created || '');
+      return dateB.getTime() - dateA.getTime();
+    });
+    
+    for (const entry of sortedEntries) {
       const result = drawTableRow(page, entry, yPos, font, pdfDoc);
       page = result.page;
       yPos = result.yPos;
     }
+    
+    yPos -= LAYOUT.sectionGap;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // FOOTER AUF ALLEN SEITEN
+  // DIAGRAMME (Tageszeit-Verteilung & Schmerz-/Wetterverlauf)
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  if (includeChart && entries.length > 0) {
+    // Neue Seite für Diagramme
+    page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
+    yPos = LAYOUT.pageHeight - LAYOUT.margin;
+    
+    yPos = drawSectionHeader(page, "DIAGRAMME", yPos, fontBold, 13);
+    yPos -= 10;
+
+    // 1. Tageszeit-Verteilung
+    page.drawText("Tageszeit-Verteilung", {
+      x: LAYOUT.margin,
+      y: yPos,
+      size: 11,
+      font: fontBold,
+      color: COLORS.text,
+    });
+    yPos -= 5;
+
+    page.drawText("Verteilung der Attacken uber den Tag", {
+      x: LAYOUT.margin,
+      y: yPos,
+      size: 8,
+      font,
+      color: COLORS.textLight,
+    });
+    yPos -= 15;
+
+    const chart1Height = 160;
+    const chartWidth = LAYOUT.pageWidth - 2 * LAYOUT.margin;
+    drawTimeDistributionChart(page, entries, LAYOUT.margin, yPos, chartWidth, chart1Height, font, fontBold);
+    yPos -= chart1Height + 35;
+
+    // 2. Schmerz- & Wetterverlauf
+    page.drawText("Schmerz- & Wetterverlauf", {
+      x: LAYOUT.margin,
+      y: yPos,
+      size: 11,
+      font: fontBold,
+      color: COLORS.text,
+    });
+    yPos -= 5;
+
+    page.drawText("Zeitreihen-Diagramm mit Schmerzintensitat und Luftdruck", {
+      x: LAYOUT.margin,
+      y: yPos,
+      size: 8,
+      font,
+      color: COLORS.textLight,
+    });
+    yPos -= 15;
+
+    const chart2Height = 200;
+    drawWeatherTimeSeriesChart(page, entries, LAYOUT.margin, yPos, chartWidth, chart2Height, font, fontBold);
+    yPos -= chart2Height;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // FOOTER (Seitenzahlen)
   // ═══════════════════════════════════════════════════════════════════════════
   
   const pages = pdfDoc.getPages();
-  pages.forEach((p, index) => {
-    p.drawText(`Seite ${index + 1} von ${pages.length}`, {
-      x: LAYOUT.pageWidth - LAYOUT.margin - 80,
-      y: 25,
+  pages.forEach((p, i) => {
+    p.drawText(`Seite ${i + 1} von ${pages.length}`, {
+      x: LAYOUT.pageWidth - LAYOUT.margin - 60,
+      y: LAYOUT.margin - 20,
       size: 8,
       font,
       color: COLORS.textLight,
     });
     
-    p.drawText("Vertrauliches medizinisches Dokument", {
+    p.drawText("Kopfschmerztagebuch - Vertraulich", {
       x: LAYOUT.margin,
-      y: 25,
+      y: LAYOUT.margin - 20,
       size: 8,
       font,
       color: COLORS.textLight,
