@@ -974,10 +974,16 @@ function drawTableRow(
   }
   
   // Zeichne Zeile - Text exakt vertikal zentriert zwischen den Trennlinien
-  // rowHeight = maxLines * 11 + 12 → 12px Gesamtpadding → 6px oben, 6px unten
-  const contentHeight = maxLines * 11;
-  const verticalPadding = (rowHeight - contentHeight) / 2; // = 6
-  const rowTop = yPos - verticalPadding;
+  // PDF-Text wird von der Baseline gezeichnet, daher müssen wir den Offset zur visuellen Textmitte berechnen
+  const fontSize = 8;
+  const lineSpacing = 11;
+  const textVisualOffset = fontSize * 0.35; // Offset von Baseline zur visuellen Textmitte (~2.8px)
+  
+  // Berechne die Position für die erste Textzeile so, dass der Textblock vertikal zentriert ist
+  const contentBlockHeight = (maxLines - 1) * lineSpacing; // Höhe des Textblocks (ohne erste Zeile)
+  const rowCenter = rowHeight / 2; // Mitte der Zeile
+  const firstLineFromTop = rowCenter - (contentBlockHeight / 2) + textVisualOffset;
+  const rowTop = yPos - firstLineFromTop;
   
   page.drawText(sanitizeForPDF(dateTime), { x: cols.date, y: rowTop, size: 8, font });
   page.drawText(sanitizeForPDF(painText), { x: cols.pain, y: rowTop, size: 8, font });
