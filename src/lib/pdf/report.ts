@@ -973,8 +973,10 @@ function drawTableRow(
     yPos = drawTableHeader(page, yPos, font);
   }
   
-  // Zeichne Zeile - Text vertikal zentriert zwischen den Trennlinien
-  const verticalPadding = 4; // Padding von oben für vertikale Zentrierung
+  // Zeichne Zeile - Text exakt vertikal zentriert zwischen den Trennlinien
+  // rowHeight = maxLines * 11 + 12 → 12px Gesamtpadding → 6px oben, 6px unten
+  const contentHeight = maxLines * 11;
+  const verticalPadding = (rowHeight - contentHeight) / 2; // = 6
   const rowTop = yPos - verticalPadding;
   
   page.drawText(sanitizeForPDF(dateTime), { x: cols.date, y: rowTop, size: 8, font });
