@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Calendar } from "@/components/ui/calendar";
@@ -12,11 +11,19 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { CalendarIcon, ChevronLeft, ChevronRight, Check, Pill, Clock, Activity, Star, AlertCircle } from "lucide-react";
-import { format, startOfMonth, setDate as setDateFns } from "date-fns";
+import { CalendarIcon, ChevronLeft, ChevronRight, Check, Pill, Clock, Activity, Star } from "lucide-react";
+import { format, startOfMonth } from "date-fns";
 import { de } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { useMeds } from "@/features/meds/hooks/useMeds";
+import { 
+  StructuredDosageInput, 
+  buildDoseText, 
+  parseDoseText,
+  getDefaultStructuredDosage,
+  type StructuredDosage 
+} from "./StructuredDosageInput";
+import { VoiceInputButton } from "./VoiceInputButton";
 import type { 
   MedicationCourse, 
   MedicationCourseType, 
@@ -78,7 +85,7 @@ export const MedicationCourseWizard: React.FC<MedicationCourseWizardProps> = ({
   const [medicationName, setMedicationName] = useState("");
   const [customMedication, setCustomMedication] = useState("");
   const [type, setType] = useState<MedicationCourseType>("prophylaxe");
-  const [doseText, setDoseText] = useState("");
+  const [structuredDosage, setStructuredDosage] = useState<StructuredDosage>(getDefaultStructuredDosage());
   
   const [isActive, setIsActive] = useState(true);
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
@@ -101,7 +108,16 @@ export const MedicationCourseWizard: React.FC<MedicationCourseWizardProps> = ({
     if (existingCourse) {
       setMedicationName(existingCourse.medication_name);
       setType(existingCourse.type);
-      setDoseText(existingCourse.dose_text || "");
+      // Parse existing dose_text into structured format
+      if (existingCourse.dose_text) {
+        const parsed = parseDoseText(existingCourse.dose_text);
+        setStructuredDosage({
+          ...getDefaultStructuredDosage(),
+          ...parsed,
+        });
+      } else {
+        setStructuredDosage(getDefaultStructuredDosage());
+      }
       setIsActive(existingCourse.is_active);
       setStartDate(new Date(existingCourse.start_date));
       setEndDate(existingCourse.end_date ? new Date(existingCourse.end_date) : undefined);
@@ -125,7 +141,7 @@ export const MedicationCourseWizard: React.FC<MedicationCourseWizardProps> = ({
     setMedicationName("");
     setCustomMedication("");
     setType("prophylaxe");
-    setDoseText("");
+    setStructuredDosage(getDefaultStructuredDosage());
     setIsActive(true);
     setStartDate(undefined);
     setEndDate(undefined);
@@ -180,13 +196,14 @@ export const MedicationCourseWizard: React.FC<MedicationCourseWizardProps> = ({
   const handleSubmit = async () => {
     setIsSubmitting(true);
     try {
+      const doseText = buildDoseText(structuredDosage);
       const data: CreateMedicationCourseInput = {
         medication_name: getFinalMedicationName().trim(),
         type,
         start_date: startDate ? format(startDate, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
         end_date: !isActive && endDate ? format(endDate, "yyyy-MM-dd") : null,
         is_active: isActive,
-        dose_text: doseText.trim() || null,
+        dose_text: doseText || null,
         baseline_migraine_days: baselineMigraineDays || null,
         baseline_acute_med_days: baselineAcuteMedDays || null,
         baseline_triptan_doses_per_month: baselineTriptanDoses ? parseInt(baselineTriptanDoses) : null,
@@ -206,6 +223,41 @@ export const MedicationCourseWizard: React.FC<MedicationCourseWizardProps> = ({
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Voice input handler
+  const handleVoiceData = (data: {
+    medicationName: string;
+    type: MedicationCourseType;
+    dosage: Partial<StructuredDosage>;
+    startDate: Date | undefined;
+    isActive: boolean;
+  }) => {
+    if (data.medicationName) {
+      // Check if it's a known medication from user's list
+      const existingMed = medications.find(
+        (m) => m.name.toLowerCase() === data.medicationName.toLowerCase()
+      );
+      if (existingMed) {
+        setMedicationName(existingMed.name);
+        setCustomMedication("");
+      } else {
+        setMedicationName("__custom__");
+        setCustomMedication(data.medicationName);
+      }
+    }
+    
+    setType(data.type);
+    setStructuredDosage((prev) => ({
+      ...prev,
+      ...data.dosage,
+    }));
+    
+    if (data.startDate) {
+      setStartDate(startOfMonth(data.startDate));
+    }
+    
+    setIsActive(data.isActive);
   };
 
   const renderStepIndicator = () => (
@@ -243,6 +295,14 @@ export const MedicationCourseWizard: React.FC<MedicationCourseWizardProps> = ({
 
   const renderStep1 = () => (
     <div className="space-y-6">
+      {/* Voice Input Button */}
+      <div className="flex justify-end">
+        <VoiceInputButton
+          userMeds={medications}
+          onDataRecognized={handleVoiceData}
+        />
+      </div>
+
       <div className="space-y-3">
         <Label>Medikament</Label>
         <Select value={medicationName} onValueChange={setMedicationName}>
@@ -304,13 +364,12 @@ export const MedicationCourseWizard: React.FC<MedicationCourseWizardProps> = ({
         </div>
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="dose">Dosierung (optional)</Label>
-        <Input
-          id="dose"
-          placeholder="z.B. 225 mg s.c. 1×/Monat"
-          value={doseText}
-          onChange={(e) => setDoseText(e.target.value)}
+      <div className="space-y-3">
+        <Label>Dosierung (optional)</Label>
+        <StructuredDosageInput
+          value={structuredDosage}
+          onChange={setStructuredDosage}
+          type={type}
         />
       </div>
     </div>
