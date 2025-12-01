@@ -2,20 +2,23 @@
 
 ## 📋 Übersicht
 
-Dieses Verzeichnis enthält das **zentrale PDF-Template** für den Export des Kopfschmerztagebuchs. Das Template wird für **alle Nutzer:innen** verwendet und erzeugt professionelle, medizinisch brauchbare Dokumente für Ärzt:innen und Krankenkassen.
+Dieses Verzeichnis enthält die **PDF-Templates** für den Export des Kopfschmerztagebuchs. Die Templates erzeugen professionelle, medizinisch brauchbare Dokumente für Ärzt:innen und Krankenkassen.
 
 ---
 
-## 🎯 Aktive Datei (WICHTIG!)
+## 🎯 Aktive Dateien
 
-**`report.ts`** → Funktion: `buildDiaryPdf()`
+### 1. `report.ts` → Funktion: `buildDiaryPdf()`
+✅ Hauptfunktion für das **Kopfschmerztagebuch-PDF**  
+✅ Enthält Statistiken, Charts, Einträge, KI-Analyse  
+✅ Aufgerufen von: `src/components/PainApp/DiaryReport.tsx`
 
-✅ Diese Funktion ist die **einzige aktive PDF-Generierung** für das Kopfschmerztagebuch.  
-✅ Alle UI-Komponenten rufen diese Funktion auf.  
-✅ Änderungen am PDF-Layout müssen hier vorgenommen werden.
-
-### Aufgerufen von:
-- `src/components/PainApp/DiaryReport.tsx` → `savePDF()`
+### 2. `medicationPlan.ts` → Funktion: `buildMedicationPlanPdf()`
+✅ Separates **Medikationsplan-PDF im BMP-Stil**  
+✅ Bundeseinheitlicher Medikationsplan-Format  
+✅ Enthält aktuelle Medikation und Therapiehistorie  
+✅ Ohne KI-Interpretation  
+✅ Aufgerufen von: `src/components/PainApp/DiaryReport.tsx`
 
 ---
 

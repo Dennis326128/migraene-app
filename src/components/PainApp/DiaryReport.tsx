@@ -697,7 +697,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
                 onChange={e => setIncludeMedicationCourses(e.target.checked)} 
                 disabled={medicationCourses.length === 0}
               />
-              Medikamentenverläufe (Prophylaxe/Akut)
+              Therapieverlauf (Prophylaxe & Akutbehandlungen)
               {medicationCourses.length === 0 && (
                 <span className="text-xs text-muted-foreground">(keine vorhanden)</span>
               )}
@@ -823,7 +823,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
                 {includeEntriesList && <li>Detaillierte Einträge-Tabelle</li>}
                 {includePatientData && <li>Persönliche Daten</li>}
                 {includeDoctorData && <li>Arztkontakte</li>}
-                {includeMedicationCourses && medicationCourses.length > 0 && <li>Medikamentenverläufe (Prophylaxe/Akut)</li>}
+                {includeMedicationCourses && medicationCourses.length > 0 && <li>Therapieverlauf (Prophylaxe & Akut)</li>}
                 {includePatientNotes && patientNotes.trim() && <li>Anmerkungen des Patienten</li>}
               </ul>
             </div>
@@ -832,7 +832,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
           {medicationCourses.length > 0 && (
             <div className="text-xs text-muted-foreground bg-primary/5 border border-primary/20 p-3 rounded-md">
               <p className="font-medium mb-1 text-primary">Medikationsplan (BMP-Stil):</p>
-              <p>Separates PDF im Stil des bundeseinheitlichen Medikationsplans mit aktueller Medikation und Therapiehistorie - ohne KI-Interpretation.</p>
+              <p>Separates PDF im Stil des bundeseinheitlichen Medikationsplans mit aktueller Medikation und Therapiehistorie – ohne KI-Interpretation.</p>
             </div>
           )}
         </div>

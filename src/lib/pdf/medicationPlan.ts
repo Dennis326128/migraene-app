@@ -124,8 +124,8 @@ function formatDate(dateStr: string | undefined | null): string {
 function getTypeLabel(type: string): string {
   const labels: Record<string, string> = {
     prophylaxe: "Prophylaxe",
-    akut: "Akutmedikation",
-    sonstige: "Sonstige",
+    akut: "Akuttherapie",
+    sonstige: "Sonstige Therapie",
   };
   return labels[type] || type;
 }
@@ -133,7 +133,7 @@ function getTypeLabel(type: string): string {
 function getIndication(type: string): string {
   const indications: Record<string, string> = {
     prophylaxe: "Migraeneprophylaxe",
-    akut: "Akute Migraeneattacke",
+    akut: "Akute Migraene",
     sonstige: "Kopfschmerz",
   };
   return indications[type] || "Migraene";
@@ -142,11 +142,11 @@ function getIndication(type: string): string {
 function getDiscontinuationLabel(reason: string | null | undefined): string {
   if (!reason) return "-";
   const labels: Record<string, string> = {
-    keine_wirkung: "Keine Wirkung",
-    nebenwirkungen: "Nebenwirkungen",
-    migraene_gebessert: "Migraene gebessert",
-    kinderwunsch: "Kinderwunsch",
-    andere: "Andere Gruende",
+    keine_wirkung: "Keine ausreichende Wirkung",
+    nebenwirkungen: "Unvertraegliche Nebenwirkungen",
+    migraene_gebessert: "Besserung der Migraene",
+    kinderwunsch: "Kinderwunsch/Schwangerschaft",
+    andere: "Sonstige Gruende",
   };
   return labels[reason] || reason;
 }
@@ -439,10 +439,10 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
   
   let colX = LAYOUT.margin + 5;
   const headers = [
-    { text: "Wirkstoff/Handelsname", width: colWidths.name },
-    { text: "Staerke/Form", width: colWidths.dose },
-    { text: "Dosierung", width: colWidths.schema },
-    { text: "Indikation", width: colWidths.indication },
+    { text: "Wirkstoff", width: colWidths.name },
+    { text: "Dosierung", width: colWidths.dose },
+    { text: "Einnahmeschema", width: colWidths.schema },
+    { text: "Anwendungsgebiet", width: colWidths.indication },
     { text: "Hinweise", width: colWidths.notes },
   ];
   
@@ -587,7 +587,7 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
       y = LAYOUT.pageHeight - LAYOUT.margin;
     }
     
-    page.drawText("MEDIKAMENTENHISTORIE (ABGESCHLOSSEN)", {
+    page.drawText("THERAPIEHISTORIE (ABGESCHLOSSENE BEHANDLUNGEN)", {
       x: LAYOUT.margin,
       y: y,
       size: 11,
@@ -608,10 +608,10 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
     
     const histHeaders = [
       { text: "Medikament", x: LAYOUT.margin + 5 },
-      { text: "Typ", x: LAYOUT.margin + 145 },
-      { text: "Zeitraum", x: LAYOUT.margin + 220 },
-      { text: "Absetzgrund", x: LAYOUT.margin + 330 },
-      { text: "Wirksamkeit", x: LAYOUT.margin + 450 },
+      { text: "Therapieart", x: LAYOUT.margin + 145 },
+      { text: "Behandlungszeitraum", x: LAYOUT.margin + 220 },
+      { text: "Beendigungsgrund", x: LAYOUT.margin + 340 },
+      { text: "Wirkung", x: LAYOUT.margin + 470 },
     ];
     
     for (const h of histHeaders) {
@@ -678,8 +678,8 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
       });
       
       // Discontinuation reason
-      page.drawText(getDiscontinuationLabel(course.discontinuation_reason).substring(0, 18), {
-        x: LAYOUT.margin + 330,
+      page.drawText(getDiscontinuationLabel(course.discontinuation_reason).substring(0, 20), {
+        x: LAYOUT.margin + 340,
         y: y - 10,
         size: 8,
         font: helvetica,
@@ -691,7 +691,7 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
         ? `${course.subjective_effectiveness}/10`
         : "-";
       page.drawText(effectText, {
-        x: LAYOUT.margin + 450,
+        x: LAYOUT.margin + 470,
         y: y - 10,
         size: 8,
         font: helvetica,
