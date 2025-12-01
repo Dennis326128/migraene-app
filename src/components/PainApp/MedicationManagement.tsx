@@ -11,8 +11,10 @@ import { Pill, Plus, Pencil, Trash2, Bell, ArrowLeft, Clock, AlertTriangle } fro
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/lib/supabaseClient";
 import { MedicationReminderModal } from "@/components/Reminders/MedicationReminderModal";
+import { MedicationCoursesList } from "./MedicationCourses";
 import { format, addMinutes } from "date-fns";
 import type { ReminderRepeat } from "@/types/reminder.types";
 
@@ -315,6 +317,10 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
           })
         )}
       </div>
+
+      {/* Medication Courses Section */}
+      <Separator className="my-6" />
+      <MedicationCoursesList />
 
       {/* Add Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
