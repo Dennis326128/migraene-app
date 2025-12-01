@@ -6,6 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import type { PainEntry } from "@/types/painApp";
 import { useEntries } from "@/features/entries/hooks/useEntries";
 import { buildDiaryPdf } from "@/lib/pdf/report"; // ← STANDARD-REPORT für Krankenkasse/Ärzte
+import { buildMedicationPlanPdf } from "@/lib/pdf/medicationPlan"; // ← BMP-STYLE MEDIKATIONSPLAN
 import { getUserSettings, upsertUserSettings } from "@/features/settings/api/settings.api";
 import { mapTextLevelToScore } from "@/lib/utils/pain";
 import { useMedicationEffectsForEntries } from "@/features/medication-effects/hooks/useMedicationEffects";
@@ -13,7 +14,7 @@ import { usePatientData, useDoctors } from "@/features/account/hooks/useAccount"
 import { useMedicationCourses } from "@/features/medication-courses/hooks/useMedicationCourses";
 import MedicationStatisticsCard from "./MedicationStatisticsCard";
 import TimeSeriesChart from "@/components/TimeSeriesChart";
-import { Loader2, ArrowLeft, FileText, Table } from "lucide-react";
+import { Loader2, ArrowLeft, FileText, Table, Pill } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
@@ -96,6 +97,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [analysisReport, setAnalysisReport] = useState<string>("");
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [isGeneratingMedPlan, setIsGeneratingMedPlan] = useState(false);
   const [showMissingDataDialog, setShowMissingDataDialog] = useState(false);
 
   const { data: patientData } = usePatientData();
@@ -472,6 +474,76 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     toast.success("CSV erfolgreich exportiert");
   };
 
+  // Generate BMP-style Medication Plan PDF
+  const generateMedicationPlanPdf = async () => {
+    if (medicationCourses.length === 0) {
+      toast.error("Keine Medikamentenverläufe vorhanden");
+      return;
+    }
+
+    setIsGeneratingMedPlan(true);
+    try {
+      const pdfBytes = await buildMedicationPlanPdf({
+        medicationCourses: medicationCourses.map(c => ({
+          id: c.id,
+          medication_name: c.medication_name,
+          type: c.type,
+          dose_text: c.dose_text,
+          start_date: c.start_date,
+          end_date: c.end_date,
+          is_active: c.is_active,
+          subjective_effectiveness: c.subjective_effectiveness,
+          had_side_effects: c.had_side_effects,
+          side_effects_text: c.side_effects_text,
+          discontinuation_reason: c.discontinuation_reason,
+          discontinuation_details: c.discontinuation_details,
+          baseline_migraine_days: c.baseline_migraine_days,
+          baseline_impairment_level: c.baseline_impairment_level,
+          note_for_physician: c.note_for_physician,
+        })),
+        patientData: patientData ? {
+          firstName: patientData.first_name || "",
+          lastName: patientData.last_name || "",
+          dateOfBirth: patientData.date_of_birth || "",
+          street: patientData.street || "",
+          postalCode: patientData.postal_code || "",
+          city: patientData.city || "",
+          phone: patientData.phone || "",
+          healthInsurance: patientData.health_insurance || "",
+          insuranceNumber: patientData.insurance_number || "",
+        } : undefined,
+        doctors: doctors.length > 0 ? doctors.map(d => ({
+          firstName: d.first_name || "",
+          lastName: d.last_name || "",
+          title: d.title || "",
+          specialty: d.specialty || "",
+          street: d.street || "",
+          postalCode: d.postal_code || "",
+          city: d.city || "",
+          phone: d.phone || "",
+        })) : undefined,
+      });
+
+      const blob = new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      
+      const today = new Date();
+      const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      link.download = `Medikationsplan_${dateStr}.pdf`;
+      link.click();
+      URL.revokeObjectURL(url);
+      
+      toast.success("Medikationsplan PDF erstellt");
+    } catch (error) {
+      console.error("Medikationsplan PDF-Generierung fehlgeschlagen:", error);
+      toast.error("Medikationsplan konnte nicht erstellt werden");
+    } finally {
+      setIsGeneratingMedPlan(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background pb-20">
       {/* Header */}
@@ -722,6 +794,25 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
             CSV-Export (für Excel)
           </Button>
 
+          <Button 
+            onClick={generateMedicationPlanPdf}
+            disabled={medicationCourses.length === 0 || isGeneratingMedPlan || isGeneratingReport}
+            variant="outline"
+            className="w-full"
+          >
+            {isGeneratingMedPlan ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Medikationsplan wird erstellt...
+              </>
+            ) : (
+              <>
+                <Pill className="mr-2 h-4 w-4" />
+                Medikationsplan (BMP-Stil)
+              </>
+            )}
+          </Button>
+
           {filteredEntries.length > 0 && (
             <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-md">
               <p className="font-medium mb-1">Das PDF enthält:</p>
@@ -735,6 +826,13 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
                 {includeMedicationCourses && medicationCourses.length > 0 && <li>Medikamentenverläufe (Prophylaxe/Akut)</li>}
                 {includePatientNotes && patientNotes.trim() && <li>Anmerkungen des Patienten</li>}
               </ul>
+            </div>
+          )}
+
+          {medicationCourses.length > 0 && (
+            <div className="text-xs text-muted-foreground bg-primary/5 border border-primary/20 p-3 rounded-md">
+              <p className="font-medium mb-1 text-primary">Medikationsplan (BMP-Stil):</p>
+              <p>Separates PDF im Stil des bundeseinheitlichen Medikationsplans mit aktueller Medikation und Therapiehistorie - ohne KI-Interpretation.</p>
             </div>
           )}
         </div>
