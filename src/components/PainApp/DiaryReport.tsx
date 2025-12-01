@@ -10,6 +10,7 @@ import { getUserSettings, upsertUserSettings } from "@/features/settings/api/set
 import { mapTextLevelToScore } from "@/lib/utils/pain";
 import { useMedicationEffectsForEntries } from "@/features/medication-effects/hooks/useMedicationEffects";
 import { usePatientData, useDoctors } from "@/features/account/hooks/useAccount";
+import { useMedicationCourses } from "@/features/medication-courses/hooks/useMedicationCourses";
 import MedicationStatisticsCard from "./MedicationStatisticsCard";
 import TimeSeriesChart from "@/components/TimeSeriesChart";
 import { Loader2, ArrowLeft, FileText, Table } from "lucide-react";
@@ -85,6 +86,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
   const [includeEntriesList, setIncludeEntriesList] = useState<boolean>(true);
   const [includePatientData, setIncludePatientData] = useState<boolean>(false);
   const [includeDoctorData, setIncludeDoctorData] = useState<boolean>(false);
+  const [includeMedicationCourses, setIncludeMedicationCourses] = useState<boolean>(false);
   const [includePatientNotes, setIncludePatientNotes] = useState<boolean>(true);
   const [patientNotes, setPatientNotes] = useState<string>("");
   
@@ -98,6 +100,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
 
   const { data: patientData } = usePatientData();
   const { data: doctors = [] } = useDoctors();
+  const { data: medicationCourses = [] } = useMedicationCourses();
 
   // Load user email
   useEffect(() => {
@@ -350,11 +353,28 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         includeEntriesList,
         includePatientData,
         includeDoctorData,
+        includeMedicationCourses,
         includePatientNotes: includePatientNotes && !!patientNotes.trim(),
         
         analysisReport: aiAnalysis,
         patientNotes: includePatientNotes ? patientNotes : "",
         medicationStats: medicationStats,
+        medicationCourses: includeMedicationCourses ? medicationCourses.map(c => ({
+          medication_name: c.medication_name,
+          type: c.type,
+          dose_text: c.dose_text || undefined,
+          start_date: c.start_date,
+          end_date: c.end_date || undefined,
+          is_active: c.is_active,
+          subjective_effectiveness: c.subjective_effectiveness ?? undefined,
+          had_side_effects: c.had_side_effects ?? undefined,
+          side_effects_text: c.side_effects_text || undefined,
+          discontinuation_reason: c.discontinuation_reason || undefined,
+          discontinuation_details: c.discontinuation_details || undefined,
+          baseline_migraine_days: c.baseline_migraine_days || undefined,
+          baseline_impairment_level: c.baseline_impairment_level || undefined,
+          note_for_physician: c.note_for_physician || undefined,
+        })) : undefined,
         patientData: patientData ? {
           firstName: patientData.first_name || "",
           lastName: patientData.last_name || "",
@@ -597,6 +617,19 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
               />
               Arztdaten einbeziehen
             </label>
+            
+            <label className="flex items-center gap-2 text-sm">
+              <input 
+                type="checkbox" 
+                checked={includeMedicationCourses} 
+                onChange={e => setIncludeMedicationCourses(e.target.checked)} 
+                disabled={medicationCourses.length === 0}
+              />
+              Medikamentenverläufe (Prophylaxe/Akut)
+              {medicationCourses.length === 0 && (
+                <span className="text-xs text-muted-foreground">(keine vorhanden)</span>
+              )}
+            </label>
           </div>
 
           {/* Patient Notes Section */}
@@ -699,6 +732,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
                 {includeEntriesList && <li>Detaillierte Einträge-Tabelle</li>}
                 {includePatientData && <li>Persönliche Daten</li>}
                 {includeDoctorData && <li>Arztkontakte</li>}
+                {includeMedicationCourses && medicationCourses.length > 0 && <li>Medikamentenverläufe (Prophylaxe/Akut)</li>}
                 {includePatientNotes && patientNotes.trim() && <li>Anmerkungen des Patienten</li>}
               </ul>
             </div>

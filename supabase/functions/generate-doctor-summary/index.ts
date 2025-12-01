@@ -126,6 +126,31 @@ Deno.serve(async (req) => {
       .eq('user_id', user.id)
       .eq('is_active', true);
 
+    // Medikamentenverläufe (Prophylaxe/Akut) laden
+    const { data: medicationCourses } = await supabaseClient
+      .from('medication_courses')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('start_date', { ascending: false });
+
+    // Formatiere Medikamentenverläufe für den Prompt
+    const coursesText = medicationCourses && medicationCourses.length > 0
+      ? medicationCourses.map(c => {
+          const status = c.is_active ? 'aktiv' : `beendet am ${formatDateGerman(c.end_date || '')}`;
+          const effectiveness = c.subjective_effectiveness !== null 
+            ? `, subjektive Wirksamkeit: ${c.subjective_effectiveness}/10`
+            : '';
+          const sideEffects = c.had_side_effects && c.side_effects_text 
+            ? `, Nebenwirkungen: ${c.side_effects_text}`
+            : c.had_side_effects ? ', Nebenwirkungen vorhanden' : '';
+          const discontinuation = c.discontinuation_reason 
+            ? `, Abbruchgrund: ${c.discontinuation_reason}${c.discontinuation_details ? ` (${c.discontinuation_details})` : ''}`
+            : '';
+          
+          return `- ${c.medication_name} (${c.type}): ${c.dose_text || 'Dosis nicht angegeben'}, seit ${formatDateGerman(c.start_date)}, Status: ${status}${effectiveness}${sideEffects}${discontinuation}`;
+        }).join('\n')
+      : 'Keine Medikamentenverläufe dokumentiert';
+
     // Prompt für strukturierten Arztbericht
     const prompt = `Du bist eine medizinisch neutrale KI. Werte Migräne-Tagebuchdaten aus und erstelle einen sehr kurzen, sachlichen Kurzbericht für Ärzt:innen.
 
@@ -164,17 +189,24 @@ STRUKTUR (nur auffällige Punkte erwähnen, irrelevante Abschnitte komplett wegl
    Beispiel: "Wetter / Luftdruck: Attacken häufen sich nach ausgeprägten Luftdruckabfällen, insbesondere am 04.10.2025 und 23.11.2025 mit Abfällen von jeweils >20 hPa."
    Wenn kein relevanter Zusammenhang: diesen Abschnitt KOMPLETT WEGLASSEN.
 
-6. Besondere Auffälligkeiten: Nur klinisch relevante Besonderheiten erwähnen.
+6. Prophylaxe/Therapieverlauf: Falls Medikamentenverläufe dokumentiert sind, kurz zusammenfassen.
+   Beispiel: "Prophylaxe: Topiramat 100 mg seit 01.09.2024 aktiv, subjektive Wirksamkeit 7/10. Amitriptylin 25 mg wurde am 15.06.2024 wegen Nebenwirkungen (Müdigkeit) abgesetzt."
+   Wenn keine Verläufe dokumentiert: diesen Abschnitt KOMPLETT WEGLASSEN.
+
+7. Besondere Auffälligkeiten: Nur klinisch relevante Besonderheiten erwähnen.
    Beispiel: "Besondere Auffälligkeiten: Auffällig sind die hohe Attackenfrequenz und wiederholte Mehrfacheinnahmen von Akutmedikation an einzelnen Tagen."
    Maximal 2-3 Sätze.
 
-7. Am Ende IMMER: "Hinweis: Automatisch aus den eingegebenen Daten generiert; ersetzt keine ärztliche Diagnose oder Therapieentscheidung."
+8. Am Ende IMMER: "Hinweis: Automatisch aus den eingegebenen Daten generiert; ersetzt keine ärztliche Diagnose oder Therapieentscheidung."
 
 DATEN:
 Anzahl Attacken: ${entries.length}
 Tage im Zeitraum: ${daysCount}
 Durchschnitt Attacken pro Monat: ${(entries.length / (daysCount / 30)).toFixed(1).replace('.', ',')}
 ${limits && limits.length > 0 ? `Medikamentenlimits: ${limits.map(l => `${l.medication_name}: max. ${l.limit_count}/${l.period_type}`).join(', ')}` : ''}
+
+Medikamentenverläufe (Prophylaxe/Akuttherapie):
+${coursesText}
 
 Einträge:
 ${entries.map(e => {
