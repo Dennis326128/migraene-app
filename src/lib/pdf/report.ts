@@ -1457,7 +1457,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     page = spaceCheck.page;
     yPos = spaceCheck.yPos;
     
-    yPos = drawSectionHeader(page, "MEDIKAMENTENVERLAUFE (PROPHYLAXE/AKUTTHERAPIE)", yPos, fontBold, 12);
+    yPos = drawSectionHeader(page, "THERAPIEVERLAUF", yPos, fontBold, 12);
     
     // Trennung nach Typ
     const prophylaxe = medicationCourses.filter(c => c.type === 'prophylaxe');
@@ -1484,7 +1484,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
         }
         
         // Medikamentenname + Status
-        const status = course.is_active ? "(aktiv)" : "(beendet)";
+        const status = course.is_active ? "(laufend)" : "(abgeschlossen)";
         const statusColor = course.is_active ? rgb(0.2, 0.6, 0.2) : COLORS.textLight;
         
         page.drawText(sanitizeForPDF(course.medication_name), {
@@ -1616,9 +1616,9 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       yPos -= 5;
     };
     
-    drawCourseGroup(prophylaxe, "Prophylaktische Therapien:");
-    drawCourseGroup(akut, "Akuttherapien:");
-    drawCourseGroup(andere, "Weitere Therapien:");
+    drawCourseGroup(prophylaxe, "Prophylaktische Behandlungen:");
+    drawCourseGroup(akut, "Akutbehandlungen:");
+    drawCourseGroup(andere, "Sonstige Behandlungen:");
     
     yPos -= LAYOUT.sectionGap - 10;
   }

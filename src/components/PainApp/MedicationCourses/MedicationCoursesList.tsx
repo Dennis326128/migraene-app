@@ -70,7 +70,7 @@ export const MedicationCoursesList: React.FC = () => {
       <div className="flex items-start gap-3">
         <History className="h-5 w-5 text-primary mt-0.5" />
         <div className="flex-1">
-          <h2 className="text-lg font-semibold">Medikamentenverlauf</h2>
+          <h2 className="text-lg font-semibold">Therapieverlauf</h2>
           <p className="text-sm text-muted-foreground">
             Dokumentiere vergangene und aktuelle Behandlungen für deinen Arztbericht.
           </p>
@@ -84,11 +84,11 @@ export const MedicationCoursesList: React.FC = () => {
             <div className="flex gap-3">
               <Info className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
               <div className="text-sm text-muted-foreground">
-                <p className="font-medium text-foreground mb-1">Was gehört hierhin?</p>
+                <p className="font-medium text-foreground mb-1">Wofür ist das?</p>
                 <p>
-                  Prophylaktische Medikamente (z.B. Ajovy, Topiramat, Propranolol, Botox) und 
-                  wichtige Akutmedikamente, die du über längere Zeit genommen hast. 
-                  Diese Informationen erscheinen im ärztlichen Auswertungsbericht.
+                  Hier kannst du prophylaktische Medikamente (z.B. Ajovy, Topiramat, Propranolol, Botox) und 
+                  wichtige Akutmedikamente dokumentieren. Diese Informationen erscheinen im ärztlichen Bericht
+                  und im Medikationsplan.
                 </p>
               </div>
             </div>
@@ -103,7 +103,7 @@ export const MedicationCoursesList: React.FC = () => {
         className="w-full"
       >
         <Plus className="h-4 w-4 mr-2" />
-        Verlauf hinzufügen
+        Behandlung hinzufügen
       </Button>
 
       {/* Active Courses */}
