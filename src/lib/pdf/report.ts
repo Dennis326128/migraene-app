@@ -64,6 +64,23 @@ const LAYOUT = {
   sectionGap: 20,       // Abstand zwischen Abschnitten
 };
 
+type MedicationCourseForPdf = {
+  medication_name: string;
+  type: string;
+  dose_text?: string;
+  start_date: string;
+  end_date?: string;
+  is_active: boolean;
+  subjective_effectiveness?: number;
+  had_side_effects?: boolean;
+  side_effects_text?: string;
+  discontinuation_reason?: string;
+  discontinuation_details?: string;
+  baseline_migraine_days?: string;
+  baseline_impairment_level?: string;
+  note_for_physician?: string;
+};
+
 type BuildReportParams = {
   title?: string;
   from: string;
@@ -78,6 +95,7 @@ type BuildReportParams = {
   includePatientData?: boolean;
   includeDoctorData?: boolean;
   includePatientNotes?: boolean;
+  includeMedicationCourses?: boolean;
   
   analysisReport?: string;
   patientNotes?: string;
@@ -87,6 +105,7 @@ type BuildReportParams = {
     avgEffect: number;
     ratedCount: number;
   }>;
+  medicationCourses?: MedicationCourseForPdf[];
   patientData?: {
     firstName?: string;
     lastName?: string;
@@ -1046,9 +1065,11 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     includePatientData = false,
     includeDoctorData = false,
     includePatientNotes = true,
+    includeMedicationCourses = false,
     analysisReport = "",
     patientNotes = "",
     medicationStats = [],
+    medicationCourses = [],
     patientData,
     doctors = [],
   } = params;
@@ -1425,6 +1446,181 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     }
     
     yPos -= LAYOUT.sectionGap;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MEDIKAMENTENVERLÄUFE (Prophylaxe/Akuttherapie)
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  if (includeMedicationCourses && medicationCourses && medicationCourses.length > 0) {
+    const spaceCheck = ensureSpace(pdfDoc, page, yPos, 150);
+    page = spaceCheck.page;
+    yPos = spaceCheck.yPos;
+    
+    yPos = drawSectionHeader(page, "MEDIKAMENTENVERLAUFE (PROPHYLAXE/AKUTTHERAPIE)", yPos, fontBold, 12);
+    
+    // Trennung nach Typ
+    const prophylaxe = medicationCourses.filter(c => c.type === 'prophylaxe');
+    const akut = medicationCourses.filter(c => c.type === 'akut');
+    const andere = medicationCourses.filter(c => c.type !== 'prophylaxe' && c.type !== 'akut');
+    
+    const drawCourseGroup = (courses: typeof medicationCourses, groupTitle: string) => {
+      if (courses.length === 0) return;
+      
+      // Gruppen-Überschrift
+      page.drawText(groupTitle, {
+        x: LAYOUT.margin,
+        y: yPos,
+        size: 10,
+        font: fontBold,
+        color: COLORS.text,
+      });
+      yPos -= 18;
+      
+      for (const course of courses) {
+        if (yPos < LAYOUT.margin + 80) {
+          page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
+          yPos = LAYOUT.pageHeight - LAYOUT.margin;
+        }
+        
+        // Medikamentenname + Status
+        const status = course.is_active ? "(aktiv)" : "(beendet)";
+        const statusColor = course.is_active ? rgb(0.2, 0.6, 0.2) : COLORS.textLight;
+        
+        page.drawText(sanitizeForPDF(course.medication_name), {
+          x: LAYOUT.margin,
+          y: yPos,
+          size: 10,
+          font: fontBold,
+          color: COLORS.text,
+        });
+        
+        const nameWidth = fontBold.widthOfTextAtSize(sanitizeForPDF(course.medication_name), 10);
+        page.drawText(` ${status}`, {
+          x: LAYOUT.margin + nameWidth + 5,
+          y: yPos,
+          size: 9,
+          font,
+          color: statusColor,
+        });
+        yPos -= 14;
+        
+        // Dosierung
+        if (course.dose_text) {
+          page.drawText(`Dosierung: ${sanitizeForPDF(course.dose_text)}`, {
+            x: LAYOUT.margin + 10,
+            y: yPos,
+            size: 9,
+            font,
+            color: COLORS.text,
+          });
+          yPos -= 12;
+        }
+        
+        // Zeitraum
+        const startStr = formatDateGerman(course.start_date);
+        const endStr = course.end_date ? formatDateGerman(course.end_date) : "laufend";
+        page.drawText(`Zeitraum: ${startStr} - ${endStr}`, {
+          x: LAYOUT.margin + 10,
+          y: yPos,
+          size: 9,
+          font,
+          color: COLORS.text,
+        });
+        yPos -= 12;
+        
+        // Wirksamkeit
+        if (course.subjective_effectiveness !== undefined && course.subjective_effectiveness !== null) {
+          page.drawText(`Subjektive Wirksamkeit: ${course.subjective_effectiveness}/10`, {
+            x: LAYOUT.margin + 10,
+            y: yPos,
+            size: 9,
+            font,
+            color: COLORS.text,
+          });
+          yPos -= 12;
+        }
+        
+        // Nebenwirkungen
+        if (course.had_side_effects) {
+          const sideEffectsText = course.side_effects_text 
+            ? `Nebenwirkungen: ${sanitizeForPDF(course.side_effects_text)}`
+            : "Nebenwirkungen: Ja (keine Details)";
+          const sideEffectsLines = wrapText(sideEffectsText, LAYOUT.pageWidth - 2 * LAYOUT.margin - 20, 9, font);
+          for (const line of sideEffectsLines) {
+            page.drawText(line, {
+              x: LAYOUT.margin + 10,
+              y: yPos,
+              size: 9,
+              font,
+              color: COLORS.text,
+            });
+            yPos -= 12;
+          }
+        }
+        
+        // Abbruchgrund (nur bei beendeten)
+        if (!course.is_active && course.discontinuation_reason) {
+          const discText = `Abbruchgrund: ${sanitizeForPDF(course.discontinuation_reason)}${course.discontinuation_details ? ` (${sanitizeForPDF(course.discontinuation_details)})` : ''}`;
+          const discLines = wrapText(discText, LAYOUT.pageWidth - 2 * LAYOUT.margin - 20, 9, font);
+          for (const line of discLines) {
+            page.drawText(line, {
+              x: LAYOUT.margin + 10,
+              y: yPos,
+              size: 9,
+              font,
+              color: COLORS.text,
+            });
+            yPos -= 12;
+          }
+        }
+        
+        // Baseline-Daten (wenn vorhanden)
+        if (course.baseline_migraine_days || course.baseline_impairment_level) {
+          let baselineText = "Baseline: ";
+          if (course.baseline_migraine_days) {
+            baselineText += `${course.baseline_migraine_days} Migränetage/Monat`;
+          }
+          if (course.baseline_impairment_level) {
+            baselineText += course.baseline_migraine_days ? `, ` : '';
+            baselineText += `Beeinträchtigung: ${sanitizeForPDF(course.baseline_impairment_level)}`;
+          }
+          page.drawText(baselineText, {
+            x: LAYOUT.margin + 10,
+            y: yPos,
+            size: 8,
+            font,
+            color: COLORS.textLight,
+          });
+          yPos -= 12;
+        }
+        
+        // Arzt-Notiz (wenn vorhanden)
+        if (course.note_for_physician) {
+          const noteLines = wrapText(`Notiz: ${sanitizeForPDF(course.note_for_physician)}`, LAYOUT.pageWidth - 2 * LAYOUT.margin - 20, 8, font);
+          for (const line of noteLines) {
+            page.drawText(line, {
+              x: LAYOUT.margin + 10,
+              y: yPos,
+              size: 8,
+              font,
+              color: COLORS.textLight,
+            });
+            yPos -= 10;
+          }
+        }
+        
+        yPos -= 8; // Abstand zwischen Einträgen
+      }
+      
+      yPos -= 5;
+    };
+    
+    drawCourseGroup(prophylaxe, "Prophylaktische Therapien:");
+    drawCourseGroup(akut, "Akuttherapien:");
+    drawCourseGroup(andere, "Weitere Therapien:");
+    
+    yPos -= LAYOUT.sectionGap - 10;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
