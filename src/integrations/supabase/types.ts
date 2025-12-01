@@ -131,6 +131,75 @@ export type Database = {
           },
         ]
       }
+      medication_courses: {
+        Row: {
+          baseline_acute_med_days: string | null
+          baseline_impairment_level: string | null
+          baseline_migraine_days: string | null
+          baseline_triptan_doses_per_month: number | null
+          created_at: string
+          discontinuation_details: string | null
+          discontinuation_reason: string | null
+          dose_text: string | null
+          end_date: string | null
+          had_side_effects: boolean | null
+          id: string
+          is_active: boolean
+          medication_name: string
+          note_for_physician: string | null
+          side_effects_text: string | null
+          start_date: string
+          subjective_effectiveness: number | null
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          baseline_acute_med_days?: string | null
+          baseline_impairment_level?: string | null
+          baseline_migraine_days?: string | null
+          baseline_triptan_doses_per_month?: number | null
+          created_at?: string
+          discontinuation_details?: string | null
+          discontinuation_reason?: string | null
+          dose_text?: string | null
+          end_date?: string | null
+          had_side_effects?: boolean | null
+          id?: string
+          is_active?: boolean
+          medication_name: string
+          note_for_physician?: string | null
+          side_effects_text?: string | null
+          start_date: string
+          subjective_effectiveness?: number | null
+          type?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          baseline_acute_med_days?: string | null
+          baseline_impairment_level?: string | null
+          baseline_migraine_days?: string | null
+          baseline_triptan_doses_per_month?: number | null
+          created_at?: string
+          discontinuation_details?: string | null
+          discontinuation_reason?: string | null
+          dose_text?: string | null
+          end_date?: string | null
+          had_side_effects?: boolean | null
+          id?: string
+          is_active?: boolean
+          medication_name?: string
+          note_for_physician?: string | null
+          side_effects_text?: string | null
+          start_date?: string
+          subjective_effectiveness?: number | null
+          type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       medication_effects: {
         Row: {
           confidence: string | null
