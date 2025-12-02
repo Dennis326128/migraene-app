@@ -113,6 +113,7 @@ type BuildReportParams = {
     postalCode?: string;
     city?: string;
     phone?: string;
+    fax?: string;
     email?: string;
     dateOfBirth?: string;
   };
@@ -124,6 +125,7 @@ type BuildReportParams = {
     postalCode?: string;
     city?: string;
     phone?: string;
+    fax?: string;
     email?: string;
   }>;
 };
