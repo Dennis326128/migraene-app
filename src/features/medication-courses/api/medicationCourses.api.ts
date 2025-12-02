@@ -10,7 +10,7 @@ export interface MedicationCourse {
   user_id: string;
   medication_name: string;
   type: MedicationCourseType;
-  start_date: string;
+  start_date: string | null;
   end_date: string | null;
   is_active: boolean;
   dose_text: string | null;

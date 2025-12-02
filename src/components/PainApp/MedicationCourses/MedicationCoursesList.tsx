@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, History, Info } from "lucide-react";
+import { Plus, History, Info, FileText } from "lucide-react";
 import { MedicationCourseCard } from "./MedicationCourseCard";
 import { MedicationCourseWizard } from "./MedicationCourseWizard";
 import {
@@ -14,16 +14,22 @@ import {
   type MedicationCourse,
   type CreateMedicationCourseInput,
 } from "@/features/medication-courses";
+import { buildMedicationPlanPdf } from "@/lib/pdf/medicationPlan";
+import { usePatientData, useDoctors } from "@/features/account/hooks/useAccount";
+import { toast } from "sonner";
 
 export const MedicationCoursesList: React.FC = () => {
   const { data: courses, isLoading } = useMedicationCourses();
   const createCourse = useCreateMedicationCourse();
   const updateCourse = useUpdateMedicationCourse();
   const deleteCourse = useDeleteMedicationCourse();
+  const { data: patientData } = usePatientData();
+  const { data: doctors } = useDoctors();
 
   const [showWizard, setShowWizard] = useState(false);
   const [editingCourse, setEditingCourse] = useState<MedicationCourse | null>(null);
   const [deletingCourse, setDeletingCourse] = useState<MedicationCourse | null>(null);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   const handleCreate = async (data: CreateMedicationCourseInput) => {
     await createCourse.mutateAsync(data);
@@ -48,6 +54,56 @@ export const MedicationCoursesList: React.FC = () => {
   const handleCloseWizard = () => {
     setShowWizard(false);
     setEditingCourse(null);
+  };
+
+  const handleGenerateMedicationPlan = async () => {
+    if (!courses || courses.length === 0) {
+      toast.error("Keine Behandlungen vorhanden");
+      return;
+    }
+
+    setIsGeneratingPdf(true);
+    try {
+      const pdfBytes = await buildMedicationPlanPdf({
+        medicationCourses: courses,
+        patientData: patientData ? {
+          firstName: patientData.first_name,
+          lastName: patientData.last_name,
+          dateOfBirth: patientData.date_of_birth,
+          street: patientData.street,
+          postalCode: patientData.postal_code,
+          city: patientData.city,
+          phone: patientData.phone,
+          healthInsurance: patientData.health_insurance,
+          insuranceNumber: patientData.insurance_number,
+        } : undefined,
+        doctors: doctors?.map(doc => ({
+          firstName: doc.first_name,
+          lastName: doc.last_name,
+          title: doc.title,
+          specialty: doc.specialty,
+          street: doc.street,
+          postalCode: doc.postal_code,
+          city: doc.city,
+          phone: doc.phone,
+        })),
+      });
+
+      const blob = new Blob([new Uint8Array(pdfBytes)], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `Medikationsplan_${new Date().toISOString().split("T")[0]}.pdf`;
+      link.click();
+      URL.revokeObjectURL(url);
+
+      toast.success("Medikationsplan erstellt");
+    } catch (error) {
+      console.error("Error generating medication plan:", error);
+      toast.error("Fehler beim Erstellen des Medikationsplans");
+    } finally {
+      setIsGeneratingPdf(false);
+    }
   };
 
   // Separate active and past courses
@@ -96,15 +152,29 @@ export const MedicationCoursesList: React.FC = () => {
         </Card>
       )}
 
-      {/* Add Button */}
-      <Button 
-        onClick={() => setShowWizard(true)}
-        variant="outline"
-        className="w-full"
-      >
-        <Plus className="h-4 w-4 mr-2" />
-        Behandlung hinzufügen
-      </Button>
+      {/* Action Buttons */}
+      <div className="flex gap-2">
+        <Button 
+          onClick={() => setShowWizard(true)}
+          variant="outline"
+          className="flex-1"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Behandlung hinzufügen
+        </Button>
+        
+        {courses && courses.length > 0 && (
+          <Button
+            onClick={handleGenerateMedicationPlan}
+            variant="outline"
+            disabled={isGeneratingPdf}
+            className="flex-1"
+          >
+            <FileText className="h-4 w-4 mr-2" />
+            {isGeneratingPdf ? "Erstelle..." : "Medikationsplan"}
+          </Button>
+        )}
+      </div>
 
       {/* Active Courses */}
       {activeCourses.length > 0 && (
