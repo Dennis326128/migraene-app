@@ -2,19 +2,21 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
-import { useMeds, useAddMed, useDeleteMed, type Med } from "@/features/meds/hooks/useMeds";
+import { useMeds, useAddMed, useDeleteMed, useUpdateMed, type Med } from "@/features/meds/hooks/useMeds";
 import { useMedicationCourses } from "@/features/medication-courses";
 import { usePatientData, useDoctors } from "@/features/account/hooks/useAccount";
 import { useMedicationLimits } from "@/features/medication-limits/hooks/useMedicationLimits";
 import { buildMedicationPlanPdf } from "@/lib/pdf/medicationPlan";
-import { Trash2, Plus, Pill, FileText, Loader2, Pencil, Download } from "lucide-react";
+import { Trash2, Plus, Pill, Loader2, Pencil, Download, Eye, EyeOff } from "lucide-react";
 import { MedicationLimitsSettings } from "../MedicationLimitsSettings";
 import { MedicationEditModal } from "../MedicationEditModal";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { toast as sonnerToast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 
 export const SettingsMedications = () => {
   const { toast } = useToast();
@@ -22,6 +24,7 @@ export const SettingsMedications = () => {
   const [newMedName, setNewMedName] = useState("");
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [editingMed, setEditingMed] = useState<Med | null>(null);
+  const [showInactive, setShowInactive] = useState(false);
   
   const { data: medications = [], isLoading: medsLoading } = useMeds();
   const { data: courses } = useMedicationCourses();
@@ -31,6 +34,12 @@ export const SettingsMedications = () => {
   
   const addMed = useAddMed();
   const deleteMed = useDeleteMed();
+  const updateMed = useUpdateMed();
+
+  // Filter medications by active status
+  const activeMedications = medications.filter(m => m.is_active !== false);
+  const inactiveMedications = medications.filter(m => m.is_active === false);
+  const displayedMedications = showInactive ? medications : activeMedications;
 
   const handleAddMedication = async () => {
     if (!newMedName.trim()) return;
@@ -38,7 +47,7 @@ export const SettingsMedications = () => {
       await addMed.mutateAsync(newMedName.trim());
       setNewMedName("");
       toast({
-        title: "✅ Medikament hinzugefügt",
+        title: "Medikament hinzugefügt",
         description: `${newMedName} wurde zur Liste hinzugefügt`,
       });
     } catch (error: any) {
@@ -54,7 +63,7 @@ export const SettingsMedications = () => {
     try {
       await deleteMed.mutateAsync(medName);
       toast({
-        title: "✅ Medikament entfernt",
+        title: "Medikament entfernt",
         description: `${medName} wurde aus der Liste entfernt`,
       });
     } catch (error: any) {
@@ -66,8 +75,27 @@ export const SettingsMedications = () => {
     }
   };
 
+  const handleToggleActive = async (med: Med) => {
+    try {
+      await updateMed.mutateAsync({
+        id: med.id,
+        input: { is_active: med.is_active === false ? true : false },
+      });
+      toast({
+        title: med.is_active !== false ? "Medikament deaktiviert" : "Medikament aktiviert",
+        description: `${med.name} wurde ${med.is_active !== false ? "deaktiviert" : "aktiviert"}`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Fehler",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleGenerateMedicationPlan = async () => {
-    const hasMedications = (courses && courses.length > 0) || (medications && medications.length > 0);
+    const hasMedications = (courses && courses.length > 0) || (activeMedications && activeMedications.length > 0);
     
     if (!hasMedications) {
       toast({
@@ -82,7 +110,7 @@ export const SettingsMedications = () => {
     try {
       const pdfBytes = await buildMedicationPlanPdf({
         medicationCourses: courses || [],
-        userMedications: medications?.map(m => ({
+        userMedications: activeMedications?.map(m => ({
           id: m.id,
           name: m.name,
           wirkstoff: m.wirkstoff,
@@ -97,6 +125,7 @@ export const SettingsMedications = () => {
           anwendungsgebiet: m.anwendungsgebiet,
           hinweise: m.hinweise,
           art: m.art,
+          is_active: m.is_active,
         })),
         medicationLimits: medicationLimits?.map(l => ({
           medication_name: l.medication_name,
@@ -123,6 +152,7 @@ export const SettingsMedications = () => {
           postalCode: doc.postal_code,
           city: doc.city,
           phone: doc.phone,
+          email: doc.email,
         })),
       });
 
@@ -149,7 +179,7 @@ export const SettingsMedications = () => {
     }
   };
 
-  const totalMedications = (courses?.length || 0) + (medications?.length || 0);
+  const totalActiveMedications = (courses?.filter(c => c.is_active)?.length || 0) + activeMedications.length;
 
   if (medsLoading) {
     return (
@@ -161,42 +191,76 @@ export const SettingsMedications = () => {
 
   return (
     <div className="space-y-4">
-      {/* PROMINENT: Medikationsplan Button - styled like Kopfschmerztagebuch PDF button */}
-      <Button
-        onClick={handleGenerateMedicationPlan}
-        disabled={isGeneratingPdf || totalMedications === 0}
-        variant="outline"
-        className={cn(
-          "w-full justify-start gap-3 h-auto py-3 px-4",
-          "border-primary/30 hover:border-primary/50 hover:bg-primary/5",
-          "transition-all duration-200"
-        )}
-      >
-        <div className="p-2 rounded-lg bg-primary/10 shrink-0">
-          {isGeneratingPdf ? (
-            <Loader2 className="h-5 w-5 text-primary animate-spin" />
-          ) : (
-            <Download className="h-5 w-5 text-primary" />
-          )}
-        </div>
-        <div className="flex-1 text-left">
-          <div className={cn("font-semibold text-foreground", isMobile && "text-sm")}>
-            Medikationsplan (PDF) erstellen
-          </div>
-          <div className={cn("text-xs text-muted-foreground font-normal", isMobile && "text-[11px]")}>
-            {isGeneratingPdf ? "Wird erstellt..." : "Alle Medikamente für Arzt, Krankenhaus oder Notfall"}
-          </div>
-        </div>
-      </Button>
+      {/* PROMINENT: Medikationsplan Button - Primary Action, direkt unter Überschrift */}
+      <Card className={cn(
+        "border-primary/40 bg-gradient-to-r from-primary/10 to-primary/5",
+        "hover:border-primary/60 transition-all duration-200"
+      )}>
+        <CardContent className="p-4">
+          <Button
+            onClick={handleGenerateMedicationPlan}
+            disabled={isGeneratingPdf || totalActiveMedications === 0}
+            className={cn(
+              "w-full h-auto py-4 px-5",
+              "bg-primary hover:bg-primary/90 text-primary-foreground",
+              "shadow-md hover:shadow-lg transition-all duration-200"
+            )}
+          >
+            <div className="flex items-center gap-4 w-full">
+              <div className="p-2.5 rounded-xl bg-primary-foreground/20 shrink-0">
+                {isGeneratingPdf ? (
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                ) : (
+                  <Download className="h-6 w-6" />
+                )}
+              </div>
+              <div className="flex-1 text-left">
+                <div className={cn("font-bold", isMobile ? "text-base" : "text-lg")}>
+                  Medikationsplan (PDF) erstellen
+                </div>
+                <div className={cn("opacity-90 font-normal", isMobile ? "text-xs" : "text-sm")}>
+                  {isGeneratingPdf 
+                    ? "Wird erstellt..." 
+                    : `${totalActiveMedications} aktive Medikamente - für Arzt, Krankenhaus oder Notfall`}
+                </div>
+              </div>
+            </div>
+          </Button>
+        </CardContent>
+      </Card>
 
       {/* Medication Management */}
       <Card className={cn("p-6", isMobile && "p-4")}>
-        <h2 className={cn("text-lg font-medium mb-4 flex items-center gap-2", isMobile && "text-base")}>
-          <Pill className="h-5 w-5" />
-          Medikamente verwalten
-        </h2>
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <h2 className={cn("text-lg font-medium flex items-center gap-2", isMobile && "text-base")}>
+            <Pill className="h-5 w-5" />
+            Medikamente verwalten
+          </h2>
+          {inactiveMedications.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowInactive(!showInactive)}
+              className="text-muted-foreground"
+            >
+              {showInactive ? (
+                <>
+                  <EyeOff className="h-4 w-4 mr-1" />
+                  <span className="hidden sm:inline">Inaktive ausblenden</span>
+                </>
+              ) : (
+                <>
+                  <Eye className="h-4 w-4 mr-1" />
+                  <span className="hidden sm:inline">Inaktive einblenden</span>
+                  <span className="sm:hidden">({inactiveMedications.length})</span>
+                  <span className="hidden sm:inline ml-1">({inactiveMedications.length})</span>
+                </>
+              )}
+            </Button>
+          )}
+        </div>
         <p className={cn("text-sm text-muted-foreground mb-4", isMobile && "text-xs")}>
-          Hier verwaltest du deine Akut- und Bedarfsmedikamente. Klicke auf das Stift-Symbol, um Details zu bearbeiten.
+          Hier verwaltest du deine Akut- und Bedarfsmedikamente. Inaktive Medikamente erscheinen nicht im Medikationsplan.
         </p>
         
         <div className="space-y-4">
@@ -220,52 +284,79 @@ export const SettingsMedications = () => {
           
           {/* Medications list with modern scrollbar */}
           <div className={cn(
-            "space-y-2 max-h-[280px] overflow-y-auto modern-scrollbar pr-1",
-            medications.length > 5 && "pb-2"
+            "space-y-2 max-h-[320px] overflow-y-auto modern-scrollbar pr-1",
+            displayedMedications.length > 5 && "pb-2"
           )}>
-            {medications.map((med) => (
-              <div
-                key={med.id}
-                className={cn(
-                  "flex items-center justify-between p-3 bg-secondary/20 rounded-lg",
-                  isMobile && "p-2"
-                )}
-              >
-                <div className="flex-1 min-w-0">
-                  <span className={cn("font-medium block truncate", isMobile && "text-sm")}>{med.name}</span>
-                  {(med.wirkstoff || med.staerke || med.darreichungsform) && (
-                    <span className="text-xs text-muted-foreground truncate block">
-                      {[med.wirkstoff, med.staerke, med.darreichungsform].filter(Boolean).join(" · ")}
-                    </span>
+            {displayedMedications.map((med) => {
+              const isInactive = med.is_active === false;
+              return (
+                <div
+                  key={med.id}
+                  className={cn(
+                    "flex items-center justify-between p-3 rounded-lg transition-colors",
+                    isInactive 
+                      ? "bg-muted/30 opacity-60" 
+                      : "bg-secondary/20",
+                    isMobile && "p-2"
                   )}
+                >
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    {/* Active/Inactive Toggle */}
+                    <Switch
+                      checked={med.is_active !== false}
+                      onCheckedChange={() => handleToggleActive(med)}
+                      className="shrink-0"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className={cn(
+                          "font-medium block truncate", 
+                          isMobile && "text-sm",
+                          isInactive && "line-through"
+                        )}>
+                          {med.name}
+                        </span>
+                        {isInactive && (
+                          <Badge variant="outline" className="text-xs shrink-0">
+                            Inaktiv
+                          </Badge>
+                        )}
+                      </div>
+                      {(med.wirkstoff || med.staerke || med.darreichungsform) && (
+                        <span className="text-xs text-muted-foreground truncate block">
+                          {[med.wirkstoff, med.staerke, med.darreichungsform].filter(Boolean).join(" · ")}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button
+                      variant="ghost"
+                      size={isMobile ? "sm" : "icon"}
+                      onClick={() => setEditingMed(med)}
+                      className="hover:bg-primary/10 hover:text-primary"
+                      title="Bearbeiten"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size={isMobile ? "sm" : "icon"}
+                      onClick={() => handleDeleteMedication(med.name)}
+                      disabled={deleteMed.isPending}
+                      className="hover:bg-destructive/10 hover:text-destructive"
+                      title="Löschen"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <Button
-                    variant="ghost"
-                    size={isMobile ? "sm" : "icon"}
-                    onClick={() => setEditingMed(med)}
-                    className="hover:bg-primary/10 hover:text-primary"
-                    title="Bearbeiten"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size={isMobile ? "sm" : "icon"}
-                    onClick={() => handleDeleteMedication(med.name)}
-                    disabled={deleteMed.isPending}
-                    className="hover:bg-destructive/10 hover:text-destructive"
-                    title="Löschen"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
             
-            {medications.length === 0 && (
+            {displayedMedications.length === 0 && (
               <p className={cn("text-center text-muted-foreground py-4", isMobile && "text-sm")}>
-                Noch keine Medikamente hinzugefügt
+                {showInactive ? "Noch keine Medikamente hinzugefügt" : "Keine aktiven Medikamente"}
               </p>
             )}
           </div>

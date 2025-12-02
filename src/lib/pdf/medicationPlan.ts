@@ -14,7 +14,8 @@
  * - Form
  * - Dosis (Mo | Mi | Ab | Na) oder Intervall
  * - Einheit
- * - Hinweise (NUR hinweis_medplan, NICHT hinweis_ki!)
+ * 
+ * KEINE Hinweise-Spalte, KEINE Legende
  * 
  * ═══════════════════════════════════════════════════════════════════════════
  */
@@ -76,7 +77,7 @@ export type UserMedicationForPlan = {
   dosis_nacht?: string | null;
   dosis_bedarf?: string | null;
   anwendungsgebiet?: string | null;
-  hinweise?: string | null;        // hinweis_medplan - wird im PDF angezeigt
+  hinweise?: string | null;
   hinweis_ki?: string | null;      // KI-Notizen - wird NICHT im PDF angezeigt!
   art?: string | null;
   is_active?: boolean | null;
@@ -147,24 +148,6 @@ function formatDate(dateStr: string | undefined | null): string {
   }
 }
 
-function wrapText(text: string, font: PDFFont, fontSize: number, maxWidth: number): string[] {
-  if (!text) return ["-"];
-  const words = text.split(" ");
-  const lines: string[] = [];
-  let current = "";
-  for (const word of words) {
-    const test = current ? `${current} ${word}` : word;
-    if (font.widthOfTextAtSize(test, fontSize) > maxWidth && current) {
-      lines.push(current);
-      current = word;
-    } else {
-      current = test;
-    }
-  }
-  if (current) lines.push(current);
-  return lines.length > 0 ? lines : ["-"];
-}
-
 /**
  * Normalisiert Intervallangaben zu lesbarem Klartext
  * "1x/Mon" → "1x monatlich"
@@ -195,20 +178,19 @@ function getPeriodLabel(periodType: string): string {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TABLE DRAWING HELPERS
+// TABLE DRAWING HELPERS - NO HINWEISE COLUMN
 // ═══════════════════════════════════════════════════════════════════════════
 
 const COL_WIDTHS = {
-  wirkstoff: 72,
-  handelsname: 72,
-  staerke: 42,
-  form: 48,
-  mo: 24,
-  mi: 24,
-  ab: 24,
-  na: 24,
-  einheit: 38,
-  hinweise: 147,
+  wirkstoff: 95,
+  handelsname: 95,
+  staerke: 55,
+  form: 60,
+  mo: 30,
+  mi: 30,
+  ab: 30,
+  na: 30,
+  einheit: 50,
 };
 
 const TABLE_WIDTH = Object.values(COL_WIDTHS).reduce((a, b) => a + b, 0);
@@ -266,8 +248,6 @@ function drawTableHeader(
   hx += doseWidth;
   
   page.drawText("Einheit", { x: hx, y: headerY, size: headerFontSize, font: helveticaBold, color: COLORS.text });
-  hx += COL_WIDTHS.einheit;
-  page.drawText("Hinweise", { x: hx, y: headerY, size: headerFontSize, font: helveticaBold, color: COLORS.text });
   
   // Sub-header for dose columns
   const subY = y - headerHeight;
@@ -323,7 +303,6 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
     medicationLimits = [], 
     patientData, 
     doctors,
-    showGrund = false 
   } = params;
   
   const pdfDoc = await PDFDocument.create();
@@ -389,15 +368,15 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
     color: COLORS.textMuted,
   });
   
-  // CENTER: Patient data
+  // CENTER: Patient data - "Name:" instead of "fuer:"
   const col2X = LAYOUT.marginLeft + 180;
   let patY = y - 15;
   
   if (patientData) {
     const patName = [patientData.firstName, patientData.lastName].filter(Boolean).join(" ");
     if (patName) {
-      page.drawText("fuer:", { x: col2X, y: patY, size: 7, font: helvetica, color: COLORS.textMuted });
-      page.drawText(sanitize(patName), { x: col2X + 25, y: patY, size: 9, font: helveticaBold, color: COLORS.text });
+      page.drawText("Name:", { x: col2X, y: patY, size: 7, font: helvetica, color: COLORS.textMuted });
+      page.drawText(sanitize(patName), { x: col2X + 30, y: patY, size: 9, font: helveticaBold, color: COLORS.text });
       patY -= 13;
     }
     if (patientData.dateOfBirth) {
@@ -424,7 +403,7 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
   y -= headerHeight + 18;
   
   // ═══════════════════════════════════════════════════════════════════════════
-  // OPTIONAL: Behandelnder Arzt (dezent, nicht "ausgedruckt von")
+  // BEHANDELNDER ARZT - VOLLSTÄNDIGE ADRESSE
   // ═══════════════════════════════════════════════════════════════════════════
   
   if (doctors && doctors.length > 0) {
@@ -435,26 +414,64 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
       x: LAYOUT.marginLeft, 
       y, 
       size: 7, 
-      font: helvetica, 
-      color: COLORS.textMuted 
-    });
-    page.drawText(sanitize(docName + (doc.specialty ? ` - ${doc.specialty}` : "")), { 
-      x: LAYOUT.marginLeft + 100, 
-      y, 
-      size: 8, 
-      font: helvetica, 
+      font: helveticaBold, 
       color: COLORS.text 
     });
-    if (doc.phone) {
-      page.drawText(`Tel: ${doc.phone}`, { 
-        x: LAYOUT.marginLeft + 350, 
-        y, 
+    
+    // Build full address line
+    const addressParts: string[] = [];
+    if (docName) addressParts.push(docName);
+    if (doc.specialty) addressParts.push(doc.specialty);
+    
+    const addressLine1 = sanitize(addressParts.join(" - "));
+    
+    // Street, postal code, city
+    const locationParts: string[] = [];
+    if (doc.street) locationParts.push(doc.street);
+    if (doc.postalCode || doc.city) {
+      locationParts.push([doc.postalCode, doc.city].filter(Boolean).join(" "));
+    }
+    const addressLine2 = sanitize(locationParts.join(", "));
+    
+    // Phone and email
+    const contactParts: string[] = [];
+    if (doc.phone) contactParts.push(`Tel: ${doc.phone}`);
+    if (doc.email) contactParts.push(`E-Mail: ${doc.email}`);
+    const contactLine = sanitize(contactParts.join(", "));
+    
+    let docY = y;
+    if (addressLine1) {
+      page.drawText(addressLine1, { 
+        x: LAYOUT.marginLeft + 115, 
+        y: docY, 
+        size: 8, 
+        font: helvetica, 
+        color: COLORS.text 
+      });
+      docY -= 11;
+    }
+    if (addressLine2) {
+      page.drawText(addressLine2, { 
+        x: LAYOUT.marginLeft + 115, 
+        y: docY, 
+        size: 7.5, 
+        font: helvetica, 
+        color: COLORS.text 
+      });
+      docY -= 11;
+    }
+    if (contactLine) {
+      page.drawText(contactLine, { 
+        x: LAYOUT.marginLeft + 115, 
+        y: docY, 
         size: 7, 
         font: helvetica, 
         color: COLORS.textMuted 
       });
+      docY -= 11;
     }
-    y -= 18;
+    
+    y = docY - 8;
   }
   
   // ═══════════════════════════════════════════════════════════════════════════
@@ -472,7 +489,6 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
     nachts: string;
     intervall: string; // e.g., "1x monatlich" for interval therapies
     einheit: string;
-    hinweise: string;  // Only hinweis_medplan, NOT hinweis_ki!
     category: "prophylaxe" | "akut" | "bedarf" | "notfall" | "selbstmedikation";
   };
   
@@ -519,9 +535,6 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
       morgens = ""; mittags = ""; abends = ""; nachts = "";
     }
     
-    // IMPORTANT: Use note_for_physician as hinweis_medplan, NOT any KI notes
-    const hinweiseMedplan = sanitize(course.note_for_physician || lookup?.hinweise || "");
-    
     allMeds.push({
       wirkstoff: sanitize(lookup?.wirkstoff || course.medication_name),
       handelsname: sanitize(course.medication_name),
@@ -533,28 +546,20 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
       nachts,
       intervall: normalizeInterval(intervall),
       einheit: sanitize(lookup?.einheit || "Stueck"),
-      hinweise: hinweiseMedplan,
       category: isProphylaxe ? "prophylaxe" : "akut",
     });
   }
   
   // Get "Bei Bedarf" medications from user_medications (not in active courses)
+  // ONLY include medications where is_active is explicitly true
   const courseNames = new Set([...activeProphylaxe, ...activeOther].map(c => c.medication_name.toLowerCase()));
   const bedarfMeds = userMedications.filter(m => 
     !courseNames.has(m.name.toLowerCase()) && 
-    (m.is_active === null || m.is_active === true)
+    m.is_active === true
   );
   
   for (const med of bedarfMeds) {
     const lookup = lookupMedicationMetadata(med.name);
-    const limit = limitsMap.get(med.name.toLowerCase());
-    
-    // IMPORTANT: Use med.hinweise (hinweis_medplan), NOT med.hinweis_ki
-    // hinweis_ki is for AI analysis only and should NEVER appear in the PDF
-    let hinweise = med.hinweise || lookup?.hinweise || "";
-    if (limit) {
-      hinweise = `Max. ${limit.limit}x/${getPeriodLabel(limit.period)}` + (hinweise ? `. ${hinweise}` : "");
-    }
     
     const art = (med.art || lookup?.art || guessMedicationType(med.name)) as MedRow["category"];
     
@@ -573,7 +578,6 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
       nachts: med.dosis_nacht || "",
       intervall: isBeiBedarf ? "bei Bedarf" : "",
       einheit: sanitize(med.einheit || lookup?.einheit || "Stueck"),
-      hinweise: sanitize(hinweise),
       category: art === "prophylaxe" ? "bedarf" : (art || "bedarf"),
     });
   }
@@ -669,11 +673,10 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
         y -= sectionRowH;
       }
       
-      // Calculate row height based on hinweise length
-      const hinweiseLines = wrapText(med.hinweise || "-", helvetica, 6.5, COL_WIDTHS.hinweise - 8);
-      const rowHeight = Math.max(24, 12 + hinweiseLines.length * 9);
+      // Fixed row height (no hinweise column anymore)
+      const rowHeight = 24;
       
-      // Draw row background (alternating would be nice but keeping simple)
+      // Draw row background
       page.drawRectangle({
         x: tableX,
         y: y - rowHeight,
@@ -691,32 +694,32 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
       // Draw cell contents
       let cx = tableX + 4;
       const textY = y - 14;
-      const fontSize = 7;
+      const fontSize = 7.5;
       
       // Wirkstoff
-      page.drawText(med.wirkstoff.substring(0, 15), { x: cx, y: textY, size: fontSize, font: helvetica, color: COLORS.text });
+      page.drawText(med.wirkstoff.substring(0, 18), { x: cx, y: textY, size: fontSize, font: helvetica, color: COLORS.text });
       cx += COL_WIDTHS.wirkstoff;
       
       // Handelsname (bold)
-      page.drawText(med.handelsname.substring(0, 14), { x: cx, y: textY, size: fontSize, font: helveticaBold, color: COLORS.text });
+      page.drawText(med.handelsname.substring(0, 18), { x: cx, y: textY, size: fontSize, font: helveticaBold, color: COLORS.text });
       cx += COL_WIDTHS.handelsname;
       
       // Stärke
-      page.drawText(med.staerke.substring(0, 10), { x: cx, y: textY, size: fontSize, font: helvetica, color: COLORS.text });
+      page.drawText(med.staerke.substring(0, 12), { x: cx, y: textY, size: fontSize, font: helvetica, color: COLORS.text });
       cx += COL_WIDTHS.staerke;
       
       // Form
-      page.drawText(med.form.substring(0, 10), { x: cx, y: textY, size: fontSize, font: helvetica, color: COLORS.text });
+      page.drawText(med.form.substring(0, 12), { x: cx, y: textY, size: fontSize, font: helvetica, color: COLORS.text });
       cx += COL_WIDTHS.form;
       
       // Dose columns
       // If there's an interval (e.g., "1x monatlich"), show it spanning dose columns
       if (med.intervall) {
         // Show interval text in first dose column, spanning
-        page.drawText(med.intervall.substring(0, 18), { 
+        page.drawText(med.intervall.substring(0, 20), { 
           x: cx + 2, 
           y: textY, 
-          size: 6.5, 
+          size: 7, 
           font: helvetica, 
           color: COLORS.text 
         });
@@ -735,7 +738,7 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
             });
           }
           page.drawText(doseVals[i].substring(0, 5), { 
-            x: cx + 3, 
+            x: cx + 5, 
             y: textY, 
             size: fontSize, 
             font: helvetica, 
@@ -746,15 +749,7 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
       }
       
       // Einheit
-      page.drawText(med.einheit.substring(0, 8), { x: cx + 2, y: textY, size: fontSize, font: helvetica, color: COLORS.text });
-      cx += COL_WIDTHS.einheit;
-      
-      // Hinweise (multi-line)
-      let hinY = textY;
-      for (const line of hinweiseLines.slice(0, 5)) {
-        page.drawText(line, { x: cx + 3, y: hinY, size: 6.5, font: helvetica, color: COLORS.text });
-        hinY -= 9;
-      }
+      page.drawText(med.einheit.substring(0, 10), { x: cx + 2, y: textY, size: fontSize, font: helvetica, color: COLORS.text });
       
       y -= rowHeight;
     }
@@ -768,15 +763,7 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
     color: COLORS.border,
   });
   
-  // Legend
-  y -= 18;
-  page.drawText("Legende: Mo = morgens, Mi = mittags, Ab = abends, Na = nachts", {
-    x: tableX,
-    y,
-    size: 6.5,
-    font: helvetica,
-    color: COLORS.textMuted,
-  });
+  // NO LEGEND - removed as requested
   
   // ═══════════════════════════════════════════════════════════════════════════
   // FOOTER ON ALL PAGES
