@@ -4,13 +4,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
-import { useMeds, useAddMed, useDeleteMed } from "@/features/meds/hooks/useMeds";
+import { useMeds, useAddMed, useDeleteMed, type Med } from "@/features/meds/hooks/useMeds";
 import { useMedicationCourses } from "@/features/medication-courses";
 import { usePatientData, useDoctors } from "@/features/account/hooks/useAccount";
 import { useMedicationLimits } from "@/features/medication-limits/hooks/useMedicationLimits";
 import { buildMedicationPlanPdf } from "@/lib/pdf/medicationPlan";
-import { Trash2, Plus, Pill, FileText, Loader2 } from "lucide-react";
+import { Trash2, Plus, Pill, FileText, Loader2, Pencil } from "lucide-react";
 import { MedicationLimitsSettings } from "../MedicationLimitsSettings";
+import { MedicationEditModal } from "../MedicationEditModal";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -19,6 +20,7 @@ export const SettingsMedications = () => {
   const isMobile = useIsMobile();
   const [newMedName, setNewMedName] = useState("");
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [editingMed, setEditingMed] = useState<Med | null>(null);
   
   const { data: medications = [], isLoading: medsLoading } = useMeds();
   const { data: courses } = useMedicationCourses();
@@ -82,6 +84,18 @@ export const SettingsMedications = () => {
         userMedications: medications?.map(m => ({
           id: m.id,
           name: m.name,
+          wirkstoff: m.wirkstoff,
+          staerke: m.staerke,
+          darreichungsform: m.darreichungsform,
+          einheit: m.einheit,
+          dosis_morgens: m.dosis_morgens,
+          dosis_mittags: m.dosis_mittags,
+          dosis_abends: m.dosis_abends,
+          dosis_nacht: m.dosis_nacht,
+          dosis_bedarf: m.dosis_bedarf,
+          anwendungsgebiet: m.anwendungsgebiet,
+          hinweise: m.hinweise,
+          art: m.art,
         })),
         medicationLimits: medicationLimits?.map(l => ({
           medication_name: l.medication_name,
@@ -191,7 +205,7 @@ export const SettingsMedications = () => {
           Medikamente verwalten
         </h2>
         <p className={cn("text-sm text-muted-foreground mb-4", isMobile && "text-xs")}>
-          Hier verwaltest du deine Akut- und Bedarfsmedikamente. Diese erscheinen im Medikationsplan.
+          Hier verwaltest du deine Akut- und Bedarfsmedikamente. Klicke auf das Stift-Symbol, um Details zu bearbeiten.
         </p>
         
         <div className="space-y-4">
@@ -226,16 +240,35 @@ export const SettingsMedications = () => {
                   isMobile && "p-2"
                 )}
               >
-                <span className={cn("font-medium", isMobile && "text-sm")}>{med.name}</span>
-                <Button
-                  variant="ghost"
-                  size={isMobile ? "sm" : "icon"}
-                  onClick={() => handleDeleteMedication(med.name)}
-                  disabled={deleteMed.isPending}
-                  className="hover:bg-destructive/10 hover:text-destructive"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                <div className="flex-1 min-w-0">
+                  <span className={cn("font-medium block truncate", isMobile && "text-sm")}>{med.name}</span>
+                  {(med.wirkstoff || med.staerke || med.darreichungsform) && (
+                    <span className="text-xs text-muted-foreground truncate block">
+                      {[med.wirkstoff, med.staerke, med.darreichungsform].filter(Boolean).join(" · ")}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button
+                    variant="ghost"
+                    size={isMobile ? "sm" : "icon"}
+                    onClick={() => setEditingMed(med)}
+                    className="hover:bg-primary/10 hover:text-primary"
+                    title="Bearbeiten"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size={isMobile ? "sm" : "icon"}
+                    onClick={() => handleDeleteMedication(med.name)}
+                    disabled={deleteMed.isPending}
+                    className="hover:bg-destructive/10 hover:text-destructive"
+                    title="Löschen"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             ))}
             
@@ -252,6 +285,13 @@ export const SettingsMedications = () => {
 
       {/* Medication Limits */}
       <MedicationLimitsSettings />
+
+      {/* Edit Modal */}
+      <MedicationEditModal
+        medication={editingMed}
+        open={!!editingMed}
+        onOpenChange={(open) => !open && setEditingMed(null)}
+      />
     </div>
   );
 };
