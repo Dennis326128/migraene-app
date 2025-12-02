@@ -91,6 +91,7 @@ type PatientData = {
   postalCode?: string;
   city?: string;
   phone?: string;
+  fax?: string;
   email?: string;
   healthInsurance?: string;
   insuranceNumber?: string;
@@ -105,6 +106,7 @@ type DoctorData = {
   postalCode?: string;
   city?: string;
   phone?: string;
+  fax?: string;
   email?: string;
 };
 
@@ -368,7 +370,7 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
     color: COLORS.textMuted,
   });
   
-  // CENTER: Patient data - "Name:" instead of "fuer:"
+  // CENTER: Patient data - only show fields that are filled
   const col2X = LAYOUT.marginLeft + 180;
   let patY = y - 15;
   
@@ -382,6 +384,23 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
     if (patientData.dateOfBirth) {
       page.drawText("geb. am:", { x: col2X, y: patY, size: 7, font: helvetica, color: COLORS.textMuted });
       page.drawText(formatDate(patientData.dateOfBirth), { x: col2X + 35, y: patY, size: 8, font: helvetica, color: COLORS.text });
+      patY -= 13;
+    }
+    // Address - only if any part is filled
+    const addressParts = [patientData.street, [patientData.postalCode, patientData.city].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+    if (addressParts) {
+      page.drawText("Adresse:", { x: col2X, y: patY, size: 7, font: helvetica, color: COLORS.textMuted });
+      page.drawText(sanitize(addressParts), { x: col2X + 35, y: patY, size: 8, font: helvetica, color: COLORS.text });
+      patY -= 13;
+    }
+    if (patientData.phone) {
+      page.drawText("Telefon:", { x: col2X, y: patY, size: 7, font: helvetica, color: COLORS.textMuted });
+      page.drawText(sanitize(patientData.phone), { x: col2X + 35, y: patY, size: 8, font: helvetica, color: COLORS.text });
+      patY -= 13;
+    }
+    if (patientData.fax) {
+      page.drawText("Fax:", { x: col2X, y: patY, size: 7, font: helvetica, color: COLORS.textMuted });
+      page.drawText(sanitize(patientData.fax), { x: col2X + 35, y: patY, size: 8, font: helvetica, color: COLORS.text });
       patY -= 13;
     }
     if (patientData.healthInsurance) {
@@ -433,9 +452,10 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
     }
     const addressLine2 = sanitize(locationParts.join(", "));
     
-    // Phone and email
+    // Phone, fax and email
     const contactParts: string[] = [];
     if (doc.phone) contactParts.push(`Tel: ${doc.phone}`);
+    if (doc.fax) contactParts.push(`Fax: ${doc.fax}`);
     if (doc.email) contactParts.push(`E-Mail: ${doc.email}`);
     const contactLine = sanitize(contactParts.join(", "));
     

@@ -29,6 +29,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { DoctorSelectionDialog, type Doctor } from "./DoctorSelectionDialog";
 
 /**
  * DiaryReport - PDF-Export-Komponente für Kopfschmerztagebuch
@@ -99,6 +100,8 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [isGeneratingMedPlan, setIsGeneratingMedPlan] = useState(false);
   const [showMissingDataDialog, setShowMissingDataDialog] = useState(false);
+  const [showDoctorSelection, setShowDoctorSelection] = useState(false);
+  const [pendingPdfType, setPendingPdfType] = useState<"diary" | "medplan" | null>(null);
 
   const { data: patientData } = usePatientData();
   const { data: doctors = [] } = useDoctors();
@@ -288,25 +291,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     return date.toLocaleDateString("de-DE", { day: "numeric", month: "long", year: "numeric" });
   };
 
-  const generatePDF = async () => {
-    if (!filteredEntries.length) {
-      toast.error("Keine Einträge im ausgewählten Zeitraum");
-      return;
-    }
-
-    // Pre-PDF Validierung
-    if (!from || !to) {
-      console.error("PDF Generierung - Ungültige Daten:", { from, to });
-      toast.error("Zeitraum ist nicht korrekt definiert.");
-      return;
-    }
-
-    if ((includePatientData || includeDoctorData) && 
-        (!patientData?.first_name && !patientData?.last_name && doctors.length === 0)) {
-      setShowMissingDataDialog(true);
-      return;
-    }
-
+  const actuallyGenerateDiaryPDF = async (selectedDoctors: Doctor[]) => {
     setIsGeneratingReport(true);
     
     try {
@@ -384,10 +369,11 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
           postalCode: patientData.postal_code || "",
           city: patientData.city || "",
           phone: patientData.phone || "",
+          fax: patientData.fax || "",
           email: userEmail || "",
           dateOfBirth: patientData.date_of_birth || ""
         } : undefined,
-        doctors: doctors.length > 0 ? doctors.map(d => ({
+        doctors: selectedDoctors.length > 0 ? selectedDoctors.map(d => ({
           firstName: d.first_name || "",
           lastName: d.last_name || "",
           specialty: d.specialty || "",
@@ -395,6 +381,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
           postalCode: d.postal_code || "",
           city: d.city || "",
           phone: d.phone || "",
+          fax: d.fax || "",
           email: d.email || ""
         })) : undefined
       });
@@ -420,62 +407,53 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
       
     } catch (error) {
       console.error("PDF-Generierung fehlgeschlagen:", error);
-      console.error("Error Details:", {
-        message: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined,
-        from,
-        to,
-        entriesCount: filteredEntries.length,
-        includeAnalysis,
-        includeStats,
-        includeChart,
-        includeEntriesList,
-        includePatientData,
-        includeDoctorData
-      });
-      
-      // Spezifische Fehlerbehandlung für Encoding-Probleme
-      if (error instanceof Error && error.message.includes("cannot encode")) {
-        toast.error("PDF enthält nicht unterstützte Sonderzeichen. Bitte entfernen Sie Emojis oder spezielle Symbole aus Ihren Notizen.");
-      } else {
-        const errorMessage = error instanceof Error ? error.message : "Unbekannter Fehler";
-        toast.error(`PDF konnte nicht erstellt werden: ${errorMessage}`);
-      }
+      const errorMessage = error instanceof Error ? error.message : "Unbekannter Fehler";
+      toast.error(`PDF konnte nicht erstellt werden: ${errorMessage}`);
     } finally {
       setIsGeneratingReport(false);
     }
   };
 
-
-  const exportCSV = () => {
+  const generatePDF = async () => {
     if (!filteredEntries.length) {
       toast.error("Keine Einträge im ausgewählten Zeitraum");
       return;
     }
-    const header = ["Datum/Zeit","Schmerzlevel","Medikamente","Notiz"];
-    const rows = filteredEntries.map(e => {
-      const dt = e.selected_date && e.selected_time
-        ? `${e.selected_date} ${e.selected_time}`
-        : new Date(e.timestamp_created).toLocaleString();
-      const meds = (e.medications || []).join("; ");
-      const note = (e.notes ?? "").replace(/\r?\n/g, " ").replace(/"/g, '""');
-      return [dt, e.pain_level, meds, `"${note}"`];
-    });
-    const lines = [header.join(","), ...rows.map(r => r.join(","))].join("\n");
-    const blob = new Blob(["\ufeff" + lines], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `kopfschmerztagebuch_${from}_bis_${to}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-    toast.success("CSV erfolgreich exportiert");
+
+    // Pre-PDF Validierung
+    if (!from || !to) {
+      console.error("PDF Generierung - Ungültige Daten:", { from, to });
+      toast.error("Zeitraum ist nicht korrekt definiert.");
+      return;
+    }
+
+    if ((includePatientData || includeDoctorData) && 
+        (!patientData?.first_name && !patientData?.last_name && doctors.length === 0)) {
+      setShowMissingDataDialog(true);
+      return;
+    }
+
+    // If multiple doctors and doctor data is included, show selection dialog
+    if (includeDoctorData && doctors.length > 1) {
+      setPendingPdfType("diary");
+      setShowDoctorSelection(true);
+      return;
+    }
+
+    await actuallyGenerateDiaryPDF(doctors);
   };
 
-  // Generate BMP-style Medication Plan PDF
-  const generateMedicationPlanPdf = async () => {
+  const handleDoctorSelectionConfirm = async (selectedDoctors: Doctor[]) => {
+    setShowDoctorSelection(false);
+    if (pendingPdfType === "diary") {
+      await actuallyGenerateDiaryPDF(selectedDoctors);
+    } else if (pendingPdfType === "medplan") {
+      await actuallyGenerateMedPlanPDF(selectedDoctors);
+    }
+    setPendingPdfType(null);
+  };
+
+  const actuallyGenerateMedPlanPDF = async (selectedDoctors: Doctor[]) => {
     if (medicationCourses.length === 0) {
       toast.error("Keine Medikamentenverläufe vorhanden");
       return;
@@ -509,10 +487,11 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
           postalCode: patientData.postal_code || "",
           city: patientData.city || "",
           phone: patientData.phone || "",
+          fax: patientData.fax || "",
           healthInsurance: patientData.health_insurance || "",
           insuranceNumber: patientData.insurance_number || "",
         } : undefined,
-        doctors: doctors.length > 0 ? doctors.map(d => ({
+        doctors: selectedDoctors.map(d => ({
           firstName: d.first_name || "",
           lastName: d.last_name || "",
           title: d.title || "",
@@ -521,7 +500,9 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
           postalCode: d.postal_code || "",
           city: d.city || "",
           phone: d.phone || "",
-        })) : undefined,
+          fax: d.fax || "",
+          email: d.email || "",
+        })),
       });
 
       const blob = new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf' });
@@ -542,6 +523,23 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     } finally {
       setIsGeneratingMedPlan(false);
     }
+  };
+
+  // Generate BMP-style Medication Plan PDF
+  const generateMedicationPlanPdf = async () => {
+    if (medicationCourses.length === 0) {
+      toast.error("Keine Medikamentenverläufe vorhanden");
+      return;
+    }
+
+    // If multiple doctors, show selection dialog
+    if (doctors.length > 1) {
+      setPendingPdfType("medplan");
+      setShowDoctorSelection(true);
+      return;
+    }
+
+    await actuallyGenerateMedPlanPDF(doctors);
   };
 
   return (

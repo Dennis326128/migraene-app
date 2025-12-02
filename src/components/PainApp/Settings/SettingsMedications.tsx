@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { toast as sonnerToast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { DoctorSelectionDialog, type Doctor } from "../DoctorSelectionDialog";
 
 export const SettingsMedications = () => {
   const { toast } = useToast();
@@ -25,6 +26,7 @@ export const SettingsMedications = () => {
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [editingMed, setEditingMed] = useState<Med | null>(null);
   const [showInactive, setShowInactive] = useState(false);
+  const [showDoctorSelection, setShowDoctorSelection] = useState(false);
   
   const { data: medications = [], isLoading: medsLoading } = useMeds();
   const { data: courses } = useMedicationCourses();
@@ -94,18 +96,7 @@ export const SettingsMedications = () => {
     }
   };
 
-  const handleGenerateMedicationPlan = async () => {
-    const hasMedications = (courses && courses.length > 0) || (activeMedications && activeMedications.length > 0);
-    
-    if (!hasMedications) {
-      toast({
-        title: "Keine Medikamente vorhanden",
-        description: "Bitte fügen Sie zuerst Medikamente hinzu.",
-        variant: "destructive",
-      });
-      return;
-    }
-
+  const generatePdfWithDoctors = async (selectedDoctors: Doctor[]) => {
     setIsGeneratingPdf(true);
     try {
       const pdfBytes = await buildMedicationPlanPdf({
@@ -140,10 +131,11 @@ export const SettingsMedications = () => {
           postalCode: patientData.postal_code,
           city: patientData.city,
           phone: patientData.phone,
+          fax: patientData.fax,
           healthInsurance: patientData.health_insurance,
           insuranceNumber: patientData.insurance_number,
         } : undefined,
-        doctors: doctors?.map(doc => ({
+        doctors: selectedDoctors.map(doc => ({
           firstName: doc.first_name,
           lastName: doc.last_name,
           title: doc.title,
@@ -152,6 +144,7 @@ export const SettingsMedications = () => {
           postalCode: doc.postal_code,
           city: doc.city,
           phone: doc.phone,
+          fax: doc.fax,
           email: doc.email,
         })),
       });
@@ -177,6 +170,33 @@ export const SettingsMedications = () => {
     } finally {
       setIsGeneratingPdf(false);
     }
+  };
+
+  const handleGenerateMedicationPlan = async () => {
+    const hasMedications = (courses && courses.length > 0) || (activeMedications && activeMedications.length > 0);
+    
+    if (!hasMedications) {
+      toast({
+        title: "Keine Medikamente vorhanden",
+        description: "Bitte fügen Sie zuerst Medikamente hinzu.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // If multiple doctors, show selection dialog
+    if (doctors && doctors.length > 1) {
+      setShowDoctorSelection(true);
+      return;
+    }
+
+    // Otherwise generate directly
+    await generatePdfWithDoctors(doctors || []);
+  };
+
+  const handleDoctorSelectionConfirm = async (selectedDoctors: Doctor[]) => {
+    setShowDoctorSelection(false);
+    await generatePdfWithDoctors(selectedDoctors);
   };
 
   const totalActiveMedications = (courses?.filter(c => c.is_active)?.length || 0) + activeMedications.length;
@@ -373,6 +393,16 @@ export const SettingsMedications = () => {
         medication={editingMed}
         open={!!editingMed}
         onOpenChange={(open) => !open && setEditingMed(null)}
+      />
+
+      {/* Doctor Selection Dialog */}
+      <DoctorSelectionDialog
+        open={showDoctorSelection}
+        onClose={() => setShowDoctorSelection(false)}
+        doctors={doctors || []}
+        onConfirm={handleDoctorSelectionConfirm}
+        title="Arzt für Medikationsplan auswählen"
+        description="Wählen Sie die Ärzte aus, deren Kontaktdaten im Medikationsplan erscheinen sollen."
       />
     </div>
   );
