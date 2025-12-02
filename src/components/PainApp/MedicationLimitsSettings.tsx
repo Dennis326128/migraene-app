@@ -346,7 +346,7 @@ export function MedicationLimitsSettings({ onNavigateToMedications }: Medication
       </p>
 
       {/* Existing Limits */}
-      <div className="space-y-2">
+      <div className="space-y-2 max-h-[350px] overflow-y-auto modern-scrollbar pr-1">
         {localLimits.map((limit) => {
           const PeriodIcon = periodIcons[limit.period_type as keyof typeof periodIcons];
           const isExpanded = expandedLimits.has(limit.id);
