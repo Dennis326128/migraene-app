@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Loader2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,7 @@ import {
   useUnratedMedicationEntries, 
   useCreateMedicationEffect 
 } from '../hooks/useMedicationEffects';
-import { getRatedMedicationEntries } from '../api/medicationEffects.api';
+import { getRatedMedicationEntries, type RecentMedicationEntry } from '../api/medicationEffects.api';
 import { UnratedEffectCard } from './UnratedEffectCard';
 import { RatedEffectCard } from './RatedEffectCard';
 import { useQuery } from '@tanstack/react-query';
@@ -23,6 +23,8 @@ export function MedicationEffectsPage() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<'open' | 'history'>('open');
   const [historyPage, setHistoryPage] = useState(0);
+  const [allRatedEntries, setAllRatedEntries] = useState<RecentMedicationEntry[]>([]);
+  const [hasMore, setHasMore] = useState(true);
 
   // Query for unrated entries
   const { 
@@ -44,6 +46,18 @@ export function MedicationEffectsPage() {
     },
     enabled: activeTab === 'history',
   });
+
+  // Accumulate rated entries when new page is loaded
+  useEffect(() => {
+    if (ratedEntries) {
+      if (historyPage === 0) {
+        setAllRatedEntries(ratedEntries);
+      } else {
+        setAllRatedEntries(prev => [...prev, ...ratedEntries]);
+      }
+      setHasMore(ratedEntries.length === PAGE_SIZE);
+    }
+  }, [ratedEntries, historyPage]);
 
   const createEffect = useCreateMedicationEffect();
 
@@ -185,7 +199,7 @@ export function MedicationEffectsPage() {
             </Alert>
           )}
 
-          {!isLoadingRated && ratedEntries && ratedEntries.length === 0 && (
+          {!isLoadingRated && allRatedEntries.length === 0 && historyPage === 0 && (
             <Alert>
               <AlertDescription className="text-center py-8">
                 <div className="text-4xl mb-2">📋</div>
@@ -197,7 +211,7 @@ export function MedicationEffectsPage() {
             </Alert>
           )}
 
-          {ratedEntries && ratedEntries.flatMap(entry =>
+          {allRatedEntries.flatMap(entry =>
             entry.medication_effects.map(effect => (
               <RatedEffectCard
                 key={effect.id}
@@ -208,7 +222,7 @@ export function MedicationEffectsPage() {
           )}
 
           {/* Load More Button */}
-          {ratedEntries && ratedEntries.length === PAGE_SIZE && (
+          {hasMore && allRatedEntries.length > 0 && (
             <Button
               variant="outline"
               className="w-full"

@@ -6,6 +6,7 @@ import {
   getMedicationEffects,
   getRecentMedicationsWithEffects,
   getMedicationEffectsForPeriod,
+  getRatedMedicationEntries,
   type MedicationEffectPayload 
 } from "../api/medicationEffects.api";
 
@@ -23,6 +24,7 @@ export function useCreateMedicationEffect() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["unratedMedicationEntries"] });
       qc.invalidateQueries({ queryKey: ["medicationEffects"] });
+      qc.invalidateQueries({ queryKey: ["ratedMedicationEntries"] });
     },
   });
 }
@@ -34,6 +36,7 @@ export function useCreateMedicationEffects() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["unratedMedicationEntries"] });
       qc.invalidateQueries({ queryKey: ["medicationEffects"] });
+      qc.invalidateQueries({ queryKey: ["ratedMedicationEntries"] });
     },
   });
 }
@@ -60,5 +63,13 @@ export function useMedicationEffectsForEntries(entryIds: number[]) {
     queryFn: () => getMedicationEffectsForPeriod(entryIds),
     enabled: entryIds.length > 0,
     staleTime: 2 * 60 * 1000, // 2 minutes
+  });
+}
+
+export function useRatedMedicationEntries(limit = 30, offset = 0) {
+  return useQuery({
+    queryKey: ["ratedMedicationEntries", limit, offset],
+    queryFn: () => getRatedMedicationEntries(limit, offset),
+    staleTime: 1 * 60 * 1000,
   });
 }
