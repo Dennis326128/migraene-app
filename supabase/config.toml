@@ -59,3 +59,9 @@ verify_jwt = true
 
 [functions.generate-doctor-summary]
 verify_jwt = true
+
+[functions.parse-medication-effect]
+verify_jwt = true
+
+[functions.check-medication-limits]
+verify_jwt = true
