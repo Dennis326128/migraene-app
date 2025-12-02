@@ -173,22 +173,22 @@ const NumberStepper: React.FC<{
         type="button"
         variant="outline"
         size="icon"
-        className="h-8 w-8"
+        className="h-7 w-7 rounded-full"
         onClick={() => onChange(Math.max(min, value - 1))}
         disabled={value <= min}
       >
-        <Minus className="h-3 w-3" />
+        <Minus className="h-2.5 w-2.5" />
       </Button>
       <span className="w-6 text-center font-medium">{value}</span>
       <Button
         type="button"
         variant="outline"
         size="icon"
-        className="h-8 w-8"
+        className="h-7 w-7 rounded-full"
         onClick={() => onChange(Math.min(max, value + 1))}
         disabled={value >= max}
       >
-        <Plus className="h-3 w-3" />
+        <Plus className="h-2.5 w-2.5" />
       </Button>
     </div>
   </div>
@@ -218,7 +218,7 @@ export const StructuredDosageInput: React.FC<StructuredDosageInputProps> = ({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 max-w-full overflow-x-hidden">
       {/* Dose Value + Unit Row */}
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-2">
@@ -283,7 +283,7 @@ export const StructuredDosageInput: React.FC<StructuredDosageInputProps> = ({
               )}
               onClick={() => updateField("doseRhythm", rhythm.value as StructuredDosage["doseRhythm"])}
             >
-              <CardContent className="p-3 text-center">
+              <CardContent className="p-2 sm:p-3 text-center">
                 <span className="text-sm font-medium">{rhythm.label}</span>
               </CardContent>
             </Card>
@@ -291,13 +291,13 @@ export const StructuredDosageInput: React.FC<StructuredDosageInputProps> = ({
         </div>
       </div>
 
-      {/* Daily Schedule (Mo-Mi-Ab-Na) */}
+      {/* Daily Schedule (Mo-Mi-Ab-Na) - Responsive 2x2 Grid on Mobile */}
       {showSchedule && (
         <div className="space-y-2">
           <Label>Einnahmeschema (Anzahl pro Tageszeit)</Label>
           <Card>
             <CardContent className="p-4">
-              <div className="flex justify-around">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {SCHEDULE_LABELS.map((item) => (
                   <NumberStepper
                     key={item.key}

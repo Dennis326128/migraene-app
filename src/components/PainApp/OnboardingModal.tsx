@@ -286,7 +286,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ open, onComple
 
   return (
     <Dialog open={open} onOpenChange={() => {}}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">{/* onOpenChange disabled to prevent closing */}
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto overflow-x-hidden modern-scrollbar">{/* onOpenChange disabled to prevent closing */}
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <currentStepData.icon className="w-5 h-5" />

@@ -166,7 +166,7 @@ export function MedicationEffectRatingModal({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="w-[95vw] max-w-md mx-auto max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] max-w-md mx-auto max-h-[90vh] overflow-y-auto overflow-x-hidden modern-scrollbar">
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between">
             <span>💊 Medikamenten-Wirkung</span>
