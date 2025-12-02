@@ -584,7 +584,7 @@ export const MedicationCourseWizard: React.FC<MedicationCourseWizardProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto overflow-x-hidden modern-scrollbar">
         <DialogHeader>
           <DialogTitle>
             {existingCourse ? "Medikamentenverlauf bearbeiten" : "Medikamentenverlauf hinzufügen"}

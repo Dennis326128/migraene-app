@@ -316,7 +316,7 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
       )}
 
       <Dialog open={open} onOpenChange={onClose}>
-        <DialogContent className="max-w-md mx-auto max-h-[90vh] overflow-y-auto bg-card border-quick-entry">
+        <DialogContent className="max-w-md mx-auto max-h-[90vh] overflow-y-auto overflow-x-hidden modern-scrollbar bg-card border-quick-entry">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-quick-entry">
               {isVoiceEntry ? <Mic className="h-5 w-5" /> : <Zap className="h-5 w-5" />}

@@ -137,7 +137,7 @@ export function AppTutorialModal({ open, onComplete, canSkip = true }: AppTutori
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onComplete(); }}>
-      <DialogContent className="sm:max-w-[640px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[640px] max-h-[90vh] overflow-y-auto overflow-x-hidden modern-scrollbar">
         <DialogHeader>
           <div className="flex items-center justify-between mb-2">
             <Badge variant="secondary" className="text-xs">

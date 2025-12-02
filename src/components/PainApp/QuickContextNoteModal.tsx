@@ -264,7 +264,7 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className={cn(
-        "max-w-2xl max-h-[90vh] overflow-y-auto",
+        "max-w-2xl max-h-[90vh] overflow-y-auto overflow-x-hidden modern-scrollbar",
         "bg-[#0B1220] border-[#1F2937]",
         isMobile && "max-w-[95vw]"
       )}>
