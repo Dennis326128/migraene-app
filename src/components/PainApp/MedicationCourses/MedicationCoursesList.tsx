@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, History, Info, FileText, Loader2 } from "lucide-react";
+import { Plus, History, Info, Download, Loader2 } from "lucide-react";
 import { MedicationCourseCard } from "./MedicationCourseCard";
 import { MedicationCourseWizard } from "./MedicationCourseWizard";
 import {
@@ -147,42 +147,29 @@ export const MedicationCoursesList: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      {/* PROMINENT: Medikationsplan Button */}
-      <Card className="border-primary/30 bg-primary/5">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <FileText className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-sm">Medikationsplan (PDF)</h3>
-                <p className="text-xs text-muted-foreground">
-                  Für Arzt, Krankenhaus oder Notfall
-                </p>
-              </div>
-            </div>
-            <Button
-              onClick={handleGenerateMedicationPlan}
-              disabled={isGeneratingPdf || totalMedications === 0}
-              className="shrink-0"
-              size="default"
-            >
-              {isGeneratingPdf ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Erstelle...
-                </>
-              ) : (
-                <>
-                  <FileText className="h-4 w-4 mr-2" />
-                  PDF erstellen
-                </>
-              )}
-            </Button>
+      {/* PROMINENT: Medikationsplan Button - styled consistently */}
+      <Button
+        onClick={handleGenerateMedicationPlan}
+        disabled={isGeneratingPdf || totalMedications === 0}
+        variant="outline"
+        className="w-full justify-start gap-3 h-auto py-3 px-4 border-primary/30 hover:border-primary/50 hover:bg-primary/5 transition-all duration-200"
+      >
+        <div className="p-2 rounded-lg bg-primary/10 shrink-0">
+          {isGeneratingPdf ? (
+            <Loader2 className="h-5 w-5 text-primary animate-spin" />
+          ) : (
+            <Download className="h-5 w-5 text-primary" />
+          )}
+        </div>
+        <div className="flex-1 text-left">
+          <div className="font-semibold text-foreground text-sm">
+            Medikationsplan (PDF) erstellen
           </div>
-        </CardContent>
-      </Card>
+          <div className="text-xs text-muted-foreground font-normal">
+            {isGeneratingPdf ? "Wird erstellt..." : "Fuer Arzt, Krankenhaus oder Notfall"}
+          </div>
+        </div>
+      </Button>
 
       {/* Header */}
       <div className="flex items-start gap-3">
