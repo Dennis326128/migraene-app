@@ -148,7 +148,7 @@ export type Database = {
           medication_name: string
           note_for_physician: string | null
           side_effects_text: string | null
-          start_date: string
+          start_date: string | null
           subjective_effectiveness: number | null
           type: string
           updated_at: string
@@ -170,7 +170,7 @@ export type Database = {
           medication_name: string
           note_for_physician?: string | null
           side_effects_text?: string | null
-          start_date: string
+          start_date?: string | null
           subjective_effectiveness?: number | null
           type?: string
           updated_at?: string
@@ -192,7 +192,7 @@ export type Database = {
           medication_name?: string
           note_for_physician?: string | null
           side_effects_text?: string | null
-          start_date?: string
+          start_date?: string | null
           subjective_effectiveness?: number | null
           type?: string
           updated_at?: string

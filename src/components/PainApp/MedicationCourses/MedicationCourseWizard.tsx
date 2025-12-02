@@ -119,7 +119,7 @@ export const MedicationCourseWizard: React.FC<MedicationCourseWizardProps> = ({
         setStructuredDosage(getDefaultStructuredDosage());
       }
       setIsActive(existingCourse.is_active);
-      setStartDate(new Date(existingCourse.start_date));
+      setStartDate(existingCourse.start_date ? new Date(existingCourse.start_date) : undefined);
       setEndDate(existingCourse.end_date ? new Date(existingCourse.end_date) : undefined);
       setBaselineMigraineDays(existingCourse.baseline_migraine_days || "");
       setBaselineAcuteMedDays(existingCourse.baseline_acute_med_days || "");
@@ -171,7 +171,7 @@ export const MedicationCourseWizard: React.FC<MedicationCourseWizardProps> = ({
       case 1:
         return getFinalMedicationName().trim().length > 0;
       case 2:
-        return startDate !== undefined;
+        return true; // Start date is now optional
       case 3:
         return true; // All optional
       case 4:
@@ -200,7 +200,7 @@ export const MedicationCourseWizard: React.FC<MedicationCourseWizardProps> = ({
       const data: CreateMedicationCourseInput = {
         medication_name: getFinalMedicationName().trim(),
         type,
-        start_date: startDate ? format(startDate, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
+        start_date: startDate ? format(startDate, "yyyy-MM-dd") : null,
         end_date: !isActive && endDate ? format(endDate, "yyyy-MM-dd") : null,
         is_active: isActive,
         dose_text: doseText || null,
@@ -386,7 +386,13 @@ export const MedicationCourseWizard: React.FC<MedicationCourseWizardProps> = ({
       </div>
 
       <div className="space-y-3">
-        <Label>{isActive ? "Seit wann ungefähr?" : "Von wann ungefähr?"}</Label>
+        <Label>
+          {isActive ? "Seit wann ungefähr?" : "Von wann ungefähr?"} 
+          <span className="text-muted-foreground font-normal"> (optional)</span>
+        </Label>
+        <p className="text-xs text-muted-foreground mb-2">
+          Kannst du später nachtragen, wenn du recherchiert hast.
+        </p>
         <Popover>
           <PopoverTrigger asChild>
             <Button
@@ -408,6 +414,9 @@ export const MedicationCourseWizard: React.FC<MedicationCourseWizardProps> = ({
               initialFocus
               className={cn("p-3 pointer-events-auto")}
               disabled={(date) => date > new Date()}
+              captionLayout="dropdown-buttons"
+              fromYear={2010}
+              toYear={new Date().getFullYear()}
             />
           </PopoverContent>
         </Popover>
