@@ -9,11 +9,12 @@ import { useMedicationCourses } from "@/features/medication-courses";
 import { usePatientData, useDoctors } from "@/features/account/hooks/useAccount";
 import { useMedicationLimits } from "@/features/medication-limits/hooks/useMedicationLimits";
 import { buildMedicationPlanPdf } from "@/lib/pdf/medicationPlan";
-import { Trash2, Plus, Pill, FileText, Loader2, Pencil } from "lucide-react";
+import { Trash2, Plus, Pill, FileText, Loader2, Pencil, Download } from "lucide-react";
 import { MedicationLimitsSettings } from "../MedicationLimitsSettings";
 import { MedicationEditModal } from "../MedicationEditModal";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { toast as sonnerToast } from "sonner";
 
 export const SettingsMedications = () => {
   const { toast } = useToast();
@@ -133,8 +134,7 @@ export const SettingsMedications = () => {
       link.click();
       URL.revokeObjectURL(url);
 
-      toast({
-        title: "✅ Medikationsplan erstellt",
+      sonnerToast.success("Medikationsplan erstellt", {
         description: "Das PDF wurde heruntergeladen.",
       });
     } catch (error) {
@@ -161,42 +161,33 @@ export const SettingsMedications = () => {
 
   return (
     <div className="space-y-4">
-      {/* PROMINENT: Medikationsplan Button - at the TOP */}
-      <Card className="border-primary/30 bg-primary/5">
-        <CardContent className={cn("p-4", isMobile && "p-3")}>
-          <div className={cn("flex items-center justify-between gap-4", isMobile && "flex-col gap-3")}>
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <FileText className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <h3 className={cn("font-semibold", isMobile && "text-sm")}>Medikationsplan (PDF)</h3>
-                <p className={cn("text-xs text-muted-foreground", isMobile && "text-[11px]")}>
-                  Alle Medikamente für Arzt, Krankenhaus oder Notfall
-                </p>
-              </div>
-            </div>
-            <Button
-              onClick={handleGenerateMedicationPlan}
-              disabled={isGeneratingPdf || totalMedications === 0}
-              className={cn("shrink-0", isMobile && "w-full")}
-              size={isMobile ? "default" : "lg"}
-            >
-              {isGeneratingPdf ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Erstelle...
-                </>
-              ) : (
-                <>
-                  <FileText className="h-4 w-4 mr-2" />
-                  PDF erstellen
-                </>
-              )}
-            </Button>
+      {/* PROMINENT: Medikationsplan Button - styled like Kopfschmerztagebuch PDF button */}
+      <Button
+        onClick={handleGenerateMedicationPlan}
+        disabled={isGeneratingPdf || totalMedications === 0}
+        variant="outline"
+        className={cn(
+          "w-full justify-start gap-3 h-auto py-3 px-4",
+          "border-primary/30 hover:border-primary/50 hover:bg-primary/5",
+          "transition-all duration-200"
+        )}
+      >
+        <div className="p-2 rounded-lg bg-primary/10 shrink-0">
+          {isGeneratingPdf ? (
+            <Loader2 className="h-5 w-5 text-primary animate-spin" />
+          ) : (
+            <Download className="h-5 w-5 text-primary" />
+          )}
+        </div>
+        <div className="flex-1 text-left">
+          <div className={cn("font-semibold text-foreground", isMobile && "text-sm")}>
+            Medikationsplan (PDF) erstellen
           </div>
-        </CardContent>
-      </Card>
+          <div className={cn("text-xs text-muted-foreground font-normal", isMobile && "text-[11px]")}>
+            {isGeneratingPdf ? "Wird erstellt..." : "Alle Medikamente für Arzt, Krankenhaus oder Notfall"}
+          </div>
+        </div>
+      </Button>
 
       {/* Medication Management */}
       <Card className={cn("p-6", isMobile && "p-4")}>

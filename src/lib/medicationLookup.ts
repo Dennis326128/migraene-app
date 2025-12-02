@@ -17,8 +17,9 @@ export type MedicationMetadata = {
   einheit: string;
   art: "prophylaxe" | "akut" | "bedarf" | "notfall" | "selbstmedikation";
   anwendungsgebiet: string;
-  hinweise?: string;
+  hinweise?: string;           // Sachliche Hinweise für den Medikationsplan (hinweis_medplan)
   dosis_bedarf?: string;
+  dosis_intervall?: string;    // z.B. "1x monatlich", "alle 3 Monate"
 };
 
 // Interne Datenbank typischer Migräne-Medikamente
@@ -33,7 +34,8 @@ const MEDICATION_DATABASE: Record<string, MedicationMetadata> = {
     einheit: "Fertigspritze",
     art: "prophylaxe",
     anwendungsgebiet: "Migraeneprophylaxe",
-    hinweise: "Subkutane Injektion, 1x monatlich oder 3x quartalsweise",
+    hinweise: "Subkutane Injektion",
+    dosis_intervall: "1x monatlich",
   },
   "ajovy 225": {
     wirkstoff: "Fremanezumab",
@@ -42,7 +44,8 @@ const MEDICATION_DATABASE: Record<string, MedicationMetadata> = {
     einheit: "Fertigspritze",
     art: "prophylaxe",
     anwendungsgebiet: "Migraeneprophylaxe",
-    hinweise: "Subkutane Injektion, 1x monatlich",
+    hinweise: "Subkutane Injektion",
+    dosis_intervall: "1x monatlich",
   },
   "aimovig": {
     wirkstoff: "Erenumab",
@@ -51,7 +54,8 @@ const MEDICATION_DATABASE: Record<string, MedicationMetadata> = {
     einheit: "Fertigspritze",
     art: "prophylaxe",
     anwendungsgebiet: "Migraeneprophylaxe",
-    hinweise: "Subkutane Injektion, 1x monatlich",
+    hinweise: "Subkutane Injektion",
+    dosis_intervall: "1x monatlich",
   },
   "aimovig 140": {
     wirkstoff: "Erenumab",
@@ -60,7 +64,8 @@ const MEDICATION_DATABASE: Record<string, MedicationMetadata> = {
     einheit: "Fertigspritze",
     art: "prophylaxe",
     anwendungsgebiet: "Migraeneprophylaxe",
-    hinweise: "Subkutane Injektion, 1x monatlich",
+    hinweise: "Subkutane Injektion",
+    dosis_intervall: "1x monatlich",
   },
   "emgality": {
     wirkstoff: "Galcanezumab",
@@ -69,7 +74,8 @@ const MEDICATION_DATABASE: Record<string, MedicationMetadata> = {
     einheit: "Fertigpen",
     art: "prophylaxe",
     anwendungsgebiet: "Migraeneprophylaxe",
-    hinweise: "Subkutane Injektion, 1x monatlich (Startdosis: 240 mg)",
+    hinweise: "Subkutane Injektion, Startdosis: 240 mg",
+    dosis_intervall: "1x monatlich",
   },
   "topiramat": {
     wirkstoff: "Topiramat",
@@ -132,7 +138,8 @@ const MEDICATION_DATABASE: Record<string, MedicationMetadata> = {
     einheit: "Behandlung",
     art: "prophylaxe",
     anwendungsgebiet: "Chronische Migraene",
-    hinweise: "Injektion alle 12 Wochen durch Arzt",
+    hinweise: "Injektion durch Arzt",
+    dosis_intervall: "alle 12 Wochen",
   },
   "valproat": {
     wirkstoff: "Valproinsaeure",
