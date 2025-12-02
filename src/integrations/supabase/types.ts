@@ -205,6 +205,7 @@ export type Database = {
           confidence: string | null
           created_at: string
           effect_rating: string
+          effect_score: number | null
           entry_id: number
           id: string
           med_name: string
@@ -218,6 +219,7 @@ export type Database = {
           confidence?: string | null
           created_at?: string
           effect_rating: string
+          effect_score?: number | null
           entry_id: number
           id?: string
           med_name: string
@@ -231,6 +233,7 @@ export type Database = {
           confidence?: string | null
           created_at?: string
           effect_rating?: string
+          effect_score?: number | null
           entry_id?: number
           id?: string
           med_name?: string

@@ -5,6 +5,7 @@ export type MedicationEffect = {
   entry_id: number;
   med_name: string;
   effect_rating: 'none' | 'poor' | 'moderate' | 'good' | 'very_good';
+  effect_score: number | null; // NEW: 0-10 numeric score, NULL = unrated
   side_effects: string[];
   notes: string;
   method: 'ui' | 'voice';
@@ -17,6 +18,7 @@ export type MedicationEffectPayload = {
   entry_id: number;
   med_name: string;
   effect_rating: 'none' | 'poor' | 'moderate' | 'good' | 'very_good';
+  effect_score?: number | null; // NEW: 0-10 numeric score
   side_effects: string[];
   notes: string;
   method?: 'ui' | 'voice';
@@ -191,4 +193,62 @@ export async function getMedicationEffectsForPeriod(entryIds: number[]): Promise
 
   if (error) throw error;
   return data as MedicationEffect[];
+}
+
+// NEW: Get paginated list of rated medication entries
+export async function getRatedMedicationEntries(limit = 30, offset = 0): Promise<RecentMedicationEntry[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  // Get entries with medications that have been rated (effect_score IS NOT NULL)
+  const { data: ratedEffects, error: effectsError } = await supabase
+    .from("medication_effects")
+    .select("entry_id, med_name, effect_score, effect_rating, side_effects, notes, created_at, updated_at, method, confidence, id")
+    .not("effect_score", "is", null)
+    .order("created_at", { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (effectsError) throw effectsError;
+
+  const entryIds = [...new Set(ratedEffects?.map(e => e.entry_id) || [])];
+  if (entryIds.length === 0) return [];
+
+  const { data: entries, error: entriesError } = await supabase
+    .from("pain_entries")
+    .select("id, medications, selected_date, selected_time, pain_level, timestamp_created")
+    .eq("user_id", user.id)
+    .in("id", entryIds);
+
+  if (entriesError) throw entriesError;
+
+  // Group effects by entry_id
+  const effectsByEntry: Record<number, MedicationEffect[]> = {};
+  ratedEffects?.forEach(effect => {
+    if (!effectsByEntry[effect.entry_id]) {
+      effectsByEntry[effect.entry_id] = [];
+    }
+    effectsByEntry[effect.entry_id].push(effect as MedicationEffect);
+  });
+
+  return (entries || [])
+    .map(entry => ({
+      ...entry,
+      medication_effects: effectsByEntry[entry.id] || []
+    }))
+    .sort((a, b) => {
+      const aDate = new Date(a.timestamp_created).getTime();
+      const bDate = new Date(b.timestamp_created).getTime();
+      return bDate - aDate;
+    });
+}
+
+// NEW: Count unrated medications
+export async function getUnratedMedicationsCount(): Promise<number> {
+  const unrated = await getUnratedMedicationEntries();
+  let count = 0;
+  unrated.forEach(entry => {
+    const unratedMeds = entry.medications.filter(med => !entry.rated_medications.includes(med));
+    count += unratedMeds.length;
+  });
+  return count;
 }

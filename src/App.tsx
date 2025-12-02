@@ -14,6 +14,7 @@ import NotFound from "./pages/NotFound";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Imprint from "./pages/Imprint";
 import TermsOfService from "./pages/TermsOfService";
+import { MedicationEffectsPage } from "./features/medication-effects/components/MedicationEffectsPage";
 import { registerOfflineSupport } from "@/hooks/useOptimizedCache";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { initOfflineDB, syncPendingEntries } from "@/lib/offlineQueue";
@@ -127,6 +128,14 @@ function App() {
                 element={
                   <AuthGuard>
                     <Index />
+                  </AuthGuard>
+                } 
+              />
+              <Route 
+                path="/medication-effects" 
+                element={
+                  <AuthGuard>
+                    <MedicationEffectsPage />
                   </AuthGuard>
                 } 
               />

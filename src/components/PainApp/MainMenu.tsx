@@ -240,11 +240,11 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             
             {/* Medication actions in grid */}
             <StartPageButtonGrid columns={2} gap="md">
-              {/* Medication Effects */}
+              {/* Medication Effects - NEUE ROUTE */}
               <StartPageCard 
                 variant="warning" 
                 touchFeedback 
-                onClick={() => onNavigate?.('medication-overview')}
+                onClick={() => window.location.href = '/medication-effects'}
               >
                 <StartPageCardHeader
                   icon="💊"
