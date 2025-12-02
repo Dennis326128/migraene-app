@@ -542,6 +542,33 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     await actuallyGenerateMedPlanPDF(doctors);
   };
 
+  const exportCSV = () => {
+    if (!filteredEntries.length) {
+      toast.error("Keine Einträge im ausgewählten Zeitraum");
+      return;
+    }
+    const header = ["Datum/Zeit","Schmerzlevel","Medikamente","Notiz"];
+    const rows = filteredEntries.map(e => {
+      const dt = e.selected_date && e.selected_time
+        ? `${e.selected_date} ${e.selected_time}`
+        : new Date(e.timestamp_created).toLocaleString();
+      const meds = (e.medications || []).join("; ");
+      const note = (e.notes ?? "").replace(/\r?\n/g, " ").replace(/"/g, '""');
+      return [dt, e.pain_level, meds, `"${note}"`];
+    });
+    const lines = [header.join(","), ...rows.map(r => r.join(","))].join("\n");
+    const blob = new Blob(["\ufeff" + lines], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `kopfschmerztagebuch_${from}_bis_${to}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    toast.success("CSV erfolgreich exportiert");
+  };
+
   return (
     <div className="min-h-screen bg-background pb-20">
       {/* Header */}
@@ -862,6 +889,16 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Doctor Selection Dialog */}
+      <DoctorSelectionDialog
+        open={showDoctorSelection}
+        onClose={() => setShowDoctorSelection(false)}
+        doctors={doctors}
+        onConfirm={handleDoctorSelectionConfirm}
+        title={pendingPdfType === "diary" ? "Arzt für Kopfschmerztagebuch auswählen" : "Arzt für Medikationsplan auswählen"}
+        description="Wählen Sie die Ärzte aus, deren Kontaktdaten im PDF erscheinen sollen."
+      />
     </div>
   );
 }
