@@ -3,7 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ChevronRight, Clock, Activity } from 'lucide-react';
-import { getEffectLabel, getEffectEmoji } from '@/lib/utils/medicationEffects';
+import { getEffectLabel, getEffectEmoji, getEffectiveScore } from '@/lib/utils/medicationEffects';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { MedicationEffectSlider } from '@/components/ui/medication-effect-slider';
 import type { RecentMedicationEntry, MedicationEffect } from '../api/medicationEffects.api';
@@ -15,6 +15,8 @@ interface RatedEffectCardProps {
 
 export function RatedEffectCard({ entry, effect }: RatedEffectCardProps) {
   const [detailsOpen, setDetailsOpen] = useState(false);
+  // Get score from effect_score or convert from effect_rating for backwards compatibility
+  const effectScore = getEffectiveScore(effect.effect_score, effect.effect_rating);
 
   return (
     <>
@@ -22,15 +24,15 @@ export function RatedEffectCard({ entry, effect }: RatedEffectCardProps) {
         className="p-3 cursor-pointer hover:bg-muted/50 transition-colors"
         onClick={() => setDetailsOpen(true)}
       >
-        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <span className="font-medium truncate">💊 {effect.med_name}</span>
               <Badge 
-                variant={effect.effect_score !== null && effect.effect_score >= 7 ? 'default' : 'secondary'}
+                variant={effectScore !== null && effectScore >= 7 ? 'default' : 'secondary'}
                 className="text-xs shrink-0"
               >
-                {getEffectEmoji(effect.effect_score)} {getEffectLabel(effect.effect_score)}
+                {getEffectEmoji(effectScore)} {getEffectLabel(effectScore)}
               </Badge>
             </div>
             
@@ -76,12 +78,12 @@ export function RatedEffectCard({ entry, effect }: RatedEffectCardProps) {
             <div className="space-y-2">
               <div className="text-sm font-medium">Wirkung</div>
               <MedicationEffectSlider
-                value={effect.effect_score ?? 0}
+                value={effectScore ?? 0}
                 onValueChange={() => {}} // Read-only
                 disabled
               />
               <div className="text-center text-sm text-muted-foreground">
-                {getEffectLabel(effect.effect_score)}
+                {getEffectLabel(effectScore)}
               </div>
             </div>
 

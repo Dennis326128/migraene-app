@@ -196,15 +196,15 @@ export async function getMedicationEffectsForPeriod(entryIds: number[]): Promise
 }
 
 // NEW: Get paginated list of rated medication entries
+// An entry is considered "rated" if it has effect_score OR effect_rating (for backwards compatibility)
 export async function getRatedMedicationEntries(limit = 30, offset = 0): Promise<RecentMedicationEntry[]> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
 
-  // Get entries with medications that have been rated (effect_score IS NOT NULL)
+  // Get all medication effects - they are "rated" if they exist (old system used effect_rating, new uses effect_score)
   const { data: ratedEffects, error: effectsError } = await supabase
     .from("medication_effects")
     .select("entry_id, med_name, effect_score, effect_rating, side_effects, notes, created_at, updated_at, method, confidence, id")
-    .not("effect_score", "is", null)
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1);
 

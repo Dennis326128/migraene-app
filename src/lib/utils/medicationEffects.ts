@@ -3,6 +3,33 @@
  * Used for displaying effect levels consistently across the app
  */
 
+/**
+ * Converts old text-based effect_rating to numeric score (0-10)
+ * For backwards compatibility with existing data
+ */
+export function effectRatingToScore(rating: string | null | undefined): number | null {
+  if (!rating) return null;
+  
+  switch (rating) {
+    case 'none': return 0;
+    case 'poor': return 2;
+    case 'moderate': return 5;
+    case 'good': return 7;
+    case 'very_good': return 9;
+    default: return null;
+  }
+}
+
+/**
+ * Gets the effective score from effect_score or effect_rating (for backwards compatibility)
+ */
+export function getEffectiveScore(effect_score: number | null | undefined, effect_rating?: string | null): number | null {
+  if (effect_score !== null && effect_score !== undefined) {
+    return effect_score;
+  }
+  return effectRatingToScore(effect_rating);
+}
+
 export function getEffectLabel(score: number | null | undefined): string {
   if (score === null || score === undefined) {
     return 'Nicht bewertet';
