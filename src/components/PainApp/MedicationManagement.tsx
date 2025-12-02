@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useMeds, useAddMed, useDeleteMed } from "@/features/meds/hooks/useMeds";
 import { useReminders, useCreateReminder } from "@/features/reminders/hooks/useReminders";
-import { Pill, Plus, Pencil, Trash2, Bell, ArrowLeft, Clock, AlertTriangle } from "lucide-react";
+import { Pill, Plus, Pencil, Trash2, Bell, ArrowLeft, Clock, AlertTriangle, Download, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +17,11 @@ import { MedicationReminderModal } from "@/components/Reminders/MedicationRemind
 import { MedicationCoursesList } from "./MedicationCourses";
 import { format, addMinutes } from "date-fns";
 import type { ReminderRepeat } from "@/types/reminder.types";
+import { buildMedicationPlanPdf } from "@/lib/pdf/medicationPlan";
+import { usePatientData, useDoctors } from "@/features/account/hooks/useAccount";
+import { useMedicationCourses } from "@/features/medication-courses/hooks/useMedicationCourses";
+import { useMedicationLimits } from "@/features/medication-limits/hooks/useMedicationLimits";
+import { DoctorSelectionDialog, type Doctor } from "./DoctorSelectionDialog";
 
 interface MedicationManagementProps {
   onBack: () => void;
@@ -26,6 +31,10 @@ interface MedicationManagementProps {
 export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBack, onNavigateToLimits }) => {
   const { data: medications, isLoading } = useMeds();
   const { data: reminders } = useReminders();
+  const { data: patientData } = usePatientData();
+  const { data: doctors } = useDoctors();
+  const { data: medicationCourses } = useMedicationCourses();
+  const { data: medicationLimits } = useMedicationLimits();
   const addMed = useAddMed();
   const deleteMed = useDeleteMed();
   const createReminder = useCreateReminder();
@@ -34,6 +43,8 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showReminderModal, setShowReminderModal] = useState(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [showDoctorSelection, setShowDoctorSelection] = useState(false);
   
   const [selectedMedication, setSelectedMedication] = useState<any>(null);
   const [medicationName, setMedicationName] = useState("");
@@ -45,6 +56,107 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
       r.medications?.includes(medName) &&
       r.status === 'pending'
     ).length || 0;
+  };
+
+  // PDF Generation
+  const generatePdfWithDoctors = async (selectedDoctors: Doctor[]) => {
+    const activeMeds = medications?.filter(m => m.is_active !== false) || [];
+    
+    setIsGeneratingPdf(true);
+    try {
+      const pdfBytes = await buildMedicationPlanPdf({
+        medicationCourses: medicationCourses || [],
+        userMedications: activeMeds.map(m => ({
+          id: m.id,
+          name: m.name,
+          wirkstoff: m.wirkstoff,
+          staerke: m.staerke,
+          darreichungsform: m.darreichungsform,
+          einheit: m.einheit,
+          dosis_morgens: m.dosis_morgens,
+          dosis_mittags: m.dosis_mittags,
+          dosis_abends: m.dosis_abends,
+          dosis_nacht: m.dosis_nacht,
+          dosis_bedarf: m.dosis_bedarf,
+          anwendungsgebiet: m.anwendungsgebiet,
+          hinweise: m.hinweise,
+          art: m.art,
+          is_active: m.is_active,
+        })),
+        medicationLimits: medicationLimits?.map(l => ({
+          medication_name: l.medication_name,
+          limit_count: l.limit_count,
+          period_type: l.period_type,
+        })),
+        patientData: patientData ? {
+          firstName: patientData.first_name,
+          lastName: patientData.last_name,
+          dateOfBirth: patientData.date_of_birth,
+          street: patientData.street,
+          postalCode: patientData.postal_code,
+          city: patientData.city,
+          phone: patientData.phone,
+          fax: patientData.fax,
+          healthInsurance: patientData.health_insurance,
+          insuranceNumber: patientData.insurance_number,
+        } : undefined,
+        doctors: selectedDoctors.map(doc => ({
+          firstName: doc.first_name,
+          lastName: doc.last_name,
+          title: doc.title,
+          specialty: doc.specialty,
+          street: doc.street,
+          postalCode: doc.postal_code,
+          city: doc.city,
+          phone: doc.phone,
+          fax: doc.fax,
+          email: doc.email,
+        })),
+      });
+
+      const blob = new Blob([new Uint8Array(pdfBytes)], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `Medikationsplan_${new Date().toISOString().split("T")[0]}.pdf`;
+      link.click();
+      URL.revokeObjectURL(url);
+
+      toast.success("Medikationsplan erstellt", {
+        description: "Das PDF wurde heruntergeladen.",
+      });
+    } catch (error) {
+      console.error("Error generating medication plan:", error);
+      toast.error("Fehler beim Erstellen", {
+        description: "Bitte versuchen Sie es erneut.",
+      });
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
+  const handleGenerateMedicationPlan = async () => {
+    const activeMeds = medications?.filter(m => m.is_active !== false) || [];
+    const hasMedications = (medicationCourses && medicationCourses.length > 0) || activeMeds.length > 0;
+    
+    if (!hasMedications) {
+      toast.error("Keine Medikamente vorhanden", {
+        description: "Bitte fügen Sie zuerst Medikamente hinzu.",
+      });
+      return;
+    }
+
+    if (doctors && doctors.length > 1) {
+      setShowDoctorSelection(true);
+      return;
+    }
+
+    await generatePdfWithDoctors(doctors || []);
+  };
+
+  const handleDoctorSelectionConfirm = async (selectedDoctors: Doctor[]) => {
+    setShowDoctorSelection(false);
+    await generatePdfWithDoctors(selectedDoctors);
   };
 
   const handleAddMedication = async () => {
@@ -219,6 +331,36 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
           <p className="text-sm text-muted-foreground">Ihre Medikamente und Erinnerungen</p>
         </div>
       </div>
+
+      {/* PROMINENT: Medikationsplan PDF Button - TOP ACTION */}
+      <Card className="border-primary/40 bg-gradient-to-r from-primary/10 to-primary/5 hover:border-primary/60 transition-all duration-200">
+        <CardContent className="p-4">
+          <Button
+            onClick={handleGenerateMedicationPlan}
+            disabled={isGeneratingPdf}
+            className="w-full h-auto py-4 px-5 bg-primary hover:bg-primary/90 text-primary-foreground shadow-md hover:shadow-lg"
+          >
+            {isGeneratingPdf ? (
+              <div className="flex items-center gap-3">
+                <Loader2 className="h-6 w-6 animate-spin" />
+                <span className="font-bold text-lg">PDF wird erstellt...</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-4 w-full">
+                <div className="p-2.5 rounded-xl bg-primary-foreground/20 shrink-0">
+                  <Download className="h-6 w-6" />
+                </div>
+                <div className="flex-1 text-left">
+                  <div className="font-bold text-lg">Medikationsplan (PDF) erstellen</div>
+                  <div className="opacity-90 font-normal text-sm">
+                    Für Arzt, Krankenhaus oder Notfall
+                  </div>
+                </div>
+              </div>
+            )}
+          </Button>
+        </CardContent>
+      </Card>
 
       {/* Cross-Link to Limits */}
       {onNavigateToLimits && (
@@ -423,6 +565,16 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Doctor Selection Dialog */}
+      <DoctorSelectionDialog
+        open={showDoctorSelection}
+        onClose={() => setShowDoctorSelection(false)}
+        doctors={doctors || []}
+        onConfirm={handleDoctorSelectionConfirm}
+        title="Arzt für Medikationsplan auswählen"
+        description="Wählen Sie die Ärzte aus, deren Kontaktdaten im Medikationsplan erscheinen sollen."
+      />
 
       {/* Medication Reminder Modal */}
       {selectedMedication && (
