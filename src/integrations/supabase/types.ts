@@ -554,22 +554,64 @@ export type Database = {
       }
       user_medications: {
         Row: {
+          anwendungsgebiet: string | null
+          art: string | null
           created_at: string | null
+          darreichungsform: string | null
+          discontinued_at: string | null
+          dosis_abends: string | null
+          dosis_bedarf: string | null
+          dosis_mittags: string | null
+          dosis_morgens: string | null
+          dosis_nacht: string | null
+          einheit: string | null
+          hinweise: string | null
           id: string
+          is_active: boolean | null
           name: string
+          staerke: string | null
           user_id: string
+          wirkstoff: string | null
         }
         Insert: {
+          anwendungsgebiet?: string | null
+          art?: string | null
           created_at?: string | null
+          darreichungsform?: string | null
+          discontinued_at?: string | null
+          dosis_abends?: string | null
+          dosis_bedarf?: string | null
+          dosis_mittags?: string | null
+          dosis_morgens?: string | null
+          dosis_nacht?: string | null
+          einheit?: string | null
+          hinweise?: string | null
           id?: string
+          is_active?: boolean | null
           name: string
+          staerke?: string | null
           user_id: string
+          wirkstoff?: string | null
         }
         Update: {
+          anwendungsgebiet?: string | null
+          art?: string | null
           created_at?: string | null
+          darreichungsform?: string | null
+          discontinued_at?: string | null
+          dosis_abends?: string | null
+          dosis_bedarf?: string | null
+          dosis_mittags?: string | null
+          dosis_morgens?: string | null
+          dosis_nacht?: string | null
+          einheit?: string | null
+          hinweise?: string | null
           id?: string
+          is_active?: boolean | null
           name?: string
+          staerke?: string | null
           user_id?: string
+          wirkstoff?: string | null
         }
         Relationships: []
       }
