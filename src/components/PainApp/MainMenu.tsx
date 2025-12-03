@@ -88,10 +88,10 @@ export const MainMenu: React.FC<MainMenuProps> = ({
 
   const getVoiceButtonSubtitle = () => {
     if (voiceRouter.remainingSeconds) {
-      return 'Weiter sprechen oder warten...';
+      return 'Weiter sprechen oder tippen Sie "Fertig"';
     }
     if (voiceRouter.isListening) {
-      return 'Sprechen Sie jetzt! (3s Pause beendet)';
+      return 'Sprechen Sie jetzt! 8s Pause beendet automatisch';
     }
     return 'Migräne oder Notiz per Sprache';
   };

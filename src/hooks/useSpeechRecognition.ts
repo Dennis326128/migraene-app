@@ -113,7 +113,7 @@ export function useSpeechRecognition(options: SpeechRecognitionOptions = {}): Us
       }, 1000);
     };
 
-    pauseTimerRef.current = setTimeout(startCountdown, 1000);
+    pauseTimerRef.current = setTimeout(startCountdown, 2000);
   }, [pauseThreshold, onPauseDetected, clearTimers, log]);
 
   const resetPauseDetection = useCallback(() => {
