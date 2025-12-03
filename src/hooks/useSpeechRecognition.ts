@@ -138,7 +138,7 @@ export function useSpeechRecognition(options: SpeechRecognitionOptions = {}): Us
       const sttConfig = getSttConfig();
       
       recognitionRef.current.lang = sttConfig.language;
-      recognitionRef.current.continuous = false;
+      recognitionRef.current.continuous = continuous;
       recognitionRef.current.interimResults = true;
       recognitionRef.current.maxAlternatives = 1;
 
