@@ -728,11 +728,6 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
                 </p>
               )}
               
-              {!voiceState.isRecording && !voiceError && (
-                <p className="text-sm text-muted-foreground/80">
-                  Details wie Dosierung oder Einnahmerhythmus kannst du später ergänzen.
-                </p>
-              )}
             </div>
             
             {/* Optional: Edit after add - minimal switch row */}
