@@ -129,4 +129,4 @@ export function useMarkMedAsIntolerant() {
 }
 
 // Re-export types
-export type { Med, CreateMedInput, UpdateMedInput };
+export type { Med, CreateMedInput, UpdateMedInput } from "../api/meds.api";

@@ -5,8 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { useMeds, useAddMed, useDeleteMed, type Med } from "@/features/meds/hooks/useMeds";
+import { useMeds, useAddMed, useDeleteMed, type Med, type CreateMedInput } from "@/features/meds/hooks/useMeds";
 import { useReminders, useCreateReminder } from "@/features/reminders/hooks/useReminders";
+import { parseMedicationInput, parsedToMedInput } from "@/lib/utils/parseMedicationInput";
 import { Pill, Plus, Pencil, Trash2, Bell, ArrowLeft, Clock, AlertTriangle, Download, Loader2, Ban, History, ChevronDown, Mic, MicOff } from "lucide-react";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -355,25 +356,41 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
   };
 
   const handleAddMedication = async () => {
-    const trimmedName = medicationName.trim();
+    const rawInput = medicationName.trim();
     
-    if (!trimmedName) {
+    if (!rawInput) {
       toast.error("Bitte geben Sie einen Medikamentennamen ein");
       return;
     }
 
-    if (trimmedName.length > 100) {
-      toast.error("Medikamentenname darf maximal 100 Zeichen lang sein");
+    if (rawInput.length > 200) {
+      toast.error("Eingabe darf maximal 200 Zeichen lang sein");
       return;
     }
 
-    if (!/^[a-zA-ZäöüÄÖÜß0-9\s\-/().]+$/.test(trimmedName)) {
+    // Parse the input to extract structured medication info
+    const parsed = parseMedicationInput(rawInput);
+    
+    if (!parsed.displayName) {
+      toast.error("Medikamentenname konnte nicht erkannt werden");
+      return;
+    }
+
+    // Validate extracted display name
+    if (!/^[a-zA-ZäöüÄÖÜß0-9\s\-/().µ]+$/.test(parsed.displayName)) {
       toast.error("Medikamentenname enthält ungültige Zeichen.");
       return;
     }
 
     try {
-      const newMed = await addMed.mutateAsync(trimmedName);
+      // Convert parsed info to medication input
+      const medInput: CreateMedInput = {
+        ...parsedToMedInput(parsed),
+        // Set art based on isPrn
+        art: parsed.isPrn ? "bedarf" : (parsed.frequencyPerDay && parsed.frequencyPerDay > 0 ? "regelmaessig" : "bedarf"),
+      };
+      
+      const newMed = await addMed.mutateAsync(medInput);
       setMedicationName("");
       setShowAddDialog(false);
       
