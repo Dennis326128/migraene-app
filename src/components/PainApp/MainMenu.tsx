@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { WelcomeModal } from "./WelcomeModal";
 import { QuickEntryModal } from "./QuickEntryModal";
-import { StartPageCard, StartPageCardHeader, StartPageButtonGrid, SectionHeader } from "@/components/ui/start-page-card";
+import { StartPageCard, StartPageCardHeader, StartPageButtonGrid, SectionHeader, CardBadge } from "@/components/ui/start-page-card";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -106,22 +106,22 @@ export const MainMenu: React.FC<MainMenuProps> = ({
     return 'Beschreibe einfach, was los ist – wir füllen den Eintrag für dich aus.';
   };
   
-  // Voice icon: roter Punkt mit Animation bei Aufnahme
+  // Voice icon: roter Punkt mit Animation bei Aufnahme, Petrol bei Bereit
   const VoiceIcon = () => {
     if (voiceRouter.isSaving) {
       return (
-        <div className="w-6 h-6 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+        <div className="w-7 h-7 rounded-full border-2 border-voice-light border-t-transparent animate-spin" />
       );
     }
     if (voiceRouter.isListening) {
       return (
         <div className="relative flex items-center justify-center">
-          <div className="w-4 h-4 rounded-full bg-destructive animate-pulse" />
-          <div className="absolute w-6 h-6 rounded-full bg-destructive/30 animate-ping" />
+          <div className="w-5 h-5 rounded-full bg-destructive animate-pulse" />
+          <div className="absolute w-8 h-8 rounded-full bg-destructive/30 animate-ping" />
         </div>
       );
     }
-    return <span className="text-2xl sm:text-3xl">🎙️</span>;
+    return <span className="text-3xl sm:text-4xl">🎙️</span>;
   };
 
   const handleQuickEntryClose = () => {
@@ -190,16 +190,20 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           <SectionHeader title="Schnell erfassen" className="mt-0" />
           
           <div className="space-y-3">
-            {/* 1) EINSPRECHEN - Hero Card, hervorgehoben */}
+            {/* 1) EINSPRECHEN - Hero Card, hervorgehoben mit Voice-Farbe */}
             <StartPageCard 
               variant={voiceRouter.isListening || voiceRouter.isSaving ? "voiceActive" : "voiceHighlight"} 
               size="hero"
               touchFeedback={!voiceRouter.isListening && !voiceRouter.isSaving}
               onClick={!voiceRouter.isListening && !voiceRouter.isSaving ? handleVoiceEntry : undefined}
             >
+              {/* Badge nur im Bereit-Zustand */}
+              {!voiceRouter.isListening && !voiceRouter.isSaving && (
+                <CardBadge text="Empfohlen" />
+              )}
               <StartPageCardHeader
                 icon={<VoiceIcon />}
-                iconBgClassName={voiceRouter.isListening ? "bg-destructive/20" : "bg-primary/40"}
+                iconBgClassName={voiceRouter.isListening ? "bg-destructive/20" : "bg-voice-light/30"}
                 iconSize="large"
                 title={getVoiceButtonTitle()}
                 subtitle={getVoiceButtonSubtitle()}
@@ -237,9 +241,9 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             >
               <StartPageCardHeader
                 icon="➕"
-                iconBgClassName="bg-success/30"
+                iconBgClassName="bg-success/25"
                 title="Migräne-Eintrag (Detail)"
-                subtitle="Detaillierte Dokumentation"
+                subtitle="Ausführliche Dokumentation"
               />
             </StartPageCard>
 
@@ -251,9 +255,9 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             >
               <StartPageCardHeader
                 icon="⚡"
-                iconBgClassName="bg-destructive/30"
+                iconBgClassName="bg-destructive/25"
                 title="Schnell-Eintrag (kurz)"
-                subtitle="Schmerz jetzt kurz festhalten"
+                subtitle="Schmerz jetzt festhalten"
               />
             </StartPageCard>
 
