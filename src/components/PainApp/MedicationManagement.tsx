@@ -670,24 +670,21 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
         }
       }}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader className="space-y-3">
+          <DialogHeader>
             <DialogTitle className="text-xl">Neues Medikament</DialogTitle>
-            <DialogDescription className="text-base text-muted-foreground/90">
-              Gib den Namen des Medikaments ein
-            </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-6 py-4">
             {/* Main Input with Voice Button */}
             <div className="space-y-3">
               <Label htmlFor="med-name" className="text-base font-medium">
-                Medikamentenname
+                Name des Medikaments
               </Label>
               <div className="relative">
                 <Input
                   ref={inputRef}
                   id="med-name"
-                  placeholder="z.B. Ibuprofen 400mg"
+                  placeholder="z.B. Ibuprofen 400 mg"
                   value={voiceState.isRecording ? voiceState.transcript || medicationName : medicationName}
                   onChange={(e) => setMedicationName(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && !addMed.isPending && medicationName.trim() && handleAddMedication()}
