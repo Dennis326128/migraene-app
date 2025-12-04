@@ -42,9 +42,7 @@ const getMedicationBadge = (med: Med) => {
   if (med.art === "prophylaxe" || med.art === "regelmaessig") {
     return <Badge variant="default" className="text-xs bg-primary/80">Regelmäßig</Badge>;
   }
-  if (med.art === "bedarf") {
-    return <Badge variant="outline" className="text-xs">Bei Bedarf</Badge>;
-  }
+  // "Bei Bedarf" wird nicht als Badge angezeigt - Gruppierung zeigt die Kategorie bereits
   if (med.art === "akut") {
     return <Badge variant="outline" className="text-xs">Akut</Badge>;
   }
