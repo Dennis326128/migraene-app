@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabaseClient";
 
-// Extended Med type with all BMP fields
+// Extended Med type with all BMP fields + intolerance
 export type Med = { 
   id: string; 
   name: string; 
@@ -18,6 +18,9 @@ export type Med = {
   art?: string | null;
   is_active?: boolean | null;
   discontinued_at?: string | null;
+  // New intolerance fields
+  intolerance_flag?: boolean | null;
+  intolerance_notes?: string | null;
 };
 
 export type RecentMed = Med & { use_count: number; last_used: string | null };
@@ -36,6 +39,9 @@ export type CreateMedInput = {
   anwendungsgebiet?: string;
   hinweise?: string;
   art?: string;
+  // New intolerance fields
+  intolerance_flag?: boolean;
+  intolerance_notes?: string;
 };
 
 export type UpdateMedInput = Partial<CreateMedInput> & {
@@ -69,6 +75,38 @@ export async function listActiveMeds(): Promise<Med[]> {
   return (data || []) as Med[];
 }
 
+/**
+ * List inactive/discontinued medications
+ */
+export async function listInactiveMeds(): Promise<Med[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+  const { data, error } = await supabase
+    .from("user_medications")
+    .select("*")
+    .eq("user_id", user.id)
+    .or("is_active.eq.false,discontinued_at.not.is.null")
+    .order("discontinued_at", { ascending: false, nullsFirst: false });
+  if (error) throw error;
+  return (data || []) as Med[];
+}
+
+/**
+ * List medications with intolerance flag
+ */
+export async function listIntoleranceMeds(): Promise<Med[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+  const { data, error } = await supabase
+    .from("user_medications")
+    .select("*")
+    .eq("user_id", user.id)
+    .eq("intolerance_flag", true)
+    .order("name", { ascending: true });
+  if (error) throw error;
+  return (data || []) as Med[];
+}
+
 export async function addMed(input: CreateMedInput): Promise<Med> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Kein Nutzer");
@@ -93,6 +131,8 @@ export async function addMed(input: CreateMedInput): Promise<Med> {
       hinweise: input.hinweise || null,
       art: input.art || "bedarf",
       is_active: true,
+      intolerance_flag: input.intolerance_flag || false,
+      intolerance_notes: input.intolerance_notes || null,
     })
     .select()
     .single();
@@ -121,6 +161,9 @@ export async function updateMed(id: string, input: UpdateMedInput): Promise<Med>
   if (input.art !== undefined) updateData.art = input.art || null;
   if (input.is_active !== undefined) updateData.is_active = input.is_active;
   if (input.discontinued_at !== undefined) updateData.discontinued_at = input.discontinued_at;
+  // Handle intolerance fields
+  if (input.intolerance_flag !== undefined) updateData.intolerance_flag = input.intolerance_flag;
+  if (input.intolerance_notes !== undefined) updateData.intolerance_notes = input.intolerance_notes || null;
   
   const { data, error } = await supabase
     .from("user_medications")
@@ -160,6 +203,18 @@ export async function discontinueMed(id: string): Promise<Med> {
   return updateMed(id, { 
     is_active: false, 
     discontinued_at: new Date().toISOString() 
+  });
+}
+
+/**
+ * Mark medication as intolerant
+ */
+export async function markMedAsIntolerant(id: string, notes?: string): Promise<Med> {
+  return updateMed(id, {
+    intolerance_flag: true,
+    intolerance_notes: notes || null,
+    is_active: false,
+    discontinued_at: new Date().toISOString(),
   });
 }
 

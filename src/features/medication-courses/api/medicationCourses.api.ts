@@ -9,6 +9,8 @@ export interface MedicationCourse {
   id: string;
   user_id: string;
   medication_name: string;
+  // New: Reference to user_medications
+  medication_id?: string | null;
   type: MedicationCourseType;
   start_date: string | null;
   end_date: string | null;
@@ -78,6 +80,24 @@ export async function getMedicationCoursesByType(type: MedicationCourseType): Pr
     .select("*")
     .eq("user_id", user.id)
     .eq("type", type)
+    .order("start_date", { ascending: false });
+
+  if (error) throw error;
+  return (data as MedicationCourse[]) ?? [];
+}
+
+/**
+ * Fetch medication courses for a specific medication (by medication_id)
+ */
+export async function getMedicationCoursesByMedId(medicationId: string): Promise<MedicationCourse[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Nicht angemeldet");
+
+  const { data, error } = await supabase
+    .from("medication_courses")
+    .select("*")
+    .eq("user_id", user.id)
+    .eq("medication_id", medicationId)
     .order("start_date", { ascending: false });
 
   if (error) throw error;

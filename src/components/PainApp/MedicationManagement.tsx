@@ -1,19 +1,21 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { useMeds, useAddMed, useDeleteMed } from "@/features/meds/hooks/useMeds";
+import { useMeds, useAddMed, useDeleteMed, type Med } from "@/features/meds/hooks/useMeds";
 import { useReminders, useCreateReminder } from "@/features/reminders/hooks/useReminders";
-import { Pill, Plus, Pencil, Trash2, Bell, ArrowLeft, Clock, AlertTriangle, Download, Loader2 } from "lucide-react";
+import { Pill, Plus, Pencil, Trash2, Bell, ArrowLeft, Clock, AlertTriangle, Download, Loader2, Ban, History, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { supabase } from "@/lib/supabaseClient";
 import { MedicationReminderModal } from "@/components/Reminders/MedicationReminderModal";
+import { MedicationEditModal } from "./MedicationEditModal";
 import { MedicationCoursesList } from "./MedicationCourses";
 import { format, addMinutes } from "date-fns";
 import type { ReminderRepeat } from "@/types/reminder.types";
@@ -22,11 +24,101 @@ import { usePatientData, useDoctors } from "@/features/account/hooks/useAccount"
 import { useMedicationCourses } from "@/features/medication-courses/hooks/useMedicationCourses";
 import { useMedicationLimits } from "@/features/medication-limits/hooks/useMedicationLimits";
 import { DoctorSelectionDialog, type Doctor } from "./DoctorSelectionDialog";
+import { cn } from "@/lib/utils";
 
 interface MedicationManagementProps {
   onBack: () => void;
   onNavigateToLimits?: () => void;
 }
+
+// Helper: Get badge for medication type
+const getMedicationBadge = (med: Med) => {
+  if (med.intolerance_flag) {
+    return <Badge variant="destructive" className="text-xs">Unverträglich</Badge>;
+  }
+  if (med.is_active === false || med.discontinued_at) {
+    return <Badge variant="secondary" className="text-xs">Abgesetzt</Badge>;
+  }
+  if (med.art === "prophylaxe" || med.art === "regelmaessig") {
+    return <Badge variant="default" className="text-xs bg-primary/80">Regelmäßig</Badge>;
+  }
+  return <Badge variant="outline" className="text-xs">Bei Bedarf</Badge>;
+};
+
+// Medication Card Component
+const MedicationCard: React.FC<{
+  med: Med;
+  reminderCount: number;
+  onEdit: () => void;
+  onDelete: () => void;
+  onReminder: () => void;
+}> = ({ med, reminderCount, onEdit, onDelete, onReminder }) => {
+  const isInactive = med.is_active === false || !!med.discontinued_at || med.intolerance_flag;
+  
+  return (
+    <Card className={cn(
+      "hover:shadow-md transition-shadow",
+      isInactive && "opacity-70",
+      med.intolerance_flag && "border-destructive/30 bg-destructive/5"
+    )}>
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              <Pill className={cn("h-5 w-5 shrink-0", med.intolerance_flag ? "text-destructive" : "text-primary")} />
+              <h3 className="font-semibold text-sm leading-tight line-clamp-2 break-words">{med.name}</h3>
+              {getMedicationBadge(med)}
+            </div>
+            {med.wirkstoff && (
+              <p className="text-xs text-muted-foreground mb-1">{med.wirkstoff} {med.staerke}</p>
+            )}
+            {med.intolerance_notes && (
+              <p className="text-xs text-destructive mt-1">⚠️ {med.intolerance_notes}</p>
+            )}
+            {reminderCount > 0 && !isInactive && (
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground leading-tight mt-1">
+                <Clock className="h-4 w-4" />
+                <span>{reminderCount} aktive Erinnerung{reminderCount !== 1 ? 'en' : ''}</span>
+              </div>
+            )}
+          </div>
+          
+          <div className="flex items-center gap-1 shrink-0">
+            {!isInactive && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onReminder}
+                title="Erinnerungen verwalten"
+                className="h-10 w-10"
+              >
+                <Bell className="h-4 w-4" />
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onEdit}
+              title="Bearbeiten"
+              className="h-10 w-10"
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onDelete}
+              title="Löschen"
+              className="h-10 w-10"
+            >
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
 
 export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBack, onNavigateToLimits }) => {
   const { data: medications, isLoading } = useMeds();
@@ -40,14 +132,42 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
   const createReminder = useCreateReminder();
   
   const [showAddDialog, setShowAddDialog] = useState(false);
-  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showReminderModal, setShowReminderModal] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [showDoctorSelection, setShowDoctorSelection] = useState(false);
   
-  const [selectedMedication, setSelectedMedication] = useState<any>(null);
+  // Collapsible sections state
+  const [showInactive, setShowInactive] = useState(false);
+  const [showIntolerance, setShowIntolerance] = useState(true);
+  
+  const [selectedMedication, setSelectedMedication] = useState<Med | null>(null);
   const [medicationName, setMedicationName] = useState("");
+
+  // Categorize medications
+  const categorizedMeds = useMemo(() => {
+    if (!medications) return { regular: [], onDemand: [], inactive: [], intolerant: [] };
+    
+    const regular: Med[] = [];
+    const onDemand: Med[] = [];
+    const inactive: Med[] = [];
+    const intolerant: Med[] = [];
+    
+    for (const med of medications) {
+      if (med.intolerance_flag) {
+        intolerant.push(med);
+      } else if (med.is_active === false || med.discontinued_at) {
+        inactive.push(med);
+      } else if (med.art === "prophylaxe" || med.art === "regelmaessig") {
+        regular.push(med);
+      } else {
+        onDemand.push(med);
+      }
+    }
+    
+    return { regular, onDemand, inactive, intolerant };
+  }, [medications]);
 
   // Get reminders count for a medication
   const getMedicationRemindersCount = (medName: string) => {
@@ -60,13 +180,13 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
 
   // PDF Generation
   const generatePdfWithDoctors = async (selectedDoctors: Doctor[]) => {
-    const activeMeds = medications?.filter(m => m.is_active !== false) || [];
+    const allMeds = medications || [];
     
     setIsGeneratingPdf(true);
     try {
       const pdfBytes = await buildMedicationPlanPdf({
         medicationCourses: medicationCourses || [],
-        userMedications: activeMeds.map(m => ({
+        userMedications: allMeds.map(m => ({
           id: m.id,
           name: m.name,
           wirkstoff: m.wirkstoff,
@@ -82,6 +202,9 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
           hinweise: m.hinweise,
           art: m.art,
           is_active: m.is_active,
+          intolerance_flag: m.intolerance_flag,
+          intolerance_notes: m.intolerance_notes,
+          discontinued_at: m.discontinued_at,
         })),
         medicationLimits: medicationLimits?.map(l => ({
           medication_name: l.medication_name,
@@ -136,7 +259,7 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
   };
 
   const handleGenerateMedicationPlan = async () => {
-    const activeMeds = medications?.filter(m => m.is_active !== false) || [];
+    const activeMeds = medications?.filter(m => m.is_active !== false && !m.intolerance_flag) || [];
     const hasMedications = (medicationCourses && medicationCourses.length > 0) || activeMeds.length > 0;
     
     if (!hasMedications) {
@@ -167,14 +290,13 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
       return;
     }
 
-    // Validate medication name
     if (trimmedName.length > 100) {
       toast.error("Medikamentenname darf maximal 100 Zeichen lang sein");
       return;
     }
 
     if (!/^[a-zA-ZäöüÄÖÜß0-9\s\-/().]+$/.test(trimmedName)) {
-      toast.error("Medikamentenname enthält ungültige Zeichen. Nur Buchstaben, Zahlen und -/() sind erlaubt.");
+      toast.error("Medikamentenname enthält ungültige Zeichen.");
       return;
     }
 
@@ -184,59 +306,7 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
       setMedicationName("");
       setShowAddDialog(false);
     } catch (error) {
-      if (import.meta.env.DEV) {
-        console.error('[MedicationManagement] Add medication error:', error);
-      }
-      toast.error("Fehler beim Hinzufügen des Medikaments. Bitte versuchen Sie es erneut.");
-    }
-  };
-
-  const handleEditMedication = async () => {
-    const trimmedName = medicationName.trim();
-    
-    if (!trimmedName || !selectedMedication) {
-      toast.error("Bitte geben Sie einen Medikamentennamen ein");
-      return;
-    }
-
-    // Validate medication name
-    if (trimmedName.length > 100) {
-      toast.error("Medikamentenname darf maximal 100 Zeichen lang sein");
-      return;
-    }
-
-    if (!/^[a-zA-ZäöüÄÖÜß0-9\s\-/().]+$/.test(trimmedName)) {
-      toast.error("Medikamentenname enthält ungültige Zeichen. Nur Buchstaben, Zahlen und -/() sind erlaubt.");
-      return;
-    }
-
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast.error("Sie sind nicht angemeldet.");
-        return;
-      }
-      
-      const { error } = await supabase
-        .from("user_medications")
-        .update({ name: trimmedName })
-        .eq("id", selectedMedication.id)
-        .eq("user_id", user.id);
-      
-      if (error) throw error;
-      
-      toast.success("Medikament aktualisiert");
-      setMedicationName("");
-      setSelectedMedication(null);
-      setShowEditDialog(false);
-      
-      // Invalidate query to refresh list
-      await addMed.mutateAsync(""); // Trigger refetch
-    } catch (error) {
-      if (import.meta.env.DEV) {
-        console.error('[MedicationManagement] Edit medication error:', error);
-      }
-      toast.error("Fehler beim Aktualisieren des Medikaments. Bitte versuchen Sie es erneut.");
+      toast.error("Fehler beim Hinzufügen des Medikaments.");
     }
   };
 
@@ -253,23 +323,22 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
     }
   };
 
-  const openEditDialog = (med: any) => {
+  const openEditModal = (med: Med) => {
     setSelectedMedication(med);
-    setMedicationName(med.name);
-    setShowEditDialog(true);
+    setShowEditModal(true);
   };
 
-  const openDeleteDialog = (med: any) => {
+  const openDeleteDialog = (med: Med) => {
     setSelectedMedication(med);
     setShowDeleteDialog(true);
   };
 
-  const openReminderDialog = (med: any) => {
+  const openReminderDialog = (med: Med) => {
     setSelectedMedication(med);
     setShowReminderModal(true);
   };
 
-  const handleCreateReminders = async (reminders: {
+  const handleCreateReminders = async (remindersData: {
     time: string;
     repeat: ReminderRepeat;
     notification_enabled: boolean;
@@ -277,8 +346,7 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
     if (!selectedMedication) return;
 
     try {
-      // Create reminders for each time slot
-      for (const reminderData of reminders) {
+      for (const reminderData of remindersData) {
         const today = format(new Date(), 'yyyy-MM-dd');
         const dateTime = `${today}T${reminderData.time}:00`;
         
@@ -292,7 +360,7 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
         });
       }
 
-      const count = reminders.length;
+      const count = remindersData.length;
       toast.success(`${count} Erinnerung${count > 1 ? 'en' : ''} erstellt`);
     } catch (error) {
       toast.error("Fehler beim Erstellen der Erinnerungen");
@@ -314,6 +382,8 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
     );
   }
 
+  const totalActive = categorizedMeds.regular.length + categorizedMeds.onDemand.length;
+
   return (
     <div className="space-y-4 p-4">
       {/* Header */}
@@ -328,11 +398,13 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
         </Button>
         <div>
           <h1 className="text-2xl font-bold">Medikamente verwalten</h1>
-          <p className="text-sm text-muted-foreground">Ihre Medikamente und Erinnerungen</p>
+          <p className="text-sm text-muted-foreground">
+            {totalActive} aktive Medikamente
+          </p>
         </div>
       </div>
 
-      {/* PROMINENT: Medikationsplan PDF Button - TOP ACTION */}
+      {/* PROMINENT: Medikationsplan PDF Button */}
       <Card className="border-primary/40 bg-gradient-to-r from-primary/10 to-primary/5 hover:border-primary/60 transition-all duration-200">
         <CardContent className="p-4">
           <Button
@@ -392,73 +464,128 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
         Neues Medikament hinzufügen
       </Button>
 
-      {/* Medications List */}
-      <div className="space-y-3">
-        {medications && medications.length === 0 ? (
-          <Card>
-            <CardContent className="pt-6 text-center text-muted-foreground">
-              <Pill className="h-12 w-12 mx-auto mb-3 opacity-50" />
-              <p>Noch keine Medikamente hinzugefügt</p>
-              <p className="text-sm mt-1">Fügen Sie Ihr erstes Medikament hinzu</p>
-            </CardContent>
-          </Card>
-        ) : (
-          medications?.map((med) => {
-            const reminderCount = getMedicationRemindersCount(med.name);
-            
-            return (
-              <Card key={med.id} className="hover:shadow-md transition-shadow">
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Pill className="h-5 w-5 text-primary shrink-0" />
-                        <h3 className="font-semibold text-sm leading-tight line-clamp-2 break-words">{med.name}</h3>
-                      </div>
-                      {reminderCount > 0 && (
-                        <div className="flex items-center gap-1.5 text-xs sm:text-sm text-muted-foreground leading-tight">
-                          <Clock className="h-5 w-5" />
-                          <span>{reminderCount} aktive Erinnerung{reminderCount !== 1 ? 'en' : ''}</span>
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className="flex items-center gap-1 shrink-0">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => openReminderDialog(med)}
-                        title="Erinnerungen verwalten"
-                        className="h-10 w-10"
-                      >
-                        <Bell className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => openEditDialog(med)}
-                        title="Bearbeiten"
-                        className="h-10 w-10"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => openDeleteDialog(med)}
-                        title="Löschen"
-                        className="h-10 w-10"
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
+      {/* Unverträglichkeiten Section */}
+      {categorizedMeds.intolerant.length > 0 && (
+        <Collapsible open={showIntolerance} onOpenChange={setShowIntolerance}>
+          <CollapsibleTrigger asChild>
+            <Card className="border-destructive/30 bg-destructive/5 cursor-pointer hover:bg-destructive/10 transition-colors">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Ban className="h-5 w-5 text-destructive" />
+                    <span className="font-semibold text-destructive">
+                      Unverträglichkeiten ({categorizedMeds.intolerant.length})
+                    </span>
                   </div>
-                </CardContent>
-              </Card>
-            );
-          })
-        )}
-      </div>
+                  <ChevronDown className={cn(
+                    "h-5 w-5 text-destructive transition-transform",
+                    showIntolerance && "rotate-180"
+                  )} />
+                </div>
+              </CardContent>
+            </Card>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="space-y-3 mt-3">
+            {categorizedMeds.intolerant.map((med) => (
+              <MedicationCard
+                key={med.id}
+                med={med}
+                reminderCount={0}
+                onEdit={() => openEditModal(med)}
+                onDelete={() => openDeleteDialog(med)}
+                onReminder={() => {}}
+              />
+            ))}
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+
+      {/* Regelmäßige Medikation */}
+      {categorizedMeds.regular.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <Pill className="h-5 w-5 text-primary" />
+            Regelmäßige Medikation ({categorizedMeds.regular.length})
+          </h2>
+          {categorizedMeds.regular.map((med) => (
+            <MedicationCard
+              key={med.id}
+              med={med}
+              reminderCount={getMedicationRemindersCount(med.name)}
+              onEdit={() => openEditModal(med)}
+              onDelete={() => openDeleteDialog(med)}
+              onReminder={() => openReminderDialog(med)}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Bedarfsmedikation */}
+      {categorizedMeds.onDemand.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <Pill className="h-5 w-5" />
+            Bedarfsmedikation ({categorizedMeds.onDemand.length})
+          </h2>
+          {categorizedMeds.onDemand.map((med) => (
+            <MedicationCard
+              key={med.id}
+              med={med}
+              reminderCount={getMedicationRemindersCount(med.name)}
+              onEdit={() => openEditModal(med)}
+              onDelete={() => openDeleteDialog(med)}
+              onReminder={() => openReminderDialog(med)}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Empty State */}
+      {totalActive === 0 && categorizedMeds.intolerant.length === 0 && (
+        <Card>
+          <CardContent className="pt-6 text-center text-muted-foreground">
+            <Pill className="h-12 w-12 mx-auto mb-3 opacity-50" />
+            <p>Noch keine Medikamente hinzugefügt</p>
+            <p className="text-sm mt-1">Fügen Sie Ihr erstes Medikament hinzu</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Früher verwendete Medikamente */}
+      {categorizedMeds.inactive.length > 0 && (
+        <Collapsible open={showInactive} onOpenChange={setShowInactive}>
+          <CollapsibleTrigger asChild>
+            <Card className="border-muted cursor-pointer hover:bg-muted/50 transition-colors">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <History className="h-5 w-5 text-muted-foreground" />
+                    <span className="font-semibold text-muted-foreground">
+                      Früher verwendete Medikamente ({categorizedMeds.inactive.length})
+                    </span>
+                  </div>
+                  <ChevronDown className={cn(
+                    "h-5 w-5 text-muted-foreground transition-transform",
+                    showInactive && "rotate-180"
+                  )} />
+                </div>
+              </CardContent>
+            </Card>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="space-y-3 mt-3">
+            {categorizedMeds.inactive.map((med) => (
+              <MedicationCard
+                key={med.id}
+                med={med}
+                reminderCount={0}
+                onEdit={() => openEditModal(med)}
+                onDelete={() => openDeleteDialog(med)}
+                onReminder={() => {}}
+              />
+            ))}
+          </CollapsibleContent>
+        </Collapsible>
+      )}
 
       {/* Medication Courses Section */}
       <Separator className="my-6" />
@@ -484,6 +611,9 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
                 onKeyDown={(e) => e.key === 'Enter' && handleAddMedication()}
                 autoFocus
               />
+              <p className="text-xs text-muted-foreground">
+                Details können später ergänzt werden
+              </p>
             </div>
           </div>
           <DialogFooter>
@@ -493,49 +623,23 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
             }}>
               Abbrechen
             </Button>
-            <Button onClick={handleAddMedication} disabled={!medicationName.trim()}>
+            <Button onClick={handleAddMedication} disabled={!medicationName.trim() || addMed.isPending}>
+              {addMed.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Hinzufügen
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Edit Dialog */}
-      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Medikament bearbeiten</DialogTitle>
-            <DialogDescription>
-              Ändern Sie den Namen des Medikaments
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="edit-med-name">Medikamentenname</Label>
-              <Input
-                id="edit-med-name"
-                placeholder="z.B. Ibuprofen 400mg"
-                value={medicationName}
-                onChange={(e) => setMedicationName(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleEditMedication()}
-                autoFocus
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => {
-              setShowEditDialog(false);
-              setMedicationName("");
-              setSelectedMedication(null);
-            }}>
-              Abbrechen
-            </Button>
-            <Button onClick={handleEditMedication} disabled={!medicationName.trim()}>
-              Speichern
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Edit Modal (Full) */}
+      <MedicationEditModal
+        medication={selectedMedication}
+        open={showEditModal}
+        onOpenChange={(open) => {
+          setShowEditModal(open);
+          if (!open) setSelectedMedication(null);
+        }}
+      />
 
       {/* Delete Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
