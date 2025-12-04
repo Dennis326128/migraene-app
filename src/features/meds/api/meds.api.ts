@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabaseClient";
 export type Med = { 
   id: string; 
   name: string; 
+  raw_input?: string | null; // Original text as entered/spoken by user
   wirkstoff?: string | null;
   staerke?: string | null;
   darreichungsform?: string | null;
@@ -44,6 +45,7 @@ export type RecentMed = Med & { use_count: number; last_used: string | null };
 
 export type CreateMedInput = {
   name: string;
+  raw_input?: string; // Original text as entered/spoken by user
   wirkstoff?: string;
   staerke?: string;
   darreichungsform?: string;
@@ -152,6 +154,7 @@ export async function addMed(input: CreateMedInput): Promise<Med> {
     .insert({ 
       user_id: user.id, 
       name: trimmed,
+      raw_input: input.raw_input || null,
       wirkstoff: input.wirkstoff || null,
       staerke: input.staerke || null,
       darreichungsform: input.darreichungsform || null,

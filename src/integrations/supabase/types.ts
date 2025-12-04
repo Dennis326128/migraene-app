@@ -590,6 +590,7 @@ export type Database = {
           is_active: boolean | null
           medication_status: string | null
           name: string
+          raw_input: string | null
           regular_notes: string | null
           regular_weekdays: string[] | null
           staerke: string | null
@@ -625,6 +626,7 @@ export type Database = {
           is_active?: boolean | null
           medication_status?: string | null
           name: string
+          raw_input?: string | null
           regular_notes?: string | null
           regular_weekdays?: string[] | null
           staerke?: string | null
@@ -660,6 +662,7 @@ export type Database = {
           is_active?: boolean | null
           medication_status?: string | null
           name?: string
+          raw_input?: string | null
           regular_notes?: string | null
           regular_weekdays?: string[] | null
           staerke?: string | null
