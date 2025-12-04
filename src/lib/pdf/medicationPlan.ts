@@ -1,68 +1,71 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════
- * MEDIKATIONSPLAN-PDF - PATIENTEN-VERSION
+ * MEDIKATIONSPLAN-PDF - DEUTSCHER STANDARD (BMP-ÄHNLICH)
  * ═══════════════════════════════════════════════════════════════════════════
  * 
- * Professionelles PDF im Stil des deutschen Medikationsplans.
- * WICHTIG: Dieser Plan wird vom PATIENTEN aus der App generiert,
- * nicht von einer Arztpraxis.
+ * Professionelles PDF im Stil des deutschen Bundeseinheitlichen Medikationsplans.
  * 
- * SPALTEN:
- * - Wirkstoff
- * - Handelsname
- * - Stärke
- * - Form
- * - Dosis (Mo | Mi | Ab | Na) oder Intervall
- * - Einheit
+ * PRIMÄRE DATENQUELLE: user_medications (nicht medication_courses!)
+ * medication_courses werden nur für Verlaufsinformationen ergänzt.
  * 
- * KEINE Hinweise-Spalte, KEINE Legende
+ * SECTIONS:
+ * 1. Aktuelle Medikation (Regelmäßig + Bei Bedarf)
+ * 2. Unverträglichkeiten / Allergien (optional)
+ * 3. Früher verwendete Medikamente (optional)
  * 
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
 import { PDFDocument, StandardFonts, rgb, PDFPage, PDFFont } from "pdf-lib";
-import { lookupMedicationMetadata, guessMedicationType, suggestAnwendungsgebiet } from "@/lib/medicationLookup";
+import { lookupMedicationMetadata } from "@/lib/medicationLookup";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES & CONSTANTS
 // ═══════════════════════════════════════════════════════════════════════════
 
 const COLORS = {
-  primary: rgb(0.15, 0.35, 0.55),         // Professionelles Blau
-  headerBg: rgb(0.92, 0.94, 0.96),        // Dezenter Header
-  sectionProphylaxe: rgb(0.90, 0.95, 0.92), // Leichtes Grün für Prophylaxe
-  sectionAkut: rgb(0.98, 0.94, 0.90),     // Leichtes Orange für Akut
-  sectionBedarf: rgb(0.95, 0.95, 0.98),   // Leichtes Blau für Bedarf
+  primary: rgb(0.12, 0.30, 0.50),           // Dunkelblau (BMP-Stil)
+  headerBg: rgb(0.90, 0.93, 0.96),          // Hellgrau-Blau
+  sectionRegular: rgb(0.92, 0.96, 0.92),    // Leichtes Grün
+  sectionBedarf: rgb(0.96, 0.96, 0.92),     // Leichtes Gelb
+  sectionInactive: rgb(0.94, 0.94, 0.94),   // Grau
+  sectionIntolerance: rgb(0.98, 0.92, 0.92), // Leichtes Rot
   text: rgb(0.1, 0.1, 0.1),
-  textMuted: rgb(0.45, 0.45, 0.45),
-  border: rgb(0.7, 0.7, 0.7),
-  borderLight: rgb(0.85, 0.85, 0.85),
+  textMuted: rgb(0.4, 0.4, 0.4),
+  border: rgb(0.6, 0.6, 0.6),
+  borderLight: rgb(0.82, 0.82, 0.82),
   white: rgb(1, 1, 1),
+  warning: rgb(0.8, 0.2, 0.2),
 };
 
 const LAYOUT = {
   pageWidth: 595.28,    // A4
   pageHeight: 841.89,
-  marginLeft: 40,
-  marginRight: 40,
-  marginTop: 45,
-  marginBottom: 55,
+  marginLeft: 35,
+  marginRight: 35,
+  marginTop: 40,
+  marginBottom: 50,
 };
 
-export type MedicationCourseForPlan = {
-  id: string;
-  medication_name: string;
-  type: string;
-  dose_text?: string | null;
-  start_date: string | null;
-  end_date?: string | null;
-  is_active: boolean;
-  subjective_effectiveness?: number | null;
-  had_side_effects?: boolean | null;
-  side_effects_text?: string | null;
-  discontinuation_reason?: string | null;
-  note_for_physician?: string | null;
+// Column widths for medication table
+const COL_WIDTHS = {
+  wirkstoff: 90,
+  handelsname: 100,
+  staerke: 50,
+  form: 55,
+  mo: 28,
+  mi: 28,
+  ab: 28,
+  na: 28,
+  einheit: 45,
+  grund: 70,
 };
+
+const TABLE_WIDTH = Object.values(COL_WIDTHS).reduce((a, b) => a + b, 0);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INPUT TYPES
+// ═══════════════════════════════════════════════════════════════════════════
 
 export type UserMedicationForPlan = {
   id: string;
@@ -78,9 +81,25 @@ export type UserMedicationForPlan = {
   dosis_bedarf?: string | null;
   anwendungsgebiet?: string | null;
   hinweise?: string | null;
-  hinweis_ki?: string | null;      // KI-Notizen - wird NICHT im PDF angezeigt!
   art?: string | null;
   is_active?: boolean | null;
+  intolerance_flag?: boolean | null;
+  intolerance_notes?: string | null;
+  discontinued_at?: string | null;
+};
+
+export type MedicationCourseForPlan = {
+  id: string;
+  medication_name: string;
+  medication_id?: string | null;
+  type: string;
+  dose_text?: string | null;
+  start_date: string | null;
+  end_date?: string | null;
+  is_active: boolean;
+  discontinuation_reason?: string | null;
+  discontinuation_details?: string | null;
+  side_effects_text?: string | null;
 };
 
 type PatientData = {
@@ -92,7 +111,6 @@ type PatientData = {
   city?: string;
   phone?: string;
   fax?: string;
-  email?: string;
   healthInsurance?: string;
   insuranceNumber?: string;
 };
@@ -110,9 +128,17 @@ type DoctorData = {
   email?: string;
 };
 
+export type PdfExportOptions = {
+  includeActive: boolean;
+  includeInactive: boolean;
+  includeIntolerance: boolean;
+  includeLimits: boolean;
+  includeGrund: boolean;
+};
+
 export type BuildMedicationPlanParams = {
-  medicationCourses: MedicationCourseForPlan[];
   userMedications?: UserMedicationForPlan[];
+  medicationCourses?: MedicationCourseForPlan[];
   medicationLimits?: Array<{
     medication_name: string;
     limit_count: number;
@@ -120,7 +146,16 @@ export type BuildMedicationPlanParams = {
   }>;
   patientData?: PatientData;
   doctors?: DoctorData[];
-  showGrund?: boolean;
+  options?: Partial<PdfExportOptions>;
+};
+
+// Default export options
+const DEFAULT_OPTIONS: PdfExportOptions = {
+  includeActive: true,
+  includeInactive: false,
+  includeIntolerance: true,
+  includeLimits: false,
+  includeGrund: true,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -150,26 +185,6 @@ function formatDate(dateStr: string | undefined | null): string {
   }
 }
 
-/**
- * Normalisiert Intervallangaben zu lesbarem Klartext
- * "1x/Mon" → "1x monatlich"
- * "1x/Monat" → "1x monatlich"
- */
-function normalizeInterval(text: string | null | undefined): string {
-  if (!text) return "";
-  let result = text
-    .replace(/1x\/Mon\.?/gi, "1x monatlich")
-    .replace(/1x\/Monat/gi, "1x monatlich")
-    .replace(/1x monat/gi, "1x monatlich")
-    .replace(/1x\/Woche/gi, "1x woechentlich")
-    .replace(/alle\s*3\s*Mon/gi, "alle 3 Monate")
-    .replace(/quartal/gi, "alle 3 Monate")
-    .replace(/taegl\.?/gi, "taeglich")
-    .replace(/woech\.?/gi, "woechentlich")
-    .replace(/Mon\./gi, "Monat");
-  return result;
-}
-
 function getPeriodLabel(periodType: string): string {
   const labels: Record<string, string> = {
     day: "Tag", daily: "Tag",
@@ -179,119 +194,300 @@ function getPeriodLabel(periodType: string): string {
   return labels[periodType?.toLowerCase()] || "Monat";
 }
 
+function getDiscontinuationReasonLabel(reason: string | null | undefined): string {
+  const labels: Record<string, string> = {
+    keine_wirkung: "Keine Wirkung",
+    nebenwirkungen: "Nebenwirkungen",
+    migraene_gebessert: "Besserung",
+    kinderwunsch: "Kinderwunsch",
+    andere: "Andere Gruende",
+  };
+  return labels[reason || ""] || reason || "";
+}
+
+function truncateText(text: string, maxLen: number): string {
+  if (text.length <= maxLen) return text;
+  return text.substring(0, maxLen - 2) + "..";
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
-// TABLE DRAWING HELPERS - NO HINWEISE COLUMN
+// MEDICATION ROW TYPE (internal)
 // ═══════════════════════════════════════════════════════════════════════════
 
-const COL_WIDTHS = {
-  wirkstoff: 95,
-  handelsname: 95,
-  staerke: 55,
-  form: 60,
-  mo: 30,
-  mi: 30,
-  ab: 30,
-  na: 30,
-  einheit: 50,
+type MedRow = {
+  wirkstoff: string;
+  handelsname: string;
+  staerke: string;
+  form: string;
+  morgens: string;
+  mittags: string;
+  abends: string;
+  nachts: string;
+  einheit: string;
+  grund: string;
+  hinweise: string;
+  isIntolerant: boolean;
+  intoleranceNotes: string;
+  discontinuedAt: string;
+  discontinuationReason: string;
 };
 
-const TABLE_WIDTH = Object.values(COL_WIDTHS).reduce((a, b) => a + b, 0);
+// ═══════════════════════════════════════════════════════════════════════════
+// DATA AGGREGATION: Build rows from user_medications (PRIMARY SOURCE)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function buildMedicationRows(
+  userMedications: UserMedicationForPlan[],
+  medicationCourses: MedicationCourseForPlan[]
+): {
+  regular: MedRow[];
+  onDemand: MedRow[];
+  inactive: MedRow[];
+  intolerant: MedRow[];
+} {
+  const regular: MedRow[] = [];
+  const onDemand: MedRow[] = [];
+  const inactive: MedRow[] = [];
+  const intolerant: MedRow[] = [];
+
+  // Create a map of courses by medication_id or medication_name for quick lookup
+  const coursesByMedId = new Map<string, MedicationCourseForPlan>();
+  const coursesByName = new Map<string, MedicationCourseForPlan>();
+  for (const course of medicationCourses) {
+    if (course.medication_id) {
+      coursesByMedId.set(course.medication_id, course);
+    }
+    coursesByName.set(course.medication_name.toLowerCase(), course);
+  }
+
+  for (const med of userMedications) {
+    // Find associated course (by ID first, then by name)
+    const course = coursesByMedId.get(med.id) || coursesByName.get(med.name.toLowerCase());
+    
+    // Lookup metadata for missing fields
+    const lookup = lookupMedicationMetadata(med.name);
+    
+    // Build dosierung string
+    let morgens = med.dosis_morgens || "";
+    let mittags = med.dosis_mittags || "";
+    let abends = med.dosis_abends || "";
+    let nachts = med.dosis_nacht || "";
+    
+    // If no daily dose but has "bei Bedarf" dose
+    const hasDailyDose = morgens || mittags || abends || nachts;
+    if (!hasDailyDose && med.dosis_bedarf) {
+      morgens = "b.B.";  // "bei Bedarf" indicator
+    }
+
+    const row: MedRow = {
+      wirkstoff: sanitize(med.wirkstoff || lookup?.wirkstoff || ""),
+      handelsname: sanitize(med.name),
+      staerke: sanitize(med.staerke || lookup?.staerke || ""),
+      form: sanitize(med.darreichungsform || lookup?.darreichungsform || "Tbl."),
+      morgens,
+      mittags,
+      abends,
+      nachts,
+      einheit: sanitize(med.einheit || lookup?.einheit || "St."),
+      grund: sanitize(med.anwendungsgebiet || lookup?.anwendungsgebiet || ""),
+      hinweise: sanitize(med.hinweise || ""),
+      isIntolerant: !!med.intolerance_flag,
+      intoleranceNotes: sanitize(med.intolerance_notes || course?.side_effects_text || ""),
+      discontinuedAt: med.discontinued_at ? formatDate(med.discontinued_at) : 
+                      (course?.end_date ? formatDate(course.end_date) : ""),
+      discontinuationReason: getDiscontinuationReasonLabel(course?.discontinuation_reason),
+    };
+
+    // Categorize
+    if (med.intolerance_flag) {
+      intolerant.push(row);
+    } else if (med.is_active === false || med.discontinued_at) {
+      inactive.push(row);
+    } else if (med.art === "prophylaxe" || med.art === "regelmaessig") {
+      regular.push(row);
+    } else {
+      onDemand.push(row);
+    }
+  }
+
+  return { regular, onDemand, inactive, intolerant };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TABLE DRAWING HELPERS
+// ═══════════════════════════════════════════════════════════════════════════
 
 function drawTableHeader(
   page: PDFPage,
   y: number,
   tableX: number,
-  helvetica: PDFFont,
-  helveticaBold: PDFFont
+  fonts: { helvetica: PDFFont; helveticaBold: PDFFont },
+  showGrund: boolean
 ): number {
+  const { helvetica, helveticaBold } = fonts;
   const headerHeight = 18;
   const subHeaderHeight = 14;
+  
+  const effectiveTableWidth = showGrund ? TABLE_WIDTH : TABLE_WIDTH - COL_WIDTHS.grund;
   
   // Main header background
   page.drawRectangle({
     x: tableX,
     y: y - headerHeight,
-    width: TABLE_WIDTH,
+    width: effectiveTableWidth,
     height: headerHeight,
     color: COLORS.headerBg,
   });
   
-  // Main header border (top and bottom only for cleaner look)
-  page.drawLine({
-    start: { x: tableX, y },
-    end: { x: tableX + TABLE_WIDTH, y },
-    thickness: 1.2,
-    color: COLORS.border,
-  });
-  page.drawLine({
-    start: { x: tableX, y: y - headerHeight },
-    end: { x: tableX + TABLE_WIDTH, y: y - headerHeight },
-    thickness: 0.5,
-    color: COLORS.border,
-  });
+  // Borders
+  page.drawLine({ start: { x: tableX, y }, end: { x: tableX + effectiveTableWidth, y }, thickness: 1.2, color: COLORS.border });
+  page.drawLine({ start: { x: tableX, y: y - headerHeight }, end: { x: tableX + effectiveTableWidth, y: y - headerHeight }, thickness: 0.5, color: COLORS.border });
   
   // Column headers
-  const headerFontSize = 7.5;
+  const fs = 7;
   let hx = tableX + 3;
   const headerY = y - 12;
   
-  page.drawText("Wirkstoff", { x: hx, y: headerY, size: headerFontSize, font: helveticaBold, color: COLORS.text });
+  page.drawText("Wirkstoff", { x: hx, y: headerY, size: fs, font: helveticaBold, color: COLORS.text });
   hx += COL_WIDTHS.wirkstoff;
-  page.drawText("Handelsname", { x: hx, y: headerY, size: headerFontSize, font: helveticaBold, color: COLORS.text });
+  page.drawText("Handelsname", { x: hx, y: headerY, size: fs, font: helveticaBold, color: COLORS.text });
   hx += COL_WIDTHS.handelsname;
-  page.drawText("Staerke", { x: hx, y: headerY, size: headerFontSize, font: helveticaBold, color: COLORS.text });
+  page.drawText("Staerke", { x: hx, y: headerY, size: fs, font: helveticaBold, color: COLORS.text });
   hx += COL_WIDTHS.staerke;
-  page.drawText("Form", { x: hx, y: headerY, size: headerFontSize, font: helveticaBold, color: COLORS.text });
+  page.drawText("Form", { x: hx, y: headerY, size: fs, font: helveticaBold, color: COLORS.text });
   hx += COL_WIDTHS.form;
   
-  // "Dosierung" spanning the dose columns
+  // "Dosierung" spanning columns
   const doseWidth = COL_WIDTHS.mo + COL_WIDTHS.mi + COL_WIDTHS.ab + COL_WIDTHS.na;
-  page.drawText("Dosierung", { x: hx + doseWidth / 2 - 18, y: headerY, size: headerFontSize, font: helveticaBold, color: COLORS.text });
+  page.drawText("Dosierung", { x: hx + doseWidth / 2 - 16, y: headerY, size: fs, font: helveticaBold, color: COLORS.text });
   hx += doseWidth;
   
-  page.drawText("Einheit", { x: hx, y: headerY, size: headerFontSize, font: helveticaBold, color: COLORS.text });
+  page.drawText("Einheit", { x: hx, y: headerY, size: fs, font: helveticaBold, color: COLORS.text });
+  hx += COL_WIDTHS.einheit;
   
-  // Sub-header for dose columns
+  if (showGrund) {
+    page.drawText("Grund", { x: hx, y: headerY, size: fs, font: helveticaBold, color: COLORS.text });
+  }
+  
+  // Sub-header for dose columns (Mo, Mi, Ab, Na)
   const subY = y - headerHeight;
   page.drawRectangle({
     x: tableX,
     y: subY - subHeaderHeight,
-    width: TABLE_WIDTH,
+    width: effectiveTableWidth,
     height: subHeaderHeight,
-    color: rgb(0.96, 0.96, 0.96),
+    color: rgb(0.95, 0.95, 0.95),
   });
-  page.drawLine({
-    start: { x: tableX, y: subY - subHeaderHeight },
-    end: { x: tableX + TABLE_WIDTH, y: subY - subHeaderHeight },
-    thickness: 0.8,
-    color: COLORS.border,
-  });
+  page.drawLine({ start: { x: tableX, y: subY - subHeaderHeight }, end: { x: tableX + effectiveTableWidth, y: subY - subHeaderHeight }, thickness: 0.8, color: COLORS.border });
   
-  // Dose sub-headers (Mo, Mi, Ab, Na)
   const doseStartX = tableX + COL_WIDTHS.wirkstoff + COL_WIDTHS.handelsname + COL_WIDTHS.staerke + COL_WIDTHS.form;
   const doseLabels = ["Mo", "Mi", "Ab", "Na"];
   let dx = doseStartX;
   for (let i = 0; i < 4; i++) {
-    page.drawText(doseLabels[i], { 
-      x: dx + (COL_WIDTHS.mo - 8) / 2, 
-      y: subY - 10, 
-      size: 6.5, 
-      font: helvetica, 
-      color: COLORS.textMuted 
-    });
-    // Vertical separators for dose columns
+    page.drawText(doseLabels[i], { x: dx + (COL_WIDTHS.mo - 8) / 2, y: subY - 10, size: 6, font: helvetica, color: COLORS.textMuted });
     if (i > 0) {
-      page.drawLine({
-        start: { x: dx, y: subY },
-        end: { x: dx, y: subY - subHeaderHeight },
-        thickness: 0.3,
-        color: COLORS.borderLight,
-      });
+      page.drawLine({ start: { x: dx, y: subY }, end: { x: dx, y: subY - subHeaderHeight }, thickness: 0.3, color: COLORS.borderLight });
     }
     dx += COL_WIDTHS.mo;
   }
   
   return y - headerHeight - subHeaderHeight;
+}
+
+function drawSectionHeader(
+  page: PDFPage,
+  y: number,
+  tableX: number,
+  title: string,
+  bgColor: typeof COLORS.sectionRegular,
+  fonts: { helveticaBold: PDFFont },
+  showGrund: boolean
+): number {
+  const sectionHeight = 16;
+  const effectiveWidth = showGrund ? TABLE_WIDTH : TABLE_WIDTH - COL_WIDTHS.grund;
+  
+  page.drawRectangle({
+    x: tableX,
+    y: y - sectionHeight,
+    width: effectiveWidth,
+    height: sectionHeight,
+    color: bgColor,
+  });
+  page.drawLine({ start: { x: tableX, y: y - sectionHeight }, end: { x: tableX + effectiveWidth, y: y - sectionHeight }, thickness: 0.5, color: COLORS.border });
+  page.drawText(sanitize(title), {
+    x: tableX + 6,
+    y: y - 11,
+    size: 7.5,
+    font: fonts.helveticaBold,
+    color: COLORS.text,
+  });
+  
+  return y - sectionHeight;
+}
+
+function drawMedicationRow(
+  page: PDFPage,
+  y: number,
+  tableX: number,
+  med: MedRow,
+  fonts: { helvetica: PDFFont; helveticaBold: PDFFont },
+  showGrund: boolean,
+  isIntolerantSection: boolean = false
+): number {
+  const { helvetica, helveticaBold } = fonts;
+  const rowHeight = 22;
+  const effectiveWidth = showGrund ? TABLE_WIDTH : TABLE_WIDTH - COL_WIDTHS.grund;
+  
+  // Row background
+  page.drawRectangle({
+    x: tableX,
+    y: y - rowHeight,
+    width: effectiveWidth,
+    height: rowHeight,
+    color: isIntolerantSection ? rgb(0.99, 0.96, 0.96) : COLORS.white,
+  });
+  page.drawLine({ start: { x: tableX, y: y - rowHeight }, end: { x: tableX + effectiveWidth, y: y - rowHeight }, thickness: 0.3, color: COLORS.borderLight });
+  
+  let cx = tableX + 3;
+  const textY = y - 14;
+  const fs = 7;
+  
+  // Wirkstoff
+  page.drawText(truncateText(med.wirkstoff, 16), { x: cx, y: textY, size: fs, font: helvetica, color: COLORS.text });
+  cx += COL_WIDTHS.wirkstoff;
+  
+  // Handelsname (bold)
+  page.drawText(truncateText(med.handelsname, 18), { x: cx, y: textY, size: fs, font: helveticaBold, color: COLORS.text });
+  cx += COL_WIDTHS.handelsname;
+  
+  // Stärke
+  page.drawText(truncateText(med.staerke, 10), { x: cx, y: textY, size: fs, font: helvetica, color: COLORS.text });
+  cx += COL_WIDTHS.staerke;
+  
+  // Form
+  page.drawText(truncateText(med.form, 10), { x: cx, y: textY, size: fs, font: helvetica, color: COLORS.text });
+  cx += COL_WIDTHS.form;
+  
+  // Dose columns
+  const doseVals = [med.morgens || "-", med.mittags || "-", med.abends || "-", med.nachts || "-"];
+  for (let i = 0; i < 4; i++) {
+    if (i > 0) {
+      page.drawLine({ start: { x: cx, y }, end: { x: cx, y: y - rowHeight }, thickness: 0.2, color: COLORS.borderLight });
+    }
+    page.drawText(truncateText(doseVals[i], 4), { x: cx + 4, y: textY, size: fs, font: helvetica, color: COLORS.text });
+    cx += COL_WIDTHS.mo;
+  }
+  
+  // Einheit
+  page.drawText(truncateText(med.einheit, 8), { x: cx + 2, y: textY, size: fs, font: helvetica, color: COLORS.text });
+  cx += COL_WIDTHS.einheit;
+  
+  // Grund (if shown)
+  if (showGrund) {
+    page.drawText(truncateText(med.grund, 12), { x: cx + 2, y: textY, size: 6.5, font: helvetica, color: COLORS.textMuted });
+  }
+  
+  return y - rowHeight;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -300,22 +496,30 @@ function drawTableHeader(
 
 export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams): Promise<Uint8Array> {
   const { 
-    medicationCourses, 
     userMedications = [], 
+    medicationCourses = [],
     medicationLimits = [], 
     patientData, 
     doctors,
+    options: userOptions,
   } = params;
+  
+  const options: PdfExportOptions = { ...DEFAULT_OPTIONS, ...userOptions };
   
   const pdfDoc = await PDFDocument.create();
   const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const fonts = { helvetica, helveticaBold };
   
   let page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
   let y = LAYOUT.pageHeight - LAYOUT.marginTop;
   const contentWidth = LAYOUT.pageWidth - LAYOUT.marginLeft - LAYOUT.marginRight;
-  const tableX = LAYOUT.marginLeft + (contentWidth - TABLE_WIDTH) / 2;
+  const effectiveTableWidth = options.includeGrund ? TABLE_WIDTH : TABLE_WIDTH - COL_WIDTHS.grund;
+  const tableX = LAYOUT.marginLeft + (contentWidth - effectiveTableWidth) / 2;
   const creationDate = formatDate(new Date().toISOString());
+  
+  // Build categorized medication rows (PRIMARY from user_medications)
+  const medRows = buildMedicationRows(userMedications, medicationCourses);
   
   // Build limits map
   const limitsMap = new Map<string, { limit: number; period: string }>();
@@ -324,466 +528,264 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
   }
   
   // ═══════════════════════════════════════════════════════════════════════════
-  // HEADER - CLEAN PATIENT VERSION (keine "ausgedruckt von", kein QR)
+  // HEADER - BMP-STYLE
   // ═══════════════════════════════════════════════════════════════════════════
   
-  const headerHeight = 70;
+  const headerHeight = 75;
   
-  // Light header background
+  // Header background
   page.drawRectangle({
     x: LAYOUT.marginLeft,
     y: y - headerHeight,
     width: contentWidth,
     height: headerHeight,
-    color: rgb(0.98, 0.98, 0.99),
+    color: rgb(0.97, 0.98, 0.99),
   });
   
-  // Header border
-  page.drawLine({
-    start: { x: LAYOUT.marginLeft, y },
-    end: { x: LAYOUT.marginLeft + contentWidth, y },
-    thickness: 1.5,
-    color: COLORS.primary,
-  });
-  page.drawLine({
-    start: { x: LAYOUT.marginLeft, y: y - headerHeight },
-    end: { x: LAYOUT.marginLeft + contentWidth, y: y - headerHeight },
-    thickness: 1,
-    color: COLORS.border,
-  });
+  // Top border (prominent)
+  page.drawLine({ start: { x: LAYOUT.marginLeft, y }, end: { x: LAYOUT.marginLeft + contentWidth, y }, thickness: 2, color: COLORS.primary });
+  page.drawLine({ start: { x: LAYOUT.marginLeft, y: y - headerHeight }, end: { x: LAYOUT.marginLeft + contentWidth, y: y - headerHeight }, thickness: 1, color: COLORS.border });
   
-  // LEFT: Title
-  page.drawText("Medikationsplan", {
-    x: LAYOUT.marginLeft + 12,
-    y: y - 28,
-    size: 18,
+  // Title
+  page.drawText("MEDIKATIONSPLAN", {
+    x: LAYOUT.marginLeft + 10,
+    y: y - 25,
+    size: 16,
     font: helveticaBold,
     color: COLORS.primary,
   });
-  
-  // Small subtitle
-  page.drawText("Kopfschmerztagebuch-App", {
-    x: LAYOUT.marginLeft + 12,
-    y: y - 42,
+  page.drawText("(Patienten-Version)", {
+    x: LAYOUT.marginLeft + 10,
+    y: y - 38,
     size: 7,
     font: helvetica,
     color: COLORS.textMuted,
   });
   
-  // CENTER: Patient data - only show fields that are filled
-  const col2X = LAYOUT.marginLeft + 180;
-  let patY = y - 15;
+  // Patient data (center)
+  const col2X = LAYOUT.marginLeft + 160;
+  let patY = y - 12;
   
   if (patientData) {
     const patName = [patientData.firstName, patientData.lastName].filter(Boolean).join(" ");
     if (patName) {
-      page.drawText("Name:", { x: col2X, y: patY, size: 7, font: helvetica, color: COLORS.textMuted });
-      page.drawText(sanitize(patName), { x: col2X + 30, y: patY, size: 9, font: helveticaBold, color: COLORS.text });
-      patY -= 13;
+      page.drawText("Patient:", { x: col2X, y: patY, size: 6.5, font: helvetica, color: COLORS.textMuted });
+      page.drawText(sanitize(patName), { x: col2X + 35, y: patY, size: 9, font: helveticaBold, color: COLORS.text });
+      patY -= 12;
     }
     if (patientData.dateOfBirth) {
-      page.drawText("geb. am:", { x: col2X, y: patY, size: 7, font: helvetica, color: COLORS.textMuted });
-      page.drawText(formatDate(patientData.dateOfBirth), { x: col2X + 35, y: patY, size: 8, font: helvetica, color: COLORS.text });
-      patY -= 13;
+      page.drawText("Geb.-Datum:", { x: col2X, y: patY, size: 6.5, font: helvetica, color: COLORS.textMuted });
+      page.drawText(formatDate(patientData.dateOfBirth), { x: col2X + 48, y: patY, size: 8, font: helvetica, color: COLORS.text });
+      patY -= 12;
     }
-    // Address - only if any part is filled
-    const addressParts = [patientData.street, [patientData.postalCode, patientData.city].filter(Boolean).join(" ")].filter(Boolean).join(", ");
-    if (addressParts) {
-      page.drawText("Adresse:", { x: col2X, y: patY, size: 7, font: helvetica, color: COLORS.textMuted });
-      page.drawText(sanitize(addressParts), { x: col2X + 35, y: patY, size: 8, font: helvetica, color: COLORS.text });
-      patY -= 13;
-    }
-    if (patientData.phone) {
-      page.drawText("Telefon:", { x: col2X, y: patY, size: 7, font: helvetica, color: COLORS.textMuted });
-      page.drawText(sanitize(patientData.phone), { x: col2X + 35, y: patY, size: 8, font: helvetica, color: COLORS.text });
-      patY -= 13;
-    }
-    if (patientData.fax) {
-      page.drawText("Fax:", { x: col2X, y: patY, size: 7, font: helvetica, color: COLORS.textMuted });
-      page.drawText(sanitize(patientData.fax), { x: col2X + 35, y: patY, size: 8, font: helvetica, color: COLORS.text });
-      patY -= 13;
+    const address = [patientData.street, [patientData.postalCode, patientData.city].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+    if (address) {
+      page.drawText("Adresse:", { x: col2X, y: patY, size: 6.5, font: helvetica, color: COLORS.textMuted });
+      page.drawText(truncateText(sanitize(address), 40), { x: col2X + 35, y: patY, size: 7.5, font: helvetica, color: COLORS.text });
+      patY -= 12;
     }
     if (patientData.healthInsurance) {
-      page.drawText("Kasse:", { x: col2X, y: patY, size: 7, font: helvetica, color: COLORS.textMuted });
+      page.drawText("Kasse:", { x: col2X, y: patY, size: 6.5, font: helvetica, color: COLORS.textMuted });
       page.drawText(sanitize(patientData.healthInsurance), { x: col2X + 30, y: patY, size: 8, font: helvetica, color: COLORS.text });
-      patY -= 13;
+      patY -= 12;
     }
     if (patientData.insuranceNumber) {
-      page.drawText("Vers.-Nr.:", { x: col2X, y: patY, size: 7, font: helvetica, color: COLORS.textMuted });
-      page.drawText(sanitize(patientData.insuranceNumber), { x: col2X + 38, y: patY, size: 8, font: helvetica, color: COLORS.text });
+      page.drawText("Vers.-Nr.:", { x: col2X, y: patY, size: 6.5, font: helvetica, color: COLORS.textMuted });
+      page.drawText(sanitize(patientData.insuranceNumber), { x: col2X + 40, y: patY, size: 8, font: helvetica, color: COLORS.text });
     }
   }
   
-  // RIGHT: Creation date
-  const col3X = LAYOUT.marginLeft + contentWidth - 100;
-  page.drawText("Erstellt am:", { x: col3X, y: y - 15, size: 7, font: helvetica, color: COLORS.textMuted });
-  page.drawText(creationDate, { x: col3X, y: y - 28, size: 10, font: helveticaBold, color: COLORS.text });
+  // Creation date (right)
+  const col3X = LAYOUT.marginLeft + contentWidth - 90;
+  page.drawText("Erstellt am:", { x: col3X, y: y - 12, size: 6.5, font: helvetica, color: COLORS.textMuted });
+  page.drawText(creationDate, { x: col3X, y: y - 25, size: 10, font: helveticaBold, color: COLORS.text });
   
-  y -= headerHeight + 18;
+  y -= headerHeight + 12;
   
   // ═══════════════════════════════════════════════════════════════════════════
-  // BEHANDELNDER ARZT - VOLLSTÄNDIGE ADRESSE
+  // DOCTOR SECTION
   // ═══════════════════════════════════════════════════════════════════════════
   
   if (doctors && doctors.length > 0) {
     const doc = doctors[0];
     const docName = [doc.title, doc.firstName, doc.lastName].filter(Boolean).join(" ");
     
-    page.drawText("Behandelnde/r Aerztin/Arzt:", { 
-      x: LAYOUT.marginLeft, 
-      y, 
-      size: 7, 
-      font: helveticaBold, 
-      color: COLORS.text 
-    });
+    page.drawText("Behandelnde/r Aerztin/Arzt:", { x: LAYOUT.marginLeft, y, size: 7, font: helveticaBold, color: COLORS.text });
     
-    // Build full address line
-    const addressParts: string[] = [];
-    if (docName) addressParts.push(docName);
-    if (doc.specialty) addressParts.push(doc.specialty);
+    let docInfo = docName;
+    if (doc.specialty) docInfo += ` - ${doc.specialty}`;
+    page.drawText(sanitize(docInfo), { x: LAYOUT.marginLeft + 110, y, size: 8, font: helvetica, color: COLORS.text });
+    y -= 11;
     
-    const addressLine1 = sanitize(addressParts.join(" - "));
-    
-    // Street, postal code, city
-    const locationParts: string[] = [];
-    if (doc.street) locationParts.push(doc.street);
-    if (doc.postalCode || doc.city) {
-      locationParts.push([doc.postalCode, doc.city].filter(Boolean).join(" "));
-    }
-    const addressLine2 = sanitize(locationParts.join(", "));
-    
-    // Phone, fax and email
-    const contactParts: string[] = [];
-    if (doc.phone) contactParts.push(`Tel: ${doc.phone}`);
-    if (doc.fax) contactParts.push(`Fax: ${doc.fax}`);
-    if (doc.email) contactParts.push(`E-Mail: ${doc.email}`);
-    const contactLine = sanitize(contactParts.join(", "));
-    
-    let docY = y;
-    if (addressLine1) {
-      page.drawText(addressLine1, { 
-        x: LAYOUT.marginLeft + 115, 
-        y: docY, 
-        size: 8, 
-        font: helvetica, 
-        color: COLORS.text 
-      });
-      docY -= 11;
-    }
-    if (addressLine2) {
-      page.drawText(addressLine2, { 
-        x: LAYOUT.marginLeft + 115, 
-        y: docY, 
-        size: 7.5, 
-        font: helvetica, 
-        color: COLORS.text 
-      });
-      docY -= 11;
-    }
-    if (contactLine) {
-      page.drawText(contactLine, { 
-        x: LAYOUT.marginLeft + 115, 
-        y: docY, 
-        size: 7, 
-        font: helvetica, 
-        color: COLORS.textMuted 
-      });
-      docY -= 11;
+    const docAddress = [doc.street, [doc.postalCode, doc.city].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+    if (docAddress) {
+      page.drawText(sanitize(docAddress), { x: LAYOUT.marginLeft + 110, y, size: 7.5, font: helvetica, color: COLORS.text });
+      y -= 11;
     }
     
-    y = docY - 8;
+    const contact = [doc.phone ? `Tel: ${doc.phone}` : "", doc.fax ? `Fax: ${doc.fax}` : ""].filter(Boolean).join(", ");
+    if (contact) {
+      page.drawText(sanitize(contact), { x: LAYOUT.marginLeft + 110, y, size: 7, font: helvetica, color: COLORS.textMuted });
+      y -= 11;
+    }
+    
+    y -= 6;
   }
   
   // ═══════════════════════════════════════════════════════════════════════════
-  // PREPARE ALL MEDICATIONS
+  // INTOLERANCE SECTION (if any and enabled)
   // ═══════════════════════════════════════════════════════════════════════════
   
-  type MedRow = {
-    wirkstoff: string;
-    handelsname: string;
-    staerke: string;
-    form: string;
-    morgens: string;
-    mittags: string;
-    abends: string;
-    nachts: string;
-    intervall: string; // e.g., "1x monatlich" for interval therapies
-    einheit: string;
-    category: "prophylaxe" | "akut" | "bedarf" | "notfall" | "selbstmedikation";
-  };
-  
-  const allMeds: MedRow[] = [];
-  
-  // Active prophylaxis courses
-  const activeProphylaxe = medicationCourses.filter(c => c.is_active && c.type === "prophylaxe");
-  const activeOther = medicationCourses.filter(c => c.is_active && c.type !== "prophylaxe");
-  
-  // Process courses
-  for (const course of [...activeProphylaxe, ...activeOther]) {
-    const lookup = lookupMedicationMetadata(course.medication_name);
-    const isProphylaxe = course.type === "prophylaxe";
-    
-    // Parse dose_text for schema
-    let morgens = "", mittags = "", abends = "", nachts = "";
-    let intervall = "";
-    const doseText = (course.dose_text || "").toLowerCase();
-    
-    // Check for interval-based dosing
-    if (doseText.includes("monat") || doseText.includes("/m") || 
-        lookup?.hinweise?.toLowerCase().includes("monatlich")) {
-      intervall = "1x monatlich";
-    } else if (doseText.includes("woche")) {
-      intervall = "1x woechentlich";
-    } else if (doseText.includes("quartal") || doseText.includes("3 mon")) {
-      intervall = "alle 3 Monate";
-    } else if (doseText.includes("2x") || doseText.includes("zweimal")) {
-      morgens = "1"; abends = "1";
-    } else if (doseText.includes("3x")) {
-      morgens = "1"; mittags = "1"; abends = "1";
-    } else if (doseText.includes("abend")) {
-      abends = "1";
-    } else if (doseText.includes("morgen")) {
-      morgens = "1";
-    } else if (isProphylaxe && !intervall) {
-      // Default for prophylaxis without specific dose
-      morgens = "1";
-    }
-    
-    // For injection-based prophylaxis (CGRP), default to monthly
-    if (isProphylaxe && lookup?.darreichungsform?.toLowerCase().includes("injektion")) {
-      intervall = intervall || "1x monatlich";
-      morgens = ""; mittags = ""; abends = ""; nachts = "";
-    }
-    
-    allMeds.push({
-      wirkstoff: sanitize(lookup?.wirkstoff || course.medication_name),
-      handelsname: sanitize(course.medication_name),
-      staerke: sanitize(lookup?.staerke || ""),
-      form: sanitize(lookup?.darreichungsform || "Tbl."),
-      morgens,
-      mittags,
-      abends,
-      nachts,
-      intervall: normalizeInterval(intervall),
-      einheit: sanitize(lookup?.einheit || "Stueck"),
-      category: isProphylaxe ? "prophylaxe" : "akut",
-    });
-  }
-  
-  // Get "Bei Bedarf" medications from user_medications (not in active courses)
-  // ONLY include medications where is_active is explicitly true
-  const courseNames = new Set([...activeProphylaxe, ...activeOther].map(c => c.medication_name.toLowerCase()));
-  const bedarfMeds = userMedications.filter(m => 
-    !courseNames.has(m.name.toLowerCase()) && 
-    m.is_active === true
-  );
-  
-  for (const med of bedarfMeds) {
-    const lookup = lookupMedicationMetadata(med.name);
-    
-    const art = (med.art || lookup?.art || guessMedicationType(med.name)) as MedRow["category"];
-    
-    // Determine if this should be "Bei Bedarf"
-    const hasDailyDose = med.dosis_morgens || med.dosis_mittags || med.dosis_abends || med.dosis_nacht;
-    const isBeiBedarf = !hasDailyDose;
-    
-    allMeds.push({
-      wirkstoff: sanitize(med.wirkstoff || lookup?.wirkstoff || med.name),
-      handelsname: sanitize(med.name),
-      staerke: sanitize(med.staerke || lookup?.staerke || ""),
-      form: sanitize(med.darreichungsform || lookup?.darreichungsform || "Tbl."),
-      morgens: med.dosis_morgens || "",
-      mittags: med.dosis_mittags || "",
-      abends: med.dosis_abends || "",
-      nachts: med.dosis_nacht || "",
-      intervall: isBeiBedarf ? "bei Bedarf" : "",
-      einheit: sanitize(med.einheit || lookup?.einheit || "Stueck"),
-      category: art === "prophylaxe" ? "bedarf" : (art || "bedarf"),
-    });
-  }
-  
-  // Sort by category
-  const categoryOrder = { prophylaxe: 0, akut: 1, bedarf: 2, notfall: 3, selbstmedikation: 4 };
-  allMeds.sort((a, b) => (categoryOrder[a.category] || 9) - (categoryOrder[b.category] || 9));
-  
-  // ═══════════════════════════════════════════════════════════════════════════
-  // DRAW MEDICATION TABLE
-  // ═══════════════════════════════════════════════════════════════════════════
-  
-  // Draw header
-  y = drawTableHeader(page, y, tableX, helvetica, helveticaBold);
-  
-  // Check for empty list
-  if (allMeds.length === 0) {
-    const emptyRowH = 28;
+  if (options.includeIntolerance && medRows.intolerant.length > 0) {
+    // Warning box
+    const boxHeight = 14 + medRows.intolerant.length * 14;
     page.drawRectangle({
       x: tableX,
-      y: y - emptyRowH,
-      width: TABLE_WIDTH,
-      height: emptyRowH,
-      borderColor: COLORS.borderLight,
-      borderWidth: 0.5,
+      y: y - boxHeight,
+      width: effectiveTableWidth,
+      height: boxHeight,
+      color: COLORS.sectionIntolerance,
+      borderColor: COLORS.warning,
+      borderWidth: 1,
     });
-    page.drawText("Keine aktiven Medikamente erfasst", {
-      x: tableX + 15,
-      y: y - 18,
-      size: 9,
-      font: helvetica,
-      color: COLORS.textMuted,
-    });
-    y -= emptyRowH;
-  } else {
-    // Group and draw medications
-    let currentCategory = "";
     
-    for (const med of allMeds) {
-      // Check page break
-      if (y < LAYOUT.marginBottom + 90) {
-        page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
-        y = LAYOUT.pageHeight - LAYOUT.marginTop;
+    page.drawText("UNVERTRAEGLICHKEITEN / ALLERGIEN - NICHT ANWENDEN:", {
+      x: tableX + 6,
+      y: y - 10,
+      size: 7.5,
+      font: helveticaBold,
+      color: COLORS.warning,
+    });
+    
+    let iy = y - 24;
+    for (const med of medRows.intolerant) {
+      const text = med.intoleranceNotes 
+        ? `${med.handelsname} (${med.wirkstoff}): ${med.intoleranceNotes}`
+        : `${med.handelsname} (${med.wirkstoff})`;
+      page.drawText(truncateText(sanitize(text), 90), { x: tableX + 10, y: iy, size: 7, font: helvetica, color: COLORS.text });
+      iy -= 14;
+    }
+    
+    y -= boxHeight + 12;
+  }
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ACTIVE MEDICATIONS TABLE
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  if (options.includeActive) {
+    // Table header
+    y = drawTableHeader(page, y, tableX, fonts, options.includeGrund);
+    
+    const hasActiveMeds = medRows.regular.length > 0 || medRows.onDemand.length > 0;
+    
+    if (!hasActiveMeds) {
+      // Empty state
+      const emptyRowH = 28;
+      page.drawRectangle({ x: tableX, y: y - emptyRowH, width: effectiveTableWidth, height: emptyRowH, borderColor: COLORS.borderLight, borderWidth: 0.5 });
+      page.drawText("Keine aktiven Medikamente erfasst", { x: tableX + 15, y: y - 18, size: 9, font: helvetica, color: COLORS.textMuted });
+      y -= emptyRowH;
+    } else {
+      // Regelmäßige Medikation
+      if (medRows.regular.length > 0) {
+        y = drawSectionHeader(page, y, tableX, "Regelmaessige Medikation (Prophylaxe / Dauermedikation)", COLORS.sectionRegular, fonts, options.includeGrund);
         
-        // Repeat header on new page
-        const patName = patientData ? [patientData.firstName, patientData.lastName].filter(Boolean).join(" ") : "";
-        page.drawText(`Medikationsplan - ${sanitize(patName)} (Fortsetzung)`, {
-          x: LAYOUT.marginLeft,
-          y: y - 15,
-          size: 11,
-          font: helveticaBold,
-          color: COLORS.primary,
-        });
-        y -= 30;
-        y = drawTableHeader(page, y, tableX, helvetica, helveticaBold);
-      }
-      
-      // Category section header
-      if (med.category !== currentCategory) {
-        currentCategory = med.category;
-        const sectionLabels: Record<string, string> = {
-          prophylaxe: "Prophylaktische Medikation (Dauermedikation)",
-          akut: "Akutmedikation",
-          bedarf: "Bei Bedarf anzuwendende Medikamente",
-          notfall: "Notfallmedikation",
-          selbstmedikation: "Selbstmedikation",
-        };
-        
-        const sectionRowH = 16;
-        const sectionColor = currentCategory === "prophylaxe" ? COLORS.sectionProphylaxe : 
-                            currentCategory === "akut" ? COLORS.sectionAkut : COLORS.sectionBedarf;
-        
-        page.drawRectangle({
-          x: tableX,
-          y: y - sectionRowH,
-          width: TABLE_WIDTH,
-          height: sectionRowH,
-          color: sectionColor,
-        });
-        page.drawLine({
-          start: { x: tableX, y: y - sectionRowH },
-          end: { x: tableX + TABLE_WIDTH, y: y - sectionRowH },
-          thickness: 0.5,
-          color: COLORS.border,
-        });
-        page.drawText(sectionLabels[currentCategory] || "Sonstige", {
-          x: tableX + 8,
-          y: y - 11,
-          size: 7.5,
-          font: helveticaBold,
-          color: COLORS.text,
-        });
-        y -= sectionRowH;
-      }
-      
-      // Fixed row height (no hinweise column anymore)
-      const rowHeight = 24;
-      
-      // Draw row background
-      page.drawRectangle({
-        x: tableX,
-        y: y - rowHeight,
-        width: TABLE_WIDTH,
-        height: rowHeight,
-        color: COLORS.white,
-      });
-      page.drawLine({
-        start: { x: tableX, y: y - rowHeight },
-        end: { x: tableX + TABLE_WIDTH, y: y - rowHeight },
-        thickness: 0.3,
-        color: COLORS.borderLight,
-      });
-      
-      // Draw cell contents
-      let cx = tableX + 4;
-      const textY = y - 14;
-      const fontSize = 7.5;
-      
-      // Wirkstoff
-      page.drawText(med.wirkstoff.substring(0, 18), { x: cx, y: textY, size: fontSize, font: helvetica, color: COLORS.text });
-      cx += COL_WIDTHS.wirkstoff;
-      
-      // Handelsname (bold)
-      page.drawText(med.handelsname.substring(0, 18), { x: cx, y: textY, size: fontSize, font: helveticaBold, color: COLORS.text });
-      cx += COL_WIDTHS.handelsname;
-      
-      // Stärke
-      page.drawText(med.staerke.substring(0, 12), { x: cx, y: textY, size: fontSize, font: helvetica, color: COLORS.text });
-      cx += COL_WIDTHS.staerke;
-      
-      // Form
-      page.drawText(med.form.substring(0, 12), { x: cx, y: textY, size: fontSize, font: helvetica, color: COLORS.text });
-      cx += COL_WIDTHS.form;
-      
-      // Dose columns
-      // If there's an interval (e.g., "1x monatlich"), show it spanning dose columns
-      if (med.intervall) {
-        // Show interval text in first dose column, spanning
-        page.drawText(med.intervall.substring(0, 20), { 
-          x: cx + 2, 
-          y: textY, 
-          size: 7, 
-          font: helvetica, 
-          color: COLORS.text 
-        });
-        cx += COL_WIDTHS.mo + COL_WIDTHS.mi + COL_WIDTHS.ab + COL_WIDTHS.na;
-      } else {
-        // Show individual dose columns
-        const doseVals = [med.morgens || "-", med.mittags || "-", med.abends || "-", med.nachts || "-"];
-        for (let i = 0; i < 4; i++) {
-          // Light vertical separators
-          if (i > 0) {
-            page.drawLine({
-              start: { x: cx, y },
-              end: { x: cx, y: y - rowHeight },
-              thickness: 0.2,
-              color: COLORS.borderLight,
-            });
+        for (const med of medRows.regular) {
+          // Page break check
+          if (y < LAYOUT.marginBottom + 80) {
+            page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
+            y = LAYOUT.pageHeight - LAYOUT.marginTop - 20;
+            y = drawTableHeader(page, y, tableX, fonts, options.includeGrund);
           }
-          page.drawText(doseVals[i].substring(0, 5), { 
-            x: cx + 5, 
-            y: textY, 
-            size: fontSize, 
-            font: helvetica, 
-            color: COLORS.text 
-          });
-          cx += COL_WIDTHS.mo;
+          y = drawMedicationRow(page, y, tableX, med, fonts, options.includeGrund);
         }
       }
       
-      // Einheit
-      page.drawText(med.einheit.substring(0, 10), { x: cx + 2, y: textY, size: fontSize, font: helvetica, color: COLORS.text });
+      // Bedarfsmedikation
+      if (medRows.onDemand.length > 0) {
+        y = drawSectionHeader(page, y, tableX, "Bei Bedarf anzuwendende Medikamente (Akutmedikation)", COLORS.sectionBedarf, fonts, options.includeGrund);
+        
+        for (const med of medRows.onDemand) {
+          if (y < LAYOUT.marginBottom + 80) {
+            page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
+            y = LAYOUT.pageHeight - LAYOUT.marginTop - 20;
+            y = drawTableHeader(page, y, tableX, fonts, options.includeGrund);
+          }
+          y = drawMedicationRow(page, y, tableX, med, fonts, options.includeGrund);
+        }
+      }
+    }
+    
+    // Table bottom border
+    page.drawLine({ start: { x: tableX, y }, end: { x: tableX + effectiveTableWidth, y }, thickness: 1, color: COLORS.border });
+  }
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // INACTIVE / FORMER MEDICATIONS (if enabled)
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  if (options.includeInactive && medRows.inactive.length > 0) {
+    y -= 18;
+    
+    // Page break check
+    if (y < LAYOUT.marginBottom + 100) {
+      page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
+      y = LAYOUT.pageHeight - LAYOUT.marginTop - 20;
+    }
+    
+    page.drawText("FRUEHER VERWENDETE MEDIKAMENTE (Auszug)", {
+      x: tableX,
+      y,
+      size: 8,
+      font: helveticaBold,
+      color: COLORS.textMuted,
+    });
+    y -= 14;
+    
+    // Simple list format for inactive meds
+    for (const med of medRows.inactive) {
+      if (y < LAYOUT.marginBottom + 40) {
+        page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
+        y = LAYOUT.pageHeight - LAYOUT.marginTop - 20;
+      }
       
-      y -= rowHeight;
+      let line = `- ${med.handelsname}`;
+      if (med.wirkstoff) line += ` (${med.wirkstoff})`;
+      if (med.discontinuedAt) line += ` - abgesetzt am ${med.discontinuedAt}`;
+      if (med.discontinuationReason) line += ` (${med.discontinuationReason})`;
+      
+      page.drawText(truncateText(sanitize(line), 95), { x: tableX + 4, y, size: 7, font: helvetica, color: COLORS.textMuted });
+      y -= 12;
     }
   }
   
-  // Table bottom border
-  page.drawLine({
-    start: { x: tableX, y },
-    end: { x: tableX + TABLE_WIDTH, y },
-    thickness: 1,
-    color: COLORS.border,
-  });
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MEDICATION LIMITS (if enabled)
+  // ═══════════════════════════════════════════════════════════════════════════
   
-  // NO LEGEND - removed as requested
+  if (options.includeLimits && medicationLimits.length > 0) {
+    y -= 16;
+    
+    if (y < LAYOUT.marginBottom + 80) {
+      page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
+      y = LAYOUT.pageHeight - LAYOUT.marginTop - 20;
+    }
+    
+    page.drawText("EINNAHME-LIMITS (Uebergebrauch vermeiden)", {
+      x: tableX,
+      y,
+      size: 8,
+      font: helveticaBold,
+      color: COLORS.textMuted,
+    });
+    y -= 12;
+    
+    for (const limit of medicationLimits) {
+      const line = `- ${limit.medication_name}: max. ${limit.limit_count}x pro ${getPeriodLabel(limit.period_type)}`;
+      page.drawText(sanitize(line), { x: tableX + 4, y, size: 7, font: helvetica, color: COLORS.textMuted });
+      y -= 11;
+    }
+  }
   
   // ═══════════════════════════════════════════════════════════════════════════
   // FOOTER ON ALL PAGES
@@ -796,7 +798,7 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
     // Page number
     p.drawText(`Seite ${i + 1} von ${totalPages}`, {
       x: LAYOUT.pageWidth - LAYOUT.marginRight - 55,
-      y: 28,
+      y: 25,
       size: 8,
       font: helvetica,
       color: COLORS.textMuted,
@@ -805,8 +807,8 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
     // Disclaimer
     p.drawText("Erstellt mit der Kopfschmerztagebuch-App. Dieser Plan ersetzt keine aerztliche Beratung.", {
       x: LAYOUT.marginLeft,
-      y: 28,
-      size: 7,
+      y: 25,
+      size: 6.5,
       font: helvetica,
       color: COLORS.textMuted,
     });
