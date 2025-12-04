@@ -3,8 +3,8 @@ import { useSpeechRecognition } from './useSpeechRecognition';
 import { analyzeVoiceTranscript } from '@/lib/voice/voiceNlp';
 import { saveVoiceNote } from '@/lib/voice/saveNote';
 import { toast } from '@/hooks/use-toast';
-import { useMeds } from '@/features/meds/hooks/useMeds';
-import type { VoiceUserContext } from '@/types/voice.types';
+import { useMeds, useUpdateMed, useMarkMedAsIntolerant } from '@/features/meds/hooks/useMeds';
+import type { VoiceUserContext, VoiceMedicationUpdate } from '@/types/voice.types';
 
 interface QuickEntryData {
   initialPainLevel: number;
@@ -27,16 +27,26 @@ interface ReminderData {
   notification_enabled: boolean;
 }
 
+interface MedicationUpdateData {
+  medicationName: string;
+  action: 'discontinued' | 'intolerance' | 'started' | 'dosage_changed';
+  reason?: string;
+  notes?: string;
+}
+
 interface SmartVoiceRouterOptions {
   onEntryDetected?: (data: QuickEntryData) => void;
   onNoteDetected?: (transcript: string) => void;
   onNoteCreated?: () => void;
   onReminderDetected?: (data: ReminderData) => void;
+  onMedicationUpdateDetected?: (data: MedicationUpdateData) => void;
 }
 
 export function useSmartVoiceRouter(options: SmartVoiceRouterOptions) {
   const [isSaving, setIsSaving] = useState(false);
   const { data: userMeds = [] } = useMeds();
+  const updateMed = useUpdateMed();
+  const markAsIntolerant = useMarkMedAsIntolerant();
   
   const speechRecognition = useSpeechRecognition({
     language: 'de-DE',
@@ -48,7 +58,7 @@ export function useSmartVoiceRouter(options: SmartVoiceRouterOptions) {
       setIsSaving(true);
       
       try {
-        // NEU: Zentrale NLP-Analyse
+        // Zentrale NLP-Analyse
         const userContext: VoiceUserContext = {
           userMeds,
           timezone: 'Europe/Berlin',
@@ -65,6 +75,12 @@ export function useSmartVoiceRouter(options: SmartVoiceRouterOptions) {
 
         // Intent-basiertes Routing
         switch (analysis.intent) {
+          case 'medication_update':
+            if (analysis.medicationUpdate) {
+              await handleMedicationUpdate(analysis.medicationUpdate);
+            }
+            break;
+
           case 'reminder':
             if (analysis.reminder) {
               const reminderData: ReminderData = {
@@ -156,7 +172,7 @@ export function useSmartVoiceRouter(options: SmartVoiceRouterOptions) {
               });
             }
             
-            // NEU: Callback statt direktes Speichern
+            // Callback statt direktes Speichern
             if (options.onNoteDetected) {
               options.onNoteDetected(transcript);
             } else {
@@ -193,6 +209,111 @@ export function useSmartVoiceRouter(options: SmartVoiceRouterOptions) {
       setIsSaving(false);
     }
   });
+  
+  /**
+   * Handle medication updates (discontinued, intolerance, started, dosage_changed)
+   */
+  const handleMedicationUpdate = async (update: VoiceMedicationUpdate) => {
+    console.log('💊 Medication Update:', update);
+    
+    // Find the medication in user's list
+    const med = userMeds.find(m => 
+      m.name.toLowerCase() === update.medicationName.toLowerCase() ||
+      m.name.toLowerCase().includes(update.medicationName.toLowerCase()) ||
+      update.medicationName.toLowerCase().includes(m.name.toLowerCase())
+    );
+    
+    if (!med) {
+      toast({
+        title: '⚠️ Medikament nicht gefunden',
+        description: `"${update.medicationName}" ist nicht in deiner Medikamentenliste. Bitte prüfen.`,
+        variant: 'default'
+      });
+      
+      // Still call callback with data so UI can handle it
+      options.onMedicationUpdateDetected?.({
+        medicationName: update.medicationName,
+        action: update.action,
+        reason: update.reason,
+        notes: update.notes
+      });
+      return;
+    }
+
+    try {
+      const actionLabels = {
+        discontinued: 'abgesetzt',
+        intolerance: 'als unverträglich markiert',
+        started: 'gestartet',
+        dosage_changed: 'Dosierung geändert'
+      };
+
+      switch (update.action) {
+        case 'intolerance':
+          await markAsIntolerant.mutateAsync({
+            id: med.id,
+            notes: update.reason || update.notes
+          });
+          toast({
+            title: '💊 Medikament als unverträglich markiert',
+            description: `${med.name} wurde als unverträglich gespeichert${update.reason ? `: ${update.reason}` : ''}`
+          });
+          break;
+
+        case 'discontinued':
+          await updateMed.mutateAsync({
+            id: med.id,
+            input: {
+              is_active: false,
+              discontinued_at: new Date().toISOString()
+            }
+          });
+          toast({
+            title: '💊 Medikament abgesetzt',
+            description: `${med.name} wurde als abgesetzt markiert`
+          });
+          break;
+
+        case 'started':
+          await updateMed.mutateAsync({
+            id: med.id,
+            input: {
+              is_active: true,
+              discontinued_at: null
+            }
+          });
+          toast({
+            title: '💊 Medikament gestartet',
+            description: `${med.name} wurde als aktiv markiert`
+          });
+          break;
+
+        case 'dosage_changed':
+          // For dosage changes, just notify - user should edit manually
+          toast({
+            title: '💊 Dosierungsänderung erkannt',
+            description: `Bitte passe die Dosierung von ${med.name} manuell an`
+          });
+          break;
+      }
+
+      // Call callback
+      options.onMedicationUpdateDetected?.({
+        medicationName: med.name,
+        action: update.action,
+        reason: update.reason,
+        notes: update.notes
+      });
+
+    } catch (error) {
+      console.error('Failed to update medication:', error);
+      toast({
+        title: 'Fehler',
+        description: 'Medikamenten-Update fehlgeschlagen',
+        variant: 'destructive'
+      });
+    }
+  };
   
   const startVoice = async () => {
     try {
