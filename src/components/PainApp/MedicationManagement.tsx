@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useMeds, useAddMed, useDeleteMed, type Med } from "@/features/meds/hooks/useMeds";
 import { useReminders, useCreateReminder } from "@/features/reminders/hooks/useReminders";
-import { Pill, Plus, Pencil, Trash2, Bell, ArrowLeft, Clock, AlertTriangle, Download, Loader2, Ban, History, ChevronDown } from "lucide-react";
+import { Pill, Plus, Pencil, Trash2, Bell, ArrowLeft, Clock, AlertTriangle, Download, Loader2, Ban, History, ChevronDown, Mic, MicOff } from "lucide-react";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +26,8 @@ import { useMedicationCourses } from "@/features/medication-courses/hooks/useMed
 import { useMedicationLimits } from "@/features/medication-limits/hooks/useMedicationLimits";
 import { DoctorSelectionDialog, type Doctor } from "./DoctorSelectionDialog";
 import { cn } from "@/lib/utils";
+import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
+import { isBrowserSttSupported } from "@/lib/voice/sttConfig";
 
 interface MedicationManagementProps {
   onBack: () => void;
@@ -154,6 +156,7 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
   
   const [selectedMedication, setSelectedMedication] = useState<Med | null>(null);
   const [medicationName, setMedicationName] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
   
   // Remember user preference for "edit after add" in localStorage
   const [editAfterAdd, setEditAfterAdd] = useState(() => {
@@ -164,6 +167,41 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
   const handleEditAfterAddChange = (checked: boolean) => {
     setEditAfterAdd(checked);
     localStorage.setItem('med-edit-after-add', String(checked));
+  };
+
+  // Voice input for medication name
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const { state: voiceState, startRecording, stopRecording, resetTranscript } = useSpeechRecognition({
+    language: "de-DE",
+    continuous: false,
+    pauseThreshold: 2,
+    onTranscriptReady: (transcript) => {
+      if (transcript.trim()) {
+        setMedicationName(transcript.trim());
+        // Focus input after voice input
+        setTimeout(() => inputRef.current?.focus(), 100);
+      }
+    },
+    onError: (error) => {
+      setVoiceError(error);
+      setTimeout(() => setVoiceError(null), 4000);
+    }
+  });
+
+  const handleVoiceClick = async () => {
+    if (!isBrowserSttSupported()) {
+      setVoiceError("Spracheingabe nicht verfügbar. Bitte tippe den Namen ein.");
+      setTimeout(() => setVoiceError(null), 4000);
+      return;
+    }
+    
+    if (voiceState.isRecording) {
+      stopRecording();
+    } else {
+      setVoiceError(null);
+      resetTranscript();
+      await startRecording();
+    }
   };
 
   // Categorize medications
@@ -625,7 +663,12 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
       <MedicationCoursesList />
 
       {/* Add Dialog - Simplified for users with headaches */}
-      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+      <Dialog open={showAddDialog} onOpenChange={(open) => {
+        setShowAddDialog(open);
+        if (!open && voiceState.isRecording) {
+          stopRecording();
+        }
+      }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader className="space-y-3">
             <DialogTitle className="text-xl">Neues Medikament</DialogTitle>
@@ -635,23 +678,61 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
           </DialogHeader>
           
           <div className="space-y-6 py-4">
-            {/* Main Input */}
+            {/* Main Input with Voice Button */}
             <div className="space-y-3">
               <Label htmlFor="med-name" className="text-base font-medium">
                 Medikamentenname
               </Label>
-              <Input
-                id="med-name"
-                placeholder="z.B. Ibuprofen 400mg"
-                value={medicationName}
-                onChange={(e) => setMedicationName(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && !addMed.isPending && medicationName.trim() && handleAddMedication()}
-                autoFocus
-                className="h-12 text-base"
-              />
-              <p className="text-sm text-muted-foreground/80">
-                Details wie Dosierung oder Einnahmerhythmus kannst du später ergänzen.
-              </p>
+              <div className="relative">
+                <Input
+                  ref={inputRef}
+                  id="med-name"
+                  placeholder="z.B. Ibuprofen 400mg"
+                  value={voiceState.isRecording ? voiceState.transcript || medicationName : medicationName}
+                  onChange={(e) => setMedicationName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && !addMed.isPending && medicationName.trim() && handleAddMedication()}
+                  autoFocus
+                  className="h-12 text-base pr-12"
+                  disabled={voiceState.isRecording}
+                />
+                <button
+                  type="button"
+                  onClick={handleVoiceClick}
+                  className={cn(
+                    "absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-md transition-colors",
+                    voiceState.isRecording 
+                      ? "text-destructive bg-destructive/10 animate-pulse" 
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  )}
+                  aria-label={voiceState.isRecording ? "Aufnahme stoppen" : "Per Sprache eingeben"}
+                >
+                  {voiceState.isRecording ? (
+                    <MicOff className="h-5 w-5" />
+                  ) : (
+                    <Mic className="h-5 w-5" />
+                  )}
+                </button>
+              </div>
+              
+              {/* Voice recording hint */}
+              {voiceState.isRecording && (
+                <p className="text-sm text-primary/80 animate-pulse">
+                  Sprich jetzt den Namen des Medikaments, z.B. „Ibuprofen 400 Milligramm".
+                </p>
+              )}
+              
+              {/* Voice error message */}
+              {voiceError && (
+                <p className="text-sm text-muted-foreground/80">
+                  {voiceError}
+                </p>
+              )}
+              
+              {!voiceState.isRecording && !voiceError && (
+                <p className="text-sm text-muted-foreground/80">
+                  Details wie Dosierung oder Einnahmerhythmus kannst du später ergänzen.
+                </p>
+              )}
             </div>
             
             {/* Optional: Edit after add - minimal switch row */}
@@ -681,6 +762,8 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
               onClick={() => {
                 setShowAddDialog(false);
                 setMedicationName("");
+                resetTranscript();
+                setVoiceError(null);
               }}
               className="flex-1 h-12 text-base text-muted-foreground hover:text-foreground"
             >
@@ -688,7 +771,7 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
             </Button>
             <Button 
               onClick={handleAddMedication} 
-              disabled={!medicationName.trim() || addMed.isPending}
+              disabled={!medicationName.trim() || addMed.isPending || voiceState.isRecording}
               className="flex-1 h-12 text-base font-medium"
             >
               {addMed.isPending ? (
