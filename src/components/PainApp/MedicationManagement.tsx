@@ -332,6 +332,27 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
     }
   };
 
+  const handleAddAndEdit = async () => {
+    const trimmedName = medicationName.trim();
+    if (!trimmedName) return;
+
+    if (!/^[a-zA-ZäöüÄÖÜß0-9\s\-/().]+$/.test(trimmedName)) {
+      toast.error("Medikamentenname enthält ungültige Zeichen.");
+      return;
+    }
+
+    try {
+      const newMed = await addMed.mutateAsync(trimmedName);
+      setShowAddDialog(false);
+      setMedicationName("");
+      setSelectedMedication(newMed);
+      setShowEditModal(true);
+      toast.success("Medikament hinzugefügt - Details bearbeiten");
+    } catch (error) {
+      toast.error("Fehler beim Hinzufügen des Medikaments.");
+    }
+  };
+
   const handleDeleteMedication = async () => {
     if (!selectedMedication) return;
 
@@ -630,12 +651,21 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
               </p>
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button variant="outline" onClick={() => {
               setShowAddDialog(false);
               setMedicationName("");
             }}>
               Abbrechen
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={handleAddAndEdit} 
+              disabled={!medicationName.trim() || addMed.isPending}
+              className="border-primary/50"
+            >
+              <Pencil className="h-4 w-4 mr-2" />
+              Hinzufügen & Details bearbeiten
             </Button>
             <Button onClick={handleAddMedication} disabled={!medicationName.trim() || addMed.isPending}>
               {addMed.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
