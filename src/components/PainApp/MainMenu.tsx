@@ -1,10 +1,8 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, History, TrendingUp, Settings, Zap, Mic, Bell, BookOpen, Sparkles, BarChart3, Brain, AlertTriangle, Database, Calendar, FileText } from "lucide-react";
 import { WelcomeModal } from "./WelcomeModal";
 import { QuickEntryModal } from "./QuickEntryModal";
-import { FloatingActionButton } from "@/components/ui/floating-action-button";
-import { StartPageCard, StartPageCardHeader, StartPageButtonGrid } from "@/components/ui/start-page-card";
+import { StartPageCard, StartPageCardHeader, StartPageButtonGrid, SectionHeader } from "@/components/ui/start-page-card";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -68,11 +66,8 @@ export const MainMenu: React.FC<MainMenuProps> = ({
     },
     onMedicationUpdateDetected: (data) => {
       console.log('💊 Medication update detected:', data);
-      // The update is already handled in useSmartVoiceRouter with toast notifications
-      // Optionally navigate to medication management
       if (data.action === 'intolerance' || data.action === 'discontinued') {
         // Refresh medication data is automatic via React Query invalidation
-        // Could optionally navigate: onNavigate?.('medication-management');
       }
     }
   });
@@ -100,14 +95,14 @@ export const MainMenu: React.FC<MainMenuProps> = ({
       return 'Weiter sprechen oder tippen Sie "Fertig"';
     }
     if (voiceRouter.isListening) {
-      return 'Sprechen Sie jetzt! 8s Pause beendet automatisch';
+      return 'Sprechen Sie jetzt!';
     }
-    return 'Migräne, Notiz oder Medikamenten-Update';
+    return 'Beschreibe einfach, was los ist';
   };
 
   const handleQuickEntryClose = () => {
     setShowQuickEntry(false);
-    setVoiceData(null); // Reset voice data
+    setVoiceData(null);
   };
 
   const handleVoiceNoteSave = async (text: string) => {
@@ -120,8 +115,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({
       toast.success('✅ Voice-Notiz gespeichert');
       setShowVoiceNoteReview(false);
       setPendingVoiceNote('');
-      
-      // Trigger reload in VoiceNotesList
       window.dispatchEvent(new Event('voice-note-saved'));
     } catch (error) {
       console.error('Error saving voice note:', error);
@@ -132,10 +125,8 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   const handleReminderSubmit = async (data: CreateReminderInput | CreateReminderInput[]) => {
     try {
       if (Array.isArray(data)) {
-        // Multiple reminders (z.B. täglich mit mehreren Tageszeiten)
         await createMultipleReminders.mutateAsync(data);
       } else {
-        // Single reminder
         await createReminder.mutateAsync(data);
       }
       
@@ -156,113 +147,117 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   const isMobile = useIsMobile();
 
   return (
-    <div className="min-h-screen bg-background pt-2 px-4 pb-4 sm:pt-4 sm:px-6 sm:pb-6 flex flex-col relative">
+    <div className="min-h-screen bg-background px-4 pb-6 sm:px-6 sm:pb-8 flex flex-col relative">
       <div className="flex-1 flex flex-col justify-start max-w-md mx-auto w-full">
-        <div className="text-center mb-6 sm:mb-8 px-2">
-          <h1 className="text-2xl sm:text-3xl font-light text-foreground mb-2">Migräne-App</h1>
-          <p className="text-muted-foreground text-sm sm:text-base">Verfolgen Sie Ihre Migräne und finden Sie Muster</p>
-        </div>
+        
+        {/* HEADER - ruhiger, mehr Abstand */}
+        <header className="text-center pt-6 pb-8 sm:pt-8 sm:pb-10">
+          <h1 className="text-2xl sm:text-3xl font-light text-foreground tracking-tight">
+            Migräne-App
+          </h1>
+          <p className="text-muted-foreground text-sm mt-2 max-w-[260px] mx-auto">
+            Dokumentiere deine Migräne und erkenne Muster.
+          </p>
+        </header>
 
-        <div className="space-y-4 sm:space-y-6 w-full max-w-md px-2 sm:px-0">
-          {/* Schnell erfassen - Bereich */}
-          <div className="mb-4">
-            <h2 className="text-base sm:text-lg font-medium text-foreground/80 mb-3 px-1">Schnell erfassen</h2>
-            
-            <div className="space-y-3">
-              {/* New Entry Button */}
-              <StartPageCard 
-                variant="success" 
-                touchFeedback 
-                onClick={onNewEntry}
-              >
-                <StartPageCardHeader
-                  icon="➕"
-                  title="Migräne-Eintrag erstellen"
-                  subtitle="Detaillierte Dokumentation"
-                />
-              </StartPageCard>
+        <div className="space-y-2 w-full">
+          
+          {/* SCHNELL ERFASSEN - Hauptbereich */}
+          <SectionHeader title="Schnell erfassen" className="mt-0" />
+          
+          <div className="space-y-3">
+            {/* 1) EINSPRECHEN - Hero Card, hervorgehoben */}
+            <StartPageCard 
+              variant="voiceHighlight" 
+              size="hero"
+              touchFeedback 
+              onClick={handleVoiceEntry}
+              className={voiceRouter.isListening ? 'ring-2 ring-primary shadow-xl shadow-primary/30' : ''}
+              style={voiceRouter.isListening ? { animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite' } : undefined}
+            >
+              <StartPageCardHeader
+                icon={voiceRouter.isListening ? '🔴' : '🎙️'}
+                iconBgClassName="bg-primary/30"
+                title={getVoiceButtonTitle()}
+                subtitle={getVoiceButtonSubtitle()}
+              />
+              {voiceRouter.isListening && (
+                <Button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    voiceRouter.stopVoice();
+                  }}
+                  className="mt-3 w-full bg-success hover:bg-success/90 text-success-foreground"
+                  size="lg"
+                >
+                  ✅ Fertig
+                </Button>
+              )}
+            </StartPageCard>
 
-              {/* Quick Entry Button - Schnelleintrag */}
-              <StartPageCard 
-                variant="quick" 
-                size="default"
-                touchFeedback 
-                onClick={() => setShowQuickEntry(true)}
-              >
-                <StartPageCardHeader
-                  icon="⚡"
-                  title="Migräne-Schnelleintrag"
-                  subtitle="Schmerz jetzt schnell festhalten"
-                />
-              </StartPageCard>
+            {/* 2) Migräne-Eintrag (Detail) */}
+            <StartPageCard 
+              variant="success" 
+              touchFeedback 
+              onClick={onNewEntry}
+            >
+              <StartPageCardHeader
+                icon="➕"
+                iconBgClassName="bg-success/30"
+                title="Migräne-Eintrag (Detail)"
+                subtitle="Detaillierte Dokumentation"
+              />
+            </StartPageCard>
 
-              {/* Unified Voice Entry Button */}
-              <StartPageCard 
-                variant="voice" 
-                touchFeedback 
-                onClick={handleVoiceEntry}
-                className={voiceRouter.isListening ? 'ring-2 ring-primary shadow-lg shadow-primary/50' : ''}
-                style={voiceRouter.isListening ? { animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite' } : undefined}
-              >
-                <StartPageCardHeader
-                  icon={voiceRouter.isListening ? '🔴' : '🎙️'}
-                  title={getVoiceButtonTitle()}
-                  subtitle={getVoiceButtonSubtitle()}
-                />
-                {voiceRouter.isListening && (
-                  <Button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      voiceRouter.stopVoice();
-                    }}
-                    className="mt-3 w-full bg-success hover:bg-success/90"
-                    size="lg"
-                  >
-                    ✅ Fertig & Verarbeiten
-                  </Button>
-                )}
-              </StartPageCard>
-            </div>
+            {/* 3) Schnell-Eintrag (kurz) */}
+            <StartPageCard 
+              variant="quick" 
+              touchFeedback 
+              onClick={() => setShowQuickEntry(true)}
+            >
+              <StartPageCardHeader
+                icon="⚡"
+                iconBgClassName="bg-destructive/30"
+                title="Schnell-Eintrag (kurz)"
+                subtitle="Schmerz jetzt kurz festhalten"
+              />
+            </StartPageCard>
+
+            {/* 4) Alltag & Auslöser */}
+            <StartPageCard 
+              variant="muted" 
+              touchFeedback 
+              onClick={() => setShowQuickContextNote(true)}
+            >
+              <StartPageCardHeader
+                icon="✨"
+                iconBgClassName="bg-muted"
+                title="Alltag & Auslöser"
+                subtitle="Schlaf, Stress, Stimmung & mehr"
+              />
+            </StartPageCard>
           </div>
 
-          {/* Alltag & Faktoren - Bereich */}
-          <div className="mb-4">
-            <StartPageButtonGrid columns={1} gap="md">
-              {/* Quick Context Note */}
-              <StartPageCard 
-                variant="neutral" 
-                touchFeedback 
-                onClick={() => setShowQuickContextNote(true)}
-              >
-                <StartPageCardHeader
-                  icon="✨"
-                  title="Alltag & Auslöser eintragen"
-                  subtitle="Schlaf, Stress, Stimmung, Ernährung, Wetter & mehr"
-                />
-              </StartPageCard>
-            </StartPageButtonGrid>
-          </div>
+          {/* MEDIKAMENTE */}
+          <SectionHeader title="Medikamente" />
+          
+          <div className="space-y-3">
+            {/* Hauptkarte: Medikamenten-Wirkung */}
+            <StartPageCard 
+              variant="warning" 
+              touchFeedback 
+              onClick={() => window.location.href = '/medication-effects'}
+            >
+              <StartPageCardHeader
+                icon="💊"
+                iconBgClassName="bg-warning/30"
+                title="Medikamenten-Wirkung"
+                subtitle="Wirksamkeit bewerten"
+              />
+            </StartPageCard>
 
-          {/* Medikamente - Bereich */}
-          <div className="mb-4 space-y-3">
-            <h2 className="text-base sm:text-lg font-medium text-foreground/80 mb-3 px-1">Medikamente</h2>
-            
-            {/* Medication actions in grid */}
+            {/* Grid: Medikamente & Übergebrauch */}
             <StartPageButtonGrid columns={2} gap="md">
-              {/* Medication Effects - NEUE ROUTE */}
-              <StartPageCard 
-                variant="warning" 
-                touchFeedback 
-                onClick={() => window.location.href = '/medication-effects'}
-              >
-                <StartPageCardHeader
-                  icon="💊"
-                  title="Med.-Wirkung"
-                  className="text-white"
-                />
-              </StartPageCard>
-
-              {/* Medication Management */}
               <StartPageCard 
                 variant="neutral" 
                 touchFeedback 
@@ -270,13 +265,11 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               >
                 <StartPageCardHeader
                   icon="📋"
+                  iconBgClassName="bg-muted"
                   title="Medikamente"
                 />
               </StartPageCard>
-            </StartPageButtonGrid>
 
-            {/* Medikamenten-Übergebrauch - Full width below */}
-            <StartPageButtonGrid columns={1} gap="md">
               <StartPageCard 
                 variant="neutral" 
                 touchFeedback 
@@ -284,79 +277,76 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               >
                 <StartPageCardHeader
                   icon="⚠️"
-                  title="Medikamenten-Übergebrauch"
+                  iconBgClassName="bg-muted"
+                  title="Übergebrauch"
                   subtitle="Grenzen & Warnungen"
                 />
               </StartPageCard>
             </StartPageButtonGrid>
           </div>
 
-          {/* Tagebuch & Auswertungen - Bereich */}
-          <div className="mb-4 space-y-3">
-            <h2 className="text-base sm:text-lg font-medium text-foreground/80 mb-3 px-1">Tagebuch & Auswertungen</h2>
-            
-            {/* Mein Tagebuch - Full width */}
-            <StartPageButtonGrid columns={1} gap="md">
-              <StartPageCard 
-                variant="neutral" 
-                touchFeedback 
-                onClick={() => onNavigate?.('diary-timeline')}
-              >
-                <StartPageCardHeader
-                  icon="📖"
-                  title="Kopfschmerztagebuch"
-                />
-              </StartPageCard>
-            </StartPageButtonGrid>
+          {/* TAGEBUCH & AUSWERTUNGEN */}
+          <SectionHeader title="Tagebuch & Auswertungen" />
+          
+          <StartPageButtonGrid columns={2} gap="md">
+            <StartPageCard 
+              variant="neutral" 
+              touchFeedback 
+              onClick={() => onNavigate?.('diary-timeline')}
+            >
+              <StartPageCardHeader
+                icon="📖"
+                iconBgClassName="bg-muted"
+                title="Tagebuch"
+              />
+            </StartPageCard>
 
-            {/* Auswertungen - Full width */}
-            <StartPageButtonGrid columns={1} gap="md">
-              <StartPageCard 
-                variant="neutral" 
-                touchFeedback 
-                onClick={() => onNavigate?.('analysis')}
-              >
-                <StartPageCardHeader
-                  icon="📊"
-                  title="Auswertung & Analyse"
-                />
-              </StartPageCard>
-            </StartPageButtonGrid>
-          </div>
+            <StartPageCard 
+              variant="neutral" 
+              touchFeedback 
+              onClick={() => onNavigate?.('analysis')}
+            >
+              <StartPageCardHeader
+                icon="📊"
+                iconBgClassName="bg-muted"
+                title="Auswertung"
+                subtitle="Analyse & Bericht"
+              />
+            </StartPageCard>
+          </StartPageButtonGrid>
 
-          {/* Organisation - Bereich */}
-          <div className="mb-4">
-            <h2 className="text-base sm:text-lg font-medium text-foreground/80 mb-3 px-1">Organisation</h2>
-            <StartPageButtonGrid columns={2} gap="md">
-              {/* Reminders */}
-              <StartPageCard 
-                variant="neutral" 
-                touchFeedback 
-                onClick={() => onNavigate?.('reminders')}
-              >
-                <StartPageCardHeader
-                  icon="⏰"
-                  title="Erinnerungen"
-                  subtitle="Medikamente & Termine"
-                />
-              </StartPageCard>
+          {/* ORGANISATION - ganz unten, kleiner */}
+          <SectionHeader title="Organisation" />
+          
+          <StartPageButtonGrid columns={2} gap="md">
+            <StartPageCard 
+              variant="muted" 
+              size="small"
+              touchFeedback 
+              onClick={() => onNavigate?.('reminders')}
+            >
+              <StartPageCardHeader
+                icon="⏰"
+                iconBgClassName="bg-background/50"
+                title="Erinnerungen"
+              />
+            </StartPageCard>
 
-              {/* Settings */}
-              <StartPageCard 
-                variant="neutral" 
-                touchFeedback 
-                onClick={onViewSettings}
-              >
-                <StartPageCardHeader
-                  icon="⚙️"
-                  title="Einstellungen"
-                  subtitle="App & Profil"
-                />
-              </StartPageCard>
-            </StartPageButtonGrid>
-          </div>
+            <StartPageCard 
+              variant="muted" 
+              size="small"
+              touchFeedback 
+              onClick={onViewSettings}
+            >
+              <StartPageCardHeader
+                icon="⚙️"
+                iconBgClassName="bg-background/50"
+                title="Einstellungen"
+              />
+            </StartPageCard>
+          </StartPageButtonGrid>
+
         </div>
-
       </div>
 
       {/* Modals */}
@@ -374,7 +364,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           handleQuickEntryClose();
           onQuickEntry?.();
         }}
-        // Voice input pre-filling
         initialPainLevel={voiceData?.initialPainLevel}
         initialSelectedTime={voiceData?.initialSelectedTime}
         initialCustomDate={voiceData?.initialCustomDate}
@@ -384,7 +373,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         onLimitWarning={onLimitWarning}
       />
 
-      {/* Reminder Form Dialog */}
       <Dialog open={showReminderForm} onOpenChange={setShowReminderForm}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -404,7 +392,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         </DialogContent>
       </Dialog>
 
-      {/* Voice Note Review Modal */}
       <VoiceNoteReviewModal
         open={showVoiceNoteReview}
         onClose={() => {
@@ -415,7 +402,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         onSave={handleVoiceNoteSave}
       />
 
-      {/* Quick Context Note Modal */}
       <QuickContextNoteModal
         isOpen={showQuickContextNote}
         onClose={() => setShowQuickContextNote(false)}
