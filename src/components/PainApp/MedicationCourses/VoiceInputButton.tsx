@@ -21,11 +21,13 @@ interface VoiceInputButtonProps {
     startDate: Date | undefined;
     isActive: boolean;
   }) => void;
+  className?: string;
 }
 
 export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
   userMeds,
   onDataRecognized,
+  className,
 }) => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [parsedData, setParsedData] = useState<ParsedMedicationCourse | null>(null);
@@ -104,7 +106,7 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
         variant="outline"
         size="sm"
         onClick={handleOpenDialog}
-        className="gap-2"
+        className={cn("gap-2", className)}
       >
         <Mic className="h-4 w-4" />
         <span className="hidden sm:inline">Per Sprache ausfüllen</span>
