@@ -12,6 +12,7 @@ const startPageCardVariants = cva(
         neutral: "bg-card/80 hover:bg-card border border-border/50",
         voice: "bg-primary/20 text-foreground hover:bg-primary/30 border-2 border-primary/40",
         voiceHighlight: "bg-gradient-to-br from-primary/25 to-primary/15 text-foreground hover:from-primary/35 hover:to-primary/25 border-2 border-primary/50 shadow-lg shadow-primary/10",
+        voiceActive: "bg-gradient-to-br from-primary/30 to-primary/20 text-foreground border-2 border-primary/60 shadow-xl shadow-primary/20 ring-2 ring-primary/40",
         warning: "bg-warning/20 text-foreground hover:bg-warning/30 border border-warning/30",
         muted: "bg-muted/30 hover:bg-muted/50 border border-border/30",
       },
@@ -19,7 +20,7 @@ const startPageCardVariants = cva(
         default: "p-4",
         large: "p-5",
         small: "p-3",
-        hero: "p-5 min-h-[88px]",
+        hero: "p-5 min-h-[108px]",
       },
       touchFeedback: {
         true: "active:scale-[0.98] hover:scale-[1.01]",
@@ -60,6 +61,7 @@ interface StartPageCardHeaderProps {
   className?: string
   iconClassName?: string
   iconBgClassName?: string
+  iconSize?: "default" | "large"
 }
 
 const StartPageCardHeader: React.FC<StartPageCardHeaderProps> = ({
@@ -69,15 +71,22 @@ const StartPageCardHeader: React.FC<StartPageCardHeaderProps> = ({
   className,
   iconClassName,
   iconBgClassName,
+  iconSize = "default",
 }) => {
+  const isLarge = iconSize === "large";
+  
   return (
     <div className="flex items-center gap-3 sm:gap-4 min-h-[56px] sm:min-h-[64px]">
       {icon && (
         <div className={cn(
-          "w-11 h-11 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center flex-shrink-0",
+          "rounded-xl flex items-center justify-center flex-shrink-0",
+          isLarge ? "w-14 h-14 sm:w-16 sm:h-16" : "w-11 h-11 sm:w-12 sm:h-12",
           iconBgClassName || "bg-background/50"
         )}>
-          <span className={cn("text-xl sm:text-2xl", iconClassName)}>
+          <span className={cn(
+            isLarge ? "text-2xl sm:text-3xl" : "text-xl sm:text-2xl",
+            iconClassName
+          )}>
             {icon}
           </span>
         </div>
@@ -87,7 +96,7 @@ const StartPageCardHeader: React.FC<StartPageCardHeaderProps> = ({
           {title}
         </h3>
         {subtitle && (
-          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 leading-tight break-words line-clamp-1">
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 leading-tight break-words line-clamp-2">
             {subtitle}
           </p>
         )}

@@ -81,23 +81,47 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   };
 
   const getVoiceButtonTitle = () => {
+    if (voiceRouter.isSaving) {
+      return 'Auswertung…';
+    }
     if (voiceRouter.remainingSeconds) {
-      return `Beende in ${voiceRouter.remainingSeconds}s`;
+      return `Pause erkannt (${voiceRouter.remainingSeconds}s)`;
     }
     if (voiceRouter.isListening) {
-      return 'Hört zu...';
+      return 'Hört zu…';
     }
     return 'Einsprechen';
   };
 
   const getVoiceButtonSubtitle = () => {
+    if (voiceRouter.isSaving) {
+      return 'Wir tragen die Felder für dich ein.';
+    }
     if (voiceRouter.remainingSeconds) {
-      return 'Weiter sprechen oder tippen Sie "Fertig"';
+      return 'Weiter sprechen oder auf "Fertig" tippen';
     }
     if (voiceRouter.isListening) {
-      return 'Sprechen Sie jetzt!';
+      return 'Sprich jetzt. Eine kurze Pause beendet automatisch.';
     }
-    return 'Beschreibe einfach, was los ist';
+    return 'Beschreibe einfach, was los ist – wir füllen den Eintrag für dich aus.';
+  };
+  
+  // Voice icon: roter Punkt mit Animation bei Aufnahme
+  const VoiceIcon = () => {
+    if (voiceRouter.isSaving) {
+      return (
+        <div className="w-6 h-6 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+      );
+    }
+    if (voiceRouter.isListening) {
+      return (
+        <div className="relative flex items-center justify-center">
+          <div className="w-4 h-4 rounded-full bg-destructive animate-pulse" />
+          <div className="absolute w-6 h-6 rounded-full bg-destructive/30 animate-ping" />
+        </div>
+      );
+    }
+    return <span className="text-2xl sm:text-3xl">🎙️</span>;
   };
 
   const handleQuickEntryClose = () => {
@@ -168,30 +192,40 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           <div className="space-y-3">
             {/* 1) EINSPRECHEN - Hero Card, hervorgehoben */}
             <StartPageCard 
-              variant="voiceHighlight" 
+              variant={voiceRouter.isListening || voiceRouter.isSaving ? "voiceActive" : "voiceHighlight"} 
               size="hero"
-              touchFeedback 
-              onClick={handleVoiceEntry}
-              className={voiceRouter.isListening ? 'ring-2 ring-primary shadow-xl shadow-primary/30' : ''}
-              style={voiceRouter.isListening ? { animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite' } : undefined}
+              touchFeedback={!voiceRouter.isListening && !voiceRouter.isSaving}
+              onClick={!voiceRouter.isListening && !voiceRouter.isSaving ? handleVoiceEntry : undefined}
             >
               <StartPageCardHeader
-                icon={voiceRouter.isListening ? '🔴' : '🎙️'}
-                iconBgClassName="bg-primary/30"
+                icon={<VoiceIcon />}
+                iconBgClassName={voiceRouter.isListening ? "bg-destructive/20" : "bg-primary/40"}
+                iconSize="large"
                 title={getVoiceButtonTitle()}
                 subtitle={getVoiceButtonSubtitle()}
               />
-              {voiceRouter.isListening && (
-                <Button 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    voiceRouter.stopVoice();
-                  }}
-                  className="mt-3 w-full bg-success hover:bg-success/90 text-success-foreground"
-                  size="lg"
-                >
-                  ✅ Fertig
-                </Button>
+              {voiceRouter.isListening && !voiceRouter.isSaving && (
+                <div className="mt-4 space-y-2">
+                  <Button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      voiceRouter.stopVoice();
+                    }}
+                    className="w-full bg-success hover:bg-success/90 text-success-foreground font-medium"
+                    size="lg"
+                  >
+                    Fertig & auswerten
+                  </Button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      voiceRouter.stopVoice();
+                    }}
+                    className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors py-1"
+                  >
+                    Abbrechen
+                  </button>
+                </div>
               )}
             </StartPageCard>
 
