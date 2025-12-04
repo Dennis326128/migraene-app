@@ -655,22 +655,27 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
             </div>
             
             {/* Optional: Edit after add - light switch row */}
-            <div 
-              className="flex items-center gap-3 py-2 cursor-pointer"
-              onClick={() => handleEditAfterAddChange(!editAfterAdd)}
-            >
-              <Checkbox
-                id="edit-after-add"
-                checked={editAfterAdd}
-                onCheckedChange={(checked) => handleEditAfterAddChange(checked === true)}
-                className="h-4 w-4 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-              />
-              <Label 
-                htmlFor="edit-after-add" 
-                className="text-xs text-muted-foreground/80 cursor-pointer flex-1 font-normal"
+            <div className="space-y-1">
+              <div 
+                className="flex items-center gap-3 py-2 cursor-pointer"
+                onClick={() => handleEditAfterAddChange(!editAfterAdd)}
               >
-                Details nach dem Hinzufügen öffnen
-              </Label>
+                <Checkbox
+                  id="edit-after-add"
+                  checked={editAfterAdd}
+                  onCheckedChange={(checked) => handleEditAfterAddChange(checked === true)}
+                  className="h-4 w-4 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                />
+                <Label 
+                  htmlFor="edit-after-add" 
+                  className="text-sm text-muted-foreground cursor-pointer flex-1 font-normal"
+                >
+                  Direkt bearbeiten
+                </Label>
+              </div>
+              <p className="text-xs text-muted-foreground/60 pl-7">
+                Wenn aktiv, öffnet sich nach „Hinzufügen" automatisch die Detailansicht.
+              </p>
             </div>
           </div>
           
