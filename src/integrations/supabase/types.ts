@@ -567,6 +567,11 @@ export type Database = {
         Row: {
           anwendungsgebiet: string | null
           art: string | null
+          as_needed_max_days_per_month: number | null
+          as_needed_max_per_24h: number | null
+          as_needed_min_interval_hours: number | null
+          as_needed_notes: string | null
+          as_needed_standard_dose: string | null
           created_at: string | null
           darreichungsform: string | null
           discontinued_at: string | null
@@ -578,17 +583,30 @@ export type Database = {
           einheit: string | null
           hinweise: string | null
           id: string
+          intake_type: string | null
           intolerance_flag: boolean | null
           intolerance_notes: string | null
+          intolerance_reason_type: string | null
           is_active: boolean | null
+          medication_status: string | null
           name: string
+          regular_notes: string | null
+          regular_weekdays: string[] | null
           staerke: string | null
+          strength_unit: string | null
+          strength_value: string | null
+          typical_indication: string | null
           user_id: string
           wirkstoff: string | null
         }
         Insert: {
           anwendungsgebiet?: string | null
           art?: string | null
+          as_needed_max_days_per_month?: number | null
+          as_needed_max_per_24h?: number | null
+          as_needed_min_interval_hours?: number | null
+          as_needed_notes?: string | null
+          as_needed_standard_dose?: string | null
           created_at?: string | null
           darreichungsform?: string | null
           discontinued_at?: string | null
@@ -600,17 +618,30 @@ export type Database = {
           einheit?: string | null
           hinweise?: string | null
           id?: string
+          intake_type?: string | null
           intolerance_flag?: boolean | null
           intolerance_notes?: string | null
+          intolerance_reason_type?: string | null
           is_active?: boolean | null
+          medication_status?: string | null
           name: string
+          regular_notes?: string | null
+          regular_weekdays?: string[] | null
           staerke?: string | null
+          strength_unit?: string | null
+          strength_value?: string | null
+          typical_indication?: string | null
           user_id: string
           wirkstoff?: string | null
         }
         Update: {
           anwendungsgebiet?: string | null
           art?: string | null
+          as_needed_max_days_per_month?: number | null
+          as_needed_max_per_24h?: number | null
+          as_needed_min_interval_hours?: number | null
+          as_needed_notes?: string | null
+          as_needed_standard_dose?: string | null
           created_at?: string | null
           darreichungsform?: string | null
           discontinued_at?: string | null
@@ -622,11 +653,19 @@ export type Database = {
           einheit?: string | null
           hinweise?: string | null
           id?: string
+          intake_type?: string | null
           intolerance_flag?: boolean | null
           intolerance_notes?: string | null
+          intolerance_reason_type?: string | null
           is_active?: boolean | null
+          medication_status?: string | null
           name?: string
+          regular_notes?: string | null
+          regular_weekdays?: string[] | null
           staerke?: string | null
+          strength_unit?: string | null
+          strength_value?: string | null
+          typical_indication?: string | null
           user_id?: string
           wirkstoff?: string | null
         }

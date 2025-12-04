@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabaseClient";
 
-// Extended Med type with all BMP fields + intolerance
+// Extended Med type with all BMP fields + structured dosing + intolerance
 export type Med = { 
   id: string; 
   name: string; 
@@ -18,9 +18,26 @@ export type Med = {
   art?: string | null;
   is_active?: boolean | null;
   discontinued_at?: string | null;
-  // New intolerance fields
+  // Intolerance fields
   intolerance_flag?: boolean | null;
   intolerance_notes?: string | null;
+  intolerance_reason_type?: string | null;
+  // New structured fields
+  intake_type?: string | null; // 'as_needed' | 'regular'
+  strength_value?: string | null;
+  strength_unit?: string | null;
+  typical_indication?: string | null;
+  // As-needed structured dosing
+  as_needed_standard_dose?: string | null;
+  as_needed_max_per_24h?: number | null;
+  as_needed_max_days_per_month?: number | null;
+  as_needed_min_interval_hours?: number | null;
+  as_needed_notes?: string | null;
+  // Regular structured dosing
+  regular_weekdays?: string[] | null;
+  regular_notes?: string | null;
+  // Status
+  medication_status?: string | null; // 'active' | 'stopped' | 'intolerant'
 };
 
 export type RecentMed = Med & { use_count: number; last_used: string | null };
@@ -39,9 +56,26 @@ export type CreateMedInput = {
   anwendungsgebiet?: string;
   hinweise?: string;
   art?: string;
-  // New intolerance fields
+  // Intolerance fields
   intolerance_flag?: boolean;
   intolerance_notes?: string;
+  intolerance_reason_type?: string;
+  // New structured fields
+  intake_type?: string;
+  strength_value?: string;
+  strength_unit?: string;
+  typical_indication?: string;
+  // As-needed structured dosing
+  as_needed_standard_dose?: string;
+  as_needed_max_per_24h?: number;
+  as_needed_max_days_per_month?: number;
+  as_needed_min_interval_hours?: number;
+  as_needed_notes?: string;
+  // Regular structured dosing
+  regular_weekdays?: string[];
+  regular_notes?: string;
+  // Status
+  medication_status?: string;
 };
 
 export type UpdateMedInput = Partial<CreateMedInput> & {
@@ -133,6 +167,20 @@ export async function addMed(input: CreateMedInput): Promise<Med> {
       is_active: true,
       intolerance_flag: input.intolerance_flag || false,
       intolerance_notes: input.intolerance_notes || null,
+      intolerance_reason_type: input.intolerance_reason_type || null,
+      // New structured fields
+      intake_type: input.intake_type || "as_needed",
+      strength_value: input.strength_value || null,
+      strength_unit: input.strength_unit || "mg",
+      typical_indication: input.typical_indication || null,
+      as_needed_standard_dose: input.as_needed_standard_dose || null,
+      as_needed_max_per_24h: input.as_needed_max_per_24h || null,
+      as_needed_max_days_per_month: input.as_needed_max_days_per_month || null,
+      as_needed_min_interval_hours: input.as_needed_min_interval_hours || null,
+      as_needed_notes: input.as_needed_notes || null,
+      regular_weekdays: input.regular_weekdays || null,
+      regular_notes: input.regular_notes || null,
+      medication_status: input.medication_status || "active",
     })
     .select()
     .single();
@@ -164,6 +212,20 @@ export async function updateMed(id: string, input: UpdateMedInput): Promise<Med>
   // Handle intolerance fields
   if (input.intolerance_flag !== undefined) updateData.intolerance_flag = input.intolerance_flag;
   if (input.intolerance_notes !== undefined) updateData.intolerance_notes = input.intolerance_notes || null;
+  if (input.intolerance_reason_type !== undefined) updateData.intolerance_reason_type = input.intolerance_reason_type || null;
+  // Handle new structured fields
+  if (input.intake_type !== undefined) updateData.intake_type = input.intake_type || null;
+  if (input.strength_value !== undefined) updateData.strength_value = input.strength_value || null;
+  if (input.strength_unit !== undefined) updateData.strength_unit = input.strength_unit || null;
+  if (input.typical_indication !== undefined) updateData.typical_indication = input.typical_indication || null;
+  if (input.as_needed_standard_dose !== undefined) updateData.as_needed_standard_dose = input.as_needed_standard_dose || null;
+  if (input.as_needed_max_per_24h !== undefined) updateData.as_needed_max_per_24h = input.as_needed_max_per_24h || null;
+  if (input.as_needed_max_days_per_month !== undefined) updateData.as_needed_max_days_per_month = input.as_needed_max_days_per_month || null;
+  if (input.as_needed_min_interval_hours !== undefined) updateData.as_needed_min_interval_hours = input.as_needed_min_interval_hours || null;
+  if (input.as_needed_notes !== undefined) updateData.as_needed_notes = input.as_needed_notes || null;
+  if (input.regular_weekdays !== undefined) updateData.regular_weekdays = input.regular_weekdays || null;
+  if (input.regular_notes !== undefined) updateData.regular_notes = input.regular_notes || null;
+  if (input.medication_status !== undefined) updateData.medication_status = input.medication_status || null;
   
   const { data, error } = await supabase
     .from("user_medications")
@@ -202,19 +264,22 @@ export async function deleteMedById(id: string): Promise<void> {
 export async function discontinueMed(id: string): Promise<Med> {
   return updateMed(id, { 
     is_active: false, 
-    discontinued_at: new Date().toISOString() 
+    discontinued_at: new Date().toISOString(),
+    medication_status: "stopped",
   });
 }
 
 /**
  * Mark medication as intolerant
  */
-export async function markMedAsIntolerant(id: string, notes?: string): Promise<Med> {
+export async function markMedAsIntolerant(id: string, notes?: string, reasonType?: string): Promise<Med> {
   return updateMed(id, {
     intolerance_flag: true,
     intolerance_notes: notes || null,
+    intolerance_reason_type: reasonType || null,
     is_active: false,
     discontinued_at: new Date().toISOString(),
+    medication_status: "intolerant",
   });
 }
 

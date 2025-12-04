@@ -85,7 +85,20 @@ export type UserMedicationForPlan = {
   is_active?: boolean | null;
   intolerance_flag?: boolean | null;
   intolerance_notes?: string | null;
+  intolerance_reason_type?: string | null;
   discontinued_at?: string | null;
+  // New structured fields
+  intake_type?: string | null;
+  strength_value?: string | null;
+  strength_unit?: string | null;
+  as_needed_standard_dose?: string | null;
+  as_needed_max_per_24h?: number | null;
+  as_needed_max_days_per_month?: number | null;
+  as_needed_min_interval_hours?: number | null;
+  as_needed_notes?: string | null;
+  regular_weekdays?: string[] | null;
+  regular_notes?: string | null;
+  medication_status?: string | null;
 };
 
 export type MedicationCourseForPlan = {
@@ -205,9 +218,59 @@ function getDiscontinuationReasonLabel(reason: string | null | undefined): strin
   return labels[reason || ""] || reason || "";
 }
 
+function getIntoleranceReasonLabel(reason: string | null | undefined): string {
+  const labels: Record<string, string> = {
+    allergie: "Allergie",
+    nebenwirkungen: "Nebenwirkungen",
+    wirkungslos: "Keine Wirkung",
+    sonstiges: "Sonstiges",
+  };
+  return labels[reason || ""] || reason || "";
+}
+
 function truncateText(text: string, maxLen: number): string {
   if (text.length <= maxLen) return text;
   return text.substring(0, maxLen - 2) + "..";
+}
+
+/**
+ * Build structured as-needed dosing text from new fields
+ */
+function buildAsNeededDoseText(med: UserMedicationForPlan): string {
+  const parts: string[] = [];
+  
+  if (med.as_needed_standard_dose) {
+    parts.push(med.as_needed_standard_dose);
+  }
+  if (med.as_needed_max_per_24h) {
+    parts.push(`max. ${med.as_needed_max_per_24h}x/24h`);
+  }
+  if (med.as_needed_max_days_per_month) {
+    parts.push(`max. ${med.as_needed_max_days_per_month} Tage/Monat`);
+  }
+  if (med.as_needed_min_interval_hours) {
+    parts.push(`Abstand ${med.as_needed_min_interval_hours}h`);
+  }
+  
+  // Fallback to legacy field
+  if (parts.length === 0 && med.dosis_bedarf) {
+    return med.dosis_bedarf;
+  }
+  
+  return parts.join(", ");
+}
+
+/**
+ * Build weekday info for regular medications
+ */
+function buildWeekdayInfo(med: UserMedicationForPlan): string {
+  if (!med.regular_weekdays || med.regular_weekdays.length === 0) {
+    return ""; // Daily
+  }
+  if (med.regular_weekdays.length === 7) {
+    return ""; // Also daily
+  }
+  return `(${med.regular_weekdays.join(", ")})`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -228,8 +291,11 @@ type MedRow = {
   hinweise: string;
   isIntolerant: boolean;
   intoleranceNotes: string;
+  intoleranceReason: string;
   discontinuedAt: string;
   discontinuationReason: string;
+  asNeededDoseText: string;
+  weekdayInfo: string;
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -267,22 +333,38 @@ function buildMedicationRows(
     // Lookup metadata for missing fields
     const lookup = lookupMedicationMetadata(med.name);
     
-    // Build dosierung string
+    // Build combined strength (prefer new fields, fallback to legacy)
+    const combinedStaerke = med.strength_value && med.strength_unit
+      ? `${med.strength_value} ${med.strength_unit}`
+      : med.staerke || lookup?.staerke || "";
+    
+    // Build dosierung
     let morgens = med.dosis_morgens || "";
     let mittags = med.dosis_mittags || "";
     let abends = med.dosis_abends || "";
     let nachts = med.dosis_nacht || "";
     
-    // If no daily dose but has "bei Bedarf" dose
+    // Determine if regular or as-needed based on new intake_type or legacy art
+    const isRegular = med.intake_type === "regular" || 
+                      med.art === "prophylaxe" || 
+                      med.art === "regelmaessig";
+    
+    // Build as-needed dose text
+    const asNeededDoseText = buildAsNeededDoseText(med);
+    
+    // Build weekday info for regular meds
+    const weekdayInfo = buildWeekdayInfo(med);
+    
+    // If no daily dose but has as-needed dose (for display)
     const hasDailyDose = morgens || mittags || abends || nachts;
-    if (!hasDailyDose && med.dosis_bedarf) {
+    if (!hasDailyDose && !isRegular) {
       morgens = "b.B.";  // "bei Bedarf" indicator
     }
 
     const row: MedRow = {
       wirkstoff: sanitize(med.wirkstoff || lookup?.wirkstoff || ""),
       handelsname: sanitize(med.name),
-      staerke: sanitize(med.staerke || lookup?.staerke || ""),
+      staerke: sanitize(combinedStaerke),
       form: sanitize(med.darreichungsform || lookup?.darreichungsform || "Tbl."),
       morgens,
       mittags,
@@ -290,20 +372,23 @@ function buildMedicationRows(
       nachts,
       einheit: sanitize(med.einheit || lookup?.einheit || "St."),
       grund: sanitize(med.anwendungsgebiet || lookup?.anwendungsgebiet || ""),
-      hinweise: sanitize(med.hinweise || ""),
+      hinweise: sanitize(med.hinweise || med.as_needed_notes || med.regular_notes || ""),
       isIntolerant: !!med.intolerance_flag,
       intoleranceNotes: sanitize(med.intolerance_notes || course?.side_effects_text || ""),
+      intoleranceReason: getIntoleranceReasonLabel(med.intolerance_reason_type),
       discontinuedAt: med.discontinued_at ? formatDate(med.discontinued_at) : 
                       (course?.end_date ? formatDate(course.end_date) : ""),
       discontinuationReason: getDiscontinuationReasonLabel(course?.discontinuation_reason),
+      asNeededDoseText: sanitize(asNeededDoseText),
+      weekdayInfo: sanitize(weekdayInfo),
     };
 
-    // Categorize
-    if (med.intolerance_flag) {
+    // Categorize based on status
+    if (med.intolerance_flag || med.medication_status === "intolerant") {
       intolerant.push(row);
-    } else if (med.is_active === false || med.discontinued_at) {
+    } else if (med.is_active === false || med.discontinued_at || med.medication_status === "stopped") {
       inactive.push(row);
-    } else if (med.art === "prophylaxe" || med.art === "regelmaessig") {
+    } else if (isRegular) {
       regular.push(row);
     } else {
       onDemand.push(row);
@@ -490,6 +575,77 @@ function drawMedicationRow(
   return y - rowHeight;
 }
 
+/**
+ * Draw a row for as-needed medication with structured dosing info
+ */
+function drawAsNeededMedicationRow(
+  page: PDFPage,
+  y: number,
+  tableX: number,
+  med: MedRow,
+  fonts: { helvetica: PDFFont; helveticaBold: PDFFont },
+  showGrund: boolean
+): number {
+  const { helvetica, helveticaBold } = fonts;
+  const rowHeight = med.asNeededDoseText ? 30 : 22; // More height if we have dose text
+  const effectiveWidth = showGrund ? TABLE_WIDTH : TABLE_WIDTH - COL_WIDTHS.grund;
+  
+  // Row background
+  page.drawRectangle({
+    x: tableX,
+    y: y - rowHeight,
+    width: effectiveWidth,
+    height: rowHeight,
+    color: COLORS.white,
+  });
+  page.drawLine({ start: { x: tableX, y: y - rowHeight }, end: { x: tableX + effectiveWidth, y: y - rowHeight }, thickness: 0.3, color: COLORS.borderLight });
+  
+  let cx = tableX + 3;
+  const textY = y - 12;
+  const fs = 7;
+  
+  // Wirkstoff
+  page.drawText(truncateText(med.wirkstoff, 16), { x: cx, y: textY, size: fs, font: helvetica, color: COLORS.text });
+  cx += COL_WIDTHS.wirkstoff;
+  
+  // Handelsname (bold)
+  page.drawText(truncateText(med.handelsname, 18), { x: cx, y: textY, size: fs, font: helveticaBold, color: COLORS.text });
+  cx += COL_WIDTHS.handelsname;
+  
+  // Stärke
+  page.drawText(truncateText(med.staerke, 10), { x: cx, y: textY, size: fs, font: helvetica, color: COLORS.text });
+  cx += COL_WIDTHS.staerke;
+  
+  // Form
+  page.drawText(truncateText(med.form, 10), { x: cx, y: textY, size: fs, font: helvetica, color: COLORS.text });
+  cx += COL_WIDTHS.form;
+  
+  // For as-needed: Show "b.B." in first column, then structured dose info spanning rest
+  page.drawText("b.B.", { x: cx + 4, y: textY, size: fs, font: helvetica, color: COLORS.text });
+  
+  // Show structured dose text below if available
+  if (med.asNeededDoseText) {
+    const doseTextX = cx + COL_WIDTHS.mo;
+    const doseWidth = COL_WIDTHS.mi + COL_WIDTHS.ab + COL_WIDTHS.na + COL_WIDTHS.einheit;
+    page.drawText(truncateText(med.asNeededDoseText, 40), { 
+      x: doseTextX, 
+      y: textY, 
+      size: 6, 
+      font: helvetica, 
+      color: COLORS.textMuted 
+    });
+  }
+  
+  cx += COL_WIDTHS.mo + COL_WIDTHS.mi + COL_WIDTHS.ab + COL_WIDTHS.na + COL_WIDTHS.einheit;
+  
+  // Grund (if shown)
+  if (showGrund) {
+    page.drawText(truncateText(med.grund, 12), { x: cx + 2, y: textY, size: 6.5, font: helvetica, color: COLORS.textMuted });
+  }
+  
+  return y - rowHeight;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // MAIN PDF BUILDER
 // ═══════════════════════════════════════════════════════════════════════════
@@ -638,7 +794,7 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
   
   if (options.includeIntolerance && medRows.intolerant.length > 0) {
     // Warning box
-    const boxHeight = 14 + medRows.intolerant.length * 14;
+    const boxHeight = 14 + medRows.intolerant.length * 16;
     page.drawRectangle({
       x: tableX,
       y: y - boxHeight,
@@ -657,12 +813,20 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
       color: COLORS.warning,
     });
     
-    let iy = y - 24;
+    let iy = y - 26;
     for (const med of medRows.intolerant) {
-      const text = med.intoleranceNotes 
-        ? `${med.handelsname} (${med.wirkstoff}): ${med.intoleranceNotes}`
-        : `${med.handelsname} (${med.wirkstoff})`;
-      page.drawText(truncateText(sanitize(text), 90), { x: tableX + 10, y: iy, size: 7, font: helvetica, color: COLORS.text });
+      // Build intolerance line with reason
+      let text = `${med.handelsname}`;
+      if (med.wirkstoff) text += ` (${med.wirkstoff})`;
+      
+      const reasonParts: string[] = [];
+      if (med.intoleranceReason) reasonParts.push(med.intoleranceReason);
+      if (med.intoleranceNotes) reasonParts.push(med.intoleranceNotes);
+      if (reasonParts.length > 0) {
+        text += `: ${reasonParts.join(" - ")}`;
+      }
+      
+      page.drawText(truncateText(sanitize(text), 95), { x: tableX + 10, y: iy, size: 7, font: helvetica, color: COLORS.text });
       iy -= 14;
     }
     
@@ -698,6 +862,17 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
             y = drawTableHeader(page, y, tableX, fonts, options.includeGrund);
           }
           y = drawMedicationRow(page, y, tableX, med, fonts, options.includeGrund);
+          
+          // Add weekday info if present
+          if (med.weekdayInfo) {
+            page.drawText(med.weekdayInfo, { 
+              x: tableX + 6, 
+              y: y + 4, 
+              size: 5.5, 
+              font: helvetica, 
+              color: COLORS.textMuted 
+            });
+          }
         }
       }
       
@@ -711,7 +886,8 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
             y = LAYOUT.pageHeight - LAYOUT.marginTop - 20;
             y = drawTableHeader(page, y, tableX, fonts, options.includeGrund);
           }
-          y = drawMedicationRow(page, y, tableX, med, fonts, options.includeGrund);
+          // Use enhanced as-needed row drawing
+          y = drawAsNeededMedicationRow(page, y, tableX, med, fonts, options.includeGrund);
         }
       }
     }
@@ -751,6 +927,7 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
       
       let line = `- ${med.handelsname}`;
       if (med.wirkstoff) line += ` (${med.wirkstoff})`;
+      if (med.staerke) line += ` ${med.staerke}`;
       if (med.discontinuedAt) line += ` - abgesetzt am ${med.discontinuedAt}`;
       if (med.discontinuationReason) line += ` (${med.discontinuationReason})`;
       
