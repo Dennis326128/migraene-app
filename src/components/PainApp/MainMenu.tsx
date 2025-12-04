@@ -123,7 +123,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
     if (voiceRouter.isListening) {
       return 'Hört zu…';
     }
-    return 'Einsprechen';
+    return 'Spracheingabe';
   };
 
   const getVoiceButtonSubtitle = () => {
@@ -136,7 +136,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
     if (voiceRouter.isListening) {
       return 'Sprich jetzt. Eine kurze Pause beendet automatisch.';
     }
-    return 'Beschreibe einfach, was los ist – wir füllen den Eintrag für dich aus.';
+    return 'Einfach sprechen – Eintrag, Erinnerung oder Navigation';
   };
   
   // Voice icon: roter Punkt mit Animation bei Aufnahme, Petrol bei Bereit
@@ -223,17 +223,14 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           <SectionHeader title="Schnell erfassen" className="mt-0" />
           
           <div className="space-y-3">
-            {/* 1) EINSPRECHEN - Hero Card, hervorgehoben mit Voice-Farbe */}
+            {/* 1) SPRACHEINGABE - Hero Card, hervorgehoben mit Voice-Farbe */}
             <StartPageCard 
               variant={voiceRouter.isListening || voiceRouter.isSaving ? "voiceActive" : "voiceHighlight"} 
               size="hero"
+              className="min-h-[130px] sm:min-h-[140px]"
               touchFeedback={!voiceRouter.isListening && !voiceRouter.isSaving}
               onClick={!voiceRouter.isListening && !voiceRouter.isSaving ? handleVoiceEntry : undefined}
             >
-              {/* Badge nur im Bereit-Zustand */}
-              {!voiceRouter.isListening && !voiceRouter.isSaving && (
-                <CardBadge text="Empfohlen" />
-              )}
               <StartPageCardHeader
                 icon={<VoiceIcon />}
                 iconBgClassName={voiceRouter.isListening ? "bg-destructive/20" : "bg-voice-light/30"}
