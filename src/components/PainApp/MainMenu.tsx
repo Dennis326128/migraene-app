@@ -117,11 +117,8 @@ export const MainMenu: React.FC<MainMenuProps> = ({
     if (voiceRouter.isSaving) {
       return 'Auswertung…';
     }
-    if (voiceRouter.remainingSeconds) {
-      return `Pause erkannt (${voiceRouter.remainingSeconds}s)`;
-    }
     if (voiceRouter.isListening) {
-      return 'Hört zu…';
+      return 'Aufnahme läuft …';
     }
     return 'Spracheingabe';
   };
@@ -130,11 +127,8 @@ export const MainMenu: React.FC<MainMenuProps> = ({
     if (voiceRouter.isSaving) {
       return 'Wir tragen die Felder für dich ein.';
     }
-    if (voiceRouter.remainingSeconds) {
-      return 'Weiter sprechen oder auf "Fertig" tippen';
-    }
     if (voiceRouter.isListening) {
-      return 'Sprich jetzt. Eine kurze Pause beendet automatisch.';
+      return 'Sprich in deinem Tempo.';
     }
     return 'Einfach sprechen – Eintrag, Erinnerung oder Navigation';
   };
@@ -248,7 +242,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                     className="w-full bg-success hover:bg-success/90 text-success-foreground font-medium"
                     size="lg"
                   >
-                    Fertig & auswerten
+                    Fertig
                   </Button>
                   <button
                     onClick={(e) => {
