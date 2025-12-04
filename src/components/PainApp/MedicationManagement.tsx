@@ -154,7 +154,17 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
   
   const [selectedMedication, setSelectedMedication] = useState<Med | null>(null);
   const [medicationName, setMedicationName] = useState("");
-  const [editAfterAdd, setEditAfterAdd] = useState(false);
+  
+  // Remember user preference for "edit after add" in localStorage
+  const [editAfterAdd, setEditAfterAdd] = useState(() => {
+    const stored = localStorage.getItem('med-edit-after-add');
+    return stored === 'true';
+  });
+  
+  const handleEditAfterAddChange = (checked: boolean) => {
+    setEditAfterAdd(checked);
+    localStorage.setItem('med-edit-after-add', String(checked));
+  };
 
   // Categorize medications
   const categorizedMeds = useMemo(() => {
@@ -644,42 +654,42 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
               </p>
             </div>
             
-            {/* Optional: Edit after add checkbox */}
+            {/* Optional: Edit after add - light switch row */}
             <div 
-              className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 border border-border/50 cursor-pointer hover:bg-muted/50 transition-colors"
-              onClick={() => setEditAfterAdd(!editAfterAdd)}
+              className="flex items-center gap-3 py-2 cursor-pointer"
+              onClick={() => handleEditAfterAddChange(!editAfterAdd)}
             >
               <Checkbox
                 id="edit-after-add"
                 checked={editAfterAdd}
-                onCheckedChange={(checked) => setEditAfterAdd(checked === true)}
-                className="h-5 w-5"
+                onCheckedChange={(checked) => handleEditAfterAddChange(checked === true)}
+                className="h-4 w-4 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
               />
               <Label 
                 htmlFor="edit-after-add" 
-                className="text-sm text-muted-foreground cursor-pointer flex-1"
+                className="text-xs text-muted-foreground/80 cursor-pointer flex-1 font-normal"
               >
-                Nach dem Hinzufügen direkt Details bearbeiten
+                Details nach dem Hinzufügen öffnen
               </Label>
             </div>
           </div>
           
-          {/* Simplified Footer - Only 2 buttons */}
-          <DialogFooter className="flex-row gap-3 sm:gap-3">
+          {/* Footer - Clear hierarchy: Secondary left, Primary right */}
+          <DialogFooter className="flex-row gap-3 sm:gap-3 pt-2">
             <Button 
-              variant="ghost" 
+              variant="outline" 
               onClick={() => {
                 setShowAddDialog(false);
                 setMedicationName("");
               }}
-              className="flex-1 h-12 text-base"
+              className="flex-1 h-12 text-base text-muted-foreground hover:text-foreground"
             >
               Abbrechen
             </Button>
             <Button 
               onClick={handleAddMedication} 
               disabled={!medicationName.trim() || addMed.isPending}
-              className="flex-1 h-12 text-base"
+              className="flex-1 h-12 text-base font-medium"
             >
               {addMed.isPending ? (
                 <Loader2 className="h-5 w-5 animate-spin mr-2" />
