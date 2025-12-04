@@ -1,12 +1,18 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useSpeechRecognition } from './useSpeechRecognition';
-import { analyzeVoiceTranscript } from '@/lib/voice/voiceNlp';
+import { routeVoiceCommand, getRouteForIntent, isNavigationIntent, type VoiceRouterResult } from '@/lib/voice/voiceIntentRouter';
 import { saveVoiceNote } from '@/lib/voice/saveNote';
 import { toast } from '@/hooks/use-toast';
 import { useMeds, useUpdateMed, useMarkMedAsIntolerant } from '@/features/meds/hooks/useMeds';
 import type { VoiceUserContext, VoiceMedicationUpdate } from '@/types/voice.types';
+import type { ParsedReminder, ParsedAppointment, DiaryFilter, AnalysisOptions, ReportOptions } from '@/lib/voice/navigationIntents';
 
-interface QuickEntryData {
+// ============================================
+// Types
+// ============================================
+
+export interface QuickEntryData {
   initialPainLevel: number;
   initialSelectedTime: string;
   initialCustomDate?: string;
@@ -15,7 +21,7 @@ interface QuickEntryData {
   initialNotes: string;
 }
 
-interface ReminderData {
+export interface ReminderData {
   type: 'medication' | 'appointment';
   title: string;
   medications?: string[];
@@ -27,23 +33,37 @@ interface ReminderData {
   notification_enabled: boolean;
 }
 
-interface MedicationUpdateData {
+export interface MedicationUpdateData {
   medicationName: string;
   action: 'discontinued' | 'intolerance' | 'started' | 'dosage_changed';
   reason?: string;
   notes?: string;
 }
 
-interface SmartVoiceRouterOptions {
+export interface SmartVoiceRouterOptions {
   onEntryDetected?: (data: QuickEntryData) => void;
   onNoteDetected?: (transcript: string) => void;
   onNoteCreated?: () => void;
   onReminderDetected?: (data: ReminderData) => void;
   onMedicationUpdateDetected?: (data: MedicationUpdateData) => void;
+  // New navigation callbacks
+  onNavigationIntent?: (route: string, payload?: unknown) => void;
+  onHelpRequested?: () => void;
+  onUnknownIntent?: (transcript: string) => void;
 }
+
+export interface VoiceRouterState {
+  lastResult: VoiceRouterResult | null;
+}
+
+// ============================================
+// Hook
+// ============================================
 
 export function useSmartVoiceRouter(options: SmartVoiceRouterOptions) {
   const [isSaving, setIsSaving] = useState(false);
+  const [lastResult, setLastResult] = useState<VoiceRouterResult | null>(null);
+  const navigate = useNavigate();
   const { data: userMeds = [] } = useMeds();
   const updateMed = useUpdateMed();
   const markAsIntolerant = useMarkMedAsIntolerant();
@@ -58,135 +78,24 @@ export function useSmartVoiceRouter(options: SmartVoiceRouterOptions) {
       setIsSaving(true);
       
       try {
-        // Zentrale NLP-Analyse
+        // Zentrale NLP-Analyse mit neuem Router
         const userContext: VoiceUserContext = {
           userMeds,
           timezone: 'Europe/Berlin',
           language: 'de-DE'
         };
 
-        const analysis = analyzeVoiceTranscript(transcript, userContext, confidence);
+        const result = routeVoiceCommand(transcript, userContext);
+        setLastResult(result);
         
-        console.log('🧠 Analysis Result:', {
-          intent: analysis.intent,
-          intentConfidence: analysis.intentConfidence,
-          sttConfidence: analysis.sttConfidence
+        console.log('🧠 Voice Router Result:', {
+          type: result.type,
+          confidence: result.confidence,
+          source: result.source
         });
 
         // Intent-basiertes Routing
-        switch (analysis.intent) {
-          case 'medication_update':
-            if (analysis.medicationUpdate) {
-              await handleMedicationUpdate(analysis.medicationUpdate);
-            }
-            break;
-
-          case 'reminder':
-            if (analysis.reminder) {
-              const reminderData: ReminderData = {
-                type: analysis.reminder.type || 'medication',
-                title: analysis.reminder.title || 'Erinnerung',
-                medications: analysis.reminder.medications?.map(m => m.name),
-                date: analysis.reminder.date || new Date().toISOString().split('T')[0],
-                time: analysis.reminder.time || '12:00',
-                timeOfDay: analysis.reminder.timeOfDay,
-                repeat: analysis.reminder.repeat || 'none',
-                notes: analysis.reminder.notes || '',
-                notification_enabled: true
-              };
-              
-              toast({
-                title: '⏰ Erinnerung erkannt',
-                description: `${reminderData.type === 'medication' ? 'Medikament' : 'Termin'}: ${reminderData.title}`
-              });
-              
-              options.onReminderDetected?.(reminderData);
-            }
-            break;
-
-          case 'pain_entry':
-            if (analysis.painEntry) {
-              const { painEntry } = analysis;
-              
-              // Build medication states (nur high/medium confidence)
-              const medicationStates: Record<string, boolean> = {};
-              painEntry.medications
-                ?.filter(m => m.confidence >= 0.6)
-                .forEach(med => {
-                  medicationStates[med.name] = true;
-                });
-              
-              // Determine time selection
-              let selectedTime = 'jetzt';
-              let customDate: string | undefined;
-              let customTime: string | undefined;
-              
-              if (painEntry.occurredAt) {
-                const occurredDate = new Date(painEntry.occurredAt);
-                const now = new Date();
-                const diffMinutes = Math.abs((now.getTime() - occurredDate.getTime()) / 1000 / 60);
-                
-                if (diffMinutes < 5) {
-                  selectedTime = 'jetzt';
-                } else if (diffMinutes >= 50 && diffMinutes <= 70) {
-                  selectedTime = '1h';
-                } else {
-                  selectedTime = 'custom';
-                  customDate = occurredDate.toISOString().split('T')[0];
-                  customTime = occurredDate.toISOString().split('T')[1].substring(0, 5);
-                }
-              }
-              
-              const quickEntryData: QuickEntryData = {
-                initialPainLevel: painEntry.painLevel || 5,
-                initialSelectedTime: selectedTime,
-                initialCustomDate: customDate,
-                initialCustomTime: customTime,
-                initialMedicationStates: medicationStates,
-                initialNotes: transcript // Full transcript as notes
-              };
-              
-              toast({
-                title: '📝 Schmerz-Eintrag erkannt',
-                description: `Schmerzstärke ${painEntry.painLevel || '?'}/10, ${Object.keys(medicationStates).length} Medikament(e)`
-              });
-              
-              options.onEntryDetected?.(quickEntryData);
-            }
-            break;
-
-          case 'note':
-          case 'unknown':
-            console.log('📝 Kontext-Notiz oder unbekannter Intent');
-            
-            if (analysis.intentConfidence < 0.5) {
-              toast({
-                title: '⚠️ Unsicher',
-                description: 'Text als Notiz gespeichert - bitte prüfen',
-                variant: 'default'
-              });
-            } else {
-              toast({
-                title: '📝 Kontext-Notiz',
-                description: 'Gespeichert für spätere Analyse'
-              });
-            }
-            
-            // Callback statt direktes Speichern
-            if (options.onNoteDetected) {
-              options.onNoteDetected(transcript);
-            } else {
-              // Fallback: direktes Speichern
-              await saveVoiceNote({
-                rawText: transcript,
-                sttConfidence: confidence,
-                source: 'voice'
-              });
-              
-              options.onNoteCreated?.();
-            }
-            break;
-        }
+        await handleVoiceResult(result, transcript, confidence);
         
       } catch (error) {
         console.error('❌ Smart Router Error:', error);
@@ -209,6 +118,238 @@ export function useSmartVoiceRouter(options: SmartVoiceRouterOptions) {
       setIsSaving(false);
     }
   });
+
+  /**
+   * Handle voice result based on intent type
+   */
+  const handleVoiceResult = async (
+    result: VoiceRouterResult,
+    transcript: string,
+    confidence: number
+  ) => {
+    switch (result.type) {
+      // ============================================
+      // Navigation Intents
+      // ============================================
+      
+      case 'navigate_reminder_create': {
+        const payload = result.payload as ParsedReminder | undefined;
+        const reminderData: ReminderData = {
+          type: payload?.isAppointment ? 'appointment' : 'medication',
+          title: payload?.title || 'Erinnerung',
+          medications: payload?.medications,
+          date: payload?.date || new Date().toISOString().split('T')[0],
+          time: payload?.time || '09:00',
+          timeOfDay: payload?.timeOfDay,
+          repeat: payload?.repeat || 'none',
+          notes: payload?.notes || transcript,
+          notification_enabled: true
+        };
+        
+        toast({
+          title: '⏰ Erinnerung erkannt',
+          description: `${reminderData.title} - ${reminderData.date} ${reminderData.time}`
+        });
+        
+        // Navigate and pass data
+        if (options.onReminderDetected) {
+          options.onReminderDetected(reminderData);
+        } else {
+          navigate('/reminders', { state: { prefillData: reminderData } });
+        }
+        break;
+      }
+      
+      case 'navigate_appointment_create': {
+        const payload = result.payload as ParsedAppointment | undefined;
+        const reminderData: ReminderData = {
+          type: 'appointment',
+          title: payload?.title || 'Arzttermin',
+          date: payload?.date || new Date().toISOString().split('T')[0],
+          time: payload?.time || '09:00',
+          repeat: 'none',
+          notes: payload?.reason || transcript,
+          notification_enabled: true
+        };
+        
+        toast({
+          title: '📅 Arzttermin erkannt',
+          description: `${reminderData.title} - ${reminderData.date} ${reminderData.time}`
+        });
+        
+        if (options.onReminderDetected) {
+          options.onReminderDetected(reminderData);
+        } else {
+          navigate('/reminders', { state: { prefillData: reminderData } });
+        }
+        break;
+      }
+      
+      case 'navigate_profile_edit':
+        toast({ title: '👤 Persönliche Daten', description: 'Öffne Einstellungen...' });
+        handleNavigation('/settings/account');
+        break;
+      
+      case 'navigate_doctor_edit':
+        toast({ title: '🏥 Arztdaten', description: 'Öffne Arzteinstellungen...' });
+        handleNavigation('/settings/doctors');
+        break;
+      
+      case 'navigate_diary': {
+        const filter = result.payload as DiaryFilter | undefined;
+        toast({ 
+          title: '📔 Tagebuch', 
+          description: filter?.period ? `Zeitraum: ${filter.period}` : 'Öffne Tagebuch...'
+        });
+        handleNavigation('/diary', filter);
+        break;
+      }
+      
+      case 'navigate_analysis': {
+        const analysisOptions = result.payload as AnalysisOptions | undefined;
+        toast({ 
+          title: '📊 Auswertung', 
+          description: analysisOptions?.period ? `Zeitraum: ${analysisOptions.period}` : 'Öffne Auswertung...'
+        });
+        handleNavigation('/analysis', analysisOptions);
+        break;
+      }
+      
+      case 'navigate_report': {
+        const reportOptions = result.payload as ReportOptions | undefined;
+        toast({ 
+          title: '📄 Arztbericht', 
+          description: 'Öffne Berichtserstellung...'
+        });
+        handleNavigation('/analysis', { generateReport: true, ...reportOptions });
+        break;
+      }
+      
+      case 'navigate_medications':
+        toast({ title: '💊 Medikamente', description: 'Öffne Medikamentenübersicht...' });
+        handleNavigation('/medications');
+        break;
+      
+      case 'navigate_settings':
+        toast({ title: '⚙️ Einstellungen', description: 'Öffne Einstellungen...' });
+        handleNavigation('/settings');
+        break;
+      
+      case 'help':
+        console.log('🆘 Help requested');
+        options.onHelpRequested?.();
+        break;
+      
+      // ============================================
+      // Content Intents
+      // ============================================
+      
+      case 'create_medication_update': {
+        const update = result.payload as VoiceMedicationUpdate;
+        if (update) {
+          await handleMedicationUpdate(update);
+        }
+        break;
+      }
+
+      case 'create_pain_entry': {
+        const painEntry = result.payload as any;
+        if (painEntry) {
+          // Build medication states (nur high/medium confidence)
+          const medicationStates: Record<string, boolean> = {};
+          painEntry.medications
+            ?.filter((m: any) => m.confidence >= 0.6)
+            .forEach((med: any) => {
+              medicationStates[med.name] = true;
+            });
+          
+          // Determine time selection
+          let selectedTime = 'jetzt';
+          let customDate: string | undefined;
+          let customTime: string | undefined;
+          
+          if (painEntry.occurredAt) {
+            const occurredDate = new Date(painEntry.occurredAt);
+            const now = new Date();
+            const diffMinutes = Math.abs((now.getTime() - occurredDate.getTime()) / 1000 / 60);
+            
+            if (diffMinutes < 5) {
+              selectedTime = 'jetzt';
+            } else if (diffMinutes >= 50 && diffMinutes <= 70) {
+              selectedTime = '1h';
+            } else {
+              selectedTime = 'custom';
+              customDate = occurredDate.toISOString().split('T')[0];
+              customTime = occurredDate.toISOString().split('T')[1].substring(0, 5);
+            }
+          }
+          
+          const quickEntryData: QuickEntryData = {
+            initialPainLevel: painEntry.painLevel || 5,
+            initialSelectedTime: selectedTime,
+            initialCustomDate: customDate,
+            initialCustomTime: customTime,
+            initialMedicationStates: medicationStates,
+            initialNotes: transcript
+          };
+          
+          toast({
+            title: '📝 Schmerz-Eintrag erkannt',
+            description: `Schmerzstärke ${painEntry.painLevel || '?'}/10, ${Object.keys(medicationStates).length} Medikament(e)`
+          });
+          
+          options.onEntryDetected?.(quickEntryData);
+        }
+        break;
+      }
+
+      case 'create_note':
+        console.log('📝 Kontext-Notiz');
+        
+        toast({
+          title: '📝 Notiz',
+          description: 'Als Kontext-Notiz gespeichert'
+        });
+        
+        if (options.onNoteDetected) {
+          options.onNoteDetected(transcript);
+        } else {
+          await saveVoiceNote({
+            rawText: transcript,
+            sttConfidence: confidence,
+            source: 'voice'
+          });
+          options.onNoteCreated?.();
+        }
+        break;
+
+      case 'unknown':
+      default:
+        console.log('❓ Unknown intent - showing fallback');
+        
+        if (result.confidence < 0.5) {
+          toast({
+            title: '⚠️ Nicht sicher verstanden',
+            description: 'Bitte wähle eine Aktion aus',
+            variant: 'default'
+          });
+        }
+        
+        options.onUnknownIntent?.(transcript);
+        break;
+    }
+  };
+
+  /**
+   * Handle navigation with optional payload
+   */
+  const handleNavigation = (route: string, payload?: unknown) => {
+    if (options.onNavigationIntent) {
+      options.onNavigationIntent(route, payload);
+    } else {
+      navigate(route, { state: payload ? { voicePayload: payload } : undefined });
+    }
+  };
   
   /**
    * Handle medication updates (discontinued, intolerance, started, dosage_changed)
@@ -230,7 +371,6 @@ export function useSmartVoiceRouter(options: SmartVoiceRouterOptions) {
         variant: 'default'
       });
       
-      // Still call callback with data so UI can handle it
       options.onMedicationUpdateDetected?.({
         medicationName: update.medicationName,
         action: update.action,
@@ -241,13 +381,6 @@ export function useSmartVoiceRouter(options: SmartVoiceRouterOptions) {
     }
 
     try {
-      const actionLabels = {
-        discontinued: 'abgesetzt',
-        intolerance: 'als unverträglich markiert',
-        started: 'gestartet',
-        dosage_changed: 'Dosierung geändert'
-      };
-
       switch (update.action) {
         case 'intolerance':
           await markAsIntolerant.mutateAsync({
@@ -289,7 +422,6 @@ export function useSmartVoiceRouter(options: SmartVoiceRouterOptions) {
           break;
 
         case 'dosage_changed':
-          // For dosage changes, just notify - user should edit manually
           toast({
             title: '💊 Dosierungsänderung erkannt',
             description: `Bitte passe die Dosierung von ${med.name} manuell an`
@@ -297,7 +429,6 @@ export function useSmartVoiceRouter(options: SmartVoiceRouterOptions) {
           break;
       }
 
-      // Call callback
       options.onMedicationUpdateDetected?.({
         medicationName: med.name,
         action: update.action,
@@ -339,6 +470,7 @@ export function useSmartVoiceRouter(options: SmartVoiceRouterOptions) {
     isListening: speechRecognition.state.isRecording,
     transcript: speechRecognition.state.transcript,
     isPaused: speechRecognition.state.isPaused,
-    remainingSeconds: speechRecognition.state.remainingSeconds
+    remainingSeconds: speechRecognition.state.remainingSeconds,
+    lastResult,
   };
 }

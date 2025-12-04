@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { WelcomeModal } from "./WelcomeModal";
 import { QuickEntryModal } from "./QuickEntryModal";
@@ -15,6 +16,8 @@ import { toast } from "sonner";
 import { VoiceNoteReviewModal } from "./VoiceNoteReviewModal";
 import { saveVoiceNote } from "@/lib/voice/saveNote";
 import { QuickContextNoteModal } from "./QuickContextNoteModal";
+import { VoiceHelpOverlay } from "./VoiceHelpOverlay";
+import { VoiceUnknownIntentOverlay } from "./VoiceUnknownIntentOverlay";
 
 interface MainMenuProps {
   onNewEntry: () => void;
@@ -35,6 +38,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   onNavigate,
   onLimitWarning,
 }) => {
+  const navigate = useNavigate();
   const { needsOnboarding, completeOnboarding, isLoading: onboardingLoading } = useOnboarding();
   const [showQuickEntry, setShowQuickEntry] = useState(false);
   const [voiceData, setVoiceData] = useState<any>(null);
@@ -43,11 +47,14 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   const [showVoiceNoteReview, setShowVoiceNoteReview] = useState(false);
   const [pendingVoiceNote, setPendingVoiceNote] = useState<string>('');
   const [showQuickContextNote, setShowQuickContextNote] = useState(false);
+  const [showVoiceHelp, setShowVoiceHelp] = useState(false);
+  const [showUnknownIntent, setShowUnknownIntent] = useState(false);
+  const [unknownTranscript, setUnknownTranscript] = useState('');
   
   const createReminder = useCreateReminder();
   const createMultipleReminders = useCreateMultipleReminders();
   
-  // Smart Voice Router - automatically detects pain entry vs voice note vs reminder vs medication update
+  // Smart Voice Router with navigation support
   const voiceRouter = useSmartVoiceRouter({
     onEntryDetected: (data) => {
       console.log('📝 Pain entry detected, opening QuickEntry:', data);
@@ -66,10 +73,36 @@ export const MainMenu: React.FC<MainMenuProps> = ({
     },
     onMedicationUpdateDetected: (data) => {
       console.log('💊 Medication update detected:', data);
-      if (data.action === 'intolerance' || data.action === 'discontinued') {
-        // Refresh medication data is automatic via React Query invalidation
+    },
+    onNavigationIntent: (route, payload) => {
+      console.log('🧭 Navigation intent:', route, payload);
+      // Map routes to internal navigation or external routes
+      const routeMap: Record<string, string> = {
+        '/diary': 'diary-timeline',
+        '/analysis': 'analysis',
+        '/medications': 'medication-management',
+        '/settings': 'settings',
+        '/settings/account': 'settings',
+        '/settings/doctors': 'settings',
+        '/reminders': 'reminders',
+      };
+      
+      const internalView = routeMap[route];
+      if (internalView && onNavigate) {
+        onNavigate(internalView as any);
+      } else {
+        navigate(route, { state: payload ? { voicePayload: payload } : undefined });
       }
-    }
+    },
+    onHelpRequested: () => {
+      console.log('🆘 Help requested');
+      setShowVoiceHelp(true);
+    },
+    onUnknownIntent: (transcript) => {
+      console.log('❓ Unknown intent:', transcript);
+      setUnknownTranscript(transcript);
+      setShowUnknownIntent(true);
+    },
   });
 
   const handleVoiceEntry = () => {
@@ -446,6 +479,43 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         onStartVoice={() => {
           setShowQuickContextNote(false);
           handleVoiceEntry();
+        }}
+      />
+
+      <VoiceHelpOverlay
+        open={showVoiceHelp}
+        onOpenChange={setShowVoiceHelp}
+      />
+
+      <VoiceUnknownIntentOverlay
+        open={showUnknownIntent}
+        onOpenChange={setShowUnknownIntent}
+        transcript={unknownTranscript}
+        onSelectAction={(action) => {
+          switch (action) {
+            case 'pain_entry':
+              onNewEntry();
+              break;
+            case 'quick_entry':
+              setShowQuickEntry(true);
+              break;
+            case 'medication':
+              window.location.href = '/medication-effects';
+              break;
+            case 'reminder':
+              onNavigate?.('reminders');
+              break;
+            case 'diary':
+              onNavigate?.('diary-timeline');
+              break;
+            case 'note':
+              setPendingVoiceNote(unknownTranscript);
+              setShowVoiceNoteReview(true);
+              break;
+            case 'retry':
+              handleVoiceEntry();
+              break;
+          }
         }}
       />
     </div>
