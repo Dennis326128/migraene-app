@@ -247,7 +247,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      voiceRouter.stopVoice();
+                      voiceRouter.cancelVoice();
                     }}
                     className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors py-1"
                   >
