@@ -97,6 +97,11 @@ All colors MUST be HSL.
     --warning: 45 93% 47%;
     --warning-foreground: 220 13% 9%;
 
+    /* Voice/Spracheingabe - ruhiges Petrol/Blaugrün */
+    --voice: 175 50% 35%;
+    --voice-light: 175 45% 45%;
+    --voice-foreground: 210 40% 98%;
+
     --radius: 0.75rem;
 
     /* Pain levels */

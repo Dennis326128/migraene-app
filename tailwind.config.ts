@@ -60,6 +60,11 @@ export default {
 					DEFAULT: 'hsl(var(--warning))',
 					foreground: 'hsl(var(--warning-foreground))'
 				},
+				voice: {
+					DEFAULT: 'hsl(var(--voice))',
+					light: 'hsl(var(--voice-light))',
+					foreground: 'hsl(var(--voice-foreground))'
+				},
 				pain: {
 					light: 'hsl(var(--pain-light))',
 					medium: 'hsl(var(--pain-medium))',
