@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { MedicationReminderModal } from "@/components/Reminders/MedicationReminderModal";
 import { MedicationEditModal } from "./MedicationEditModal";
@@ -153,6 +154,7 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
   
   const [selectedMedication, setSelectedMedication] = useState<Med | null>(null);
   const [medicationName, setMedicationName] = useState("");
+  const [editAfterAdd, setEditAfterAdd] = useState(false);
 
   // Categorize medications
   const categorizedMeds = useMemo(() => {
@@ -323,31 +325,17 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
     }
 
     try {
-      await addMed.mutateAsync(trimmedName);
-      toast.success("Medikament hinzugefügt");
-      setMedicationName("");
-      setShowAddDialog(false);
-    } catch (error) {
-      toast.error("Fehler beim Hinzufügen des Medikaments.");
-    }
-  };
-
-  const handleAddAndEdit = async () => {
-    const trimmedName = medicationName.trim();
-    if (!trimmedName) return;
-
-    if (!/^[a-zA-ZäöüÄÖÜß0-9\s\-/().]+$/.test(trimmedName)) {
-      toast.error("Medikamentenname enthält ungültige Zeichen.");
-      return;
-    }
-
-    try {
       const newMed = await addMed.mutateAsync(trimmedName);
-      setShowAddDialog(false);
       setMedicationName("");
-      setSelectedMedication(newMed);
-      setShowEditModal(true);
-      toast.success("Medikament hinzugefügt - Details bearbeiten");
+      setShowAddDialog(false);
+      
+      if (editAfterAdd && newMed) {
+        setSelectedMedication(newMed);
+        setShowEditModal(true);
+        toast.success("Medikament hinzugefügt – Details bearbeiten");
+      } else {
+        toast.success("Medikament hinzugefügt");
+      }
     } catch (error) {
       toast.error("Fehler beim Hinzufügen des Medikaments.");
     }
@@ -626,49 +614,76 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
       <Separator className="my-6" />
       <MedicationCoursesList />
 
-      {/* Add Dialog */}
+      {/* Add Dialog - Simplified for users with headaches */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Neues Medikament hinzufügen</DialogTitle>
-            <DialogDescription>
-              Geben Sie den Namen des Medikaments ein
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader className="space-y-3">
+            <DialogTitle className="text-xl">Neues Medikament</DialogTitle>
+            <DialogDescription className="text-base text-muted-foreground/90">
+              Gib den Namen des Medikaments ein
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="med-name">Medikamentenname</Label>
+          
+          <div className="space-y-6 py-4">
+            {/* Main Input */}
+            <div className="space-y-3">
+              <Label htmlFor="med-name" className="text-base font-medium">
+                Medikamentenname
+              </Label>
               <Input
                 id="med-name"
                 placeholder="z.B. Ibuprofen 400mg"
                 value={medicationName}
                 onChange={(e) => setMedicationName(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleAddMedication()}
+                onKeyDown={(e) => e.key === 'Enter' && !addMed.isPending && medicationName.trim() && handleAddMedication()}
                 autoFocus
+                className="h-12 text-base"
               />
-              <p className="text-xs text-muted-foreground">
-                Details können später ergänzt werden
+              <p className="text-sm text-muted-foreground/80">
+                Details wie Dosierung oder Einnahmerhythmus kannst du später ergänzen.
               </p>
             </div>
+            
+            {/* Optional: Edit after add checkbox */}
+            <div 
+              className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 border border-border/50 cursor-pointer hover:bg-muted/50 transition-colors"
+              onClick={() => setEditAfterAdd(!editAfterAdd)}
+            >
+              <Checkbox
+                id="edit-after-add"
+                checked={editAfterAdd}
+                onCheckedChange={(checked) => setEditAfterAdd(checked === true)}
+                className="h-5 w-5"
+              />
+              <Label 
+                htmlFor="edit-after-add" 
+                className="text-sm text-muted-foreground cursor-pointer flex-1"
+              >
+                Nach dem Hinzufügen direkt Details bearbeiten
+              </Label>
+            </div>
           </div>
-          <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button variant="outline" onClick={() => {
-              setShowAddDialog(false);
-              setMedicationName("");
-            }}>
+          
+          {/* Simplified Footer - Only 2 buttons */}
+          <DialogFooter className="flex-row gap-3 sm:gap-3">
+            <Button 
+              variant="ghost" 
+              onClick={() => {
+                setShowAddDialog(false);
+                setMedicationName("");
+              }}
+              className="flex-1 h-12 text-base"
+            >
               Abbrechen
             </Button>
             <Button 
-              variant="outline" 
-              onClick={handleAddAndEdit} 
+              onClick={handleAddMedication} 
               disabled={!medicationName.trim() || addMed.isPending}
-              className="border-primary/50"
+              className="flex-1 h-12 text-base"
             >
-              <Pencil className="h-4 w-4 mr-2" />
-              Hinzufügen & Details bearbeiten
-            </Button>
-            <Button onClick={handleAddMedication} disabled={!medicationName.trim() || addMed.isPending}>
-              {addMed.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              {addMed.isPending ? (
+                <Loader2 className="h-5 w-5 animate-spin mr-2" />
+              ) : null}
               Hinzufügen
             </Button>
           </DialogFooter>
