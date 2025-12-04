@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSpeechRecognition } from './useSpeechRecognition';
 import { routeVoiceCommand, getRouteForIntent, isNavigationIntent, type VoiceRouterResult } from '@/lib/voice/voiceIntentRouter';
@@ -63,6 +63,7 @@ export interface VoiceRouterState {
 export function useSmartVoiceRouter(options: SmartVoiceRouterOptions) {
   const [isSaving, setIsSaving] = useState(false);
   const [lastResult, setLastResult] = useState<VoiceRouterResult | null>(null);
+  const isCancellingRef = useRef(false);
   const navigate = useNavigate();
   const { data: userMeds = [] } = useMeds();
   const updateMed = useUpdateMed();
@@ -74,6 +75,13 @@ export function useSmartVoiceRouter(options: SmartVoiceRouterOptions) {
     interimResults: true,
     pauseThreshold: 12,
     onTranscriptReady: async (transcript, confidence) => {
+      // Skip processing if cancelled
+      if (isCancellingRef.current) {
+        console.log('🚫 Voice cancelled - skipping processing');
+        isCancellingRef.current = false;
+        return;
+      }
+      
       console.log('🎤 Smart Router: Transcript received:', transcript);
       setIsSaving(true);
       
@@ -446,7 +454,9 @@ export function useSmartVoiceRouter(options: SmartVoiceRouterOptions) {
     }
   };
   
+  // Track if we're cancelling to prevent processing
   const startVoice = async () => {
+    isCancellingRef.current = false;
     try {
       await speechRecognition.startRecording();
     } catch (error) {
@@ -463,9 +473,19 @@ export function useSmartVoiceRouter(options: SmartVoiceRouterOptions) {
     speechRecognition.stopRecording();
   };
   
+  // Cancel without processing - just stop and reset
+  const cancelVoice = () => {
+    isCancellingRef.current = true;
+    speechRecognition.resetTranscript();
+    speechRecognition.stopRecording();
+    setIsSaving(false);
+    setLastResult(null);
+  };
+  
   return {
     startVoice,
     stopVoice,
+    cancelVoice,
     isSaving,
     isListening: speechRecognition.state.isRecording,
     transcript: speechRecognition.state.transcript,
