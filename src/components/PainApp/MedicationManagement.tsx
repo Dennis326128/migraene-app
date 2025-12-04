@@ -13,13 +13,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { supabase } from "@/lib/supabaseClient";
 import { MedicationReminderModal } from "@/components/Reminders/MedicationReminderModal";
 import { MedicationEditModal } from "./MedicationEditModal";
+import { MedicationPlanExportDialog } from "./MedicationPlanExportDialog";
 import { MedicationCoursesList } from "./MedicationCourses";
-import { format, addMinutes } from "date-fns";
+import { format } from "date-fns";
 import type { ReminderRepeat } from "@/types/reminder.types";
-import { buildMedicationPlanPdf } from "@/lib/pdf/medicationPlan";
+import { buildMedicationPlanPdf, type PdfExportOptions } from "@/lib/pdf/medicationPlan";
 import { usePatientData, useDoctors } from "@/features/account/hooks/useAccount";
 import { useMedicationCourses } from "@/features/medication-courses/hooks/useMedicationCourses";
 import { useMedicationLimits } from "@/features/medication-limits/hooks/useMedicationLimits";
@@ -135,8 +135,9 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showReminderModal, setShowReminderModal] = useState(false);
-  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [showExportDialog, setShowExportDialog] = useState(false);
   const [showDoctorSelection, setShowDoctorSelection] = useState(false);
+  const [pendingExportOptions, setPendingExportOptions] = useState<PdfExportOptions | null>(null);
   
   // Collapsible sections state
   const [showInactive, setShowInactive] = useState(false);
@@ -178,11 +179,10 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
     ).length || 0;
   };
 
-  // PDF Generation
-  const generatePdfWithDoctors = async (selectedDoctors: Doctor[]) => {
+  // PDF Generation with options
+  const generatePdfWithOptions = async (selectedDoctors: Doctor[], options: PdfExportOptions) => {
     const allMeds = medications || [];
     
-    setIsGeneratingPdf(true);
     try {
       const pdfBytes = await buildMedicationPlanPdf({
         medicationCourses: medicationCourses || [],
@@ -235,6 +235,7 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
           fax: doc.fax,
           email: doc.email,
         })),
+        options,
       });
 
       const blob = new Blob([new Uint8Array(pdfBytes)], { type: "application/pdf" });
@@ -253,12 +254,35 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
       toast.error("Fehler beim Erstellen", {
         description: "Bitte versuchen Sie es erneut.",
       });
-    } finally {
-      setIsGeneratingPdf(false);
     }
   };
 
-  const handleGenerateMedicationPlan = async () => {
+  // Handler for export dialog
+  const handleExportWithOptions = async (options: PdfExportOptions) => {
+    // Check if we need doctor selection
+    if (doctors && doctors.length > 1) {
+      setPendingExportOptions(options);
+      setShowDoctorSelection(true);
+      return;
+    }
+    
+    await generatePdfWithOptions(doctors || [], options);
+  };
+
+  const handleDoctorSelectionConfirm = async (selectedDoctors: Doctor[]) => {
+    setShowDoctorSelection(false);
+    const options = pendingExportOptions || {
+      includeActive: true,
+      includeInactive: false,
+      includeIntolerance: true,
+      includeLimits: false,
+      includeGrund: true,
+    };
+    setPendingExportOptions(null);
+    await generatePdfWithOptions(selectedDoctors, options);
+  };
+
+  const handleGenerateMedicationPlan = () => {
     const activeMeds = medications?.filter(m => m.is_active !== false && !m.intolerance_flag) || [];
     const hasMedications = (medicationCourses && medicationCourses.length > 0) || activeMeds.length > 0;
     
@@ -269,17 +293,7 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
       return;
     }
 
-    if (doctors && doctors.length > 1) {
-      setShowDoctorSelection(true);
-      return;
-    }
-
-    await generatePdfWithDoctors(doctors || []);
-  };
-
-  const handleDoctorSelectionConfirm = async (selectedDoctors: Doctor[]) => {
-    setShowDoctorSelection(false);
-    await generatePdfWithDoctors(selectedDoctors);
+    setShowExportDialog(true);
   };
 
   const handleAddMedication = async () => {
@@ -409,27 +423,19 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
         <CardContent className="p-4">
           <Button
             onClick={handleGenerateMedicationPlan}
-            disabled={isGeneratingPdf}
             className="w-full h-auto py-4 px-5 bg-primary hover:bg-primary/90 text-primary-foreground shadow-md hover:shadow-lg"
           >
-            {isGeneratingPdf ? (
-              <div className="flex items-center gap-3">
-                <Loader2 className="h-6 w-6 animate-spin" />
-                <span className="font-bold text-lg">PDF wird erstellt...</span>
+            <div className="flex items-center gap-4 w-full">
+              <div className="p-2.5 rounded-xl bg-primary-foreground/20 shrink-0">
+                <Download className="h-6 w-6" />
               </div>
-            ) : (
-              <div className="flex items-center gap-4 w-full">
-                <div className="p-2.5 rounded-xl bg-primary-foreground/20 shrink-0">
-                  <Download className="h-6 w-6" />
-                </div>
-                <div className="flex-1 text-left">
-                  <div className="font-bold text-lg">Medikationsplan (PDF) erstellen</div>
-                  <div className="opacity-90 font-normal text-sm">
-                    Für Arzt, Krankenhaus oder Notfall
-                  </div>
+              <div className="flex-1 text-left">
+                <div className="font-bold text-lg">Medikationsplan (PDF) erstellen</div>
+                <div className="opacity-90 font-normal text-sm">
+                  Für Arzt, Krankenhaus oder Notfall
                 </div>
               </div>
-            )}
+            </div>
           </Button>
         </CardContent>
       </Card>
@@ -669,6 +675,17 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Doctor Selection Dialog */}
+      {/* Export Options Dialog */}
+      <MedicationPlanExportDialog
+        open={showExportDialog}
+        onOpenChange={setShowExportDialog}
+        onExport={handleExportWithOptions}
+        hasInactive={categorizedMeds.inactive.length > 0}
+        hasIntolerance={categorizedMeds.intolerant.length > 0}
+        hasLimits={(medicationLimits?.length || 0) > 0}
+      />
 
       {/* Doctor Selection Dialog */}
       <DoctorSelectionDialog
