@@ -145,6 +145,7 @@ export type Database = {
           had_side_effects: boolean | null
           id: string
           is_active: boolean
+          medication_id: string | null
           medication_name: string
           note_for_physician: string | null
           side_effects_text: string | null
@@ -167,6 +168,7 @@ export type Database = {
           had_side_effects?: boolean | null
           id?: string
           is_active?: boolean
+          medication_id?: string | null
           medication_name: string
           note_for_physician?: string | null
           side_effects_text?: string | null
@@ -189,6 +191,7 @@ export type Database = {
           had_side_effects?: boolean | null
           id?: string
           is_active?: boolean
+          medication_id?: string | null
           medication_name?: string
           note_for_physician?: string | null
           side_effects_text?: string | null
@@ -198,7 +201,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "medication_courses_medication_id_fkey"
+            columns: ["medication_id"]
+            isOneToOne: false
+            referencedRelation: "user_medications"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       medication_effects: {
         Row: {
@@ -567,6 +578,8 @@ export type Database = {
           einheit: string | null
           hinweise: string | null
           id: string
+          intolerance_flag: boolean | null
+          intolerance_notes: string | null
           is_active: boolean | null
           name: string
           staerke: string | null
@@ -587,6 +600,8 @@ export type Database = {
           einheit?: string | null
           hinweise?: string | null
           id?: string
+          intolerance_flag?: boolean | null
+          intolerance_notes?: string | null
           is_active?: boolean | null
           name: string
           staerke?: string | null
@@ -607,6 +622,8 @@ export type Database = {
           einheit?: string | null
           hinweise?: string | null
           id?: string
+          intolerance_flag?: boolean | null
+          intolerance_notes?: string | null
           is_active?: boolean | null
           name?: string
           staerke?: string | null

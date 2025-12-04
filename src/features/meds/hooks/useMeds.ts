@@ -2,11 +2,14 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { 
   listMeds, 
   listActiveMeds,
+  listInactiveMeds,
+  listIntoleranceMeds,
   addMed, 
   updateMed,
   deleteMed, 
   deleteMedById,
   discontinueMed,
+  markMedAsIntolerant,
   listRecentMeds, 
   type Med, 
   type CreateMedInput,
@@ -28,6 +31,22 @@ export function useActiveMeds() {
   return useQuery<Med[]>({
     queryKey: [...MED_QUERY_KEY, "active"],
     queryFn: listActiveMeds,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useInactiveMeds() {
+  return useQuery<Med[]>({
+    queryKey: [...MED_QUERY_KEY, "inactive"],
+    queryFn: listInactiveMeds,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useIntoleranceMeds() {
+  return useQuery<Med[]>({
+    queryKey: [...MED_QUERY_KEY, "intolerance"],
+    queryFn: listIntoleranceMeds,
     staleTime: 5 * 60 * 1000,
   });
 }
@@ -93,6 +112,16 @@ export function useDiscontinueMed() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: discontinueMed,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: MED_QUERY_KEY });
+    },
+  });
+}
+
+export function useMarkMedAsIntolerant() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, notes }: { id: string; notes?: string }) => markMedAsIntolerant(id, notes),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: MED_QUERY_KEY });
     },
