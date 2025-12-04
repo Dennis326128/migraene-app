@@ -185,30 +185,6 @@ export const MedicationCoursesList: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      {/* PROMINENT: Medikationsplan Button - styled consistently */}
-      <Button
-        onClick={handleGenerateMedicationPlan}
-        disabled={isGeneratingPdf || totalMedications === 0}
-        variant="outline"
-        className="w-full justify-start gap-3 h-auto py-3 px-4 border-primary/30 hover:border-primary/50 hover:bg-primary/5 transition-all duration-200"
-      >
-        <div className="p-2 rounded-lg bg-primary/10 shrink-0">
-          {isGeneratingPdf ? (
-            <Loader2 className="h-5 w-5 text-primary animate-spin" />
-          ) : (
-            <Download className="h-5 w-5 text-primary" />
-          )}
-        </div>
-        <div className="flex-1 text-left">
-          <div className="font-semibold text-foreground text-sm">
-            Medikationsplan (PDF) erstellen
-          </div>
-          <div className="text-xs text-muted-foreground font-normal">
-            {isGeneratingPdf ? "Wird erstellt..." : "Fuer Arzt, Krankenhaus oder Notfall"}
-          </div>
-        </div>
-      </Button>
-
       {/* Header */}
       <div className="flex items-start gap-3">
         <History className="h-5 w-5 text-primary mt-0.5" />
