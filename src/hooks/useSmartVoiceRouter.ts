@@ -72,7 +72,7 @@ export function useSmartVoiceRouter(options: SmartVoiceRouterOptions) {
     language: 'de-DE',
     continuous: true,
     interimResults: true,
-    pauseThreshold: 8,
+    pauseThreshold: 12,
     onTranscriptReady: async (transcript, confidence) => {
       console.log('🎤 Smart Router: Transcript received:', transcript);
       setIsSaving(true);
