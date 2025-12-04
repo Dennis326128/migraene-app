@@ -31,7 +31,7 @@ interface MedicationManagementProps {
   onNavigateToLimits?: () => void;
 }
 
-// Helper: Get badge for medication type
+// Helper: Get badge for medication type - only show when explicitly set
 const getMedicationBadge = (med: Med) => {
   if (med.intolerance_flag) {
     return <Badge variant="destructive" className="text-xs">Unverträglich</Badge>;
@@ -42,7 +42,17 @@ const getMedicationBadge = (med: Med) => {
   if (med.art === "prophylaxe" || med.art === "regelmaessig") {
     return <Badge variant="default" className="text-xs bg-primary/80">Regelmäßig</Badge>;
   }
-  return <Badge variant="outline" className="text-xs">Bei Bedarf</Badge>;
+  if (med.art === "bedarf") {
+    return <Badge variant="outline" className="text-xs">Bei Bedarf</Badge>;
+  }
+  if (med.art === "akut") {
+    return <Badge variant="outline" className="text-xs">Akut</Badge>;
+  }
+  if (med.art === "notfall") {
+    return <Badge variant="destructive" className="text-xs">Notfall</Badge>;
+  }
+  // Kein Badge wenn keine art gesetzt
+  return null;
 };
 
 // Medication Card Component
