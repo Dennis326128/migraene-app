@@ -17,13 +17,12 @@ import { de } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { useMeds } from "@/features/meds/hooks/useMeds";
 import { 
-  StructuredDosageInput, 
   buildDoseText, 
   parseDoseText,
   getDefaultStructuredDosage,
   type StructuredDosage 
 } from "./StructuredDosageInput";
-import { VoiceInputButton } from "./VoiceInputButton";
+import { MedicationCourseStep1 } from "./MedicationCourseStep1";
 import type { 
   MedicationCourse, 
   MedicationCourseType, 
@@ -294,85 +293,18 @@ export const MedicationCourseWizard: React.FC<MedicationCourseWizardProps> = ({
   );
 
   const renderStep1 = () => (
-    <div className="space-y-6">
-      {/* Voice Input Button */}
-      <div className="flex justify-end">
-        <VoiceInputButton
-          userMeds={medications}
-          onDataRecognized={handleVoiceData}
-        />
-      </div>
-
-      <div className="space-y-3">
-        <Label>Medikament</Label>
-        <Select value={medicationName} onValueChange={setMedicationName}>
-          <SelectTrigger>
-            <SelectValue placeholder="Medikament auswählen..." />
-          </SelectTrigger>
-          <SelectContent>
-            {medications.map((med) => (
-              <SelectItem key={med.id} value={med.name}>
-                {med.name}
-              </SelectItem>
-            ))}
-            <SelectItem value="__custom__">+ Neues Medikament eingeben</SelectItem>
-          </SelectContent>
-        </Select>
-        
-        {medicationName === "__custom__" && (
-          <Input
-            placeholder="Medikamentenname eingeben..."
-            value={customMedication}
-            onChange={(e) => setCustomMedication(e.target.value)}
-            autoFocus
-          />
-        )}
-      </div>
-
-      <div className="space-y-3">
-        <Label>Art der Behandlung</Label>
-        <div className="grid grid-cols-1 gap-2">
-          {[
-            { value: "prophylaxe", label: "Vorbeugende Behandlung (Prophylaxe)", desc: "z.B. Ajovy, Topiramat, Propranolol" },
-            { value: "akut", label: "Akutmedikation", desc: "z.B. Triptan, Ibuprofen" },
-            { value: "sonstige", label: "Sonstige", desc: "Andere Medikamente" },
-          ].map((option) => (
-            <Card 
-              key={option.value}
-              className={cn(
-                "cursor-pointer transition-all",
-                type === option.value ? "border-primary ring-1 ring-primary" : "hover:border-muted-foreground/50"
-              )}
-              onClick={() => setType(option.value as MedicationCourseType)}
-            >
-              <CardContent className="p-3">
-                <div className="flex items-start gap-3">
-                  <div className={cn(
-                    "w-5 h-5 rounded-full border-2 flex items-center justify-center mt-0.5",
-                    type === option.value ? "border-primary bg-primary" : "border-muted-foreground/50"
-                  )}>
-                    {type === option.value && <Check className="h-3 w-3 text-white" />}
-                  </div>
-                  <div>
-                    <p className="font-medium text-sm">{option.label}</p>
-                    <p className="text-xs text-muted-foreground">{option.desc}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-
-      <div className="space-y-3">
-        <Label>Dosierung (optional)</Label>
-        <StructuredDosageInput
-          value={structuredDosage}
-          onChange={setStructuredDosage}
-          type={type}
-        />
-      </div>
-    </div>
+    <MedicationCourseStep1
+      medications={medications}
+      medicationName={medicationName}
+      setMedicationName={setMedicationName}
+      customMedication={customMedication}
+      setCustomMedication={setCustomMedication}
+      type={type}
+      setType={setType}
+      structuredDosage={structuredDosage}
+      setStructuredDosage={setStructuredDosage}
+      onVoiceData={handleVoiceData}
+    />
   );
 
   const renderStep2 = () => (
