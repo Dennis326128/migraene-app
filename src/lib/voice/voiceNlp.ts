@@ -10,11 +10,61 @@ import type {
   VoiceMed,
   VoicePainEntry,
   VoiceReminder,
+  VoiceMedicationUpdate,
+  MedicationUpdateAction,
   ConfidenceLevel
 } from '@/types/voice.types';
 import { parseGermanVoiceEntry } from './germanParser';
 import { parseGermanReminderEntry, isReminderTrigger } from './reminderParser';
 import { parseOccurredAt } from './timeOnly';
+
+// Medication update patterns
+const MEDICATION_UPDATE_PATTERNS = {
+  discontinued: [
+    /(\w+)\s+(ab|abge)setzt/i,
+    /(\w+)\s+nicht\s+mehr\s+(nehm|einnehm)/i,
+    /(\w+)\s+aufgehört/i,
+    /stopp\w*\s+(\w+)/i,
+    /kein\w*\s+(\w+)\s+mehr/i,
+    /(\w+)\s+beendet/i,
+  ],
+  intolerance: [
+    /(\w+)\s+(ab|abge)setzt\s+wegen\s+(nebenwirkung|unverträglich|allergie)/i,
+    /(\w+)\s+nicht\s+vertragen/i,
+    /(\w+)\s+(unverträglich|allergie|allergisch)/i,
+    /vertrage\s+(\w+)\s+nicht/i,
+    /(\w+)\s+macht\s+(übel|schwindel|kopfschmerz)/i,
+    /nebenwirkung\w*\s+bei\s+(\w+)/i,
+    /(\w+)\s+nebenwirkung/i,
+  ],
+  started: [
+    /(\w+)\s+angefangen/i,
+    /(\w+)\s+begonnen/i,
+    /starte\s+(\w+)/i,
+    /(\w+)\s+neu\s+(ein)?genommen/i,
+    /nehme\s+jetzt\s+(\w+)/i,
+    /fange\s+mit\s+(\w+)\s+an/i,
+  ],
+  dosage_changed: [
+    /(\w+)\s+(dosis|dosierung)\s+(erhöht|reduziert|geändert|angepasst)/i,
+    /mehr\s+(\w+)/i,
+    /weniger\s+(\w+)/i,
+    /(\w+)\s+(hoch|runter)\s*dosier/i,
+  ]
+};
+
+const INTOLERANCE_REASONS = [
+  'nebenwirkung', 'nebenwirkungen',
+  'unverträglich', 'unverträglichkeit',
+  'allergie', 'allergisch',
+  'übel', 'übelkeit',
+  'schwindel', 'schwindelig',
+  'kopfschmerz', 'kopfschmerzen',
+  'ausschlag', 'hautausschlag',
+  'jucken', 'juckreiz',
+  'müde', 'müdigkeit',
+  'durchfall', 'verstopfung',
+];
 
 /**
  * Hauptfunktion: Analysiert Voice-Transkript und extrahiert strukturierte Daten
@@ -27,12 +77,13 @@ export function analyzeVoiceTranscript(
   console.log('🧠 NLP: Analyzing transcript:', transcript.substring(0, 100) + '...');
 
   // 1. Intent-Klassifikation
-  const { intent, intentConfidence } = classifyIntent(transcript);
+  const { intent, intentConfidence } = classifyIntent(transcript, userContext);
   console.log(`🎯 Intent: ${intent} (confidence: ${intentConfidence})`);
 
   // 2. Strukturierte Daten je nach Intent extrahieren
   let painEntry: VoicePainEntry | undefined;
   let reminder: VoiceReminder | undefined;
+  let medicationUpdate: VoiceMedicationUpdate | undefined;
 
   switch (intent) {
     case 'pain_entry':
@@ -41,6 +92,10 @@ export function analyzeVoiceTranscript(
     
     case 'reminder':
       reminder = extractReminder(transcript, userContext);
+      break;
+    
+    case 'medication_update':
+      medicationUpdate = extractMedicationUpdate(transcript, userContext);
       break;
     
     case 'note':
@@ -54,6 +109,7 @@ export function analyzeVoiceTranscript(
     intentConfidence,
     painEntry,
     reminder,
+    medicationUpdate,
     rawTranscript: transcript,
     sttConfidence
   };
@@ -62,23 +118,33 @@ export function analyzeVoiceTranscript(
 /**
  * Klassifiziert den Intent des Transkripts
  */
-function classifyIntent(transcript: string): { 
+function classifyIntent(
+  transcript: string,
+  userContext: VoiceUserContext
+): { 
   intent: VoiceIntent; 
   intentConfidence: number 
 } {
   const lower = transcript.toLowerCase();
 
-  // 1. Check: Reminder-Trigger?
+  // 1. Check: Medication Update Trigger? (Höchste Priorität für Medikamenten-Änderungen)
+  const medUpdateMatch = detectMedicationUpdateIntent(lower, userContext);
+  if (medUpdateMatch.confidence > 0.7) {
+    return { intent: 'medication_update', intentConfidence: medUpdateMatch.confidence };
+  }
+
+  // 2. Check: Reminder-Trigger?
   if (isReminderTrigger(transcript)) {
     return { intent: 'reminder', intentConfidence: 0.9 };
   }
 
-  // 2. Check: Pain Entry Indikatoren
+  // 3. Check: Pain Entry Indikatoren
   const painIndicators = [
     'schmerz', 'kopfschmerz', 'migräne',
     'stärke', 'level', 'intensität',
     /\b[0-9]|zehn\b/, // Zahlen
-    'leicht', 'mittel', 'stark'
+    'leicht', 'mittel', 'stark',
+    'attacke', 'anfall'
   ];
 
   const hasPainIndicator = painIndicators.some(indicator => {
@@ -92,13 +158,161 @@ function classifyIntent(transcript: string): {
     return { intent: 'pain_entry', intentConfidence: 0.85 };
   }
 
-  // 3. Fallback: Note
-  // Wenn keine klaren Indikatoren, aber Text vorhanden
+  // 4. Fallback: Note
   if (transcript.trim().length > 5) {
     return { intent: 'note', intentConfidence: 0.7 };
   }
 
   return { intent: 'unknown', intentConfidence: 0.3 };
+}
+
+/**
+ * Erkennt Medication Update Intent
+ */
+function detectMedicationUpdateIntent(
+  lower: string,
+  userContext: VoiceUserContext
+): { confidence: number; action?: MedicationUpdateAction } {
+  // Check each action type
+  for (const [action, patterns] of Object.entries(MEDICATION_UPDATE_PATTERNS)) {
+    for (const pattern of patterns) {
+      const match = lower.match(pattern);
+      if (match) {
+        // Check if matched medication is known
+        const potentialMedName = match[1] || match[2];
+        const knownMed = userContext.userMeds.find(m => 
+          m.name.toLowerCase().includes(potentialMedName?.toLowerCase() || '') ||
+          potentialMedName?.toLowerCase().includes(m.name.toLowerCase().substring(0, 4))
+        );
+        
+        const baseConfidence = knownMed ? 0.9 : 0.75;
+        
+        // Boost confidence for intolerance if reason keywords present
+        if (action === 'intolerance' || INTOLERANCE_REASONS.some(r => lower.includes(r))) {
+          return { 
+            confidence: Math.min(baseConfidence + 0.1, 0.95), 
+            action: 'intolerance' as MedicationUpdateAction 
+          };
+        }
+        
+        return { 
+          confidence: baseConfidence, 
+          action: action as MedicationUpdateAction 
+        };
+      }
+    }
+  }
+  
+  return { confidence: 0 };
+}
+
+/**
+ * Extrahiert Medication Update Daten
+ */
+function extractMedicationUpdate(
+  transcript: string,
+  userContext: VoiceUserContext
+): VoiceMedicationUpdate {
+  const lower = transcript.toLowerCase();
+  
+  let medicationName = '';
+  let medicationNameConfidence = 0;
+  let action: MedicationUpdateAction = 'discontinued';
+  let actionConfidence = 0.5;
+  let reason: string | undefined;
+
+  // Find medication name
+  for (const [actionType, patterns] of Object.entries(MEDICATION_UPDATE_PATTERNS)) {
+    for (const pattern of patterns) {
+      const match = lower.match(pattern);
+      if (match) {
+        const potentialMed = match[1] || match[2];
+        if (potentialMed) {
+          // Try to match with known medications
+          const knownMed = findBestMedicationMatch(potentialMed, userContext.userMeds);
+          if (knownMed) {
+            medicationName = knownMed.name;
+            medicationNameConfidence = knownMed.confidence;
+          } else {
+            // Use as-is with lower confidence
+            medicationName = potentialMed.charAt(0).toUpperCase() + potentialMed.slice(1);
+            medicationNameConfidence = 0.5;
+          }
+          action = actionType as MedicationUpdateAction;
+          actionConfidence = 0.8;
+          break;
+        }
+      }
+    }
+    if (medicationName) break;
+  }
+
+  // Extract reason for intolerance/discontinuation
+  if (action === 'intolerance' || action === 'discontinued') {
+    const reasonMatches = INTOLERANCE_REASONS.filter(r => lower.includes(r));
+    if (reasonMatches.length > 0) {
+      reason = reasonMatches.join(', ');
+      action = 'intolerance'; // Upgrade to intolerance if we have symptoms
+      actionConfidence = 0.9;
+    }
+    
+    // Extract "wegen X" reason
+    const wegenMatch = lower.match(/wegen\s+(.+?)(?:\s*[.,]|$)/);
+    if (wegenMatch) {
+      reason = wegenMatch[1].trim();
+    }
+  }
+
+  return {
+    medicationName,
+    medicationNameConfidence,
+    action,
+    actionConfidence,
+    reason,
+    notes: transcript
+  };
+}
+
+/**
+ * Findet beste Medikamenten-Übereinstimmung
+ */
+function findBestMedicationMatch(
+  searchTerm: string,
+  userMeds: Array<{ name: string }>
+): { name: string; confidence: number } | null {
+  const lowerSearch = searchTerm.toLowerCase();
+  
+  // Exact match
+  const exactMatch = userMeds.find(m => m.name.toLowerCase() === lowerSearch);
+  if (exactMatch) return { name: exactMatch.name, confidence: 0.95 };
+  
+  // Starts with
+  const startsWithMatch = userMeds.find(m => 
+    m.name.toLowerCase().startsWith(lowerSearch) ||
+    lowerSearch.startsWith(m.name.toLowerCase().substring(0, 4))
+  );
+  if (startsWithMatch) return { name: startsWithMatch.name, confidence: 0.85 };
+  
+  // Contains
+  const containsMatch = userMeds.find(m => 
+    m.name.toLowerCase().includes(lowerSearch) ||
+    lowerSearch.includes(m.name.toLowerCase())
+  );
+  if (containsMatch) return { name: containsMatch.name, confidence: 0.75 };
+  
+  // Fuzzy match
+  let bestFuzzy: { name: string; confidence: number } | null = null;
+  for (const med of userMeds) {
+    const distance = levenshteinDistance(lowerSearch, med.name.toLowerCase());
+    const maxLen = Math.max(lowerSearch.length, med.name.length);
+    const similarity = 1 - (distance / maxLen);
+    
+    if (similarity > 0.6 && (!bestFuzzy || similarity > bestFuzzy.confidence)) {
+      bestFuzzy = { name: med.name, confidence: similarity };
+    }
+  }
+  
+  return bestFuzzy;
 }
 
 /**

@@ -49,7 +49,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   const createReminder = useCreateReminder();
   const createMultipleReminders = useCreateMultipleReminders();
   
-  // Smart Voice Router - automatically detects pain entry vs voice note vs reminder
+  // Smart Voice Router - automatically detects pain entry vs voice note vs reminder vs medication update
   const voiceRouter = useSmartVoiceRouter({
     onEntryDetected: (data) => {
       console.log('📝 Pain entry detected, opening QuickEntry:', data);
@@ -65,6 +65,15 @@ export const MainMenu: React.FC<MainMenuProps> = ({
       console.log('📋 Reminder detected, opening form:', data);
       setPrefilledReminderData(data);
       setShowReminderForm(true);
+    },
+    onMedicationUpdateDetected: (data) => {
+      console.log('💊 Medication update detected:', data);
+      // The update is already handled in useSmartVoiceRouter with toast notifications
+      // Optionally navigate to medication management
+      if (data.action === 'intolerance' || data.action === 'discontinued') {
+        // Refresh medication data is automatic via React Query invalidation
+        // Could optionally navigate: onNavigate?.('medication-management');
+      }
     }
   });
 
@@ -93,7 +102,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
     if (voiceRouter.isListening) {
       return 'Sprechen Sie jetzt! 8s Pause beendet automatisch';
     }
-    return 'Migräne oder Notiz per Sprache';
+    return 'Migräne, Notiz oder Medikamenten-Update';
   };
 
   const handleQuickEntryClose = () => {
