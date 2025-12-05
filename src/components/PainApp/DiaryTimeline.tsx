@@ -81,6 +81,10 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
   };
 
   const handleDeleteNote = async (id: string) => {
+    if (!id) {
+      showErrorToast("Fehler", "Keine gültige Notiz-ID");
+      return;
+    }
     if (!confirm("Diese Notiz wirklich löschen?")) return;
     
     try {
@@ -93,7 +97,9 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
       
       showSuccessToast("Gelöscht", "Notiz wurde gelöscht");
       queryClient.invalidateQueries({ queryKey: ['voice-notes-timeline'] });
+      queryClient.invalidateQueries({ queryKey: ['voice-notes-count'] });
     } catch (error) {
+      console.error('Delete error:', error);
       showErrorToast("Fehler", error instanceof Error ? error.message : "Löschen fehlgeschlagen");
     }
   };
@@ -172,6 +178,22 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
     offset: currentPage * pageSize
   });
 
+  // Gesamtanzahl der Schmerzeinträge laden
+  const { data: painEntriesCount = 0 } = useQuery({
+    queryKey: ['pain-entries-count'],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return 0;
+      
+      const { count, error } = await supabase
+        .from('pain_entries')
+        .select('*', { count: 'exact', head: true });
+      
+      if (error) return 0;
+      return count || 0;
+    }
+  });
+
   // Kontext-Notizen laden (mit Pagination)
   const { data: contextNotes = [], isLoading: loadingNotes } = useQuery({
     queryKey: ['voice-notes-timeline', currentPage],
@@ -189,6 +211,23 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
       
       if (error) throw error;
       return data || [];
+    }
+  });
+
+  // Gesamtanzahl der Kontext-Notizen laden
+  const { data: contextNotesCount = 0 } = useQuery({
+    queryKey: ['voice-notes-count'],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return 0;
+      
+      const { count, error } = await supabase
+        .from('voice_notes')
+        .select('*', { count: 'exact', head: true })
+        .is('deleted_at', null);
+      
+      if (error) return 0;
+      return count || 0;
     }
   });
 
@@ -236,8 +275,24 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
     return timelineItems.filter(item => item.type === filterType);
   }, [timelineItems, filterType]);
 
-  const totalEntries = filteredItems.length;
-  const hasMore = painEntries.length === pageSize || contextNotes.length === pageSize;
+  // Berechne ob es mehr Einträge gibt basierend auf dem aktuellen Filter
+  const loadedPainCount = painEntries.length + (currentPage * pageSize);
+  const loadedContextCount = contextNotes.length + (currentPage * pageSize);
+  
+  const remainingPainEntries = Math.max(0, painEntriesCount - loadedPainCount);
+  const remainingContextNotes = Math.max(0, contextNotesCount - loadedContextCount);
+  
+  // hasMore und remainingCount basierend auf dem Filter berechnen
+  const { hasMore, remainingCount } = useMemo(() => {
+    if (filterType === 'all') {
+      const remaining = remainingPainEntries + remainingContextNotes;
+      return { hasMore: remaining > 0, remainingCount: remaining };
+    } else if (filterType === 'pain_entry') {
+      return { hasMore: remainingPainEntries > 0, remainingCount: remainingPainEntries };
+    } else {
+      return { hasMore: remainingContextNotes > 0, remainingCount: remainingContextNotes };
+    }
+  }, [filterType, remainingPainEntries, remainingContextNotes]);
 
   // Nach Datum gruppieren
   const groupedByDate = useMemo(() => {
@@ -605,7 +660,7 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
       </div>
 
       {/* Mehr laden Button */}
-      {hasMore && !loadingEntries && !loadingNotes && totalEntries > 0 && (
+      {hasMore && !loadingEntries && !loadingNotes && (
         <div className="flex justify-center py-8">
           <Button 
             variant="outline" 
@@ -613,7 +668,7 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
             className="gap-2"
           >
             <ArrowDown className="h-4 w-4" />
-            Mehr laden ({pageSize} weitere Einträge)
+            Mehr laden ({remainingCount} weitere {remainingCount === 1 ? 'Eintrag' : 'Einträge'})
           </Button>
         </div>
       )}
