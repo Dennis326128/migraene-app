@@ -338,7 +338,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                   icon="⚠️"
                   iconBgClassName="bg-muted"
                   title="Übergebrauch"
-                  subtitle="Grenzen & Warnungen"
                 />
               </StartPageCard>
             </StartPageButtonGrid>
@@ -369,7 +368,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 icon="📊"
                 iconBgClassName="bg-muted"
                 title="Auswertung"
-                subtitle="Analyse & Bericht"
               />
             </StartPageCard>
           </StartPageButtonGrid>

@@ -3,7 +3,7 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const startPageCardVariants = cva(
-  "rounded-xl transition-all duration-200 touch-manipulation cursor-pointer select-none shadow-sm relative",
+  "rounded-xl transition-all duration-200 touch-manipulation cursor-pointer select-none shadow-sm relative min-h-[72px]",
   {
     variants: {
       variant: {
