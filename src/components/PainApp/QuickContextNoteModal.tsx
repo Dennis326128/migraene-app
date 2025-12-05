@@ -10,13 +10,20 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Mic, Utensils, Activity, Droplets, Calendar, Heart, Eye } from 'lucide-react';
 import { toast } from 'sonner';
-import { saveVoiceNote } from '@/lib/voice/saveNote';
+import { saveVoiceNote, updateVoiceNote, ContextMetadata } from '@/lib/voice/saveNote';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { FivePointScale, ScaleOption } from './FivePointScale';
 import { MultiSelectChips, ChipOption } from './MultiSelectChips';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { useUserDefaults } from '@/features/settings/hooks/useUserSettings';
+
+export interface EditingContextNote {
+  id: string;
+  text: string;
+  context_type?: string;
+  metadata?: ContextMetadata | null;
+}
 
 export interface QuickContextNoteModalProps {
   isOpen: boolean;
@@ -31,6 +38,9 @@ export interface QuickContextNoteModalProps {
     triggers?: string[];
     notes?: string;
   };
+  // Edit mode
+  editingNote?: EditingContextNote | null;
+  onSaved?: () => void;
 }
 
 // 5-Punkt-Skalen Definitionen
@@ -113,10 +123,13 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
   onClose,
   onStartVoice,
   prefillData,
+  editingNote,
+  onSaved,
 }) => {
   const isMobile = useIsMobile();
   const { data: userDefaults } = useUserDefaults();
   const showCycleTracking = userDefaults?.track_cycle ?? false;
+  const isEditMode = !!editingNote;
   
   // Block A: Tageszustand
   const [mood, setMood] = useState<number | null>(null);
@@ -139,6 +152,51 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
   // UI state
   const [isSaving, setIsSaving] = useState(false);
   const [showTriggers, setShowTriggers] = useState(false);
+
+  // Load data when editing existing note
+  useEffect(() => {
+    if (editingNote && isOpen) {
+      const meta = editingNote.metadata;
+      if (meta) {
+        setMood(meta.mood ?? null);
+        setStress(meta.stress ?? null);
+        setSleep(meta.sleep ?? null);
+        setEnergy(meta.energy ?? null);
+        setCustomText(meta.notes ?? '');
+        
+        // Map triggers to correct categories
+        if (meta.triggers && meta.triggers.length > 0) {
+          const nutrition: string[] = [];
+          const movement: string[] = [];
+          const fluid: string[] = [];
+          const environment: string[] = [];
+          const cycle: string[] = [];
+          const wellbeing: string[] = [];
+          
+          meta.triggers.forEach(trigger => {
+            if (NUTRITION_TRIGGERS.some(t => t.id === trigger)) nutrition.push(trigger);
+            else if (MOVEMENT_TRIGGERS.some(t => t.id === trigger)) movement.push(trigger);
+            else if (FLUID_TRIGGERS.some(t => t.id === trigger)) fluid.push(trigger);
+            else if (ENVIRONMENT_TRIGGERS.some(t => t.id === trigger)) environment.push(trigger);
+            else if (CYCLE_TRIGGERS.some(t => t.id === trigger)) cycle.push(trigger);
+            else if (WELLBEING_TRIGGERS.some(t => t.id === trigger)) wellbeing.push(trigger);
+          });
+          
+          setNutritionTriggers(nutrition);
+          setMovementTriggers(movement);
+          setFluidTriggers(fluid);
+          setEnvironmentTriggers(environment);
+          setCycleTriggers(cycle);
+          setWellbeingTriggers(wellbeing);
+          
+          // Auto-expand triggers section if any were set
+          if (nutrition.length || movement.length || fluid.length || environment.length || cycle.length || wellbeing.length) {
+            setShowTriggers(true);
+          }
+        }
+      }
+    }
+  }, [editingNote, isOpen]);
 
   // Apply prefill data when it changes
   useEffect(() => {
@@ -282,6 +340,16 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
     }
     
     const finalText = parts.join(' • ');
+    
+    // Strukturierte Metadaten für späteres Bearbeiten
+    const metadata: ContextMetadata = {
+      mood,
+      stress,
+      sleep,
+      energy,
+      triggers: allTriggers,
+      notes: customText.trim() || undefined
+    };
 
     setIsSaving(true);
     try {
@@ -301,15 +369,29 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
 
       // Only save to voice notes if there's actual data
       if (finalText.trim()) {
-        await saveVoiceNote({
-          rawText: finalText,
-          sttConfidence: 1.0,
-          source: 'manual'
-        });
-
-        toast.success('Alltag & Auslöser gespeichert', {
-          description: 'Wird in der nächsten Analyse berücksichtigt'
-        });
+        if (isEditMode && editingNote) {
+          // Update existing note
+          await updateVoiceNote({
+            id: editingNote.id,
+            rawText: finalText,
+            contextType: 'tageszustand',
+            metadata
+          });
+          toast.success('Tageszustand aktualisiert');
+          onSaved?.();
+        } else {
+          // Create new note
+          await saveVoiceNote({
+            rawText: finalText,
+            sttConfidence: 1.0,
+            source: 'manual',
+            contextType: 'tageszustand',
+            metadata
+          });
+          toast.success('Alltag & Auslöser gespeichert', {
+            description: 'Wird in der nächsten Analyse berücksichtigt'
+          });
+        }
       } else {
         toast.success('Eintrag gespeichert');
       }
@@ -354,7 +436,7 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
   const hasAnyData = mood !== null || stress !== null || sleep !== null || energy !== null ||
     hasAnyTriggers || customText.trim() !== '';
 
-  const showLoadPrevious = hasPreviousValues();
+  const showLoadPrevious = hasPreviousValues() && !isEditMode;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -365,7 +447,7 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
       )}>
         <DialogHeader>
           <DialogTitle className="text-xl text-[#E5E7EB]">
-            Alltag & Auslöser eintragen
+            {isEditMode ? 'Tageszustand bearbeiten' : 'Alltag & Auslöser eintragen'}
           </DialogTitle>
           <DialogDescription className="text-sm text-[#9CA3AF]">
             Erfasse schnell deine wichtigsten Tagesfaktoren. Alle Angaben sind optional.

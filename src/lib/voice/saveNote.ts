@@ -1,10 +1,30 @@
 import { parseOccurredAt } from './timeOnly';
 import { supabase } from '@/integrations/supabase/client';
 
+export type ContextType = 'tageszustand' | 'notiz';
+
+export interface ContextMetadata {
+  mood?: number | null;
+  stress?: number | null;
+  sleep?: number | null;
+  energy?: number | null;
+  triggers?: string[];
+  notes?: string;
+}
+
 export interface SaveVoiceNoteOptions {
   rawText: string;
   sttConfidence?: number;
   source?: 'voice' | 'manual' | 'import';
+  contextType?: ContextType;
+  metadata?: ContextMetadata;
+}
+
+export interface UpdateVoiceNoteOptions {
+  id: string;
+  rawText: string;
+  contextType?: ContextType;
+  metadata?: ContextMetadata;
 }
 
 /**
@@ -14,7 +34,7 @@ export interface SaveVoiceNoteOptions {
  * - Gibt neue ID zurück
  */
 export async function saveVoiceNote(options: SaveVoiceNoteOptions): Promise<string> {
-  const { rawText, sttConfidence, source = 'voice' } = options;
+  const { rawText, sttConfidence, source = 'voice', contextType = 'notiz', metadata } = options;
   
   // User-ID holen
   const { data: { user } } = await supabase.auth.getUser();
@@ -44,8 +64,8 @@ export async function saveVoiceNote(options: SaveVoiceNoteOptions): Promise<stri
   // Zeit parsen
   const occurred_at = parseOccurredAt(trimmed);
 
-  // In DB speichern
-  const { data, error } = await supabase
+  // In DB speichern - using type assertion for new columns not yet in generated types
+  const { data, error } = await (supabase
     .from('voice_notes')
     .insert({
       user_id: user.id,
@@ -53,10 +73,12 @@ export async function saveVoiceNote(options: SaveVoiceNoteOptions): Promise<stri
       occurred_at,
       stt_confidence: sttConfidence ?? null,
       source,
-      tz: 'Europe/Berlin'
-    })
+      tz: 'Europe/Berlin',
+      context_type: contextType,
+      metadata: metadata ? metadata : null
+    } as any)
     .select('id')
-    .single();
+    .single());
 
   if (error) {
     console.error('❌ Voice-Notiz speichern fehlgeschlagen:', error);
@@ -65,4 +87,45 @@ export async function saveVoiceNote(options: SaveVoiceNoteOptions): Promise<stri
 
   console.log('✅ Voice-Notiz gespeichert:', data.id);
   return data.id;
+}
+
+/**
+ * Aktualisiert eine bestehende Voice-Notiz
+ */
+export async function updateVoiceNote(options: UpdateVoiceNoteOptions): Promise<void> {
+  const { id, rawText, contextType, metadata } = options;
+  
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    throw new Error('Nicht eingeloggt');
+  }
+
+  const trimmed = rawText.trim();
+  if (!trimmed) {
+    throw new Error('Voice-Notiz darf nicht leer sein');
+  }
+
+  const updateData: Record<string, unknown> = {
+    text: trimmed,
+  };
+  
+  if (contextType !== undefined) {
+    updateData.context_type = contextType;
+  }
+  if (metadata !== undefined) {
+    updateData.metadata = metadata;
+  }
+
+  const { error } = await supabase
+    .from('voice_notes')
+    .update(updateData)
+    .eq('id', id)
+    .eq('user_id', user.id);
+
+  if (error) {
+    console.error('❌ Voice-Notiz aktualisieren fehlgeschlagen:', error);
+    throw new Error(`Aktualisieren fehlgeschlagen: ${error.message}`);
+  }
+
+  console.log('✅ Voice-Notiz aktualisiert:', id);
 }
