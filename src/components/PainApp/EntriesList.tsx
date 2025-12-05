@@ -287,14 +287,17 @@ export const EntriesList = ({
       </Dialog>
       
       {sorted.length >= limit && (
-        <div className="mt-4 text-center">
-          <Button 
-            variant="outline" 
-            onClick={() => setLimit(prev => prev + 50)}
-            className="w-full"
-          >
-            Mehr laden
-          </Button>
+        <div 
+          className="mt-6 py-5 text-center cursor-pointer text-muted-foreground/60 text-sm
+                     hover:bg-secondary/30 active:bg-secondary/50 rounded-lg transition-colors
+                     select-none touch-manipulation"
+          onClick={() => setLimit(prev => prev + 50)}
+        >
+          {isLoading ? (
+            <span className="animate-pulse">Lädt...</span>
+          ) : (
+            <span className="tracking-widest">···</span>
+          )}
         </div>
       )}
     </div>
