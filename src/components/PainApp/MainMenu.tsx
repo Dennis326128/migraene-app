@@ -130,7 +130,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
     if (voiceRouter.isListening) {
       return 'Sprich in deinem Tempo.';
     }
-    return 'Einfach alles sagen.';
+    return 'Per Sprache erfassen.';
   };
   
   // Voice icon: roter Punkt mit Animation bei Aufnahme, Petrol bei Bereit
