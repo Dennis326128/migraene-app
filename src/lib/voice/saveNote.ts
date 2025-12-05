@@ -16,6 +16,12 @@ export interface SaveVoiceNoteOptions {
 export async function saveVoiceNote(options: SaveVoiceNoteOptions): Promise<string> {
   const { rawText, sttConfidence, source = 'voice' } = options;
   
+  // User-ID holen
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    throw new Error('Nicht eingeloggt');
+  }
+
   // Check if user has voice notes enabled
   const { data: profile, error: profileError } = await supabase
     .from('user_profiles')
@@ -42,12 +48,13 @@ export async function saveVoiceNote(options: SaveVoiceNoteOptions): Promise<stri
   const { data, error } = await supabase
     .from('voice_notes')
     .insert({
+      user_id: user.id,
       text: trimmed,
       occurred_at,
       stt_confidence: sttConfidence ?? null,
       source,
       tz: 'Europe/Berlin'
-    } as any)
+    })
     .select('id')
     .single();
 
