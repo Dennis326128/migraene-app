@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Filter, FileText, Calendar as CalendarIcon, Activity, Edit, Trash2, ChevronDown, ChevronUp, ArrowDown } from 'lucide-react';
+import { ArrowLeft, Filter, FileText, Calendar as CalendarIcon, Activity, Edit, Trash2, ChevronDown, ChevronUp, ArrowDown, Heart, MessageSquare } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { toZonedTime } from 'date-fns-tz';
@@ -16,7 +16,9 @@ import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { VoiceNoteEditModal } from './VoiceNoteEditModal';
+import { QuickContextNoteModal, EditingContextNote } from './QuickContextNoteModal';
 import { showSuccessToast, showErrorToast } from '@/lib/toastHelpers';
+import type { ContextMetadata } from '@/lib/voice/saveNote';
 
 // Helper: Filtert technische/ungültige Wetterbedingungen
 const isValidWeatherCondition = (text: string | null | undefined): boolean => {
@@ -53,6 +55,7 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
   const queryClient = useQueryClient();
   const [filterType, setFilterType] = useState<'all' | 'pain_entry' | 'context_note'>('all');
   const [editingNote, setEditingNote] = useState<any>(null);
+  const [editingTageszustand, setEditingTageszustand] = useState<EditingContextNote | null>(null);
   const [expandedEntries, setExpandedEntries] = useState<Set<string>>(new Set());
   const [pageSize] = useState(50);
   const [currentPage, setCurrentPage] = useState(0);
@@ -92,6 +95,50 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
       queryClient.invalidateQueries({ queryKey: ['voice-notes-timeline'] });
     } catch (error) {
       showErrorToast("Fehler", error instanceof Error ? error.message : "Löschen fehlgeschlagen");
+    }
+  };
+
+  // Helper to determine context type and label
+  const getContextTypeInfo = (note: any) => {
+    const contextType = note.context_type || 'notiz';
+    const hasMetadata = note.metadata && Object.keys(note.metadata).length > 0;
+    
+    // Legacy detection: check if text contains structured data patterns
+    const isLegacyTageszustand = !note.context_type && 
+      (note.text?.includes('Stimmung:') || note.text?.includes('Stress:') || note.text?.includes('Schlaf:'));
+    
+    if (contextType === 'tageszustand' || hasMetadata || isLegacyTageszustand) {
+      return {
+        type: 'tageszustand' as const,
+        label: 'Tageszustand',
+        icon: Heart,
+        color: 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+      };
+    }
+    
+    return {
+      type: 'notiz' as const,
+      label: 'Notiz',
+      icon: MessageSquare,
+      color: 'bg-accent/20 text-accent border-accent/30'
+    };
+  };
+
+  // Handle editing context note - opens appropriate editor
+  const handleEditContextNote = (note: any) => {
+    const typeInfo = getContextTypeInfo(note);
+    
+    if (typeInfo.type === 'tageszustand') {
+      // Open Tageszustand editor with metadata
+      setEditingTageszustand({
+        id: note.id,
+        text: note.text,
+        context_type: note.context_type,
+        metadata: note.metadata as ContextMetadata | null
+      });
+    } else {
+      // Open simple text editor
+      setEditingNote(note);
     }
   };
 
@@ -476,16 +523,18 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
                           {/* KOMPAKTE ANSICHT */}
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex-1 space-y-2">
-                              <div className="flex items-center gap-2">
-                                <Badge variant="outline" className="bg-accent/10">
-                                  Kontext-Notiz
-                                </Badge>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {(() => {
+                                  const typeInfo = getContextTypeInfo(item.data);
+                                  const IconComponent = typeInfo.icon;
+                                  return (
+                                    <Badge variant="outline" className={cn("text-xs", typeInfo.color)}>
+                                      <IconComponent className="h-3 w-3 mr-1" />
+                                      {typeInfo.label}
+                                    </Badge>
+                                  );
+                                })()}
                                 <span className="text-xs text-muted-foreground">{item.time} Uhr</span>
-                                {item.data.stt_confidence && (
-                                  <Badge variant="outline" className="text-xs">
-                                    🎙️ {Math.round(item.data.stt_confidence * 100)}%
-                                  </Badge>
-                                )}
                               </div>
                               
                               {/* Text (gekürzt wenn zugeklappt) */}
@@ -523,7 +572,7 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
                                 size="sm"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setEditingNote(item.data);
+                                  handleEditContextNote(item.data);
                                 }}
                                 className="flex-1"
                               >
@@ -577,7 +626,7 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
         </div>
       )}
 
-      {/* Voice Note Edit Modal */}
+      {/* Voice Note Edit Modal (for plain notes) */}
       <VoiceNoteEditModal
         note={editingNote}
         open={!!editingNote}
@@ -585,6 +634,17 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
         onSaved={() => {
           queryClient.invalidateQueries({ queryKey: ['voice-notes-timeline'] });
           setEditingNote(null);
+        }}
+      />
+
+      {/* Tageszustand Edit Modal */}
+      <QuickContextNoteModal
+        isOpen={!!editingTageszustand}
+        onClose={() => setEditingTageszustand(null)}
+        editingNote={editingTageszustand}
+        onSaved={() => {
+          queryClient.invalidateQueries({ queryKey: ['voice-notes-timeline'] });
+          setEditingTageszustand(null);
         }}
       />
     </div>

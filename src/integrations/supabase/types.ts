@@ -803,8 +803,10 @@ export type Database = {
       voice_notes: {
         Row: {
           captured_at: string
+          context_type: string | null
           deleted_at: string | null
           id: string
+          metadata: Json | null
           occurred_at: string
           source: string
           stt_confidence: number | null
@@ -815,8 +817,10 @@ export type Database = {
         }
         Insert: {
           captured_at?: string
+          context_type?: string | null
           deleted_at?: string | null
           id?: string
+          metadata?: Json | null
           occurred_at: string
           source?: string
           stt_confidence?: number | null
@@ -827,8 +831,10 @@ export type Database = {
         }
         Update: {
           captured_at?: string
+          context_type?: string | null
           deleted_at?: string | null
           id?: string
+          metadata?: Json | null
           occurred_at?: string
           source?: string
           stt_confidence?: number | null
