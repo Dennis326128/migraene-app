@@ -137,18 +137,18 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   const VoiceIcon = () => {
     if (voiceRouter.isSaving) {
       return (
-        <div className="w-7 h-7 rounded-full border-2 border-voice-light border-t-transparent animate-spin" />
+        <div className="w-5 h-5 rounded-full border-2 border-voice-light border-t-transparent animate-spin" />
       );
     }
     if (voiceRouter.isListening) {
       return (
         <div className="relative flex items-center justify-center">
-          <div className="w-5 h-5 rounded-full bg-destructive animate-pulse" />
-          <div className="absolute w-8 h-8 rounded-full bg-destructive/30 animate-ping" />
+          <div className="w-3 h-3 rounded-full bg-destructive animate-pulse" />
+          <div className="absolute w-5 h-5 rounded-full bg-destructive/30 animate-ping" />
         </div>
       );
     }
-    return <span className="text-3xl sm:text-4xl">🎙️</span>;
+    return <span className="text-lg sm:text-xl">🎙️</span>;
   };
 
   const handleQuickEntryClose = () => {
@@ -220,15 +220,12 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             {/* 1) SPRACHEINGABE - Hero Card, hervorgehoben mit Voice-Farbe */}
             <StartPageCard 
               variant={voiceRouter.isListening || voiceRouter.isSaving ? "voiceActive" : "voiceHighlight"} 
-              size="hero"
-              className="min-h-[130px] sm:min-h-[140px]"
               touchFeedback={!voiceRouter.isListening && !voiceRouter.isSaving}
               onClick={!voiceRouter.isListening && !voiceRouter.isSaving ? handleVoiceEntry : undefined}
             >
               <StartPageCardHeader
                 icon={<VoiceIcon />}
                 iconBgClassName={voiceRouter.isListening ? "bg-destructive/20" : "bg-voice-light/30"}
-                iconSize="large"
                 title={getVoiceButtonTitle()}
                 subtitle={getVoiceButtonSubtitle()}
               />
