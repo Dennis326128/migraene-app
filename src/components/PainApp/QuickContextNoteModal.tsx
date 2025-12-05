@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Mic, Utensils, Activity, Droplets, CloudRain, Calendar, Heart, Monitor } from 'lucide-react';
+import { Mic, Utensils, Activity, Droplets, Calendar, Heart, Eye, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { saveVoiceNote } from '@/lib/voice/saveNote';
 import { cn } from '@/lib/utils';
@@ -17,10 +17,19 @@ import { FivePointScale, ScaleOption } from './FivePointScale';
 import { MultiSelectChips, ChipOption } from './MultiSelectChips';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 
-interface QuickContextNoteModalProps {
+export interface QuickContextNoteModalProps {
   isOpen: boolean;
   onClose: () => void;
   onStartVoice?: () => void;
+  // Pre-filled data from voice input
+  prefillData?: {
+    mood?: number | null;
+    stress?: number | null;
+    sleep?: number | null;
+    energy?: number | null;
+    triggers?: string[];
+    notes?: string;
+  };
 }
 
 // 5-Punkt-Skalen Definitionen
@@ -56,7 +65,7 @@ const ENERGY_OPTIONS: ScaleOption[] = [
   { value: 5, label: 'Energiegeladen', emoji: '⚡', color: 'excellent' },
 ];
 
-// Trigger-Kategorien
+// Trigger-Kategorien (vereinfacht)
 const NUTRITION_TRIGGERS: ChipOption[] = [
   { id: 'meal_skipped', label: 'Mahlzeit ausgelassen' },
   { id: 'high_sugar', label: 'Viel Zucker' },
@@ -76,15 +85,11 @@ const FLUID_TRIGGERS: ChipOption[] = [
   { id: 'too_much', label: 'Sehr viel getrunken' },
 ];
 
-const WEATHER_TRIGGERS: ChipOption[] = [
-  { id: 'weather_change', label: 'Starker Wetterwechsel' },
+// Neue zusammengefasste Kategorie: Umgebung & Reize (ohne Wetter)
+const ENVIRONMENT_TRIGGERS: ChipOption[] = [
+  { id: 'much_screen', label: 'Viel Bildschirm' },
   { id: 'bright_light', label: 'Sehr helles Licht' },
   { id: 'noise', label: 'Viel Lärm' },
-];
-
-const SCREEN_TRIGGERS: ChipOption[] = [
-  { id: 'much_screen', label: 'Viel Bildschirm' },
-  { id: 'late_screen', label: 'Späte Bildschirmzeit' },
 ];
 
 const CYCLE_TRIGGERS: ChipOption[] = [
@@ -99,10 +104,14 @@ const WELLBEING_TRIGGERS: ChipOption[] = [
   { id: 'tense', label: 'Verspannt' },
 ];
 
+// Special chip for "nothing special"
+const NOTHING_SPECIAL_ID = 'nothing_special';
+
 export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
   isOpen,
   onClose,
   onStartVoice,
+  prefillData,
 }) => {
   const isMobile = useIsMobile();
   
@@ -112,14 +121,14 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
   const [sleep, setSleep] = useState<number | null>(null);
   const [energy, setEnergy] = useState<number | null>(null);
   
-  // Block B: Trigger
+  // Block B: Trigger (vereinfacht)
   const [nutritionTriggers, setNutritionTriggers] = useState<string[]>([]);
   const [movementTriggers, setMovementTriggers] = useState<string[]>([]);
   const [fluidTriggers, setFluidTriggers] = useState<string[]>([]);
-  const [weatherTriggers, setWeatherTriggers] = useState<string[]>([]);
-  const [screenTriggers, setScreenTriggers] = useState<string[]>([]);
+  const [environmentTriggers, setEnvironmentTriggers] = useState<string[]>([]);
   const [cycleTriggers, setCycleTriggers] = useState<string[]>([]);
   const [wellbeingTriggers, setWellbeingTriggers] = useState<string[]>([]);
+  const [nothingSpecial, setNothingSpecial] = useState(false);
   
   // Block C: Freitext
   const [customText, setCustomText] = useState('');
@@ -127,6 +136,48 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
   // UI state
   const [isSaving, setIsSaving] = useState(false);
   const [showTriggers, setShowTriggers] = useState(false);
+
+  // Apply prefill data when it changes
+  useEffect(() => {
+    if (prefillData && isOpen) {
+      if (prefillData.mood !== undefined) setMood(prefillData.mood);
+      if (prefillData.stress !== undefined) setStress(prefillData.stress);
+      if (prefillData.sleep !== undefined) setSleep(prefillData.sleep);
+      if (prefillData.energy !== undefined) setEnergy(prefillData.energy);
+      if (prefillData.notes) setCustomText(prefillData.notes);
+      
+      // Map triggers to correct categories
+      if (prefillData.triggers && prefillData.triggers.length > 0) {
+        const nutrition: string[] = [];
+        const movement: string[] = [];
+        const fluid: string[] = [];
+        const environment: string[] = [];
+        const cycle: string[] = [];
+        const wellbeing: string[] = [];
+        
+        prefillData.triggers.forEach(trigger => {
+          if (NUTRITION_TRIGGERS.some(t => t.id === trigger)) nutrition.push(trigger);
+          else if (MOVEMENT_TRIGGERS.some(t => t.id === trigger)) movement.push(trigger);
+          else if (FLUID_TRIGGERS.some(t => t.id === trigger)) fluid.push(trigger);
+          else if (ENVIRONMENT_TRIGGERS.some(t => t.id === trigger)) environment.push(trigger);
+          else if (CYCLE_TRIGGERS.some(t => t.id === trigger)) cycle.push(trigger);
+          else if (WELLBEING_TRIGGERS.some(t => t.id === trigger)) wellbeing.push(trigger);
+        });
+        
+        if (nutrition.length) setNutritionTriggers(nutrition);
+        if (movement.length) setMovementTriggers(movement);
+        if (fluid.length) setFluidTriggers(fluid);
+        if (environment.length) setEnvironmentTriggers(environment);
+        if (cycle.length) setCycleTriggers(cycle);
+        if (wellbeing.length) setWellbeingTriggers(wellbeing);
+        
+        // Auto-expand triggers section if any were set
+        if (nutrition.length || movement.length || fluid.length || environment.length || cycle.length || wellbeing.length) {
+          setShowTriggers(true);
+        }
+      }
+    }
+  }, [prefillData, isOpen]);
 
   // Load previous values from localStorage
   const loadPreviousValues = () => {
@@ -141,10 +192,10 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
         setNutritionTriggers(values.nutritionTriggers ?? []);
         setMovementTriggers(values.movementTriggers ?? []);
         setFluidTriggers(values.fluidTriggers ?? []);
-        setWeatherTriggers(values.weatherTriggers ?? []);
-        setScreenTriggers(values.screenTriggers ?? []);
+        setEnvironmentTriggers(values.environmentTriggers ?? values.weatherTriggers ?? values.screenTriggers ?? []);
         setCycleTriggers(values.cycleTriggers ?? []);
         setWellbeingTriggers(values.wellbeingTriggers ?? []);
+        setNothingSpecial(false);
         toast.success('Werte vom letzten Eintrag übernommen');
       }
     } catch (error) {
@@ -161,6 +212,32 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
     }
   };
 
+  // Handle "Heute nichts Besonderes" logic
+  const handleNothingSpecialToggle = () => {
+    if (!nothingSpecial) {
+      // Selecting "nothing special" - clear all other triggers
+      setNutritionTriggers([]);
+      setMovementTriggers([]);
+      setFluidTriggers([]);
+      setEnvironmentTriggers([]);
+      setCycleTriggers([]);
+      setWellbeingTriggers([]);
+      setNothingSpecial(true);
+    } else {
+      setNothingSpecial(false);
+    }
+  };
+
+  // Wrapper to clear "nothing special" when any other trigger is selected
+  const createTriggerHandler = (setter: React.Dispatch<React.SetStateAction<string[]>>) => {
+    return (values: string[]) => {
+      if (values.length > 0) {
+        setNothingSpecial(false);
+      }
+      setter(values);
+    };
+  };
+
   const handleSave = async () => {
     // Zusammenstellen der Daten
     const parts: string[] = [];
@@ -174,14 +251,27 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
       ...nutritionTriggers,
       ...movementTriggers,
       ...fluidTriggers,
-      ...weatherTriggers,
-      ...screenTriggers,
+      ...environmentTriggers,
       ...cycleTriggers,
       ...wellbeingTriggers,
     ];
     
-    if (allTriggers.length > 0) {
-      parts.push(`Trigger: ${allTriggers.join(', ')}`);
+    if (nothingSpecial) {
+      parts.push('Heute nichts Besonderes');
+    } else if (allTriggers.length > 0) {
+      // Map IDs to labels for readable output
+      const triggerLabels = allTriggers.map(id => {
+        const allOptions = [
+          ...NUTRITION_TRIGGERS,
+          ...MOVEMENT_TRIGGERS,
+          ...FLUID_TRIGGERS,
+          ...ENVIRONMENT_TRIGGERS,
+          ...CYCLE_TRIGGERS,
+          ...WELLBEING_TRIGGERS,
+        ];
+        return allOptions.find(o => o.id === id)?.label || id;
+      });
+      parts.push(`Trigger: ${triggerLabels.join(', ')}`);
     }
     
     if (customText.trim()) {
@@ -201,8 +291,7 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
         nutritionTriggers,
         movementTriggers,
         fluidTriggers,
-        weatherTriggers,
-        screenTriggers,
+        environmentTriggers,
         cycleTriggers,
         wellbeingTriggers,
       }));
@@ -247,17 +336,20 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
     setNutritionTriggers([]);
     setMovementTriggers([]);
     setFluidTriggers([]);
-    setWeatherTriggers([]);
-    setScreenTriggers([]);
+    setEnvironmentTriggers([]);
     setCycleTriggers([]);
     setWellbeingTriggers([]);
+    setNothingSpecial(false);
     setCustomText('');
+    setShowTriggers(false);
   };
 
+  const hasAnyTriggers = nutritionTriggers.length > 0 || movementTriggers.length > 0 || 
+    fluidTriggers.length > 0 || environmentTriggers.length > 0 || 
+    cycleTriggers.length > 0 || wellbeingTriggers.length > 0 || nothingSpecial;
+
   const hasAnyData = mood !== null || stress !== null || sleep !== null || energy !== null ||
-    nutritionTriggers.length > 0 || movementTriggers.length > 0 || fluidTriggers.length > 0 ||
-    weatherTriggers.length > 0 || screenTriggers.length > 0 || cycleTriggers.length > 0 ||
-    wellbeingTriggers.length > 0 || customText.trim() !== '';
+    hasAnyTriggers || customText.trim() !== '';
 
   const showLoadPrevious = hasPreviousValues();
 
@@ -277,18 +369,37 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
           </DialogDescription>
         </DialogHeader>
 
-        {showLoadPrevious && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={loadPreviousValues}
-            className="w-full bg-[#0B1220] border-[#1F2937] text-[#9CA3AF] hover:bg-[#111827] hover:border-[#4B5563] hover:text-[#E5E7EB]"
-          >
-            Werte vom letzten Eintrag übernehmen
-          </Button>
-        )}
-
         <div className="space-y-4 py-2">
+          {/* Formweite Spracheingabe - prominent oben */}
+          <button
+            onClick={handleVoiceClick}
+            className="w-full flex items-center gap-4 p-4 rounded-lg bg-[#14B8A6]/10 border border-[#14B8A6]/30 hover:bg-[#14B8A6]/20 hover:border-[#14B8A6]/50 transition-all duration-150 group"
+          >
+            <div className="flex-shrink-0 w-10 h-10 rounded-full bg-[#14B8A6]/20 flex items-center justify-center group-hover:bg-[#14B8A6]/30 transition-colors">
+              <Mic className="h-5 w-5 text-[#14B8A6]" />
+            </div>
+            <div className="flex-1 text-left">
+              <div className="text-sm font-semibold text-[#14B8A6]">Spracheingabe</div>
+              <div className="text-xs text-[#9CA3AF]">Einfach sprechen statt tippen.</div>
+            </div>
+          </button>
+          
+          {/* Beispielhinweis für Spracheingabe */}
+          <p className="text-xs text-[#6B7280] italic px-1">
+            z.B.: „Viel Stress, wenig Schlaf, zwei Kaffee, viel Bildschirmzeit."
+          </p>
+
+          {showLoadPrevious && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={loadPreviousValues}
+              className="w-full bg-[#0B1220] border-[#1F2937] text-[#9CA3AF] hover:bg-[#111827] hover:border-[#4B5563] hover:text-[#E5E7EB]"
+            >
+              Werte vom letzten Eintrag übernehmen
+            </Button>
+          )}
+
           {/* Block A: Tageszustand - Immer sichtbar */}
           <div className="space-y-3 p-4 bg-[#111827]/50 rounded-lg border border-[#1F2937]/50">
             <h2 className="text-base font-semibold text-[#E5E7EB] flex items-center gap-2">
@@ -329,24 +440,13 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
             />
           </div>
 
-          {/* Block C: Freitext + Sprache - Direkt nach Tageszustand */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <label className="text-sm font-medium text-[#E5E7EB]">
-                Eigene Notiz (optional)
-              </label>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleVoiceClick}
-                className="h-10 px-4 gap-2.5 bg-[#14B8A6]/15 border border-[#14B8A6]/50 text-[#14B8A6] hover:bg-[#14B8A6]/25 hover:border-[#14B8A6]/70 hover:text-[#0D9488] transition-all duration-150 shadow-sm hover:shadow-[0_0_12px_rgba(20,184,166,0.25)]"
-              >
-                <Mic className="h-5 w-5" />
-                <span className="text-sm font-semibold">Einsprechen</span>
-              </Button>
-            </div>
+          {/* Block C: Freitext - ohne separaten Sprach-Button */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-[#E5E7EB]">
+              Eigene Notiz (optional)
+            </label>
             <Textarea
-              placeholder="Z.B. viel Bildschirmarbeit oder Streit im Job..."
+              placeholder="z.B. Reise, Streit, viel Arbeit, Kindergeburtstag …"
               value={customText}
               onChange={(e) => setCustomText(e.target.value)}
               className="min-h-[80px] bg-[#0B1220] border-[#1F2937] text-[#E5E7EB] placeholder:text-[#4B5563] focus:border-[#22C55E]/50 focus:ring-[#22C55E]/20"
@@ -363,21 +463,44 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
               <span className="flex items-center gap-2">
                 <Activity className="h-4 w-4" />
                 Was war heute besonders? (optional)
+                {hasAnyTriggers && (
+                  <span className="text-xs font-normal text-[#22C55E] bg-[#22C55E]/10 px-2 py-0.5 rounded-full">
+                    {nothingSpecial ? '1' : (nutritionTriggers.length + movementTriggers.length + fluidTriggers.length + environmentTriggers.length + cycleTriggers.length + wellbeingTriggers.length)} ausgewählt
+                  </span>
+                )}
               </span>
               {showTriggers ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </button>
             
             {showTriggers && (
-              <div className="space-y-4 pt-2">
-                <p className="text-xs text-[#9CA3AF] leading-tight">
-                  Wähle alles aus, was heute besonders war (mehrere möglich). Wenn nichts passt, lass diesen Bereich einfach zu.
-                </p>
+              <div className="space-y-5 pt-3">
+                {/* "Heute nichts Besonderes" Option */}
+                <button
+                  onClick={handleNothingSpecialToggle}
+                  className={cn(
+                    "w-full flex items-center gap-3 p-3 rounded-lg border transition-all duration-150",
+                    nothingSpecial
+                      ? "bg-[#22C55E]/15 border-[#22C55E]/50 text-[#22C55E]"
+                      : "bg-[#0B1220] border-[#1F2937] text-[#9CA3AF] hover:border-[#4B5563] hover:text-[#E5E7EB]"
+                  )}
+                >
+                  <div className={cn(
+                    "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors",
+                    nothingSpecial
+                      ? "border-[#22C55E] bg-[#22C55E]"
+                      : "border-[#4B5563]"
+                  )}>
+                    {nothingSpecial && <Check className="h-3 w-3 text-[#0B1220]" />}
+                  </div>
+                  <span className="text-sm font-medium">Heute nichts Besonderes</span>
+                </button>
+
                 <MultiSelectChips
                   title="Ernährung"
                   icon={Utensils}
                   options={NUTRITION_TRIGGERS}
                   selected={nutritionTriggers}
-                  onChange={setNutritionTriggers}
+                  onChange={createTriggerHandler(setNutritionTriggers)}
                 />
                 
                 <MultiSelectChips
@@ -385,7 +508,7 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
                   icon={Activity}
                   options={MOVEMENT_TRIGGERS}
                   selected={movementTriggers}
-                  onChange={setMovementTriggers}
+                  onChange={createTriggerHandler(setMovementTriggers)}
                 />
                 
                 <MultiSelectChips
@@ -393,23 +516,15 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
                   icon={Droplets}
                   options={FLUID_TRIGGERS}
                   selected={fluidTriggers}
-                  onChange={setFluidTriggers}
+                  onChange={createTriggerHandler(setFluidTriggers)}
                 />
                 
                 <MultiSelectChips
-                  title="Wetter & Umfeld"
-                  icon={CloudRain}
-                  options={WEATHER_TRIGGERS}
-                  selected={weatherTriggers}
-                  onChange={setWeatherTriggers}
-                />
-                
-                <MultiSelectChips
-                  title="Bildschirm & Reize"
-                  icon={Monitor}
-                  options={SCREEN_TRIGGERS}
-                  selected={screenTriggers}
-                  onChange={setScreenTriggers}
+                  title="Umgebung & Reize"
+                  icon={Eye}
+                  options={ENVIRONMENT_TRIGGERS}
+                  selected={environmentTriggers}
+                  onChange={createTriggerHandler(setEnvironmentTriggers)}
                 />
                 
                 <MultiSelectChips
@@ -417,7 +532,7 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
                   icon={Calendar}
                   options={CYCLE_TRIGGERS}
                   selected={cycleTriggers}
-                  onChange={setCycleTriggers}
+                  onChange={createTriggerHandler(setCycleTriggers)}
                 />
                 
                 <MultiSelectChips
@@ -425,7 +540,7 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
                   icon={Heart}
                   options={WELLBEING_TRIGGERS}
                   selected={wellbeingTriggers}
-                  onChange={setWellbeingTriggers}
+                  onChange={createTriggerHandler(setWellbeingTriggers)}
                 />
               </div>
             )}
