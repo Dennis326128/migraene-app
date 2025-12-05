@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Mic, Utensils, Activity, Droplets, Calendar, Heart, Eye, Check } from 'lucide-react';
+import { Mic, Utensils, Activity, Droplets, Calendar, Heart, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { saveVoiceNote } from '@/lib/voice/saveNote';
 import { cn } from '@/lib/utils';
@@ -16,6 +16,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { FivePointScale, ScaleOption } from './FivePointScale';
 import { MultiSelectChips, ChipOption } from './MultiSelectChips';
 import { ChevronDown, ChevronUp } from 'lucide-react';
+import { useUserDefaults } from '@/features/settings/hooks/useUserSettings';
 
 export interface QuickContextNoteModalProps {
   isOpen: boolean;
@@ -114,6 +115,8 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
   prefillData,
 }) => {
   const isMobile = useIsMobile();
+  const { data: userDefaults } = useUserDefaults();
+  const showCycleTracking = userDefaults?.track_cycle ?? false;
   
   // Block A: Tageszustand
   const [mood, setMood] = useState<number | null>(null);
@@ -380,14 +383,9 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
             </div>
             <div className="flex-1 text-left">
               <div className="text-sm font-semibold text-[#14B8A6]">Spracheingabe</div>
-              <div className="text-xs text-[#9CA3AF]">Einfach sprechen statt tippen.</div>
+              <div className="text-xs text-[#9CA3AF]">Einfach alles sagen.</div>
             </div>
           </button>
-          
-          {/* Beispielhinweis für Spracheingabe */}
-          <p className="text-xs text-[#6B7280] italic px-1">
-            z.B.: „Viel Stress, wenig Schlaf, zwei Kaffee, viel Bildschirmzeit."
-          </p>
 
           {showLoadPrevious && (
             <Button
@@ -474,26 +472,20 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
             
             {showTriggers && (
               <div className="space-y-5 pt-3">
-                {/* "Heute nichts Besonderes" Option */}
-                <button
-                  onClick={handleNothingSpecialToggle}
-                  className={cn(
-                    "w-full flex items-center gap-3 p-3 rounded-lg border transition-all duration-150",
-                    nothingSpecial
-                      ? "bg-[#22C55E]/15 border-[#22C55E]/50 text-[#22C55E]"
-                      : "bg-[#0B1220] border-[#1F2937] text-[#9CA3AF] hover:border-[#4B5563] hover:text-[#E5E7EB]"
-                  )}
-                >
-                  <div className={cn(
-                    "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors",
-                    nothingSpecial
-                      ? "border-[#22C55E] bg-[#22C55E]"
-                      : "border-[#4B5563]"
-                  )}>
-                    {nothingSpecial && <Check className="h-3 w-3 text-[#0B1220]" />}
-                  </div>
-                  <span className="text-sm font-medium">Heute nichts Besonderes</span>
-                </button>
+                {/* "Heute nichts Besonderes" als normaler Chip */}
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={handleNothingSpecialToggle}
+                    className={cn(
+                      "px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-150",
+                      nothingSpecial
+                        ? "bg-[#22C55E]/15 border-[#22C55E]/50 text-[#22C55E]"
+                        : "bg-[#0B1220] border-[#1F2937] text-[#9CA3AF] hover:border-[#4B5563] hover:text-[#E5E7EB]"
+                    )}
+                  >
+                    Heute nichts Besonderes
+                  </button>
+                </div>
 
                 <MultiSelectChips
                   title="Ernährung"
@@ -527,13 +519,15 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
                   onChange={createTriggerHandler(setEnvironmentTriggers)}
                 />
                 
-                <MultiSelectChips
-                  title="Zyklus"
-                  icon={Calendar}
-                  options={CYCLE_TRIGGERS}
-                  selected={cycleTriggers}
-                  onChange={createTriggerHandler(setCycleTriggers)}
-                />
+                {showCycleTracking && (
+                  <MultiSelectChips
+                    title="Zyklus"
+                    icon={Calendar}
+                    options={CYCLE_TRIGGERS}
+                    selected={cycleTriggers}
+                    onChange={createTriggerHandler(setCycleTriggers)}
+                  />
+                )}
                 
                 <MultiSelectChips
                   title="Wohlbefinden"
