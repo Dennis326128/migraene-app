@@ -92,10 +92,13 @@ export default function AuthPage() {
         
         toast({ title: "Fehler", description: errorMsg, variant: "destructive" });
       } else {
-        toast({
-          title: isLogin ? "Erfolgreich eingeloggt" : "Registrierung erfolgreich",
-          description: isLogin ? "Sie werden weitergeleitet..." : "Bitte bestätigen Sie Ihre E-Mail.",
-        });
+        // Bei Registrierung Toast anzeigen (E-Mail-Bestätigung nötig)
+        if (!isLogin) {
+          toast({
+            title: "Registrierung erfolgreich",
+            description: "Bitte bestätigen Sie Ihre E-Mail.",
+          });
+        }
         
         if (isLogin) {
           await ensureUserProfile();
