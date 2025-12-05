@@ -6,14 +6,18 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useUpdateMed, type Med, type UpdateMedInput } from "@/features/meds/hooks/useMeds";
 import { lookupMedicationMetadata } from "@/lib/medicationLookup";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Sparkles, AlertTriangle, Pill, Clock, FileText, Calendar, ChevronDown, Settings2 } from "lucide-react";
+import { Loader2, Sparkles, AlertTriangle, Pill, Clock, FileText, Calendar, ChevronDown, Settings2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useUserDefaults } from "@/features/settings/hooks/useUserSettings";
+import { supabase } from "@/integrations/supabase/client";
+import { Badge } from "@/components/ui/badge";
 
 interface MedicationEditModalProps {
   medication: Med | null;
@@ -60,16 +64,6 @@ const INTOLERANCE_REASONS = [
   { value: "nebenwirkungen", label: "Schwere Nebenwirkungen" },
   { value: "wirkungslos", label: "Wirkt nicht / unzureichende Wirkung" },
   { value: "sonstiges", label: "Sonstiges" },
-];
-
-const WEEKDAYS = [
-  { value: "Mo", label: "Mo" },
-  { value: "Di", label: "Di" },
-  { value: "Mi", label: "Mi" },
-  { value: "Do", label: "Do" },
-  { value: "Fr", label: "Fr" },
-  { value: "Sa", label: "Sa" },
-  { value: "So", label: "So" },
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -154,12 +148,13 @@ export const MedicationEditModal = ({ medication, open, onOpenChange }: Medicati
   const updateMed = useUpdateMed();
   const [showIntakeChangeConfirm, setShowIntakeChangeConfirm] = useState(false);
   const [pendingIntakeType, setPendingIntakeType] = useState<string | null>(null);
+  const [customReasons, setCustomReasons] = useState<string[]>([]);
 
   const [formData, setFormData] = useState<UpdateMedInput>({
     name: "",
     wirkstoff: "",
     staerke: "",
-    darreichungsform: "Tablette", // Default
+    darreichungsform: "Tablette",
     einheit: "Stück",
     dosis_morgens: "",
     dosis_mittags: "",
@@ -174,7 +169,7 @@ export const MedicationEditModal = ({ medication, open, onOpenChange }: Medicati
     intolerance_reason_type: "",
     intake_type: "as_needed",
     strength_value: "",
-    strength_unit: "mg", // Default
+    strength_unit: "mg",
     typical_indication: "",
     as_needed_standard_dose: "",
     as_needed_max_per_24h: undefined,
@@ -184,7 +179,32 @@ export const MedicationEditModal = ({ medication, open, onOpenChange }: Medicati
     regular_weekdays: [],
     regular_notes: "",
     medication_status: "active",
+    start_date: "",
+    end_date: "",
+    is_active: true,
   });
+
+  // Load custom reasons from user profile
+  useEffect(() => {
+    const loadCustomReasons = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      
+      const { data } = await supabase
+        .from('user_profiles')
+        .select('custom_medication_reasons')
+        .eq('user_id', user.id)
+        .single();
+      
+      if (data?.custom_medication_reasons) {
+        setCustomReasons(data.custom_medication_reasons as string[]);
+      }
+    };
+    
+    if (open) {
+      loadCustomReasons();
+    }
+  }, [open]);
 
   // Reset form when medication changes
   useEffect(() => {
@@ -221,6 +241,9 @@ export const MedicationEditModal = ({ medication, open, onOpenChange }: Medicati
         regular_weekdays: medication.regular_weekdays || [],
         regular_notes: medication.regular_notes || "",
         medication_status: medication.medication_status || "active",
+        start_date: medication.start_date || "",
+        end_date: medication.end_date || "",
+        is_active: medication.is_active !== false,
       });
     }
   }, [medication]);
@@ -325,6 +348,64 @@ export const MedicationEditModal = ({ medication, open, onOpenChange }: Medicati
     setPendingIntakeType(null);
   };
 
+  const handleActiveToggle = (isActive: boolean) => {
+    setFormData(prev => {
+      const updated = { ...prev, is_active: isActive };
+      if (!isActive && !prev.end_date) {
+        // Set end date to today when deactivating
+        updated.end_date = new Date().toISOString().split('T')[0];
+      }
+      if (isActive) {
+        // Clear end date when reactivating
+        updated.end_date = "";
+      }
+      return updated;
+    });
+  };
+
+  const handleIntoleranceToggle = (isIntolerant: boolean) => {
+    setFormData(prev => {
+      const updated = { ...prev, intolerance_flag: isIntolerant };
+      if (isIntolerant) {
+        // Auto-deactivate and set end date when marking as intolerant
+        updated.is_active = false;
+        if (!prev.end_date) {
+          updated.end_date = new Date().toISOString().split('T')[0];
+        }
+      }
+      return updated;
+    });
+  };
+
+  const saveCustomReason = async (reason: string) => {
+    if (!reason || reason.length < 3) return;
+    if (customReasons.includes(reason)) return;
+    
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    
+    const newReasons = [...customReasons, reason];
+    setCustomReasons(newReasons);
+    
+    await supabase
+      .from('user_profiles')
+      .update({ custom_medication_reasons: newReasons } as any)
+      .eq('user_id', user.id);
+  };
+
+  const removeCustomReason = async (reason: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    
+    const newReasons = customReasons.filter(r => r !== reason);
+    setCustomReasons(newReasons);
+    
+    await supabase
+      .from('user_profiles')
+      .update({ custom_medication_reasons: newReasons } as any)
+      .eq('user_id', user.id);
+  };
+
   const handleSave = async () => {
     if (!medication) return;
 
@@ -341,6 +422,21 @@ export const MedicationEditModal = ({ medication, open, onOpenChange }: Medicati
       finalData.is_active = false;
       finalData.discontinued_at = new Date().toISOString();
       finalData.medication_status = "intolerant";
+    } else if (!formData.is_active) {
+      finalData.discontinued_at = formData.end_date ? new Date(formData.end_date).toISOString() : new Date().toISOString();
+      finalData.medication_status = "stopped";
+    } else {
+      finalData.medication_status = "active";
+      finalData.discontinued_at = null;
+    }
+
+    // Save custom reason if it's new
+    const customReason = formData.anwendungsgebiet?.trim();
+    if (customReason && customReason.length >= 3) {
+      const isBuiltIn = TYPICAL_INDICATIONS.includes(customReason);
+      if (!isBuiltIn && !customReasons.includes(customReason)) {
+        await saveCustomReason(customReason);
+      }
     }
 
     try {
@@ -366,23 +462,17 @@ export const MedicationEditModal = ({ medication, open, onOpenChange }: Medicati
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const toggleWeekday = (day: string) => {
-    const current = formData.regular_weekdays || [];
-    const newDays = current.includes(day)
-      ? current.filter(d => d !== day)
-      : [...current, day];
-    updateField("regular_weekdays", newDays);
-  };
-
   const handleTypicalIndicationSelect = (indication: string) => {
     updateField("typical_indication", indication);
-    const current = formData.anwendungsgebiet || "";
-    if (!current.includes(indication)) {
-      updateField("anwendungsgebiet", current ? `${current}, ${indication}` : indication);
-    }
+    updateField("anwendungsgebiet", indication);
+  };
+
+  const handleCustomReasonSelect = (reason: string) => {
+    updateField("anwendungsgebiet", reason);
   };
 
   const isRegular = formData.intake_type === "regular";
+  const isActive = formData.is_active !== false;
 
   return (
     <>
@@ -480,6 +570,52 @@ export const MedicationEditModal = ({ medication, open, onOpenChange }: Medicati
                 </Select>
               </div>
 
+              {/* Start Date */}
+              <div className="space-y-2">
+                <Label htmlFor="start_date">Beginn der Einnahme (optional)</Label>
+                <Input
+                  id="start_date"
+                  type="date"
+                  value={formData.start_date || ""}
+                  onChange={(e) => updateField("start_date", e.target.value)}
+                  className="h-9"
+                />
+              </div>
+
+              {/* Active Toggle + End Date */}
+              <div className="space-y-3 p-4 rounded-lg bg-muted/30 border border-border/30">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm font-medium">Medikament ist aktiv</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Aktive Medikamente erscheinen im Medikationsplan
+                    </p>
+                  </div>
+                  <Switch
+                    checked={isActive}
+                    onCheckedChange={handleActiveToggle}
+                  />
+                </div>
+                
+                {!isActive && (
+                  <div className="space-y-2 pt-2 border-t border-border/30">
+                    <Label htmlFor="end_date" className="text-sm">Ende der Einnahme</Label>
+                    <Input
+                      id="end_date"
+                      type="date"
+                      value={formData.end_date || ""}
+                      onChange={(e) => updateField("end_date", e.target.value)}
+                      className="h-9"
+                    />
+                    {!formData.end_date && (
+                      <p className="text-xs text-amber-500">
+                        Bitte ein Enddatum angeben für den Therapieverlauf
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {/* Quick Dosage Fields based on intake type */}
               {!isRegular ? (
                 // Bei Bedarf: show standard dose + max per 24h
@@ -575,13 +711,13 @@ export const MedicationEditModal = ({ medication, open, onOpenChange }: Medicati
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Anwendungsgebiet</Label>
+                  <Label>Anwendungsgebiet / Grund (optional)</Label>
                   <div className="flex flex-wrap gap-1.5 mb-2">
                     {TYPICAL_INDICATIONS.map((ind) => (
                       <Button
                         key={ind}
                         type="button"
-                        variant={formData.typical_indication === ind ? "default" : "outline"}
+                        variant={formData.anwendungsgebiet === ind ? "default" : "outline"}
                         size="sm"
                         className="text-xs h-7"
                         onClick={() => handleTypicalIndicationSelect(ind)}
@@ -590,11 +726,44 @@ export const MedicationEditModal = ({ medication, open, onOpenChange }: Medicati
                       </Button>
                     ))}
                   </div>
+                  
+                  {/* Custom Reasons */}
+                  {customReasons.length > 0 && (
+                    <div className="space-y-1.5">
+                      <p className="text-xs text-muted-foreground">Eigene Gründe:</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {customReasons.map((reason) => (
+                          <Badge
+                            key={reason}
+                            variant={formData.anwendungsgebiet === reason ? "default" : "outline"}
+                            className="cursor-pointer text-xs pr-1 flex items-center gap-1"
+                            onClick={() => handleCustomReasonSelect(reason)}
+                          >
+                            {reason}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                removeCustomReason(reason);
+                              }}
+                              className="ml-1 hover:text-destructive"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
                   <Input
                     value={formData.anwendungsgebiet || ""}
                     onChange={(e) => updateField("anwendungsgebiet", e.target.value)}
-                    placeholder="z.B. Akute Migräneattacke"
+                    placeholder="z.B. Thrombose, Bluthochdruck"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Eigene Gründe werden automatisch gespeichert und stehen für andere Medikamente zur Auswahl
+                  </p>
                 </div>
               </CollapsibleSection>
 
@@ -635,30 +804,6 @@ export const MedicationEditModal = ({ medication, open, onOpenChange }: Medicati
                 </CollapsibleSection>
               )}
 
-              {/* Wochentage (nur bei regelmäßig) */}
-              {isRegular && (
-                <CollapsibleSection
-                  title="Wochentags-Einschränkung"
-                  icon={<Calendar className="h-4 w-4" />}
-                  hint="Optional – leer = täglich"
-                >
-                  <div className="flex flex-wrap gap-1.5">
-                    {WEEKDAYS.map((day) => (
-                      <Button
-                        key={day.value}
-                        type="button"
-                        variant={(formData.regular_weekdays || []).includes(day.value) ? "default" : "outline"}
-                        size="sm"
-                        className="h-8 w-10"
-                        onClick={() => toggleWeekday(day.value)}
-                      >
-                        {day.label}
-                      </Button>
-                    ))}
-                  </div>
-                </CollapsibleSection>
-              )}
-
               {/* Hinweise - combined field */}
               <CollapsibleSection
                 title="Hinweise"
@@ -676,7 +821,7 @@ export const MedicationEditModal = ({ medication, open, onOpenChange }: Medicati
                       updateField("as_needed_notes", e.target.value);
                     }
                   }}
-                  placeholder="z.B. Nicht mit anderen Triptanen kombinieren, Einnahme zu den Mahlzeiten..."
+                  placeholder="z.B. Nicht mit anderen Triptanen kombinieren, Einnahme zu den Mahlzeiten, nur Mo/Mi/Fr einnehmen..."
                   rows={2}
                 />
               </CollapsibleSection>
@@ -701,7 +846,7 @@ export const MedicationEditModal = ({ medication, open, onOpenChange }: Medicati
                   <Checkbox
                     id="intolerance_flag"
                     checked={formData.intolerance_flag || false}
-                    onCheckedChange={(checked) => updateField("intolerance_flag", !!checked)}
+                    onCheckedChange={(checked) => handleIntoleranceToggle(!!checked)}
                   />
                   <div className="grid gap-1.5 leading-none">
                     <label

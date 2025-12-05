@@ -39,6 +39,9 @@ export type Med = {
   regular_notes?: string | null;
   // Status
   medication_status?: string | null; // 'active' | 'stopped' | 'intolerant'
+  // Therapy history dates
+  start_date?: string | null;
+  end_date?: string | null;
 };
 
 export type RecentMed = Med & { use_count: number; last_used: string | null };
@@ -78,6 +81,9 @@ export type CreateMedInput = {
   regular_notes?: string;
   // Status
   medication_status?: string;
+  // Therapy history dates
+  start_date?: string;
+  end_date?: string;
 };
 
 export type UpdateMedInput = Partial<CreateMedInput> & {
@@ -157,7 +163,7 @@ export async function addMed(input: CreateMedInput): Promise<Med> {
       raw_input: input.raw_input || null,
       wirkstoff: input.wirkstoff || null,
       staerke: input.staerke || null,
-      darreichungsform: input.darreichungsform || null,
+      darreichungsform: input.darreichungsform || "Tablette",
       einheit: input.einheit || "Stueck",
       dosis_morgens: input.dosis_morgens || null,
       dosis_mittags: input.dosis_mittags || null,
@@ -184,7 +190,10 @@ export async function addMed(input: CreateMedInput): Promise<Med> {
       regular_weekdays: input.regular_weekdays || null,
       regular_notes: input.regular_notes || null,
       medication_status: input.medication_status || "active",
-    })
+      // Therapy history dates
+      start_date: input.start_date || null,
+      end_date: input.end_date || null,
+    } as any)
     .select()
     .single();
     
@@ -229,6 +238,9 @@ export async function updateMed(id: string, input: UpdateMedInput): Promise<Med>
   if (input.regular_weekdays !== undefined) updateData.regular_weekdays = input.regular_weekdays || null;
   if (input.regular_notes !== undefined) updateData.regular_notes = input.regular_notes || null;
   if (input.medication_status !== undefined) updateData.medication_status = input.medication_status || null;
+  // Handle therapy history dates
+  if (input.start_date !== undefined) updateData.start_date = input.start_date || null;
+  if (input.end_date !== undefined) updateData.end_date = input.end_date || null;
   
   const { data, error } = await supabase
     .from("user_medications")

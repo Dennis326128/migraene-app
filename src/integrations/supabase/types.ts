@@ -581,6 +581,7 @@ export type Database = {
           dosis_morgens: string | null
           dosis_nacht: string | null
           einheit: string | null
+          end_date: string | null
           hinweise: string | null
           id: string
           intake_type: string | null
@@ -594,6 +595,7 @@ export type Database = {
           regular_notes: string | null
           regular_weekdays: string[] | null
           staerke: string | null
+          start_date: string | null
           strength_unit: string | null
           strength_value: string | null
           typical_indication: string | null
@@ -617,6 +619,7 @@ export type Database = {
           dosis_morgens?: string | null
           dosis_nacht?: string | null
           einheit?: string | null
+          end_date?: string | null
           hinweise?: string | null
           id?: string
           intake_type?: string | null
@@ -630,6 +633,7 @@ export type Database = {
           regular_notes?: string | null
           regular_weekdays?: string[] | null
           staerke?: string | null
+          start_date?: string | null
           strength_unit?: string | null
           strength_value?: string | null
           typical_indication?: string | null
@@ -653,6 +657,7 @@ export type Database = {
           dosis_morgens?: string | null
           dosis_nacht?: string | null
           einheit?: string | null
+          end_date?: string | null
           hinweise?: string | null
           id?: string
           intake_type?: string | null
@@ -666,6 +671,7 @@ export type Database = {
           regular_notes?: string | null
           regular_weekdays?: string[] | null
           staerke?: string | null
+          start_date?: string | null
           strength_unit?: string | null
           strength_value?: string | null
           typical_indication?: string | null
@@ -677,6 +683,7 @@ export type Database = {
       user_profiles: {
         Row: {
           ai_enabled: boolean
+          custom_medication_reasons: string[] | null
           default_pain_location: string | null
           default_symptoms: string[] | null
           latitude: number | null
@@ -692,6 +699,7 @@ export type Database = {
         }
         Insert: {
           ai_enabled?: boolean
+          custom_medication_reasons?: string[] | null
           default_pain_location?: string | null
           default_symptoms?: string[] | null
           latitude?: number | null
@@ -707,6 +715,7 @@ export type Database = {
         }
         Update: {
           ai_enabled?: boolean
+          custom_medication_reasons?: string[] | null
           default_pain_location?: string | null
           default_symptoms?: string[] | null
           latitude?: number | null
