@@ -75,13 +75,16 @@ export const EntriesList = ({
 
   return (
     <div className="p-4 bg-gradient-to-br from-background to-secondary/20 min-h-screen">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-2">
         <Button onClick={onBack} variant="ghost" className="p-2 hover:bg-secondary/80">
           ← Zurück
         </Button>
-        <h1 className="text-xl font-semibold">📊 Migräne-Verlauf</h1>
+        <h1 className="text-xl font-semibold">📊 Einträge & Verlauf</h1>
         <div className="w-16"></div>
       </div>
+      <p className="text-center text-sm text-muted-foreground mb-6">
+        Alle Einträge ansehen, bearbeiten oder löschen.
+      </p>
 
       {sorted.length === 0 ? (
         <div className="flex justify-center py-8">

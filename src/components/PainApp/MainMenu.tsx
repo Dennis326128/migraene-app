@@ -355,7 +355,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               <StartPageCardHeader
                 icon="📖"
                 iconBgClassName="bg-muted"
-                title="Tagebuch"
+                title="Einträge & Verlauf"
               />
             </StartPageCard>
 
