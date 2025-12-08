@@ -522,26 +522,6 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
         </CardContent>
       </Card>
 
-      {/* Cross-Link to Limits */}
-      {onNavigateToLimits && (
-        <Card 
-          className="border-primary/20 bg-primary/5 cursor-pointer hover:bg-primary/10 hover:border-primary/30 transition-all"
-          onClick={onNavigateToLimits}
-        >
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <AlertTriangle className="h-5 w-5 text-primary flex-shrink-0" />
-              <div className="flex-1">
-                <p className="text-lg font-semibold">Medikamenten-Übergebrauch vermeiden</p>
-                <p className="text-sm text-muted-foreground mt-0.5">
-                  Setze Limits und überwache deine Einnahme
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Add Button */}
       <Button 
         onClick={() => setShowAddDialog(true)}
@@ -673,6 +653,20 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
             ))}
           </CollapsibleContent>
         </Collapsible>
+      )}
+
+      {/* Dezenter Link zu Grenzen & Warnungen */}
+      {onNavigateToLimits && (
+        <div className="flex justify-center pt-2">
+          <Button
+            variant="link"
+            className="text-muted-foreground hover:text-foreground text-sm"
+            onClick={onNavigateToLimits}
+          >
+            <AlertTriangle className="h-4 w-4 mr-2" />
+            Grenzen & Warnungen öffnen
+          </Button>
+        </div>
       )}
 
       {/* Medication Courses Section */}
