@@ -536,79 +536,87 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
         Neues Medikament hinzufügen
       </Button>
 
-      {/* Unverträglichkeiten Section */}
-      {categorizedMeds.intolerant.length > 0 && (
-        <Collapsible open={showIntolerance} onOpenChange={setShowIntolerance}>
-          <CollapsibleTrigger asChild>
-            <Card className="border-destructive/30 bg-destructive/5 cursor-pointer hover:bg-destructive/10 transition-colors">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Ban className="h-5 w-5 text-destructive" />
-                    <span className="font-semibold text-destructive">
-                      Unverträglichkeiten ({categorizedMeds.intolerant.length})
-                    </span>
-                  </div>
-                  <ChevronDown className={cn(
-                    "h-5 w-5 text-destructive transition-transform",
-                    showIntolerance && "rotate-180"
-                  )} />
-                </div>
-              </CardContent>
-            </Card>
-          </CollapsibleTrigger>
-          <CollapsibleContent className="space-y-3 mt-3">
-            {categorizedMeds.intolerant.map((med) => (
-              <MedicationCard
-                key={med.id}
-                med={med}
-                reminderCount={0}
-                onEdit={() => openEditModal(med)}
-                onDelete={() => openDeleteDialog(med)}
-                onReminder={() => {}}
-              />
-            ))}
-          </CollapsibleContent>
-        </Collapsible>
-      )}
-
-      {/* Regelmäßige Medikation */}
-      {categorizedMeds.regular.length > 0 && (
-        <div className="space-y-3">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
+      {/* ========== AKTUELLE MEDIKAMENTE ========== */}
+      {(totalActive > 0 || categorizedMeds.intolerant.length > 0) && (
+        <div className="space-y-4">
+          <h2 className="text-xl font-bold flex items-center gap-2">
             <Pill className="h-5 w-5 text-primary" />
-            Regelmäßige Medikation ({categorizedMeds.regular.length})
+            Aktuelle Medikamente
           </h2>
-          {categorizedMeds.regular.map((med) => (
-            <MedicationCard
-              key={med.id}
-              med={med}
-              reminderCount={getMedicationRemindersCount(med.name)}
-              onEdit={() => openEditModal(med)}
-              onDelete={() => openDeleteDialog(med)}
-              onReminder={() => openReminderDialog(med)}
-            />
-          ))}
-        </div>
-      )}
 
-      {/* Bedarfsmedikation */}
-      {categorizedMeds.onDemand.length > 0 && (
-        <div className="space-y-3">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <Pill className="h-5 w-5" />
-            Bedarfsmedikation ({categorizedMeds.onDemand.length})
-          </h2>
-          {categorizedMeds.onDemand.map((med) => (
-            <MedicationCard
-              key={med.id}
-              med={med}
-              reminderCount={getMedicationRemindersCount(med.name)}
-              onEdit={() => openEditModal(med)}
-              onDelete={() => openDeleteDialog(med)}
-              onReminder={() => openReminderDialog(med)}
-            />
-          ))}
+          {/* Unverträglichkeiten Section */}
+          {categorizedMeds.intolerant.length > 0 && (
+            <Collapsible open={showIntolerance} onOpenChange={setShowIntolerance}>
+              <CollapsibleTrigger asChild>
+                <Card className="border-destructive/30 bg-destructive/5 cursor-pointer hover:bg-destructive/10 transition-colors">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Ban className="h-5 w-5 text-destructive" />
+                        <span className="font-semibold text-destructive">
+                          Unverträglichkeiten ({categorizedMeds.intolerant.length})
+                        </span>
+                      </div>
+                      <ChevronDown className={cn(
+                        "h-5 w-5 text-destructive transition-transform",
+                        showIntolerance && "rotate-180"
+                      )} />
+                    </div>
+                  </CardContent>
+                </Card>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-3 mt-3">
+                {categorizedMeds.intolerant.map((med) => (
+                  <MedicationCard
+                    key={med.id}
+                    med={med}
+                    reminderCount={0}
+                    onEdit={() => openEditModal(med)}
+                    onDelete={() => openDeleteDialog(med)}
+                    onReminder={() => {}}
+                  />
+                ))}
+              </CollapsibleContent>
+            </Collapsible>
+          )}
+
+          {/* Regelmäßige Medikamente */}
+          {categorizedMeds.regular.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="text-base font-semibold text-muted-foreground">
+                Regelmäßige Medikamente ({categorizedMeds.regular.length})
+              </h3>
+              {categorizedMeds.regular.map((med) => (
+                <MedicationCard
+                  key={med.id}
+                  med={med}
+                  reminderCount={getMedicationRemindersCount(med.name)}
+                  onEdit={() => openEditModal(med)}
+                  onDelete={() => openDeleteDialog(med)}
+                  onReminder={() => openReminderDialog(med)}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Bedarfsmedikation */}
+          {categorizedMeds.onDemand.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="text-base font-semibold text-muted-foreground">
+                Bedarfsmedikation ({categorizedMeds.onDemand.length})
+              </h3>
+              {categorizedMeds.onDemand.map((med) => (
+                <MedicationCard
+                  key={med.id}
+                  med={med}
+                  reminderCount={getMedicationRemindersCount(med.name)}
+                  onEdit={() => openEditModal(med)}
+                  onDelete={() => openDeleteDialog(med)}
+                  onReminder={() => openReminderDialog(med)}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -623,59 +631,77 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
         </Card>
       )}
 
-      {/* Früher verwendete Medikamente */}
-      {categorizedMeds.inactive.length > 0 && (
-        <Collapsible open={showInactive} onOpenChange={setShowInactive}>
-          <CollapsibleTrigger asChild>
-            <Card className="border-muted cursor-pointer hover:bg-muted/50 transition-colors">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <History className="h-5 w-5 text-muted-foreground" />
-                    <span className="font-semibold text-muted-foreground">
-                      Früher verwendete Medikamente ({categorizedMeds.inactive.length})
-                    </span>
-                  </div>
-                  <ChevronDown className={cn(
-                    "h-5 w-5 text-muted-foreground transition-transform",
-                    showInactive && "rotate-180"
-                  )} />
-                </div>
-              </CardContent>
-            </Card>
-          </CollapsibleTrigger>
-          <CollapsibleContent className="space-y-3 mt-3">
-            {categorizedMeds.inactive.map((med) => (
-              <MedicationCard
-                key={med.id}
-                med={med}
-                reminderCount={0}
-                onEdit={() => openEditModal(med)}
-                onDelete={() => openDeleteDialog(med)}
-                onReminder={() => {}}
-              />
-            ))}
-          </CollapsibleContent>
-        </Collapsible>
-      )}
-
       {/* Dezenter Link zu Grenzen & Warnungen */}
       {onNavigateToLimits && (
-        <div className="flex justify-center pt-2">
+        <div className="flex justify-center pt-4 pb-2">
           <Button
             variant="link"
-            className="text-muted-foreground hover:text-foreground text-sm"
+            className="text-muted-foreground hover:text-foreground text-xs h-auto py-1"
             onClick={onNavigateToLimits}
           >
-            <AlertTriangle className="h-4 w-4 mr-2" />
+            <AlertTriangle className="h-3.5 w-3.5 mr-1.5" />
             Grenzen & Warnungen öffnen
           </Button>
         </div>
       )}
 
-      {/* Medication Courses Section */}
-      <Separator className="my-6" />
-      <MedicationCoursesList />
+      {/* ========== VERGANGENE MEDIKAMENTE & BEHANDLUNGEN ========== */}
+      {(categorizedMeds.inactive.length > 0 || (medicationCourses && medicationCourses.length > 0)) && (
+        <>
+          <Separator className="my-4" />
+          <Collapsible open={showInactive} onOpenChange={setShowInactive}>
+            <CollapsibleTrigger asChild>
+              <Card className="border-muted cursor-pointer hover:bg-muted/30 transition-colors">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <History className="h-5 w-5 text-muted-foreground" />
+                        <span className="font-semibold text-muted-foreground">
+                          Vergangene Medikamente & Behandlungen
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1 ml-7">
+                        Dokumentiere frühere Medikamente und Prophylaxen für Arztberichte.
+                      </p>
+                    </div>
+                    <ChevronDown className={cn(
+                      "h-5 w-5 text-muted-foreground transition-transform shrink-0",
+                      showInactive && "rotate-180"
+                    )} />
+                  </div>
+                </CardContent>
+              </Card>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-4 mt-3">
+              {/* Abgesetzte Medikamente aus user_medications */}
+              {categorizedMeds.inactive.length > 0 && (
+                <div className="space-y-3">
+                  <h4 className="text-sm font-medium text-muted-foreground">Abgesetzte Medikamente</h4>
+                  {categorizedMeds.inactive.map((med) => (
+                    <MedicationCard
+                      key={med.id}
+                      med={med}
+                      reminderCount={0}
+                      onEdit={() => openEditModal(med)}
+                      onDelete={() => openDeleteDialog(med)}
+                      onReminder={() => {}}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Therapieverlauf aus medication_courses */}
+              {medicationCourses && medicationCourses.length > 0 && (
+                <div className="space-y-3">
+                  <h4 className="text-sm font-medium text-muted-foreground">Therapieverlauf (Behandlungen)</h4>
+                  <MedicationCoursesList hideHeader hideAddButton />
+                </div>
+              )}
+            </CollapsibleContent>
+          </Collapsible>
+        </>
+      )}
 
       {/* Add Dialog - Simplified for users with headaches */}
       <Dialog open={showAddDialog} onOpenChange={(open) => {
