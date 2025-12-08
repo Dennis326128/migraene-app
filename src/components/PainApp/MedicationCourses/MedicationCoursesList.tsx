@@ -21,7 +21,15 @@ import { useMedicationLimits } from "@/features/medication-limits/hooks/useMedic
 import { toast } from "sonner";
 import { DoctorSelectionDialog, type Doctor } from "../DoctorSelectionDialog";
 
-export const MedicationCoursesList: React.FC = () => {
+interface MedicationCoursesListProps {
+  hideHeader?: boolean;
+  hideAddButton?: boolean;
+}
+
+export const MedicationCoursesList: React.FC<MedicationCoursesListProps> = ({ 
+  hideHeader = false, 
+  hideAddButton = false 
+}) => {
   const { data: courses, isLoading } = useMedicationCourses();
   const createCourse = useCreateMedicationCourse();
   const updateCourse = useUpdateMedicationCourse();
@@ -185,19 +193,21 @@ export const MedicationCoursesList: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-start gap-3">
-        <History className="h-5 w-5 text-primary mt-0.5" />
-        <div className="flex-1">
-          <h2 className="text-lg font-semibold">Therapieverlauf</h2>
-          <p className="text-sm text-muted-foreground">
-            Dokumentiere vergangene und aktuelle Behandlungen für deinen Arztbericht.
-          </p>
+      {/* Header - conditionally shown */}
+      {!hideHeader && (
+        <div className="flex items-start gap-3">
+          <History className="h-5 w-5 text-primary mt-0.5" />
+          <div className="flex-1">
+            <h2 className="text-lg font-semibold">Therapieverlauf</h2>
+            <p className="text-sm text-muted-foreground">
+              Dokumentiere vergangene und aktuelle Behandlungen für deinen Arztbericht.
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Info Card */}
-      {courses?.length === 0 && (
+      {/* Info Card - only show when header is visible and no courses */}
+      {!hideHeader && courses?.length === 0 && (
         <Card className="border-dashed">
           <CardContent className="p-4">
             <div className="flex gap-3">
@@ -215,15 +225,17 @@ export const MedicationCoursesList: React.FC = () => {
         </Card>
       )}
 
-      {/* Add Treatment Button */}
-      <Button 
-        onClick={() => setShowWizard(true)}
-        variant="outline"
-        className="w-full"
-      >
-        <Plus className="h-4 w-4 mr-2" />
-        Behandlung hinzufügen
-      </Button>
+      {/* Add Treatment Button - conditionally shown */}
+      {!hideAddButton && (
+        <Button 
+          onClick={() => setShowWizard(true)}
+          variant="outline"
+          className="w-full"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Behandlung hinzufügen
+        </Button>
+      )}
 
       {/* Active Courses */}
       {activeCourses.length > 0 && (
