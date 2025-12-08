@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "sonner";
 
 interface SettingsOverviewProps {
   onNavigate: (section: 'medications' | 'privacy' | 'help' | 'account' | 'doctors' | 'logout') => void;
@@ -25,16 +25,13 @@ export const SettingsOverview = ({ onNavigate }: SettingsOverviewProps) => {
       
       if (error) throw error;
       
-      toast({
-        title: "✅ Wetterdaten nachgetragen",
+      toast.success("Wetterdaten nachgetragen", {
         description: `${data.success_count} von ${data.processed} Einträgen aktualisiert`
       });
     } catch (error) {
       console.error('Weather backfill error:', error);
-      toast({
-        title: "Fehler",
-        description: "Wetterdaten konnten nicht nachgetragen werden",
-        variant: "destructive"
+      toast.error("Fehler", {
+        description: "Wetterdaten konnten nicht nachgetragen werden"
       });
     } finally {
       setLoading(false);
