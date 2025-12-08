@@ -18,7 +18,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { MedicationReminderModal } from "@/components/Reminders/MedicationReminderModal";
 import { MedicationEditModal } from "./MedicationEditModal";
 import { MedicationPlanExportDialog } from "./MedicationPlanExportDialog";
-import { MedicationCoursesList } from "./MedicationCourses";
+import { MedicationCoursesList, MedicationCourseCard } from "./MedicationCourses";
+import type { MedicationCourse } from "@/features/medication-courses";
 import { format } from "date-fns";
 import type { ReminderRepeat } from "@/types/reminder.types";
 import { buildMedicationPlanPdf, type PdfExportOptions } from "@/lib/pdf/medicationPlan";
@@ -508,7 +509,26 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
     );
   }
 
-  const totalActive = categorizedMeds.regular.length + categorizedMeds.onDemand.length;
+  // Kategorisiere medication_courses: aktive vs. inaktive
+  const activeCourses = medicationCourses?.filter(c => c.is_active) || [];
+  const inactiveCourses = medicationCourses?.filter(c => !c.is_active) || [];
+  
+  // Sortiere aktive Courses alphabetisch
+  const sortedActiveCourses = [...activeCourses].sort((a, b) => 
+    a.medication_name.localeCompare(b.medication_name, 'de')
+  );
+  
+  // Sortiere inaktive Courses nach Enddatum absteigend
+  const sortedInactiveCourses = [...inactiveCourses].sort((a, b) => {
+    const endA = a.end_date || '';
+    const endB = b.end_date || '';
+    if (endA && endB) return endB.localeCompare(endA);
+    if (endA) return -1;
+    if (endB) return 1;
+    return (b.start_date || '').localeCompare(a.start_date || '');
+  });
+
+  const totalActive = categorizedMeds.regular.length + categorizedMeds.onDemand.length + activeCourses.length;
 
   return (
     <div className="space-y-4 p-4">
@@ -606,12 +626,27 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
             </Collapsible>
           )}
 
-          {/* Regelmäßige Medikamente */}
-          {categorizedMeds.regular.length > 0 && (
+          {/* Regelmäßige Medikamente (user_medications + aktive medication_courses) */}
+          {(categorizedMeds.regular.length > 0 || sortedActiveCourses.length > 0) && (
             <div className="space-y-3">
               <h3 className="text-base font-semibold text-muted-foreground">
-                Regelmäßige Medikamente ({categorizedMeds.regular.length})
+                Regelmäßige Medikamente ({categorizedMeds.regular.length + sortedActiveCourses.length})
               </h3>
+              {/* Aktive medication_courses (Prophylaxe wie Ajovy) */}
+              {sortedActiveCourses.map((course) => (
+                <MedicationCourseCard
+                  key={course.id}
+                  course={course}
+                  onEdit={(c) => {
+                    // Öffne Course Wizard - wird durch MedicationCoursesList gehandhabt
+                    // Hier nur Click-Handler für Konsistenz
+                  }}
+                  onDelete={(c) => {
+                    // Löschen wird durch MedicationCoursesList gehandhabt
+                  }}
+                />
+              ))}
+              {/* Reguläre Medikamente aus user_medications */}
               {categorizedMeds.regular.map((med) => (
                 <MedicationCard
                   key={med.id}
@@ -672,7 +707,7 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
       )}
 
       {/* ========== VERGANGENE MEDIKAMENTE & BEHANDLUNGEN ========== */}
-      {(categorizedMeds.inactive.length > 0 || (medicationCourses && medicationCourses.length > 0)) && (
+      {(categorizedMeds.inactive.length > 0 || sortedInactiveCourses.length > 0) && (
         <>
           <Separator className="my-4" />
           <Collapsible open={showInactive} onOpenChange={setShowInactive}>
@@ -684,11 +719,11 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
                       <div className="flex items-center gap-2">
                         <History className="h-5 w-5 text-muted-foreground" />
                         <span className="font-semibold text-muted-foreground">
-                          Vergangene Medikamente & Behandlungen
+                          Vergangene Medikamente & Behandlungen ({categorizedMeds.inactive.length + sortedInactiveCourses.length})
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground mt-1 ml-7">
-                        Dokumentiere frühere Medikamente und Prophylaxen für Arztberichte.
+                        Frühere Medikamente und abgesetzte Prophylaxen für Arztberichte.
                       </p>
                     </div>
                     <ChevronDown className={cn(
@@ -717,11 +752,18 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
                 </div>
               )}
 
-              {/* Therapieverlauf aus medication_courses */}
-              {medicationCourses && medicationCourses.length > 0 && (
+              {/* Inaktive medication_courses (frühere Behandlungen) */}
+              {sortedInactiveCourses.length > 0 && (
                 <div className="space-y-3">
-                  <h4 className="text-sm font-medium text-muted-foreground">Therapieverlauf (Behandlungen)</h4>
-                  <MedicationCoursesList hideHeader hideAddButton />
+                  <h4 className="text-sm font-medium text-muted-foreground">Frühere Behandlungen</h4>
+                  {sortedInactiveCourses.map((course) => (
+                    <MedicationCourseCard
+                      key={course.id}
+                      course={course}
+                      onEdit={() => {}}
+                      onDelete={() => {}}
+                    />
+                  ))}
                 </div>
               )}
             </CollapsibleContent>
