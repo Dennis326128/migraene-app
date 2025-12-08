@@ -219,7 +219,11 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
         intolerant.push(med);
       } else if (med.is_active === false || med.discontinued_at) {
         inactive.push(med);
-      } else if (med.art === "prophylaxe" || med.art === "regelmaessig") {
+      } else if (
+        med.intake_type === "regular" || 
+        med.art === "prophylaxe" || 
+        med.art === "regelmaessig"
+      ) {
         regular.push(med);
       } else {
         onDemand.push(med);
