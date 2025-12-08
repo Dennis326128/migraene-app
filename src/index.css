@@ -319,3 +319,43 @@ All colors MUST be HSL.
     transform: none !important;
   }
 }
+
+/* ================================================
+   Non-blocking Toast Styles
+   Toasts should not block any UI interactions
+   ================================================ */
+
+/* Sonner Toast Container - allow clicks through */
+[data-sonner-toaster] {
+  pointer-events: none !important;
+}
+
+/* Ensure toast content itself doesn't block, but buttons inside can be clicked */
+[data-sonner-toast] {
+  pointer-events: none !important;
+}
+
+/* Allow action buttons inside toasts to be clickable */
+[data-sonner-toast] button {
+  pointer-events: auto !important;
+}
+
+/* Toast positioning - below header, mobile-optimized */
+[data-sonner-toaster][data-position="top-center"] {
+  top: 60px !important; /* Below typical header height */
+}
+
+@media (max-width: 768px) {
+  [data-sonner-toaster][data-position="top-center"] {
+    top: 52px !important; /* Mobile header is slightly smaller */
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: calc(100% - 32px) !important;
+    max-width: 80vw !important;
+  }
+  
+  [data-sonner-toast] {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}

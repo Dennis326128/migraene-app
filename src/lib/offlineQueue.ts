@@ -1,5 +1,5 @@
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
-import { toast } from '@/components/ui/use-toast';
+import { toast } from 'sonner';
 
 interface OfflineQueueDB extends DBSchema {
   'pending-entries': {
@@ -59,10 +59,8 @@ export async function addToOfflineQueue(type: string, data: any) {
   // Update pending count
   await updateSyncStatus();
   
-  toast({
-    title: "🔄 Offline-Modus",
+  toast.info("Offline-Modus", {
     description: "Eintrag wird synchronisiert, sobald Sie wieder online sind.",
-    variant: "default"
   });
   
   return id;
@@ -122,10 +120,8 @@ export async function syncPendingEntries() {
       // Max 3 Retries
       if (entry.retries >= 3) {
         await removePendingEntry(entry.id);
-        toast({
-          title: "❌ Sync fehlgeschlagen",
-          description: `Eintrag konnte nicht synchronisiert werden`,
-          variant: "destructive"
+        toast.error("Sync fehlgeschlagen", {
+          description: "Eintrag konnte nicht synchronisiert werden"
         });
       } else {
         const database = await initOfflineDB();
@@ -138,9 +134,8 @@ export async function syncPendingEntries() {
   }
   
   if (success > 0) {
-    toast({
-      title: "✅ Synchronisiert",
-      description: `${success} Einträge erfolgreich hochgeladen`,
+    toast.success("Synchronisiert", {
+      description: `${success} Einträge erfolgreich hochgeladen`
     });
   }
   

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { WifiOff, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { syncPendingEntries, getPendingEntries } from '@/lib/offlineQueue';
-import { toast } from '@/components/ui/use-toast';
+import { toast } from 'sonner';
 
 export function OfflineIndicator() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -49,10 +49,8 @@ export function OfflineIndicator() {
         setPendingCount(0);
       }
     } catch (error) {
-      toast({
-        title: "Sync-Fehler",
-        description: "Synchronisierung fehlgeschlagen",
-        variant: "destructive"
+      toast.error("Sync-Fehler", {
+        description: "Synchronisierung fehlgeschlagen"
       });
     } finally {
       setSyncing(false);
