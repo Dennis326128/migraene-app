@@ -215,9 +215,16 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
     const intolerant: Med[] = [];
     
     for (const med of medications) {
+      // Unverträglichkeiten immer separat
       if (med.intolerance_flag) {
         intolerant.push(med);
-      } else if (med.is_active === false || med.discontinued_at) {
+        continue;
+      }
+      
+      // Inaktiv = is_active === false ODER hat ein Enddatum (end_date)
+      const isInactive = med.is_active === false || !!med.discontinued_at || !!med.end_date;
+      
+      if (isInactive) {
         inactive.push(med);
       } else if (
         med.intake_type === "regular" || 
@@ -229,6 +236,25 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
         onDemand.push(med);
       }
     }
+    
+    // Sortierung: alphabetisch nach Name (A-Z) für aktive Medikamente
+    const sortByName = (a: Med, b: Med) => a.name.localeCompare(b.name, 'de');
+    regular.sort(sortByName);
+    onDemand.sort(sortByName);
+    intolerant.sort(sortByName);
+    
+    // Inaktive: nach Enddatum absteigend (neueste zuerst), dann nach Startdatum
+    inactive.sort((a, b) => {
+      const endA = a.end_date || a.discontinued_at || '';
+      const endB = b.end_date || b.discontinued_at || '';
+      if (endA && endB) return endB.localeCompare(endA);
+      if (endA) return -1;
+      if (endB) return 1;
+      // Fallback: Startdatum absteigend
+      const startA = a.start_date || '';
+      const startB = b.start_date || '';
+      return startB.localeCompare(startA);
+    });
     
     return { regular, onDemand, inactive, intolerant };
   }, [medications]);
