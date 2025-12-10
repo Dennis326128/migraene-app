@@ -65,3 +65,6 @@ verify_jwt = true
 
 [functions.check-medication-limits]
 verify_jwt = true
+
+[functions.extract-context-segments]
+verify_jwt = true
