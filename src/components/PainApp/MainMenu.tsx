@@ -375,13 +375,13 @@ export const MainMenu: React.FC<MainMenuProps> = ({
 
             {/* CTA: Kopfschmerztagebuch erstellen */}
             <StartPageCard 
-              variant="success" 
+              variant="neutral" 
               touchFeedback 
               onClick={() => onNavigate?.('diary-report-home')}
             >
               <StartPageCardHeader
-                icon="📄"
-                iconBgClassName="bg-success/25"
+                icon="📝"
+                iconBgClassName="bg-muted"
                 title="Kopfschmerztagebuch erstellen"
                 subtitle="Bericht als PDF für Arzt, Klinik oder Krankenkasse"
               />
