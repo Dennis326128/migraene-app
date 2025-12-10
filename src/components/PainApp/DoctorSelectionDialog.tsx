@@ -33,6 +33,7 @@ interface DoctorSelectionDialogProps {
   onConfirm: (selectedDoctors: Doctor[]) => void;
   title?: string;
   description?: string;
+  preSelectedIds?: string[]; // Pre-select specific doctor IDs
 }
 
 export const DoctorSelectionDialog: React.FC<DoctorSelectionDialogProps> = ({
@@ -42,15 +43,24 @@ export const DoctorSelectionDialog: React.FC<DoctorSelectionDialogProps> = ({
   onConfirm,
   title = "Arzt auswählen",
   description = "Wählen Sie die Ärzte aus, deren Daten im PDF erscheinen sollen.",
+  preSelectedIds,
 }) => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  // Pre-select all doctors when dialog opens
+  // Pre-select doctors when dialog opens - use preSelectedIds if provided, otherwise all
   useEffect(() => {
     if (open) {
-      setSelectedIds(new Set(doctors.map(d => d.id || `doctor-${doctors.indexOf(d)}`)));
+      if (preSelectedIds && preSelectedIds.length > 0) {
+        // Filter to only include IDs that exist in current doctors
+        const validIds = preSelectedIds.filter(id => 
+          doctors.some(d => d.id === id)
+        );
+        setSelectedIds(new Set(validIds.length > 0 ? validIds : doctors.map(d => d.id || `doctor-${doctors.indexOf(d)}`)));
+      } else {
+        setSelectedIds(new Set(doctors.map(d => d.id || `doctor-${doctors.indexOf(d)}`)));
+      }
     }
-  }, [open, doctors]);
+  }, [open, doctors, preSelectedIds]);
 
   const getDoctorKey = (doctor: Doctor, index: number) => doctor.id || `doctor-${index}`;
 

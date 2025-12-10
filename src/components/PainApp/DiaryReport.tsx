@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useRef } from "react";
+import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -14,7 +14,7 @@ import { usePatientData, useDoctors } from "@/features/account/hooks/useAccount"
 import { useMedicationCourses } from "@/features/medication-courses/hooks/useMedicationCourses";
 import MedicationStatisticsCard from "./MedicationStatisticsCard";
 import TimeSeriesChart from "@/components/TimeSeriesChart";
-import { Loader2, ArrowLeft, FileText, Table, Pill } from "lucide-react";
+import { Loader2, ArrowLeft, FileText, Table, Pill, Plus, Edit, UserPlus, User } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
@@ -30,6 +30,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { DoctorSelectionDialog, type Doctor } from "./DoctorSelectionDialog";
+import { Switch } from "@/components/ui/switch";
 
 /**
  * DiaryReport - PDF-Export-Komponente für Kopfschmerztagebuch
@@ -87,13 +88,17 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
   const [includeAnalysis, setIncludeAnalysis] = useState<boolean>(true);
   const [includeEntriesList, setIncludeEntriesList] = useState<boolean>(true);
   const [includePatientData, setIncludePatientData] = useState<boolean>(true);
-  const [includeDoctorData, setIncludeDoctorData] = useState<boolean>(true);
+  const [includeDoctorData, setIncludeDoctorData] = useState<boolean>(false); // Default: false until user decides
   const [includeMedicationCourses, setIncludeMedicationCourses] = useState<boolean>(true);
   const [includePatientNotes, setIncludePatientNotes] = useState<boolean>(true);
   const [patientNotes, setPatientNotes] = useState<string>("");
   
   // Free text export mode: 'none' | 'short_notes' | 'notes_and_context'
   const [freeTextExportMode, setFreeTextExportMode] = useState<'none' | 'short_notes' | 'notes_and_context'>('none');
+  
+  // Doctor selection state
+  const [selectedDoctorIds, setSelectedDoctorIds] = useState<string[]>([]);
+  const [doctorPreferencesLoaded, setDoctorPreferencesLoaded] = useState(false);
   
   const [generated, setGenerated] = useState<PainEntry[]>([]);
   const [previousSelection, setPreviousSelection] = useState<string[]>([]);
@@ -119,7 +124,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     });
   }, []);
 
-  // Load report settings from database
+  // Load report settings from database (including doctor preferences)
   useEffect(() => {
     (async () => {
       try {
@@ -149,13 +154,55 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
           if (settings.include_ai_analysis !== null) setIncludeAnalysis(settings.include_ai_analysis);
           if (settings.include_entries_list !== null) setIncludeEntriesList(settings.include_entries_list);
           if (settings.include_patient_data !== null) setIncludePatientData(settings.include_patient_data);
-          if (settings.include_doctor_data !== null) setIncludeDoctorData(settings.include_doctor_data);
+          
+          // Load doctor export preferences
+          const lastIncludeDoctors = (settings as any).last_include_doctors_flag;
+          const lastDoctorIds = (settings as any).last_doctor_export_ids;
+          
+          if (typeof lastIncludeDoctors === 'boolean') {
+            setIncludeDoctorData(lastIncludeDoctors);
+          }
+          if (Array.isArray(lastDoctorIds) && lastDoctorIds.length > 0) {
+            setSelectedDoctorIds(lastDoctorIds);
+          }
         }
+        setDoctorPreferencesLoaded(true);
       } catch (error) {
         console.error("Error loading report settings:", error);
+        setDoctorPreferencesLoaded(true);
       }
     })();
   }, []);
+
+  // Initialize doctor selection when doctors load and preferences are loaded
+  useEffect(() => {
+    if (!doctorPreferencesLoaded || doctors.length === 0) return;
+    
+    // If we have saved doctor IDs, filter them to only include existing doctors
+    if (selectedDoctorIds.length > 0) {
+      const existingDoctorIds = doctors.map(d => d.id).filter(Boolean) as string[];
+      const validSelectedIds = selectedDoctorIds.filter(id => existingDoctorIds.includes(id));
+      
+      if (validSelectedIds.length !== selectedDoctorIds.length) {
+        setSelectedDoctorIds(validSelectedIds);
+      }
+      
+      // If we have valid selections, enable doctor data
+      if (validSelectedIds.length > 0 && !includeDoctorData) {
+        // Keep user's preference
+      }
+    } else if (doctors.length > 0 && includeDoctorData) {
+      // If include doctor data is true but no IDs selected, select all doctors
+      setSelectedDoctorIds(doctors.map(d => d.id).filter(Boolean) as string[]);
+    }
+  }, [doctors, doctorPreferencesLoaded]);
+
+  // Derive actual doctor selection based on state
+  const selectedDoctorsForExport = useMemo(() => {
+    if (!includeDoctorData) return [];
+    if (doctors.length === 1) return doctors;
+    return doctors.filter(d => d.id && selectedDoctorIds.includes(d.id));
+  }, [doctors, selectedDoctorIds, includeDoctorData]);
 
   // berechneter Zeitraum
   const { from, to } = useMemo(() => {
@@ -177,7 +224,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
   const entryIds = useMemo(() => entries.map(e => Number(e.id)), [entries]);
   const { data: medicationEffects = [] } = useMedicationEffectsForEntries(entryIds);
 
-  // Save all report settings to database (debounced)
+  // Save all report settings to database (debounced) - including doctor preferences
   useEffect(() => {
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
@@ -199,6 +246,8 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
             include_entries_list: includeEntriesList,
             include_patient_data: includePatientData,
             include_doctor_data: includeDoctorData,
+            last_include_doctors_flag: includeDoctorData,
+            last_doctor_export_ids: selectedDoctorIds,
           }, { onConflict: "user_id" });
       } catch (error) {
         console.error("Error saving report settings:", error);
@@ -210,7 +259,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [selectedMeds, includeStats, includeChart, includeAnalysis, includeEntriesList, includePatientData, includeDoctorData]);
+  }, [selectedMeds, includeStats, includeChart, includeAnalysis, includeEntriesList, includePatientData, includeDoctorData, selectedDoctorIds]);
 
   // Medikamenten-Optionen (aus user_medications, Fallback: aus Einträgen)
   useEffect(() => {
@@ -431,20 +480,20 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
       return;
     }
 
-    if ((includePatientData || includeDoctorData) && 
-        (!patientData?.first_name && !patientData?.last_name && doctors.length === 0)) {
+    if (includePatientData && !patientData?.first_name && !patientData?.last_name) {
       setShowMissingDataDialog(true);
       return;
     }
 
-    // If multiple doctors and doctor data is included, show selection dialog
+    // For multiple doctors, show selection dialog
     if (includeDoctorData && doctors.length > 1) {
       setPendingPdfType("diary");
       setShowDoctorSelection(true);
       return;
     }
 
-    await actuallyGenerateDiaryPDF(doctors);
+    // Use the derived selectedDoctorsForExport
+    await actuallyGenerateDiaryPDF(selectedDoctorsForExport);
   };
 
   const handleDoctorSelectionConfirm = async (selectedDoctors: Doctor[]) => {
@@ -739,19 +788,157 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
                 <p className="text-xs text-muted-foreground mt-0.5">Deaktiviere diese Option, wenn du das Tagebuch anonym teilen möchtest.</p>
               </div>
             </label>
-            
-            <label className="flex items-start gap-3 text-sm cursor-pointer">
-              <Checkbox 
-                checked={includeDoctorData} 
-                onCheckedChange={(checked) => setIncludeDoctorData(!!checked)} 
-                className="mt-0.5"
-              />
-              <div>
-                <span className="font-medium">Arztdaten einbeziehen</span>
-                <p className="text-xs text-muted-foreground mt-0.5">Deaktiviere diese Option, wenn du das Tagebuch anonym teilen möchtest.</p>
-              </div>
-            </label>
           </div>
+        </Card>
+
+        {/* Block 4: Arztdaten */}
+        <Card className="p-4 space-y-4">
+          <div>
+            <h3 className="text-sm font-semibold mb-1">Arztdaten</h3>
+            <p className="text-xs text-muted-foreground">Du kannst Ärztedaten im Tagebuch anzeigen, z.B. für Arztpraxis oder Klinik.</p>
+          </div>
+          
+          {/* Case A: No doctors */}
+          {doctors.length === 0 && (
+            <div className="border border-border/50 rounded-lg p-4 bg-muted/30">
+              <div className="flex items-start gap-3">
+                <UserPlus className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Es sind noch keine Ärztedaten hinterlegt.
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (onNavigate) {
+                        onNavigate('settings-doctors?origin=export_migraine_diary');
+                      }
+                    }}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Arztdaten hinzufügen
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* Case B: Exactly 1 doctor */}
+          {doctors.length === 1 && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/30">
+                <div className="flex items-center gap-3">
+                  <Switch
+                    checked={includeDoctorData}
+                    onCheckedChange={(checked) => {
+                      setIncludeDoctorData(checked);
+                      if (checked && doctors[0]?.id) {
+                        setSelectedDoctorIds([doctors[0].id]);
+                      }
+                    }}
+                  />
+                  <div>
+                    <span className="text-sm font-medium">Arztdaten im PDF anzeigen</span>
+                    <p className="text-xs text-muted-foreground">
+                      {[doctors[0]?.title, doctors[0]?.first_name, doctors[0]?.last_name].filter(Boolean).join(' ')}
+                      {doctors[0]?.specialty && ` – ${doctors[0].specialty}`}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    if (onNavigate) {
+                      onNavigate('settings-doctors');
+                    }
+                  }}
+                  className="shrink-0"
+                >
+                  <Edit className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
+          
+          {/* Case C: Multiple doctors */}
+          {doctors.length > 1 && (
+            <div className="space-y-3">
+              <p className="text-xs text-muted-foreground">
+                Wähle, welche deiner gespeicherten Ärzte im Tagebuch angezeigt werden sollen.
+              </p>
+              
+              <div className="space-y-2">
+                {doctors.map((doctor) => {
+                  const isSelected = doctor.id ? selectedDoctorIds.includes(doctor.id) : false;
+                  return (
+                    <div
+                      key={doctor.id}
+                      className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
+                        isSelected ? 'bg-primary/10 border border-primary/30' : 'bg-secondary/30 border border-transparent hover:bg-secondary/50'
+                      }`}
+                      onClick={() => {
+                        if (!doctor.id) return;
+                        setSelectedDoctorIds(prev => {
+                          const newIds = isSelected 
+                            ? prev.filter(id => id !== doctor.id)
+                            : [...prev, doctor.id!];
+                          // Auto-enable doctor data if at least one is selected
+                          setIncludeDoctorData(newIds.length > 0);
+                          return newIds;
+                        });
+                      }}
+                    >
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={() => {
+                          if (!doctor.id) return;
+                          setSelectedDoctorIds(prev => {
+                            const newIds = isSelected 
+                              ? prev.filter(id => id !== doctor.id)
+                              : [...prev, doctor.id!];
+                            setIncludeDoctorData(newIds.length > 0);
+                            return newIds;
+                          });
+                        }}
+                        className="shrink-0"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm font-medium">
+                          {[doctor.title, doctor.first_name, doctor.last_name].filter(Boolean).join(' ') || 'Unbekannt'}
+                        </span>
+                        {doctor.specialty && (
+                          <p className="text-xs text-muted-foreground">{doctor.specialty}</p>
+                        )}
+                      </div>
+                      <User className="h-4 w-4 text-muted-foreground shrink-0" />
+                    </div>
+                  );
+                })}
+              </div>
+              
+              <div className="flex items-center justify-between pt-2">
+                <p className="text-xs text-muted-foreground">
+                  {selectedDoctorIds.length === 0
+                    ? 'Kein Arzt ausgewählt – keine Arztdaten im PDF'
+                    : `${selectedDoctorIds.length} von ${doctors.length} Ärzten ausgewählt`}
+                </p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    if (onNavigate) {
+                      onNavigate('settings-doctors');
+                    }
+                  }}
+                  className="text-xs"
+                >
+                  Ärzte verwalten
+                </Button>
+              </div>
+            </div>
+          )}
         </Card>
 
         {/* Block 4: Freitext & Notizen */}
@@ -921,7 +1108,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
                 {includeAnalysis && <li>KI-gestützte Mustererkennung (dauert ca. 10-15 Sek.)</li>}
                 {includeEntriesList && <li>Detaillierte Einträge-Tabelle</li>}
                 {includePatientData && <li>Persönliche Daten</li>}
-                {includeDoctorData && <li>Arztkontakte</li>}
+                {includeDoctorData && selectedDoctorsForExport.length > 0 && <li>Arztkontakte ({selectedDoctorsForExport.length})</li>}
                 {includeMedicationCourses && medicationCourses.length > 0 && <li>Therapieverlauf (Prophylaxe & Akut)</li>}
                 {includePatientNotes && patientNotes.trim() && <li>Anmerkungen des Patienten</li>}
               </ul>
@@ -969,7 +1156,14 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         open={showDoctorSelection}
         onClose={() => setShowDoctorSelection(false)}
         doctors={doctors}
-        onConfirm={handleDoctorSelectionConfirm}
+        onConfirm={(selected) => {
+          // Update selected IDs state
+          const newIds = selected.map(d => d.id).filter(Boolean) as string[];
+          setSelectedDoctorIds(newIds);
+          setIncludeDoctorData(newIds.length > 0);
+          handleDoctorSelectionConfirm(selected);
+        }}
+        preSelectedIds={selectedDoctorIds}
         title={pendingPdfType === "diary" ? "Arzt für Kopfschmerztagebuch auswählen" : "Arzt für Medikationsplan auswählen"}
         description="Wählen Sie die Ärzte aus, deren Kontaktdaten im PDF erscheinen sollen."
       />
