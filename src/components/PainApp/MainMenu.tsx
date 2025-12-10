@@ -383,7 +383,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 icon="📝"
                 iconBgClassName="bg-muted"
                 title="Kopfschmerztagebuch erstellen"
-                subtitle="Bericht als PDF für Arzt, Klinik oder Krankenkasse"
               />
             </StartPageCard>
           </div>
