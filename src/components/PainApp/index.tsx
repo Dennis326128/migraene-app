@@ -4,6 +4,7 @@ import { EntriesList } from "./EntriesList";
 import { MainMenu } from "./MainMenu";
 import { AnalysisView } from "./AnalysisView";
 import SettingsPage from "./SettingsPage";
+import { SettingsDoctorsPage } from "./Settings/SettingsDoctorsPage";
 import { OnboardingModal } from "./OnboardingModal";
 import { AppTutorialModal } from "./AppTutorialModal";
 import { MedicationOverviewPage } from "@/pages/MedicationOverviewPage";
@@ -21,16 +22,21 @@ import DiaryReport from "./DiaryReport";
 import { MedicationLimitsPage } from "./MedicationLimitsPage";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
-type View = "menu" | "new" | "list" | "analysis" | "settings" | "medication-overview" | "medication-management" | "voice-notes" | "reminders" | "diary-timeline" | "context-tags" | "diary-report" | "medication-limits";
+type View = "menu" | "new" | "list" | "analysis" | "settings" | "settings-doctors" | "medication-overview" | "medication-management" | "voice-notes" | "reminders" | "diary-timeline" | "context-tags" | "diary-report" | "medication-limits";
 
 // Track where the user navigated from for proper back navigation
 type DiaryReportOrigin = 'home' | 'diary-timeline' | null;
+
+// Track origin for doctors page navigation
+type DoctorsOrigin = { origin?: 'export_migraine_diary'; editDoctorId?: string } | null;
 
 export const PainApp: React.FC = () => {
   const [view, setView] = useState<View>("menu");
   const [editing, setEditing] = useState<PainEntry | null>(null);
   const [diaryReportOrigin, setDiaryReportOrigin] = useState<DiaryReportOrigin>(null);
+  const [doctorsOrigin, setDoctorsOrigin] = useState<DoctorsOrigin>(null);
   const { needsOnboarding, isLoading, completeOnboarding } = useOnboarding();
   const { 
     showTutorial, 
@@ -207,12 +213,41 @@ export const PainApp: React.FC = () => {
           }
           setDiaryReportOrigin(null);
         }} 
-        onNavigate={(target) => {
+        onNavigate={(target: string) => {
           if (target === 'settings-account') {
             setView('settings');
+          } else if (target.startsWith('settings-doctors')) {
+            // Parse query parameters from target
+            const params = new URLSearchParams(target.split('?')[1] || '');
+            const origin = params.get('origin') as 'export_migraine_diary' | undefined;
+            const editId = params.get('id') || undefined;
+            setDoctorsOrigin(origin ? { origin, editDoctorId: editId } : null);
+            setView('settings-doctors');
           }
         }} 
       />}
+
+      {view === "settings-doctors" && (
+        <SettingsDoctorsPage 
+          onBack={() => {
+            if (doctorsOrigin?.origin === 'export_migraine_diary') {
+              setView('diary-report');
+              setDoctorsOrigin(null);
+            } else {
+              setView('settings');
+            }
+          }}
+          origin={doctorsOrigin?.origin}
+          editDoctorId={doctorsOrigin?.editDoctorId}
+          onSaveSuccess={() => {
+            if (doctorsOrigin?.origin === 'export_migraine_diary') {
+              toast.success('Arztdaten aktualisiert. Diese werden im PDF entsprechend angezeigt.');
+              setView('diary-report');
+              setDoctorsOrigin(null);
+            }
+          }}
+        />
+      )}
 
       {view === "medication-limits" && (
         <MedicationLimitsPage 
