@@ -753,6 +753,8 @@ export type Database = {
           include_medication_summary: boolean | null
           include_patient_data: boolean | null
           include_statistics: boolean | null
+          last_doctor_export_ids: string[] | null
+          last_include_doctors_flag: boolean | null
           selected_medications: string[] | null
           updated_at: string | null
           user_id: string
@@ -768,6 +770,8 @@ export type Database = {
           include_medication_summary?: boolean | null
           include_patient_data?: boolean | null
           include_statistics?: boolean | null
+          last_doctor_export_ids?: string[] | null
+          last_include_doctors_flag?: boolean | null
           selected_medications?: string[] | null
           updated_at?: string | null
           user_id: string
@@ -783,6 +787,8 @@ export type Database = {
           include_medication_summary?: boolean | null
           include_patient_data?: boolean | null
           include_statistics?: boolean | null
+          last_doctor_export_ids?: string[] | null
+          last_include_doctors_flag?: boolean | null
           selected_medications?: string[] | null
           updated_at?: string | null
           user_id?: string
