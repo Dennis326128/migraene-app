@@ -850,10 +850,11 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
                   variant="ghost"
                   size="sm"
                   onClick={() => {
-                    if (onNavigate) {
-                      onNavigate('settings-doctors');
+                    if (onNavigate && doctors[0]?.id) {
+                      onNavigate(`settings-doctors-edit?id=${doctors[0].id}&origin=export_migraine_diary`);
                     }
                   }}
+                  title="Arzt bearbeiten"
                   className="shrink-0"
                 >
                   <Edit className="h-4 w-4" />
@@ -929,11 +930,13 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
                   size="sm"
                   onClick={() => {
                     if (onNavigate) {
-                      onNavigate('settings-doctors');
+                      onNavigate('settings-doctors?origin=export_migraine_diary');
                     }
                   }}
+                  title="Ärzte verwalten"
                   className="text-xs"
                 >
+                  <Edit className="h-4 w-4 mr-1" />
                   Ärzte verwalten
                 </Button>
               </div>
