@@ -3,7 +3,7 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const startPageCardVariants = cva(
-  "rounded-xl transition-all duration-200 touch-manipulation cursor-pointer select-none shadow-sm relative min-h-[72px]",
+  "rounded-xl transition-all duration-200 touch-manipulation cursor-pointer select-none shadow-sm relative min-h-[64px] sm:min-h-[72px]",
   {
     variants: {
       variant: {
@@ -17,10 +17,10 @@ const startPageCardVariants = cva(
         muted: "bg-muted/30 hover:bg-muted/50 border border-border/30",
       },
       size: {
-        default: "p-4",
-        large: "p-5",
-        small: "p-3",
-        hero: "p-5 sm:p-6 min-h-[116px] sm:min-h-[124px]",
+        default: "px-3 py-3 sm:p-4",
+        large: "px-4 py-4 sm:p-5",
+        small: "px-2.5 py-2.5 sm:p-3",
+        hero: "px-4 py-4 sm:p-6 min-h-[100px] sm:min-h-[124px]",
       },
       touchFeedback: {
         true: "active:scale-[0.98] hover:scale-[1.01]",
@@ -77,17 +77,17 @@ const StartPageCardHeader: React.FC<StartPageCardHeaderProps> = ({
   
   return (
     <div className={cn(
-      "flex items-center gap-3 sm:gap-4",
-      isLarge ? "min-h-[64px] sm:min-h-[72px]" : "min-h-[52px] sm:min-h-[56px]"
+      "flex items-center gap-2.5 sm:gap-4",
+      isLarge ? "min-h-[64px] sm:min-h-[72px]" : "min-h-[48px] sm:min-h-[56px]"
     )}>
       {icon && (
         <div className={cn(
           "rounded-xl flex items-center justify-center flex-shrink-0",
-          isLarge ? "w-14 h-14 sm:w-16 sm:h-16" : "w-10 h-10 sm:w-11 sm:h-11",
+          isLarge ? "w-12 h-12 sm:w-16 sm:h-16" : "w-9 h-9 sm:w-11 sm:h-11",
           iconBgClassName || "bg-background/50"
         )}>
           <span className={cn(
-            isLarge ? "text-2xl sm:text-3xl" : "text-lg sm:text-xl",
+            isLarge ? "text-xl sm:text-3xl" : "text-base sm:text-xl",
             iconClassName
           )}>
             {icon}
@@ -95,11 +95,20 @@ const StartPageCardHeader: React.FC<StartPageCardHeaderProps> = ({
         </div>
       )}
       <div className="flex-1 min-w-0 flex flex-col justify-center">
-        <h3 className={cn("font-semibold text-sm sm:text-base leading-tight break-words line-clamp-2 text-foreground", className)}>
+        {/* Mobile: responsive clamp, no mid-word breaks; Desktop: normal size */}
+        <h3 className={cn(
+          "font-semibold leading-tight text-foreground",
+          "text-[clamp(0.8rem,3.2vw,1rem)] sm:text-base",
+          "whitespace-nowrap sm:whitespace-normal",
+          className
+        )}>
           {title}
         </h3>
         {subtitle && (
-          <p className="text-xs sm:text-sm text-foreground/60 mt-1 leading-snug break-words line-clamp-2">
+          <p className={cn(
+            "text-foreground/60 mt-0.5 sm:mt-1 leading-snug",
+            "text-[clamp(0.7rem,2.6vw,0.875rem)] sm:text-sm"
+          )}>
             {subtitle}
           </p>
         )}
