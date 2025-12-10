@@ -81,6 +81,8 @@ type MedicationCourseForPdf = {
   note_for_physician?: string;
 };
 
+type FreeTextExportMode = 'none' | 'short_notes' | 'notes_and_context';
+
 type BuildReportParams = {
   title?: string;
   from: string;
@@ -96,6 +98,7 @@ type BuildReportParams = {
   includeDoctorData?: boolean;
   includePatientNotes?: boolean;
   includeMedicationCourses?: boolean;
+  freeTextExportMode?: FreeTextExportMode;
   
   analysisReport?: string;
   patientNotes?: string;
@@ -911,14 +914,21 @@ function drawWeatherTimeSeriesChart(
 
 /**
  * Zeichnet Tabellenkopf für Attacken-Liste
+ * @param includeNotes - ob Notizen-Spalte angezeigt werden soll
  */
-function drawTableHeader(page: PDFPage, yPos: number, font: PDFFont): number {
-  const cols = {
+function drawTableHeader(page: PDFPage, yPos: number, font: PDFFont, includeNotes: boolean = true): number {
+  // Dynamische Spaltenbreiten basierend auf Notizen-Spalte
+  const cols = includeNotes ? {
     date: LAYOUT.margin,
     pain: LAYOUT.margin + 110,
     aura: LAYOUT.margin + 160,
     meds: LAYOUT.margin + 230,
     notes: LAYOUT.margin + 350,
+  } : {
+    date: LAYOUT.margin,
+    pain: LAYOUT.margin + 130,
+    aura: LAYOUT.margin + 190,
+    meds: LAYOUT.margin + 280,
   };
   
   // Hintergrund
@@ -934,35 +944,50 @@ function drawTableHeader(page: PDFPage, yPos: number, font: PDFFont): number {
   page.drawText("Schmerz", { x: cols.pain, y: yPos - 12, size: 9, font, color: COLORS.text });
   page.drawText("Aura", { x: cols.aura, y: yPos - 12, size: 9, font, color: COLORS.text });
   page.drawText("Medikamente", { x: cols.meds, y: yPos - 12, size: 9, font, color: COLORS.text });
-  page.drawText("Notizen", { x: cols.notes, y: yPos - 12, size: 9, font, color: COLORS.text });
+  if (includeNotes) {
+    page.drawText("Notizen", { x: cols.notes!, y: yPos - 12, size: 9, font, color: COLORS.text });
+  }
   
   return yPos - 25;
 }
 
 /**
  * Zeichnet Tabellen-Zeile mit automatischem Textumbruch
+ * @param includeNotes - ob Notizen-Spalte angezeigt werden soll
  */
 function drawTableRow(
   page: PDFPage,
   entry: PainEntry,
   yPos: number,
   font: PDFFont,
-  pdfDoc: any
+  pdfDoc: any,
+  includeNotes: boolean = true
 ): { yPos: number; page: PDFPage; rowHeight: number } {
-  const cols = {
+  // Dynamische Spalten basierend auf Notizen
+  const cols = includeNotes ? {
     date: LAYOUT.margin,
     pain: LAYOUT.margin + 110,
     aura: LAYOUT.margin + 160,
     meds: LAYOUT.margin + 230,
     notes: LAYOUT.margin + 350,
+  } : {
+    date: LAYOUT.margin,
+    pain: LAYOUT.margin + 130,
+    aura: LAYOUT.margin + 190,
+    meds: LAYOUT.margin + 280,
   };
   
-  const colWidths = {
+  const colWidths = includeNotes ? {
     date: 105,
     pain: 45,
     aura: 65,
     meds: 115,
     notes: 145,
+  } : {
+    date: 125,
+    pain: 55,
+    aura: 85,
+    meds: 230,
   };
   
   // Datum/Zeit
@@ -982,30 +1007,31 @@ function drawTableRow(
     : '-';
   const medsLines = wrapText(medsText, colWidths.meds, 8, font);
   
-  // Notizen (mit Umbruch)
-  const notesText = entry.notes || '-';
-  const notesLines = wrapText(notesText, colWidths.notes, 8, font);
+  // Notizen (mit Umbruch) - nur wenn aktiviert
+  let notesLines: string[] = [];
+  if (includeNotes) {
+    const notesText = entry.notes || '-';
+    notesLines = wrapText(notesText, colWidths.notes!, 8, font);
+  }
   
   // Berechne Zeilenhöhe (höchste Spalte bestimmt) - mit mehr Padding für Zentrierung
   const maxLines = Math.max(medsLines.length, notesLines.length, 1);
-  const rowHeight = maxLines * 11 + 12; // Erhöht von +8 auf +12 für bessere Zentrierung
+  const rowHeight = maxLines * 11 + 12;
   
   // Prüfe ob Platz für Zeile, sonst neue Seite
   if (yPos - rowHeight < LAYOUT.margin + 30) {
     page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
     yPos = LAYOUT.pageHeight - LAYOUT.margin;
-    yPos = drawTableHeader(page, yPos, font);
+    yPos = drawTableHeader(page, yPos, font, includeNotes);
   }
   
   // Zeichne Zeile - Text exakt vertikal zentriert zwischen den Trennlinien
-  // PDF-Text wird von der Baseline gezeichnet, daher müssen wir den Offset zur visuellen Textmitte berechnen
   const fontSize = 8;
   const lineSpacing = 11;
-  const textVisualOffset = fontSize * 0.35; // Offset von Baseline zur visuellen Textmitte (~2.8px)
+  const textVisualOffset = fontSize * 0.35;
   
-  // Berechne die Position für die erste Textzeile so, dass der Textblock vertikal zentriert ist
-  const contentBlockHeight = (maxLines - 1) * lineSpacing; // Höhe des Textblocks (ohne erste Zeile)
-  const rowCenter = rowHeight / 2; // Mitte der Zeile
+  const contentBlockHeight = (maxLines - 1) * lineSpacing;
+  const rowCenter = rowHeight / 2;
   const firstLineFromTop = rowCenter - (contentBlockHeight / 2) + textVisualOffset;
   const rowTop = yPos - firstLineFromTop;
   
@@ -1023,15 +1049,17 @@ function drawTableRow(
     });
   });
   
-  // Notizen (mehrzeilig)
-  notesLines.forEach((line, i) => {
-    page.drawText(sanitizeForPDF(line), { 
-      x: cols.notes, 
-      y: rowTop - (i * 11), 
-      size: 8, 
-      font 
+  // Notizen (mehrzeilig) - nur wenn aktiviert
+  if (includeNotes && notesLines.length > 0) {
+    notesLines.forEach((line, i) => {
+      page.drawText(sanitizeForPDF(line), { 
+        x: cols.notes!, 
+        y: rowTop - (i * 11), 
+        size: 8, 
+        font 
+      });
     });
-  });
+  }
   
   // Trennlinie
   yPos -= rowHeight;
@@ -1068,6 +1096,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     includeDoctorData = false,
     includePatientNotes = true,
     includeMedicationCourses = false,
+    freeTextExportMode = 'none',
     analysisReport = "",
     patientNotes = "",
     medicationStats = [],
@@ -1672,7 +1701,9 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     });
     yPos -= 15;
     
-    yPos = drawTableHeader(page, yPos, fontBold);
+    // Notizen nur anzeigen wenn freeTextExportMode !== 'none'
+    const includeNotesInTable = freeTextExportMode !== 'none';
+    yPos = drawTableHeader(page, yPos, fontBold, includeNotesInTable);
     
     // Sortiere Einträge nach Datum (neueste zuerst)
     const sortedEntries = [...entries].sort((a, b) => {
@@ -1682,12 +1713,112 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     });
     
     for (const entry of sortedEntries) {
-      const result = drawTableRow(page, entry, yPos, font, pdfDoc);
+      const result = drawTableRow(page, entry, yPos, font, pdfDoc, includeNotesInTable);
       page = result.page;
       yPos = result.yPos;
     }
     
     yPos -= LAYOUT.sectionGap;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // KONTEXT-ANHANG (nur wenn freeTextExportMode === 'notes_and_context')
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  if (freeTextExportMode === 'notes_and_context' && entries.length > 0) {
+    // Finde Einträge mit langem Kontext (über 100 Zeichen = wahrscheinlich ausführlicher Kontext)
+    const entriesWithContext = entries.filter(e => {
+      return e.notes && e.notes.length > 100;
+    });
+    
+    if (entriesWithContext.length > 0) {
+      // Neue Seite für Kontext-Anhang
+      page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
+      yPos = LAYOUT.pageHeight - LAYOUT.margin;
+      
+      yPos = drawSectionHeader(page, "AUSFUHRLICHE KONTEXTNOTIZEN", yPos, fontBold, 13);
+      
+      page.drawText("Detaillierte Freitext-Notizen zu den Eintragen", {
+        x: LAYOUT.margin,
+        y: yPos,
+        size: 9,
+        font,
+        color: COLORS.textLight,
+      });
+      yPos -= 20;
+      
+      const sortedContextEntries = [...entriesWithContext].sort((a, b) => {
+        const dateA = new Date(a.selected_date || a.timestamp_created || '');
+        const dateB = new Date(b.selected_date || b.timestamp_created || '');
+        return dateB.getTime() - dateA.getTime();
+      });
+      
+      for (const entry of sortedContextEntries) {
+        // Platzcheck
+        if (yPos < LAYOUT.margin + 120) {
+          page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
+          yPos = LAYOUT.pageHeight - LAYOUT.margin;
+        }
+        
+        // Datum + Schmerzlevel
+        const dateTime = entry.selected_date && entry.selected_time
+          ? formatDateTimeGerman(entry.selected_date, entry.selected_time)
+          : formatDateTimeGerman(entry.timestamp_created || '');
+        const painText = formatPainLevel(entry.pain_level);
+        const medsText = entry.medications && entry.medications.length > 0 
+          ? entry.medications.join(", ") 
+          : '-';
+        
+        // Überschrift für diesen Eintrag
+        page.drawText(`${dateTime} - Intensitat: ${painText}`, {
+          x: LAYOUT.margin,
+          y: yPos,
+          size: 10,
+          font: fontBold,
+          color: COLORS.primary,
+        });
+        yPos -= 14;
+        
+        // Medikamente
+        page.drawText(`Medikamente: ${sanitizeForPDF(medsText)}`, {
+          x: LAYOUT.margin,
+          y: yPos,
+          size: 9,
+          font,
+          color: COLORS.text,
+        });
+        yPos -= 16;
+        
+        // Kontext-Text
+        if (entry.notes) {
+          const contextLines = wrapText(entry.notes, LAYOUT.pageWidth - 2 * LAYOUT.margin - 10, 9, font);
+          for (const line of contextLines) {
+            if (yPos < LAYOUT.margin + 30) {
+              page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
+              yPos = LAYOUT.pageHeight - LAYOUT.margin;
+            }
+            page.drawText(sanitizeForPDF(line), {
+              x: LAYOUT.margin + 5,
+              y: yPos,
+              size: 9,
+              font,
+              color: COLORS.text,
+            });
+            yPos -= 12;
+          }
+        }
+        
+        // Trennlinie
+        yPos -= 5;
+        page.drawLine({
+          start: { x: LAYOUT.margin, y: yPos },
+          end: { x: LAYOUT.pageWidth - LAYOUT.margin, y: yPos },
+          thickness: 0.5,
+          color: COLORS.border,
+        });
+        yPos -= 15;
+      }
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

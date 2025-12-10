@@ -84,13 +84,16 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
   // Content inclusion flags
   const [includeStats, setIncludeStats] = useState<boolean>(true);
   const [includeChart, setIncludeChart] = useState<boolean>(true);
-  const [includeAnalysis, setIncludeAnalysis] = useState<boolean>(false);
+  const [includeAnalysis, setIncludeAnalysis] = useState<boolean>(true);
   const [includeEntriesList, setIncludeEntriesList] = useState<boolean>(true);
-  const [includePatientData, setIncludePatientData] = useState<boolean>(false);
-  const [includeDoctorData, setIncludeDoctorData] = useState<boolean>(false);
-  const [includeMedicationCourses, setIncludeMedicationCourses] = useState<boolean>(false);
+  const [includePatientData, setIncludePatientData] = useState<boolean>(true);
+  const [includeDoctorData, setIncludeDoctorData] = useState<boolean>(true);
+  const [includeMedicationCourses, setIncludeMedicationCourses] = useState<boolean>(true);
   const [includePatientNotes, setIncludePatientNotes] = useState<boolean>(true);
   const [patientNotes, setPatientNotes] = useState<string>("");
+  
+  // Free text export mode: 'none' | 'short_notes' | 'notes_and_context'
+  const [freeTextExportMode, setFreeTextExportMode] = useState<'none' | 'short_notes' | 'notes_and_context'>('none');
   
   const [generated, setGenerated] = useState<PainEntry[]>([]);
   const [previousSelection, setPreviousSelection] = useState<string[]>([]);
@@ -342,6 +345,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         includeDoctorData,
         includeMedicationCourses,
         includePatientNotes: includePatientNotes && !!patientNotes.trim(),
+        freeTextExportMode,
         
         analysisReport: aiAnalysis,
         patientNotes: includePatientNotes ? patientNotes : "",
@@ -583,29 +587,36 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         <h1 className="text-xl font-semibold flex-1">Kopfschmerztagebuch (PDF)</h1>
       </div>
 
-      <div className="p-4">
+      <div className="p-4 space-y-4">
 
-      <Card className="p-4 mb-4 space-y-3">
-        <div>
-          <label className="block text-sm mb-1">Zeitraum</label>
-          <TimeRangeButtons value={preset} onChange={setPreset} />
-        </div>
-
-        {preset === "custom" && (
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="block text-sm mb-1">Start</label>
-              <input className="border-border/30 border rounded px-2 h-10 w-full bg-background text-foreground" type="date" value={customStart} onChange={e => setCustomStart(e.target.value)} />
-            </div>
-            <div>
-              <label className="block text-sm mb-1">Ende</label>
-              <input className="border-border/30 border rounded px-2 h-10 w-full bg-background text-foreground" type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} />
-            </div>
+        {/* Block 1: Zeitraum */}
+        <Card className="p-4 space-y-3">
+          <div>
+            <h3 className="text-sm font-semibold mb-1">Zeitraum</h3>
+            <p className="text-xs text-muted-foreground mb-3">Wähle, für welchen Zeitraum das Kopfschmerztagebuch erstellt werden soll.</p>
+            <TimeRangeButtons value={preset} onChange={setPreset} />
           </div>
-        )}
 
-        <div className="space-y-2">
-          <label className="block text-sm mb-1">Medikamente auswählen (optional)</label>
+          {preset === "custom" && (
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-sm mb-1">Start</label>
+                <input className="border-border/30 border rounded px-2 h-10 w-full bg-background text-foreground" type="date" value={customStart} onChange={e => setCustomStart(e.target.value)} />
+              </div>
+              <div>
+                <label className="block text-sm mb-1">Ende</label>
+                <input className="border-border/30 border rounded px-2 h-10 w-full bg-background text-foreground" type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} />
+              </div>
+            </div>
+          )}
+        </Card>
+
+        {/* Block 2: Medikamenten-Fokus */}
+        <Card className="p-4 space-y-3">
+          <div>
+            <h3 className="text-sm font-semibold mb-1">Medikamenten-Fokus (optional)</h3>
+            <p className="text-xs text-muted-foreground mb-3">Wenn du willst, kannst du das Tagebuch auf bestimmte Medikamente fokussieren. Standard: alle Medikamente.</p>
+          </div>
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
@@ -613,11 +624,9 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
               variant={allSelected ? "default" : "outline"}
               onClick={() => {
                 if (allSelected) {
-                  // Zurück zur vorherigen Auswahl
                   setSelectedMeds(previousSelection);
                   setAllSelected(false);
                 } else {
-                  // Alle auswählen
                   setPreviousSelection(selectedMeds);
                   setSelectedMeds([...medOptions]);
                   setAllSelected(true);
@@ -647,131 +656,196 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
               );
             })}
           </div>
-        </div>
+        </Card>
 
-        {/* Content Selection */}
-        <div className="space-y-3 pt-4 border-t">
-          <label className="block text-sm font-medium">
-            Was soll ins Tagebuch?
-          </label>
+        {/* Block 3: Inhalte des Tagebuchs */}
+        <Card className="p-4 space-y-4">
+          <div>
+            <h3 className="text-sm font-semibold mb-1">Was soll ins Tagebuch?</h3>
+          </div>
           
-          <div className="space-y-2">
-            <label className="flex items-center gap-2 text-sm">
-              <input 
-                type="checkbox" 
-                checked={includeStats} 
-                onChange={e => setIncludeStats(e.target.checked)} 
-              />
-              Medikamenten-Statistiken (Häufigkeit & Wirksamkeit)
-            </label>
-            
-            <label className="flex items-center gap-2 text-sm">
-              <input 
-                type="checkbox" 
-                checked={includeChart} 
-                onChange={e => setIncludeChart(e.target.checked)} 
-              />
-              Intensitätsverlauf-Chart (Zeitreihen-Diagramm)
-            </label>
-            
-            <label className="flex items-center gap-2 text-sm">
-              <input 
-                type="checkbox" 
-                checked={includeAnalysis} 
-                onChange={e => {
-                  setIncludeAnalysis(e.target.checked);
-                  if (!e.target.checked) {
-                    setAnalysisReport("");
-                  }
+          {/* Gruppe A: Standardmodule */}
+          <div className="space-y-3">
+            <label className="flex items-start gap-3 text-sm cursor-pointer">
+              <Checkbox 
+                checked={includeStats && includeChart} 
+                onCheckedChange={(checked) => {
+                  setIncludeStats(!!checked);
+                  setIncludeChart(!!checked);
                 }} 
+                className="mt-0.5"
               />
-              Professioneller Analysebericht (KI-generiert)
+              <div>
+                <span className="font-medium">Zusammenfassung (Statistiken & Diagramme)</span>
+                <p className="text-xs text-muted-foreground mt-0.5">Empfohlen. Zeigt Frequenz und Wirksamkeit deiner Medikamente sowie den Verlauf der Schmerzstärke.</p>
+              </div>
             </label>
             
-            <label className="flex items-center gap-2 text-sm">
-              <input 
-                type="checkbox" 
+            <label className="flex items-start gap-3 text-sm cursor-pointer">
+              <Checkbox 
+                checked={includeAnalysis} 
+                onCheckedChange={(checked) => {
+                  setIncludeAnalysis(!!checked);
+                  if (!checked) setAnalysisReport("");
+                }} 
+                className="mt-0.5"
+              />
+              <div>
+                <span className="font-medium">Professioneller Analysebericht (KI-generiert)</span>
+                <p className="text-xs text-muted-foreground mt-0.5">Erkennt mögliche Muster und Auffälligkeiten. Keine Diagnose.</p>
+              </div>
+            </label>
+            
+            <label className="flex items-start gap-3 text-sm cursor-pointer">
+              <Checkbox 
                 checked={includeEntriesList} 
-                onChange={e => setIncludeEntriesList(e.target.checked)} 
+                onCheckedChange={(checked) => setIncludeEntriesList(!!checked)} 
+                className="mt-0.5"
               />
-              Detaillierte Einträge-Liste (alle Einzeleinträge)
-            </label>
-            
-            <label className="flex items-center gap-2 text-sm">
-              <input 
-                type="checkbox" 
-                checked={includePatientData} 
-                onChange={e => setIncludePatientData(e.target.checked)} 
-              />
-              Persönliche Daten einbeziehen
-            </label>
-            
-            <label className="flex items-center gap-2 text-sm">
-              <input 
-                type="checkbox" 
-                checked={includeDoctorData} 
-                onChange={e => setIncludeDoctorData(e.target.checked)} 
-              />
-              Arztdaten einbeziehen
-            </label>
-            
-            <label className="flex items-center gap-2 text-sm">
-              <input 
-                type="checkbox" 
-                checked={includeMedicationCourses} 
-                onChange={e => setIncludeMedicationCourses(e.target.checked)} 
-                disabled={medicationCourses.length === 0}
-              />
-              Therapieverlauf (Prophylaxe & Akutbehandlungen)
-              {medicationCourses.length === 0 && (
-                <span className="text-xs text-muted-foreground">(keine vorhanden)</span>
-              )}
+              <div>
+                <span className="font-medium">Detaillierte Einträge-Liste</span>
+                <p className="text-xs text-muted-foreground mt-0.5">Alle einzelnen Kopfschmerz-Einträge in Tabellenform. Ideal für Arzttermine.</p>
+              </div>
             </label>
           </div>
 
-          {/* Patient Notes Section */}
-          <div className="pt-4 border-t space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="block text-sm font-medium">
-                Anmerkungen für den Arzt (optional)
-              </label>
-              {patientNotes.trim() && (
-                <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <input 
-                    type="checkbox" 
-                    checked={includePatientNotes} 
-                    onChange={e => setIncludePatientNotes(e.target.checked)} 
-                    className="h-3 w-3"
-                  />
-                  Im Bericht anzeigen
-                </label>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground -mt-1">
-              Dieser Text erscheint im Arztbericht im Abschnitt „Anmerkungen des Patienten".
-            </p>
-            <textarea
-              value={patientNotes}
-              onChange={e => {
-                const newValue = e.target.value.slice(0, 1000);
-                setPatientNotes(newValue);
-                // Automatisch aktivieren wenn Text eingegeben wird
-                if (newValue.trim() && !includePatientNotes) {
-                  setIncludePatientNotes(true);
-                }
-              }}
-              placeholder="Hier kannst du wichtige Hinweise, besondere Ereignisse oder Fragen an deinen Arzt notieren (optional)."
-              className="w-full min-h-[100px] max-h-[200px] p-3 text-sm border border-border/50 rounded-md bg-background resize-y focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50"
-              rows={4}
-            />
-            <div className="flex justify-end">
-              <span className={`text-xs ${patientNotes.length > 900 ? 'text-destructive' : 'text-muted-foreground'}`}>
-                {patientNotes.length}/1000
-              </span>
-            </div>
+          {/* Gruppe B: Zusatzoptionen */}
+          <div className="pt-3 border-t space-y-3">
+            <p className="text-xs text-muted-foreground">Zusätzliche Informationen, die du je nach Empfänger ein- oder ausblenden kannst.</p>
+            
+            <label className="flex items-start gap-3 text-sm cursor-pointer">
+              <Checkbox 
+                checked={includeMedicationCourses} 
+                onCheckedChange={(checked) => setIncludeMedicationCourses(!!checked)} 
+                disabled={medicationCourses.length === 0}
+                className="mt-0.5"
+              />
+              <div>
+                <span className="font-medium">Therapieübersicht (Prophylaxe & Akutbehandlungen)</span>
+                {medicationCourses.length === 0 && (
+                  <span className="text-xs text-muted-foreground ml-2">(keine vorhanden)</span>
+                )}
+              </div>
+            </label>
+            
+            <label className="flex items-start gap-3 text-sm cursor-pointer">
+              <Checkbox 
+                checked={includePatientData} 
+                onCheckedChange={(checked) => setIncludePatientData(!!checked)} 
+                className="mt-0.5"
+              />
+              <div>
+                <span className="font-medium">Persönliche Daten einbeziehen</span>
+                <p className="text-xs text-muted-foreground mt-0.5">Deaktiviere diese Option, wenn du das Tagebuch anonym teilen möchtest.</p>
+              </div>
+            </label>
+            
+            <label className="flex items-start gap-3 text-sm cursor-pointer">
+              <Checkbox 
+                checked={includeDoctorData} 
+                onCheckedChange={(checked) => setIncludeDoctorData(!!checked)} 
+                className="mt-0.5"
+              />
+              <div>
+                <span className="font-medium">Arztdaten einbeziehen</span>
+                <p className="text-xs text-muted-foreground mt-0.5">Deaktiviere diese Option, wenn du das Tagebuch anonym teilen möchtest.</p>
+              </div>
+            </label>
           </div>
-        </div>
-      </Card>
+        </Card>
+
+        {/* Block 4: Freitext & Notizen */}
+        <Card className="p-4 space-y-4">
+          <div>
+            <h3 className="text-sm font-semibold mb-1">Freitext & Notizen im PDF</h3>
+            <p className="text-xs text-muted-foreground">Bestimme, ob persönliche Notizen und ausführliche Kontext-Texte mit in das Tagebuch aufgenommen werden sollen.</p>
+          </div>
+          
+          <div className="space-y-3">
+            <label className="flex items-start gap-3 text-sm cursor-pointer p-3 rounded-lg border border-border/50 hover:border-primary/30 transition-colors has-[:checked]:border-primary/50 has-[:checked]:bg-primary/5">
+              <input 
+                type="radio" 
+                name="freeTextMode" 
+                value="none"
+                checked={freeTextExportMode === 'none'} 
+                onChange={() => setFreeTextExportMode('none')}
+                className="mt-1 accent-primary"
+              />
+              <div>
+                <span className="font-medium">Keine persönlichen Notizen/Kontexte (empfohlen)</span>
+                <p className="text-xs text-muted-foreground mt-0.5">Gut geeignet für Arztpraxis, Klinik oder Krankenkasse. Strukturierte Daten und KI-Auswertung, aber ohne deine Freitext-Einträge.</p>
+              </div>
+            </label>
+            
+            <label className="flex items-start gap-3 text-sm cursor-pointer p-3 rounded-lg border border-border/50 hover:border-primary/30 transition-colors has-[:checked]:border-primary/50 has-[:checked]:bg-primary/5">
+              <input 
+                type="radio" 
+                name="freeTextMode" 
+                value="short_notes"
+                checked={freeTextExportMode === 'short_notes'} 
+                onChange={() => setFreeTextExportMode('short_notes')}
+                className="mt-1 accent-primary"
+              />
+              <div>
+                <span className="font-medium">Kurze Notizen einbeziehen</span>
+                <p className="text-xs text-muted-foreground mt-0.5">Das Feld „Kurze Notizen" wird in der Einträge-Liste angezeigt (z.B. Stress, Stimmung, Schlafqualität). Der ausführliche Kontext bleibt nur intern.</p>
+              </div>
+            </label>
+            
+            <label className="flex items-start gap-3 text-sm cursor-pointer p-3 rounded-lg border border-border/50 hover:border-primary/30 transition-colors has-[:checked]:border-primary/50 has-[:checked]:bg-primary/5">
+              <input 
+                type="radio" 
+                name="freeTextMode" 
+                value="notes_and_context"
+                checked={freeTextExportMode === 'notes_and_context'} 
+                onChange={() => setFreeTextExportMode('notes_and_context')}
+                className="mt-1 accent-primary"
+              />
+              <div>
+                <span className="font-medium">Notizen + ausführlicher Kontext-Anhang</span>
+                <p className="text-xs text-muted-foreground mt-0.5">Kurze Notizen erscheinen in der Einträge-Liste. Zusätzlich wird am Ende des PDFs ein Anhang mit den ausführlichen Kontext-Texten pro Eintrag erstellt.</p>
+              </div>
+            </label>
+          </div>
+        </Card>
+
+        {/* Block 5: Anmerkungen für den Arzt */}
+        <Card className="p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-semibold mb-1">Anmerkungen für den Arzt (optional)</h3>
+              <p className="text-xs text-muted-foreground">Hier kannst du besondere Hinweise, Fragen oder aktuelle Anliegen für deinen Arzt notieren. Dieser Text erscheint im Abschnitt „Anmerkungen des Patienten" im PDF.</p>
+            </div>
+            {patientNotes.trim() && (
+              <label className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
+                <Checkbox 
+                  checked={includePatientNotes} 
+                  onCheckedChange={(checked) => setIncludePatientNotes(!!checked)} 
+                  className="h-3 w-3"
+                />
+                Im Bericht
+              </label>
+            )}
+          </div>
+          <textarea
+            value={patientNotes}
+            onChange={e => {
+              const newValue = e.target.value.slice(0, 1000);
+              setPatientNotes(newValue);
+              if (newValue.trim() && !includePatientNotes) {
+                setIncludePatientNotes(true);
+              }
+            }}
+            placeholder="Hier kannst du wichtige Hinweise, besondere Ereignisse oder Fragen an deinen Arzt notieren (optional)."
+            className="w-full min-h-[100px] max-h-[200px] p-3 text-sm border border-border/50 rounded-md bg-background resize-y focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50"
+            rows={4}
+          />
+          <div className="flex justify-end">
+            <span className={`text-xs ${patientNotes.length > 900 ? 'text-destructive' : 'text-muted-foreground'}`}>
+              {patientNotes.length} / 1000
+            </span>
+          </div>
+        </Card>
 
       {/* Export Actions */}
       <Card className="p-6">
