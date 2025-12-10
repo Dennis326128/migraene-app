@@ -24,9 +24,13 @@ import { Button } from "@/components/ui/button";
 
 type View = "menu" | "new" | "list" | "analysis" | "settings" | "medication-overview" | "medication-management" | "voice-notes" | "reminders" | "diary-timeline" | "context-tags" | "diary-report" | "medication-limits";
 
+// Track where the user navigated from for proper back navigation
+type DiaryReportOrigin = 'home' | 'diary-timeline' | null;
+
 export const PainApp: React.FC = () => {
   const [view, setView] = useState<View>("menu");
   const [editing, setEditing] = useState<PainEntry | null>(null);
+  const [diaryReportOrigin, setDiaryReportOrigin] = useState<DiaryReportOrigin>(null);
   const { needsOnboarding, isLoading, completeOnboarding } = useOnboarding();
   const { 
     showTutorial, 
@@ -97,6 +101,10 @@ export const PainApp: React.FC = () => {
             } else if (target === 'context-tags') {
               setView('context-tags');
             } else if (target === 'diary-report') {
+              setDiaryReportOrigin('diary-timeline');
+              setView('diary-report');
+            } else if (target === 'diary-report-home') {
+              setDiaryReportOrigin('home');
               setView('diary-report');
             } else if (target === 'medication-limits') {
               setView('medication-limits');
@@ -174,6 +182,7 @@ export const PainApp: React.FC = () => {
           onBack={goHome} 
           onNavigate={(target) => {
             if (target === 'diary-report') {
+              setDiaryReportOrigin('diary-timeline');
               setView('diary-report');
             }
           }}
@@ -188,11 +197,22 @@ export const PainApp: React.FC = () => {
 
       {view === "reminders" && <RemindersPage onBack={goHome} />}
 
-      {view === "diary-report" && <DiaryReport onBack={goHome} onNavigate={(target) => {
-        if (target === 'settings-account') {
-          setView('settings');
-        }
-      }} />}
+      {view === "diary-report" && <DiaryReport 
+        onBack={() => {
+          // Navigate back based on where user came from
+          if (diaryReportOrigin === 'diary-timeline') {
+            setView('diary-timeline');
+          } else {
+            goHome();
+          }
+          setDiaryReportOrigin(null);
+        }} 
+        onNavigate={(target) => {
+          if (target === 'settings-account') {
+            setView('settings');
+          }
+        }} 
+      />}
 
       {view === "medication-limits" && (
         <MedicationLimitsPage 
