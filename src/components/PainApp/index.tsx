@@ -20,8 +20,6 @@ import { DiaryTimeline } from "./DiaryTimeline";
 import { ContextTagsView } from "./ContextTagsView";
 import DiaryReport from "./DiaryReport";
 import { MedicationLimitsPage } from "./MedicationLimitsPage";
-import { ArrowLeft } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
 type View = "menu" | "new" | "list" | "analysis" | "settings" | "settings-doctors" | "medication-overview" | "medication-management" | "voice-notes" | "reminders" | "diary-timeline" | "context-tags" | "diary-report" | "medication-limits";

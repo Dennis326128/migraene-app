@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useDoctors, useCreateDoctor, useUpdateDoctor, useDeleteDoctor } from "@/features/account/hooks/useAccount";
 import { toast } from "sonner";
-import { Trash2, Plus, Edit, ArrowLeft } from "lucide-react";
+import { Trash2, Plus, Edit } from "lucide-react";
 
 interface SettingsDoctorsWithOriginProps {
   origin?: 'export_migraine_diary';

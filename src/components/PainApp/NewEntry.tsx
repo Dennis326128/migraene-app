@@ -21,6 +21,7 @@ import { useUserDefaults, useUpsertUserDefaults } from "@/features/settings/hook
 import { PainSlider } from "@/components/ui/pain-slider";
 import { normalizePainLevel } from "@/lib/utils/pain";
 import { ContextInputField } from "./ContextInputField";
+import { devLog, devWarn } from "@/lib/utils/devLogger";
 
 interface NewEntryProps {
   onBack: () => void;
@@ -255,7 +256,7 @@ export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProp
       
       if (isRetroactive) {
         // For retroactive entries, try to use fallback coordinates from user profile
-        console.log('📍 Retroactive entry detected, checking for stored coordinates...');
+        devLog('Retroactive entry detected, checking for stored coordinates...', { context: 'NewEntry' });
         const { supabase } = await import('@/integrations/supabase/client');
         const { data: profile } = await supabase
           .from('user_profiles')
@@ -265,7 +266,7 @@ export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProp
         if (profile?.latitude && profile?.longitude) {
           latitude = Number(profile.latitude);
           longitude = Number(profile.longitude);
-          console.log('📍 Using stored profile coordinates for retroactive entry');
+          devLog('Using stored profile coordinates for retroactive entry', { context: 'NewEntry' });
         } else {
           // Fallback to current GPS if no stored coordinates
           const pos = await Geolocation.getCurrentPosition({ 
@@ -274,7 +275,7 @@ export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProp
           });
           latitude = pos.coords.latitude;
           longitude = pos.coords.longitude;
-          console.log('📍 Using current GPS coordinates (no stored coordinates found)');
+          devLog('Using current GPS coordinates (no stored coordinates found)', { context: 'NewEntry' });
         }
       } else {
         // For current entries, always use fresh GPS
@@ -284,10 +285,10 @@ export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProp
         });
         latitude = pos.coords.latitude;
         longitude = pos.coords.longitude;
-        console.log('📍 Using current GPS coordinates for recent entry');
+        devLog('Using current GPS coordinates for recent entry', { context: 'NewEntry' });
       }
     } catch (gpsError) {
-      console.warn('GPS coordinates capture failed:', gpsError);
+      devWarn('GPS coordinates capture failed', { context: 'NewEntry', data: gpsError });
     }
     
     // Retain existing weather_id or fetch new weather data conditionally
@@ -332,7 +333,7 @@ export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProp
     }
 
     try {
-      console.log('📦 Building payload with selectedMedications:', selectedMedications);
+      devLog('Building payload with selectedMedications', { context: 'NewEntry', data: selectedMedications });
       
       // Combine notes with context text for storage
       const combinedNotes = [notes.trim(), contextText.trim()]
@@ -352,7 +353,7 @@ export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProp
         longitude,
       };
 
-      console.log('📤 Final payload:', payload);
+      devLog('Final payload', { context: 'NewEntry', data: payload });
 
       // Always use createEntry (UPSERT) - overwrites existing entry with same date/time
       let savedId: string | number;

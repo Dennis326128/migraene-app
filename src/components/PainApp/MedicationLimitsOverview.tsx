@@ -24,19 +24,6 @@ export function MedicationLimitsOverview() {
 
   const { data: recentEntries = [] } = useEntries(last30Days);
 
-  // Debug logging
-  React.useEffect(() => {
-    console.log('[MedicationLimitsOverview] Debug Info:', {
-      recentEntries: recentEntries,
-      entriesCount: recentEntries.length,
-      last30Days: last30Days,
-      medications: medications,
-      medicationsCount: medications.length,
-      sampleEntry: recentEntries[0],
-      dateRange: `${last30Days.from} bis ${last30Days.to}`
-    });
-  }, [recentEntries, last30Days, medications]);
-
   // Check limits when we have medications
   React.useEffect(() => {
     if (medications.length > 0) {

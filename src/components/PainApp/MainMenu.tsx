@@ -18,6 +18,7 @@ import { saveVoiceNote } from "@/lib/voice/saveNote";
 import { QuickContextNoteModal } from "./QuickContextNoteModal";
 import { VoiceHelpOverlay } from "./VoiceHelpOverlay";
 import { VoiceUnknownIntentOverlay } from "./VoiceUnknownIntentOverlay";
+import { devError } from "@/lib/utils/devLogger";
 
 interface MainMenuProps {
   onNewEntry: () => void;
@@ -57,25 +58,21 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   // Smart Voice Router with navigation support
   const voiceRouter = useSmartVoiceRouter({
     onEntryDetected: (data) => {
-      console.log('📝 Pain entry detected, opening QuickEntry:', data);
       setVoiceData(data);
       setShowQuickEntry(true);
     },
     onNoteDetected: (transcript) => {
-      console.log('🎙️ Voice note detected, opening review:', transcript);
       setPendingVoiceNote(transcript);
       setShowVoiceNoteReview(true);
     },
     onReminderDetected: (data) => {
-      console.log('📋 Reminder detected, opening form:', data);
       setPrefilledReminderData(data);
       setShowReminderForm(true);
     },
-    onMedicationUpdateDetected: (data) => {
-      console.log('💊 Medication update detected:', data);
+    onMedicationUpdateDetected: (_data) => {
+      // Medication update handling
     },
     onNavigationIntent: (route, payload) => {
-      console.log('🧭 Navigation intent:', route, payload);
       // Map routes to internal navigation or external routes
       const routeMap: Record<string, string> = {
         '/diary': 'diary-timeline',
@@ -95,11 +92,9 @@ export const MainMenu: React.FC<MainMenuProps> = ({
       }
     },
     onHelpRequested: () => {
-      console.log('🆘 Help requested');
       setShowVoiceHelp(true);
     },
     onUnknownIntent: (transcript) => {
-      console.log('❓ Unknown intent:', transcript);
       setUnknownTranscript(transcript);
       setShowUnknownIntent(true);
     },
@@ -168,7 +163,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
       setPendingVoiceNote('');
       window.dispatchEvent(new Event('voice-note-saved'));
     } catch (error) {
-      console.error('Error saving voice note:', error);
+      devError('Error saving voice note:', error, { context: 'MainMenu' });
       throw error;
     }
   };
@@ -188,7 +183,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
       setShowReminderForm(false);
       setPrefilledReminderData(null);
     } catch (error) {
-      console.error('Error creating reminder:', error);
+      devError('Error creating reminder:', error, { context: 'MainMenu' });
       toast.error('Fehler', {
         description: 'Erinnerung konnte nicht erstellt werden'
       });

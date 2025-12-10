@@ -5,7 +5,7 @@ import { SettingsMedications } from "./Settings/SettingsMedications";
 import { SettingsPrivacy } from "./Settings/SettingsPrivacy";
 import { SettingsHelp } from "./Settings/SettingsHelp";
 import { SettingsAccount } from "./Settings/SettingsAccount";
-import { SettingsDoctors } from "./Settings/SettingsDoctors";
+import { SettingsDoctorsWithOrigin } from "./Settings/SettingsDoctorsWithOrigin";
 import { SettingsLogout } from "./Settings/SettingsLogout";
 
 type SettingsSection = 'overview' | 'medications' | 'privacy' | 'help' | 'account' | 'doctors' | 'logout';
@@ -49,7 +49,11 @@ const SettingsPage = ({ onBack }: { onBack: () => void }) => {
         {section === 'privacy' && <SettingsPrivacy />}
         {section === 'help' && <SettingsHelp />}
         {section === 'account' && <SettingsAccount onReturn={() => setSection('overview')} />}
-        {section === 'doctors' && <SettingsDoctors />}
+        {section === 'doctors' && (
+          <SettingsDoctorsWithOrigin 
+            onBack={() => setSection('overview')}
+          />
+        )}
         {section === 'logout' && <SettingsLogout />}
     </SettingsLayout>
   );

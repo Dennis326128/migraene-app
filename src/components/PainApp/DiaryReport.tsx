@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { DoctorSelectionDialog, type Doctor } from "./DoctorSelectionDialog";
 import { Switch } from "@/components/ui/switch";
+import { devLog, devWarn } from "@/lib/utils/devLogger";
 
 /**
  * DiaryReport - PDF-Export-Komponente für Kopfschmerztagebuch
@@ -347,16 +348,9 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     setIsGeneratingReport(true);
     
     try {
-      console.log("PDF Generierung gestartet:", { 
-        from, 
-        to, 
-        entriesCount: filteredEntries.length,
-        includeAnalysis,
-        includeStats,
-        includeChart,
-        includeEntriesList,
-        includePatientData,
-        includeDoctorData
+      devLog('PDF Generierung gestartet', { 
+        context: 'DiaryReport',
+        data: { from, to, entriesCount: filteredEntries.length, includeAnalysis, includeStats, includeChart, includeEntriesList, includePatientData, includeDoctorData }
       });
 
       let aiAnalysis = undefined;
@@ -375,7 +369,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
             setAnalysisReport(data.summary);
           }
         } catch (err) {
-          console.warn("KI-Analyse übersprungen:", err);
+          devWarn('KI-Analyse übersprungen', { context: 'DiaryReport', data: err });
         }
       }
 
