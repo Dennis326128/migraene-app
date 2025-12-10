@@ -279,6 +279,7 @@ export type Database = {
           selected_time: string | null
           timestamp_created: string | null
           user_id: string
+          voice_note_id: string | null
           weather_id: number | null
         }
         Insert: {
@@ -295,6 +296,7 @@ export type Database = {
           selected_time?: string | null
           timestamp_created?: string | null
           user_id: string
+          voice_note_id?: string | null
           weather_id?: number | null
         }
         Update: {
@@ -311,6 +313,7 @@ export type Database = {
           selected_time?: string | null
           timestamp_created?: string | null
           user_id?: string
+          voice_note_id?: string | null
           weather_id?: number | null
         }
         Relationships: [
@@ -319,6 +322,13 @@ export type Database = {
             columns: ["weather_id"]
             isOneToOne: false
             referencedRelation: "weather_logs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pain_entries_voice_note_id_fkey"
+            columns: ["voice_note_id"]
+            isOneToOne: false
+            referencedRelation: "voice_notes"
             referencedColumns: ["id"]
           },
           {
@@ -809,13 +819,85 @@ export type Database = {
         }
         Relationships: []
       }
+      voice_note_segments: {
+        Row: {
+          confidence: number | null
+          created_at: string
+          effect_rating: string | null
+          factor_type: string | null
+          factor_value: string | null
+          id: string
+          is_ambiguous: boolean | null
+          medication_dose: string | null
+          medication_name: string | null
+          medication_role: string | null
+          normalized_summary: string | null
+          segment_index: number
+          segment_type: string
+          source_text: string
+          time_reference: string | null
+          timing_relation: string | null
+          voice_note_id: string
+        }
+        Insert: {
+          confidence?: number | null
+          created_at?: string
+          effect_rating?: string | null
+          factor_type?: string | null
+          factor_value?: string | null
+          id?: string
+          is_ambiguous?: boolean | null
+          medication_dose?: string | null
+          medication_name?: string | null
+          medication_role?: string | null
+          normalized_summary?: string | null
+          segment_index: number
+          segment_type?: string
+          source_text: string
+          time_reference?: string | null
+          timing_relation?: string | null
+          voice_note_id: string
+        }
+        Update: {
+          confidence?: number | null
+          created_at?: string
+          effect_rating?: string | null
+          factor_type?: string | null
+          factor_value?: string | null
+          id?: string
+          is_ambiguous?: boolean | null
+          medication_dose?: string | null
+          medication_name?: string | null
+          medication_role?: string | null
+          normalized_summary?: string | null
+          segment_index?: number
+          segment_type?: string
+          source_text?: string
+          time_reference?: string | null
+          timing_relation?: string | null
+          voice_note_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voice_note_segments_voice_note_id_fkey"
+            columns: ["voice_note_id"]
+            isOneToOne: false
+            referencedRelation: "voice_notes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       voice_notes: {
         Row: {
           captured_at: string
           context_type: string | null
           deleted_at: string | null
+          extracted_facts: Json | null
           id: string
           metadata: Json | null
+          nlp_processed_at: string | null
+          nlp_status: string | null
+          nlp_version: string | null
           occurred_at: string
           source: string
           stt_confidence: number | null
@@ -828,8 +910,12 @@ export type Database = {
           captured_at?: string
           context_type?: string | null
           deleted_at?: string | null
+          extracted_facts?: Json | null
           id?: string
           metadata?: Json | null
+          nlp_processed_at?: string | null
+          nlp_status?: string | null
+          nlp_version?: string | null
           occurred_at: string
           source?: string
           stt_confidence?: number | null
@@ -842,8 +928,12 @@ export type Database = {
           captured_at?: string
           context_type?: string | null
           deleted_at?: string | null
+          extracted_facts?: Json | null
           id?: string
           metadata?: Json | null
+          nlp_processed_at?: string | null
+          nlp_status?: string | null
+          nlp_version?: string | null
           occurred_at?: string
           source?: string
           stt_confidence?: number | null
@@ -979,6 +1069,7 @@ export type Database = {
           selected_time: string | null
           timestamp_created: string | null
           user_id: string
+          voice_note_id: string | null
           weather_id: number | null
         }[]
         SetofOptions: {
