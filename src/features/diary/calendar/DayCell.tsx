@@ -13,12 +13,6 @@ interface DayCellProps {
   isCurrentMonth: boolean;
 }
 
-// Convert hex/hsl color to rgba with opacity
-const colorWithOpacity = (color: string, opacity: number): string => {
-  // If it's already a valid color, use it with opacity via CSS
-  return color;
-};
-
 export const DayCell: React.FC<DayCellProps> = ({
   date,
   maxPain,
@@ -63,14 +57,14 @@ export const DayCell: React.FC<DayCellProps> = ({
               today && 'ring-2 ring-primary ring-offset-1 ring-offset-background'
             )}
             style={hasPainData && painColor ? {
-              // Tinted background with low opacity
-              backgroundColor: `color-mix(in srgb, ${painColor} 18%, transparent)`,
-              // Border with medium opacity
-              border: `1.5px solid color-mix(in srgb, ${painColor} 40%, transparent)`,
+              // Tinted background with subtle opacity
+              backgroundColor: `color-mix(in srgb, ${painColor} 20%, transparent)`,
+              // Very subtle shadow instead of harsh border
+              boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${painColor} 12%, transparent)`,
             } : hasEntries && !hasPainData ? {
               // No pain data but has entries - subtle gray indicator
-              backgroundColor: 'hsl(var(--muted) / 0.3)',
-              border: '1.5px solid hsl(var(--muted-foreground) / 0.2)',
+              backgroundColor: 'hsl(var(--muted) / 0.25)',
+              boxShadow: 'inset 0 0 0 1px hsl(var(--muted-foreground) / 0.08)',
             } : undefined}
           >
             {/* Day number */}
