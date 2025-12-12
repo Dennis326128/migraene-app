@@ -432,6 +432,7 @@ export type Database = {
           created_at: string
           date_time: string
           id: string
+          last_popup_date: string | null
           medications: string[] | null
           notes: string | null
           notification_enabled: boolean
@@ -447,6 +448,7 @@ export type Database = {
           created_at?: string
           date_time: string
           id?: string
+          last_popup_date?: string | null
           medications?: string[] | null
           notes?: string | null
           notification_enabled?: boolean
@@ -462,6 +464,7 @@ export type Database = {
           created_at?: string
           date_time?: string
           id?: string
+          last_popup_date?: string | null
           medications?: string[] | null
           notes?: string | null
           notification_enabled?: boolean
