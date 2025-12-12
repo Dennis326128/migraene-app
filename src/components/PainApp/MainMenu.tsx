@@ -11,6 +11,7 @@ import { useOnboarding } from "@/hooks/useOnboarding";
 import { useSmartVoiceRouter } from "@/hooks/useSmartVoiceRouter";
 import { ReminderFormWithVoiceData } from "@/components/Reminders/ReminderFormWithVoiceData";
 import { useCreateReminder, useCreateMultipleReminders } from "@/features/reminders/hooks/useReminders";
+import { useReminderBadgeCount, useUpcoming24hWarnings } from "@/features/reminders/hooks/useReminderBadge";
 import { CreateReminderInput } from "@/types/reminder.types";
 import { toast } from "sonner";
 import { VoiceNoteReviewModal } from "./VoiceNoteReviewModal";
@@ -18,6 +19,7 @@ import { saveVoiceNote } from "@/lib/voice/saveNote";
 import { QuickContextNoteModal } from "./QuickContextNoteModal";
 import { VoiceHelpOverlay } from "./VoiceHelpOverlay";
 import { VoiceUnknownIntentOverlay } from "./VoiceUnknownIntentOverlay";
+import { UpcomingWarningBanner } from "@/components/Reminders/UpcomingWarningBanner";
 import { devError } from "@/lib/utils/devLogger";
 
 interface MainMenuProps {
@@ -54,6 +56,8 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   
   const createReminder = useCreateReminder();
   const createMultipleReminders = useCreateMultipleReminders();
+  const { count: reminderBadgeCount } = useReminderBadgeCount();
+  const { reminders: upcomingWarnings } = useUpcoming24hWarnings();
   
   // Smart Voice Router with navigation support
   const voiceRouter = useSmartVoiceRouter({
@@ -205,6 +209,12 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             Dokumentiere deine Migräne und erkenne Muster.
           </p>
         </header>
+
+        {/* 24h Warning Banner */}
+        <UpcomingWarningBanner 
+          reminders={upcomingWarnings} 
+          onShow={() => onNavigate?.('reminders')} 
+        />
 
         <div className="space-y-2 w-full">
           
@@ -391,12 +401,18 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               size="small"
               touchFeedback 
               onClick={() => onNavigate?.('reminders')}
+              className="relative"
             >
               <StartPageCardHeader
                 icon="⏰"
                 iconBgClassName="bg-background/50"
                 title="Erinnerungen"
               />
+              {reminderBadgeCount > 0 && (
+                <span className="absolute top-2 right-2 min-w-[20px] h-5 px-1.5 flex items-center justify-center text-xs font-semibold bg-destructive text-destructive-foreground rounded-full">
+                  {reminderBadgeCount > 99 ? '99+' : reminderBadgeCount}
+                </span>
+              )}
             </StartPageCard>
 
             <StartPageCard 
