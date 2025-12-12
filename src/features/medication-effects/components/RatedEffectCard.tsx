@@ -39,15 +39,15 @@ function getPainSeverityLevel(score: number): 'mild' | 'moderate' | 'severe' {
   return 'severe';
 }
 
-/** Get pain badge classes based on severity */
-function getPainBadgeClasses(level: 'mild' | 'moderate' | 'severe'): string {
+/** Get pain dot color based on severity */
+function getPainDotColor(level: 'mild' | 'moderate' | 'severe'): string {
   switch (level) {
     case 'mild':
-      return 'bg-emerald-800 text-emerald-50 border-emerald-700';
+      return 'bg-emerald-400';
     case 'moderate':
-      return 'bg-amber-800 text-amber-50 border-amber-700';
+      return 'bg-amber-400';
     case 'severe':
-      return 'bg-rose-800 text-rose-50 border-rose-700';
+      return 'bg-rose-400';
   }
 }
 
@@ -79,11 +79,10 @@ export function RatedEffectCard({ entry, effect }: RatedEffectCardProps) {
               >
                 {getEffectEmoji(effectScore)} {getEffectLabel(effectScore)}
               </Badge>
-              <Badge 
-                className={`text-xs shrink-0 border ${getPainBadgeClasses(painSeverity)}`}
-              >
-                Schmerz {painScore}/10
-              </Badge>
+              <div className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 bg-slate-800 text-slate-100 text-xs font-medium shrink-0 whitespace-nowrap">
+                <span className={`h-2 w-2 rounded-full ${getPainDotColor(painSeverity)}`} />
+                <span>Schmerz {painScore}/10</span>
+              </div>
             </div>
             
             {/* Row 3: Date/Time */}
@@ -115,9 +114,10 @@ export function RatedEffectCard({ entry, effect }: RatedEffectCardProps) {
                 </div>
                 <div className="flex items-center gap-2 mt-1">
                   <span className="text-muted-foreground">Schmerzstärke:</span>
-                  <Badge className={`text-xs ${getPainBadgeClasses(painSeverity)}`}>
-                    {painScore}/10
-                  </Badge>
+                  <div className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 bg-slate-800 text-slate-100 text-xs font-medium">
+                    <span className={`h-2 w-2 rounded-full ${getPainDotColor(painSeverity)}`} />
+                    <span>{painScore}/10</span>
+                  </div>
                 </div>
               </div>
             </Card>
