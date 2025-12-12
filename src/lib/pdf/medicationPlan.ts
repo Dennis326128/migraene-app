@@ -47,18 +47,18 @@ const LAYOUT = {
   marginBottom: 50,
 };
 
-// Column widths for medication table
+// Column widths for medication table - optimized for readable "Grund" column
 const COL_WIDTHS = {
-  wirkstoff: 90,
-  handelsname: 100,
-  staerke: 50,
-  form: 55,
-  mo: 28,
-  mi: 28,
-  ab: 28,
-  na: 28,
-  einheit: 45,
-  grund: 70,
+  wirkstoff: 75,      // narrower (-15)
+  handelsname: 90,    // narrower (-10)
+  staerke: 42,        // narrower (-8)
+  form: 45,           // narrower (-10)
+  mo: 24,             // narrower (-4)
+  mi: 24,             // narrower (-4)
+  ab: 24,             // narrower (-4)
+  na: 24,             // narrower (-4)
+  einheit: 38,        // narrower (-7)
+  grund: 136,         // MUCH wider (+66) - now ~26% of table width
 };
 
 const TABLE_WIDTH = Object.values(COL_WIDTHS).reduce((a, b) => a + b, 0);
@@ -231,6 +231,71 @@ function getIntoleranceReasonLabel(reason: string | null | undefined): string {
 function truncateText(text: string, maxLen: number): string {
   if (text.length <= maxLen) return text;
   return text.substring(0, maxLen - 2) + "..";
+}
+
+/**
+ * Wrap text to fit within a given width, returning multiple lines
+ * Used for the "Grund" column to enable multi-line text
+ */
+function wrapText(
+  text: string, 
+  font: PDFFont, 
+  fontSize: number, 
+  maxWidth: number
+): { lines: string[]; height: number } {
+  if (!text) return { lines: [], height: 0 };
+  
+  const words = text.split(/\s+/);
+  const lines: string[] = [];
+  let currentLine = "";
+  
+  for (const word of words) {
+    const testLine = currentLine ? `${currentLine} ${word}` : word;
+    const testWidth = font.widthOfTextAtSize(testLine, fontSize);
+    
+    if (testWidth <= maxWidth) {
+      currentLine = testLine;
+    } else {
+      if (currentLine) {
+        lines.push(currentLine);
+      }
+      // Handle very long words that exceed maxWidth
+      if (font.widthOfTextAtSize(word, fontSize) > maxWidth) {
+        // Truncate long single words
+        let truncated = word;
+        while (font.widthOfTextAtSize(truncated + "..", fontSize) > maxWidth && truncated.length > 3) {
+          truncated = truncated.slice(0, -1);
+        }
+        currentLine = truncated + "..";
+      } else {
+        currentLine = word;
+      }
+    }
+  }
+  if (currentLine) {
+    lines.push(currentLine);
+  }
+  
+  const lineHeight = fontSize * 1.4;
+  return { lines, height: Math.max(lines.length * lineHeight, lineHeight) };
+}
+
+/**
+ * Calculate dynamic row height based on text content
+ */
+function calculateRowHeight(
+  med: MedRow, 
+  font: PDFFont, 
+  fontSize: number, 
+  grundWidth: number,
+  showGrund: boolean,
+  baseHeight: number = 22
+): number {
+  if (!showGrund || !med.grund) return baseHeight;
+  
+  const wrapped = wrapText(med.grund, font, fontSize, grundWidth - 6);
+  const neededHeight = wrapped.height + 10; // padding
+  return Math.max(baseHeight, neededHeight);
 }
 
 /**
@@ -520,8 +585,12 @@ function drawMedicationRow(
   isIntolerantSection: boolean = false
 ): number {
   const { helvetica, helveticaBold } = fonts;
-  const rowHeight = 22;
+  const fs = 7;
+  const grundFontSize = 6.5;
   const effectiveWidth = showGrund ? TABLE_WIDTH : TABLE_WIDTH - COL_WIDTHS.grund;
+  
+  // Calculate dynamic row height based on "Grund" text
+  const rowHeight = calculateRowHeight(med, helvetica, grundFontSize, COL_WIDTHS.grund, showGrund, 22);
   
   // Row background
   page.drawRectangle({
@@ -535,22 +604,24 @@ function drawMedicationRow(
   
   let cx = tableX + 3;
   const textY = y - 14;
-  const fs = 7;
   
   // Wirkstoff
-  page.drawText(truncateText(med.wirkstoff, 16), { x: cx, y: textY, size: fs, font: helvetica, color: COLORS.text });
+  page.drawText(truncateText(med.wirkstoff, 14), { x: cx, y: textY, size: fs, font: helvetica, color: COLORS.text });
   cx += COL_WIDTHS.wirkstoff;
   
-  // Handelsname (bold)
-  page.drawText(truncateText(med.handelsname, 18), { x: cx, y: textY, size: fs, font: helveticaBold, color: COLORS.text });
+  // Handelsname (bold) - allow wrapping for long names
+  const handelsWrapped = wrapText(med.handelsname, helveticaBold, fs, COL_WIDTHS.handelsname - 4);
+  handelsWrapped.lines.forEach((line, idx) => {
+    page.drawText(line, { x: cx, y: textY - (idx * fs * 1.3), size: fs, font: helveticaBold, color: COLORS.text });
+  });
   cx += COL_WIDTHS.handelsname;
   
   // Stärke
-  page.drawText(truncateText(med.staerke, 10), { x: cx, y: textY, size: fs, font: helvetica, color: COLORS.text });
+  page.drawText(truncateText(med.staerke, 8), { x: cx, y: textY, size: fs, font: helvetica, color: COLORS.text });
   cx += COL_WIDTHS.staerke;
   
   // Form
-  page.drawText(truncateText(med.form, 10), { x: cx, y: textY, size: fs, font: helvetica, color: COLORS.text });
+  page.drawText(truncateText(med.form, 8), { x: cx, y: textY, size: fs, font: helvetica, color: COLORS.text });
   cx += COL_WIDTHS.form;
   
   // Dose columns
@@ -559,17 +630,26 @@ function drawMedicationRow(
     if (i > 0) {
       page.drawLine({ start: { x: cx, y }, end: { x: cx, y: y - rowHeight }, thickness: 0.2, color: COLORS.borderLight });
     }
-    page.drawText(truncateText(doseVals[i], 4), { x: cx + 4, y: textY, size: fs, font: helvetica, color: COLORS.text });
+    page.drawText(truncateText(doseVals[i], 3), { x: cx + 3, y: textY, size: fs, font: helvetica, color: COLORS.text });
     cx += COL_WIDTHS.mo;
   }
   
   // Einheit
-  page.drawText(truncateText(med.einheit, 8), { x: cx + 2, y: textY, size: fs, font: helvetica, color: COLORS.text });
+  page.drawText(truncateText(med.einheit, 6), { x: cx + 2, y: textY, size: fs, font: helvetica, color: COLORS.text });
   cx += COL_WIDTHS.einheit;
   
-  // Grund (if shown)
-  if (showGrund) {
-    page.drawText(truncateText(med.grund, 12), { x: cx + 2, y: textY, size: 6.5, font: helvetica, color: COLORS.textMuted });
+  // Grund (if shown) - with multi-line wrapping
+  if (showGrund && med.grund) {
+    const wrapped = wrapText(med.grund, helvetica, grundFontSize, COL_WIDTHS.grund - 6);
+    wrapped.lines.forEach((line, idx) => {
+      page.drawText(line, { 
+        x: cx + 3, 
+        y: textY - (idx * grundFontSize * 1.4), 
+        size: grundFontSize, 
+        font: helvetica, 
+        color: COLORS.textMuted 
+      });
+    });
   }
   
   return y - rowHeight;
@@ -587,8 +667,13 @@ function drawAsNeededMedicationRow(
   showGrund: boolean
 ): number {
   const { helvetica, helveticaBold } = fonts;
-  const rowHeight = med.asNeededDoseText ? 30 : 22; // More height if we have dose text
+  const fs = 7;
+  const grundFontSize = 6.5;
   const effectiveWidth = showGrund ? TABLE_WIDTH : TABLE_WIDTH - COL_WIDTHS.grund;
+  
+  // Calculate dynamic row height
+  const baseHeight = med.asNeededDoseText ? 30 : 22;
+  const rowHeight = calculateRowHeight(med, helvetica, grundFontSize, COL_WIDTHS.grund, showGrund, baseHeight);
   
   // Row background
   page.drawRectangle({
@@ -602,45 +687,60 @@ function drawAsNeededMedicationRow(
   
   let cx = tableX + 3;
   const textY = y - 12;
-  const fs = 7;
   
   // Wirkstoff
-  page.drawText(truncateText(med.wirkstoff, 16), { x: cx, y: textY, size: fs, font: helvetica, color: COLORS.text });
+  page.drawText(truncateText(med.wirkstoff, 14), { x: cx, y: textY, size: fs, font: helvetica, color: COLORS.text });
   cx += COL_WIDTHS.wirkstoff;
   
-  // Handelsname (bold)
-  page.drawText(truncateText(med.handelsname, 18), { x: cx, y: textY, size: fs, font: helveticaBold, color: COLORS.text });
+  // Handelsname (bold) - allow wrapping for long names
+  const handelsWrapped = wrapText(med.handelsname, helveticaBold, fs, COL_WIDTHS.handelsname - 4);
+  handelsWrapped.lines.forEach((line, idx) => {
+    page.drawText(line, { x: cx, y: textY - (idx * fs * 1.3), size: fs, font: helveticaBold, color: COLORS.text });
+  });
   cx += COL_WIDTHS.handelsname;
   
   // Stärke
-  page.drawText(truncateText(med.staerke, 10), { x: cx, y: textY, size: fs, font: helvetica, color: COLORS.text });
+  page.drawText(truncateText(med.staerke, 8), { x: cx, y: textY, size: fs, font: helvetica, color: COLORS.text });
   cx += COL_WIDTHS.staerke;
   
   // Form
-  page.drawText(truncateText(med.form, 10), { x: cx, y: textY, size: fs, font: helvetica, color: COLORS.text });
+  page.drawText(truncateText(med.form, 8), { x: cx, y: textY, size: fs, font: helvetica, color: COLORS.text });
   cx += COL_WIDTHS.form;
   
   // For as-needed: Show "b.B." in first column, then structured dose info spanning rest
-  page.drawText("b.B.", { x: cx + 4, y: textY, size: fs, font: helvetica, color: COLORS.text });
+  page.drawText("b.B.", { x: cx + 3, y: textY, size: fs, font: helvetica, color: COLORS.text });
   
   // Show structured dose text below if available
   if (med.asNeededDoseText) {
     const doseTextX = cx + COL_WIDTHS.mo;
     const doseWidth = COL_WIDTHS.mi + COL_WIDTHS.ab + COL_WIDTHS.na + COL_WIDTHS.einheit;
-    page.drawText(truncateText(med.asNeededDoseText, 40), { 
-      x: doseTextX, 
-      y: textY, 
-      size: 6, 
-      font: helvetica, 
-      color: COLORS.textMuted 
+    // Wrap dose text if needed
+    const doseWrapped = wrapText(med.asNeededDoseText, helvetica, 6, doseWidth - 4);
+    doseWrapped.lines.forEach((line, idx) => {
+      page.drawText(line, { 
+        x: doseTextX, 
+        y: textY - (idx * 8), 
+        size: 6, 
+        font: helvetica, 
+        color: COLORS.textMuted 
+      });
     });
   }
   
   cx += COL_WIDTHS.mo + COL_WIDTHS.mi + COL_WIDTHS.ab + COL_WIDTHS.na + COL_WIDTHS.einheit;
   
-  // Grund (if shown)
-  if (showGrund) {
-    page.drawText(truncateText(med.grund, 12), { x: cx + 2, y: textY, size: 6.5, font: helvetica, color: COLORS.textMuted });
+  // Grund (if shown) - with multi-line wrapping
+  if (showGrund && med.grund) {
+    const wrapped = wrapText(med.grund, helvetica, grundFontSize, COL_WIDTHS.grund - 6);
+    wrapped.lines.forEach((line, idx) => {
+      page.drawText(line, { 
+        x: cx + 3, 
+        y: textY - (idx * grundFontSize * 1.4), 
+        size: grundFontSize, 
+        font: helvetica, 
+        color: COLORS.textMuted 
+      });
+    });
   }
   
   return y - rowHeight;
@@ -841,54 +941,60 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
     // Table header
     y = drawTableHeader(page, y, tableX, fonts, options.includeGrund);
     
-    const hasActiveMeds = medRows.regular.length > 0 || medRows.onDemand.length > 0;
+    // Always show both sections (even if empty) for clarity
     
-    if (!hasActiveMeds) {
-      // Empty state
-      const emptyRowH = 28;
-      page.drawRectangle({ x: tableX, y: y - emptyRowH, width: effectiveTableWidth, height: emptyRowH, borderColor: COLORS.borderLight, borderWidth: 0.5 });
-      page.drawText("Keine aktiven Medikamente erfasst", { x: tableX + 15, y: y - 18, size: 9, font: helvetica, color: COLORS.textMuted });
+    // Section: Regelmäßige Medikation
+    y = drawSectionHeader(page, y, tableX, "Regelmaessige Medikation (Prophylaxe / Dauermedikation)", COLORS.sectionRegular, fonts, options.includeGrund);
+    
+    if (medRows.regular.length === 0) {
+      // Empty state for regular meds
+      const emptyRowH = 22;
+      page.drawRectangle({ x: tableX, y: y - emptyRowH, width: effectiveTableWidth, height: emptyRowH, color: COLORS.white });
+      page.drawLine({ start: { x: tableX, y: y - emptyRowH }, end: { x: tableX + effectiveTableWidth, y: y - emptyRowH }, thickness: 0.3, color: COLORS.borderLight });
+      page.drawText("Derzeit keine Medikamente in dieser Kategorie.", { x: tableX + 8, y: y - 14, size: 7, font: helvetica, color: COLORS.textMuted });
       y -= emptyRowH;
     } else {
-      // Regelmäßige Medikation
-      if (medRows.regular.length > 0) {
-        y = drawSectionHeader(page, y, tableX, "Regelmaessige Medikation (Prophylaxe / Dauermedikation)", COLORS.sectionRegular, fonts, options.includeGrund);
+      for (const med of medRows.regular) {
+        // Page break check
+        if (y < LAYOUT.marginBottom + 80) {
+          page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
+          y = LAYOUT.pageHeight - LAYOUT.marginTop - 20;
+          y = drawTableHeader(page, y, tableX, fonts, options.includeGrund);
+        }
+        y = drawMedicationRow(page, y, tableX, med, fonts, options.includeGrund);
         
-        for (const med of medRows.regular) {
-          // Page break check
-          if (y < LAYOUT.marginBottom + 80) {
-            page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
-            y = LAYOUT.pageHeight - LAYOUT.marginTop - 20;
-            y = drawTableHeader(page, y, tableX, fonts, options.includeGrund);
-          }
-          y = drawMedicationRow(page, y, tableX, med, fonts, options.includeGrund);
-          
-          // Add weekday info if present
-          if (med.weekdayInfo) {
-            page.drawText(med.weekdayInfo, { 
-              x: tableX + 6, 
-              y: y + 4, 
-              size: 5.5, 
-              font: helvetica, 
-              color: COLORS.textMuted 
-            });
-          }
+        // Add weekday info if present
+        if (med.weekdayInfo) {
+          page.drawText(med.weekdayInfo, { 
+            x: tableX + 6, 
+            y: y + 4, 
+            size: 5.5, 
+            font: helvetica, 
+            color: COLORS.textMuted 
+          });
         }
       }
-      
-      // Bedarfsmedikation
-      if (medRows.onDemand.length > 0) {
-        y = drawSectionHeader(page, y, tableX, "Bei Bedarf anzuwendende Medikamente (Akutmedikation)", COLORS.sectionBedarf, fonts, options.includeGrund);
-        
-        for (const med of medRows.onDemand) {
-          if (y < LAYOUT.marginBottom + 80) {
-            page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
-            y = LAYOUT.pageHeight - LAYOUT.marginTop - 20;
-            y = drawTableHeader(page, y, tableX, fonts, options.includeGrund);
-          }
-          // Use enhanced as-needed row drawing
-          y = drawAsNeededMedicationRow(page, y, tableX, med, fonts, options.includeGrund);
+    }
+    
+    // Section: Bedarfsmedikation
+    y = drawSectionHeader(page, y, tableX, "Bei Bedarf anzuwendende Medikamente (Akutmedikation)", COLORS.sectionBedarf, fonts, options.includeGrund);
+    
+    if (medRows.onDemand.length === 0) {
+      // Empty state for as-needed meds
+      const emptyRowH = 22;
+      page.drawRectangle({ x: tableX, y: y - emptyRowH, width: effectiveTableWidth, height: emptyRowH, color: COLORS.white });
+      page.drawLine({ start: { x: tableX, y: y - emptyRowH }, end: { x: tableX + effectiveTableWidth, y: y - emptyRowH }, thickness: 0.3, color: COLORS.borderLight });
+      page.drawText("Derzeit keine Medikamente in dieser Kategorie.", { x: tableX + 8, y: y - 14, size: 7, font: helvetica, color: COLORS.textMuted });
+      y -= emptyRowH;
+    } else {
+      for (const med of medRows.onDemand) {
+        if (y < LAYOUT.marginBottom + 80) {
+          page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
+          y = LAYOUT.pageHeight - LAYOUT.marginTop - 20;
+          y = drawTableHeader(page, y, tableX, fonts, options.includeGrund);
         }
+        // Use enhanced as-needed row drawing
+        y = drawAsNeededMedicationRow(page, y, tableX, med, fonts, options.includeGrund);
       }
     }
     
