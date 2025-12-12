@@ -431,12 +431,17 @@ export type Database = {
         Row: {
           created_at: string
           date_time: string
+          follow_up_enabled: boolean
+          follow_up_interval_unit: string | null
+          follow_up_interval_value: number | null
           id: string
           last_popup_date: string | null
           medications: string[] | null
+          next_follow_up_date: string | null
           notes: string | null
           notification_enabled: boolean
           repeat: string
+          series_id: string | null
           status: string
           time_of_day: string | null
           title: string
@@ -447,12 +452,17 @@ export type Database = {
         Insert: {
           created_at?: string
           date_time: string
+          follow_up_enabled?: boolean
+          follow_up_interval_unit?: string | null
+          follow_up_interval_value?: number | null
           id?: string
           last_popup_date?: string | null
           medications?: string[] | null
+          next_follow_up_date?: string | null
           notes?: string | null
           notification_enabled?: boolean
           repeat?: string
+          series_id?: string | null
           status?: string
           time_of_day?: string | null
           title: string
@@ -463,12 +473,17 @@ export type Database = {
         Update: {
           created_at?: string
           date_time?: string
+          follow_up_enabled?: boolean
+          follow_up_interval_unit?: string | null
+          follow_up_interval_value?: number | null
           id?: string
           last_popup_date?: string | null
           medications?: string[] | null
+          next_follow_up_date?: string | null
           notes?: string | null
           notification_enabled?: boolean
           repeat?: string
+          series_id?: string | null
           status?: string
           time_of_day?: string | null
           title?: string

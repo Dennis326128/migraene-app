@@ -22,7 +22,7 @@ import {
   useDeleteReminder,
   useMarkReminderDone,
 } from '@/features/reminders/hooks/useReminders';
-import type { Reminder, CreateReminderInput, UpdateReminderInput } from '@/types/reminder.types';
+import type { Reminder, CreateReminderInput, UpdateReminderInput, ReminderPrefill } from '@/types/reminder.types';
 import { notificationService } from '@/lib/notifications';
 import { toast } from '@/hooks/use-toast';
 
@@ -38,6 +38,7 @@ interface RemindersPageProps {
 export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [editingReminder, setEditingReminder] = useState<Reminder | null>(null);
+  const [prefillData, setPrefillData] = useState<ReminderPrefill | null>(null);
   const [activeTab, setActiveTab] = useState<ActiveTab>('active');
   const [filterType, setFilterType] = useState<FilterType>('all');
   const [rangeFilter, setRangeFilter] = useState<RangeFilter>('all');
@@ -71,59 +72,46 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
   }, [activeReminders, filterType, rangeFilter, activeTab, loadingActive]);
 
   // Intelligente Zeitraum-Auswahl basierend auf vorhandenen Erinnerungen
-  // Standardmäßig "Alle" wenn es überfällige gibt, sonst basierend auf nächsten Terminen
   useEffect(() => {
     if (activeTab === 'active' && activeReminders.length > 0) {
       const now = new Date();
       const startOfToday = new Date(now);
       startOfToday.setHours(0, 0, 0, 0);
       
-      // Prüfen ob es überfällige Erinnerungen gibt
       const hasOverdue = activeReminders.some(r => new Date(r.date_time) < startOfToday);
       
       if (hasOverdue) {
-        // Bei überfälligen immer "Alle" anzeigen, damit nichts versteckt wird
         setRangeFilter('all');
         return;
       }
       
-      // Prüfen, ob es heute Erinnerungen gibt
       const todayEnd = new Date(now);
       todayEnd.setHours(23, 59, 59, 999);
-      const hasToday = activeReminders.some(r => 
-        new Date(r.date_time) <= todayEnd
-      );
+      const hasToday = activeReminders.some(r => new Date(r.date_time) <= todayEnd);
       
       if (hasToday) {
         setRangeFilter('today');
         return;
       }
       
-      // Prüfen, ob es Erinnerungen in den nächsten 7 Tagen gibt
       const in7Days = new Date(now);
       in7Days.setDate(in7Days.getDate() + 7);
-      const has7Days = activeReminders.some(r => 
-        new Date(r.date_time) <= in7Days
-      );
+      const has7Days = activeReminders.some(r => new Date(r.date_time) <= in7Days);
       
       if (has7Days) {
         setRangeFilter('7days');
         return;
       }
       
-      // Prüfen, ob es Erinnerungen in den nächsten 30 Tagen gibt
       const in30Days = new Date(now);
       in30Days.setDate(in30Days.getDate() + 30);
-      const has30Days = activeReminders.some(r => 
-        new Date(r.date_time) <= in30Days
-      );
+      const has30Days = activeReminders.some(r => new Date(r.date_time) <= in30Days);
       
       if (has30Days) {
         setRangeFilter('30days');
         return;
       }
       
-      // Ansonsten alle anzeigen
       setRangeFilter('all');
     }
   }, [activeReminders, activeTab]);
@@ -149,13 +137,10 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
   const getFilteredReminders = () => {
     let reminders = activeTab === 'active' ? activeReminders : historyReminders;
     
-    // Typ-Filter
     if (filterType !== 'all') {
       reminders = reminders.filter(r => r.type === filterType);
     }
     
-    // Zeitraum-Filter (nur für "Aktiv"-Tab)
-    // WICHTIG: Bei "all" keine Datumsfilterung, damit überfällige Erinnerungen sichtbar bleiben
     if (activeTab === 'active' && rangeFilter !== 'all') {
       const now = new Date();
       const startOfToday = new Date(now);
@@ -174,7 +159,6 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
           break;
       }
       
-      // Zeige überfällige Erinnerungen (vor heute) ODER Erinnerungen im gewählten Zeitraum
       reminders = reminders.filter(r => {
         const reminderDate = new Date(r.date_time);
         const isOverdue = reminderDate < startOfToday;
@@ -201,7 +185,21 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
 
   const handleEdit = (reminder: Reminder) => {
     setEditingReminder(reminder);
+    setPrefillData(null);
     setViewMode('form');
+  };
+
+  const handlePlanFollowUp = (prefill: ReminderPrefill) => {
+    setEditingReminder(null);
+    setPrefillData(prefill);
+    setViewMode('form');
+  };
+
+  const handleCreateAnother = (prefill: ReminderPrefill) => {
+    // Reset form to create mode with prefilled data
+    setEditingReminder(null);
+    setPrefillData(prefill);
+    // Form will re-render with new prefill data
   };
 
   const handleMarkDone = async (id: string) => {
@@ -214,6 +212,7 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
         onSuccess: (newReminders) => {
           setViewMode('list');
           setEditingReminder(null);
+          setPrefillData(null);
           if (hasNotificationPermission) {
             newReminders.forEach((reminder) => {
               if (reminder.notification_enabled) {
@@ -228,6 +227,7 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
         onSuccess: (newReminder) => {
           setViewMode('list');
           setEditingReminder(null);
+          setPrefillData(null);
           if (newReminder.notification_enabled && hasNotificationPermission) {
             notificationService.scheduleReminder(newReminder);
           }
@@ -245,6 +245,7 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
         onSuccess: () => {
           setViewMode('list');
           setEditingReminder(null);
+          setPrefillData(null);
         },
       }
     );
@@ -257,6 +258,7 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
       onSuccess: () => {
         setViewMode('list');
         setEditingReminder(null);
+        setPrefillData(null);
       },
     });
   };
@@ -264,6 +266,7 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
   const handleCancel = () => {
     setViewMode('list');
     setEditingReminder(null);
+    setPrefillData(null);
   };
 
   const getRangeLabel = () => {
@@ -316,10 +319,12 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
   if (viewMode === 'form') {
     return (
       <ReminderForm
-        reminder={editingReminder}
+        reminder={editingReminder || undefined}
+        prefill={prefillData || undefined}
         onSubmit={editingReminder ? handleUpdate : handleCreate}
         onCancel={handleCancel}
         onDelete={editingReminder ? handleDelete : undefined}
+        onCreateAnother={handleCreateAnother}
       />
     );
   }
@@ -334,7 +339,11 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
       <div className="container mx-auto px-4 pb-6">
         <div className="mb-6">
           <Button
-            onClick={() => setViewMode('form')}
+            onClick={() => {
+              setPrefillData(null);
+              setEditingReminder(null);
+              setViewMode('form');
+            }}
             className="w-full touch-manipulation min-h-14 text-lg font-semibold shadow-md"
             size="lg"
           >
@@ -421,6 +430,7 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
                     reminder={reminder}
                     onEdit={handleEdit}
                     onMarkDone={handleMarkDone}
+                    onPlanFollowUp={handlePlanFollowUp}
                   />
                 ))}
               </div>
@@ -475,6 +485,7 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
                     reminder={reminder}
                     onEdit={handleEdit}
                     onMarkDone={handleMarkDone}
+                    onPlanFollowUp={handlePlanFollowUp}
                   />
                 ))}
               </div>

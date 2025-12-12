@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -15,11 +15,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import type { Reminder, CreateReminderInput, UpdateReminderInput } from '@/types/reminder.types';
+import type { Reminder, CreateReminderInput, UpdateReminderInput, ReminderPrefill } from '@/types/reminder.types';
 import { format } from 'date-fns';
-import { ArrowLeft, Clock, Plus, X } from 'lucide-react';
+import { ArrowLeft, Clock, Plus, X, CalendarPlus, Info } from 'lucide-react';
 import { MedicationSelector } from './MedicationSelector';
 import { TimeOfDaySelector, getDefaultTimeSlots, type TimeSlot } from './TimeOfDaySelector';
+import { cloneReminderForCreate, generateSeriesId } from '@/features/reminders/helpers/reminderHelpers';
 
 const reminderSchema = z.object({
   type: z.enum(['medication', 'appointment']),
@@ -29,16 +30,18 @@ const reminderSchema = z.object({
   repeat: z.enum(['none', 'daily', 'weekly', 'monthly']),
   notes: z.string().optional(),
   notification_enabled: z.boolean(),
-  status: z.enum(['pending', 'done', 'missed', 'cancelled']).optional(),
+  status: z.enum(['pending', 'done', 'missed', 'cancelled', 'processing', 'completed', 'failed']).optional(),
 });
 
 type FormData = z.infer<typeof reminderSchema>;
 
 interface ReminderFormProps {
   reminder?: Reminder;
+  prefill?: ReminderPrefill;
   onSubmit: (data: CreateReminderInput | CreateReminderInput[] | UpdateReminderInput) => void;
   onCancel: () => void;
   onDelete?: () => void;
+  onCreateAnother?: (prefill: ReminderPrefill) => void;
 }
 
 // Intelligente Standard-Uhrzeiten für zusätzliche Zeitslots
@@ -47,9 +50,13 @@ const getDefaultTimeForSlot = (index: number): string => {
   return defaultTimes[index] || '12:00';
 };
 
-export const ReminderForm = ({ reminder, onSubmit, onCancel, onDelete }: ReminderFormProps) => {
+export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, onCreateAnother }: ReminderFormProps) => {
   const isEditing = !!reminder;
-  const [selectedMedications, setSelectedMedications] = useState<string[]>(reminder?.medications || []);
+  const dateInputRef = useRef<HTMLInputElement>(null);
+  
+  const [selectedMedications, setSelectedMedications] = useState<string[]>(
+    reminder?.medications || prefill?.medications || []
+  );
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>(() => {
     if (reminder && reminder.time_of_day) {
       const slots = getDefaultTimeSlots();
@@ -62,13 +69,34 @@ export const ReminderForm = ({ reminder, onSubmit, onCancel, onDelete }: Reminde
     return getDefaultTimeSlots();
   });
 
-  // Dynamische Uhrzeiten (max 4)
+  // Dynamische Uhrzeiten (max 4 für medication, max 1 für appointment)
   const [times, setTimes] = useState<string[]>(() => {
     if (reminder) {
       return [format(new Date(reminder.date_time), 'HH:mm')];
     }
     return [format(new Date(), 'HH:mm')];
   });
+
+  // Follow-up settings for appointments
+  const [followUpEnabled, setFollowUpEnabled] = useState(
+    (reminder as any)?.follow_up_enabled || prefill?.follow_up_enabled || false
+  );
+  const [followUpValue, setFollowUpValue] = useState<number>(
+    (reminder as any)?.follow_up_interval_value || prefill?.follow_up_interval_value || 3
+  );
+  const [followUpUnit, setFollowUpUnit] = useState<'weeks' | 'months'>(
+    (reminder as any)?.follow_up_interval_unit || prefill?.follow_up_interval_unit || 'months'
+  );
+  const [seriesId, setSeriesId] = useState<string | undefined>(
+    (reminder as any)?.series_id || prefill?.series_id
+  );
+
+  // Focus date input when prefill mode (for "Weiteren Termin anlegen")
+  useEffect(() => {
+    if (prefill && !prefill.prefill_date && dateInputRef.current) {
+      setTimeout(() => dateInputRef.current?.focus(), 100);
+    }
+  }, [prefill]);
 
   const handleAddTime = () => {
     if (times.length < 4) {
@@ -100,6 +128,16 @@ export const ReminderForm = ({ reminder, onSubmit, onCancel, onDelete }: Reminde
         notification_enabled: reminder.notification_enabled,
         status: reminder.status,
       }
+    : prefill
+    ? {
+        type: prefill.type,
+        title: prefill.title,
+        date: prefill.prefill_date || '',
+        time: '',
+        repeat: prefill.repeat || 'none',
+        notes: prefill.notes || '',
+        notification_enabled: prefill.notification_enabled ?? true,
+      }
     : {
         type: 'medication',
         title: '',
@@ -120,12 +158,72 @@ export const ReminderForm = ({ reminder, onSubmit, onCancel, onDelete }: Reminde
   const type = watch('type');
   const notificationEnabled = watch('notification_enabled');
   const repeat = watch('repeat');
+  const dateValue = watch('date');
 
   const isMedicationType = type === 'medication';
+  const isAppointmentType = type === 'appointment';
   const enabledTimeSlots = timeSlots.filter(slot => slot.enabled);
   const useMultipleTimeSlots = isMedicationType && repeat === 'daily' && enabledTimeSlots.length > 0;
 
+  // For appointments, limit to 1 time
+  const maxTimes = isAppointmentType ? 1 : 4;
+
+  const handleCreateAnotherAppointment = () => {
+    if (!onCreateAnother) return;
+
+    const currentFormState = {
+      type: type as 'medication' | 'appointment',
+      title: watch('title'),
+      notes: watch('notes') || '',
+      notification_enabled: notificationEnabled,
+      repeat: repeat as any,
+      medications: selectedMedications,
+      follow_up_enabled: followUpEnabled,
+      follow_up_interval_value: followUpValue,
+      follow_up_interval_unit: followUpUnit,
+      series_id: seriesId || generateSeriesId(),
+    };
+
+    const cloned = cloneReminderForCreate(
+      { ...currentFormState, date: dateValue, times } as any,
+      { clearDateTime: true, preserveSeriesId: true }
+    );
+
+    onCreateAnother({
+      type: cloned.type || 'appointment',
+      title: cloned.title || '',
+      notes: cloned.notes,
+      notification_enabled: cloned.notification_enabled,
+      medications: cloned.medications,
+      repeat: cloned.repeat,
+      follow_up_enabled: cloned.follow_up_enabled,
+      follow_up_interval_value: cloned.follow_up_interval_value,
+      follow_up_interval_unit: cloned.follow_up_interval_unit,
+      series_id: cloned.series_id,
+    });
+  };
+
   const onFormSubmit = (data: FormData) => {
+    // Calculate next_follow_up_date for appointments
+    let next_follow_up_date: string | undefined;
+    let finalSeriesId = seriesId;
+
+    if (isAppointmentType && followUpEnabled && followUpValue && followUpUnit && data.date) {
+      const baseDate = new Date(data.date);
+      if (followUpUnit === 'weeks') {
+        baseDate.setDate(baseDate.getDate() + followUpValue * 7);
+      } else {
+        baseDate.setMonth(baseDate.getMonth() + followUpValue);
+      }
+      next_follow_up_date = format(baseDate, 'yyyy-MM-dd');
+      
+      // Generate series_id if not exists
+      if (!finalSeriesId) {
+        finalSeriesId = generateSeriesId();
+        setSeriesId(finalSeriesId);
+      }
+    }
+
     // For editing, use single reminder
     if (isEditing) {
       const dateTime = `${data.date}T${times[0]}:00`;
@@ -135,10 +233,18 @@ export const ReminderForm = ({ reminder, onSubmit, onCancel, onDelete }: Reminde
         title: data.title,
         date_time: dateTime,
         repeat: data.repeat,
-        notes: data.notes || null,
+        notes: data.notes || undefined,
         notification_enabled: data.notification_enabled,
         ...(isMedicationType && selectedMedications.length > 0 ? { medications: selectedMedications } : {}),
         ...(data.status ? { status: data.status } : {}),
+        // Follow-up fields for appointments
+        ...(isAppointmentType ? {
+          follow_up_enabled: followUpEnabled,
+          follow_up_interval_value: followUpEnabled ? followUpValue : undefined,
+          follow_up_interval_unit: followUpEnabled ? followUpUnit : undefined,
+          next_follow_up_date: next_follow_up_date,
+          series_id: finalSeriesId,
+        } : {}),
       };
 
       onSubmit(submitData);
@@ -156,7 +262,7 @@ export const ReminderForm = ({ reminder, onSubmit, onCancel, onDelete }: Reminde
           title: `${medsList} (${slot.label})`,
           date_time: dateTime,
           repeat: data.repeat,
-          notes: data.notes || null,
+          notes: data.notes || undefined,
           notification_enabled: data.notification_enabled,
           medications: selectedMedications,
           time_of_day: slot.timeOfDay,
@@ -176,14 +282,22 @@ export const ReminderForm = ({ reminder, onSubmit, onCancel, onDelete }: Reminde
         title: data.title,
         date_time: dateTime,
         repeat: data.repeat,
-        notes: data.notes || null,
+        notes: data.notes || undefined,
         notification_enabled: data.notification_enabled,
         ...(isMedicationType && selectedMedications.length > 0 ? { medications: selectedMedications } : {}),
+        // Follow-up fields for appointments
+        ...(isAppointmentType ? {
+          follow_up_enabled: followUpEnabled,
+          follow_up_interval_value: followUpEnabled ? followUpValue : undefined,
+          follow_up_interval_unit: followUpEnabled ? followUpUnit : undefined,
+          next_follow_up_date: next_follow_up_date,
+          series_id: finalSeriesId,
+        } : {}),
       };
 
       onSubmit(submitData);
     } else {
-      // Multiple times -> create multiple reminders
+      // Multiple times -> create multiple reminders (medication only)
       const reminders: CreateReminderInput[] = times.map((time, index) => {
         const dateTime = `${data.date}T${time}:00`;
         
@@ -192,7 +306,7 @@ export const ReminderForm = ({ reminder, onSubmit, onCancel, onDelete }: Reminde
           title: times.length > 1 ? `${data.title} (${index + 1})` : data.title,
           date_time: dateTime,
           repeat: data.repeat,
-          notes: data.notes || null,
+          notes: data.notes || undefined,
           notification_enabled: data.notification_enabled,
           ...(isMedicationType && selectedMedications.length > 0 ? { medications: selectedMedications } : {}),
         };
@@ -201,6 +315,9 @@ export const ReminderForm = ({ reminder, onSubmit, onCancel, onDelete }: Reminde
       onSubmit(reminders);
     }
   };
+
+  // Show "Weiteren Termin anlegen" button for appointments when date is set
+  const canCreateAnother = isAppointmentType && dateValue && onCreateAnother;
 
   return (
     <div className="px-3 sm:px-4 py-4 sm:py-6 pb-safe">
@@ -216,7 +333,7 @@ export const ReminderForm = ({ reminder, onSubmit, onCancel, onDelete }: Reminde
         </Button>
         
         <h1 className="text-2xl font-bold text-foreground">
-          {isEditing ? 'Erinnerung bearbeiten' : 'Neue Erinnerung'}
+          {isEditing ? 'Erinnerung bearbeiten' : prefill ? 'Folgetermin anlegen' : 'Neue Erinnerung'}
         </h1>
       </div>
 
@@ -272,6 +389,7 @@ export const ReminderForm = ({ reminder, onSubmit, onCancel, onDelete }: Reminde
                   id="date"
                   type="date"
                   {...register('date')}
+                  ref={dateInputRef}
                   className="touch-manipulation"
                 />
                 {errors.date && (
@@ -308,7 +426,7 @@ export const ReminderForm = ({ reminder, onSubmit, onCancel, onDelete }: Reminde
                   ))}
                 </div>
 
-                {times.length < 4 && (
+                {times.length < maxTimes && isMedicationType && (
                   <Button
                     type="button"
                     variant="outline"
@@ -317,7 +435,7 @@ export const ReminderForm = ({ reminder, onSubmit, onCancel, onDelete }: Reminde
                     className="w-full touch-manipulation"
                   >
                     <Plus className="h-4 w-4 mr-2" />
-                    Uhrzeit hinzufügen ({times.length}/4)
+                    Uhrzeit hinzufügen ({times.length}/{maxTimes})
                   </Button>
                 )}
 
@@ -348,23 +466,93 @@ export const ReminderForm = ({ reminder, onSubmit, onCancel, onDelete }: Reminde
             </div>
           )}
 
-          <div className="space-y-2">
-            <Label htmlFor="repeat">Wiederholung</Label>
-            <Select
-              value={repeat}
-              onValueChange={(value) => setValue('repeat', value as any)}
+          {/* Repeat dropdown - hidden for appointments */}
+          {isMedicationType && (
+            <div className="space-y-2">
+              <Label htmlFor="repeat">Wiederholung</Label>
+              <Select
+                value={repeat}
+                onValueChange={(value) => setValue('repeat', value as any)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Keine</SelectItem>
+                  <SelectItem value="daily">Täglich</SelectItem>
+                  <SelectItem value="weekly">Wöchentlich</SelectItem>
+                  <SelectItem value="monthly">Monatlich</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* Follow-up section for appointments */}
+          {isAppointmentType && (
+            <div className="space-y-4 p-4 bg-muted/50 rounded-lg border">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="follow-up" className="cursor-pointer font-medium">
+                    Folgetermin vorschlagen
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Erinnerung für den nächsten Termin
+                  </p>
+                </div>
+                <Switch
+                  id="follow-up"
+                  checked={followUpEnabled}
+                  onCheckedChange={setFollowUpEnabled}
+                />
+              </div>
+
+              {followUpEnabled && (
+                <div className="flex items-center gap-2 pt-2">
+                  <span className="text-sm text-muted-foreground whitespace-nowrap">Nach</span>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={24}
+                    value={followUpValue}
+                    onChange={(e) => setFollowUpValue(parseInt(e.target.value) || 3)}
+                    className="w-20 touch-manipulation"
+                  />
+                  <Select
+                    value={followUpUnit}
+                    onValueChange={(v) => setFollowUpUnit(v as 'weeks' | 'months')}
+                  >
+                    <SelectTrigger className="w-28">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="weeks">Wochen</SelectItem>
+                      <SelectItem value="months">Monaten</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {followUpEnabled && (
+                <div className="flex items-start gap-2 text-xs text-muted-foreground bg-background/50 p-2 rounded">
+                  <Info className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                  <span>Du wählst Datum und Uhrzeit für jeden Folgetermin individuell.</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* "Weiteren Termin anlegen" button */}
+          {canCreateAnother && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleCreateAnotherAppointment}
+              className="w-full touch-manipulation gap-2"
             >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Keine</SelectItem>
-                <SelectItem value="daily">Täglich</SelectItem>
-                <SelectItem value="weekly">Wöchentlich</SelectItem>
-                <SelectItem value="monthly">Monatlich</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+              <CalendarPlus className="h-4 w-4" />
+              Weiteren Termin anlegen
+            </Button>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="notes">Notizen (optional)</Label>
