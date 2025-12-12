@@ -160,12 +160,12 @@ export type BuildMedicationPlanParams = {
   options?: Partial<PdfExportOptions>;
 };
 
-// Default export options
+// Default export options - limits are always included automatically
 const DEFAULT_OPTIONS: PdfExportOptions = {
   includeActive: true,
   includeInactive: false,
   includeIntolerance: true,
-  includeLimits: false,
+  includeLimits: true, // Limits werden IMMER automatisch angezeigt
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -380,6 +380,8 @@ type MedRow = {
   discontinuationReason: string;
   asNeededDoseText: string;
   weekdayInfo: string;
+  // Inline limit info
+  limitText: string;
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -388,7 +390,8 @@ type MedRow = {
 
 function buildMedicationRows(
   userMedications: UserMedicationForPlan[],
-  medicationCourses: MedicationCourseForPlan[]
+  medicationCourses: MedicationCourseForPlan[],
+  medicationLimits: Array<{ medication_name: string; limit_count: number; period_type: string }> = []
 ): {
   regular: MedRow[];
   onDemand: MedRow[];
@@ -408,6 +411,12 @@ function buildMedicationRows(
       coursesByMedId.set(course.medication_id, course);
     }
     coursesByName.set(course.medication_name.toLowerCase(), course);
+  }
+
+  // Create a map of limits by medication name
+  const limitsMap = new Map<string, { limit: number; period: string }>();
+  for (const l of medicationLimits) {
+    limitsMap.set(l.medication_name.toLowerCase(), { limit: l.limit_count, period: l.period_type });
   }
 
   for (const med of userMedications) {
@@ -451,6 +460,13 @@ function buildMedicationRows(
     // Clean handelsname to remove duplicate strength
     const cleanedHandelsname = cleanHandelsname(med.name);
 
+    // Build limit text for this medication
+    const limitInfo = limitsMap.get(med.name.toLowerCase());
+    let limitText = "";
+    if (limitInfo) {
+      limitText = `Maximal: ${limitInfo.limit}x pro ${getPeriodLabel(limitInfo.period)}`;
+    }
+
     const row: MedRow = {
       wirkstoff: sanitize(derivedWirkstoff),
       handelsname: sanitize(cleanedHandelsname),
@@ -470,6 +486,7 @@ function buildMedicationRows(
       discontinuationReason: getDiscontinuationReasonLabel(course?.discontinuation_reason),
       asNeededDoseText: sanitize(asNeededDoseText),
       weekdayInfo: sanitize(weekdayInfo),
+      limitText: sanitize(limitText),
     };
 
     // Categorize based on status
@@ -599,7 +616,13 @@ function drawMedicationRow(
 ): number {
   const { helvetica, helveticaBold } = fonts;
   const fs = 7;
-  const rowHeight = 22;
+  const fsSmall = 6; // Smaller font for limit text
+  
+  // Calculate dynamic row height based on content
+  const hasLimit = med.limitText && med.limitText.length > 0;
+  const baseRowHeight = 22;
+  const limitRowHeight = hasLimit ? 12 : 0;
+  const rowHeight = baseRowHeight + limitRowHeight;
   
   // Row background
   page.drawRectangle({
@@ -646,6 +669,19 @@ function drawMedicationRow(
   // Einheit
   page.drawText(truncateText(med.einheit, 8), { x: cx + 2, y: textY, size: fs, font: helvetica, color: COLORS.text });
   
+  // Draw limit text in a second line if present
+  if (hasLimit) {
+    const limitY = y - baseRowHeight - 2;
+    const limitX = tableX + COL_WIDTHS.wirkstoff + COL_WIDTHS.handelsname + COL_WIDTHS.staerke + COL_WIDTHS.form + 6;
+    page.drawText(med.limitText, { 
+      x: limitX, 
+      y: limitY, 
+      size: fsSmall, 
+      font: helvetica, 
+      color: COLORS.textMuted 
+    });
+  }
+  
   return y - rowHeight;
 }
 
@@ -661,9 +697,14 @@ function drawAsNeededMedicationRow(
 ): number {
   const { helvetica, helveticaBold } = fonts;
   const fs = 7;
+  const fsSmall = 6;
   
-  // Calculate dynamic row height
-  const rowHeight = med.asNeededDoseText ? 30 : 22;
+  // Calculate dynamic row height based on content
+  const hasLimit = med.limitText && med.limitText.length > 0;
+  const hasDoseText = med.asNeededDoseText && med.asNeededDoseText.length > 0;
+  const baseRowHeight = hasDoseText ? 30 : 22;
+  const limitRowHeight = hasLimit ? 12 : 0;
+  const rowHeight = baseRowHeight + limitRowHeight;
   
   // Row background
   page.drawRectangle({
@@ -701,7 +742,7 @@ function drawAsNeededMedicationRow(
   page.drawText("b.B.", { x: cx + 3, y: textY, size: fs, font: helvetica, color: COLORS.text });
   
   // Show structured dose text below if available
-  if (med.asNeededDoseText) {
+  if (hasDoseText) {
     const doseTextX = cx + COL_WIDTHS.mo;
     const doseWidth = COL_WIDTHS.mi + COL_WIDTHS.ab + COL_WIDTHS.na + COL_WIDTHS.einheit;
     // Wrap dose text if needed
@@ -714,6 +755,19 @@ function drawAsNeededMedicationRow(
         font: helvetica, 
         color: COLORS.textMuted 
       });
+    });
+  }
+  
+  // Draw limit text in a separate line if present
+  if (hasLimit) {
+    const limitY = y - baseRowHeight - 2;
+    const limitX = tableX + COL_WIDTHS.wirkstoff + COL_WIDTHS.handelsname + COL_WIDTHS.staerke + COL_WIDTHS.form + 6;
+    page.drawText(med.limitText, { 
+      x: limitX, 
+      y: limitY, 
+      size: fsSmall, 
+      font: helvetica, 
+      color: COLORS.textMuted 
     });
   }
   
@@ -748,13 +802,8 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
   const creationDate = formatDate(new Date().toISOString());
   
   // Build categorized medication rows (PRIMARY from user_medications)
-  const medRows = buildMedicationRows(userMedications, medicationCourses);
-  
-  // Build limits map
-  const limitsMap = new Map<string, { limit: number; period: string }>();
-  for (const l of medicationLimits) {
-    limitsMap.set(l.medication_name.toLowerCase(), { limit: l.limit_count, period: l.period_type });
-  }
+  // Limits are now passed to buildMedicationRows and displayed inline
+  const medRows = buildMedicationRows(userMedications, medicationCourses, medicationLimits);
   
   // ═══════════════════════════════════════════════════════════════════════════
   // HEADER - BMP-STYLE
@@ -1015,33 +1064,7 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
     }
   }
   
-  // ═══════════════════════════════════════════════════════════════════════════
-  // MEDICATION LIMITS (if enabled)
-  // ═══════════════════════════════════════════════════════════════════════════
-  
-  if (options.includeLimits && medicationLimits.length > 0) {
-    y -= 16;
-    
-    if (y < LAYOUT.marginBottom + 80) {
-      page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
-      y = LAYOUT.pageHeight - LAYOUT.marginTop - 20;
-    }
-    
-    page.drawText("EINNAHME-LIMITS (Uebergebrauch vermeiden)", {
-      x: tableX,
-      y,
-      size: 8,
-      font: helveticaBold,
-      color: COLORS.textMuted,
-    });
-    y -= 12;
-    
-    for (const limit of medicationLimits) {
-      const line = `- ${limit.medication_name}: max. ${limit.limit_count}x pro ${getPeriodLabel(limit.period_type)}`;
-      page.drawText(sanitize(line), { x: tableX + 4, y, size: 7, font: helvetica, color: COLORS.textMuted });
-      y -= 11;
-    }
-  }
+  // Limits are now shown inline with each medication (no separate section needed)
   
   // ═══════════════════════════════════════════════════════════════════════════
   // FOOTER ON ALL PAGES
