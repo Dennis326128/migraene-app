@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ChevronRight, Clock, Activity } from 'lucide-react';
+import { ChevronRight, Clock } from 'lucide-react';
 import { getEffectLabel, getEffectEmoji, getEffectiveScore } from '@/lib/utils/medicationEffects';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { MedicationEffectSlider } from '@/components/ui/medication-effect-slider';
+import { normalizePainLevel } from '@/lib/utils/pain';
 import type { RecentMedicationEntry, MedicationEffect } from '../api/medicationEffects.api';
 
 interface RatedEffectCardProps {
@@ -13,10 +14,51 @@ interface RatedEffectCardProps {
   effect: MedicationEffect;
 }
 
+/** Format date/time to German format: "12.12.2025, 12:05 Uhr" */
+function formatGermanDateTime(date: string | null, time: string | null): string {
+  if (!date) return '';
+  
+  // Parse date (expected: YYYY-MM-DD)
+  const [year, month, day] = date.split('-');
+  const formattedDate = `${day}.${month}.${year}`;
+  
+  // Format time without seconds
+  let formattedTime = '';
+  if (time) {
+    const timeParts = time.split(':');
+    formattedTime = `${timeParts[0]}:${timeParts[1]}`;
+  }
+  
+  return formattedTime ? `${formattedDate}, ${formattedTime} Uhr` : formattedDate;
+}
+
+/** Get pain severity level for color coding */
+function getPainSeverityLevel(score: number): 'mild' | 'moderate' | 'severe' {
+  if (score <= 3) return 'mild';
+  if (score <= 6) return 'moderate';
+  return 'severe';
+}
+
+/** Get pain badge classes based on severity */
+function getPainBadgeClasses(level: 'mild' | 'moderate' | 'severe'): string {
+  switch (level) {
+    case 'mild':
+      return 'bg-emerald-800 text-emerald-50 border-emerald-700';
+    case 'moderate':
+      return 'bg-amber-800 text-amber-50 border-amber-700';
+    case 'severe':
+      return 'bg-rose-800 text-rose-50 border-rose-700';
+  }
+}
+
 export function RatedEffectCard({ entry, effect }: RatedEffectCardProps) {
   const [detailsOpen, setDetailsOpen] = useState(false);
   // Get score from effect_score or convert from effect_rating for backwards compatibility
   const effectScore = getEffectiveScore(effect.effect_score, effect.effect_rating);
+  
+  // Normalize pain level to numeric (0-10)
+  const painScore = normalizePainLevel(entry.pain_level);
+  const painSeverity = getPainSeverityLevel(painScore);
 
   return (
     <>
@@ -24,27 +66,30 @@ export function RatedEffectCard({ entry, effect }: RatedEffectCardProps) {
         className="p-3 cursor-pointer hover:bg-muted/50 transition-colors"
         onClick={() => setDetailsOpen(true)}
       >
-          <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="font-medium truncate">💊 {effect.med_name}</span>
+            {/* Row 1: Medication Name */}
+            <div className="font-medium truncate mb-1.5">💊 {effect.med_name}</div>
+            
+            {/* Row 2: Effect Badge + Pain Badge side by side */}
+            <div className="flex flex-wrap items-center gap-2 mb-2">
               <Badge 
                 variant={effectScore !== null && effectScore >= 7 ? 'default' : 'secondary'}
                 className="text-xs shrink-0"
               >
                 {getEffectEmoji(effectScore)} {getEffectLabel(effectScore)}
               </Badge>
+              <Badge 
+                className={`text-xs shrink-0 border ${getPainBadgeClasses(painSeverity)}`}
+              >
+                Schmerz {painScore}/10
+              </Badge>
             </div>
             
-            <div className="flex items-center gap-3 text-xs text-muted-foreground">
-              <div className="flex items-center gap-1">
-                <Clock className="w-3 h-3" />
-                {entry.selected_date} um {entry.selected_time}
-              </div>
-              <Badge variant="outline" className="text-xs h-5">
-                <Activity className="w-3 h-3 mr-1" />
-                Schmerz: {entry.pain_level}
-              </Badge>
+            {/* Row 3: Date/Time */}
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Clock className="w-3 h-3" />
+              {formatGermanDateTime(entry.selected_date, entry.selected_time)}
             </div>
           </div>
 
@@ -66,10 +111,13 @@ export function RatedEffectCard({ entry, effect }: RatedEffectCardProps) {
             <Card className="p-3 bg-muted/50">
               <div className="text-sm">
                 <div className="font-medium">
-                  {entry.selected_date} um {entry.selected_time}
+                  {formatGermanDateTime(entry.selected_date, entry.selected_time)}
                 </div>
-                <div className="text-muted-foreground">
-                  Schmerzstärke: {entry.pain_level}
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-muted-foreground">Schmerzstärke:</span>
+                  <Badge className={`text-xs ${getPainBadgeClasses(painSeverity)}`}>
+                    {painScore}/10
+                  </Badge>
                 </div>
               </div>
             </Card>
@@ -113,7 +161,7 @@ export function RatedEffectCard({ entry, effect }: RatedEffectCardProps) {
 
             {/* Metadata */}
             <div className="pt-2 border-t text-xs text-muted-foreground space-y-1">
-              <div>Erfasst: {new Date(effect.created_at).toLocaleDateString('de-DE')} um {new Date(effect.created_at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</div>
+              <div>Erfasst: {new Date(effect.created_at).toLocaleDateString('de-DE')} um {new Date(effect.created_at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr</div>
               <div>Eingabeart: {effect.method === 'voice' ? '🎤 Sprache' : '✍️ Manuell'}</div>
             </div>
 
