@@ -38,6 +38,19 @@ export function AnalysisView({ onBack, onNavigateToLimits }: AnalysisViewProps) 
   const [timeDistributionFullscreen, setTimeDistributionFullscreen] = useState(false);
   const [timeSeriesFullscreen, setTimeSeriesFullscreen] = useState(false);
 
+  // Handle time range change with smart defaults for custom range
+  const handleTimeRangeChange = (newRange: "3m" | "6m" | "12m" | "all" | "custom") => {
+    if (newRange === "custom") {
+      // Set sensible defaults: end = today, start = today - 3 months
+      const now = new Date();
+      const today = now.toISOString().split('T')[0];
+      const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+      setCustomTo(today);
+      setCustomFrom(threeMonthsAgo.toISOString().split('T')[0]);
+    }
+    setTimeRange(newRange);
+  };
+
   // Load entries for the "alle" option calculation (limited for performance)
   const entriesLimit = timeRange === "all" ? 5000 : 1000;
   const { data: allEntries = [], isLoading: entriesLoading, error: entriesError, refetch } = useEntries({ limit: entriesLimit });
@@ -159,7 +172,7 @@ export function AnalysisView({ onBack, onNavigateToLimits }: AnalysisViewProps) 
               <CardContent>
                 <TimeRangeButtons 
                   value={timeRange}
-                  onChange={setTimeRange}
+                  onChange={handleTimeRangeChange}
                 />
                 {timeRange === "custom" && (
                   <div className="grid grid-cols-2 gap-4 mt-4">
