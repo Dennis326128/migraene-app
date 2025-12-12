@@ -29,7 +29,6 @@ export const MedicationPlanExportDialog = ({
     includeInactive: false,
     includeIntolerance: true,
     includeLimits: false,
-    includeGrund: true,
   });
 
   const handleExport = async () => {
@@ -138,23 +137,6 @@ export const MedicationPlanExportDialog = ({
               </div>
             </div>
           )}
-
-          {/* Anwendungsgrund */}
-          <div className="flex items-start space-x-3 p-3 rounded-lg border">
-            <Checkbox
-              id="includeGrund"
-              checked={options.includeGrund}
-              onCheckedChange={(checked) => updateOption("includeGrund", !!checked)}
-            />
-            <div className="grid gap-1 leading-none">
-              <Label htmlFor="includeGrund" className="font-medium cursor-pointer">
-                Anwendungsgrund anzeigen
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                Spalte "Grund" in der Tabelle
-              </p>
-            </div>
-          </div>
         </div>
 
         <DialogFooter className="gap-2">
