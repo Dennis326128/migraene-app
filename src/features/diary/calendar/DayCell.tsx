@@ -23,17 +23,13 @@ export const DayCell: React.FC<DayCellProps> = ({
   const dayNumber = date.getDate();
   const today = isToday(date);
   const hasEntries = entryCount > 0;
-  const hasMultiple = entryCount > 1;
+  const hasPainData = hasEntries && maxPain !== null;
   
-  // Determine background color
-  const bgColor = hasEntries 
-    ? getColorForPain(maxPain)
-    : 'transparent';
+  // Get marker color for pain level
+  const markerColor = hasPainData ? getColorForPain(maxPain) : undefined;
   
-  // Text color for contrast
-  const textColor = hasEntries && maxPain !== null
-    ? 'text-white'
-    : 'text-muted-foreground';
+  // Determine if severe pain (for subtle glow effect)
+  const isSevere = maxPain !== null && maxPain >= 9;
   
   const tooltipText = hasEntries
     ? maxPain !== null 
@@ -49,27 +45,51 @@ export const DayCell: React.FC<DayCellProps> = ({
             onClick={onClick}
             disabled={!hasEntries}
             className={cn(
-              "relative aspect-square w-full rounded-md text-xs font-medium",
-              "flex items-center justify-center",
-              "transition-all duration-200",
-              "touch-manipulation",
-              isCurrentMonth ? 'opacity-100' : 'opacity-40',
-              today && 'ring-2 ring-primary ring-offset-1 ring-offset-background',
-              hasEntries && 'cursor-pointer hover:scale-105 active:scale-95',
-              !hasEntries && 'cursor-default bg-muted/10',
-              textColor
+              "relative flex flex-col items-center justify-center",
+              "h-10 w-full min-w-[36px]",
+              "text-sm font-medium",
+              "transition-all duration-150",
+              "touch-manipulation rounded-md",
+              // Base state
+              isCurrentMonth ? 'text-foreground' : 'text-muted-foreground/50',
+              // Today marker - circle/ring around the number
+              today && 'ring-2 ring-primary ring-offset-1 ring-offset-background rounded-full',
+              // Clickable state
+              hasEntries && 'cursor-pointer hover:bg-accent/10 active:scale-95',
+              !hasEntries && 'cursor-default'
             )}
-            style={{
-              backgroundColor: hasEntries ? bgColor : undefined
-            }}
           >
-            {dayNumber}
+            {/* Day number */}
+            <span className={cn(
+              "leading-none",
+              today && "font-semibold text-primary"
+            )}>
+              {dayNumber}
+            </span>
             
-            {/* Multiple entries indicator */}
-            {hasMultiple && (
-              <span className="absolute -top-0.5 -right-0.5 flex h-3 w-3 items-center justify-center rounded-full bg-background text-[8px] font-bold text-foreground shadow-sm border border-border">
-                {entryCount > 9 ? '9+' : entryCount}
-              </span>
+            {/* Pain marker dot/pill under the number */}
+            {hasEntries && (
+              <div className="flex items-center gap-0.5 mt-0.5">
+                {/* Main pain marker */}
+                <div 
+                  className={cn(
+                    "rounded-full transition-all",
+                    hasPainData ? "w-1.5 h-1.5" : "w-1.5 h-1.5 bg-muted-foreground/40",
+                    isSevere && "w-2 h-2 shadow-sm"
+                  )}
+                  style={hasPainData ? { 
+                    backgroundColor: markerColor,
+                    boxShadow: isSevere ? `0 0 4px ${markerColor}` : undefined
+                  } : undefined}
+                />
+                
+                {/* Entry count indicator (for multiple entries) */}
+                {entryCount > 1 && (
+                  <span className="text-[8px] text-muted-foreground font-medium leading-none">
+                    {entryCount > 9 ? '9+' : entryCount}
+                  </span>
+                )}
+              </div>
             )}
           </button>
         </TooltipTrigger>

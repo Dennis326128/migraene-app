@@ -1,12 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { MonthGrid } from './MonthGrid';
 import { CalendarLegend } from './CalendarLegend';
 import { DayDetailSheet } from './DayDetailSheet';
 import { useCalendarPainSummary, type DaySummary } from './useCalendarPainSummary';
 import { Button } from '@/components/ui/button';
 import { ChevronUp, Loader2 } from 'lucide-react';
-import { startOfMonth, subMonths, isBefore, parseISO, isAfter } from 'date-fns';
-import { cn } from '@/lib/utils';
+import { startOfMonth, subMonths, isBefore, parseISO, isSameMonth } from 'date-fns';
 
 interface CalendarViewProps {
   onEntryClick?: (entryId: number) => void;
@@ -28,7 +27,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ onEntryClick }) => {
     entries: DaySummary['entries'];
   } | null>(null);
   
-  // Generate months to display
+  // Refs for scrolling to current month
+  const currentMonthRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const hasScrolledRef = useRef(false);
+  
+  // Generate months to display - chronological order (oldest first)
   const monthsToDisplay = useMemo(() => {
     const now = new Date();
     const months: Date[] = [];
@@ -47,8 +51,23 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ onEntryClick }) => {
       months.push(month);
     }
     
-    return months;
+    // Reverse to get chronological order (oldest first, newest last)
+    return months.reverse();
   }, [loadedMonths, earliestDate]);
+  
+  // Find current month index for ref assignment
+  const currentMonthIndex = useMemo(() => {
+    const now = new Date();
+    return monthsToDisplay.findIndex(month => isSameMonth(month, now));
+  }, [monthsToDisplay]);
+  
+  // Scroll to current month on initial load
+  useEffect(() => {
+    if (!isLoading && monthsToDisplay.length > 0 && !hasScrolledRef.current && currentMonthRef.current) {
+      currentMonthRef.current.scrollIntoView({ behavior: 'auto', block: 'start' });
+      hasScrolledRef.current = true;
+    }
+  }, [isLoading, monthsToDisplay.length]);
   
   const handleDayClick = (date: string, entries: DaySummary['entries']) => {
     setSelectedDay({ date, entries });
@@ -68,41 +87,42 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ onEntryClick }) => {
   }
   
   return (
-    <div className="space-y-6">
-      {/* Legend */}
+    <div ref={containerRef} className="space-y-4 max-w-md mx-auto">
+      {/* Legend - compact */}
       <CalendarLegend />
       
-      {/* Month grids */}
-      <div className="space-y-8">
+      {/* Load earlier button at top */}
+      {canLoadEarlier && (
+        <div className="flex justify-center">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={loadEarlier}
+            disabled={isLoading}
+            className="gap-2 text-xs"
+          >
+            {isLoading ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <ChevronUp className="h-3 w-3" />
+            )}
+            Frühere Monate
+          </Button>
+        </div>
+      )}
+      
+      {/* Month grids - compact iPhone style */}
+      <div className="space-y-6">
         {monthsToDisplay.map((month, index) => (
           <MonthGrid
             key={month.toISOString()}
+            ref={index === currentMonthIndex ? currentMonthRef : undefined}
             month={month}
             daySummaries={daySummaries}
             onDayClick={handleDayClick}
           />
         ))}
       </div>
-      
-      {/* Load earlier button */}
-      {canLoadEarlier && (
-        <div className="flex justify-center pt-4">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={loadEarlier}
-            disabled={isLoading}
-            className="gap-2"
-          >
-            {isLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <ChevronUp className="h-4 w-4" />
-            )}
-            Frühere Monate laden
-          </Button>
-        </div>
-      )}
       
       {/* No data state */}
       {monthsToDisplay.length === 0 && !isLoading && (
