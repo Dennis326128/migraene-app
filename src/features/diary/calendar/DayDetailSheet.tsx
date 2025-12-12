@@ -1,6 +1,5 @@
 import React from 'react';
 import { BottomSheet } from '@/components/ui/bottom-sheet';
-import { Badge } from '@/components/ui/badge';
 import { format, parseISO } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { ChevronRight } from 'lucide-react';
@@ -30,14 +29,13 @@ const getPainLevelLabel = (level: number | null): string => {
   return 'Sehr stark';
 };
 
-// Format time without seconds: "12:00" instead of "12:00:00"
+// Format time without seconds: "12:00 Uhr" instead of "12:00:00 Uhr"
 const formatTime = (time: string): string => {
-  // Handle HH:mm:ss format
   const parts = time.split(':');
   if (parts.length >= 2) {
-    return `${parts[0]}:${parts[1]}`;
+    return `${parts[0]}:${parts[1]} Uhr`;
   }
-  return time;
+  return `${time} Uhr`;
 };
 
 export const DayDetailSheet: React.FC<DayDetailSheetProps> = ({
@@ -93,7 +91,7 @@ export const DayDetailSheet: React.FC<DayDetailSheetProps> = ({
               {/* Time and label */}
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm text-foreground">
-                  {formatTime(entry.time)} Uhr
+                  {formatTime(entry.time)}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {painLabel}{entry.painLevel !== null && ` (${entry.painLevel}/10)`}

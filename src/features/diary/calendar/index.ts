@@ -1,4 +1,5 @@
 export { CalendarView } from './CalendarView';
+export { EntryPreviewSheet } from './EntryPreviewSheet';
 export { MonthGrid } from './MonthGrid';
 export { DayCell } from './DayCell';
 export { DayDetailSheet } from './DayDetailSheet';

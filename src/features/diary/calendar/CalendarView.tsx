@@ -1,17 +1,19 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { MonthGrid } from './MonthGrid';
 import { CalendarLegend } from './CalendarLegend';
 import { DayDetailSheet } from './DayDetailSheet';
+import { EntryPreviewSheet } from './EntryPreviewSheet';
 import { useCalendarPainSummary, type DaySummary } from './useCalendarPainSummary';
 import { Button } from '@/components/ui/button';
 import { ChevronUp, Loader2 } from 'lucide-react';
 import { startOfMonth, subMonths, isBefore, parseISO, isSameMonth } from 'date-fns';
+import type { PainEntry } from '@/types/painApp';
 
 interface CalendarViewProps {
-  onEntryClick?: (entryId: number) => void;
+  onEdit?: (entry: PainEntry) => void;
 }
 
-export const CalendarView: React.FC<CalendarViewProps> = ({ onEntryClick }) => {
+export const CalendarView: React.FC<CalendarViewProps> = ({ onEdit }) => {
   const {
     daySummaries,
     isLoading,
@@ -25,6 +27,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ onEntryClick }) => {
   const [selectedDay, setSelectedDay] = useState<{
     date: string;
     entries: DaySummary['entries'];
+  } | null>(null);
+  
+  // Entry preview state
+  const [previewEntry, setPreviewEntry] = useState<{
+    id: number;
+    time: string;
   } | null>(null);
   
   // Refs for scrolling to current month
@@ -69,14 +77,44 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ onEntryClick }) => {
     }
   }, [isLoading, monthsToDisplay.length]);
   
-  const handleDayClick = (date: string, entries: DaySummary['entries']) => {
+  // Handler: Day clicked in calendar
+  const handleDayClick = useCallback((date: string, entries: DaySummary['entries']) => {
     setSelectedDay({ date, entries });
-  };
+  }, []);
   
-  const handleEntryClick = (entryId: number) => {
-    setSelectedDay(null);
-    onEntryClick?.(entryId);
-  };
+  // Handler: Entry clicked in day sheet -> open preview (NOT edit)
+  const handleEntryClick = useCallback((entryId: number) => {
+    // Find the entry to get its time
+    const entry = selectedDay?.entries.find(e => e.id === entryId);
+    setPreviewEntry({
+      id: entryId,
+      time: entry?.time || ''
+    });
+  }, [selectedDay]);
+  
+  // Handler: Close preview
+  const handlePreviewClose = useCallback(() => {
+    setPreviewEntry(null);
+    // Day sheet stays open
+  }, []);
+  
+  // Handler: Edit from preview
+  const handlePreviewEdit = useCallback((entry: PainEntry) => {
+    // Close preview
+    setPreviewEntry(null);
+    // Day sheet stays open
+    
+    // Trigger edit
+    onEdit?.(entry);
+  }, [onEdit]);
+  
+  // Handler: Day sheet closed
+  const handleDaySheetClose = useCallback((open: boolean) => {
+    if (!open) {
+      setSelectedDay(null);
+      setPreviewEntry(null);
+    }
+  }, []);
   
   if (isLoading && monthsToDisplay.length === 0) {
     return (
@@ -87,7 +125,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ onEntryClick }) => {
   }
   
   return (
-    <div ref={containerRef} className="space-y-4 max-w-md mx-auto">
+    <div ref={containerRef} className="space-y-4 w-full px-2 sm:px-3 max-w-lg sm:max-w-xl mx-auto">
       {/* Legend - compact */}
       <CalendarLegend />
       
@@ -111,7 +149,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ onEntryClick }) => {
         </div>
       )}
       
-      {/* Month grids - compact iPhone style */}
+      {/* Month grids */}
       <div className="space-y-6">
         {monthsToDisplay.map((month, index) => (
           <MonthGrid
@@ -134,11 +172,22 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ onEntryClick }) => {
       
       {/* Day detail sheet */}
       <DayDetailSheet
-        open={!!selectedDay}
-        onOpenChange={(open) => !open && setSelectedDay(null)}
+        open={!!selectedDay && !previewEntry}
+        onOpenChange={handleDaySheetClose}
         date={selectedDay?.date ?? null}
         entries={selectedDay?.entries ?? []}
         onEntryClick={handleEntryClick}
+      />
+      
+      {/* Entry preview sheet */}
+      <EntryPreviewSheet
+        open={!!previewEntry}
+        onOpenChange={(open) => !open && handlePreviewClose()}
+        entryId={previewEntry?.id ?? null}
+        date={selectedDay?.date ?? null}
+        time={previewEntry?.time ?? null}
+        onEdit={handlePreviewEdit}
+        onClose={handlePreviewClose}
       />
     </div>
   );
