@@ -39,6 +39,8 @@ export type Med = {
   regular_notes?: string | null;
   // Status
   medication_status?: string | null; // 'active' | 'stopped' | 'intolerant'
+  // Effect category for analysis
+  effect_category?: string | null;
   // Therapy history dates
   start_date?: string | null;
   end_date?: string | null;
@@ -81,6 +83,8 @@ export type CreateMedInput = {
   regular_notes?: string;
   // Status
   medication_status?: string;
+  // Effect category for analysis
+  effect_category?: string;
   // Therapy history dates
   start_date?: string;
   end_date?: string;
@@ -238,6 +242,7 @@ export async function updateMed(id: string, input: UpdateMedInput): Promise<Med>
   if (input.regular_weekdays !== undefined) updateData.regular_weekdays = input.regular_weekdays || null;
   if (input.regular_notes !== undefined) updateData.regular_notes = input.regular_notes || null;
   if (input.medication_status !== undefined) updateData.medication_status = input.medication_status || null;
+  if (input.effect_category !== undefined) updateData.effect_category = input.effect_category || null;
   // Handle therapy history dates
   if (input.start_date !== undefined) updateData.start_date = input.start_date || null;
   if (input.end_date !== undefined) updateData.end_date = input.end_date || null;
