@@ -6,8 +6,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { MedicationEffectSlider } from '@/components/ui/medication-effect-slider';
 import { EffectVoiceButton } from './EffectVoiceButton';
-import { X, CheckCircle } from 'lucide-react';
+import { X, CheckCircle, Clock } from 'lucide-react';
 import { getEffectLabel, COMMON_SIDE_EFFECTS } from '@/lib/utils/medicationEffects';
+import { normalizePainLevel } from '@/lib/utils/pain';
 import type { UnratedMedicationEntry } from '../api/medicationEffects.api';
 import type { ParsedMedicationEffect } from '@/types/medicationEffect.types';
 
@@ -23,6 +24,43 @@ interface UnratedEffectCardProps {
   isSaving?: boolean;
 }
 
+/** Format date/time to German format: "12.12.2025, 12:05 Uhr" */
+function formatGermanDateTime(date: string | null, time: string | null): string {
+  if (!date) return '';
+  
+  // Parse date (expected: YYYY-MM-DD)
+  const [year, month, day] = date.split('-');
+  const formattedDate = `${day}.${month}.${year}`;
+  
+  // Format time without seconds
+  let formattedTime = '';
+  if (time) {
+    const timeParts = time.split(':');
+    formattedTime = `${timeParts[0]}:${timeParts[1]}`;
+  }
+  
+  return formattedTime ? `${formattedDate}, ${formattedTime} Uhr` : formattedDate;
+}
+
+/** Get pain severity level for color coding */
+function getPainSeverityLevel(score: number): 'mild' | 'moderate' | 'severe' {
+  if (score <= 3) return 'mild';
+  if (score <= 6) return 'moderate';
+  return 'severe';
+}
+
+/** Get pain badge classes based on severity */
+function getPainBadgeClasses(level: 'mild' | 'moderate' | 'severe'): string {
+  switch (level) {
+    case 'mild':
+      return 'bg-emerald-800 text-emerald-50 border-emerald-700';
+    case 'moderate':
+      return 'bg-amber-800 text-amber-50 border-amber-700';
+    case 'severe':
+      return 'bg-rose-800 text-rose-50 border-rose-700';
+  }
+}
+
 export function UnratedEffectCard({ 
   entry, 
   medName, 
@@ -34,6 +72,10 @@ export function UnratedEffectCard({
   const [notes, setNotes] = useState('');
   const [method, setMethod] = useState<'ui' | 'voice'>('ui');
   const [voiceApplied, setVoiceApplied] = useState(false);
+
+  // Normalize pain level to numeric (0-10)
+  const painScore = normalizePainLevel(entry.pain_level);
+  const painSeverity = getPainSeverityLevel(painScore);
 
   const handleVoiceResult = (result: ParsedMedicationEffect) => {
     if (result.effectScore !== null) {
@@ -74,16 +116,24 @@ export function UnratedEffectCard({
   return (
     <Card className="p-4 space-y-4">
       {/* Entry Info Header */}
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="font-medium text-lg">💊 {medName}</div>
-          <div className="text-sm text-muted-foreground mt-0.5">
-            {entry.selected_date} um {entry.selected_time}
-          </div>
+      <div className="space-y-2">
+        {/* Row 1: Medication Name */}
+        <div className="font-medium text-lg">💊 {medName}</div>
+        
+        {/* Row 2: Pain Badge */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge 
+            className={`text-xs border ${getPainBadgeClasses(painSeverity)}`}
+          >
+            Schmerz {painScore}/10
+          </Badge>
         </div>
-        <Badge variant="secondary" className="text-xs shrink-0">
-          Schmerz: {entry.pain_level}
-        </Badge>
+        
+        {/* Row 3: Date/Time */}
+        <div className="flex items-center gap-1 text-sm text-muted-foreground">
+          <Clock className="w-3.5 h-3.5" />
+          {formatGermanDateTime(entry.selected_date, entry.selected_time)}
+        </div>
       </div>
 
       {/* Voice Input Button */}
