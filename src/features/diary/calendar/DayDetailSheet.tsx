@@ -1,11 +1,11 @@
 import React from 'react';
 import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
 import { format, parseISO } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { Activity } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getColorForPain } from './painColorScale';
 
 interface EntryPreview {
   id: number;
@@ -21,16 +21,23 @@ interface DayDetailSheetProps {
   onEntryClick?: (entryId: number) => void;
 }
 
-const getPainLevelDisplay = (level: number | null) => {
-  if (level === null) {
-    return { label: 'Unbekannt', color: 'bg-muted text-muted-foreground' };
+const getPainLevelLabel = (level: number | null): string => {
+  if (level === null) return 'k.A.';
+  if (level === 0) return 'Keine';
+  if (level <= 3) return 'Leicht';
+  if (level <= 6) return 'Mittel';
+  if (level <= 8) return 'Stark';
+  return 'Sehr stark';
+};
+
+// Format time without seconds: "12:00" instead of "12:00:00"
+const formatTime = (time: string): string => {
+  // Handle HH:mm:ss format
+  const parts = time.split(':');
+  if (parts.length >= 2) {
+    return `${parts[0]}:${parts[1]}`;
   }
-  
-  if (level === 0) return { label: 'Keine', color: 'bg-green-500/20 text-green-300' };
-  if (level <= 3) return { label: 'Leicht', color: 'bg-yellow-500/20 text-yellow-300' };
-  if (level <= 6) return { label: 'Mittel', color: 'bg-orange-500/20 text-orange-300' };
-  if (level <= 8) return { label: 'Stark', color: 'bg-red-500/20 text-red-300' };
-  return { label: 'Sehr stark', color: 'bg-purple-500/20 text-purple-300' };
+  return time;
 };
 
 export const DayDetailSheet: React.FC<DayDetailSheetProps> = ({
@@ -54,42 +61,48 @@ export const DayDetailSheet: React.FC<DayDetailSheetProps> = ({
       onOpenChange={onOpenChange}
       title={formattedDate}
       description={entrySummary}
+      className="sm:max-w-md"
     >
-      <div className="space-y-3 pb-4">
-        {sortedEntries.map((entry, index) => {
-          const painDisplay = getPainLevelDisplay(entry.painLevel);
+      <div className="space-y-2 pb-4">
+        {sortedEntries.map((entry) => {
+          const markerColor = entry.painLevel !== null ? getColorForPain(entry.painLevel) : undefined;
+          const painLabel = getPainLevelLabel(entry.painLevel);
           
           return (
-            <Card 
+            <button
               key={entry.id}
-              className={cn(
-                "cursor-pointer hover:bg-accent/5 transition-colors",
-                "touch-manipulation"
-              )}
               onClick={() => onEntryClick?.(entry.id)}
+              className={cn(
+                "w-full flex items-center gap-3 p-3 rounded-lg",
+                "bg-card/50 border border-border/50",
+                "hover:bg-accent/10 active:scale-[0.98]",
+                "transition-all duration-150",
+                "touch-manipulation min-h-[52px]",
+                "text-left"
+              )}
             >
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-                      <Activity className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-sm">
-                        {entry.time} Uhr
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Schmerzeintrag
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <Badge className={painDisplay.color}>
-                    {entry.painLevel !== null ? `${entry.painLevel}/10` : 'k.A.'}
-                  </Badge>
-                </div>
-              </CardContent>
-            </Card>
+              {/* Pain marker dot */}
+              <div 
+                className={cn(
+                  "w-3 h-3 rounded-full flex-shrink-0",
+                  !markerColor && "bg-muted-foreground/30"
+                )}
+                style={markerColor ? { backgroundColor: markerColor } : undefined}
+              />
+              
+              {/* Time and label */}
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm text-foreground">
+                  {formatTime(entry.time)} Uhr
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {painLabel}{entry.painLevel !== null && ` (${entry.painLevel}/10)`}
+                </p>
+              </div>
+              
+              {/* Chevron indicator */}
+              <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+            </button>
           );
         })}
         
