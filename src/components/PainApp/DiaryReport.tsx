@@ -5,8 +5,8 @@ import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { PainEntry } from "@/types/painApp";
 import { useEntries } from "@/features/entries/hooks/useEntries";
-import { buildDiaryPdf } from "@/lib/pdf/report"; // ← STANDARD-REPORT für Krankenkasse/Ärzte
-import { buildMedicationPlanPdf } from "@/lib/pdf/medicationPlan"; // ← BMP-STYLE MEDIKATIONSPLAN
+import { buildDiaryPdf } from "@/lib/pdf/report";
+import { buildMedicationPlanPdf } from "@/lib/pdf/medicationPlan";
 import { getUserSettings, upsertUserSettings } from "@/features/settings/api/settings.api";
 import { mapTextLevelToScore } from "@/lib/utils/pain";
 import { useMedicationEffectsForEntries } from "@/features/medication-effects/hooks/useMedicationEffects";
@@ -14,7 +14,7 @@ import { usePatientData, useDoctors } from "@/features/account/hooks/useAccount"
 import { useMedicationCourses } from "@/features/medication-courses/hooks/useMedicationCourses";
 import MedicationStatisticsCard from "./MedicationStatisticsCard";
 import TimeSeriesChart from "@/components/TimeSeriesChart";
-import { Loader2, ArrowLeft, FileText, Table, Pill, Plus, Edit, UserPlus, User } from "lucide-react";
+import { Loader2, ArrowLeft, FileText, Table, Pill, Plus, Edit, UserPlus, User, Info, ChevronDown, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
@@ -31,28 +31,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { DoctorSelectionDialog, type Doctor } from "./DoctorSelectionDialog";
 import { Switch } from "@/components/ui/switch";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { devLog, devWarn } from "@/lib/utils/devLogger";
-
-/**
- * DiaryReport - PDF-Export-Komponente für Kopfschmerztagebuch
- * 
- * Flow:
- * 1. User wählt Zeitraum, Medikamente und Inhalte (Checkboxen)
- * 2. Daten werden aus Supabase geladen (pain_entries, medication_effects, patient_data, doctors)
- * 3. Bei PDF-Erstellung wird buildDiaryPdf() aus src/lib/pdf/report.ts aufgerufen
- * 4. Optional: Kurzer Arzt-KI-Bericht via generate-doctor-summary Edge Function
- * 5. PDF wird als Blob heruntergeladen
- * 
- * ✅ AKTIVE PDF-GENERIERUNG: buildDiaryPdf (src/lib/pdf/report.ts)
- * 
- * Features:
- * - Deutsche Datumsformate (dd.mm.yyyy, dd.mm.yyyy HH:mm)
- * - Patientendaten-Sektion (checkbox-gesteuert)
- * - Arztkontakte-Sektion (checkbox-gesteuert)
- * - KI-Analyse für Ärzte (kurzer Arztbericht, checkbox-gesteuert)
- * - Executive Summary mit Statistiken
- * - Professionelle Tabellen und Charts
- */
 
 type Preset = TimeRangePreset;
 
@@ -89,15 +70,13 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
   const [includeAnalysis, setIncludeAnalysis] = useState<boolean>(true);
   const [includeEntriesList, setIncludeEntriesList] = useState<boolean>(true);
   const [includePatientData, setIncludePatientData] = useState<boolean>(true);
-  const [includeDoctorData, setIncludeDoctorData] = useState<boolean>(false); // Default: false until user decides
+  const [includeDoctorData, setIncludeDoctorData] = useState<boolean>(false);
   const [includeMedicationCourses, setIncludeMedicationCourses] = useState<boolean>(true);
   const [includePatientNotes, setIncludePatientNotes] = useState<boolean>(true);
   const [patientNotes, setPatientNotes] = useState<string>("");
   
-  // Free text export mode: 'none' | 'short_notes' | 'notes_and_context'
   const [freeTextExportMode, setFreeTextExportMode] = useState<'none' | 'short_notes' | 'notes_and_context'>('none');
   
-  // Doctor selection state
   const [selectedDoctorIds, setSelectedDoctorIds] = useState<string[]>([]);
   const [doctorPreferencesLoaded, setDoctorPreferencesLoaded] = useState(false);
   
@@ -112,9 +91,19 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
   const [showDoctorSelection, setShowDoctorSelection] = useState(false);
   const [pendingPdfType, setPendingPdfType] = useState<"diary" | "medplan" | null>(null);
 
+  // UI State for collapsibles
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
+
   const { data: patientData } = usePatientData();
   const { data: doctors = [] } = useDoctors();
   const { data: medicationCourses = [] } = useMedicationCourses();
+
+  // Initialize collapsible states based on data
+  useEffect(() => {
+    if (selectedMeds.length > 0) setFilterOpen(true);
+    if (patientNotes.trim()) setNotesOpen(true);
+  }, []);
 
   // Load user email
   useEffect(() => {
@@ -125,7 +114,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     });
   }, []);
 
-  // Load report settings from database (including doctor preferences)
+  // Load report settings from database
   useEffect(() => {
     (async () => {
       try {
@@ -139,24 +128,19 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
           .maybeSingle();
         
         if (settings) {
-          // Load time range
           if (settings.default_report_preset && (["3m","6m","12m","custom"] as const).includes(settings.default_report_preset as any)) {
             setPreset(settings.default_report_preset as Preset);
           }
-          
-          // Load medication selection
           if (settings.selected_medications && Array.isArray(settings.selected_medications)) {
             setSelectedMeds(settings.selected_medications);
+            if (settings.selected_medications.length > 0) setFilterOpen(true);
           }
-          
-          // Load content inclusion flags
           if (settings.include_statistics !== null) setIncludeStats(settings.include_statistics);
           if (settings.include_chart !== null) setIncludeChart(settings.include_chart);
           if (settings.include_ai_analysis !== null) setIncludeAnalysis(settings.include_ai_analysis);
           if (settings.include_entries_list !== null) setIncludeEntriesList(settings.include_entries_list);
           if (settings.include_patient_data !== null) setIncludePatientData(settings.include_patient_data);
           
-          // Load doctor export preferences
           const lastIncludeDoctors = (settings as any).last_include_doctors_flag;
           const lastDoctorIds = (settings as any).last_doctor_export_ids;
           
@@ -175,11 +159,10 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     })();
   }, []);
 
-  // Initialize doctor selection when doctors load and preferences are loaded
+  // Initialize doctor selection when doctors load
   useEffect(() => {
     if (!doctorPreferencesLoaded || doctors.length === 0) return;
     
-    // If we have saved doctor IDs, filter them to only include existing doctors
     if (selectedDoctorIds.length > 0) {
       const existingDoctorIds = doctors.map(d => d.id).filter(Boolean) as string[];
       const validSelectedIds = selectedDoctorIds.filter(id => existingDoctorIds.includes(id));
@@ -187,25 +170,17 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
       if (validSelectedIds.length !== selectedDoctorIds.length) {
         setSelectedDoctorIds(validSelectedIds);
       }
-      
-      // If we have valid selections, enable doctor data
-      if (validSelectedIds.length > 0 && !includeDoctorData) {
-        // Keep user's preference
-      }
     } else if (doctors.length > 0 && includeDoctorData) {
-      // If include doctor data is true but no IDs selected, select all doctors
       setSelectedDoctorIds(doctors.map(d => d.id).filter(Boolean) as string[]);
     }
   }, [doctors, doctorPreferencesLoaded]);
 
-  // Derive actual doctor selection based on state
   const selectedDoctorsForExport = useMemo(() => {
     if (!includeDoctorData) return [];
     if (doctors.length === 1) return doctors;
     return doctors.filter(d => d.id && selectedDoctorIds.includes(d.id));
   }, [doctors, selectedDoctorIds, includeDoctorData]);
 
-  // berechneter Zeitraum
   const { from, to } = useMemo(() => {
     if (preset === "custom" && customStart && customEnd) {
       return { from: customStart, to: customEnd };
@@ -218,14 +193,11 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     return { from: start, to: end };
   }, [preset, customStart, customEnd, today]);
 
-  // Einträge laden
   const { data: entries = [], isLoading } = useEntries({ from, to });
-
-  // Medication effects für Statistiken laden
   const entryIds = useMemo(() => entries.map(e => Number(e.id)), [entries]);
   const { data: medicationEffects = [] } = useMedicationEffectsForEntries(entryIds);
 
-  // Save all report settings to database (debounced) - including doctor preferences
+  // Save report settings (debounced)
   useEffect(() => {
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
@@ -262,7 +234,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     };
   }, [selectedMeds, includeStats, includeChart, includeAnalysis, includeEntriesList, includePatientData, includeDoctorData, selectedDoctorIds]);
 
-  // Medikamenten-Optionen (aus user_medications, Fallback: aus Einträgen)
+  // Load medication options
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -274,7 +246,6 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
       if (!error && data?.length) {
         setMedOptions(Array.from(new Set(data.map(d => d.name))).sort());
       } else {
-        // Fallback: aus Einträgen ableiten
         const uniq = new Set<string>();
         entries.forEach(e => (e.medications || []).forEach(m => uniq.add(m)));
         setMedOptions(Array.from(uniq).sort());
@@ -283,12 +254,9 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
   }, [entries]);
 
   const filteredEntries = useMemo(() => {
-    // Wenn keine Medikamente ausgewählt: ALLE Einträge zurückgeben
     if (selectedMeds.length === 0) {
       return entries;
     }
-    
-    // Wenn Medikamente ausgewählt: Einträge mit diesen Medikamenten ODER ohne Medikamente (immer einbeziehen)
     const medsSet = new Set(selectedMeds);
     return entries.filter(e => {
       const meds = e.medications || [];
@@ -300,14 +268,13 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     if (!filteredEntries.length) return 0;
     const validEntries = filteredEntries.filter(e => {
       const score = mapTextLevelToScore(e.pain_level);
-      return score > 0; // Exclude zero values from average
+      return score > 0;
     });
     if (!validEntries.length) return 0;
     const sum = validEntries.reduce((s, e) => s + mapTextLevelToScore(e.pain_level), 0);
     return (sum / validEntries.length).toFixed(2);
   }, [filteredEntries]);
 
-  // Medikamenten-Statistiken berechnen
   const medicationStats = useMemo(() => {
     const stats = new Map<string, { count: number; totalEffect: number; ratedCount: number }>();
     
@@ -319,7 +286,6 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         const s = stats.get(med)!;
         s.count++;
         
-        // Finde Wirkung für dieses Medikament in diesem Eintrag
         const effect = medicationEffects.find(e => 
           e.entry_id === Number(entry.id) && e.med_name === med
         );
@@ -440,7 +406,6 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
       const link = document.createElement('a');
       link.href = url;
       
-      // Sicheres Date Formatting für Dateinamen
       const fromDate = typeof from === 'string' ? new Date(from) : from;
       const toDate = typeof to === 'string' ? new Date(to) : to;
       const fromStr = `${fromDate.getFullYear()}-${String(fromDate.getMonth() + 1).padStart(2, '0')}-${String(fromDate.getDate()).padStart(2, '0')}`;
@@ -467,7 +432,6 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
       return;
     }
 
-    // Pre-PDF Validierung
     if (!from || !to) {
       console.error("PDF Generierung - Ungültige Daten:", { from, to });
       toast.error("Zeitraum ist nicht korrekt definiert.");
@@ -479,14 +443,12 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
       return;
     }
 
-    // For multiple doctors, show selection dialog
     if (includeDoctorData && doctors.length > 1) {
       setPendingPdfType("diary");
       setShowDoctorSelection(true);
       return;
     }
 
-    // Use the derived selectedDoctorsForExport
     await actuallyGenerateDiaryPDF(selectedDoctorsForExport);
   };
 
@@ -572,14 +534,12 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     }
   };
 
-  // Generate BMP-style Medication Plan PDF
   const generateMedicationPlanPdf = async () => {
     if (medicationCourses.length === 0) {
       toast.error("Keine Medikamentenverläufe vorhanden");
       return;
     }
 
-    // If multiple doctors, show selection dialog
     if (doctors.length > 1) {
       setPendingPdfType("medplan");
       setShowDoctorSelection(true);
@@ -617,6 +577,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
   };
 
   return (
+    <TooltipProvider delayDuration={300}>
     <div className="min-h-screen bg-background pb-20">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-background border-b border-border px-4 py-3 flex items-center gap-3">
@@ -632,13 +593,12 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
 
       <div className="p-4 space-y-4">
 
-        {/* Block 1: Zeitraum */}
+        {/* ═══════════════════════════════════════════════════════════════════
+            BLOCK 1: ZEITRAUM
+        ═══════════════════════════════════════════════════════════════════ */}
         <Card className="p-4 space-y-3">
-          <div>
-            <h3 className="text-sm font-semibold mb-1">Zeitraum</h3>
-            <p className="text-xs text-muted-foreground mb-3">Wähle, für welchen Zeitraum das Kopfschmerztagebuch erstellt werden soll.</p>
-            <TimeRangeButtons value={preset} onChange={setPreset} />
-          </div>
+          <h3 className="text-sm font-semibold">Zeitraum</h3>
+          <TimeRangeButtons value={preset} onChange={setPreset} />
 
           {preset === "custom" && (
             <div className="grid grid-cols-2 gap-2">
@@ -652,402 +612,361 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
               </div>
             </div>
           )}
-        </Card>
 
-        {/* Block 2: Medikamenten-Fokus */}
-        <Card className="p-4 space-y-3">
-          <div>
-            <h3 className="text-sm font-semibold mb-1">Medikamenten-Fokus (optional)</h3>
-            <p className="text-xs text-muted-foreground mb-3">Wenn du willst, kannst du das Tagebuch auf bestimmte Medikamente fokussieren. Standard: alle Medikamente.</p>
+          {/* Entry summary directly under time range */}
+          <div className="text-sm text-muted-foreground">
+            {filteredEntries.length > 0 ? (
+              <span>
+                <span className="font-semibold text-foreground">{filteredEntries.length}</span> Einträge 
+                {" "}({format(new Date(from), 'dd.MM.yyyy')} – {format(new Date(to), 'dd.MM.yyyy')})
+              </span>
+            ) : (
+              <span className="text-destructive">Keine Einträge im Zeitraum</span>
+            )}
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant={allSelected ? "default" : "outline"}
-              onClick={() => {
-                if (allSelected) {
-                  setSelectedMeds(previousSelection);
-                  setAllSelected(false);
-                } else {
-                  setPreviousSelection(selectedMeds);
-                  setSelectedMeds([...medOptions]);
-                  setAllSelected(true);
-                }
-              }}
-              className="text-xs font-semibold"
-            >
-              Alle
-            </Button>
-            {medOptions.map(m => {
-              const isSelected = selectedMeds.includes(m);
-              return (
+
+          {/* Filter (collapsible) */}
+          <Collapsible open={filterOpen} onOpenChange={setFilterOpen}>
+            <CollapsibleTrigger className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors py-1">
+              {filterOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+              <span>Filter (optional)</span>
+              {selectedMeds.length > 0 && !filterOpen && (
+                <span className="text-primary">• {selectedMeds.length} Medikamente</span>
+              )}
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-2 space-y-2">
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-muted-foreground">Nur ausgewählte Medikamente im PDF</span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs text-xs">
+                    Wenn du bestimmte Medikamente auswählst, werden nur Einträge angezeigt, bei denen diese Medikamente dokumentiert wurden. Standard: alle Medikamente.
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              <div className="flex flex-wrap gap-2">
                 <Button
-                  key={m}
                   type="button"
                   size="sm"
-                  variant={isSelected ? "default" : "outline"}
+                  variant={allSelected ? "default" : "outline"}
                   onClick={() => {
-                    setSelectedMeds(prev => isSelected ? prev.filter(x=>x!==m) : [...prev, m]);
-                    setAllSelected(false);
+                    if (allSelected) {
+                      setSelectedMeds(previousSelection);
+                      setAllSelected(false);
+                    } else {
+                      setPreviousSelection(selectedMeds);
+                      setSelectedMeds([...medOptions]);
+                      setAllSelected(true);
+                    }
                   }}
-                  aria-pressed={isSelected}
-                  className="text-xs"
+                  className="text-xs font-semibold"
                 >
-                  {m}
+                  Alle
                 </Button>
-              );
-            })}
-          </div>
+                {medOptions.map(m => {
+                  const isSelected = selectedMeds.includes(m);
+                  return (
+                    <Button
+                      key={m}
+                      type="button"
+                      size="sm"
+                      variant={isSelected ? "default" : "outline"}
+                      onClick={() => {
+                        setSelectedMeds(prev => isSelected ? prev.filter(x=>x!==m) : [...prev, m]);
+                        setAllSelected(false);
+                      }}
+                      aria-pressed={isSelected}
+                      className="text-xs"
+                    >
+                      {m}
+                    </Button>
+                  );
+                })}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
         </Card>
 
-        {/* Block 3: Inhalte des Tagebuchs */}
+        {/* ═══════════════════════════════════════════════════════════════════
+            BLOCK 2: INHALT
+        ═══════════════════════════════════════════════════════════════════ */}
         <Card className="p-4 space-y-4">
-          <div>
-            <h3 className="text-sm font-semibold mb-1">Was soll ins Tagebuch?</h3>
-          </div>
+          <h3 className="text-sm font-semibold">Inhalt</h3>
           
-          {/* Gruppe A: Standardmodule */}
+          {/* Hauptoptionen */}
           <div className="space-y-3">
-            <label className="flex items-start gap-3 text-sm cursor-pointer">
+            <label className="flex items-center gap-3 text-sm cursor-pointer">
               <Checkbox 
                 checked={includeStats && includeChart} 
                 onCheckedChange={(checked) => {
                   setIncludeStats(!!checked);
                   setIncludeChart(!!checked);
                 }} 
-                className="mt-0.5"
               />
-              <div>
-                <span className="font-medium">Zusammenfassung (Statistiken & Diagramme)</span>
-                <p className="text-xs text-muted-foreground mt-0.5">Empfohlen. Zeigt Frequenz und Wirksamkeit deiner Medikamente sowie den Verlauf der Schmerzstärke.</p>
-              </div>
+              <span className="font-medium">Statistiken & Diagramme</span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-xs text-xs">
+                  Zeigt Frequenz und Wirksamkeit deiner Medikamente sowie den Verlauf der Schmerzstärke in Diagrammen.
+                </TooltipContent>
+              </Tooltip>
             </label>
             
-            <label className="flex items-start gap-3 text-sm cursor-pointer">
+            <label className="flex items-center gap-3 text-sm cursor-pointer">
               <Checkbox 
                 checked={includeAnalysis} 
                 onCheckedChange={(checked) => {
                   setIncludeAnalysis(!!checked);
                   if (!checked) setAnalysisReport("");
                 }} 
-                className="mt-0.5"
               />
-              <div>
-                <span className="font-medium">Professioneller Analysebericht (KI-generiert)</span>
-                <p className="text-xs text-muted-foreground mt-0.5">Erkennt mögliche Muster und Auffälligkeiten. Keine Diagnose.</p>
-              </div>
+              <span className="font-medium">KI-Analyse</span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-xs text-xs">
+                  Erkennt mögliche Muster und Auffälligkeiten in deinen Daten. Hinweis: Dies ist keine medizinische Diagnose und ersetzt keine ärztliche Beratung.
+                </TooltipContent>
+              </Tooltip>
             </label>
             
-            <label className="flex items-start gap-3 text-sm cursor-pointer">
+            <label className="flex items-center gap-3 text-sm cursor-pointer">
               <Checkbox 
                 checked={includeEntriesList} 
                 onCheckedChange={(checked) => setIncludeEntriesList(!!checked)} 
-                className="mt-0.5"
               />
-              <div>
-                <span className="font-medium">Detaillierte Einträge-Liste</span>
-                <p className="text-xs text-muted-foreground mt-0.5">Alle einzelnen Kopfschmerz-Einträge in Tabellenform. Ideal für Arzttermine.</p>
-              </div>
+              <span className="font-medium">Einträge (Tabelle)</span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-xs text-xs">
+                  Alle einzelnen Kopfschmerz-Einträge in Tabellenform. Ideal für Arzttermine.
+                </TooltipContent>
+              </Tooltip>
             </label>
           </div>
 
-          {/* Gruppe B: Zusatzoptionen */}
+          {/* Weitere Inhalte */}
           <div className="pt-3 border-t space-y-3">
-            <p className="text-xs text-muted-foreground">Zusätzliche Informationen, die du je nach Empfänger ein- oder ausblenden kannst.</p>
+            <span className="text-xs text-muted-foreground">Weitere Inhalte</span>
             
-            <label className="flex items-start gap-3 text-sm cursor-pointer">
-              <Checkbox 
-                checked={includeMedicationCourses} 
-                onCheckedChange={(checked) => setIncludeMedicationCourses(!!checked)} 
-                disabled={medicationCourses.length === 0}
-                className="mt-0.5"
-              />
-              <div>
-                <span className="font-medium">Therapieübersicht (Prophylaxe & Akutbehandlungen)</span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-sm">Therapien (Prophylaxe & Akut)</span>
                 {medicationCourses.length === 0 && (
-                  <span className="text-xs text-muted-foreground ml-2">(keine vorhanden)</span>
+                  <span className="text-xs text-muted-foreground">(keine)</span>
                 )}
               </div>
-            </label>
-            
-            <label className="flex items-start gap-3 text-sm cursor-pointer">
-              <Checkbox 
-                checked={includePatientData} 
-                onCheckedChange={(checked) => setIncludePatientData(!!checked)} 
-                className="mt-0.5"
+              <Switch 
+                checked={includeMedicationCourses} 
+                onCheckedChange={setIncludeMedicationCourses}
+                disabled={medicationCourses.length === 0}
               />
-              <div>
-                <span className="font-medium">Persönliche Daten einbeziehen</span>
-                <p className="text-xs text-muted-foreground mt-0.5">Deaktiviere diese Option, wenn du das Tagebuch anonym teilen möchtest.</p>
-              </div>
-            </label>
-          </div>
-        </Card>
-
-        {/* Block 4: Arztdaten */}
-        <Card className="p-4 space-y-4">
-          <div>
-            <h3 className="text-sm font-semibold mb-1">Arztdaten</h3>
-            <p className="text-xs text-muted-foreground">Du kannst Ärztedaten im Tagebuch anzeigen, z.B. für Arztpraxis oder Klinik.</p>
-          </div>
-          
-          {/* Case A: No doctors */}
-          {doctors.length === 0 && (
-            <div className="border border-border/50 rounded-lg p-4 bg-muted/30">
-              <div className="flex items-start gap-3">
-                <UserPlus className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <p className="text-sm text-muted-foreground mb-3">
-                    Es sind noch keine Ärztedaten hinterlegt.
-                  </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      if (onNavigate) {
-                        onNavigate('settings-doctors?origin=export_migraine_diary');
-                      }
-                    }}
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Arztdaten hinzufügen
-                  </Button>
-                </div>
-              </div>
             </div>
-          )}
-          
-          {/* Case B: Exactly 1 doctor */}
-          {doctors.length === 1 && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/30">
-                <div className="flex items-center gap-3">
-                  <Switch
-                    checked={includeDoctorData}
-                    onCheckedChange={(checked) => {
-                      setIncludeDoctorData(checked);
-                      if (checked && doctors[0]?.id) {
-                        setSelectedDoctorIds([doctors[0].id]);
-                      }
-                    }}
-                  />
-                  <div>
-                    <span className="text-sm font-medium">Arztdaten im PDF anzeigen</span>
-                    <p className="text-xs text-muted-foreground">
-                      {[doctors[0]?.title, doctors[0]?.first_name, doctors[0]?.last_name].filter(Boolean).join(' ')}
-                      {doctors[0]?.specialty && ` – ${doctors[0].specialty}`}
-                    </p>
-                  </div>
-                </div>
+            
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-sm">Persönliche Daten</span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs text-xs">
+                    Deaktiviere diese Option, wenn du das Tagebuch anonym teilen möchtest.
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              <Switch 
+                checked={includePatientData} 
+                onCheckedChange={setIncludePatientData}
+              />
+            </div>
+            
+            {/* Arztangaben inline */}
+            {doctors.length === 0 ? (
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Arztangaben</span>
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => {
-                    if (onNavigate && doctors[0]?.id) {
-                      onNavigate(`settings-doctors-edit?id=${doctors[0].id}&origin=export_migraine_diary`);
-                    }
-                  }}
-                  title="Arzt bearbeiten"
-                  className="shrink-0"
-                >
-                  <Edit className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          )}
-          
-          {/* Case C: Multiple doctors */}
-          {doctors.length > 1 && (
-            <div className="space-y-3">
-              <p className="text-xs text-muted-foreground">
-                Wähle, welche deiner gespeicherten Ärzte im Tagebuch angezeigt werden sollen.
-              </p>
-              
-              <div className="space-y-2">
-                {doctors.map((doctor) => {
-                  const isSelected = doctor.id ? selectedDoctorIds.includes(doctor.id) : false;
-                  return (
-                    <div
-                      key={doctor.id}
-                      className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
-                        isSelected ? 'bg-primary/10 border border-primary/30' : 'bg-secondary/30 border border-transparent hover:bg-secondary/50'
-                      }`}
-                      onClick={() => {
-                        if (!doctor.id) return;
-                        setSelectedDoctorIds(prev => {
-                          const newIds = isSelected 
-                            ? prev.filter(id => id !== doctor.id)
-                            : [...prev, doctor.id!];
-                          // Auto-enable doctor data if at least one is selected
-                          setIncludeDoctorData(newIds.length > 0);
-                          return newIds;
-                        });
-                      }}
-                    >
-                      <Checkbox
-                        checked={isSelected}
-                        onCheckedChange={() => {
-                          if (!doctor.id) return;
-                          setSelectedDoctorIds(prev => {
-                            const newIds = isSelected 
-                              ? prev.filter(id => id !== doctor.id)
-                              : [...prev, doctor.id!];
-                            setIncludeDoctorData(newIds.length > 0);
-                            return newIds;
-                          });
-                        }}
-                        className="shrink-0"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <span className="text-sm font-medium">
-                          {[doctor.title, doctor.first_name, doctor.last_name].filter(Boolean).join(' ') || 'Unbekannt'}
-                        </span>
-                        {doctor.specialty && (
-                          <p className="text-xs text-muted-foreground">{doctor.specialty}</p>
-                        )}
-                      </div>
-                      <User className="h-4 w-4 text-muted-foreground shrink-0" />
-                    </div>
-                  );
-                })}
-              </div>
-              
-              <div className="flex items-center justify-between pt-2">
-                <p className="text-xs text-muted-foreground">
-                  {selectedDoctorIds.length === 0
-                    ? 'Kein Arzt ausgewählt – keine Arztdaten im PDF'
-                    : `${selectedDoctorIds.length} von ${doctors.length} Ärzten ausgewählt`}
-                </p>
-                <Button
-                  variant="ghost"
-                  size="sm"
+                  className="text-xs h-7"
                   onClick={() => {
                     if (onNavigate) {
                       onNavigate('settings-doctors?origin=export_migraine_diary');
                     }
                   }}
-                  title="Ärzte verwalten"
-                  className="text-xs"
                 >
-                  <Edit className="h-4 w-4 mr-1" />
-                  Ärzte verwalten
+                  <Plus className="h-3 w-3 mr-1" />
+                  Hinzufügen
                 </Button>
               </div>
-            </div>
-          )}
+            ) : doctors.length === 1 ? (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm">Arztangaben</span>
+                  <span className="text-xs text-muted-foreground">
+                    ({[doctors[0]?.title, doctors[0]?.first_name, doctors[0]?.last_name].filter(Boolean).join(' ')})
+                  </span>
+                </div>
+                <Switch
+                  checked={includeDoctorData}
+                  onCheckedChange={(checked) => {
+                    setIncludeDoctorData(checked);
+                    if (checked && doctors[0]?.id) {
+                      setSelectedDoctorIds([doctors[0].id]);
+                    }
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">Arztangaben</span>
+                  <span className="text-xs text-muted-foreground">
+                    {selectedDoctorIds.length === 0 ? 'Keine ausgewählt' : `${selectedDoctorIds.length} ausgewählt`}
+                  </span>
+                </div>
+                <div className="space-y-1.5">
+                  {doctors.map((doctor) => {
+                    const isSelected = doctor.id ? selectedDoctorIds.includes(doctor.id) : false;
+                    return (
+                      <div
+                        key={doctor.id}
+                        className="flex items-center gap-2 p-2 rounded bg-secondary/30 cursor-pointer hover:bg-secondary/50 transition-colors"
+                        onClick={() => {
+                          if (!doctor.id) return;
+                          setSelectedDoctorIds(prev => 
+                            isSelected ? prev.filter(id => id !== doctor.id) : [...prev, doctor.id!]
+                          );
+                          if (!isSelected && !includeDoctorData) {
+                            setIncludeDoctorData(true);
+                          }
+                        }}
+                      >
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => {}}
+                          className="shrink-0"
+                        />
+                        <span className="text-sm flex-1">
+                          {[doctor.title, doctor.first_name, doctor.last_name].filter(Boolean).join(' ') || 'Unbekannt'}
+                          {doctor.specialty && <span className="text-muted-foreground ml-1">({doctor.specialty})</span>}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
         </Card>
 
-        {/* Block 4: Freitext & Notizen */}
+        {/* ═══════════════════════════════════════════════════════════════════
+            BLOCK 3: NOTIZEN & ANMERKUNGEN
+        ═══════════════════════════════════════════════════════════════════ */}
         <Card className="p-4 space-y-4">
-          <div>
-            <h3 className="text-sm font-semibold mb-1">Freitext & Notizen im PDF</h3>
-            <p className="text-xs text-muted-foreground">Bestimme, ob persönliche Notizen und ausführliche Kontext-Texte mit in das Tagebuch aufgenommen werden sollen.</p>
-          </div>
+          <h3 className="text-sm font-semibold">Notizen</h3>
           
-          <div className="space-y-3">
-            <label className="flex items-start gap-3 text-sm cursor-pointer p-3 rounded-lg border border-border/50 hover:border-primary/30 transition-colors has-[:checked]:border-primary/50 has-[:checked]:bg-primary/5">
+          <div className="space-y-2">
+            <label className="flex items-center gap-3 text-sm cursor-pointer p-2 rounded-lg border border-border/50 hover:border-primary/30 transition-colors has-[:checked]:border-primary/50 has-[:checked]:bg-primary/5">
               <input 
                 type="radio" 
                 name="freeTextMode" 
                 value="none"
                 checked={freeTextExportMode === 'none'} 
                 onChange={() => setFreeTextExportMode('none')}
-                className="mt-1 accent-primary"
+                className="accent-primary"
               />
-              <div>
-                <span className="font-medium">Keine persönlichen Notizen/Kontexte (empfohlen)</span>
-                <p className="text-xs text-muted-foreground mt-0.5">Gut geeignet für Arztpraxis, Klinik oder Krankenkasse. Strukturierte Daten und KI-Auswertung, aber ohne deine Freitext-Einträge.</p>
-              </div>
+              <span className="font-medium">Keine Notizen</span>
+              <span className="text-xs text-muted-foreground">(empfohlen)</span>
             </label>
             
-            <label className="flex items-start gap-3 text-sm cursor-pointer p-3 rounded-lg border border-border/50 hover:border-primary/30 transition-colors has-[:checked]:border-primary/50 has-[:checked]:bg-primary/5">
+            <label className="flex items-center gap-3 text-sm cursor-pointer p-2 rounded-lg border border-border/50 hover:border-primary/30 transition-colors has-[:checked]:border-primary/50 has-[:checked]:bg-primary/5">
               <input 
                 type="radio" 
                 name="freeTextMode" 
                 value="short_notes"
                 checked={freeTextExportMode === 'short_notes'} 
                 onChange={() => setFreeTextExportMode('short_notes')}
-                className="mt-1 accent-primary"
+                className="accent-primary"
               />
-              <div>
-                <span className="font-medium">Kurze Notizen einbeziehen</span>
-                <p className="text-xs text-muted-foreground mt-0.5">Das Feld „Kurze Notizen" wird in der Einträge-Liste angezeigt (z.B. Stress, Stimmung, Schlafqualität). Der ausführliche Kontext bleibt nur intern.</p>
-              </div>
+              <span className="font-medium">Kurze Notizen</span>
             </label>
             
-            <label className="flex items-start gap-3 text-sm cursor-pointer p-3 rounded-lg border border-border/50 hover:border-primary/30 transition-colors has-[:checked]:border-primary/50 has-[:checked]:bg-primary/5">
+            <label className="flex items-center gap-3 text-sm cursor-pointer p-2 rounded-lg border border-border/50 hover:border-primary/30 transition-colors has-[:checked]:border-primary/50 has-[:checked]:bg-primary/5">
               <input 
                 type="radio" 
                 name="freeTextMode" 
                 value="notes_and_context"
                 checked={freeTextExportMode === 'notes_and_context'} 
                 onChange={() => setFreeTextExportMode('notes_and_context')}
-                className="mt-1 accent-primary"
+                className="accent-primary"
               />
-              <div>
-                <span className="font-medium">Notizen + ausführlicher Kontext-Anhang</span>
-                <p className="text-xs text-muted-foreground mt-0.5">Kurze Notizen erscheinen in der Einträge-Liste. Zusätzlich wird am Ende des PDFs ein Anhang mit den ausführlichen Kontext-Texten pro Eintrag erstellt.</p>
-              </div>
+              <span className="font-medium">Notizen + Anhang</span>
             </label>
-          </div>
-        </Card>
 
-        {/* Block 5: Anmerkungen für den Arzt */}
-        <Card className="p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-semibold mb-1">Anmerkungen für den Arzt (optional)</h3>
-              <p className="text-xs text-muted-foreground">Hier kannst du besondere Hinweise, Fragen oder aktuelle Anliegen für deinen Arzt notieren. Dieser Text erscheint im Abschnitt „Anmerkungen des Patienten" im PDF.</p>
-            </div>
-            {patientNotes.trim() && (
-              <label className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
-                <Checkbox 
-                  checked={includePatientNotes} 
-                  onCheckedChange={(checked) => setIncludePatientNotes(!!checked)} 
-                  className="h-3 w-3"
-                />
-                Im Bericht
-              </label>
+            {/* Kontextuelle Beschreibung nur für ausgewählte Option */}
+            {freeTextExportMode !== 'none' && (
+              <p className="text-xs text-muted-foreground pl-2 mt-1">
+                {freeTextExportMode === 'short_notes' 
+                  ? 'Kurze Notizen in der Einträge-Tabelle anzeigen.'
+                  : 'Kurze Notizen + ausführlicher Kontext-Anhang am Ende.'}
+              </p>
             )}
           </div>
-          <textarea
-            value={patientNotes}
-            onChange={e => {
-              const newValue = e.target.value.slice(0, 1000);
-              setPatientNotes(newValue);
-              if (newValue.trim() && !includePatientNotes) {
-                setIncludePatientNotes(true);
-              }
-            }}
-            placeholder="Hier kannst du wichtige Hinweise, besondere Ereignisse oder Fragen an deinen Arzt notieren (optional)."
-            className="w-full min-h-[100px] max-h-[200px] p-3 text-sm border border-border/50 rounded-md bg-background resize-y focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50"
-            rows={4}
-          />
-          <div className="flex justify-end">
-            <span className={`text-xs ${patientNotes.length > 900 ? 'text-destructive' : 'text-muted-foreground'}`}>
-              {patientNotes.length} / 1000
-            </span>
-          </div>
+
+          {/* Anmerkungen (Accordion) */}
+          <Collapsible open={notesOpen} onOpenChange={setNotesOpen}>
+            <CollapsibleTrigger className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors py-1 w-full">
+              {notesOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+              <span>Anmerkungen (optional)</span>
+              {patientNotes.trim() && !notesOpen && (
+                <span className="text-primary text-xs">• vorhanden</span>
+              )}
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-2 space-y-2">
+              <textarea
+                value={patientNotes}
+                onChange={e => {
+                  const newValue = e.target.value.slice(0, 1000);
+                  setPatientNotes(newValue);
+                  if (newValue.trim() && !includePatientNotes) {
+                    setIncludePatientNotes(true);
+                  }
+                }}
+                placeholder="Hinweise/Fragen für den Arzt..."
+                className="w-full min-h-[80px] max-h-[150px] p-3 text-sm border border-border/50 rounded-md bg-background resize-y focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50"
+                rows={3}
+              />
+              <div className="flex justify-between items-center">
+                {patientNotes.trim() && (
+                  <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Checkbox 
+                      checked={includePatientNotes} 
+                      onCheckedChange={(checked) => setIncludePatientNotes(!!checked)} 
+                      className="h-3 w-3"
+                    />
+                    Im PDF anzeigen
+                  </label>
+                )}
+                <span className={`text-xs ml-auto ${patientNotes.length > 900 ? 'text-destructive' : 'text-muted-foreground'}`}>
+                  {patientNotes.length}/1000
+                </span>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
         </Card>
 
-      {/* Export Actions */}
-      <Card className="p-6">
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold">Export</h3>
-            <div className="text-sm text-muted-foreground">
-              {filteredEntries.length > 0 ? (
-                <span>
-                  <span className="font-semibold text-foreground">{filteredEntries.length}</span> Einträge 
-                  {" "}({format(new Date(from), 'dd.MM.yyyy')} - {format(new Date(to), 'dd.MM.yyyy')})
-                </span>
-              ) : (
-                <span className="text-destructive">Keine Einträge</span>
-              )}
-            </div>
-          </div>
-
+        {/* ═══════════════════════════════════════════════════════════════════
+            EXPORT BEREICH
+        ═══════════════════════════════════════════════════════════════════ */}
+        <Card className="p-4 space-y-3">
           <Button 
             onClick={generatePDF}
             disabled={!filteredEntries.length || isGeneratingReport}
@@ -1062,64 +981,39 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
             ) : (
               <>
                 <FileText className="mr-2 h-5 w-5" />
-                PDF erstellen
+                PDF erstellen{filteredEntries.length > 0 ? ` (${filteredEntries.length})` : ''}
               </>
             )}
           </Button>
 
-          <Button 
-            onClick={exportCSV}
-            disabled={!filteredEntries.length || isGeneratingReport}
-            variant="outline"
-            className="w-full"
-          >
-            <Table className="mr-2 h-4 w-4" />
-            CSV-Export (für Excel)
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              onClick={exportCSV}
+              disabled={!filteredEntries.length || isGeneratingReport}
+              variant="outline"
+              className="flex-1"
+              size="sm"
+            >
+              <Table className="mr-2 h-4 w-4" />
+              CSV
+            </Button>
 
-          <Button 
-            onClick={generateMedicationPlanPdf}
-            disabled={medicationCourses.length === 0 || isGeneratingMedPlan || isGeneratingReport}
-            variant="outline"
-            className="w-full"
-          >
-            {isGeneratingMedPlan ? (
-              <>
+            <Button 
+              onClick={generateMedicationPlanPdf}
+              disabled={medicationCourses.length === 0 || isGeneratingMedPlan || isGeneratingReport}
+              variant="outline"
+              className="flex-1"
+              size="sm"
+            >
+              {isGeneratingMedPlan ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Medikationsplan wird erstellt...
-              </>
-            ) : (
-              <>
+              ) : (
                 <Pill className="mr-2 h-4 w-4" />
-                Medikationsplan (BMP-Stil)
-              </>
-            )}
-          </Button>
-
-          {filteredEntries.length > 0 && (
-            <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-md">
-              <p className="font-medium mb-1">Das PDF enthält:</p>
-              <ul className="list-disc list-inside space-y-0.5 ml-1">
-                {includeStats && <li>Medikamenten-Statistiken</li>}
-                {includeChart && <li>Schmerzintensität-Verlauf (Diagramm)</li>}
-                {includeAnalysis && <li>KI-gestützte Mustererkennung (dauert ca. 10-15 Sek.)</li>}
-                {includeEntriesList && <li>Detaillierte Einträge-Tabelle</li>}
-                {includePatientData && <li>Persönliche Daten</li>}
-                {includeDoctorData && selectedDoctorsForExport.length > 0 && <li>Arztkontakte ({selectedDoctorsForExport.length})</li>}
-                {includeMedicationCourses && medicationCourses.length > 0 && <li>Therapieverlauf (Prophylaxe & Akut)</li>}
-                {includePatientNotes && patientNotes.trim() && <li>Anmerkungen des Patienten</li>}
-              </ul>
-            </div>
-          )}
-
-          {medicationCourses.length > 0 && (
-            <div className="text-xs text-muted-foreground bg-primary/5 border border-primary/20 p-3 rounded-md">
-              <p className="font-medium mb-1 text-primary">Medikationsplan (BMP-Stil):</p>
-              <p>Separates PDF im Stil des bundeseinheitlichen Medikationsplans mit aktueller Medikation und Therapiehistorie – ohne KI-Interpretation.</p>
-            </div>
-          )}
-        </div>
-      </Card>
+              )}
+              Medikationsplan
+            </Button>
+          </div>
+        </Card>
       </div>
 
       {/* Missing Data Dialog */}
@@ -1154,7 +1048,6 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         onClose={() => setShowDoctorSelection(false)}
         doctors={doctors}
         onConfirm={(selected) => {
-          // Update selected IDs state
           const newIds = selected.map(d => d.id).filter(Boolean) as string[];
           setSelectedDoctorIds(newIds);
           setIncludeDoctorData(newIds.length > 0);
@@ -1165,5 +1058,6 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         description="Wählen Sie die Ärzte aus, deren Kontaktdaten im PDF erscheinen sollen."
       />
     </div>
+    </TooltipProvider>
   );
 }
