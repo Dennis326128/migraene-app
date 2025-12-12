@@ -493,6 +493,36 @@ export type Database = {
         }
         Relationships: []
       }
+      user_ai_usage: {
+        Row: {
+          created_at: string | null
+          feature: string
+          id: string
+          period_start: string | null
+          request_count: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          feature: string
+          id?: string
+          period_start?: string | null
+          request_count?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          feature?: string
+          id?: string
+          period_start?: string | null
+          request_count?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_consents: {
         Row: {
           created_at: string
@@ -692,6 +722,7 @@ export type Database = {
       }
       user_profiles: {
         Row: {
+          ai_draft_engine: string | null
           ai_enabled: boolean
           custom_medication_reasons: string[] | null
           default_pain_location: string | null
@@ -708,6 +739,7 @@ export type Database = {
           voice_notes_enabled: boolean
         }
         Insert: {
+          ai_draft_engine?: string | null
           ai_enabled?: boolean
           custom_medication_reasons?: string[] | null
           default_pain_location?: string | null
@@ -724,6 +756,7 @@ export type Database = {
           voice_notes_enabled?: boolean
         }
         Update: {
+          ai_draft_engine?: string | null
           ai_enabled?: boolean
           custom_medication_reasons?: string[] | null
           default_pain_location?: string | null
