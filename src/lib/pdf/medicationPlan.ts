@@ -320,6 +320,7 @@ function deriveWirkstoff(
 
 /**
  * Build structured as-needed dosing text from new fields
+ * Returns compact format: "b.B., max. 2x/Tag, 10 Tage/Monat"
  */
 function buildAsNeededDoseText(med: UserMedicationForPlan): string {
   const parts: string[] = [];
@@ -328,10 +329,10 @@ function buildAsNeededDoseText(med: UserMedicationForPlan): string {
     parts.push(med.as_needed_standard_dose);
   }
   if (med.as_needed_max_per_24h) {
-    parts.push(`max. ${med.as_needed_max_per_24h}x/24h`);
+    parts.push(`max. ${med.as_needed_max_per_24h}x/Tag`);
   }
   if (med.as_needed_max_days_per_month) {
-    parts.push(`max. ${med.as_needed_max_days_per_month} Tage/Monat`);
+    parts.push(`${med.as_needed_max_days_per_month} Tage/Monat`);
   }
   if (med.as_needed_min_interval_hours) {
     parts.push(`Abstand ${med.as_needed_min_interval_hours}h`);
@@ -343,6 +344,23 @@ function buildAsNeededDoseText(med: UserMedicationForPlan): string {
   }
   
   return parts.join(", ");
+}
+
+/**
+ * Build compact limit text for inline display
+ * Format: "max. 10x/Monat" instead of "Maximal: 10x pro Monat"
+ */
+function buildCompactLimitText(limit: { limit: number; period: string } | undefined): string {
+  if (!limit) return "";
+  
+  const periodMap: Record<string, string> = {
+    day: "Tag", daily: "Tag",
+    week: "Woche", weekly: "Woche",
+    month: "Monat", monthly: "Monat",
+  };
+  const periodLabel = periodMap[limit.period?.toLowerCase()] || "Monat";
+  
+  return `max. ${limit.limit}x/${periodLabel}`;
 }
 
 /**
@@ -460,11 +478,15 @@ function buildMedicationRows(
     // Clean handelsname to remove duplicate strength
     const cleanedHandelsname = cleanHandelsname(med.name);
 
-    // Build limit text for this medication
+    // Build compact limit text for inline display with b.B.
     const limitInfo = limitsMap.get(med.name.toLowerCase());
-    let limitText = "";
-    if (limitInfo) {
-      limitText = `Maximal: ${limitInfo.limit}x pro ${getPeriodLabel(limitInfo.period)}`;
+    const limitText = buildCompactLimitText(limitInfo);
+    
+    // For as-needed meds: combine the dose text with limit inline
+    // This ensures we show "b.B., max. 10x/Monat" in ONE line
+    let combinedAsNeededText = asNeededDoseText;
+    if (limitText && !isRegular) {
+      combinedAsNeededText = [asNeededDoseText, limitText].filter(Boolean).join(", ");
     }
 
     const row: MedRow = {
@@ -484,9 +506,9 @@ function buildMedicationRows(
       discontinuedAt: med.discontinued_at ? formatDate(med.discontinued_at) : 
                       (course?.end_date ? formatDate(course.end_date) : ""),
       discontinuationReason: getDiscontinuationReasonLabel(course?.discontinuation_reason),
-      asNeededDoseText: sanitize(asNeededDoseText),
+      asNeededDoseText: sanitize(combinedAsNeededText),
       weekdayInfo: sanitize(weekdayInfo),
-      limitText: sanitize(limitText),
+      limitText: isRegular ? sanitize(limitText) : "", // Only show separate limit for regular meds
     };
 
     // Categorize based on status
@@ -637,8 +659,11 @@ function drawMedicationRow(
   let cx = tableX + 3;
   const textY = y - 14;
   
-  // Wirkstoff
-  page.drawText(truncateText(med.wirkstoff, 18), { x: cx, y: textY, size: fs, font: helvetica, color: COLORS.text });
+  // Wirkstoff - show "-" if same as handelsname to avoid duplication
+  const wirkstoffDisplay = med.wirkstoff.toLowerCase() === med.handelsname.toLowerCase() 
+    ? "-" 
+    : med.wirkstoff;
+  page.drawText(truncateText(wirkstoffDisplay, 18), { x: cx, y: textY, size: fs, font: helvetica, color: COLORS.text });
   cx += COL_WIDTHS.wirkstoff;
   
   // Handelsname (bold) - allow wrapping for long names
@@ -687,6 +712,7 @@ function drawMedicationRow(
 
 /**
  * Draw a row for as-needed medication with structured dosing info
+ * Now displays "b.B., max. X/Monat" in ONE line (limit is included in asNeededDoseText)
  */
 function drawAsNeededMedicationRow(
   page: PDFPage,
@@ -697,14 +723,12 @@ function drawAsNeededMedicationRow(
 ): number {
   const { helvetica, helveticaBold } = fonts;
   const fs = 7;
-  const fsSmall = 6;
   
-  // Calculate dynamic row height based on content
-  const hasLimit = med.limitText && med.limitText.length > 0;
+  // asNeededDoseText now contains the combined text including limits
   const hasDoseText = med.asNeededDoseText && med.asNeededDoseText.length > 0;
-  const baseRowHeight = hasDoseText ? 30 : 22;
-  const limitRowHeight = hasLimit ? 12 : 0;
-  const rowHeight = baseRowHeight + limitRowHeight;
+  
+  // Simple row height - no separate limit line needed anymore
+  const rowHeight = hasDoseText ? 28 : 22;
   
   // Row background
   page.drawRectangle({
@@ -719,8 +743,11 @@ function drawAsNeededMedicationRow(
   let cx = tableX + 3;
   const textY = y - 12;
   
-  // Wirkstoff
-  page.drawText(truncateText(med.wirkstoff, 18), { x: cx, y: textY, size: fs, font: helvetica, color: COLORS.text });
+  // Wirkstoff - show "-" if same as handelsname to avoid duplication
+  const wirkstoffDisplay = med.wirkstoff.toLowerCase() === med.handelsname.toLowerCase() 
+    ? "-" 
+    : med.wirkstoff;
+  page.drawText(truncateText(wirkstoffDisplay, 18), { x: cx, y: textY, size: fs, font: helvetica, color: COLORS.text });
   cx += COL_WIDTHS.wirkstoff;
   
   // Handelsname (bold) - allow wrapping for long names
@@ -738,10 +765,10 @@ function drawAsNeededMedicationRow(
   page.drawText(truncateText(med.form, 10), { x: cx, y: textY, size: fs, font: helvetica, color: COLORS.text });
   cx += COL_WIDTHS.form;
   
-  // For as-needed: Show "b.B." in first column, then structured dose info spanning rest
+  // For as-needed: Show "b.B." in first dose column
   page.drawText("b.B.", { x: cx + 3, y: textY, size: fs, font: helvetica, color: COLORS.text });
   
-  // Show structured dose text below if available
+  // Show structured dose text (including limits) spanning remaining columns
   if (hasDoseText) {
     const doseTextX = cx + COL_WIDTHS.mo;
     const doseWidth = COL_WIDTHS.mi + COL_WIDTHS.ab + COL_WIDTHS.na + COL_WIDTHS.einheit;
@@ -755,19 +782,6 @@ function drawAsNeededMedicationRow(
         font: helvetica, 
         color: COLORS.textMuted 
       });
-    });
-  }
-  
-  // Draw limit text in a separate line if present
-  if (hasLimit) {
-    const limitY = y - baseRowHeight - 2;
-    const limitX = tableX + COL_WIDTHS.wirkstoff + COL_WIDTHS.handelsname + COL_WIDTHS.staerke + COL_WIDTHS.form + 6;
-    page.drawText(med.limitText, { 
-      x: limitX, 
-      y: limitY, 
-      size: fsSmall, 
-      font: helvetica, 
-      color: COLORS.textMuted 
     });
   }
   
@@ -806,10 +820,24 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
   const medRows = buildMedicationRows(userMedications, medicationCourses, medicationLimits);
   
   // ═══════════════════════════════════════════════════════════════════════════
-  // HEADER - BMP-STYLE
+  // HEADER - BMP-STYLE (TWO-COLUMN LAYOUT - NO OVERLAP)
   // ═══════════════════════════════════════════════════════════════════════════
   
-  const headerHeight = 75;
+  // Calculate patient data lines to determine header height dynamically
+  const patientLines: { label: string; value: string }[] = [];
+  if (patientData) {
+    const patName = [patientData.firstName, patientData.lastName].filter(Boolean).join(" ");
+    if (patName) patientLines.push({ label: "Patient:", value: sanitize(patName) });
+    if (patientData.dateOfBirth) patientLines.push({ label: "Geb.-Datum:", value: formatDate(patientData.dateOfBirth) });
+    const address = [patientData.street, [patientData.postalCode, patientData.city].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+    if (address) patientLines.push({ label: "Adresse:", value: truncateText(sanitize(address), 35) });
+    if (patientData.healthInsurance) patientLines.push({ label: "Kasse:", value: sanitize(patientData.healthInsurance) });
+    if (patientData.insuranceNumber) patientLines.push({ label: "Vers.-Nr.:", value: sanitize(patientData.insuranceNumber) });
+  }
+  patientLines.push({ label: "Erstellt am:", value: creationDate });
+  
+  // Header height: minimum 55, grows with patient data (max 6 lines * 11 + padding)
+  const headerHeight = Math.max(55, 20 + patientLines.length * 11);
   
   // Header background
   page.drawRectangle({
@@ -824,61 +852,45 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
   page.drawLine({ start: { x: LAYOUT.marginLeft, y }, end: { x: LAYOUT.marginLeft + contentWidth, y }, thickness: 2, color: COLORS.primary });
   page.drawLine({ start: { x: LAYOUT.marginLeft, y: y - headerHeight }, end: { x: LAYOUT.marginLeft + contentWidth, y: y - headerHeight }, thickness: 1, color: COLORS.border });
   
-  // Title
+  // ===== COLUMN 1: Title (left side, ~55% width) =====
+  const col1Width = contentWidth * 0.50;
+  
   page.drawText("MEDIKATIONSPLAN", {
     x: LAYOUT.marginLeft + 10,
-    y: y - 25,
-    size: 16,
+    y: y - 22,
+    size: 18,
     font: helveticaBold,
     color: COLORS.primary,
   });
   page.drawText("(Patienten-Version)", {
     x: LAYOUT.marginLeft + 10,
-    y: y - 38,
-    size: 7,
+    y: y - 36,
+    size: 8,
     font: helvetica,
     color: COLORS.textMuted,
   });
   
-  // Patient data (center)
-  const col2X = LAYOUT.marginLeft + 160;
-  let patY = y - 12;
+  // ===== COLUMN 2: Patient data (right side, ~50% width) =====
+  const col2X = LAYOUT.marginLeft + col1Width;
+  let patY = y - 10;
+  const lineHeight = 11;
+  const labelWidth = 55;
   
-  if (patientData) {
-    const patName = [patientData.firstName, patientData.lastName].filter(Boolean).join(" ");
-    if (patName) {
-      page.drawText("Patient:", { x: col2X, y: patY, size: 6.5, font: helvetica, color: COLORS.textMuted });
-      page.drawText(sanitize(patName), { x: col2X + 35, y: patY, size: 9, font: helveticaBold, color: COLORS.text });
-      patY -= 12;
-    }
-    if (patientData.dateOfBirth) {
-      page.drawText("Geb.-Datum:", { x: col2X, y: patY, size: 6.5, font: helvetica, color: COLORS.textMuted });
-      page.drawText(formatDate(patientData.dateOfBirth), { x: col2X + 48, y: patY, size: 8, font: helvetica, color: COLORS.text });
-      patY -= 12;
-    }
-    const address = [patientData.street, [patientData.postalCode, patientData.city].filter(Boolean).join(" ")].filter(Boolean).join(", ");
-    if (address) {
-      page.drawText("Adresse:", { x: col2X, y: patY, size: 6.5, font: helvetica, color: COLORS.textMuted });
-      page.drawText(truncateText(sanitize(address), 40), { x: col2X + 35, y: patY, size: 7.5, font: helvetica, color: COLORS.text });
-      patY -= 12;
-    }
-    if (patientData.healthInsurance) {
-      page.drawText("Kasse:", { x: col2X, y: patY, size: 6.5, font: helvetica, color: COLORS.textMuted });
-      page.drawText(sanitize(patientData.healthInsurance), { x: col2X + 30, y: patY, size: 8, font: helvetica, color: COLORS.text });
-      patY -= 12;
-    }
-    if (patientData.insuranceNumber) {
-      page.drawText("Vers.-Nr.:", { x: col2X, y: patY, size: 6.5, font: helvetica, color: COLORS.textMuted });
-      page.drawText(sanitize(patientData.insuranceNumber), { x: col2X + 40, y: patY, size: 8, font: helvetica, color: COLORS.text });
-    }
+  for (const line of patientLines) {
+    page.drawText(line.label, { x: col2X, y: patY, size: 6.5, font: helvetica, color: COLORS.textMuted });
+    const isName = line.label === "Patient:";
+    const isDate = line.label === "Erstellt am:";
+    page.drawText(line.value, { 
+      x: col2X + labelWidth, 
+      y: patY, 
+      size: isName || isDate ? 9 : 7.5, 
+      font: isName || isDate ? helveticaBold : helvetica, 
+      color: COLORS.text 
+    });
+    patY -= lineHeight;
   }
   
-  // Creation date (right)
-  const col3X = LAYOUT.marginLeft + contentWidth - 90;
-  page.drawText("Erstellt am:", { x: col3X, y: y - 12, size: 6.5, font: helvetica, color: COLORS.textMuted });
-  page.drawText(creationDate, { x: col3X, y: y - 25, size: 10, font: helveticaBold, color: COLORS.text });
-  
-  y -= headerHeight + 12;
+  y -= headerHeight + 10;
   
   // ═══════════════════════════════════════════════════════════════════════════
   // DOCTOR SECTION

@@ -620,6 +620,7 @@ export type Database = {
           dosis_mittags: string | null
           dosis_morgens: string | null
           dosis_nacht: string | null
+          effect_category: string | null
           einheit: string | null
           end_date: string | null
           hinweise: string | null
@@ -658,6 +659,7 @@ export type Database = {
           dosis_mittags?: string | null
           dosis_morgens?: string | null
           dosis_nacht?: string | null
+          effect_category?: string | null
           einheit?: string | null
           end_date?: string | null
           hinweise?: string | null
@@ -696,6 +698,7 @@ export type Database = {
           dosis_mittags?: string | null
           dosis_morgens?: string | null
           dosis_nacht?: string | null
+          effect_category?: string | null
           einheit?: string | null
           end_date?: string | null
           hinweise?: string | null

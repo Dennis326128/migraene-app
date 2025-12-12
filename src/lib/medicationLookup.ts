@@ -20,6 +20,42 @@ export type MedicationMetadata = {
   hinweise?: string;           // Sachliche Hinweise für den Medikationsplan (hinweis_medplan)
   dosis_bedarf?: string;
   dosis_intervall?: string;    // z.B. "1x monatlich", "alle 3 Monate"
+  effectCategory?: EffectCategory; // Wirkungskategorie für Analyse
+};
+
+/**
+ * Standardisierte Wirkungskategorien für Medikamente
+ */
+export type EffectCategory =
+  | "migraene_triptan"
+  | "migraene_prophylaxe"
+  | "schmerzmittel_nsar"
+  | "schmerzmittel_sonstige"
+  | "antiemetikum"
+  | "magenschutz"
+  | "antikoagulans"
+  | "schlafmittel"
+  | "beruhigungsmittel"
+  | "blutdrucksenker"
+  | "antidepressivum"
+  | "sonstiges";
+
+/**
+ * Human-readable labels for effect categories (German)
+ */
+export const EFFECT_CATEGORY_LABELS: Record<EffectCategory, string> = {
+  migraene_triptan: "Migraeneakutmedikation (Triptan)",
+  migraene_prophylaxe: "Migraeneprophylaxe",
+  schmerzmittel_nsar: "Schmerzmittel (NSAR)",
+  schmerzmittel_sonstige: "Schmerzmittel (nicht-Opioid)",
+  antiemetikum: "Antiemetikum",
+  magenschutz: "Magenschutz (PPI)",
+  antikoagulans: "Antikoagulans",
+  schlafmittel: "Schlafmittel",
+  beruhigungsmittel: "Beruhigungsmittel",
+  blutdrucksenker: "Blutdrucksenker",
+  antidepressivum: "Antidepressivum",
+  sonstiges: "Sonstiges",
 };
 
 // Interne Datenbank typischer Migräne-Medikamente
@@ -36,6 +72,7 @@ const MEDICATION_DATABASE: Record<string, MedicationMetadata> = {
     anwendungsgebiet: "Migraeneprophylaxe",
     hinweise: "Subkutane Injektion",
     dosis_intervall: "1x monatlich",
+    effectCategory: "migraene_prophylaxe",
   },
   "ajovy 225": {
     wirkstoff: "Fremanezumab",
@@ -46,6 +83,7 @@ const MEDICATION_DATABASE: Record<string, MedicationMetadata> = {
     anwendungsgebiet: "Migraeneprophylaxe",
     hinweise: "Subkutane Injektion",
     dosis_intervall: "1x monatlich",
+    effectCategory: "migraene_prophylaxe",
   },
   "aimovig": {
     wirkstoff: "Erenumab",
@@ -712,4 +750,84 @@ export function getKnownMedicationNames(): string[] {
   }
   
   return Array.from(uniqueNames).sort();
+}
+
+/**
+ * Automatische Ableitung der Wirkungskategorie basierend auf Wirkstoff/Name
+ * Wird verwendet, wenn keine explizite Kategorie gesetzt ist
+ */
+export function deriveEffectCategory(
+  medName: string, 
+  wirkstoff?: string | null,
+  explicitCategory?: string | null
+): EffectCategory {
+  // Wenn bereits explizit gesetzt, verwenden
+  if (explicitCategory && explicitCategory in EFFECT_CATEGORY_LABELS) {
+    return explicitCategory as EffectCategory;
+  }
+  
+  // Lookup in database
+  const lookup = lookupMedicationMetadata(medName);
+  if (lookup?.effectCategory) {
+    return lookup.effectCategory;
+  }
+  
+  // Heuristische Ableitung basierend auf Wirkstoff/Name
+  const searchTerms = [medName, wirkstoff || ""].map(s => s.toLowerCase());
+  const combined = searchTerms.join(" ");
+  
+  // Triptane
+  if (/triptan|sumatriptan|rizatriptan|zolmitriptan|eletriptan|naratriptan|almotriptan|frovatriptan/.test(combined)) {
+    return "migraene_triptan";
+  }
+  
+  // CGRP-Antikörper & andere Prophylaxe
+  if (/erenumab|galcanezumab|fremanezumab|aimovig|ajovy|emgality|topiramat|propranolol|metoprolol|flunarizin|valproat|amitriptylin|botox|botulinumtoxin/.test(combined)) {
+    return "migraene_prophylaxe";
+  }
+  
+  // NSAR
+  if (/ibuprofen|naproxen|diclofenac|voltaren|aspirin|ass|acetylsalicyl/.test(combined)) {
+    return "schmerzmittel_nsar";
+  }
+  
+  // Andere Schmerzmittel
+  if (/paracetamol|metamizol|novaminsulfon|novalgin/.test(combined)) {
+    return "schmerzmittel_sonstige";
+  }
+  
+  // Antiemetika
+  if (/metoclopramid|mcp|domperidon|ondansetron|vomex|dimenhydrinat/.test(combined)) {
+    return "antiemetikum";
+  }
+  
+  // PPI / Magenschutz
+  if (/pantoprazol|omeprazol|esomeprazol|rabeprazol|lansoprazol/.test(combined)) {
+    return "magenschutz";
+  }
+  
+  // Antikoagulantien
+  if (/apixaban|eliquis|rivaroxaban|xarelto|dabigatran|pradaxa|edoxaban|warfarin|marcumar/.test(combined)) {
+    return "antikoagulans";
+  }
+  
+  // Schlafmittel
+  if (/zopiclon|zolpidem|stilnox|lormetazepam|temazepam/.test(combined)) {
+    return "schlafmittel";
+  }
+  
+  // Beruhigungsmittel
+  if (/diazepam|lorazepam|oxazepam|alprazolam|bromazepam/.test(combined)) {
+    return "beruhigungsmittel";
+  }
+  
+  return "sonstiges";
+}
+
+/**
+ * Gibt das Label für eine Wirkungskategorie zurück
+ */
+export function getEffectCategoryLabel(category: EffectCategory | string | null | undefined): string {
+  if (!category) return "";
+  return EFFECT_CATEGORY_LABELS[category as EffectCategory] || category;
 }
