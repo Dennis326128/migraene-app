@@ -4,8 +4,7 @@ import { CalendarLegend } from './CalendarLegend';
 import { DayDetailSheet } from './DayDetailSheet';
 import { EntryPreviewSheet } from './EntryPreviewSheet';
 import { useCalendarPainSummary, type DaySummary } from './useCalendarPainSummary';
-import { Button } from '@/components/ui/button';
-import { ChevronUp, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { startOfMonth, subMonths, isBefore, parseISO, isSameMonth } from 'date-fns';
 import type { PainEntry } from '@/types/painApp';
 
@@ -39,6 +38,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ onEdit }) => {
   const currentMonthRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const hasScrolledRef = useRef(false);
+  
+  // Infinite scroll sentinel ref
+  const loadMoreSentinelRef = useRef<HTMLDivElement>(null);
+  const isLoadingMoreRef = useRef(false);
   
   // Generate months to display - chronological order (oldest first)
   const monthsToDisplay = useMemo(() => {
@@ -76,6 +79,37 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ onEdit }) => {
       hasScrolledRef.current = true;
     }
   }, [isLoading, monthsToDisplay.length]);
+  
+  // Infinite scroll: IntersectionObserver for loading older months
+  useEffect(() => {
+    const sentinel = loadMoreSentinelRef.current;
+    if (!sentinel || !canLoadEarlier) return;
+    
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry.isIntersecting && !isLoading && !isLoadingMoreRef.current && canLoadEarlier) {
+          isLoadingMoreRef.current = true;
+          loadEarlier();
+          // Reset lock after a short delay
+          setTimeout(() => {
+            isLoadingMoreRef.current = false;
+          }, 500);
+        }
+      },
+      {
+        root: null,
+        rootMargin: '200px', // Trigger before reaching the sentinel
+        threshold: 0.1,
+      }
+    );
+    
+    observer.observe(sentinel);
+    
+    return () => {
+      observer.disconnect();
+    };
+  }, [canLoadEarlier, isLoading, loadEarlier]);
   
   // Handler: Day clicked in calendar
   const handleDayClick = useCallback((date: string, entries: DaySummary['entries']) => {
@@ -129,23 +163,16 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ onEdit }) => {
       {/* Legend - compact */}
       <CalendarLegend />
       
-      {/* Load earlier button at top */}
+      {/* Infinite scroll sentinel at top for older months */}
       {canLoadEarlier && (
-        <div className="flex justify-center">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={loadEarlier}
-            disabled={isLoading}
-            className="gap-2 text-xs"
-          >
-            {isLoading ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
-              <ChevronUp className="h-3 w-3" />
-            )}
-            Frühere Monate
-          </Button>
+        <div ref={loadMoreSentinelRef} className="h-1" />
+      )}
+      
+      {/* Loading indicator for older months */}
+      {isLoading && monthsToDisplay.length > 0 && (
+        <div className="flex items-center justify-center gap-2 py-2 text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span className="text-xs">Lade ältere Monate…</span>
         </div>
       )}
       
@@ -161,6 +188,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ onEdit }) => {
           />
         ))}
       </div>
+      
+      {/* End of data indicator */}
+      {!canLoadEarlier && monthsToDisplay.length > 0 && (
+        <div className="text-center py-4 text-xs text-muted-foreground/50">
+          Anfang erreicht
+        </div>
+      )}
       
       {/* No data state */}
       {monthsToDisplay.length === 0 && !isLoading && (
