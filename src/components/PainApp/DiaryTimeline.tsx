@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Filter, FileText, Calendar as CalendarIcon, Activity, Edit, Trash2, ChevronDown, ChevronUp, ArrowDown, Heart, MessageSquare } from 'lucide-react';
+import { ArrowLeft, Filter, FileText, Calendar as CalendarIcon, Activity, Edit, Trash2, ChevronDown, ChevronUp, ArrowDown, Heart, MessageSquare, List, LayoutGrid } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { toZonedTime } from 'date-fns-tz';
@@ -19,6 +19,7 @@ import { VoiceNoteEditModal } from './VoiceNoteEditModal';
 import { QuickContextNoteModal, EditingContextNote } from './QuickContextNoteModal';
 import { showSuccessToast, showErrorToast } from '@/lib/toastHelpers';
 import type { ContextMetadata } from '@/lib/voice/saveNote';
+import { CalendarView } from '@/features/diary/calendar';
 
 // Helper: Filtert technische/ungültige Wetterbedingungen
 const isValidWeatherCondition = (text: string | null | undefined): boolean => {
@@ -54,6 +55,7 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
   const [filterType, setFilterType] = useState<'all' | 'pain_entry' | 'context_note'>('all');
+  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
   const [editingNote, setEditingNote] = useState<any>(null);
   const [editingTageszustand, setEditingTageszustand] = useState<EditingContextNote | null>(null);
   const [expandedEntries, setExpandedEntries] = useState<Set<string>>(new Set());
@@ -347,42 +349,92 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
       </div>
 
       <div className={cn("max-w-4xl mx-auto p-4 space-y-4", isMobile && "px-3")}>
-        {/* Filter */}
+        {/* View Mode Toggle */}
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 mb-3">
-              <Filter className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Anzeigen</span>
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-2">
+                <LayoutGrid className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Ansicht</span>
+              </div>
+              <ToggleGroup 
+                type="single" 
+                value={viewMode} 
+                onValueChange={(value) => value && setViewMode(value as typeof viewMode)}
+                className="bg-muted/50 p-1 rounded-lg"
+              >
+                <ToggleGroupItem 
+                  value="list" 
+                  className="px-4 data-[state=on]:bg-background data-[state=on]:shadow-sm"
+                >
+                  <List className="h-4 w-4 mr-2" />
+                  Liste
+                </ToggleGroupItem>
+                <ToggleGroupItem 
+                  value="calendar" 
+                  className="px-4 data-[state=on]:bg-background data-[state=on]:shadow-sm"
+                >
+                  <CalendarIcon className="h-4 w-4 mr-2" />
+                  Kalender
+                </ToggleGroupItem>
+              </ToggleGroup>
             </div>
-            <ToggleGroup 
-              type="single" 
-              value={filterType} 
-              onValueChange={(value) => value && setFilterType(value as typeof filterType)}
-              className="justify-start"
-            >
-              <ToggleGroupItem value="all" className="flex-1">
-                Alle ({timelineItems.length})
-              </ToggleGroupItem>
-              <ToggleGroupItem value="pain_entry" className="flex-1">
-                Schmerz ({painEntries.length})
-              </ToggleGroupItem>
-              <ToggleGroupItem value="context_note" className="flex-1">
-                Kontext ({contextNotes.length})
-              </ToggleGroupItem>
-            </ToggleGroup>
           </CardContent>
         </Card>
 
-        {/* Timeline */}
-        {isLoading ? (
-          <div className="text-center py-8 text-muted-foreground">Lädt...</div>
-        ) : Object.keys(groupedByDate).length === 0 ? (
-          <EmptyState
-            icon="📖"
-            title="Noch keine Einträge"
-            description="Erstellen Sie Ihren ersten Schmerz-Eintrag oder fügen Sie Kontext-Notizen hinzu."
+        {/* Filter - only show in list view */}
+        {viewMode === 'list' && (
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2 mb-3">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Anzeigen</span>
+              </div>
+              <ToggleGroup 
+                type="single" 
+                value={filterType} 
+                onValueChange={(value) => value && setFilterType(value as typeof filterType)}
+                className="justify-start"
+              >
+                <ToggleGroupItem value="all" className="flex-1">
+                  Alle ({timelineItems.length})
+                </ToggleGroupItem>
+                <ToggleGroupItem value="pain_entry" className="flex-1">
+                  Schmerz ({painEntries.length})
+                </ToggleGroupItem>
+                <ToggleGroupItem value="context_note" className="flex-1">
+                  Kontext ({contextNotes.length})
+                </ToggleGroupItem>
+              </ToggleGroup>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Calendar View */}
+        {viewMode === 'calendar' && (
+          <CalendarView 
+            onEntryClick={(entryId) => {
+              // Find the entry and trigger edit (entryId is number, e.id is number)
+              const entry = painEntries.find(e => Number(e.id) === entryId);
+              if (entry && onEdit) {
+                onEdit(entry);
+              }
+            }}
           />
-        ) : (
+        )}
+
+        {/* List View / Timeline */}
+        {viewMode === 'list' && (
+          <>
+            {isLoading ? (
+              <div className="text-center py-8 text-muted-foreground">Lädt...</div>
+            ) : Object.keys(groupedByDate).length === 0 ? (
+              <EmptyState
+                icon="📖"
+                title="Noch keine Einträge"
+                description="Erstellen Sie Ihren ersten Schmerz-Eintrag oder fügen Sie Kontext-Notizen hinzu."
+              />
+            ) : (
           Object.entries(groupedByDate).map(([date, items]) => (
             <div key={date} className="space-y-3">
               {/* Datum-Header */}
@@ -656,6 +708,8 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
               </div>
             </div>
           ))
+            )}
+          </>
         )}
       </div>
 
