@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/select';
 import type { Reminder, CreateReminderInput, UpdateReminderInput } from '@/types/reminder.types';
 import { format } from 'date-fns';
-import { ArrowLeft, Trash2 } from 'lucide-react';
+import { ArrowLeft, Clock, Plus, X } from 'lucide-react';
 import { MedicationSelector } from './MedicationSelector';
 import { TimeOfDaySelector, getDefaultTimeSlots, type TimeSlot } from './TimeOfDaySelector';
 
@@ -41,6 +41,12 @@ interface ReminderFormProps {
   onDelete?: () => void;
 }
 
+// Intelligente Standard-Uhrzeiten für zusätzliche Zeitslots
+const getDefaultTimeForSlot = (index: number): string => {
+  const defaultTimes = ['08:00', '12:00', '18:00', '21:00'];
+  return defaultTimes[index] || '12:00';
+};
+
 export const ReminderForm = ({ reminder, onSubmit, onCancel, onDelete }: ReminderFormProps) => {
   const isEditing = !!reminder;
   const [selectedMedications, setSelectedMedications] = useState<string[]>(reminder?.medications || []);
@@ -55,6 +61,33 @@ export const ReminderForm = ({ reminder, onSubmit, onCancel, onDelete }: Reminde
     }
     return getDefaultTimeSlots();
   });
+
+  // Dynamische Uhrzeiten (max 4)
+  const [times, setTimes] = useState<string[]>(() => {
+    if (reminder) {
+      return [format(new Date(reminder.date_time), 'HH:mm')];
+    }
+    return [format(new Date(), 'HH:mm')];
+  });
+
+  const handleAddTime = () => {
+    if (times.length < 4) {
+      const nextTime = getDefaultTimeForSlot(times.length);
+      setTimes([...times, nextTime]);
+    }
+  };
+
+  const handleRemoveTime = (index: number) => {
+    if (times.length > 1) {
+      setTimes(times.filter((_, i) => i !== index));
+    }
+  };
+
+  const handleTimeChange = (index: number, value: string) => {
+    const newTimes = [...times];
+    newTimes[index] = value;
+    setTimes(newTimes);
+  };
 
   const defaultValues: FormData = reminder
     ? {
@@ -93,11 +126,11 @@ export const ReminderForm = ({ reminder, onSubmit, onCancel, onDelete }: Reminde
   const useMultipleTimeSlots = isMedicationType && repeat === 'daily' && enabledTimeSlots.length > 0;
 
   const onFormSubmit = (data: FormData) => {
-    // For editing or non-medication types, use single reminder
-    if (isEditing || !useMultipleTimeSlots) {
-      const dateTime = `${data.date}T${data.time}:00`;
+    // For editing, use single reminder
+    if (isEditing) {
+      const dateTime = `${data.date}T${times[0]}:00`;
       
-      const submitData: CreateReminderInput | UpdateReminderInput = {
+      const submitData: UpdateReminderInput = {
         type: data.type,
         title: data.title,
         date_time: dateTime,
@@ -105,31 +138,68 @@ export const ReminderForm = ({ reminder, onSubmit, onCancel, onDelete }: Reminde
         notes: data.notes || null,
         notification_enabled: data.notification_enabled,
         ...(isMedicationType && selectedMedications.length > 0 ? { medications: selectedMedications } : {}),
-        ...(isEditing && data.status ? { status: data.status } : {}),
+        ...(data.status ? { status: data.status } : {}),
       };
 
       onSubmit(submitData);
       return;
     }
 
-    // Create multiple reminders for each time slot
-    const reminders: CreateReminderInput[] = enabledTimeSlots.map((slot) => {
-      const dateTime = `${data.date}T${slot.time}:00`;
-      const medsList = selectedMedications.length > 0 ? selectedMedications.join(', ') : 'Medikamente';
+    // Use TimeOfDaySelector slots for daily medication reminders
+    if (useMultipleTimeSlots) {
+      const reminders: CreateReminderInput[] = enabledTimeSlots.map((slot) => {
+        const dateTime = `${data.date}T${slot.time}:00`;
+        const medsList = selectedMedications.length > 0 ? selectedMedications.join(', ') : 'Medikamente';
+        
+        return {
+          type: data.type,
+          title: `${medsList} (${slot.label})`,
+          date_time: dateTime,
+          repeat: data.repeat,
+          notes: data.notes || null,
+          notification_enabled: data.notification_enabled,
+          medications: selectedMedications,
+          time_of_day: slot.timeOfDay,
+        };
+      });
+
+      onSubmit(reminders);
+      return;
+    }
+
+    // Create reminders for each dynamic time
+    if (times.length === 1) {
+      const dateTime = `${data.date}T${times[0]}:00`;
       
-      return {
+      const submitData: CreateReminderInput = {
         type: data.type,
-        title: `${medsList} (${slot.label})`,
+        title: data.title,
         date_time: dateTime,
         repeat: data.repeat,
         notes: data.notes || null,
         notification_enabled: data.notification_enabled,
-        medications: selectedMedications,
-        time_of_day: slot.timeOfDay,
+        ...(isMedicationType && selectedMedications.length > 0 ? { medications: selectedMedications } : {}),
       };
-    });
 
-    onSubmit(reminders);
+      onSubmit(submitData);
+    } else {
+      // Multiple times -> create multiple reminders
+      const reminders: CreateReminderInput[] = times.map((time, index) => {
+        const dateTime = `${data.date}T${time}:00`;
+        
+        return {
+          type: data.type,
+          title: times.length > 1 ? `${data.title} (${index + 1})` : data.title,
+          date_time: dateTime,
+          repeat: data.repeat,
+          notes: data.notes || null,
+          notification_enabled: data.notification_enabled,
+          ...(isMedicationType && selectedMedications.length > 0 ? { medications: selectedMedications } : {}),
+        };
+      });
+
+      onSubmit(reminders);
+    }
   };
 
   return (
@@ -150,7 +220,7 @@ export const ReminderForm = ({ reminder, onSubmit, onCancel, onDelete }: Reminde
         </h1>
       </div>
 
-      <Card className="p-4 sm:p-6">
+      <Card className="p-4 sm:p-6 max-h-[75vh] overflow-y-auto modern-scrollbar">
         <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-6">
           <div className="space-y-2">
             <Label htmlFor="type">Typ</Label>
@@ -196,32 +266,66 @@ export const ReminderForm = ({ reminder, onSubmit, onCancel, onDelete }: Reminde
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="date">Datum</Label>
+                <Input
+                  id="date"
+                  type="date"
+                  {...register('date')}
+                  className="touch-manipulation"
+                />
+                {errors.date && (
+                  <p className="text-sm text-destructive">{errors.date.message}</p>
+                )}
+              </div>
+
+              {/* Dynamische Uhrzeiten */}
+              <div className="space-y-3">
+                <Label>Uhrzeit{times.length > 1 ? 'en' : ''}</Label>
+                
                 <div className="space-y-2">
-                  <Label htmlFor="date">Datum</Label>
-                  <Input
-                    id="date"
-                    type="date"
-                    {...register('date')}
-                    className="touch-manipulation"
-                  />
-                  {errors.date && (
-                    <p className="text-sm text-destructive">{errors.date.message}</p>
-                  )}
+                  {times.map((time, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <Input
+                        type="time"
+                        value={time}
+                        onChange={(e) => handleTimeChange(index, e.target.value)}
+                        className="touch-manipulation flex-1"
+                      />
+                      {index > 0 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleRemoveTime(index)}
+                          className="h-9 w-9 text-muted-foreground hover:text-destructive"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="time">Uhrzeit</Label>
-                  <Input
-                    id="time"
-                    type="time"
-                    {...register('time')}
-                    className="touch-manipulation"
-                  />
-                  {errors.time && (
-                    <p className="text-sm text-destructive">{errors.time.message}</p>
-                  )}
-                </div>
+                {times.length < 4 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleAddTime}
+                    className="w-full touch-manipulation"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Uhrzeit hinzufügen ({times.length}/4)
+                  </Button>
+                )}
+
+                {times.length > 1 && (
+                  <p className="text-sm text-muted-foreground">
+                    Es werden {times.length} Erinnerungen erstellt
+                  </p>
+                )}
               </div>
             </>
           )}
