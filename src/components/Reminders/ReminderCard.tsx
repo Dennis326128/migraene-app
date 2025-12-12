@@ -1,4 +1,4 @@
-import { Pill, Calendar, Edit2, AlertTriangle } from 'lucide-react';
+import { Pill, Calendar, Edit2, AlertTriangle, Check } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -103,10 +103,11 @@ export const ReminderCard = ({ reminder, onEdit, onMarkDone }: ReminderCardProps
             <Button
               size="sm"
               onClick={() => onMarkDone(reminder.id)}
-              className="whitespace-nowrap touch-manipulation"
+              className="whitespace-nowrap touch-manipulation gap-1.5"
               variant={isOverdue ? "destructive" : "default"}
             >
-              {isOverdue ? "Jetzt erledigen" : "Erledigt"}
+              <Check className="h-4 w-4" />
+              Erledigt
             </Button>
           )}
           

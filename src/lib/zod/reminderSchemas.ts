@@ -68,7 +68,7 @@ export const reminderFormSchema = z.object({
   repeat: reminderRepeatSchema,
   notes: reminderNotesSchema,
   notification_enabled: z.boolean().default(true),
-  status: z.enum(['pending', 'done', 'missed']).optional().default('pending'),
+  status: z.enum(['pending', 'done', 'missed', 'cancelled']).optional().default('pending'),
 });
 
 export type ReminderFormData = z.infer<typeof reminderFormSchema>;

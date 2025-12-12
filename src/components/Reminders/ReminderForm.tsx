@@ -29,7 +29,7 @@ const reminderSchema = z.object({
   repeat: z.enum(['none', 'daily', 'weekly', 'monthly']),
   notes: z.string().optional(),
   notification_enabled: z.boolean(),
-  status: z.enum(['pending', 'done', 'missed']).optional(),
+  status: z.enum(['pending', 'done', 'missed', 'cancelled']).optional(),
 });
 
 type FormData = z.infer<typeof reminderSchema>;
