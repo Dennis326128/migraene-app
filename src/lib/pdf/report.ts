@@ -190,13 +190,16 @@ function formatDateGerman(dateStr: string): string {
 }
 
 /**
- * Formatiert Datum + Uhrzeit: dd.mm.yyyy, HH:mm
+ * Formatiert Datum + Uhrzeit: dd.mm.yyyy, HH:MM Uhr (ohne Sekunden)
  */
 function formatDateTimeGerman(dateStr: string, timeStr?: string): string {
   const dateFormatted = formatDateGerman(dateStr);
   
   if (timeStr) {
-    return `${dateFormatted}, ${timeStr}`;
+    // Entferne Sekunden falls vorhanden (z.B. "12:05:30" → "12:05")
+    const timeParts = timeStr.split(':');
+    const timeWithoutSeconds = timeParts.slice(0, 2).join(':');
+    return `${dateFormatted}, ${timeWithoutSeconds} Uhr`;
   }
   
   const date = new Date(dateStr);
@@ -204,7 +207,7 @@ function formatDateTimeGerman(dateStr: string, timeStr?: string): string {
     hour: "2-digit", 
     minute: "2-digit" 
   });
-  return `${dateFormatted}, ${time}`;
+  return `${dateFormatted}, ${time} Uhr`;
 }
 
 /**
@@ -913,22 +916,21 @@ function drawWeatherTimeSeriesChart(
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Zeichnet Tabellenkopf für Attacken-Liste
- * @param includeNotes - ob Notizen-Spalte angezeigt werden soll
+ * Zeichnet Tabellenkopf für Kopfschmerz-Einträge
+ * Spalten: Datum/Zeit | Schmerz | Medikation | Besonderheiten
  */
 function drawTableHeader(page: PDFPage, yPos: number, font: PDFFont, includeNotes: boolean = true): number {
-  // Dynamische Spaltenbreiten basierend auf Notizen-Spalte
+  // Neue Spaltenstruktur: Datum/Zeit | Schmerz | Medikation | Besonderheiten
   const cols = includeNotes ? {
     date: LAYOUT.margin,
-    pain: LAYOUT.margin + 110,
-    aura: LAYOUT.margin + 160,
-    meds: LAYOUT.margin + 230,
-    notes: LAYOUT.margin + 350,
+    pain: LAYOUT.margin + 120,
+    meds: LAYOUT.margin + 175,
+    special: LAYOUT.margin + 350,
   } : {
     date: LAYOUT.margin,
-    pain: LAYOUT.margin + 130,
-    aura: LAYOUT.margin + 190,
-    meds: LAYOUT.margin + 280,
+    pain: LAYOUT.margin + 140,
+    meds: LAYOUT.margin + 200,
+    special: LAYOUT.margin + 380,
   };
   
   // Hintergrund
@@ -942,18 +944,43 @@ function drawTableHeader(page: PDFPage, yPos: number, font: PDFFont, includeNote
   
   page.drawText("Datum/Zeit", { x: cols.date, y: yPos - 12, size: 9, font, color: COLORS.text });
   page.drawText("Schmerz", { x: cols.pain, y: yPos - 12, size: 9, font, color: COLORS.text });
-  page.drawText("Aura", { x: cols.aura, y: yPos - 12, size: 9, font, color: COLORS.text });
-  page.drawText("Medikamente", { x: cols.meds, y: yPos - 12, size: 9, font, color: COLORS.text });
-  if (includeNotes) {
-    page.drawText("Notizen", { x: cols.notes!, y: yPos - 12, size: 9, font, color: COLORS.text });
-  }
+  page.drawText("Medikation", { x: cols.meds, y: yPos - 12, size: 9, font, color: COLORS.text });
+  page.drawText("Besonderheiten", { x: cols.special, y: yPos - 12, size: 9, font, color: COLORS.text });
   
   return yPos - 25;
 }
 
 /**
+ * Generiert Besonderheiten-Text aus Entry-Daten
+ * Kombiniert Aura, Notizen und andere Flags
+ */
+function generateSpecialNotesText(entry: PainEntry): string {
+  const parts: string[] = [];
+  
+  // Aura als Besonderheit
+  if (entry.aura_type && entry.aura_type !== 'keine' && entry.aura_type !== '-') {
+    parts.push(`Aura: ${entry.aura_type}`);
+  }
+  
+  // Schmerzlokalisation
+  if (entry.pain_location && entry.pain_location !== 'keine' && entry.pain_location !== '-') {
+    parts.push(entry.pain_location);
+  }
+  
+  // Kurze Notizen hinzufügen (max 50 Zeichen für Tabelle)
+  if (entry.notes) {
+    const shortNote = entry.notes.length > 50 
+      ? entry.notes.substring(0, 47) + '...'
+      : entry.notes;
+    parts.push(shortNote);
+  }
+  
+  return parts.length > 0 ? parts.join('; ') : '-';
+}
+
+/**
  * Zeichnet Tabellen-Zeile mit automatischem Textumbruch
- * @param includeNotes - ob Notizen-Spalte angezeigt werden soll
+ * Neue Spalten: Datum/Zeit | Schmerz | Medikation | Besonderheiten
  */
 function drawTableRow(
   page: PDFPage,
@@ -963,34 +990,32 @@ function drawTableRow(
   pdfDoc: any,
   includeNotes: boolean = true
 ): { yPos: number; page: PDFPage; rowHeight: number } {
-  // Dynamische Spalten basierend auf Notizen
+  // Neue Spaltenstruktur
   const cols = includeNotes ? {
     date: LAYOUT.margin,
-    pain: LAYOUT.margin + 110,
-    aura: LAYOUT.margin + 160,
-    meds: LAYOUT.margin + 230,
-    notes: LAYOUT.margin + 350,
+    pain: LAYOUT.margin + 120,
+    meds: LAYOUT.margin + 175,
+    special: LAYOUT.margin + 350,
   } : {
     date: LAYOUT.margin,
-    pain: LAYOUT.margin + 130,
-    aura: LAYOUT.margin + 190,
-    meds: LAYOUT.margin + 280,
+    pain: LAYOUT.margin + 140,
+    meds: LAYOUT.margin + 200,
+    special: LAYOUT.margin + 380,
   };
   
   const colWidths = includeNotes ? {
-    date: 105,
-    pain: 45,
-    aura: 65,
-    meds: 115,
-    notes: 145,
+    date: 115,
+    pain: 50,
+    meds: 170,
+    special: 160,
   } : {
-    date: 125,
+    date: 135,
     pain: 55,
-    aura: 85,
-    meds: 230,
+    meds: 175,
+    special: 130,
   };
   
-  // Datum/Zeit
+  // Datum/Zeit (ohne Sekunden, mit "Uhr")
   const dateTime = entry.selected_date && entry.selected_time
     ? formatDateTimeGerman(entry.selected_date, entry.selected_time)
     : formatDateTimeGerman(entry.timestamp_created || '');
@@ -998,24 +1023,18 @@ function drawTableRow(
   // Schmerz
   const painText = formatPainLevel(entry.pain_level);
   
-  // Aura
-  const auraText = entry.aura_type && entry.aura_type !== 'keine' ? entry.aura_type : '-';
-  
   // Medikamente (mit Umbruch)
   const medsText = entry.medications && entry.medications.length > 0 
-    ? entry.medications.join(", ") 
+    ? entry.medications.join("; ") 
     : '-';
   const medsLines = wrapText(medsText, colWidths.meds, 8, font);
   
-  // Notizen (mit Umbruch) - nur wenn aktiviert
-  let notesLines: string[] = [];
-  if (includeNotes) {
-    const notesText = entry.notes || '-';
-    notesLines = wrapText(notesText, colWidths.notes!, 8, font);
-  }
+  // Besonderheiten (kombiniert Aura, Lokalisation, Notizen)
+  const specialText = generateSpecialNotesText(entry);
+  const specialLines = wrapText(specialText, colWidths.special, 8, font);
   
   // Berechne Zeilenhöhe (höchste Spalte bestimmt) - mit mehr Padding für Zentrierung
-  const maxLines = Math.max(medsLines.length, notesLines.length, 1);
+  const maxLines = Math.max(medsLines.length, specialLines.length, 1);
   const rowHeight = maxLines * 11 + 12;
   
   // Prüfe ob Platz für Zeile, sonst neue Seite
@@ -1037,7 +1056,6 @@ function drawTableRow(
   
   page.drawText(sanitizeForPDF(dateTime), { x: cols.date, y: rowTop, size: 8, font });
   page.drawText(sanitizeForPDF(painText), { x: cols.pain, y: rowTop, size: 8, font });
-  page.drawText(sanitizeForPDF(auraText), { x: cols.aura, y: rowTop, size: 8, font });
   
   // Medikamente (mehrzeilig)
   medsLines.forEach((line, i) => {
@@ -1049,17 +1067,15 @@ function drawTableRow(
     });
   });
   
-  // Notizen (mehrzeilig) - nur wenn aktiviert
-  if (includeNotes && notesLines.length > 0) {
-    notesLines.forEach((line, i) => {
-      page.drawText(sanitizeForPDF(line), { 
-        x: cols.notes!, 
-        y: rowTop - (i * 11), 
-        size: 8, 
-        font 
-      });
+  // Besonderheiten (mehrzeilig)
+  specialLines.forEach((line, i) => {
+    page.drawText(sanitizeForPDF(line), { 
+      x: cols.special, 
+      y: rowTop - (i * 11), 
+      size: 8, 
+      font 
     });
-  }
+  });
   
   // Trennlinie
   yPos -= rowHeight;
@@ -1295,9 +1311,9 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     });
     yPos -= 18;
     
-    // Berechne Box-Höhe basierend auf Text-Länge
+    // Berechne Box-Höhe basierend auf Text-Länge - dynamisch ohne feste Obergrenze
     const estimatedLines = analysisReport.split('\n').length * 2;
-    const boxHeight = Math.min(Math.max(100, estimatedLines * 12 + 20), 250);
+    const boxHeight = Math.max(100, estimatedLines * 12 + 40);
     
     // Box-Hintergrund
     page.drawRectangle({
@@ -1328,7 +1344,68 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     );
     page = result.page;
     
-    yPos -= boxHeight + LAYOUT.sectionGap;
+    yPos = result.yPos - 10;
+    
+    // Hinweis-Box direkt am Ende der KI-Analyse (kompakt, ohne Seitenumbruch)
+    const disclaimerText = "Hinweis: Alle Auswertungen und Hinweise basieren ausschliesslich auf den dokumentierten Daten. Sie stellen keine medizinische Diagnose oder Therapieempfehlung dar und ersetzen nicht die Beratung durch eine Arztin oder einen Arzt.";
+    const disclaimerLines = wrapText(disclaimerText, LAYOUT.pageWidth - 2 * LAYOUT.margin - 20, 8, font);
+    const disclaimerHeight = disclaimerLines.length * 10 + 14;
+    
+    // Prüfe ob Platz für Hinweis
+    if (yPos - disclaimerHeight < LAYOUT.margin + 50) {
+      page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
+      yPos = LAYOUT.pageHeight - LAYOUT.margin;
+    }
+    
+    // Hinweis-Box Hintergrund
+    page.drawRectangle({
+      x: LAYOUT.margin,
+      y: yPos - disclaimerHeight,
+      width: LAYOUT.pageWidth - 2 * LAYOUT.margin,
+      height: disclaimerHeight,
+      color: rgb(0.97, 0.97, 0.95),
+      borderColor: COLORS.border,
+      borderWidth: 0.5,
+    });
+    
+    // "Hinweis:" Label (fett)
+    page.drawText("Hinweis:", {
+      x: LAYOUT.margin + 8,
+      y: yPos - 12,
+      size: 8,
+      font: fontBold,
+      color: COLORS.textLight,
+    });
+    
+    // Disclaimer-Text
+    let disclaimerY = yPos - 12;
+    const hinweisWidth = fontBold.widthOfTextAtSize("Hinweis:", 8);
+    
+    // Erste Zeile neben "Hinweis:" beginnen
+    if (disclaimerLines.length > 0) {
+      page.drawText(sanitizeForPDF(disclaimerLines[0]), {
+        x: LAYOUT.margin + 8 + hinweisWidth + 4,
+        y: disclaimerY,
+        size: 8,
+        font,
+        color: COLORS.textLight,
+      });
+      disclaimerY -= 10;
+    }
+    
+    // Restliche Zeilen
+    for (let i = 1; i < disclaimerLines.length; i++) {
+      page.drawText(sanitizeForPDF(disclaimerLines[i]), {
+        x: LAYOUT.margin + 8,
+        y: disclaimerY,
+        size: 8,
+        font,
+        color: COLORS.textLight,
+      });
+      disclaimerY -= 10;
+    }
+    
+    yPos -= disclaimerHeight + 15;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1682,7 +1759,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // DETAILLIERTE ATTACKEN-LISTE (mit Pagebreak)
+  // DETAILLIERTE KOPFSCHMERZ-EINTRÄGE (mit Pagebreak)
   // ═══════════════════════════════════════════════════════════════════════════
   
   if (includeEntriesList && entries.length > 0) {
@@ -1690,9 +1767,9 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     page = spaceCheck.page;
     yPos = spaceCheck.yPos;
     
-    yPos = drawSectionHeader(page, "DETAILLIERTE ATTACKEN-LISTE", yPos, fontBold, 12);
+    yPos = drawSectionHeader(page, "DETAILLIERTE KOPFSCHMERZ-EINTRAGE", yPos, fontBold, 12);
     
-    page.drawText(`${entries.length} Attacken im Zeitraum`, {
+    page.drawText(`${entries.length} Eintrage im Zeitraum`, {
       x: LAYOUT.margin,
       y: yPos,
       size: 8,

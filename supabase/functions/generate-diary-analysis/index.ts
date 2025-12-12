@@ -247,13 +247,21 @@ ANFORDERUNGEN:
 
 1. **Professioneller medizinischer Ton**: Schreiben Sie sachlich, präzise und fachlich fundiert, aber dennoch verständlich für Laien.
 
-2. **Struktur** (insgesamt 200-280 Wörter):
+2. **Struktur** (insgesamt 300-400 Wörter):
    - **Überschrift**: "Medizinischer Analysebericht"
    - **Zusammenfassung**: Ein Absatz mit den wichtigsten Befunden (Häufigkeit, Intensität, Zeitraum)
    - **Musteranalyse**: Ein Absatz zu erkennbaren Mustern (zeitlich, meteorologisch, symptomatisch)
    - **Therapeutische Aspekte**: Ein Absatz zur Medikamentennutzung und deren Wirksamkeit
    - **Klinische Beobachtungen**: Besonderheiten wie Aura-Prävalenz, Schmerzlokalisation, Begleitsymptome
-   - **Empfehlungen**: 3-4 konkrete, fachlich fundierte Empfehlungen für das Arztgespräch
+   - **Mögliche entlastende Faktoren**: NEU - Ein Abschnitt, der positive Muster hervorhebt:
+     * Faktoren, die in den Daten mit weniger/schwächeren Kopfschmerzen korrelieren
+     * Beispiele: ausreichend Schlaf, bestimmte Wetterbedingungen, erfolgreiche Medikamente
+     * Falls keine positiven Muster erkennbar: "Derzeit sind keine eindeutigen entlastenden Faktoren in den Daten erkennbar."
+   - **Vorsichtige Hinweise**: 2-3 indirekte, nicht-medizinische Empfehlungen basierend auf den positiven Mustern:
+     * Formulierungen wie "könnte hilfreich sein", "scheint mit weniger Beschwerden verbunden zu sein"
+     * Diese müssen klar als datenbasierte Beobachtungen gekennzeichnet sein, NICHT als ärztlicher Rat
+     * Beispiel: "Ausreichend Schlaf scheint in Ihren Daten mit geringerer Schmerzintensität verbunden zu sein."
+   - **Empfehlungen für das Arztgespräch**: 3-4 konkrete Punkte, die mit dem Arzt besprochen werden sollten
 
 3. **Zahlenformat**:
    - Verwenden Sie deutsche Datumsangaben (z.B. "04.10.2025" oder "4. Oktober 2025")
@@ -265,8 +273,11 @@ ANFORDERUNGEN:
    - Identifizieren Sie statistisch relevante Korrelationen (z.B. "In 65% der Fälle...")
    - Verwenden Sie medizinische Fachbegriffe wo angebracht, aber erklären Sie diese
 
-5. **Medizinischer Disclaimer**:
-   - Schließen Sie mit einem kurzen Hinweis ab, dass dies eine datenbasierte Auswertung ist, die das ärztliche Gespräch unterstützen, aber nicht ersetzen soll
+5. **Wichtige Hinweise zur Formulierung**:
+   - Die "Vorsichtigen Hinweise" sind KEINE ärztlichen Empfehlungen
+   - Sie basieren ausschließlich auf beobachteten Mustern in den dokumentierten Daten
+   - Korrelation bedeutet nicht Kausalität - formulieren Sie entsprechend vorsichtig
+   - Machen Sie deutlich, dass alle Hinweise mit dem behandelnden Arzt besprochen werden sollten
 
 Formatieren Sie die Antwort in gut strukturiertem Markdown mit klaren Überschriften.`;
 
