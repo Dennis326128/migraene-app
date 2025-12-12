@@ -1,21 +1,25 @@
-import { Pill, Calendar, Edit2, AlertTriangle, Check } from 'lucide-react';
+import { Pill, Calendar, Edit2, AlertTriangle, Check, CalendarPlus } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import type { Reminder } from '@/types/reminder.types';
+import type { Reminder, ReminderPrefill } from '@/types/reminder.types';
 import { formatDistance, isToday, isTomorrow, format, isPast, startOfDay } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { hasFollowUpConfigured, formatFollowUpDate, cloneReminderForCreate } from '@/features/reminders/helpers/reminderHelpers';
 
 interface ReminderCardProps {
   reminder: Reminder;
   onEdit: (reminder: Reminder) => void;
   onMarkDone: (id: string) => void;
+  onPlanFollowUp?: (prefill: ReminderPrefill) => void;
 }
 
-export const ReminderCard = ({ reminder, onEdit, onMarkDone }: ReminderCardProps) => {
+export const ReminderCard = ({ reminder, onEdit, onMarkDone, onPlanFollowUp }: ReminderCardProps) => {
   const reminderDate = new Date(reminder.date_time);
   const isOverdue = isPast(reminderDate) && reminder.status === 'pending';
+  const showFollowUp = hasFollowUpConfigured(reminder) && onPlanFollowUp;
+  const nextFollowUpDate = (reminder as any).next_follow_up_date;
   
   const getFormattedDateTime = (dateTime: string) => {
     const date = new Date(dateTime);
@@ -39,6 +43,30 @@ export const ReminderCard = ({ reminder, onEdit, onMarkDone }: ReminderCardProps
       primary: `${dateLabel}, ${time} Uhr`,
       secondary: relative,
     };
+  };
+
+  const handlePlanFollowUp = () => {
+    if (!onPlanFollowUp) return;
+
+    const cloned = cloneReminderForCreate(reminder, {
+      clearDateTime: true,
+      prefillDate: nextFollowUpDate,
+      preserveSeriesId: true,
+    });
+
+    onPlanFollowUp({
+      type: cloned.type || 'appointment',
+      title: cloned.title || reminder.title,
+      notes: cloned.notes,
+      notification_enabled: cloned.notification_enabled,
+      medications: cloned.medications,
+      repeat: cloned.repeat,
+      follow_up_enabled: cloned.follow_up_enabled,
+      follow_up_interval_value: cloned.follow_up_interval_value,
+      follow_up_interval_unit: cloned.follow_up_interval_unit,
+      series_id: cloned.series_id,
+      prefill_date: nextFollowUpDate,
+    });
   };
   
   const TypeIcon = reminder.type === 'medication' ? Pill : Calendar;
@@ -93,6 +121,26 @@ export const ReminderCard = ({ reminder, onEdit, onMarkDone }: ReminderCardProps
               <p className="text-sm text-muted-foreground mt-2 line-clamp-2">
                 {reminder.notes}
               </p>
+            )}
+
+            {/* Follow-up suggestion */}
+            {showFollowUp && nextFollowUpDate && (
+              <div className="mt-3 pt-3 border-t border-border/50">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs text-muted-foreground">
+                    <span className="font-medium text-foreground">Folgetermin</span> empfohlen ab {formatFollowUpDate(nextFollowUpDate)}
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={handlePlanFollowUp}
+                    className="touch-manipulation gap-1.5 h-8 text-xs"
+                  >
+                    <CalendarPlus className="h-3.5 w-3.5" />
+                    Planen
+                  </Button>
+                </div>
+              </div>
             )}
           </div>
         </div>

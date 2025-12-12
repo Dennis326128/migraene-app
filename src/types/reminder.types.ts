@@ -1,7 +1,8 @@
 export type ReminderType = 'medication' | 'appointment';
 export type ReminderRepeat = 'none' | 'daily' | 'weekly' | 'monthly';
-export type ReminderStatus = 'pending' | 'done' | 'missed' | 'cancelled';
+export type ReminderStatus = 'pending' | 'processing' | 'done' | 'missed' | 'cancelled' | 'completed' | 'failed';
 export type TimeOfDay = 'morning' | 'noon' | 'evening' | 'night';
+export type FollowUpIntervalUnit = 'weeks' | 'months';
 
 // Notification channels for future push notification support
 export interface NotificationChannels {
@@ -25,6 +26,14 @@ export interface Reminder {
   // Future-ready fields for push notifications
   pre_notify_offset_minutes?: number | null;
   notification_channels?: NotificationChannels | null;
+  // Follow-up appointment fields
+  follow_up_enabled?: boolean;
+  follow_up_interval_value?: number | null;
+  follow_up_interval_unit?: FollowUpIntervalUnit | null;
+  next_follow_up_date?: string | null;
+  series_id?: string | null;
+  // Timestamps
+  last_popup_date?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -40,6 +49,12 @@ export interface CreateReminderInput {
   time_of_day?: TimeOfDay;
   pre_notify_offset_minutes?: number;
   notification_channels?: NotificationChannels;
+  // Follow-up fields
+  follow_up_enabled?: boolean;
+  follow_up_interval_value?: number;
+  follow_up_interval_unit?: FollowUpIntervalUnit;
+  next_follow_up_date?: string;
+  series_id?: string;
 }
 
 export interface UpdateReminderInput {
@@ -54,4 +69,27 @@ export interface UpdateReminderInput {
   time_of_day?: TimeOfDay;
   pre_notify_offset_minutes?: number;
   notification_channels?: NotificationChannels;
+  // Follow-up fields
+  follow_up_enabled?: boolean;
+  follow_up_interval_value?: number;
+  follow_up_interval_unit?: FollowUpIntervalUnit;
+  next_follow_up_date?: string;
+  series_id?: string;
+}
+
+// Prefill data for creating a new reminder from existing data
+export interface ReminderPrefill {
+  type: ReminderType;
+  title: string;
+  notes?: string;
+  notification_enabled?: boolean;
+  medications?: string[];
+  repeat?: ReminderRepeat;
+  // Follow-up fields
+  follow_up_enabled?: boolean;
+  follow_up_interval_value?: number;
+  follow_up_interval_unit?: FollowUpIntervalUnit;
+  series_id?: string;
+  // Optional prefilled date (for follow-up suggestions)
+  prefill_date?: string;
 }
