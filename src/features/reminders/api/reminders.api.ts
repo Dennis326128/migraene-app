@@ -59,13 +59,12 @@ export const remindersApi = {
   },
 
   async getActive(): Promise<Reminder[]> {
-    const now = new Date();
-
+    // FIXED: Show ALL pending reminders, including overdue ones
+    // Previously filtered by date_time >= now, which hid overdue reminders
     const { data, error } = await supabase
       .from('reminders')
       .select('*')
-      .gte('date_time', now.toISOString())
-      .neq('status', 'done')
+      .in('status', ['pending', 'scheduled'])
       .order('date_time', { ascending: true });
 
     if (error) throw error;
@@ -73,12 +72,11 @@ export const remindersApi = {
   },
 
   async getHistory(): Promise<Reminder[]> {
-    const now = new Date();
-
+    // Show reminders that are done, cancelled, missed, or skipped
     const { data, error } = await supabase
       .from('reminders')
       .select('*')
-      .or(`date_time.lt.${now.toISOString()},status.eq.done`)
+      .in('status', ['done', 'cancelled', 'missed', 'skipped'])
       .order('date_time', { ascending: false });
 
     if (error) throw error;

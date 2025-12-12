@@ -56,10 +56,36 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
     setHasNotificationPermission(notificationService.hasPermission());
   }, []);
 
+  // Konsistenz-Check: Warnung wenn aktive Erinnerungen nicht angezeigt werden
+  useEffect(() => {
+    if (!loadingActive && activeReminders.length > 0) {
+      const filtered = getFilteredReminders();
+      if (activeTab === 'active' && filtered.length < activeReminders.length) {
+        const hiddenCount = activeReminders.length - filtered.length;
+        console.warn(
+          `[RemindersPage] ${hiddenCount} aktive Erinnerungen werden durch Filter ausgeblendet. ` +
+          `Gesamt: ${activeReminders.length}, Angezeigt: ${filtered.length}`
+        );
+      }
+    }
+  }, [activeReminders, filterType, rangeFilter, activeTab, loadingActive]);
+
   // Intelligente Zeitraum-Auswahl basierend auf vorhandenen Erinnerungen
+  // Standardmäßig "Alle" wenn es überfällige gibt, sonst basierend auf nächsten Terminen
   useEffect(() => {
     if (activeTab === 'active' && activeReminders.length > 0) {
       const now = new Date();
+      const startOfToday = new Date(now);
+      startOfToday.setHours(0, 0, 0, 0);
+      
+      // Prüfen ob es überfällige Erinnerungen gibt
+      const hasOverdue = activeReminders.some(r => new Date(r.date_time) < startOfToday);
+      
+      if (hasOverdue) {
+        // Bei überfälligen immer "Alle" anzeigen, damit nichts versteckt wird
+        setRangeFilter('all');
+        return;
+      }
       
       // Prüfen, ob es heute Erinnerungen gibt
       const todayEnd = new Date(now);
@@ -129,8 +155,11 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
     }
     
     // Zeitraum-Filter (nur für "Aktiv"-Tab)
+    // WICHTIG: Bei "all" keine Datumsfilterung, damit überfällige Erinnerungen sichtbar bleiben
     if (activeTab === 'active' && rangeFilter !== 'all') {
       const now = new Date();
+      const startOfToday = new Date(now);
+      startOfToday.setHours(0, 0, 0, 0);
       const endDate = new Date(now);
       
       switch (rangeFilter) {
@@ -145,9 +174,13 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
           break;
       }
       
-      reminders = reminders.filter(r => 
-        new Date(r.date_time) <= endDate
-      );
+      // Zeige überfällige Erinnerungen (vor heute) ODER Erinnerungen im gewählten Zeitraum
+      reminders = reminders.filter(r => {
+        const reminderDate = new Date(r.date_time);
+        const isOverdue = reminderDate < startOfToday;
+        const isInRange = reminderDate <= endDate;
+        return isOverdue || isInRange;
+      });
     }
     
     return reminders;
