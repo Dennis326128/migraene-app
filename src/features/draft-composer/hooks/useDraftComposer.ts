@@ -12,17 +12,24 @@ import type {
   DraftField 
 } from '../types/draft.types';
 import { parseTextToDraft } from '../engine/heuristicDraftEngine';
+import { generateDraft, type DraftEngineSettings } from '../engine/draftEngineFactory';
 import { useMeds } from '@/features/meds/hooks/useMeds';
+import { useUserAISettings } from './useUserAISettings';
+import { useToast } from '@/hooks/use-toast';
 
 interface UseDraftComposerReturn {
   // Draft state
   draft: DraftResult | null;
   isProcessing: boolean;
   
+  // Engine info
+  engineUsed: 'heuristic' | 'llm' | null;
+  fallbackUsed: boolean;
+  
   // Input
   inputText: string;
   setInputText: (text: string) => void;
-  processDraft: () => void;
+  processDraft: () => Promise<void>;
   clearDraft: () => void;
   
   // Section management
@@ -45,6 +52,9 @@ interface UseDraftComposerReturn {
   isValid: boolean;
   validationErrors: string[];
   hasUncertainFields: boolean;
+  
+  // AI Settings
+  aiSettings: DraftEngineSettings | null;
 }
 
 const ALL_SECTIONS: DraftSectionType[] = [
@@ -53,32 +63,68 @@ const ALL_SECTIONS: DraftSectionType[] = [
 
 export function useDraftComposer(): UseDraftComposerReturn {
   const { data: userMeds = [] } = useMeds();
+  const { data: aiSettings } = useUserAISettings();
+  const { toast } = useToast();
   
   const [draft, setDraft] = useState<DraftResult | null>(null);
   const [inputText, setInputText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [activeSections, setActiveSections] = useState<DraftSectionType[]>([]);
+  const [engineUsed, setEngineUsed] = useState<'heuristic' | 'llm' | null>(null);
+  const [fallbackUsed, setFallbackUsed] = useState(false);
   
-  // Process text to draft
-  const processDraft = useCallback(() => {
+  // Process text to draft (now async for LLM support)
+  const processDraft = useCallback(async () => {
     if (!inputText.trim()) return;
     
     setIsProcessing(true);
+    setFallbackUsed(false);
     
     try {
-      const { draft: newDraft } = parseTextToDraft(
+      const settings: DraftEngineSettings = {
+        aiEnabled: aiSettings?.aiEnabled ?? false,
+        aiDraftEngine: aiSettings?.aiDraftEngine ?? 'heuristic'
+      };
+      
+      const result = await generateDraft(
+        {
+          text: inputText,
+          userMedications: userMeds.map(m => ({ id: m.id, name: m.name })),
+          timezone: 'Europe/Berlin'
+        },
+        settings
+      );
+      
+      setDraft(result.draft);
+      setActiveSections(result.draft.activeSections);
+      setEngineUsed(result.engineUsed);
+      setFallbackUsed(result.fallbackUsed ?? false);
+      
+      if (result.fallbackUsed) {
+        toast({
+          title: 'Hinweis',
+          description: 'KI nicht verfügbar – Heuristik verwendet',
+        });
+      }
+      
+      if (result.warnings.length > 0) {
+        console.log('[useDraftComposer] Warnings:', result.warnings);
+      }
+    } catch (error) {
+      console.error('Failed to parse draft:', error);
+      // Fallback to heuristic on any error
+      const { draft: fallbackDraft } = parseTextToDraft(
         inputText, 
         userMeds.map(m => ({ id: m.id, name: m.name, wirkstoff: m.wirkstoff }))
       );
-      
-      setDraft(newDraft);
-      setActiveSections(newDraft.activeSections);
-    } catch (error) {
-      console.error('Failed to parse draft:', error);
+      setDraft(fallbackDraft);
+      setActiveSections(fallbackDraft.activeSections);
+      setEngineUsed('heuristic');
+      setFallbackUsed(true);
     } finally {
       setIsProcessing(false);
     }
-  }, [inputText, userMeds]);
+  }, [inputText, userMeds, aiSettings, toast]);
   
   // Clear draft
   const clearDraft = useCallback(() => {
@@ -208,6 +254,8 @@ export function useDraftComposer(): UseDraftComposerReturn {
   return {
     draft,
     isProcessing,
+    engineUsed,
+    fallbackUsed,
     inputText,
     setInputText,
     processDraft,
@@ -227,5 +275,6 @@ export function useDraftComposer(): UseDraftComposerReturn {
     isValid,
     validationErrors,
     hasUncertainFields,
+    aiSettings: aiSettings ?? null,
   };
 }

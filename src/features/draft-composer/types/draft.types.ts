@@ -29,6 +29,8 @@ export interface MedicationIntake {
   time: DraftField<string>;  // HH:mm format
   dosage?: DraftField<string>;
   effect?: DraftField<'none' | 'low' | 'medium' | 'good' | 'excellent'>;
+  effectScore?: DraftField<number>;  // 0-10 numeric score
+  sideEffects?: DraftField<string[]>;  // Side effects array
   effectNotes?: string;
 }
 
