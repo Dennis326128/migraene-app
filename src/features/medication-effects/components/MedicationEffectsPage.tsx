@@ -91,10 +91,26 @@ export function MedicationEffectsPage() {
 
     try {
       await createEffect.mutateAsync(payload);
-      toast({
-        title: '✅ Bewertung gespeichert',
-        description: `${medName} wurde bewertet.`
-      });
+      
+      // Calculate remaining open effects after this save
+      // Current unratedMeds minus the one we just saved
+      const remainingOpenEffects = unratedMeds.filter(
+        item => !(item.entry.id === entryId && item.medName === medName)
+      );
+      
+      if (remainingOpenEffects.length === 0) {
+        // No more open effects - navigate to home
+        toast({
+          title: '✅ Alle Bewertungen erledigt',
+          description: 'Du bist wieder auf der Startseite.'
+        });
+        navigate('/');
+      } else {
+        toast({
+          title: '✅ Bewertung gespeichert',
+          description: `${medName} wurde bewertet.`
+        });
+      }
     } catch (error) {
       toast({
         title: 'Fehler beim Speichern',
