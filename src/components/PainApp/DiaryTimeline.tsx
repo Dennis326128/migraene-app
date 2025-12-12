@@ -413,11 +413,10 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
         {/* Calendar View */}
         {viewMode === 'calendar' && (
           <CalendarView 
-            onEntryClick={(entryId) => {
-              // Find the entry and trigger edit (entryId is number, e.id is number)
-              const entry = painEntries.find(e => Number(e.id) === entryId);
-              if (entry && onEdit) {
-                onEdit(entry);
+            onEdit={(entry) => {
+              // Trigger edit from calendar view
+              if (onEdit) {
+                onEdit(entry as any);
               }
             }}
           />

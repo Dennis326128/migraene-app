@@ -13,6 +13,12 @@ interface DayCellProps {
   isCurrentMonth: boolean;
 }
 
+// Convert hex/hsl color to rgba with opacity
+const colorWithOpacity = (color: string, opacity: number): string => {
+  // If it's already a valid color, use it with opacity via CSS
+  return color;
+};
+
 export const DayCell: React.FC<DayCellProps> = ({
   date,
   maxPain,
@@ -25,12 +31,10 @@ export const DayCell: React.FC<DayCellProps> = ({
   const hasEntries = entryCount > 0;
   const hasPainData = hasEntries && maxPain !== null;
   
-  // Get marker color for pain level
-  const markerColor = hasPainData ? getColorForPain(maxPain) : undefined;
+  // Get pain color for tinted background
+  const painColor = hasPainData ? getColorForPain(maxPain) : undefined;
   
-  // Determine if severe pain (for subtle glow effect)
-  const isSevere = maxPain !== null && maxPain >= 9;
-  
+  // Tooltip text
   const tooltipText = hasEntries
     ? maxPain !== null 
       ? `${entryCount} ${entryCount === 1 ? 'Eintrag' : 'Einträge'} • Stärke: ${maxPain}/10`
@@ -45,52 +49,37 @@ export const DayCell: React.FC<DayCellProps> = ({
             onClick={onClick}
             disabled={!hasEntries}
             className={cn(
-              "relative flex flex-col items-center justify-center",
-              "h-10 w-full min-w-[36px]",
-              "text-sm font-medium",
+              "relative flex items-center justify-center",
+              "h-11 w-full min-w-[40px]",
+              "text-base font-semibold",
               "transition-all duration-150",
-              "touch-manipulation rounded-md",
+              "touch-manipulation rounded-lg",
               // Base state
-              isCurrentMonth ? 'text-foreground' : 'text-muted-foreground/50',
-              // Today marker - circle/ring around the number
-              today && 'ring-2 ring-primary ring-offset-1 ring-offset-background rounded-full',
+              isCurrentMonth ? 'text-foreground' : 'text-muted-foreground/40',
               // Clickable state
-              hasEntries && 'cursor-pointer hover:bg-accent/10 active:scale-95',
-              !hasEntries && 'cursor-default'
+              hasEntries && 'cursor-pointer active:scale-95',
+              !hasEntries && 'cursor-default',
+              // Today marker - outer ring (always visible if today)
+              today && 'ring-2 ring-primary ring-offset-1 ring-offset-background'
             )}
+            style={hasPainData && painColor ? {
+              // Tinted background with low opacity
+              backgroundColor: `color-mix(in srgb, ${painColor} 18%, transparent)`,
+              // Border with medium opacity
+              border: `1.5px solid color-mix(in srgb, ${painColor} 40%, transparent)`,
+            } : hasEntries && !hasPainData ? {
+              // No pain data but has entries - subtle gray indicator
+              backgroundColor: 'hsl(var(--muted) / 0.3)',
+              border: '1.5px solid hsl(var(--muted-foreground) / 0.2)',
+            } : undefined}
           >
             {/* Day number */}
             <span className={cn(
               "leading-none",
-              today && "font-semibold text-primary"
+              today && "text-primary"
             )}>
               {dayNumber}
             </span>
-            
-            {/* Pain marker dot/pill under the number */}
-            {hasEntries && (
-              <div className="flex items-center gap-0.5 mt-0.5">
-                {/* Main pain marker */}
-                <div 
-                  className={cn(
-                    "rounded-full transition-all",
-                    hasPainData ? "w-1.5 h-1.5" : "w-1.5 h-1.5 bg-muted-foreground/40",
-                    isSevere && "w-2 h-2 shadow-sm"
-                  )}
-                  style={hasPainData ? { 
-                    backgroundColor: markerColor,
-                    boxShadow: isSevere ? `0 0 4px ${markerColor}` : undefined
-                  } : undefined}
-                />
-                
-                {/* Entry count indicator (for multiple entries) */}
-                {entryCount > 1 && (
-                  <span className="text-[8px] text-muted-foreground font-medium leading-none">
-                    {entryCount > 9 ? '9+' : entryCount}
-                  </span>
-                )}
-              </div>
-            )}
           </button>
         </TooltipTrigger>
         <TooltipContent side="top" className="text-xs">

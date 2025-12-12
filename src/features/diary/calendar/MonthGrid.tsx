@@ -1,6 +1,6 @@
 import React, { forwardRef } from 'react';
 import { DayCell } from './DayCell';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameMonth, startOfWeek, endOfWeek } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameMonth } from 'date-fns';
 import { de } from 'date-fns/locale';
 import type { DaySummary } from './useCalendarPainSummary';
 
@@ -58,18 +58,18 @@ export const MonthGrid = forwardRef<HTMLDivElement, MonthGridProps>(({
   const monthLabel = format(month, 'MMMM yyyy', { locale: de });
   
   return (
-    <div ref={ref} className="space-y-1">
+    <div ref={ref} className="space-y-2">
       {/* Month header - iPhone style centered */}
-      <h3 className="text-sm font-semibold text-foreground text-center capitalize py-2">
+      <h3 className="text-base font-bold text-foreground text-center capitalize py-2">
         {monthLabel}
       </h3>
       
       {/* Weekday headers */}
-      <div className="grid grid-cols-7 gap-0.5 border-b border-border/30 pb-1">
+      <div className="grid grid-cols-7 gap-1 border-b border-border/40 pb-2">
         {WEEKDAYS.map(day => (
           <div 
             key={day} 
-            className="text-center text-[10px] font-medium text-muted-foreground"
+            className="text-center text-xs font-medium text-muted-foreground/70"
           >
             {day}
           </div>
@@ -77,15 +77,15 @@ export const MonthGrid = forwardRef<HTMLDivElement, MonthGridProps>(({
       </div>
       
       {/* Weeks with dividers */}
-      <div className="space-y-0">
+      <div className="space-y-0.5">
         {weeks.map((week, weekIndex) => (
           <div key={weekIndex}>
             {/* Week row */}
-            <div className="grid grid-cols-7 gap-0.5 py-0.5">
+            <div className="grid grid-cols-7 gap-1 py-0.5">
               {week.map((day, dayIndex) => {
                 if (!day) {
                   // Empty cell for offset
-                  return <div key={`empty-${dayIndex}`} className="h-10" />;
+                  return <div key={`empty-${dayIndex}`} className="h-11" />;
                 }
                 
                 const dateKey = format(day, 'yyyy-MM-dd');
@@ -110,7 +110,7 @@ export const MonthGrid = forwardRef<HTMLDivElement, MonthGridProps>(({
             
             {/* Subtle divider between weeks (except last) */}
             {weekIndex < weeks.length - 1 && (
-              <div className="border-b border-border/20 mx-1" />
+              <div className="border-b border-border/15 mx-2" />
             )}
           </div>
         ))}
