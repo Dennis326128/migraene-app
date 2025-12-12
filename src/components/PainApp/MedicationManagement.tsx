@@ -17,7 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { MedicationReminderModal } from "@/components/Reminders/MedicationReminderModal";
 import { MedicationEditModal } from "./MedicationEditModal";
-import { MedicationPlanExportDialog } from "./MedicationPlanExportDialog";
+
 import { MedicationCoursesList, MedicationCourseCard } from "./MedicationCourses";
 import type { MedicationCourse } from "@/features/medication-courses";
 import { format } from "date-fns";
@@ -148,9 +148,8 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showReminderModal, setShowReminderModal] = useState(false);
-  const [showExportDialog, setShowExportDialog] = useState(false);
   const [showDoctorSelection, setShowDoctorSelection] = useState(false);
-  const [pendingExportOptions, setPendingExportOptions] = useState<PdfExportOptions | null>(null);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   
   // Collapsible sections state
   const [showInactive, setShowInactive] = useState(false);
@@ -347,32 +346,8 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
     }
   };
 
-  // Handler for export dialog
-  const handleExportWithOptions = async (options: PdfExportOptions) => {
-    // Check if we need doctor selection
-    if (doctors && doctors.length > 1) {
-      setPendingExportOptions(options);
-      setShowDoctorSelection(true);
-      return;
-    }
-    
-    await generatePdfWithOptions(doctors || [], options);
-  };
-
-  const handleDoctorSelectionConfirm = async (selectedDoctors: Doctor[]) => {
-    setShowDoctorSelection(false);
-    const options = pendingExportOptions || {
-      includeActive: true,
-      includeInactive: false,
-      includeIntolerance: true,
-      includeLimits: false,
-      includeGrund: true,
-    };
-    setPendingExportOptions(null);
-    await generatePdfWithOptions(selectedDoctors, options);
-  };
-
-  const handleGenerateMedicationPlan = () => {
+  // Direct PDF generation without modal
+  const handleGenerateMedicationPlan = async () => {
     const activeMeds = medications?.filter(m => m.is_active !== false && !m.intolerance_flag) || [];
     const hasMedications = (medicationCourses && medicationCourses.length > 0) || activeMeds.length > 0;
     
@@ -383,7 +358,35 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
       return;
     }
 
-    setShowExportDialog(true);
+    // If multiple doctors, show selection dialog first
+    if (doctors && doctors.length > 1) {
+      setShowDoctorSelection(true);
+      return;
+    }
+
+    // Otherwise generate directly
+    await generatePdfDirectly(doctors || []);
+  };
+
+  const generatePdfDirectly = async (selectedDoctors: Doctor[]) => {
+    const options: PdfExportOptions = {
+      includeActive: true,
+      includeInactive: false,
+      includeIntolerance: true,
+      includeLimits: true,
+    };
+    
+    setIsGeneratingPdf(true);
+    try {
+      await generatePdfWithOptions(selectedDoctors, options);
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
+  const handleDoctorSelectionConfirm = async (selectedDoctors: Doctor[]) => {
+    setShowDoctorSelection(false);
+    await generatePdfDirectly(selectedDoctors);
   };
 
   const handleAddMedication = async () => {
@@ -555,14 +558,21 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
         <CardContent className="p-4">
           <Button
             onClick={handleGenerateMedicationPlan}
+            disabled={isGeneratingPdf}
             className="w-full h-auto py-4 px-5 bg-primary hover:bg-primary/90 text-primary-foreground shadow-md hover:shadow-lg"
           >
             <div className="flex items-center gap-4 w-full">
               <div className="p-2.5 rounded-xl bg-primary-foreground/20 shrink-0">
-                <Download className="h-6 w-6" />
+                {isGeneratingPdf ? (
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                ) : (
+                  <Download className="h-6 w-6" />
+                )}
               </div>
               <div className="flex-1 text-left">
-                <div className="font-bold text-lg">Medikationsplan (PDF) erstellen</div>
+                <div className="font-bold text-lg">
+                  {isGeneratingPdf ? "PDF wird erstellt..." : "Medikationsplan (PDF) erstellen"}
+                </div>
                 <div className="opacity-90 font-normal text-sm">
                   Für Arzt, Krankenhaus oder Notfall
                 </div>
@@ -924,15 +934,6 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
       </AlertDialog>
 
       {/* Doctor Selection Dialog */}
-      {/* Export Options Dialog */}
-      <MedicationPlanExportDialog
-        open={showExportDialog}
-        onOpenChange={setShowExportDialog}
-        onExport={handleExportWithOptions}
-        hasInactive={categorizedMeds.inactive.length > 0}
-        hasIntolerance={categorizedMeds.intolerant.length > 0}
-        hasLimits={(medicationLimits?.length || 0) > 0}
-      />
 
       {/* Doctor Selection Dialog */}
       <DoctorSelectionDialog
