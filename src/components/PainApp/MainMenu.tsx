@@ -20,6 +20,7 @@ import { QuickContextNoteModal } from "./QuickContextNoteModal";
 import { VoiceHelpOverlay } from "./VoiceHelpOverlay";
 import { VoiceUnknownIntentOverlay } from "./VoiceUnknownIntentOverlay";
 import { UpcomingWarningBanner } from "@/components/Reminders/UpcomingWarningBanner";
+import { CriticalMedicationPopup } from "@/components/Reminders/CriticalMedicationPopup";
 import { devError } from "@/lib/utils/devLogger";
 
 interface MainMenuProps {
@@ -530,6 +531,9 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           }
         }}
       />
+      
+      {/* Critical medication reminder popup (shown once per day) */}
+      <CriticalMedicationPopup />
     </div>
   );
 };
