@@ -16,6 +16,8 @@ import { MedicationLimitWarning } from "./MedicationLimitWarning";
 import { MedicalDisclaimerAlert } from "./MedicalDisclaimerAlert";
 import { VoiceNotesList } from "./VoiceNotesList";
 import { RemindersPage } from "@/components/Reminders/RemindersPage";
+import { DueRemindersSheet } from "@/components/Reminders/DueRemindersSheet";
+import { useInAppDueReminders } from "@/features/reminders/hooks/useInAppDueReminders";
 import { DiaryTimeline } from "./DiaryTimeline";
 import { ContextTagsView } from "./ContextTagsView";
 import DiaryReport from "./DiaryReport";
@@ -47,6 +49,9 @@ export const PainApp: React.FC = () => {
   // Medication limit warnings on app level
   const [showLimitWarning, setShowLimitWarning] = useState(false);
   const [limitChecks, setLimitChecks] = useState<any[]>([]);
+
+  // In-app due reminders (no cron/push, just on app open)
+  const { sheetOpen: dueRemindersOpen, setSheetOpen: setDueRemindersOpen } = useInAppDueReminders();
 
   // Show tutorial after onboarding is completed
   useEffect(() => {
@@ -272,6 +277,12 @@ export const PainApp: React.FC = () => {
         isOpen={showLimitWarning}
         onOpenChange={setShowLimitWarning}
         limitChecks={limitChecks}
+      />
+
+      {/* Due Reminders Sheet - shows on app open */}
+      <DueRemindersSheet
+        open={dueRemindersOpen}
+        onOpenChange={setDueRemindersOpen}
       />
     </div>
   );

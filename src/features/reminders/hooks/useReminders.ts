@@ -1,7 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { remindersApi } from '../api/reminders.api';
-import type { CreateReminderInput, UpdateReminderInput } from '@/types/reminder.types';
+import type { Reminder, CreateReminderInput, UpdateReminderInput } from '@/types/reminder.types';
 import { toast } from '@/hooks/use-toast';
+import { completeReminderInDb } from '../helpers/completeReminder';
 
 const QUERY_KEY = 'reminders';
 
@@ -148,13 +149,33 @@ export const useDeleteReminder = () => {
   });
 };
 
+/**
+ * Mark reminder as done - handles repeat logic correctly
+ * - repeat='none': marks as done
+ * - repeat='daily'|'weekly'|'monthly': reschedules to next occurrence
+ */
 export const useMarkReminderDone = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: string) => remindersApi.markAsDone(id),
+    mutationFn: async (reminderOrId: string | Reminder) => {
+      // If just an ID is passed, fetch the reminder first
+      let reminder: Reminder;
+      if (typeof reminderOrId === 'string') {
+        const fetched = await remindersApi.getById(reminderOrId);
+        if (!fetched) throw new Error('Reminder not found');
+        reminder = fetched;
+      } else {
+        reminder = reminderOrId;
+      }
+      
+      // Use central helper for correct repeat logic
+      await completeReminderInDb(reminder);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: ['due-reminders'] });
+      queryClient.invalidateQueries({ queryKey: ['reminder-badge'] });
       toast({
         title: 'Erledigt',
         description: 'Die Erinnerung wurde als erledigt markiert.',
@@ -170,6 +191,7 @@ export const useMarkReminderMissed = () => {
     mutationFn: (id: string) => remindersApi.markAsMissed(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: ['due-reminders'] });
     },
   });
 };
