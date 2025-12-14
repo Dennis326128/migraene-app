@@ -1,43 +1,52 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { format, addDays, addWeeks, addMonths } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import type { Reminder } from '@/types/reminder.types';
+import { 
+  isReminderAttentionNeeded, 
+  getReminderAttentionLevel,
+  getLocalNow,
+  type AttentionLevel,
+} from '../helpers/attention';
+import { completeReminderInDb } from '../helpers/completeReminder';
 
 export interface DueReminder extends Reminder {
   isOverdue: boolean;
+  attentionLevel: AttentionLevel;
 }
 
 /**
  * In-app reminder check hook
  * Triggers on app start and visibility change
- * Uses last_popup_date to prevent spam
+ * Uses centralized attention logic + last_popup_date for spam protection
  */
 export function useInAppDueReminders() {
   const queryClient = useQueryClient();
   const today = format(new Date(), 'yyyy-MM-dd');
-  const [hasCheckedThisSession, setHasCheckedThisSession] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const initialCheckDone = useRef(false);
 
-  // Fetch due reminders (overdue + next 24h)
+  // Fetch all pending reminders, then filter using central attention logic
   const { data: dueReminders = [], isLoading, refetch } = useQuery({
     queryKey: ['due-reminders', today],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return [];
 
-      const now = new Date();
-      const in24h = addDays(now, 1);
+      // Fetch all pending reminders (we'll filter client-side with attention logic)
+      // Include reminders from past week to catch overdue ones
+      const weekAgo = addDays(new Date(), -7);
+      const weekAhead = addDays(new Date(), 7);
 
-      // Get pending reminders that are due (overdue or within next 24h)
       const { data, error } = await supabase
         .from('reminders')
         .select('*')
         .eq('user_id', user.id)
         .in('status', ['pending', 'scheduled'])
         .eq('notification_enabled', true)
-        .lte('date_time', in24h.toISOString())
+        .gte('date_time', weekAgo.toISOString())
+        .lte('date_time', weekAhead.toISOString())
         .order('date_time', { ascending: true });
 
       if (error) {
@@ -45,16 +54,24 @@ export function useInAppDueReminders() {
         return [];
       }
 
-      // Filter: only show if last_popup_date != today
-      const filtered = (data || []).filter(r => r.last_popup_date !== today);
+      const now = getLocalNow();
+      
+      // Filter using central attention logic
+      const needsAttention = (data || []).filter(r => 
+        isReminderAttentionNeeded(r as Reminder, now)
+      );
 
-      // Mark as overdue or not
+      // Filter: only show if last_popup_date != today (spam protection)
+      const filtered = needsAttention.filter(r => r.last_popup_date !== today);
+
+      // Add attention level to each reminder
       return filtered.map(r => ({
         ...r,
-        isOverdue: new Date(r.date_time) < now,
+        attentionLevel: getReminderAttentionLevel(r as Reminder, now),
+        isOverdue: getReminderAttentionLevel(r as Reminder, now) === 'overdue',
       })) as DueReminder[];
     },
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 1000 * 60 * 2, // 2 minutes
     refetchOnWindowFocus: false,
   });
 
@@ -62,7 +79,6 @@ export function useInAppDueReminders() {
   useEffect(() => {
     if (!isLoading && !initialCheckDone.current && dueReminders.length > 0) {
       initialCheckDone.current = true;
-      setHasCheckedThisSession(true);
       setSheetOpen(true);
     }
   }, [isLoading, dueReminders.length]);
@@ -84,50 +100,10 @@ export function useInAppDueReminders() {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [refetch, sheetOpen]);
 
-  // Mark reminder as done (handles repeat logic)
+  // Mark reminder as done (uses centralized completeReminderInDb)
   const completeReminderMutation = useMutation({
     mutationFn: async (reminder: DueReminder) => {
-      if (reminder.repeat === 'none') {
-        // Non-repeating: mark as done
-        const { error } = await supabase
-          .from('reminders')
-          .update({
-            status: 'done',
-            last_popup_date: today,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', reminder.id);
-        if (error) throw error;
-      } else {
-        // Repeating: reschedule to next occurrence
-        const currentDateTime = new Date(reminder.date_time);
-        let nextDateTime: Date;
-
-        switch (reminder.repeat) {
-          case 'daily':
-            nextDateTime = addDays(currentDateTime, 1);
-            break;
-          case 'weekly':
-            nextDateTime = addWeeks(currentDateTime, 1);
-            break;
-          case 'monthly':
-            nextDateTime = addMonths(currentDateTime, 1);
-            break;
-          default:
-            nextDateTime = addDays(currentDateTime, 1);
-        }
-
-        const { error } = await supabase
-          .from('reminders')
-          .update({
-            date_time: nextDateTime.toISOString(),
-            status: 'pending',
-            last_popup_date: null, // Reset so it can show again at next occurrence
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', reminder.id);
-        if (error) throw error;
-      }
+      await completeReminderInDb(reminder);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reminders'] });

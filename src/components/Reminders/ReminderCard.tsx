@@ -3,10 +3,11 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import type { Reminder, ReminderPrefill } from '@/types/reminder.types';
-import { formatDistance, isToday, isTomorrow, format, isPast, startOfDay } from 'date-fns';
+import { formatDistance, isToday, isTomorrow, format, parseISO } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { hasFollowUpConfigured, formatFollowUpDate, cloneReminderForCreate } from '@/features/reminders/helpers/reminderHelpers';
+import { isReminderOverdue } from '@/features/reminders/helpers/attention';
 
 interface ReminderCardProps {
   reminder: Reminder;
@@ -15,9 +16,19 @@ interface ReminderCardProps {
   onPlanFollowUp?: (prefill: ReminderPrefill) => void;
 }
 
+// Safe date extraction helpers
+const extractTimeFromDateTime = (dateTime: string): string => {
+  try {
+    const date = parseISO(dateTime);
+    return format(date, 'HH:mm');
+  } catch {
+    return '09:00';
+  }
+};
+
 export const ReminderCard = ({ reminder, onEdit, onMarkDone, onPlanFollowUp }: ReminderCardProps) => {
   const reminderDate = new Date(reminder.date_time);
-  const isOverdue = isPast(reminderDate) && reminder.status === 'pending';
+  const isOverdue = isReminderOverdue(reminder);
   const showFollowUp = hasFollowUpConfigured(reminder) && onPlanFollowUp;
   const nextFollowUpDate = (reminder as any).next_follow_up_date;
   
@@ -48,6 +59,9 @@ export const ReminderCard = ({ reminder, onEdit, onMarkDone, onPlanFollowUp }: R
   const handlePlanFollowUp = () => {
     if (!onPlanFollowUp) return;
 
+    // Get the original time from the current reminder to use as suggestion
+    const originalTime = extractTimeFromDateTime(reminder.date_time);
+
     const cloned = cloneReminderForCreate(reminder, {
       clearDateTime: true,
       prefillDate: nextFollowUpDate,
@@ -66,7 +80,9 @@ export const ReminderCard = ({ reminder, onEdit, onMarkDone, onPlanFollowUp }: R
       follow_up_interval_unit: cloned.follow_up_interval_unit,
       series_id: cloned.series_id,
       prefill_date: nextFollowUpDate,
-    });
+      // Pass the original time as suggestion
+      prefill_time: originalTime,
+    } as ReminderPrefill & { prefill_time?: string });
   };
   
   const TypeIcon = reminder.type === 'medication' ? Pill : Calendar;

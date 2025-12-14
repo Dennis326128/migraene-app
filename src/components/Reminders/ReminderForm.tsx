@@ -8,6 +8,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -15,12 +17,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import type { Reminder, CreateReminderInput, UpdateReminderInput, ReminderPrefill } from '@/types/reminder.types';
-import { format } from 'date-fns';
-import { ArrowLeft, Clock, Plus, X, CalendarPlus, Info } from 'lucide-react';
+import { format, parseISO } from 'date-fns';
+import { ArrowLeft, Clock, Plus, X, CalendarPlus, Info, Bell, ChevronDown } from 'lucide-react';
 import { MedicationSelector } from './MedicationSelector';
 import { TimeOfDaySelector, getDefaultTimeSlots, type TimeSlot } from './TimeOfDaySelector';
 import { cloneReminderForCreate, generateSeriesId } from '@/features/reminders/helpers/reminderHelpers';
+import { 
+  NOTIFY_OFFSET_PRESETS, 
+  DEFAULT_APPOINTMENT_OFFSETS,
+  formatNotifyOffsets 
+} from '@/features/reminders/helpers/attention';
 
 const reminderSchema = z.object({
   type: z.enum(['medication', 'appointment']),
@@ -50,6 +62,26 @@ const getDefaultTimeForSlot = (index: number): string => {
   return defaultTimes[index] || '12:00';
 };
 
+// Helper to safely parse and format date from date_time
+const extractDateFromDateTime = (dateTime: string): string => {
+  try {
+    const date = parseISO(dateTime);
+    return format(date, 'yyyy-MM-dd');
+  } catch {
+    return format(new Date(), 'yyyy-MM-dd');
+  }
+};
+
+// Helper to safely parse and format time from date_time
+const extractTimeFromDateTime = (dateTime: string): string => {
+  try {
+    const date = parseISO(dateTime);
+    return format(date, 'HH:mm');
+  } catch {
+    return format(new Date(), 'HH:mm');
+  }
+};
+
 export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, onCreateAnother }: ReminderFormProps) => {
   const isEditing = !!reminder;
   const dateInputRef = useRef<HTMLInputElement>(null);
@@ -62,7 +94,7 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
       const slots = getDefaultTimeSlots();
       return slots.map(slot => 
         slot.timeOfDay === reminder.time_of_day 
-          ? { ...slot, enabled: true, time: format(new Date(reminder.date_time), 'HH:mm') }
+          ? { ...slot, enabled: true, time: extractTimeFromDateTime(reminder.date_time) }
           : slot
       );
     }
@@ -70,9 +102,15 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
   });
 
   // Dynamische Uhrzeiten (max 4 für medication, max 1 für appointment)
+  // BUGFIX: Proper prefilling of time when editing or using prefill
   const [times, setTimes] = useState<string[]>(() => {
     if (reminder) {
-      return [format(new Date(reminder.date_time), 'HH:mm')];
+      return [extractTimeFromDateTime(reminder.date_time)];
+    }
+    if (prefill?.prefill_date) {
+      // For follow-up, we suggest the original time as a starting point
+      // This is passed via the prefill mechanism
+      return [(prefill as any).prefill_time || format(new Date(), 'HH:mm')];
     }
     return [format(new Date(), 'HH:mm')];
   });
@@ -90,6 +128,13 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
   const [seriesId, setSeriesId] = useState<string | undefined>(
     (reminder as any)?.series_id || prefill?.series_id
   );
+
+  // Notify offsets for appointments (iPhone-style)
+  const [notifyOffsets, setNotifyOffsets] = useState<number[]>(() => {
+    const existing = (reminder as any)?.notify_offsets_minutes;
+    return existing && existing.length > 0 ? existing : DEFAULT_APPOINTMENT_OFFSETS;
+  });
+  const [notifyOffsetsOpen, setNotifyOffsetsOpen] = useState(false);
 
   // Focus date input when prefill mode (for "Weiteren Termin anlegen")
   useEffect(() => {
@@ -117,12 +162,13 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
     setTimes(newTimes);
   };
 
+  // BUGFIX: Proper date/time extraction for editing
   const defaultValues: FormData = reminder
     ? {
         type: reminder.type,
         title: reminder.title,
-        date: format(new Date(reminder.date_time), 'yyyy-MM-dd'),
-        time: format(new Date(reminder.date_time), 'HH:mm'),
+        date: extractDateFromDateTime(reminder.date_time),
+        time: extractTimeFromDateTime(reminder.date_time),
         repeat: reminder.repeat,
         notes: reminder.notes || '',
         notification_enabled: reminder.notification_enabled,
@@ -133,7 +179,7 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
         type: prefill.type,
         title: prefill.title,
         date: prefill.prefill_date || '',
-        time: '',
+        time: (prefill as any).prefill_time || '',
         repeat: prefill.repeat || 'none',
         notes: prefill.notes || '',
         notification_enabled: prefill.notification_enabled ?? true,
@@ -244,6 +290,7 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
           follow_up_interval_unit: followUpEnabled ? followUpUnit : undefined,
           next_follow_up_date: next_follow_up_date,
           series_id: finalSeriesId,
+          notify_offsets_minutes: notifyOffsets,
         } : {}),
       };
 
@@ -292,6 +339,7 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
           follow_up_interval_unit: followUpEnabled ? followUpUnit : undefined,
           next_follow_up_date: next_follow_up_date,
           series_id: finalSeriesId,
+          notify_offsets_minutes: notifyOffsets,
         } : {}),
       };
 
@@ -539,6 +587,88 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
                 </div>
               )}
             </div>
+          )}
+
+          {/* iPhone-style notification offsets for appointments */}
+          {isAppointmentType && (
+            <Collapsible open={notifyOffsetsOpen} onOpenChange={setNotifyOffsetsOpen}>
+              <CollapsibleTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-between touch-manipulation"
+                >
+                  <div className="flex items-center gap-2">
+                    <Bell className="h-4 w-4" />
+                    <span className="font-medium">Hinweise</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground max-w-[180px] truncate">
+                      {formatNotifyOffsets(notifyOffsets)}
+                    </span>
+                    <ChevronDown className={`h-4 w-4 transition-transform ${notifyOffsetsOpen ? 'rotate-180' : ''}`} />
+                  </div>
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="pt-3">
+                <div className="p-4 bg-muted/50 rounded-lg border space-y-3">
+                  <p className="text-xs text-muted-foreground">
+                    Wähle bis zu 4 Erinnerungszeitpunkte (wie beim iPhone)
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {NOTIFY_OFFSET_PRESETS.map((preset) => {
+                      const isSelected = notifyOffsets.includes(preset.value);
+                      const canSelect = isSelected || notifyOffsets.length < 4;
+                      
+                      return (
+                        <div
+                          key={preset.value}
+                          className={`flex items-center gap-2 p-2 rounded-md border cursor-pointer transition-colors ${
+                            isSelected 
+                              ? 'bg-primary/10 border-primary' 
+                              : canSelect 
+                                ? 'hover:bg-muted' 
+                                : 'opacity-50 cursor-not-allowed'
+                          }`}
+                          onClick={() => {
+                            if (isSelected) {
+                              setNotifyOffsets(notifyOffsets.filter(v => v !== preset.value));
+                            } else if (canSelect) {
+                              setNotifyOffsets([...notifyOffsets, preset.value].sort((a, b) => b - a));
+                            }
+                          }}
+                        >
+                          <Checkbox 
+                            checked={isSelected} 
+                            disabled={!canSelect && !isSelected}
+                            className="pointer-events-none"
+                          />
+                          <span className="text-sm">{preset.label}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {notifyOffsets.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-2">
+                      {notifyOffsets.sort((a, b) => b - a).map((offset) => {
+                        const preset = NOTIFY_OFFSET_PRESETS.find(p => p.value === offset);
+                        return (
+                          <Badge 
+                            key={offset} 
+                            variant="secondary"
+                            className="gap-1 cursor-pointer hover:bg-destructive/10 hover:text-destructive"
+                            onClick={() => setNotifyOffsets(notifyOffsets.filter(v => v !== offset))}
+                          >
+                            {preset?.label || `${offset} Min`}
+                            <X className="h-3 w-3" />
+                          </Badge>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
           )}
 
           {/* "Weiteren Termin anlegen" button */}
