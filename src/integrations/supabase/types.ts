@@ -440,6 +440,7 @@ export type Database = {
           next_follow_up_date: string | null
           notes: string | null
           notification_enabled: boolean
+          notify_offsets_minutes: number[] | null
           repeat: string
           series_id: string | null
           status: string
@@ -461,6 +462,7 @@ export type Database = {
           next_follow_up_date?: string | null
           notes?: string | null
           notification_enabled?: boolean
+          notify_offsets_minutes?: number[] | null
           repeat?: string
           series_id?: string | null
           status?: string
@@ -482,6 +484,7 @@ export type Database = {
           next_follow_up_date?: string | null
           notes?: string | null
           notification_enabled?: boolean
+          notify_offsets_minutes?: number[] | null
           repeat?: string
           series_id?: string | null
           status?: string
