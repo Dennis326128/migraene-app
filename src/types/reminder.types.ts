@@ -23,6 +23,8 @@ export interface Reminder {
   notification_enabled: boolean;
   medications?: string[];
   time_of_day?: TimeOfDay | null;
+  // Actual DB field for notification offsets (array of minutes)
+  notify_offsets_minutes?: number[] | null;
   // Future-ready fields for push notifications
   pre_notify_offset_minutes?: number | null;
   notification_channels?: NotificationChannels | null;

@@ -32,6 +32,7 @@ function createReminder(overrides: Partial<Reminder> = {}): Reminder {
     follow_up_interval_value: null,
     follow_up_interval_unit: null,
     next_follow_up_date: null,
+    notify_offsets_minutes: null,
     pre_notify_offset_minutes: null,
     ...overrides
   };
@@ -137,16 +138,16 @@ describe('getEarliestAttentionStart - Appointment offsets', () => {
     expect(attentionStart.getTime()).toBe(expectedStart.getTime());
   });
 
-  it('uses pre_notify_offset_minutes when specified', () => {
+  it('uses notify_offsets_minutes when specified', () => {
     const appointmentDate = new Date('2024-03-15T10:00:00');
     const reminder = createReminder({
       type: 'appointment',
       date_time: appointmentDate.toISOString(),
-      pre_notify_offset_minutes: 60 // 1 hour before
+      notify_offsets_minutes: [60] // 1 hour before
     });
     
     const attentionStart = getEarliestAttentionStart(reminder);
-    // Should be 60 min before
+    // Should be 60 min before (max of array)
     const expectedStart = new Date(appointmentDate);
     expectedStart.setMinutes(expectedStart.getMinutes() - 60);
     
@@ -194,7 +195,7 @@ describe('isReminderOverdue', () => {
     const reminder = createReminder({
       type: 'appointment',
       date_time: appointmentDate.toISOString(),
-      pre_notify_offset_minutes: 120 // 2 hours before
+      notify_offsets_minutes: [120] // 2 hours before
     });
     expect(isReminderOverdue(reminder)).toBe(false);
   });
