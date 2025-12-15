@@ -1,6 +1,6 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
-import { getColorForPain } from './painColorScale';
+import { getColorForPain, shouldUseDarkText } from './painColorScale';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { isToday, format } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -24,10 +24,10 @@ export const DayCell: React.FC<DayCellProps> = ({
   const today = isToday(date);
   const hasEntries = entryCount > 0;
   const hasPainData = hasEntries && maxPain !== null;
-  const hasMultipleEntries = entryCount > 1;
   
-  // Get pain color for tinted background
+  // Get pain color for full background
   const painColor = hasPainData ? getColorForPain(maxPain) : undefined;
+  const useDarkText = hasPainData && maxPain !== null ? shouldUseDarkText(maxPain) : false;
   
   // Tooltip text
   const tooltipText = hasEntries
@@ -47,56 +47,35 @@ export const DayCell: React.FC<DayCellProps> = ({
               "relative flex items-center justify-center",
               "aspect-square w-full",
               "transition-all duration-150",
-              "touch-manipulation rounded-lg",
-              // Base cell styling - subtle for all days
-              "bg-muted/20",
-              // Current vs other month
-              isCurrentMonth ? 'text-foreground' : 'text-muted-foreground/30',
+              "touch-manipulation rounded-md",
+              // Current vs other month base visibility
+              !isCurrentMonth && 'opacity-30',
               // Clickable state
               hasEntries && 'cursor-pointer active:scale-95',
               !hasEntries && 'cursor-default',
-              // Today marker - thin ring
-              today && 'ring-1.5 ring-primary ring-offset-1 ring-offset-background'
+              // Today marker - thin ring that doesn't break the color
+              today && 'ring-2 ring-primary ring-offset-1 ring-offset-background'
             )}
             style={hasPainData && painColor ? {
-              // Tinted background with pain color (15% opacity)
-              backgroundColor: `color-mix(in srgb, ${painColor} 18%, transparent)`,
+              // Full background with pain color
+              backgroundColor: painColor,
+              color: useDarkText ? 'hsl(0 0% 10%)' : 'hsl(0 0% 100%)',
             } : hasEntries && !hasPainData ? {
-              // Has entries but no pain data
-              backgroundColor: 'hsl(var(--muted) / 0.4)',
-            } : undefined}
+              // Has entries but no pain data - muted fill
+              backgroundColor: 'hsl(var(--muted) / 0.5)',
+            } : {
+              // No entries - very subtle neutral background
+              backgroundColor: 'hsl(var(--muted) / 0.15)',
+            }}
           >
-            {/* Day number - centered */}
+            {/* Day number only - no other markers */}
             <span className={cn(
               "text-xs font-medium leading-none",
-              today && "text-primary font-semibold",
-              hasPainData && "text-foreground"
+              today && !hasPainData && "text-primary font-semibold",
+              !hasPainData && !hasEntries && (isCurrentMonth ? "text-muted-foreground" : "text-muted-foreground/50")
             )}>
               {dayNumber}
             </span>
-            
-            {/* Pain level indicator - small number bottom right */}
-            {hasPainData && maxPain !== null && (
-              <span 
-                className="absolute bottom-0.5 right-1 text-[8px] font-bold leading-none"
-                style={{ color: painColor }}
-              >
-                {maxPain}
-              </span>
-            )}
-            
-            {/* Multiple entries indicator - small dot top right */}
-            {hasMultipleEntries && (
-              <span 
-                className="absolute top-0.5 right-0.5 w-1 h-1 rounded-full"
-                style={{ backgroundColor: painColor || 'hsl(var(--muted-foreground) / 0.5)' }}
-              />
-            )}
-            
-            {/* Entry dot for days with entries but no pain data */}
-            {hasEntries && !hasPainData && (
-              <span className="absolute bottom-0.5 right-1 w-1 h-1 rounded-full bg-muted-foreground/50" />
-            )}
           </button>
         </TooltipTrigger>
         <TooltipContent side="top" className="text-xs">
