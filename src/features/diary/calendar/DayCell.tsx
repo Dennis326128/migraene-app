@@ -24,6 +24,7 @@ export const DayCell: React.FC<DayCellProps> = ({
   const today = isToday(date);
   const hasEntries = entryCount > 0;
   const hasPainData = hasEntries && maxPain !== null;
+  const hasMultipleEntries = entryCount > 1;
   
   // Get pain color for tinted background
   const painColor = hasPainData ? getColorForPain(maxPain) : undefined;
@@ -43,50 +44,58 @@ export const DayCell: React.FC<DayCellProps> = ({
             onClick={onClick}
             disabled={!hasEntries}
             className={cn(
-              "relative flex flex-col items-center justify-center gap-0.5",
-              "h-12 w-full min-w-[40px]",
+              "relative flex items-center justify-center",
+              "aspect-square w-full",
               "transition-all duration-150",
-              "touch-manipulation rounded-xl",
-              // Base state
-              isCurrentMonth ? 'text-foreground' : 'text-muted-foreground/40',
+              "touch-manipulation rounded-lg",
+              // Base cell styling - subtle for all days
+              "bg-muted/20",
+              // Current vs other month
+              isCurrentMonth ? 'text-foreground' : 'text-muted-foreground/30',
               // Clickable state
               hasEntries && 'cursor-pointer active:scale-95',
               !hasEntries && 'cursor-default',
-              // Today marker - outer ring (always visible if today)
-              today && 'ring-2 ring-primary ring-offset-2 ring-offset-background'
+              // Today marker - thin ring
+              today && 'ring-1.5 ring-primary ring-offset-1 ring-offset-background'
             )}
             style={hasPainData && painColor ? {
-              // Softer background with pain color
-              backgroundColor: `color-mix(in srgb, ${painColor} 15%, transparent)`,
-              // Subtle border with pain color
-              boxShadow: `inset 0 0 0 2px color-mix(in srgb, ${painColor} 40%, transparent)`,
+              // Tinted background with pain color (15% opacity)
+              backgroundColor: `color-mix(in srgb, ${painColor} 18%, transparent)`,
             } : hasEntries && !hasPainData ? {
-              // No pain data but has entries - subtle muted indicator
-              backgroundColor: 'hsl(var(--muted) / 0.3)',
-              boxShadow: 'inset 0 0 0 1.5px hsl(var(--muted-foreground) / 0.15)',
+              // Has entries but no pain data
+              backgroundColor: 'hsl(var(--muted) / 0.4)',
             } : undefined}
           >
-            {/* Day number */}
+            {/* Day number - centered */}
             <span className={cn(
-              "text-sm font-semibold leading-none",
-              today && "text-primary"
+              "text-xs font-medium leading-none",
+              today && "text-primary font-semibold",
+              hasPainData && "text-foreground"
             )}>
               {dayNumber}
             </span>
             
-            {/* Pain level indicator - shows number for accessibility */}
+            {/* Pain level indicator - small number bottom right */}
             {hasPainData && maxPain !== null && (
               <span 
-                className="text-[9px] font-bold leading-none opacity-80"
+                className="absolute bottom-0.5 right-1 text-[8px] font-bold leading-none"
                 style={{ color: painColor }}
               >
                 {maxPain}
               </span>
             )}
             
+            {/* Multiple entries indicator - small dot top right */}
+            {hasMultipleEntries && (
+              <span 
+                className="absolute top-0.5 right-0.5 w-1 h-1 rounded-full"
+                style={{ backgroundColor: painColor || 'hsl(var(--muted-foreground) / 0.5)' }}
+              />
+            )}
+            
             {/* Entry dot for days with entries but no pain data */}
             {hasEntries && !hasPainData && (
-              <span className="w-1 h-1 rounded-full bg-muted-foreground/50" />
+              <span className="absolute bottom-0.5 right-1 w-1 h-1 rounded-full bg-muted-foreground/50" />
             )}
           </button>
         </TooltipTrigger>

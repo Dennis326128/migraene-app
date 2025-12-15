@@ -163,10 +163,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ onEdit }) => {
   }
   
   return (
-    <div ref={containerRef} className="space-y-4 w-full px-2 sm:px-3 max-w-lg sm:max-w-xl mx-auto">
-      {/* Legend - compact */}
-      <CalendarLegend />
-      
+    <div ref={containerRef} className="w-full">
       {/* Infinite scroll sentinel at top for older months */}
       {canLoadEarlier && (
         <div ref={loadMoreSentinelRef} className="h-1" />
@@ -180,8 +177,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ onEdit }) => {
         </div>
       )}
       
-      {/* Month grids */}
-      <div className="space-y-6">
+      {/* Month grids - reduced spacing */}
+      <div className="space-y-3">
         {monthsToDisplay.map((month, index) => (
           <MonthGrid
             key={month.toISOString()}
@@ -195,7 +192,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ onEdit }) => {
       
       {/* End of data indicator */}
       {!canLoadEarlier && monthsToDisplay.length > 0 && (
-        <div className="text-center py-4 text-xs text-muted-foreground/50">
+        <div className="text-center py-3 text-xs text-muted-foreground/50">
           Anfang erreicht
         </div>
       )}
@@ -207,6 +204,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ onEdit }) => {
           <p className="text-sm mt-1">Erstellen Sie Ihren ersten Schmerzeintrag</p>
         </div>
       )}
+      
+      {/* Legend at bottom - compact */}
+      {monthsToDisplay.length > 0 && <CalendarLegend />}
       
       {/* Unified Day Sheet (list/preview) */}
       <DaySheet

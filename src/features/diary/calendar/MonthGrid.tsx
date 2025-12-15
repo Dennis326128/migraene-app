@@ -58,62 +58,51 @@ export const MonthGrid = forwardRef<HTMLDivElement, MonthGridProps>(({
   const monthLabel = format(month, 'MMMM yyyy', { locale: de });
   
   return (
-    <div ref={ref} className="space-y-2">
-      {/* Month header - iPhone style centered */}
-      <h3 className="text-base font-bold text-foreground text-center capitalize py-2">
+    <div ref={ref} className="space-y-1">
+      {/* Month header - compact left-aligned */}
+      <h3 className="text-sm font-semibold text-foreground capitalize px-1 py-1.5">
         {monthLabel}
       </h3>
       
       {/* Weekday headers */}
-      <div className="grid grid-cols-7 gap-1 border-b border-border/40 pb-2">
+      <div className="grid grid-cols-7 gap-0.5 px-0.5">
         {WEEKDAYS.map(day => (
           <div 
             key={day} 
-            className="text-center text-xs font-medium text-muted-foreground/70"
+            className="text-center text-[10px] font-medium text-muted-foreground/60 pb-1"
           >
             {day}
           </div>
         ))}
       </div>
       
-      {/* Weeks with dividers */}
-      <div className="space-y-0.5">
-        {weeks.map((week, weekIndex) => (
-          <div key={weekIndex}>
-            {/* Week row */}
-            <div className="grid grid-cols-7 gap-1 py-0.5">
-              {week.map((day, dayIndex) => {
-                if (!day) {
-                  // Empty cell for offset
-                  return <div key={`empty-${dayIndex}`} className="h-11" />;
-                }
-                
-                const dateKey = format(day, 'yyyy-MM-dd');
-                const summary = daySummaries.get(dateKey);
-                
-                return (
-                  <DayCell
-                    key={dateKey}
-                    date={day}
-                    maxPain={summary?.maxPain ?? null}
-                    entryCount={summary?.entryCount ?? 0}
-                    onClick={() => {
-                      if (summary && summary.entryCount > 0) {
-                        onDayClick(dateKey, summary.entries);
-                      }
-                    }}
-                    isCurrentMonth={isSameMonth(day, month)}
-                  />
-                );
-              })}
-            </div>
-            
-            {/* Subtle divider between weeks (except last) */}
-            {weekIndex < weeks.length - 1 && (
-              <div className="border-b border-border/15 mx-2" />
-            )}
-          </div>
+      {/* Calendar grid - no week dividers, tighter spacing */}
+      <div className="grid grid-cols-7 gap-0.5 px-0.5">
+        {/* Empty cells for first week offset */}
+        {Array.from({ length: firstDayOfWeek }).map((_, i) => (
+          <div key={`empty-${i}`} className="aspect-square" />
         ))}
+        
+        {/* Day cells */}
+        {days.map(day => {
+          const dateKey = format(day, 'yyyy-MM-dd');
+          const summary = daySummaries.get(dateKey);
+          
+          return (
+            <DayCell
+              key={dateKey}
+              date={day}
+              maxPain={summary?.maxPain ?? null}
+              entryCount={summary?.entryCount ?? 0}
+              onClick={() => {
+                if (summary && summary.entryCount > 0) {
+                  onDayClick(dateKey, summary.entries);
+                }
+              }}
+              isCurrentMonth={isSameMonth(day, month)}
+            />
+          );
+        })}
       </div>
     </div>
   );
