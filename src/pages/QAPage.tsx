@@ -1,8 +1,9 @@
 /**
- * QA Smoke Test Page (DEV only)
+ * QA Smoke Test Page (DEV only or with VITE_ENABLE_QA=true)
  */
 
 import React, { useState } from 'react';
+import { Navigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,6 +20,12 @@ interface TestResult {
 }
 
 export default function QAPage() {
+  // Gate: only accessible in DEV mode or when VITE_ENABLE_QA is set
+  const enabled = import.meta.env.DEV === true || import.meta.env.VITE_ENABLE_QA === 'true';
+  
+  if (!enabled) {
+    return <Navigate to="/" replace />;
+  }
   const [results, setResults] = useState<TestResult[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [capturedErrors, setCapturedErrors] = useState(getCapturedErrors());

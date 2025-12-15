@@ -39,7 +39,7 @@ export function getEarliestAttentionStart(reminder: Reminder): Date {
   
   // For appointments with notification offsets, start at earliest offset
   if (reminder.type === 'appointment') {
-    const offsets = (reminder as any).notify_offsets_minutes as number[] | null;
+    const offsets = reminder.notify_offsets_minutes ?? null;
     const effectiveOffsets = offsets && offsets.length > 0 ? offsets : DEFAULT_APPOINTMENT_OFFSETS;
     
     // Get max offset (furthest in advance)
