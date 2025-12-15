@@ -45,12 +45,12 @@ function interpolateHSL(
   };
 }
 
-// Default fallback colors if CSS vars are unavailable
+// Default fallback colors matching index.css pain levels (HSL values)
 const FALLBACK_COLORS: { h: number; s: number; l: number }[] = [
-  { h: 142, s: 76, l: 36 },  // pain-light (green)
-  { h: 45, s: 93, l: 47 },   // pain-medium (yellow)
-  { h: 24, s: 100, l: 50 },  // pain-strong (orange)
-  { h: 0, s: 84, l: 60 }     // pain-severe (red)
+  { h: 142, s: 76, l: 36 },  // pain-light (green) - matches --pain-light
+  { h: 45, s: 93, l: 47 },   // pain-medium (yellow) - matches --pain-medium
+  { h: 24, s: 100, l: 50 },  // pain-strong (orange) - matches --pain-strong
+  { h: 0, s: 84, l: 60 }     // pain-severe (red) - matches --pain-severe
 ];
 
 // Get base colors from CSS or fallback

@@ -51,11 +51,23 @@ type TimelineItemType = {
   data: any;
 };
 
+const DIARY_VIEW_MODE_KEY = 'diaryViewMode';
+
 export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate, onEdit }) => {
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
   const [filterType, setFilterType] = useState<'all' | 'pain_entry' | 'context_note'>('all');
-  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
+  const [viewMode, setViewMode] = useState<'list' | 'calendar'>(() => {
+    const saved = localStorage.getItem(DIARY_VIEW_MODE_KEY);
+    return (saved === 'list' || saved === 'calendar') ? saved : 'list';
+  });
+
+  const handleViewModeChange = (value: string | undefined) => {
+    if (value === 'list' || value === 'calendar') {
+      setViewMode(value);
+      localStorage.setItem(DIARY_VIEW_MODE_KEY, value);
+    }
+  };
   const [editingNote, setEditingNote] = useState<any>(null);
   const [editingTageszustand, setEditingTageszustand] = useState<EditingContextNote | null>(null);
   const [expandedEntries, setExpandedEntries] = useState<Set<string>>(new Set());
@@ -314,19 +326,47 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
 
   return (
     <div className="min-h-screen bg-background pb-20">
-      {/* Header */}
-      <div className="sticky top-0 z-10 bg-background border-b border-border px-4 py-3 flex items-center gap-3">
-        <Button 
-          variant="ghost" 
-          onClick={onBack} 
-          className="p-2 hover:bg-secondary/80"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <h1 className="text-xl font-semibold flex-1">Kopfschmerztagebuch</h1>
-        <Badge variant="outline" className="text-xs">
-          {filteredItems.length}
-        </Badge>
+      {/* Sticky Header with View Toggle */}
+      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-md border-b border-border">
+        {/* Title Row */}
+        <div className="px-4 py-3 flex items-center gap-3">
+          <Button 
+            variant="ghost" 
+            onClick={onBack} 
+            className="p-2 hover:bg-secondary/80"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <h1 className="text-xl font-semibold flex-1">Kopfschmerztagebuch</h1>
+          <Badge variant="outline" className="text-xs">
+            {filteredItems.length}
+          </Badge>
+        </div>
+        
+        {/* Segmented Control - Always Visible */}
+        <div className="px-4 pb-3">
+          <ToggleGroup 
+            type="single" 
+            value={viewMode} 
+            onValueChange={handleViewModeChange}
+            className="w-full bg-muted/60 p-1 rounded-xl grid grid-cols-2"
+          >
+            <ToggleGroupItem 
+              value="list" 
+              className="rounded-lg py-2.5 text-sm font-medium data-[state=on]:bg-background data-[state=on]:shadow-md data-[state=on]:text-foreground data-[state=off]:text-muted-foreground transition-all"
+            >
+              <List className="h-4 w-4 mr-2" />
+              Liste
+            </ToggleGroupItem>
+            <ToggleGroupItem 
+              value="calendar" 
+              className="rounded-lg py-2.5 text-sm font-medium data-[state=on]:bg-background data-[state=on]:shadow-md data-[state=on]:text-foreground data-[state=off]:text-muted-foreground transition-all"
+            >
+              <CalendarIcon className="h-4 w-4 mr-2" />
+              Kalender
+            </ToggleGroupItem>
+          </ToggleGroup>
+        </div>
       </div>
 
       {/* PDF Report Button */}
@@ -349,38 +389,6 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
       </div>
 
       <div className={cn("max-w-4xl mx-auto p-4 space-y-4", isMobile && "px-3")}>
-        {/* View Mode Toggle */}
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-2">
-                <LayoutGrid className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium">Ansicht</span>
-              </div>
-              <ToggleGroup 
-                type="single" 
-                value={viewMode} 
-                onValueChange={(value) => value && setViewMode(value as typeof viewMode)}
-                className="bg-muted/50 p-1 rounded-lg"
-              >
-                <ToggleGroupItem 
-                  value="list" 
-                  className="px-4 data-[state=on]:bg-background data-[state=on]:shadow-sm"
-                >
-                  <List className="h-4 w-4 mr-2" />
-                  Liste
-                </ToggleGroupItem>
-                <ToggleGroupItem 
-                  value="calendar" 
-                  className="px-4 data-[state=on]:bg-background data-[state=on]:shadow-sm"
-                >
-                  <CalendarIcon className="h-4 w-4 mr-2" />
-                  Kalender
-                </ToggleGroupItem>
-              </ToggleGroup>
-            </div>
-          </CardContent>
-        </Card>
 
         {/* Filter - only show in list view */}
         {viewMode === 'list' && (
