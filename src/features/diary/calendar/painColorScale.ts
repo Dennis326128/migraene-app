@@ -112,6 +112,15 @@ export function getColorForPain(painLevel: number | null): string {
   return colors[level];
 }
 
+// Determine if dark text should be used on a pain color background
+// Yellow/light colors (low pain levels) need dark text for readability
+export function shouldUseDarkText(painLevel: number | null): boolean {
+  if (painLevel === null || painLevel === undefined) return false;
+  // Levels 0-4 are lighter colors (green to yellow) - use dark text
+  // Levels 5+ are darker colors (orange to red) - use light text
+  return painLevel <= 4;
+}
+
 // Get legend data for UI
 export interface LegendItem {
   level: number;
