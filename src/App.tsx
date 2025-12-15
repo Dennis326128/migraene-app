@@ -17,7 +17,6 @@ import { MedicationEffectsPage } from "./features/medication-effects/components/
 import { registerOfflineSupport } from "@/hooks/useOptimizedCache";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { initOfflineDB, syncPendingEntries } from "@/lib/offlineQueue";
-import React from "react";
 
 // Lazy load QA page (DEV only)
 const QAPage = React.lazy(() => import("./pages/QAPage"));
