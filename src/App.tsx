@@ -141,13 +141,11 @@ function App() {
                   </AuthGuard>
                 } 
               />
-              {import.meta.env.DEV && (
-                <Route path="/qa" element={
-                  <React.Suspense fallback={<div className="p-8 text-center">Loading QA...</div>}>
-                    <QAPage />
-                  </React.Suspense>
-                } />
-              )}
+              <Route path="/qa" element={
+                <React.Suspense fallback={<div className="p-8 text-center">Loading QA...</div>}>
+                  <QAPage />
+                </React.Suspense>
+              } />
               <Route path="*" element={<NotFound />} />
             </Routes>
             <Toaster />
