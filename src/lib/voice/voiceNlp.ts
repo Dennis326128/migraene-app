@@ -11,6 +11,7 @@ import type {
   VoicePainEntry,
   VoiceReminder,
   VoiceMedicationUpdate,
+  VoiceAnalyticsQuery,
   MedicationUpdateAction,
   ConfidenceLevel
 } from '@/types/voice.types';
@@ -84,6 +85,7 @@ export function analyzeVoiceTranscript(
   let painEntry: VoicePainEntry | undefined;
   let reminder: VoiceReminder | undefined;
   let medicationUpdate: VoiceMedicationUpdate | undefined;
+  let analyticsQuery: VoiceAnalyticsQuery | undefined;
 
   switch (intent) {
     case 'pain_entry':
@@ -98,6 +100,10 @@ export function analyzeVoiceTranscript(
       medicationUpdate = extractMedicationUpdate(transcript, userContext);
       break;
     
+    case 'analytics_query':
+      analyticsQuery = extractAnalyticsQuery(transcript);
+      break;
+    
     case 'note':
     case 'unknown':
       // Für Notizen keine weitere Struktur nötig
@@ -110,6 +116,7 @@ export function analyzeVoiceTranscript(
     painEntry,
     reminder,
     medicationUpdate,
+    analyticsQuery,
     rawTranscript: transcript,
     sttConfidence
   };
@@ -126,6 +133,11 @@ function classifyIntent(
   intentConfidence: number 
 } {
   const lower = transcript.toLowerCase();
+
+  // 0. Check: Analytics Query? (Fragen zu Statistiken)
+  if (isAnalyticsQuestion(lower)) {
+    return { intent: 'analytics_query', intentConfidence: 0.9 };
+  }
 
   // 1. Check: Medication Update Trigger? (Höchste Priorität für Medikamenten-Änderungen)
   const medUpdateMatch = detectMedicationUpdateIntent(lower, userContext);
@@ -164,6 +176,124 @@ function classifyIntent(
   }
 
   return { intent: 'unknown', intentConfidence: 0.3 };
+}
+
+/**
+ * Erkennt Analytics-Fragen
+ */
+function isAnalyticsQuestion(lower: string): boolean {
+  // Frage-Pattern
+  const questionPatterns = [
+    /wie\s*(?:viele?|oft)/,
+    /wieviele?/,
+    /zähl/,
+    /durchschnitt/,
+    /statistik/,
+    /auswertung/,
+  ];
+  
+  const hasQuestion = questionPatterns.some(p => p.test(lower));
+  if (!hasQuestion) return false;
+  
+  // Medikamente oder Migräne erwähnt?
+  const topics = [
+    'triptan', 'sumatriptan', 'rizatriptan', 'zolmitriptan',
+    'schmerzmittel', 'ibuprofen', 'paracetamol',
+    'migräne', 'kopfschmerz',
+    'tag', 'tage', 'woche', 'monat'
+  ];
+  
+  return topics.some(t => lower.includes(t));
+}
+
+/**
+ * Extrahiert Analytics-Query Daten
+ */
+function extractAnalyticsQuery(transcript: string): VoiceAnalyticsQuery {
+  const lower = transcript.toLowerCase();
+  
+  // Zeitraum erkennen
+  let timeRangeDays = 30; // Default
+  const daysMatch = lower.match(/letzt(?:e|en)?\s*(\d+)\s*tag/);
+  if (daysMatch) {
+    timeRangeDays = parseInt(daysMatch[1], 10);
+  } else if (/woche/.test(lower)) {
+    timeRangeDays = 7;
+  } else if (/monat/.test(lower)) {
+    timeRangeDays = 30;
+  }
+  
+  // Triptan-Fragen
+  if (/triptan|sumatriptan|rizatriptan|zolmitriptan|maxalt|imigran/.test(lower)) {
+    const specificTriptans = [
+      'sumatriptan', 'rizatriptan', 'zolmitriptan', 'eletriptan', 
+      'naratriptan', 'almotriptan', 'frovatriptan', 'maxalt', 'imigran'
+    ];
+    
+    for (const triptan of specificTriptans) {
+      if (lower.includes(triptan)) {
+        return {
+          queryType: 'med_days',
+          medName: triptan,
+          timeRangeDays,
+          confidence: 0.9
+        };
+      }
+    }
+    
+    return {
+      queryType: 'triptan_days',
+      medCategory: 'migraene_triptan',
+      timeRangeDays,
+      confidence: 0.9
+    };
+  }
+  
+  // Schmerzmittel
+  if (/schmerzmittel|ibuprofen|paracetamol|aspirin|diclofenac/.test(lower)) {
+    const meds = ['ibuprofen', 'paracetamol', 'aspirin', 'diclofenac', 'naproxen'];
+    for (const med of meds) {
+      if (lower.includes(med)) {
+        return {
+          queryType: 'med_days',
+          medName: med,
+          timeRangeDays,
+          confidence: 0.85
+        };
+      }
+    }
+    
+    return {
+      queryType: 'med_days',
+      medCategory: 'schmerzmittel_nsar',
+      timeRangeDays,
+      confidence: 0.8
+    };
+  }
+  
+  // Migräne-Tage
+  if (/migräne.?tag|kopfschmerz.?tag|wie\s*(?:viele?|oft)\s*(?:migräne|kopfschmerz)/.test(lower)) {
+    return {
+      queryType: 'migraine_days',
+      timeRangeDays,
+      confidence: 0.9
+    };
+  }
+  
+  // Durchschnitt
+  if (/durchschnitt/.test(lower) && /schmerz|stärke/.test(lower)) {
+    return {
+      queryType: 'avg_pain',
+      timeRangeDays,
+      confidence: 0.85
+    };
+  }
+  
+  return {
+    queryType: 'unknown',
+    timeRangeDays,
+    confidence: 0.3
+  };
 }
 
 /**

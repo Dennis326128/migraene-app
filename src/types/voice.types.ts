@@ -3,7 +3,7 @@
  * Zentrale Typen für Voice-Erkennung und -Analyse
  */
 
-export type VoiceIntent = 'pain_entry' | 'reminder' | 'medication_update' | 'note' | 'unknown';
+export type VoiceIntent = 'pain_entry' | 'reminder' | 'medication_update' | 'note' | 'analytics_query' | 'unknown';
 
 export type MedicationUpdateAction = 'discontinued' | 'intolerance' | 'started' | 'dosage_changed';
 
@@ -44,12 +44,21 @@ export interface VoiceReminder {
   notes?: string;
 }
 
+export interface VoiceAnalyticsQuery {
+  queryType: 'triptan_days' | 'med_days' | 'migraine_days' | 'avg_pain' | 'unknown';
+  medName?: string;
+  medCategory?: string;
+  timeRangeDays: number;
+  confidence: number;
+}
+
 export interface VoiceAnalysisResult {
   intent: VoiceIntent;
   intentConfidence: number;
   painEntry?: VoicePainEntry;
   reminder?: VoiceReminder;
   medicationUpdate?: VoiceMedicationUpdate;
+  analyticsQuery?: VoiceAnalyticsQuery;
   rawTranscript: string;
   sttConfidence?: number;
 }
