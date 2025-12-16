@@ -1,14 +1,13 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
 import { WelcomeModal } from "./WelcomeModal";
 import { QuickEntryModal } from "./QuickEntryModal";
 import { StartPageCard, StartPageCardHeader, StartPageButtonGrid, SectionHeader, CardBadge } from "@/components/ui/start-page-card";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Mic } from "lucide-react";
 
 import { useOnboarding } from "@/hooks/useOnboarding";
-import { useSmartVoiceRouter } from "@/hooks/useSmartVoiceRouter";
 import { ReminderFormWithVoiceData } from "@/components/Reminders/ReminderFormWithVoiceData";
 import { useCreateReminder, useCreateMultipleReminders } from "@/features/reminders/hooks/useReminders";
 import { useReminderBadgeCount, useUpcoming24hWarnings } from "@/features/reminders/hooks/useReminderBadge";
@@ -19,7 +18,7 @@ import { saveVoiceNote } from '@/lib/voice/saveNote';
 import { setVoiceDraft } from '@/lib/voice/voiceDraftStorage';
 import { QuickContextNoteModal } from "./QuickContextNoteModal";
 import { VoiceHelpOverlay } from "./VoiceHelpOverlay";
-import { VoiceUnknownIntentOverlay } from "./VoiceUnknownIntentOverlay";
+import { VoiceAssistantOverlay } from "./VoiceAssistantOverlay";
 import { UpcomingWarningBanner } from "@/components/Reminders/UpcomingWarningBanner";
 import { CriticalMedicationPopup } from "@/components/Reminders/CriticalMedicationPopup";
 import { devError } from "@/lib/utils/devLogger";
@@ -54,106 +53,12 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   const [pendingVoiceNote, setPendingVoiceNote] = useState<string>('');
   const [showQuickContextNote, setShowQuickContextNote] = useState(false);
   const [showVoiceHelp, setShowVoiceHelp] = useState(false);
-  const [showUnknownIntent, setShowUnknownIntent] = useState(false);
-  const [unknownTranscript, setUnknownTranscript] = useState('');
-  const [unknownDraftText, setUnknownDraftText] = useState('');
+  const [showVoiceAssistant, setShowVoiceAssistant] = useState(false);
   
   const createReminder = useCreateReminder();
   const createMultipleReminders = useCreateMultipleReminders();
   const { count: reminderBadgeCount } = useReminderBadgeCount();
   const { reminders: upcomingWarnings } = useUpcoming24hWarnings();
-  
-  // Smart Voice Router with navigation support
-  const voiceRouter = useSmartVoiceRouter({
-    onEntryDetected: (data) => {
-      setVoiceData(data);
-      setShowQuickEntry(true);
-    },
-    onNoteDetected: (transcript) => {
-      setPendingVoiceNote(transcript);
-      setShowVoiceNoteReview(true);
-    },
-    onReminderDetected: (data) => {
-      setPrefilledReminderData(data);
-      setShowReminderForm(true);
-    },
-    onMedicationUpdateDetected: (_data) => {
-      // Medication update handling
-    },
-    onNavigationIntent: (route, payload) => {
-      // Map routes to internal navigation or external routes
-      const routeMap: Record<string, string> = {
-        '/diary': 'diary-timeline',
-        '/analysis': 'analysis',
-        '/medications': 'medication-management',
-        '/settings': 'settings',
-        '/settings/account': 'settings',
-        '/settings/doctors': 'settings',
-        '/reminders': 'reminders',
-      };
-      
-      const internalView = routeMap[route];
-      if (internalView && onNavigate) {
-        onNavigate(internalView as any);
-      } else {
-        navigate(route, { state: payload ? { voicePayload: payload } : undefined });
-      }
-    },
-    onHelpRequested: () => {
-      setShowVoiceHelp(true);
-    },
-    onUnknownIntent: (transcript) => {
-      setUnknownTranscript(transcript);
-      setUnknownDraftText(transcript); // Initialize draft with transcript
-      setShowUnknownIntent(true);
-    },
-  });
-
-  const handleVoiceEntry = () => {
-    if (voiceRouter.isListening) {
-      voiceRouter.stopVoice();
-    } else {
-      voiceRouter.startVoice();
-    }
-  };
-
-  const getVoiceButtonTitle = () => {
-    if (voiceRouter.isSaving) {
-      return 'Auswertung…';
-    }
-    if (voiceRouter.isListening) {
-      return 'Aufnahme läuft …';
-    }
-    return 'Spracheingabe';
-  };
-
-  const getVoiceButtonSubtitle = () => {
-    if (voiceRouter.isSaving) {
-      return 'Wir tragen die Felder für dich ein.';
-    }
-    if (voiceRouter.isListening) {
-      return 'Sprich in deinem Tempo.';
-    }
-    return 'Per Sprache erfassen.';
-  };
-  
-  // Voice icon: roter Punkt mit Animation bei Aufnahme, Petrol bei Bereit
-  const VoiceIcon = () => {
-    if (voiceRouter.isSaving) {
-      return (
-        <div className="w-5 h-5 rounded-full border-2 border-voice-light border-t-transparent animate-spin" />
-      );
-    }
-    if (voiceRouter.isListening) {
-      return (
-        <div className="relative flex items-center justify-center">
-          <div className="w-3 h-3 rounded-full bg-destructive animate-pulse" />
-          <div className="absolute w-5 h-5 rounded-full bg-destructive/30 animate-ping" />
-        </div>
-      );
-    }
-    return <span className="text-lg sm:text-xl">🎙️</span>;
-  };
 
   const handleQuickEntryClose = () => {
     setShowQuickEntry(false);
@@ -227,41 +132,18 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           <SectionHeader title="Schnell erfassen" className="mt-0" />
           
           <div className="space-y-3">
-            {/* 1) SPRACHEINGABE - Hero Card, hervorgehoben mit Voice-Farbe */}
+            {/* 1) SPRACHEINGABE - Hero Card, öffnet sofort Dialog */}
             <StartPageCard 
-              variant={voiceRouter.isListening || voiceRouter.isSaving ? "voiceActive" : "voiceHighlight"} 
-              touchFeedback={!voiceRouter.isListening && !voiceRouter.isSaving}
-              onClick={!voiceRouter.isListening && !voiceRouter.isSaving ? handleVoiceEntry : undefined}
+              variant="voiceHighlight" 
+              touchFeedback
+              onClick={() => setShowVoiceAssistant(true)}
             >
               <StartPageCardHeader
-                icon={<VoiceIcon />}
-                iconBgClassName={voiceRouter.isListening ? "bg-destructive/20" : "bg-voice-light/30"}
-                title={getVoiceButtonTitle()}
-                subtitle={getVoiceButtonSubtitle()}
+                icon={<Mic className="w-5 h-5 text-voice" />}
+                iconBgClassName="bg-voice-light/30"
+                title="Spracheingabe"
+                subtitle="Per Sprache erfassen"
               />
-              {voiceRouter.isListening && !voiceRouter.isSaving && (
-                <div className="mt-4 space-y-2">
-                  <Button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      voiceRouter.stopVoice();
-                    }}
-                    className="w-full bg-success hover:bg-success/90 text-success-foreground font-medium"
-                    size="lg"
-                  >
-                    Fertig
-                  </Button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      voiceRouter.cancelVoice();
-                    }}
-                    className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors py-1"
-                  >
-                    Abbrechen
-                  </button>
-                </div>
-              )}
             </StartPageCard>
 
             {/* 2) Migräne-Eintrag (Detail) */}
@@ -496,7 +378,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         onClose={() => setShowQuickContextNote(false)}
         onStartVoice={() => {
           setShowQuickContextNote(false);
-          handleVoiceEntry();
+          setShowVoiceAssistant(true);
         }}
       />
 
@@ -505,12 +387,9 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         onOpenChange={setShowVoiceHelp}
       />
 
-      <VoiceUnknownIntentOverlay
-        open={showUnknownIntent}
-        onOpenChange={setShowUnknownIntent}
-        transcript={unknownTranscript}
-        draftText={unknownDraftText}
-        onDraftTextChange={setUnknownDraftText}
+      <VoiceAssistantOverlay
+        open={showVoiceAssistant}
+        onOpenChange={setShowVoiceAssistant}
         onSelectAction={(action, draftText) => {
           // Store draft for target flows using utility
           if (draftText && draftText.trim()) {
@@ -535,11 +414,8 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               onNavigate?.('diary-timeline');
               break;
             case 'note':
-              setPendingVoiceNote(draftText || unknownTranscript);
+              setPendingVoiceNote(draftText);
               setShowVoiceNoteReview(true);
-              break;
-            case 'retry':
-              // Don't close - handled inside overlay now
               break;
           }
         }}
