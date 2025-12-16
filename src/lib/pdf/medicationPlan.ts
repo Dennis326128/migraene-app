@@ -4,19 +4,19 @@
  * ═══════════════════════════════════════════════════════════════════════════
  * 
  * Professionelles PDF im Stil des deutschen Bundeseinheitlichen Medikationsplans.
+ * Mit korrekten Umlauten (ä/ö/ü/ß) durch eingebettete Unicode-Schriftart.
  * 
- * PRIMÄRE DATENQUELLE: user_medications (nicht medication_courses!)
- * medication_courses werden nur für Verlaufsinformationen ergänzt.
- * 
- * SECTIONS:
- * 1. Aktuelle Medikation (Regelmäßig + Bei Bedarf)
- * 2. Unverträglichkeiten / Allergien (optional)
- * 3. Früher verwendete Medikamente (optional)
+ * FEATURES:
+ * - Korrekte Umlaute (Unicode-Font eingebettet)
+ * - Intelligente Spalten-Logik (Einheit/Wirkstoff auto-hide)
+ * - Kein Textabschneiden - automatischer Umbruch
+ * - Hinweise-Spalte mit Limits
  * 
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
-import { PDFDocument, StandardFonts, rgb, PDFPage, PDFFont } from "pdf-lib";
+import { PDFDocument, rgb, PDFPage, PDFFont } from "pdf-lib";
+import fontkit from "@pdf-lib/fontkit";
 import { lookupMedicationMetadata } from "@/lib/medicationLookup";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -24,12 +24,12 @@ import { lookupMedicationMetadata } from "@/lib/medicationLookup";
 // ═══════════════════════════════════════════════════════════════════════════
 
 const COLORS = {
-  primary: rgb(0.12, 0.30, 0.50),           // Dunkelblau (BMP-Stil)
-  headerBg: rgb(0.90, 0.93, 0.96),          // Hellgrau-Blau
-  sectionRegular: rgb(0.92, 0.96, 0.92),    // Leichtes Grün
-  sectionBedarf: rgb(0.96, 0.96, 0.92),     // Leichtes Gelb
-  sectionInactive: rgb(0.94, 0.94, 0.94),   // Grau
-  sectionIntolerance: rgb(0.98, 0.92, 0.92), // Leichtes Rot
+  primary: rgb(0.12, 0.30, 0.50),
+  headerBg: rgb(0.90, 0.93, 0.96),
+  sectionRegular: rgb(0.92, 0.96, 0.92),
+  sectionBedarf: rgb(0.96, 0.96, 0.92),
+  sectionInactive: rgb(0.94, 0.94, 0.94),
+  sectionIntolerance: rgb(0.98, 0.92, 0.92),
   text: rgb(0.1, 0.1, 0.1),
   textMuted: rgb(0.4, 0.4, 0.4),
   border: rgb(0.6, 0.6, 0.6),
@@ -39,7 +39,7 @@ const COLORS = {
 };
 
 const LAYOUT = {
-  pageWidth: 595.28,    // A4
+  pageWidth: 595.28,
   pageHeight: 841.89,
   marginLeft: 35,
   marginRight: 35,
@@ -47,20 +47,9 @@ const LAYOUT = {
   marginBottom: 50,
 };
 
-// Column widths for medication table - optimized without "Grund" column
-const COL_WIDTHS = {
-  wirkstoff: 95,      // wider for better readability
-  handelsname: 120,   // wider for long names
-  staerke: 55,        // wider
-  form: 65,           // wider
-  mo: 28,             // wider
-  mi: 28,             // wider
-  ab: 28,             // wider
-  na: 28,             // wider
-  einheit: 48,        // wider
-};
-
-const TABLE_WIDTH = Object.values(COL_WIDTHS).reduce((a, b) => a + b, 0);
+// Google Fonts URLs (Roboto supports German umlauts)
+const ROBOTO_FONT_URL = "https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Mu4mxP.ttf";
+const ROBOTO_BOLD_URL = "https://fonts.gstatic.com/s/roboto/v30/KFOlCnqEu92Fr1MmWUlfBBc9.ttf";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // INPUT TYPES
@@ -86,7 +75,6 @@ export type UserMedicationForPlan = {
   intolerance_notes?: string | null;
   intolerance_reason_type?: string | null;
   discontinued_at?: string | null;
-  // New structured fields
   intake_type?: string | null;
   strength_value?: string | null;
   strength_unit?: string | null;
@@ -160,28 +148,63 @@ export type BuildMedicationPlanParams = {
   options?: Partial<PdfExportOptions>;
 };
 
-// Default export options - limits are always included automatically
 const DEFAULT_OPTIONS: PdfExportOptions = {
   includeActive: true,
   includeInactive: false,
   includeIntolerance: true,
-  includeLimits: true, // Limits werden IMMER automatisch angezeigt
+  includeLimits: true,
 };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COLUMN CONFIGURATION
+// ═══════════════════════════════════════════════════════════════════════════
+
+type ColumnVisibility = {
+  showWirkstoff: boolean;
+  showEinheit: boolean;
+};
+
+// Calculate column widths based on visibility
+function getColumnWidths(visibility: ColumnVisibility) {
+  const baseWidths = {
+    wirkstoff: visibility.showWirkstoff ? 85 : 0,
+    handelsname: 100,
+    staerke: 50,
+    form: 55,
+    mo: 22,
+    mi: 22,
+    ab: 22,
+    na: 22,
+    einheit: visibility.showEinheit ? 38 : 0,
+    hinweise: 80,
+  };
+  
+  // Redistribute space from hidden columns
+  const extraSpace = (!visibility.showWirkstoff ? 85 : 0) + (!visibility.showEinheit ? 38 : 0);
+  if (extraSpace > 0) {
+    baseWidths.handelsname += Math.floor(extraSpace * 0.4);
+    baseWidths.hinweise += Math.floor(extraSpace * 0.4);
+    baseWidths.form += Math.floor(extraSpace * 0.2);
+  }
+  
+  return baseWidths;
+}
+
+function getTableWidth(widths: ReturnType<typeof getColumnWidths>): number {
+  return Object.values(widths).reduce((a, b) => a + b, 0);
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // HELPER FUNCTIONS
 // ═══════════════════════════════════════════════════════════════════════════
 
-function sanitize(text: string | undefined | null): string {
+function cleanText(text: string | undefined | null): string {
   if (!text) return "";
   return text
-    .replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue")
-    .replace(/Ä/g, "Ae").replace(/Ö/g, "Oe").replace(/Ü/g, "Ue")
-    .replace(/ß/g, "ss")
     .replace(/[""]/g, '"').replace(/['']/g, "'")
     .replace(/[–—]/g, "-").replace(/•/g, "-").replace(/…/g, "...")
     .replace(/×/g, "x")
-    .replace(/[^\x00-\xFF]/g, "");
+    .trim();
 }
 
 function formatDate(dateStr: string | undefined | null): string {
@@ -195,22 +218,13 @@ function formatDate(dateStr: string | undefined | null): string {
   }
 }
 
-function getPeriodLabel(periodType: string): string {
-  const labels: Record<string, string> = {
-    day: "Tag", daily: "Tag",
-    week: "Woche", weekly: "Woche",
-    month: "Monat", monthly: "Monat",
-  };
-  return labels[periodType?.toLowerCase()] || "Monat";
-}
-
 function getDiscontinuationReasonLabel(reason: string | null | undefined): string {
   const labels: Record<string, string> = {
     keine_wirkung: "Keine Wirkung",
     nebenwirkungen: "Nebenwirkungen",
     migraene_gebessert: "Besserung",
     kinderwunsch: "Kinderwunsch",
-    andere: "Andere Gruende",
+    andere: "Andere Gründe",
   };
   return labels[reason || ""] || reason || "";
 }
@@ -225,131 +239,98 @@ function getIntoleranceReasonLabel(reason: string | null | undefined): string {
   return labels[reason || ""] || reason || "";
 }
 
-function truncateText(text: string, maxLen: number): string {
-  if (text.length <= maxLen) return text;
-  return text.substring(0, maxLen - 2) + "..";
-}
-
 /**
- * Wrap text to fit within a given width, returning multiple lines
+ * Wrap text - no truncation, always wraps
  */
 function wrapText(
   text: string, 
   font: PDFFont, 
   fontSize: number, 
-  maxWidth: number
-): { lines: string[]; height: number } {
-  if (!text) return { lines: [], height: 0 };
+  maxWidth: number,
+  maxLines: number = 4
+): string[] {
+  if (!text) return [];
   
   const words = text.split(/\s+/);
   const lines: string[] = [];
   let currentLine = "";
   
   for (const word of words) {
+    if (lines.length >= maxLines) break;
+    
     const testLine = currentLine ? `${currentLine} ${word}` : word;
     const testWidth = font.widthOfTextAtSize(testLine, fontSize);
     
     if (testWidth <= maxWidth) {
       currentLine = testLine;
     } else {
-      if (currentLine) {
-        lines.push(currentLine);
-      }
-      // Handle very long words that exceed maxWidth
+      if (currentLine) lines.push(currentLine);
+      if (lines.length >= maxLines) break;
+      
+      // Handle very long single words
       if (font.widthOfTextAtSize(word, fontSize) > maxWidth) {
-        // Truncate long single words
-        let truncated = word;
-        while (font.widthOfTextAtSize(truncated + "..", fontSize) > maxWidth && truncated.length > 3) {
-          truncated = truncated.slice(0, -1);
+        let remaining = word;
+        while (remaining && lines.length < maxLines) {
+          let fit = "";
+          for (let i = 1; i <= remaining.length; i++) {
+            const sub = remaining.substring(0, i);
+            if (font.widthOfTextAtSize(sub, fontSize) <= maxWidth) {
+              fit = sub;
+            } else break;
+          }
+          if (fit) {
+            lines.push(fit);
+            remaining = remaining.substring(fit.length);
+          } else break;
         }
-        currentLine = truncated + "..";
+        currentLine = remaining || "";
       } else {
         currentLine = word;
       }
     }
   }
-  if (currentLine) {
+  if (currentLine && lines.length < maxLines) {
     lines.push(currentLine);
   }
   
-  const lineHeight = fontSize * 1.4;
-  return { lines, height: Math.max(lines.length * lineHeight, lineHeight) };
+  return lines;
 }
 
-/**
- * Remove strength pattern (e.g., "100 mg", "50mg") from medication name
- * to avoid duplicate display in Handelsname and Stärke columns
- */
 function cleanHandelsname(name: string): string {
-  // Remove patterns like "100 mg", "50mg", "2,5 mg", "500µg" at the end
   return name
     .replace(/\s*\d+(?:[,\.]\d+)?\s*(mg|µg|g|ml|IE)\s*$/i, "")
     .replace(/\s+$/, "");
 }
 
-/**
- * Extract or derive wirkstoff (active ingredient) from medication data
- * Uses lookup database first, then heuristic fallback
- */
 function deriveWirkstoff(
   explicitWirkstoff: string | null | undefined,
   handelsname: string,
   lookupWirkstoff: string | undefined
 ): string {
-  // Priority 1: Explicit wirkstoff field
-  if (explicitWirkstoff && explicitWirkstoff.trim()) {
-    return explicitWirkstoff.trim();
-  }
+  if (explicitWirkstoff?.trim()) return explicitWirkstoff.trim();
+  if (lookupWirkstoff?.trim()) return lookupWirkstoff.trim();
   
-  // Priority 2: Lookup database match
-  if (lookupWirkstoff && lookupWirkstoff.trim()) {
-    return lookupWirkstoff.trim();
-  }
-  
-  // Priority 3: Heuristic - extract first word(s) from handelsname
   const cleanedName = cleanHandelsname(handelsname);
-  
-  // Remove common manufacturer suffixes
   const withoutSuffix = cleanedName
     .replace(/[-\s]*(ratiopharm|hexal|stada|neuraxpharm|1a pharma|al|ct|dura|basics|sandoz|zentiva|mylan|teva|lich|beta|azupharma|aliud|puren|heumann|aristo)$/i, "")
     .trim();
   
-  // Return the cleaned name as wirkstoff (often the generic name)
   return withoutSuffix || cleanedName;
 }
 
-/**
- * Build structured as-needed dosing text from new fields
- * Returns compact format: "b.B., max. 2x/Tag, 10 Tage/Monat"
- */
 function buildAsNeededDoseText(med: UserMedicationForPlan): string {
   const parts: string[] = [];
   
-  if (med.as_needed_standard_dose) {
-    parts.push(med.as_needed_standard_dose);
-  }
-  if (med.as_needed_max_per_24h) {
-    parts.push(`max. ${med.as_needed_max_per_24h}x/Tag`);
-  }
-  if (med.as_needed_max_days_per_month) {
-    parts.push(`${med.as_needed_max_days_per_month} Tage/Monat`);
-  }
-  if (med.as_needed_min_interval_hours) {
-    parts.push(`Abstand ${med.as_needed_min_interval_hours}h`);
-  }
+  if (med.as_needed_standard_dose) parts.push(med.as_needed_standard_dose);
+  if (med.as_needed_max_per_24h) parts.push(`max. ${med.as_needed_max_per_24h}x/Tag`);
+  if (med.as_needed_max_days_per_month) parts.push(`${med.as_needed_max_days_per_month} Tage/Monat`);
+  if (med.as_needed_min_interval_hours) parts.push(`Abstand ${med.as_needed_min_interval_hours}h`);
   
-  // Fallback to legacy field
-  if (parts.length === 0 && med.dosis_bedarf) {
-    return med.dosis_bedarf;
-  }
+  if (parts.length === 0 && med.dosis_bedarf) return med.dosis_bedarf;
   
   return parts.join(", ");
 }
 
-/**
- * Build compact limit text for inline display
- * Format: "max. 10x/Monat" instead of "Maximal: 10x pro Monat"
- */
 function buildCompactLimitText(limit: { limit: number; period: string } | undefined): string {
   if (!limit) return "";
   
@@ -363,21 +344,15 @@ function buildCompactLimitText(limit: { limit: number; period: string } | undefi
   return `max. ${limit.limit}x/${periodLabel}`;
 }
 
-/**
- * Build weekday info for regular medications
- */
 function buildWeekdayInfo(med: UserMedicationForPlan): string {
-  if (!med.regular_weekdays || med.regular_weekdays.length === 0) {
-    return ""; // Daily
-  }
-  if (med.regular_weekdays.length === 7) {
-    return ""; // Also daily
+  if (!med.regular_weekdays || med.regular_weekdays.length === 0 || med.regular_weekdays.length === 7) {
+    return "";
   }
   return `(${med.regular_weekdays.join(", ")})`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// MEDICATION ROW TYPE (internal)
+// MEDICATION ROW TYPE
 // ═══════════════════════════════════════════════════════════════════════════
 
 type MedRow = {
@@ -398,12 +373,11 @@ type MedRow = {
   discontinuationReason: string;
   asNeededDoseText: string;
   weekdayInfo: string;
-  // Inline limit info
   limitText: string;
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// DATA AGGREGATION: Build rows from user_medications (PRIMARY SOURCE)
+// DATA AGGREGATION
 // ═══════════════════════════════════════════════════════════════════════════
 
 function buildMedicationRows(
@@ -415,103 +389,114 @@ function buildMedicationRows(
   onDemand: MedRow[];
   inactive: MedRow[];
   intolerant: MedRow[];
+  hasNonStandardEinheit: boolean;
+  hasWirkstoff: boolean;
 } {
   const regular: MedRow[] = [];
   const onDemand: MedRow[] = [];
   const inactive: MedRow[] = [];
   const intolerant: MedRow[] = [];
 
-  // Create a map of courses by medication_id or medication_name for quick lookup
   const coursesByMedId = new Map<string, MedicationCourseForPlan>();
   const coursesByName = new Map<string, MedicationCourseForPlan>();
   for (const course of medicationCourses) {
-    if (course.medication_id) {
-      coursesByMedId.set(course.medication_id, course);
-    }
+    if (course.medication_id) coursesByMedId.set(course.medication_id, course);
     coursesByName.set(course.medication_name.toLowerCase(), course);
   }
 
-  // Create a map of limits by medication name
   const limitsMap = new Map<string, { limit: number; period: string }>();
   for (const l of medicationLimits) {
     limitsMap.set(l.medication_name.toLowerCase(), { limit: l.limit_count, period: l.period_type });
   }
 
+  let hasNonStandardEinheit = false;
+  let hasWirkstoff = false;
+
   for (const med of userMedications) {
-    // Find associated course (by ID first, then by name)
     const course = coursesByMedId.get(med.id) || coursesByName.get(med.name.toLowerCase());
-    
-    // Lookup metadata for missing fields
     const lookup = lookupMedicationMetadata(med.name);
     
-    // Build combined strength (prefer new fields, fallback to legacy)
     const combinedStaerke = med.strength_value && med.strength_unit
       ? `${med.strength_value} ${med.strength_unit}`
       : med.staerke || lookup?.staerke || "";
     
-    // Build dosierung
     let morgens = med.dosis_morgens || "";
     let mittags = med.dosis_mittags || "";
     let abends = med.dosis_abends || "";
     let nachts = med.dosis_nacht || "";
     
-    // Determine if regular or as-needed based on new intake_type or legacy art
     const isRegular = med.intake_type === "regular" || 
                       med.art === "prophylaxe" || 
                       med.art === "regelmaessig";
     
-    // Build as-needed dose text
     const asNeededDoseText = buildAsNeededDoseText(med);
-    
-    // Build weekday info for regular meds
     const weekdayInfo = buildWeekdayInfo(med);
     
-    // If no daily dose but has as-needed dose (for display)
     const hasDailyDose = morgens || mittags || abends || nachts;
     if (!hasDailyDose && !isRegular) {
-      morgens = "b.B.";  // "bei Bedarf" indicator
+      morgens = "b.B.";
     }
 
-    // Derive wirkstoff using enhanced logic
     const derivedWirkstoff = deriveWirkstoff(med.wirkstoff, med.name, lookup?.wirkstoff);
-    
-    // Clean handelsname to remove duplicate strength
     const cleanedHandelsname = cleanHandelsname(med.name);
+    
+    // Check if wirkstoff is different from handelsname
+    if (derivedWirkstoff.toLowerCase() !== cleanedHandelsname.toLowerCase()) {
+      hasWirkstoff = true;
+    }
 
-    // Build compact limit text for inline display with b.B.
     const limitInfo = limitsMap.get(med.name.toLowerCase());
     const limitText = buildCompactLimitText(limitInfo);
     
-    // For as-needed meds: combine the dose text with limit inline
-    // This ensures we show "b.B., max. 10x/Monat" in ONE line
     let combinedAsNeededText = asNeededDoseText;
     if (limitText && !isRegular) {
       combinedAsNeededText = [asNeededDoseText, limitText].filter(Boolean).join(", ");
     }
 
+    // Get einheit and check if it's non-standard
+    const einheit = cleanText(med.einheit || lookup?.einheit || "Stück");
+    const normalizedEinheit = einheit.toLowerCase().replace(/\./g, "");
+    const isStandardEinheit = ["stück", "stueck", "st", "stk", ""].includes(normalizedEinheit);
+    if (!isStandardEinheit && einheit) {
+      hasNonStandardEinheit = true;
+    }
+
+    // Build hinweise from available data
+    const hinweiseParts: string[] = [];
+    if (med.hinweise) hinweiseParts.push(med.hinweise);
+    if (med.as_needed_notes && !med.hinweise?.includes(med.as_needed_notes)) {
+      hinweiseParts.push(med.as_needed_notes);
+    }
+    if (med.regular_notes && !med.hinweise?.includes(med.regular_notes)) {
+      hinweiseParts.push(med.regular_notes);
+    }
+    // Add limit for regular meds
+    if (isRegular && limitText) {
+      hinweiseParts.push(limitText);
+    }
+
     const row: MedRow = {
-      wirkstoff: sanitize(derivedWirkstoff),
-      handelsname: sanitize(cleanedHandelsname),
-      staerke: sanitize(combinedStaerke),
-      form: sanitize(med.darreichungsform || lookup?.darreichungsform || "Tbl."),
+      wirkstoff: cleanText(derivedWirkstoff),
+      handelsname: cleanText(cleanedHandelsname),
+      staerke: cleanText(combinedStaerke),
+      form: cleanText(med.darreichungsform || lookup?.darreichungsform || "Tablette"),
       morgens,
       mittags,
       abends,
       nachts,
-      einheit: sanitize(med.einheit || lookup?.einheit || "St."),
-      hinweise: sanitize(med.hinweise || med.as_needed_notes || med.regular_notes || ""),
+      einheit: einheit,
+      hinweise: cleanText(hinweiseParts.join("; ")),
       isIntolerant: !!med.intolerance_flag,
-      intoleranceNotes: sanitize(med.intolerance_notes || course?.side_effects_text || ""),
+      intoleranceNotes: cleanText(med.intolerance_notes || course?.side_effects_text || ""),
       intoleranceReason: getIntoleranceReasonLabel(med.intolerance_reason_type),
       discontinuedAt: med.discontinued_at ? formatDate(med.discontinued_at) : 
                       (course?.end_date ? formatDate(course.end_date) : ""),
       discontinuationReason: getDiscontinuationReasonLabel(course?.discontinuation_reason),
-      asNeededDoseText: sanitize(combinedAsNeededText),
-      weekdayInfo: sanitize(weekdayInfo),
-      limitText: isRegular ? sanitize(limitText) : "", // Only show separate limit for regular meds
+      asNeededDoseText: cleanText(combinedAsNeededText),
+      weekdayInfo: cleanText(weekdayInfo),
+      limitText: "",
     };
 
-    // Categorize based on status
     if (med.intolerance_flag || med.medication_status === "intolerant") {
       intolerant.push(row);
     } else if (med.is_active === false || med.discontinued_at || med.medication_status === "stopped") {
@@ -523,20 +508,35 @@ function buildMedicationRows(
     }
   }
 
-  return { regular, onDemand, inactive, intolerant };
+  return { regular, onDemand, inactive, intolerant, hasNonStandardEinheit, hasWirkstoff };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TABLE DRAWING HELPERS
+// FONT LOADING
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function loadFont(url: string): Promise<ArrayBuffer> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to load font: ${response.statusText}`);
+  }
+  return response.arrayBuffer();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TABLE DRAWING
 // ═══════════════════════════════════════════════════════════════════════════
 
 function drawTableHeader(
   page: PDFPage,
   y: number,
   tableX: number,
-  fonts: { helvetica: PDFFont; helveticaBold: PDFFont }
+  colWidths: ReturnType<typeof getColumnWidths>,
+  visibility: ColumnVisibility,
+  fonts: { regular: PDFFont; bold: PDFFont }
 ): number {
-  const { helvetica, helveticaBold } = fonts;
+  const { regular, bold } = fonts;
+  const tableWidth = getTableWidth(colWidths);
   const headerHeight = 18;
   const subHeaderHeight = 14;
   
@@ -544,56 +544,64 @@ function drawTableHeader(
   page.drawRectangle({
     x: tableX,
     y: y - headerHeight,
-    width: TABLE_WIDTH,
+    width: tableWidth,
     height: headerHeight,
     color: COLORS.headerBg,
   });
   
   // Borders
-  page.drawLine({ start: { x: tableX, y }, end: { x: tableX + TABLE_WIDTH, y }, thickness: 1.2, color: COLORS.border });
-  page.drawLine({ start: { x: tableX, y: y - headerHeight }, end: { x: tableX + TABLE_WIDTH, y: y - headerHeight }, thickness: 0.5, color: COLORS.border });
+  page.drawLine({ start: { x: tableX, y }, end: { x: tableX + tableWidth, y }, thickness: 1.2, color: COLORS.border });
+  page.drawLine({ start: { x: tableX, y: y - headerHeight }, end: { x: tableX + tableWidth, y: y - headerHeight }, thickness: 0.5, color: COLORS.border });
   
-  // Column headers
   const fs = 7;
   let hx = tableX + 3;
   const headerY = y - 12;
   
-  page.drawText("Wirkstoff", { x: hx, y: headerY, size: fs, font: helveticaBold, color: COLORS.text });
-  hx += COL_WIDTHS.wirkstoff;
-  page.drawText("Handelsname", { x: hx, y: headerY, size: fs, font: helveticaBold, color: COLORS.text });
-  hx += COL_WIDTHS.handelsname;
-  page.drawText("Staerke", { x: hx, y: headerY, size: fs, font: helveticaBold, color: COLORS.text });
-  hx += COL_WIDTHS.staerke;
-  page.drawText("Form", { x: hx, y: headerY, size: fs, font: helveticaBold, color: COLORS.text });
-  hx += COL_WIDTHS.form;
+  if (visibility.showWirkstoff) {
+    page.drawText("Wirkstoff", { x: hx, y: headerY, size: fs, font: bold, color: COLORS.text });
+    hx += colWidths.wirkstoff;
+  }
+  page.drawText("Handelsname", { x: hx, y: headerY, size: fs, font: bold, color: COLORS.text });
+  hx += colWidths.handelsname;
+  page.drawText("Stärke", { x: hx, y: headerY, size: fs, font: bold, color: COLORS.text });
+  hx += colWidths.staerke;
+  page.drawText("Form", { x: hx, y: headerY, size: fs, font: bold, color: COLORS.text });
+  hx += colWidths.form;
   
   // "Dosierung" spanning columns
-  const doseWidth = COL_WIDTHS.mo + COL_WIDTHS.mi + COL_WIDTHS.ab + COL_WIDTHS.na;
-  page.drawText("Dosierung", { x: hx + doseWidth / 2 - 16, y: headerY, size: fs, font: helveticaBold, color: COLORS.text });
+  const doseWidth = colWidths.mo + colWidths.mi + colWidths.ab + colWidths.na;
+  page.drawText("Dosierung", { x: hx + doseWidth / 2 - 16, y: headerY, size: fs, font: bold, color: COLORS.text });
   hx += doseWidth;
   
-  page.drawText("Einheit", { x: hx, y: headerY, size: fs, font: helveticaBold, color: COLORS.text });
+  if (visibility.showEinheit) {
+    page.drawText("Einheit", { x: hx, y: headerY, size: fs, font: bold, color: COLORS.text });
+    hx += colWidths.einheit;
+  }
   
-  // Sub-header for dose columns (Mo, Mi, Ab, Na)
+  page.drawText("Hinweise", { x: hx, y: headerY, size: fs, font: bold, color: COLORS.text });
+  
+  // Sub-header for dose columns (morgens, mittags, abends, nachts)
   const subY = y - headerHeight;
   page.drawRectangle({
     x: tableX,
     y: subY - subHeaderHeight,
-    width: TABLE_WIDTH,
+    width: tableWidth,
     height: subHeaderHeight,
     color: rgb(0.95, 0.95, 0.95),
   });
-  page.drawLine({ start: { x: tableX, y: subY - subHeaderHeight }, end: { x: tableX + TABLE_WIDTH, y: subY - subHeaderHeight }, thickness: 0.8, color: COLORS.border });
+  page.drawLine({ start: { x: tableX, y: subY - subHeaderHeight }, end: { x: tableX + tableWidth, y: subY - subHeaderHeight }, thickness: 0.8, color: COLORS.border });
   
-  const doseStartX = tableX + COL_WIDTHS.wirkstoff + COL_WIDTHS.handelsname + COL_WIDTHS.staerke + COL_WIDTHS.form;
-  const doseLabels = ["Mo", "Mi", "Ab", "Na"];
+  const doseStartX = tableX + (visibility.showWirkstoff ? colWidths.wirkstoff : 0) + colWidths.handelsname + colWidths.staerke + colWidths.form;
+  // Better German labels for times of day
+  const doseLabels = ["morgens", "mittags", "abends", "nachts"];
   let dx = doseStartX;
   for (let i = 0; i < 4; i++) {
-    page.drawText(doseLabels[i], { x: dx + (COL_WIDTHS.mo - 8) / 2, y: subY - 10, size: 6, font: helvetica, color: COLORS.textMuted });
+    const label = doseLabels[i].substring(0, 2); // "mo", "mi", "ab", "na"
+    page.drawText(label, { x: dx + (colWidths.mo - 8) / 2, y: subY - 10, size: 6, font: regular, color: COLORS.textMuted });
     if (i > 0) {
       page.drawLine({ start: { x: dx, y: subY }, end: { x: dx, y: subY - subHeaderHeight }, thickness: 0.3, color: COLORS.borderLight });
     }
-    dx += COL_WIDTHS.mo;
+    dx += colWidths.mo;
   }
   
   return y - headerHeight - subHeaderHeight;
@@ -603,25 +611,26 @@ function drawSectionHeader(
   page: PDFPage,
   y: number,
   tableX: number,
+  tableWidth: number,
   title: string,
   bgColor: typeof COLORS.sectionRegular,
-  fonts: { helveticaBold: PDFFont }
+  fonts: { bold: PDFFont }
 ): number {
   const sectionHeight = 16;
   
   page.drawRectangle({
     x: tableX,
     y: y - sectionHeight,
-    width: TABLE_WIDTH,
+    width: tableWidth,
     height: sectionHeight,
     color: bgColor,
   });
-  page.drawLine({ start: { x: tableX, y: y - sectionHeight }, end: { x: tableX + TABLE_WIDTH, y: y - sectionHeight }, thickness: 0.5, color: COLORS.border });
-  page.drawText(sanitize(title), {
+  page.drawLine({ start: { x: tableX, y: y - sectionHeight }, end: { x: tableX + tableWidth, y: y - sectionHeight }, thickness: 0.5, color: COLORS.border });
+  page.drawText(title, {
     x: tableX + 6,
     y: y - 11,
     size: 7.5,
-    font: fonts.helveticaBold,
+    font: fonts.bold,
     color: COLORS.text,
   });
   
@@ -633,157 +642,106 @@ function drawMedicationRow(
   y: number,
   tableX: number,
   med: MedRow,
-  fonts: { helvetica: PDFFont; helveticaBold: PDFFont },
-  isIntolerantSection: boolean = false
+  colWidths: ReturnType<typeof getColumnWidths>,
+  visibility: ColumnVisibility,
+  fonts: { regular: PDFFont; bold: PDFFont },
+  isAsNeeded: boolean = false
 ): number {
-  const { helvetica, helveticaBold } = fonts;
+  const { regular, bold } = fonts;
+  const tableWidth = getTableWidth(colWidths);
   const fs = 7;
-  const fsSmall = 6; // Smaller font for limit text
+  const fsSmall = 6;
   
   // Calculate dynamic row height based on content
-  const hasLimit = med.limitText && med.limitText.length > 0;
-  const baseRowHeight = 22;
-  const limitRowHeight = hasLimit ? 12 : 0;
-  const rowHeight = baseRowHeight + limitRowHeight;
+  const handelsLines = wrapText(med.handelsname, bold, fs, colWidths.handelsname - 4);
+  const hinweiseLines = wrapText(med.hinweise, regular, fsSmall, colWidths.hinweise - 4, 3);
+  const formLines = wrapText(med.form, regular, fs, colWidths.form - 4, 2);
+  
+  const maxContentLines = Math.max(handelsLines.length, hinweiseLines.length, formLines.length, 1);
+  const rowHeight = Math.max(22, 10 + maxContentLines * 10);
   
   // Row background
   page.drawRectangle({
     x: tableX,
     y: y - rowHeight,
-    width: TABLE_WIDTH,
-    height: rowHeight,
-    color: isIntolerantSection ? rgb(0.99, 0.96, 0.96) : COLORS.white,
-  });
-  page.drawLine({ start: { x: tableX, y: y - rowHeight }, end: { x: tableX + TABLE_WIDTH, y: y - rowHeight }, thickness: 0.3, color: COLORS.borderLight });
-  
-  let cx = tableX + 3;
-  const textY = y - 14;
-  
-  // Wirkstoff - show "-" if same as handelsname to avoid duplication
-  const wirkstoffDisplay = med.wirkstoff.toLowerCase() === med.handelsname.toLowerCase() 
-    ? "-" 
-    : med.wirkstoff;
-  page.drawText(truncateText(wirkstoffDisplay, 18), { x: cx, y: textY, size: fs, font: helvetica, color: COLORS.text });
-  cx += COL_WIDTHS.wirkstoff;
-  
-  // Handelsname (bold) - allow wrapping for long names
-  const handelsWrapped = wrapText(med.handelsname, helveticaBold, fs, COL_WIDTHS.handelsname - 4);
-  handelsWrapped.lines.forEach((line, idx) => {
-    page.drawText(line, { x: cx, y: textY - (idx * fs * 1.3), size: fs, font: helveticaBold, color: COLORS.text });
-  });
-  cx += COL_WIDTHS.handelsname;
-  
-  // Stärke
-  page.drawText(truncateText(med.staerke, 10), { x: cx, y: textY, size: fs, font: helvetica, color: COLORS.text });
-  cx += COL_WIDTHS.staerke;
-  
-  // Form
-  page.drawText(truncateText(med.form, 10), { x: cx, y: textY, size: fs, font: helvetica, color: COLORS.text });
-  cx += COL_WIDTHS.form;
-  
-  // Dose columns
-  const doseVals = [med.morgens || "-", med.mittags || "-", med.abends || "-", med.nachts || "-"];
-  for (let i = 0; i < 4; i++) {
-    if (i > 0) {
-      page.drawLine({ start: { x: cx, y }, end: { x: cx, y: y - rowHeight }, thickness: 0.2, color: COLORS.borderLight });
-    }
-    page.drawText(truncateText(doseVals[i], 4), { x: cx + 3, y: textY, size: fs, font: helvetica, color: COLORS.text });
-    cx += COL_WIDTHS.mo;
-  }
-  
-  // Einheit
-  page.drawText(truncateText(med.einheit, 8), { x: cx + 2, y: textY, size: fs, font: helvetica, color: COLORS.text });
-  
-  // Draw limit text in a second line if present
-  if (hasLimit) {
-    const limitY = y - baseRowHeight - 2;
-    const limitX = tableX + COL_WIDTHS.wirkstoff + COL_WIDTHS.handelsname + COL_WIDTHS.staerke + COL_WIDTHS.form + 6;
-    page.drawText(med.limitText, { 
-      x: limitX, 
-      y: limitY, 
-      size: fsSmall, 
-      font: helvetica, 
-      color: COLORS.textMuted 
-    });
-  }
-  
-  return y - rowHeight;
-}
-
-/**
- * Draw a row for as-needed medication with structured dosing info
- * Now displays "b.B., max. X/Monat" in ONE line (limit is included in asNeededDoseText)
- */
-function drawAsNeededMedicationRow(
-  page: PDFPage,
-  y: number,
-  tableX: number,
-  med: MedRow,
-  fonts: { helvetica: PDFFont; helveticaBold: PDFFont }
-): number {
-  const { helvetica, helveticaBold } = fonts;
-  const fs = 7;
-  
-  // asNeededDoseText now contains the combined text including limits
-  const hasDoseText = med.asNeededDoseText && med.asNeededDoseText.length > 0;
-  
-  // Simple row height - no separate limit line needed anymore
-  const rowHeight = hasDoseText ? 28 : 22;
-  
-  // Row background
-  page.drawRectangle({
-    x: tableX,
-    y: y - rowHeight,
-    width: TABLE_WIDTH,
+    width: tableWidth,
     height: rowHeight,
     color: COLORS.white,
   });
-  page.drawLine({ start: { x: tableX, y: y - rowHeight }, end: { x: tableX + TABLE_WIDTH, y: y - rowHeight }, thickness: 0.3, color: COLORS.borderLight });
+  page.drawLine({ start: { x: tableX, y: y - rowHeight }, end: { x: tableX + tableWidth, y: y - rowHeight }, thickness: 0.3, color: COLORS.borderLight });
   
   let cx = tableX + 3;
   const textY = y - 12;
   
-  // Wirkstoff - show "-" if same as handelsname to avoid duplication
-  const wirkstoffDisplay = med.wirkstoff.toLowerCase() === med.handelsname.toLowerCase() 
-    ? "-" 
-    : med.wirkstoff;
-  page.drawText(truncateText(wirkstoffDisplay, 18), { x: cx, y: textY, size: fs, font: helvetica, color: COLORS.text });
-  cx += COL_WIDTHS.wirkstoff;
+  // Wirkstoff
+  if (visibility.showWirkstoff) {
+    const wirkstoffDisplay = med.wirkstoff.toLowerCase() === med.handelsname.toLowerCase() ? "-" : med.wirkstoff;
+    const wirkstoffLines = wrapText(wirkstoffDisplay, regular, fs, colWidths.wirkstoff - 4, 2);
+    wirkstoffLines.forEach((line, idx) => {
+      page.drawText(line, { x: cx, y: textY - (idx * 9), size: fs, font: regular, color: COLORS.text });
+    });
+    cx += colWidths.wirkstoff;
+  }
   
-  // Handelsname (bold) - allow wrapping for long names
-  const handelsWrapped = wrapText(med.handelsname, helveticaBold, fs, COL_WIDTHS.handelsname - 4);
-  handelsWrapped.lines.forEach((line, idx) => {
-    page.drawText(line, { x: cx, y: textY - (idx * fs * 1.3), size: fs, font: helveticaBold, color: COLORS.text });
+  // Handelsname (bold)
+  handelsLines.forEach((line, idx) => {
+    page.drawText(line, { x: cx, y: textY - (idx * 9), size: fs, font: bold, color: COLORS.text });
   });
-  cx += COL_WIDTHS.handelsname;
+  cx += colWidths.handelsname;
   
   // Stärke
-  page.drawText(truncateText(med.staerke, 10), { x: cx, y: textY, size: fs, font: helvetica, color: COLORS.text });
-  cx += COL_WIDTHS.staerke;
+  const staerkeLines = wrapText(med.staerke, regular, fs, colWidths.staerke - 4, 2);
+  staerkeLines.forEach((line, idx) => {
+    page.drawText(line, { x: cx, y: textY - (idx * 9), size: fs, font: regular, color: COLORS.text });
+  });
+  cx += colWidths.staerke;
   
   // Form
-  page.drawText(truncateText(med.form, 10), { x: cx, y: textY, size: fs, font: helvetica, color: COLORS.text });
-  cx += COL_WIDTHS.form;
+  formLines.forEach((line, idx) => {
+    page.drawText(line, { x: cx, y: textY - (idx * 9), size: fs, font: regular, color: COLORS.text });
+  });
+  cx += colWidths.form;
   
-  // For as-needed: Show "b.B." in first dose column
-  page.drawText("b.B.", { x: cx + 3, y: textY, size: fs, font: helvetica, color: COLORS.text });
-  
-  // Show structured dose text (including limits) spanning remaining columns
-  if (hasDoseText) {
-    const doseTextX = cx + COL_WIDTHS.mo;
-    const doseWidth = COL_WIDTHS.mi + COL_WIDTHS.ab + COL_WIDTHS.na + COL_WIDTHS.einheit;
-    // Wrap dose text if needed
-    const doseWrapped = wrapText(med.asNeededDoseText, helvetica, 6, doseWidth - 4);
-    doseWrapped.lines.forEach((line, idx) => {
-      page.drawText(line, { 
-        x: doseTextX, 
-        y: textY - (idx * 8), 
-        size: 6, 
-        font: helvetica, 
-        color: COLORS.textMuted 
+  // Dose columns
+  if (isAsNeeded) {
+    // For as-needed: Show "b.B." in first column
+    page.drawText("b.B.", { x: cx + 3, y: textY, size: fs, font: regular, color: COLORS.text });
+    cx += colWidths.mo;
+    
+    // Show combined dose text in remaining space if available
+    if (med.asNeededDoseText) {
+      const doseLines = wrapText(med.asNeededDoseText, regular, fsSmall, colWidths.mi + colWidths.ab + colWidths.na - 4, 2);
+      doseLines.forEach((line, idx) => {
+        page.drawText(line, { x: cx, y: textY - (idx * 8), size: fsSmall, font: regular, color: COLORS.textMuted });
       });
-    });
+    }
+    cx += colWidths.mi + colWidths.ab + colWidths.na;
+  } else {
+    // Regular medication doses
+    const doseVals = [med.morgens || "-", med.mittags || "-", med.abends || "-", med.nachts || "-"];
+    for (let i = 0; i < 4; i++) {
+      if (i > 0) {
+        page.drawLine({ start: { x: cx, y }, end: { x: cx, y: y - rowHeight }, thickness: 0.2, color: COLORS.borderLight });
+      }
+      const doseText = doseVals[i].length > 4 ? doseVals[i].substring(0, 4) : doseVals[i];
+      page.drawText(doseText, { x: cx + 2, y: textY, size: fs, font: regular, color: COLORS.text });
+      cx += colWidths.mo;
+    }
   }
+  
+  // Einheit
+  if (visibility.showEinheit) {
+    const einheitLines = wrapText(med.einheit, regular, fsSmall, colWidths.einheit - 4, 2);
+    einheitLines.forEach((line, idx) => {
+      page.drawText(line, { x: cx + 2, y: textY - (idx * 8), size: fsSmall, font: regular, color: COLORS.text });
+    });
+    cx += colWidths.einheit;
+  }
+  
+  // Hinweise
+  hinweiseLines.forEach((line, idx) => {
+    page.drawText(line, { x: cx + 2, y: textY - (idx * 8), size: fsSmall, font: regular, color: COLORS.textMuted });
+  });
   
   return y - rowHeight;
 }
@@ -805,41 +763,67 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
   const options: PdfExportOptions = { ...DEFAULT_OPTIONS, ...userOptions };
   
   const pdfDoc = await PDFDocument.create();
-  const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  const fonts = { helvetica, helveticaBold };
+  
+  // Register fontkit for custom font embedding
+  pdfDoc.registerFontkit(fontkit);
+  
+  // Load and embed Unicode-capable fonts
+  let fontRegular: PDFFont;
+  let fontBold: PDFFont;
+  
+  try {
+    const [regularFontBytes, boldFontBytes] = await Promise.all([
+      loadFont(ROBOTO_FONT_URL),
+      loadFont(ROBOTO_BOLD_URL),
+    ]);
+    fontRegular = await pdfDoc.embedFont(regularFontBytes);
+    fontBold = await pdfDoc.embedFont(boldFontBytes);
+  } catch (error) {
+    console.warn("Failed to load Roboto font, falling back to Helvetica:", error);
+    // Fallback to standard fonts (no umlaut support)
+    const { StandardFonts } = await import("pdf-lib");
+    fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  }
+  
+  const fonts = { regular: fontRegular, bold: fontBold };
   
   let page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
   let y = LAYOUT.pageHeight - LAYOUT.marginTop;
   const contentWidth = LAYOUT.pageWidth - LAYOUT.marginLeft - LAYOUT.marginRight;
-  const tableX = LAYOUT.marginLeft + (contentWidth - TABLE_WIDTH) / 2;
   const creationDate = formatDate(new Date().toISOString());
   
-  // Build categorized medication rows (PRIMARY from user_medications)
-  // Limits are now passed to buildMedicationRows and displayed inline
+  // Build categorized medication rows
   const medRows = buildMedicationRows(userMedications, medicationCourses, medicationLimits);
   
+  // Determine column visibility
+  const visibility: ColumnVisibility = {
+    showWirkstoff: medRows.hasWirkstoff,
+    showEinheit: medRows.hasNonStandardEinheit,
+  };
+  
+  const colWidths = getColumnWidths(visibility);
+  const tableWidth = getTableWidth(colWidths);
+  const tableX = LAYOUT.marginLeft + (contentWidth - tableWidth) / 2;
+  
   // ═══════════════════════════════════════════════════════════════════════════
-  // HEADER - BMP-STYLE (TWO-COLUMN LAYOUT - NO OVERLAP)
+  // HEADER
   // ═══════════════════════════════════════════════════════════════════════════
   
-  // Calculate patient data lines to determine header height dynamically
   const patientLines: { label: string; value: string }[] = [];
   if (patientData) {
     const patName = [patientData.firstName, patientData.lastName].filter(Boolean).join(" ");
-    if (patName) patientLines.push({ label: "Patient:", value: sanitize(patName) });
+    if (patName) patientLines.push({ label: "Patient:", value: cleanText(patName) });
     if (patientData.dateOfBirth) patientLines.push({ label: "Geb.-Datum:", value: formatDate(patientData.dateOfBirth) });
     const address = [patientData.street, [patientData.postalCode, patientData.city].filter(Boolean).join(" ")].filter(Boolean).join(", ");
-    if (address) patientLines.push({ label: "Adresse:", value: truncateText(sanitize(address), 35) });
-    if (patientData.healthInsurance) patientLines.push({ label: "Kasse:", value: sanitize(patientData.healthInsurance) });
-    if (patientData.insuranceNumber) patientLines.push({ label: "Vers.-Nr.:", value: sanitize(patientData.insuranceNumber) });
+    if (address) patientLines.push({ label: "Adresse:", value: cleanText(address) });
+    if (patientData.healthInsurance) patientLines.push({ label: "Kasse:", value: cleanText(patientData.healthInsurance) });
+    if (patientData.insuranceNumber) patientLines.push({ label: "Vers.-Nr.:", value: cleanText(patientData.insuranceNumber) });
   }
   patientLines.push({ label: "Erstellt am:", value: creationDate });
   
-  // Header height: minimum 55, grows with patient data (max 6 lines * 11 + padding)
   const headerHeight = Math.max(55, 20 + patientLines.length * 11);
   
-  // Header background
   page.drawRectangle({
     x: LAYOUT.marginLeft,
     y: y - headerHeight,
@@ -848,46 +832,48 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
     color: rgb(0.97, 0.98, 0.99),
   });
   
-  // Top border (prominent)
   page.drawLine({ start: { x: LAYOUT.marginLeft, y }, end: { x: LAYOUT.marginLeft + contentWidth, y }, thickness: 2, color: COLORS.primary });
   page.drawLine({ start: { x: LAYOUT.marginLeft, y: y - headerHeight }, end: { x: LAYOUT.marginLeft + contentWidth, y: y - headerHeight }, thickness: 1, color: COLORS.border });
   
-  // ===== COLUMN 1: Title (left side, ~55% width) =====
   const col1Width = contentWidth * 0.50;
   
   page.drawText("MEDIKATIONSPLAN", {
     x: LAYOUT.marginLeft + 10,
     y: y - 22,
     size: 18,
-    font: helveticaBold,
+    font: fontBold,
     color: COLORS.primary,
   });
   page.drawText("(Patienten-Version)", {
     x: LAYOUT.marginLeft + 10,
     y: y - 36,
     size: 8,
-    font: helvetica,
+    font: fontRegular,
     color: COLORS.textMuted,
   });
   
-  // ===== COLUMN 2: Patient data (right side, ~50% width) =====
   const col2X = LAYOUT.marginLeft + col1Width;
   let patY = y - 10;
   const lineHeight = 11;
   const labelWidth = 55;
   
   for (const line of patientLines) {
-    page.drawText(line.label, { x: col2X, y: patY, size: 6.5, font: helvetica, color: COLORS.textMuted });
+    page.drawText(line.label, { x: col2X, y: patY, size: 6.5, font: fontRegular, color: COLORS.textMuted });
     const isName = line.label === "Patient:";
     const isDate = line.label === "Erstellt am:";
-    page.drawText(line.value, { 
-      x: col2X + labelWidth, 
-      y: patY, 
-      size: isName || isDate ? 9 : 7.5, 
-      font: isName || isDate ? helveticaBold : helvetica, 
-      color: COLORS.text 
+    
+    // Wrap long values (like addresses)
+    const valueLines = wrapText(line.value, isName || isDate ? fontBold : fontRegular, isName || isDate ? 9 : 7.5, contentWidth * 0.45, 2);
+    valueLines.forEach((valueLine, idx) => {
+      page.drawText(valueLine, { 
+        x: col2X + labelWidth, 
+        y: patY - (idx * 9), 
+        size: isName || isDate ? 9 : 7.5, 
+        font: isName || isDate ? fontBold : fontRegular, 
+        color: COLORS.text 
+      });
     });
-    patY -= lineHeight;
+    patY -= lineHeight * Math.max(valueLines.length, 1);
   }
   
   y -= headerHeight + 10;
@@ -900,22 +886,29 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
     const doc = doctors[0];
     const docName = [doc.title, doc.firstName, doc.lastName].filter(Boolean).join(" ");
     
-    page.drawText("Behandelnde/r Aerztin/Arzt:", { x: LAYOUT.marginLeft, y, size: 7, font: helveticaBold, color: COLORS.text });
+    page.drawText("Behandelnde/r Ärztin/Arzt:", { x: LAYOUT.marginLeft, y, size: 7, font: fontBold, color: COLORS.text });
     
     let docInfo = docName;
     if (doc.specialty) docInfo += ` - ${doc.specialty}`;
-    page.drawText(sanitize(docInfo), { x: LAYOUT.marginLeft + 110, y, size: 8, font: helvetica, color: COLORS.text });
-    y -= 11;
+    
+    const docInfoLines = wrapText(cleanText(docInfo), fontRegular, 8, contentWidth - 120, 2);
+    docInfoLines.forEach((line, idx) => {
+      page.drawText(line, { x: LAYOUT.marginLeft + 110, y: y - (idx * 10), size: 8, font: fontRegular, color: COLORS.text });
+    });
+    y -= 11 * Math.max(docInfoLines.length, 1);
     
     const docAddress = [doc.street, [doc.postalCode, doc.city].filter(Boolean).join(" ")].filter(Boolean).join(", ");
     if (docAddress) {
-      page.drawText(sanitize(docAddress), { x: LAYOUT.marginLeft + 110, y, size: 7.5, font: helvetica, color: COLORS.text });
-      y -= 11;
+      const addressLines = wrapText(cleanText(docAddress), fontRegular, 7.5, contentWidth - 120, 2);
+      addressLines.forEach((line, idx) => {
+        page.drawText(line, { x: LAYOUT.marginLeft + 110, y: y - (idx * 9), size: 7.5, font: fontRegular, color: COLORS.text });
+      });
+      y -= 11 * Math.max(addressLines.length, 1);
     }
     
     const contact = [doc.phone ? `Tel: ${doc.phone}` : "", doc.fax ? `Fax: ${doc.fax}` : ""].filter(Boolean).join(", ");
     if (contact) {
-      page.drawText(sanitize(contact), { x: LAYOUT.marginLeft + 110, y, size: 7, font: helvetica, color: COLORS.textMuted });
+      page.drawText(cleanText(contact), { x: LAYOUT.marginLeft + 110, y, size: 7, font: fontRegular, color: COLORS.textMuted });
       y -= 11;
     }
     
@@ -923,45 +916,44 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
   }
   
   // ═══════════════════════════════════════════════════════════════════════════
-  // INTOLERANCE SECTION (if any and enabled)
+  // INTOLERANCE SECTION
   // ═══════════════════════════════════════════════════════════════════════════
   
   if (options.includeIntolerance && medRows.intolerant.length > 0) {
-    // Warning box
-    const boxHeight = 14 + medRows.intolerant.length * 16;
+    const boxHeight = 14 + medRows.intolerant.length * 18;
     page.drawRectangle({
       x: tableX,
       y: y - boxHeight,
-      width: TABLE_WIDTH,
+      width: tableWidth,
       height: boxHeight,
       color: COLORS.sectionIntolerance,
       borderColor: COLORS.warning,
       borderWidth: 1,
     });
     
-    page.drawText("UNVERTRAEGLICHKEITEN / ALLERGIEN - NICHT ANWENDEN:", {
+    page.drawText("UNVERTRÄGLICHKEITEN / ALLERGIEN - NICHT ANWENDEN:", {
       x: tableX + 6,
       y: y - 10,
       size: 7.5,
-      font: helveticaBold,
+      font: fontBold,
       color: COLORS.warning,
     });
     
     let iy = y - 26;
     for (const med of medRows.intolerant) {
-      // Build intolerance line with reason
       let text = `${med.handelsname}`;
-      if (med.wirkstoff) text += ` (${med.wirkstoff})`;
+      if (med.wirkstoff && med.wirkstoff !== med.handelsname) text += ` (${med.wirkstoff})`;
       
       const reasonParts: string[] = [];
       if (med.intoleranceReason) reasonParts.push(med.intoleranceReason);
       if (med.intoleranceNotes) reasonParts.push(med.intoleranceNotes);
-      if (reasonParts.length > 0) {
-        text += `: ${reasonParts.join(" - ")}`;
-      }
+      if (reasonParts.length > 0) text += `: ${reasonParts.join(" - ")}`;
       
-      page.drawText(truncateText(sanitize(text), 95), { x: tableX + 10, y: iy, size: 7, font: helvetica, color: COLORS.text });
-      iy -= 14;
+      const lines = wrapText(cleanText(text), fontRegular, 7, tableWidth - 16, 2);
+      lines.forEach((line, idx) => {
+        page.drawText(line, { x: tableX + 10, y: iy - (idx * 10), size: 7, font: fontRegular, color: COLORS.text });
+      });
+      iy -= 16;
     }
     
     y -= boxHeight + 12;
@@ -972,93 +964,73 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
   // ═══════════════════════════════════════════════════════════════════════════
   
   if (options.includeActive) {
-    // Table header
-    y = drawTableHeader(page, y, tableX, fonts);
-    
-    // Always show both sections (even if empty) for clarity
+    y = drawTableHeader(page, y, tableX, colWidths, visibility, fonts);
     
     // Section: Regelmäßige Medikation
-    y = drawSectionHeader(page, y, tableX, "Regelmaessige Medikation (Prophylaxe / Dauermedikation)", COLORS.sectionRegular, fonts);
+    y = drawSectionHeader(page, y, tableX, tableWidth, "Regelmäßige Medikation (Prophylaxe / Dauermedikation)", COLORS.sectionRegular, fonts);
     
     if (medRows.regular.length === 0) {
-      // Empty state for regular meds
       const emptyRowH = 22;
-      page.drawRectangle({ x: tableX, y: y - emptyRowH, width: TABLE_WIDTH, height: emptyRowH, color: COLORS.white });
-      page.drawLine({ start: { x: tableX, y: y - emptyRowH }, end: { x: tableX + TABLE_WIDTH, y: y - emptyRowH }, thickness: 0.3, color: COLORS.borderLight });
-      page.drawText("Derzeit keine Medikamente in dieser Kategorie.", { x: tableX + 8, y: y - 14, size: 7, font: helvetica, color: COLORS.textMuted });
+      page.drawRectangle({ x: tableX, y: y - emptyRowH, width: tableWidth, height: emptyRowH, color: COLORS.white });
+      page.drawLine({ start: { x: tableX, y: y - emptyRowH }, end: { x: tableX + tableWidth, y: y - emptyRowH }, thickness: 0.3, color: COLORS.borderLight });
+      page.drawText("Derzeit keine Medikamente in dieser Kategorie.", { x: tableX + 8, y: y - 14, size: 7, font: fontRegular, color: COLORS.textMuted });
       y -= emptyRowH;
     } else {
       for (const med of medRows.regular) {
-        // Page break check
         if (y < LAYOUT.marginBottom + 80) {
           page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
           y = LAYOUT.pageHeight - LAYOUT.marginTop - 20;
-          y = drawTableHeader(page, y, tableX, fonts);
+          y = drawTableHeader(page, y, tableX, colWidths, visibility, fonts);
         }
-        y = drawMedicationRow(page, y, tableX, med, fonts);
-        
-        // Add weekday info if present
-        if (med.weekdayInfo) {
-          page.drawText(med.weekdayInfo, { 
-            x: tableX + 6, 
-            y: y + 4, 
-            size: 5.5, 
-            font: helvetica, 
-            color: COLORS.textMuted 
-          });
-        }
+        y = drawMedicationRow(page, y, tableX, med, colWidths, visibility, fonts, false);
       }
     }
     
     // Section: Bedarfsmedikation
-    y = drawSectionHeader(page, y, tableX, "Bei Bedarf anzuwendende Medikamente (Akutmedikation)", COLORS.sectionBedarf, fonts);
+    y = drawSectionHeader(page, y, tableX, tableWidth, "Bei Bedarf anzuwendende Medikamente (Akutmedikation)", COLORS.sectionBedarf, fonts);
     
     if (medRows.onDemand.length === 0) {
-      // Empty state for as-needed meds
       const emptyRowH = 22;
-      page.drawRectangle({ x: tableX, y: y - emptyRowH, width: TABLE_WIDTH, height: emptyRowH, color: COLORS.white });
-      page.drawLine({ start: { x: tableX, y: y - emptyRowH }, end: { x: tableX + TABLE_WIDTH, y: y - emptyRowH }, thickness: 0.3, color: COLORS.borderLight });
-      page.drawText("Derzeit keine Medikamente in dieser Kategorie.", { x: tableX + 8, y: y - 14, size: 7, font: helvetica, color: COLORS.textMuted });
+      page.drawRectangle({ x: tableX, y: y - emptyRowH, width: tableWidth, height: emptyRowH, color: COLORS.white });
+      page.drawLine({ start: { x: tableX, y: y - emptyRowH }, end: { x: tableX + tableWidth, y: y - emptyRowH }, thickness: 0.3, color: COLORS.borderLight });
+      page.drawText("Derzeit keine Medikamente in dieser Kategorie.", { x: tableX + 8, y: y - 14, size: 7, font: fontRegular, color: COLORS.textMuted });
       y -= emptyRowH;
     } else {
       for (const med of medRows.onDemand) {
         if (y < LAYOUT.marginBottom + 80) {
           page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
           y = LAYOUT.pageHeight - LAYOUT.marginTop - 20;
-          y = drawTableHeader(page, y, tableX, fonts);
+          y = drawTableHeader(page, y, tableX, colWidths, visibility, fonts);
         }
-        // Use enhanced as-needed row drawing
-        y = drawAsNeededMedicationRow(page, y, tableX, med, fonts);
+        y = drawMedicationRow(page, y, tableX, med, colWidths, visibility, fonts, true);
       }
     }
     
     // Table bottom border
-    page.drawLine({ start: { x: tableX, y }, end: { x: tableX + TABLE_WIDTH, y }, thickness: 1, color: COLORS.border });
+    page.drawLine({ start: { x: tableX, y }, end: { x: tableX + tableWidth, y }, thickness: 1, color: COLORS.border });
   }
   
   // ═══════════════════════════════════════════════════════════════════════════
-  // INACTIVE / FORMER MEDICATIONS (if enabled)
+  // INACTIVE / FORMER MEDICATIONS
   // ═══════════════════════════════════════════════════════════════════════════
   
   if (options.includeInactive && medRows.inactive.length > 0) {
     y -= 18;
     
-    // Page break check
     if (y < LAYOUT.marginBottom + 100) {
       page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
       y = LAYOUT.pageHeight - LAYOUT.marginTop - 20;
     }
     
-    page.drawText("FRUEHER VERWENDETE MEDIKAMENTE (Auszug)", {
+    page.drawText("FRÜHER VERWENDETE MEDIKAMENTE (Auszug)", {
       x: tableX,
       y,
       size: 8,
-      font: helveticaBold,
+      font: fontBold,
       color: COLORS.textMuted,
     });
     y -= 14;
     
-    // Simple list format for inactive meds
     for (const med of medRows.inactive) {
       if (y < LAYOUT.marginBottom + 40) {
         page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
@@ -1066,17 +1038,31 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
       }
       
       let line = `- ${med.handelsname}`;
-      if (med.wirkstoff) line += ` (${med.wirkstoff})`;
+      if (med.wirkstoff && med.wirkstoff !== med.handelsname) line += ` (${med.wirkstoff})`;
       if (med.staerke) line += ` ${med.staerke}`;
       if (med.discontinuedAt) line += ` - abgesetzt am ${med.discontinuedAt}`;
       if (med.discontinuationReason) line += ` (${med.discontinuationReason})`;
       
-      page.drawText(truncateText(sanitize(line), 95), { x: tableX + 4, y, size: 7, font: helvetica, color: COLORS.textMuted });
-      y -= 12;
+      const lines = wrapText(cleanText(line), fontRegular, 7, tableWidth - 8, 2);
+      lines.forEach((l, idx) => {
+        page.drawText(l, { x: tableX + 4, y: y - (idx * 10), size: 7, font: fontRegular, color: COLORS.textMuted });
+      });
+      y -= 12 * Math.max(lines.length, 1);
     }
   }
   
-  // Limits are now shown inline with each medication (no separate section needed)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // LEGEND (for dose column abbreviations)
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  y -= 12;
+  page.drawText("Legende: mo = morgens, mi = mittags, ab = abends, na = nachts, b.B. = bei Bedarf", {
+    x: tableX,
+    y,
+    size: 6,
+    font: fontRegular,
+    color: COLORS.textMuted,
+  });
   
   // ═══════════════════════════════════════════════════════════════════════════
   // FOOTER ON ALL PAGES
@@ -1086,21 +1072,19 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
   for (let i = 0; i < totalPages; i++) {
     const p = pdfDoc.getPage(i);
     
-    // Page number
     p.drawText(`Seite ${i + 1} von ${totalPages}`, {
       x: LAYOUT.pageWidth - LAYOUT.marginRight - 55,
       y: 25,
       size: 8,
-      font: helvetica,
+      font: fontRegular,
       color: COLORS.textMuted,
     });
     
-    // Disclaimer
-    p.drawText("Erstellt mit der Kopfschmerztagebuch-App. Dieser Plan ersetzt keine aerztliche Beratung.", {
+    p.drawText("Erstellt mit der Kopfschmerztagebuch-App. Dieser Plan ersetzt keine ärztliche Beratung.", {
       x: LAYOUT.marginLeft,
       y: 25,
       size: 6.5,
-      font: helvetica,
+      font: fontRegular,
       color: COLORS.textMuted,
     });
   }
