@@ -23,7 +23,7 @@ import { VoiceUnknownIntentOverlay } from "./VoiceUnknownIntentOverlay";
 import { UpcomingWarningBanner } from "@/components/Reminders/UpcomingWarningBanner";
 import { CriticalMedicationPopup } from "@/components/Reminders/CriticalMedicationPopup";
 import { devError } from "@/lib/utils/devLogger";
-import { VoiceTextInput } from "./VoiceTextInput";
+
 
 interface MainMenuProps {
   onNewEntry: () => void;
@@ -177,28 +177,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({
     }
   };
 
-  // Handler for VoiceTextInput direct save
-  const handleQuickNoteSave = async (
-    text: string, 
-    source: 'voice' | 'manual' | 'mixed', 
-    confidence: number | null
-  ) => {
-    try {
-      await saveVoiceNote({
-        rawText: text,
-        sttConfidence: confidence ?? undefined,
-        source: source === 'mixed' ? 'voice' : source,
-        contextType: 'notiz'
-      });
-      toast.success('Notiz gespeichert');
-      window.dispatchEvent(new Event('voice-note-saved'));
-    } catch (error) {
-      devError('Error saving quick note:', error, { context: 'MainMenu' });
-      toast.error('Speichern fehlgeschlagen');
-      throw error;
-    }
-  };
-
   const handleReminderSubmit = async (data: CreateReminderInput | CreateReminderInput[]) => {
     try {
       if (Array.isArray(data)) {
@@ -328,23 +306,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               />
             </StartPageCard>
 
-            {/* 5) Schnellnotiz - Direct Text/Voice Input */}
-            <div className="bg-card border border-border rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
-                  <span className="text-base">📝</span>
-                </div>
-                <div>
-                  <h3 className="text-sm font-medium text-foreground">Schnellnotiz</h3>
-                  <p className="text-xs text-muted-foreground">Tippe oder sprich</p>
-                </div>
-              </div>
-              <VoiceTextInput 
-                onSave={handleQuickNoteSave}
-                placeholder="Tippe oder sprich deine Notiz…"
-                minRows={2}
-              />
-            </div>
           </div>
 
           {/* MEDIKAMENTE */}
