@@ -29,6 +29,7 @@ export type VoiceRouterResultType =
   | 'create_quick_entry'
   | 'create_medication_update'
   | 'create_note'
+  | 'analytics_query'
   | 'unknown';
 
 export interface VoiceRouterResult {
@@ -114,6 +115,15 @@ export function routeVoiceCommand(
         source: 'content'
       };
 
+    case 'analytics_query':
+      return {
+        type: 'analytics_query',
+        payload: contentAnalysis.analyticsQuery,
+        rawTranscript: transcript,
+        confidence: contentAnalysis.intentConfidence,
+        source: 'content'
+      };
+
     case 'note':
       return {
         type: 'create_note',
@@ -160,6 +170,7 @@ export function getRouteForIntent(intentType: VoiceRouterResultType): string | n
     create_quick_entry: null,
     create_medication_update: null,
     create_note: null,
+    analytics_query: null, // Handled in overlay
     unknown: null,
   };
   

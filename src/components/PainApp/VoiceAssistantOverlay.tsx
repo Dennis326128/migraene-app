@@ -1,10 +1,16 @@
 /**
- * VoiceAssistantOverlay - Unified voice input dialog
- * Opens immediately on "Spracheingabe" click with:
- * - Auto-starting voice recording
- * - Editable text field (always visible)
- * - Live transcription preview
- * - Action tiles (always visible for manual selection)
+ * VoiceAssistantOverlay - Unified voice input dialog (Phase 1 + 2)
+ * 
+ * Phase 1: Migränefreundliches UX
+ * - Kacheln NICHT dauerhaft sichtbar (progressive disclosure)
+ * - "Fertig" führt zur Intent-Erkennung
+ * - Bei sicherem Intent: 1 CTA + "Andere wählen"
+ * - Bei unsicherem Intent: Grid mit Kacheln
+ * - Lange Pausen tolerieren (kein Auto-Restart)
+ * 
+ * Phase 2: Analytics Q&A
+ * - Erkennt Statistik-Fragen
+ * - Zeigt Antwort als Karte
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
@@ -28,16 +34,129 @@ import {
   Save,
   X,
   Check,
-  Loader2
+  Loader2,
+  ChevronDown,
+  BarChart3,
+  ExternalLink
 } from 'lucide-react';
 import { isBrowserSttSupported } from '@/lib/voice/sttConfig';
 import { cn } from '@/lib/utils';
+import { routeVoiceCommand, type VoiceRouterResult } from '@/lib/voice/voiceIntentRouter';
+import { useMeds } from '@/features/meds/hooks/useMeds';
+import { supabase } from '@/integrations/supabase/client';
+import { 
+  executeAnalyticsQuery, 
+  formatAnalyticsResult, 
+  getTimeRange,
+  type ParsedAnalyticsQuery
+} from '@/lib/analytics/queryFunctions';
+import type { VoiceAnalyticsQuery } from '@/types/voice.types';
+
+// ============================================
+// Types
+// ============================================
+
+type ActionType = 'pain_entry' | 'quick_entry' | 'medication' | 'reminder' | 'diary' | 'note';
 
 interface VoiceAssistantOverlayProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSelectAction: (action: 'pain_entry' | 'quick_entry' | 'medication' | 'reminder' | 'diary' | 'note', draftText: string) => void;
+  onSelectAction: (action: ActionType, draftText: string) => void;
 }
+
+interface RecognizedIntent {
+  type: string;
+  confidence: number;
+  result: VoiceRouterResult;
+}
+
+interface AnalyticsAnswer {
+  headline: string;
+  answer: string;
+  details?: string;
+}
+
+// ============================================
+// Constants
+// ============================================
+
+const CONFIDENCE_THRESHOLD = 0.7;
+
+const ACTION_CONFIG: Array<{
+  id: ActionType;
+  label: string;
+  description: string;
+  icon: React.ComponentType<{ className?: string }>;
+  color: string;
+}> = [
+  {
+    id: 'pain_entry',
+    label: 'Migräne-Eintrag',
+    description: 'Detaillierte Dokumentation',
+    icon: PlusCircle,
+    color: 'text-success',
+  },
+  {
+    id: 'quick_entry',
+    label: 'Schnell-Eintrag',
+    description: 'Kurz & schnell',
+    icon: Zap,
+    color: 'text-destructive',
+  },
+  {
+    id: 'medication',
+    label: 'Medikament',
+    description: 'Wirkung bewerten',
+    icon: Pill,
+    color: 'text-primary',
+  },
+  {
+    id: 'reminder',
+    label: 'Erinnerung',
+    description: 'Termin/Medikament',
+    icon: Bell,
+    color: 'text-warning',
+  },
+  {
+    id: 'diary',
+    label: 'Tagebuch',
+    description: 'Einträge ansehen',
+    icon: BookOpen,
+    color: 'text-muted-foreground',
+  },
+  {
+    id: 'note',
+    label: 'Als Notiz speichern',
+    description: 'Für später',
+    icon: Save,
+    color: 'text-voice',
+  },
+];
+
+// Map router result types to action types
+function mapResultTypeToAction(resultType: string): ActionType | null {
+  switch (resultType) {
+    case 'create_pain_entry':
+      return 'pain_entry';
+    case 'create_quick_entry':
+      return 'quick_entry';
+    case 'create_medication_update':
+      return 'medication';
+    case 'navigate_reminder_create':
+    case 'navigate_appointment_create':
+      return 'reminder';
+    case 'navigate_diary':
+      return 'diary';
+    case 'create_note':
+      return 'note';
+    default:
+      return null;
+  }
+}
+
+// ============================================
+// Component
+// ============================================
 
 export function VoiceAssistantOverlay({
   open,
@@ -45,19 +164,36 @@ export function VoiceAssistantOverlay({
   onSelectAction,
 }: VoiceAssistantOverlayProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const recognitionRef = useRef<any>(null);
+  const autoStartedRef = useRef(false);
+  
+  // State
   const [committedText, setCommittedText] = useState('');
   const [interimText, setInterimText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const recognitionRef = useRef<any>(null);
+  const [showActions, setShowActions] = useState(false);
+  const [recognizedIntent, setRecognizedIntent] = useState<RecognizedIntent | null>(null);
+  const [analyticsAnswer, setAnalyticsAnswer] = useState<AnalyticsAnswer | null>(null);
+  
+  // Hooks
   const isSttSupported = isBrowserSttSupported();
-  const autoStartedRef = useRef(false);
+  const { data: userMeds = [] } = useMeds();
+  const [userId, setUserId] = useState<string | null>(null);
+  
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setUserId(data.user?.id || null);
+    });
+  }, []);
 
-  // Insert text at cursor position or append
+  // ============================================
+  // Text Insertion
+  // ============================================
+
   const insertAtCursor = useCallback((insertText: string) => {
     const textarea = textareaRef.current;
     if (!textarea) {
-      // Fallback: append
       const separator = committedText.length > 0 && !committedText.endsWith(' ') ? ' ' : '';
       setCommittedText(prev => prev + separator + insertText);
       return;
@@ -66,14 +202,12 @@ export function VoiceAssistantOverlay({
     const start = textarea.selectionStart ?? committedText.length;
     const end = textarea.selectionEnd ?? committedText.length;
     
-    // Add space if needed
     const needsSpaceBefore = start > 0 && committedText[start - 1] !== ' ' && !insertText.startsWith(' ');
     const textToInsert = (needsSpaceBefore ? ' ' : '') + insertText;
     
     const newText = committedText.slice(0, start) + textToInsert + committedText.slice(end);
     setCommittedText(newText);
     
-    // Set cursor after inserted text
     const newCursorPos = start + textToInsert.length;
     requestAnimationFrame(() => {
       textarea.focus();
@@ -81,14 +215,17 @@ export function VoiceAssistantOverlay({
     });
   }, [committedText]);
 
-  // Start recording
+  // ============================================
+  // Speech Recognition
+  // ============================================
+
   const startRecording = useCallback(() => {
     if (!isSttSupported || isRecording) return;
 
-    const SpeechRecognition = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) return;
+    const SpeechRecognitionAPI = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognitionAPI) return;
 
-    const recognition = new SpeechRecognition();
+    const recognition = new SpeechRecognitionAPI();
     recognition.lang = 'de-DE';
     recognition.continuous = true;
     recognition.interimResults = true;
@@ -121,7 +258,7 @@ export function VoiceAssistantOverlay({
 
     recognition.onerror = (event: any) => {
       console.error('Voice recording error:', event.error);
-      // Don't stop on 'no-speech' - just continue
+      // Don't stop on 'no-speech' - migraine-friendly, let user take time
       if (event.error !== 'no-speech' && event.error !== 'aborted') {
         setIsRecording(false);
         setInterimText('');
@@ -129,19 +266,10 @@ export function VoiceAssistantOverlay({
     };
 
     recognition.onend = () => {
-      // Only set not recording if we didn't explicitly stop
-      if (recognitionRef.current) {
-        // Restart if still supposed to be recording (for continuous mode)
-        try {
-          recognition.start();
-        } catch (e) {
-          setIsRecording(false);
-          setInterimText('');
-        }
-      } else {
-        setIsRecording(false);
-        setInterimText('');
-      }
+      // Migränefreundlich: KEIN Auto-Restart!
+      // User hat "Fertig" Button wenn fertig
+      setIsRecording(false);
+      setInterimText('');
     };
 
     recognitionRef.current = recognition;
@@ -152,22 +280,119 @@ export function VoiceAssistantOverlay({
     }
   }, [isSttSupported, isRecording, insertAtCursor]);
 
-  // Stop recording
   const stopRecording = useCallback(() => {
     if (recognitionRef.current) {
       const recognition = recognitionRef.current;
-      recognitionRef.current = null; // Clear ref first to prevent restart
+      recognitionRef.current = null;
       recognition.stop();
     }
     setIsRecording(false);
     setInterimText('');
   }, []);
 
-  // Auto-start recording when dialog opens
+  // ============================================
+  // Intent Recognition (Phase 1 - "Fertig" Button)
+  // ============================================
+
+  const processIntent = useCallback(async () => {
+    if (!committedText.trim()) return;
+    
+    setIsProcessing(true);
+    setAnalyticsAnswer(null);
+    
+    try {
+      const userContext = {
+        userMeds,
+        timezone: 'Europe/Berlin',
+        language: 'de-DE'
+      };
+      
+      const result = routeVoiceCommand(committedText, userContext);
+      console.log('🎯 Intent Result:', result);
+      
+      // Analytics Query? (Phase 2)
+      if (result.type === 'analytics_query' && userId) {
+        const voiceQuery = result.payload as VoiceAnalyticsQuery | undefined;
+        if (voiceQuery && voiceQuery.queryType !== 'unknown') {
+          const timeRange = getTimeRange(voiceQuery.timeRangeDays);
+          const parsedQuery: ParsedAnalyticsQuery = {
+            queryType: voiceQuery.queryType,
+            medName: voiceQuery.medName,
+            medCategory: voiceQuery.medCategory as any,
+            timeRange,
+            confidence: voiceQuery.confidence
+          };
+          
+          const queryResult = await executeAnalyticsQuery(userId, parsedQuery);
+          const formatted = formatAnalyticsResult(parsedQuery, queryResult);
+          
+          setAnalyticsAnswer(formatted);
+          setRecognizedIntent({
+            type: result.type,
+            confidence: result.confidence,
+            result
+          });
+          setIsProcessing(false);
+          return;
+        }
+      }
+      
+      // Speichere erkannten Intent
+      setRecognizedIntent({
+        type: result.type,
+        confidence: result.confidence,
+        result
+      });
+      
+      // Bei niedrigem Confidence: zeige Actions
+      if (result.confidence < CONFIDENCE_THRESHOLD || result.type === 'unknown') {
+        setShowActions(true);
+      }
+      
+    } catch (error) {
+      console.error('Intent processing error:', error);
+      setShowActions(true);
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [committedText, userMeds, userId]);
+
+  const handleFinish = useCallback(() => {
+    stopRecording();
+    processIntent();
+  }, [stopRecording, processIntent]);
+
+  // ============================================
+  // Action Selection
+  // ============================================
+
+  const handleSelectAction = useCallback((action: ActionType) => {
+    stopRecording();
+    onSelectAction(action, committedText);
+    onOpenChange(false);
+  }, [stopRecording, onSelectAction, committedText, onOpenChange]);
+
+  const handleSelectSuggestedAction = useCallback(() => {
+    if (!recognizedIntent) return;
+    
+    const action = mapResultTypeToAction(recognizedIntent.type);
+    if (action) {
+      handleSelectAction(action);
+    }
+  }, [recognizedIntent, handleSelectAction]);
+
+  const handleCancel = useCallback(() => {
+    stopRecording();
+    onOpenChange(false);
+  }, [stopRecording, onOpenChange]);
+
+  // ============================================
+  // Lifecycle
+  // ============================================
+
   useEffect(() => {
     if (open && isSttSupported && !autoStartedRef.current) {
       autoStartedRef.current = true;
-      // Small delay to let dialog render
       const timer = setTimeout(() => {
         startRecording();
       }, 300);
@@ -179,77 +404,25 @@ export function VoiceAssistantOverlay({
       stopRecording();
       setCommittedText('');
       setInterimText('');
+      setShowActions(false);
+      setRecognizedIntent(null);
+      setAnalyticsAnswer(null);
     }
   }, [open, isSttSupported, startRecording, stopRecording]);
 
-  // Toggle recording
-  const toggleRecording = useCallback(() => {
-    if (isRecording) {
-      stopRecording();
-    } else {
-      startRecording();
-    }
-  }, [isRecording, startRecording, stopRecording]);
-
-  // Handle action selection
-  const handleSelectAction = useCallback((action: 'pain_entry' | 'quick_entry' | 'medication' | 'reminder' | 'diary' | 'note') => {
-    stopRecording();
-    onSelectAction(action, committedText);
-    onOpenChange(false);
-  }, [stopRecording, onSelectAction, committedText, onOpenChange]);
-
-  // Handle cancel
-  const handleCancel = useCallback(() => {
-    stopRecording();
-    onOpenChange(false);
-  }, [stopRecording, onOpenChange]);
-
-  const actions = [
-    {
-      id: 'pain_entry' as const,
-      label: 'Migräne-Eintrag',
-      description: 'Detaillierte Dokumentation',
-      icon: PlusCircle,
-      color: 'text-success',
-    },
-    {
-      id: 'quick_entry' as const,
-      label: 'Schnell-Eintrag',
-      description: 'Kurz & schnell',
-      icon: Zap,
-      color: 'text-destructive',
-    },
-    {
-      id: 'medication' as const,
-      label: 'Medikament',
-      description: 'Wirkung bewerten',
-      icon: Pill,
-      color: 'text-primary',
-    },
-    {
-      id: 'reminder' as const,
-      label: 'Erinnerung',
-      description: 'Termin/Medikament',
-      icon: Bell,
-      color: 'text-warning',
-    },
-    {
-      id: 'diary' as const,
-      label: 'Tagebuch',
-      description: 'Einträge ansehen',
-      icon: BookOpen,
-      color: 'text-muted-foreground',
-    },
-    {
-      id: 'note' as const,
-      label: 'Als Notiz speichern',
-      description: 'Für später',
-      icon: Save,
-      color: 'text-voice',
-    },
-  ];
+  // ============================================
+  // Derived State
+  // ============================================
 
   const hasText = committedText.trim().length > 0;
+  const suggestedAction = recognizedIntent ? mapResultTypeToAction(recognizedIntent.type) : null;
+  const suggestedActionConfig = suggestedAction ? ACTION_CONFIG.find(a => a.id === suggestedAction) : null;
+  const showSuggestion = recognizedIntent && recognizedIntent.confidence >= CONFIDENCE_THRESHOLD && suggestedActionConfig && !analyticsAnswer;
+  const showUnknownState = recognizedIntent && (recognizedIntent.confidence < CONFIDENCE_THRESHOLD || recognizedIntent.type === 'unknown') && !analyticsAnswer;
+
+  // ============================================
+  // Render
+  // ============================================
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -259,10 +432,20 @@ export function VoiceAssistantOverlay({
             {isRecording ? (
               <>
                 <div className="relative flex items-center justify-center">
-                  <div className="w-3 h-3 rounded-full bg-destructive animate-pulse" />
-                  <div className="absolute w-5 h-5 rounded-full bg-destructive/30 animate-ping" />
+                  <div className="w-3 h-3 rounded-full bg-voice animate-pulse" />
+                  <div className="absolute w-5 h-5 rounded-full bg-voice/30 animate-ping" />
                 </div>
-                <span>Aufnahme läuft…</span>
+                <span>Ich höre zu…</span>
+              </>
+            ) : isProcessing ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                <span>Verarbeite…</span>
+              </>
+            ) : analyticsAnswer ? (
+              <>
+                <BarChart3 className="w-5 h-5 text-primary" />
+                <span>Auswertung</span>
               </>
             ) : (
               <>
@@ -273,10 +456,41 @@ export function VoiceAssistantOverlay({
           </DialogTitle>
           <DialogDescription className="text-left">
             {isRecording 
-              ? 'Sprich in deinem Tempo. Klicke "Fertig" wenn du fertig bist.'
-              : 'Tippe oder diktiere, dann wähle eine Aktion.'}
+              ? 'Sprich in deinem Tempo – oder tippe jederzeit.'
+              : analyticsAnswer 
+                ? 'Hier ist deine Auswertung:'
+                : 'Tippe oder diktiere, dann wähle eine Aktion.'}
           </DialogDescription>
         </DialogHeader>
+
+        {/* Analytics Answer Card (Phase 2) */}
+        {analyticsAnswer && (
+          <div className="bg-primary/10 border border-primary/20 rounded-lg p-4 space-y-2">
+            <p className="text-xs text-muted-foreground uppercase tracking-wide">
+              {analyticsAnswer.headline}
+            </p>
+            <p className="text-2xl font-semibold text-foreground">
+              {analyticsAnswer.answer}
+            </p>
+            {analyticsAnswer.details && (
+              <p className="text-sm text-muted-foreground">
+                {analyticsAnswer.details}
+              </p>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mt-2 text-primary"
+              onClick={() => {
+                onSelectAction('diary', committedText);
+                onOpenChange(false);
+              }}
+            >
+              <ExternalLink className="w-4 h-4 mr-2" />
+              Zum Tagebuch
+            </Button>
+          </div>
+        )}
 
         {/* Text Input Area */}
         <div className="space-y-2">
@@ -309,21 +523,21 @@ export function VoiceAssistantOverlay({
             className={cn(
               "w-full",
               isRecording 
-                ? "border-destructive/50 text-destructive hover:bg-destructive/10" 
-                : "border-voice/30 text-voice hover:bg-voice/10"
+                ? "border-voice/50 text-voice hover:bg-voice/10" 
+                : "border-muted text-muted-foreground hover:bg-muted/30"
             )}
-            onClick={toggleRecording}
-            disabled={!isSttSupported}
+            onClick={isRecording ? stopRecording : startRecording}
+            disabled={!isSttSupported || isProcessing}
           >
             {isRecording ? (
               <>
                 <MicOff className="w-4 h-4 mr-2" />
-                Diktat pausieren
+                Aufnahme pausieren
               </>
             ) : (
               <>
                 <Mic className="w-4 h-4 mr-2" />
-                {hasText ? 'Weiter diktieren' : 'Diktat starten'}
+                {hasText ? 'Weiter aufnehmen' : 'Aufnahme starten'}
               </>
             )}
           </Button>
@@ -335,28 +549,82 @@ export function VoiceAssistantOverlay({
           )}
         </div>
 
-        {/* Action Selection */}
-        <div className="pt-2">
-          <p className="text-xs text-muted-foreground mb-2">Aktion auswählen:</p>
-          <div className="grid grid-cols-2 gap-2">
-            {actions.map((action) => (
-              <Button
-                key={action.id}
-                variant="outline"
-                className="h-auto flex-col items-start p-3 gap-1 text-left hover:bg-muted/50"
-                onClick={() => handleSelectAction(action.id)}
-              >
-                <div className="flex items-center gap-2 w-full">
-                  <action.icon className={`w-4 h-4 ${action.color}`} />
-                  <span className="font-medium text-sm">{action.label}</span>
-                </div>
-                <span className="text-xs text-muted-foreground pl-6">
-                  {action.description}
-                </span>
-              </Button>
-            ))}
+        {/* Suggestion CTA (when intent recognized with high confidence) */}
+        {showSuggestion && suggestedActionConfig && (
+          <div className="space-y-2 pt-2">
+            <p className="text-xs text-muted-foreground">Vorschlag:</p>
+            <Button
+              className="w-full h-auto py-3 justify-start gap-3"
+              variant="default"
+              onClick={handleSelectSuggestedAction}
+            >
+              <suggestedActionConfig.icon className="w-5 h-5" />
+              <div className="text-left">
+                <p className="font-medium">{suggestedActionConfig.label}</p>
+                <p className="text-xs opacity-80">{suggestedActionConfig.description}</p>
+              </div>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full text-muted-foreground"
+              onClick={() => setShowActions(true)}
+            >
+              <ChevronDown className="w-4 h-4 mr-2" />
+              Andere Aktion wählen…
+            </Button>
           </div>
-        </div>
+        )}
+
+        {/* Unknown State Header */}
+        {showUnknownState && (
+          <div className="pt-2">
+            <p className="text-sm text-muted-foreground mb-2">
+              Nicht sicher verstanden – bitte wähle eine Aktion:
+            </p>
+          </div>
+        )}
+
+        {/* Action Selection (progressive disclosure) */}
+        {(showActions || showUnknownState) && !analyticsAnswer && (
+          <div className="pt-2">
+            {!showUnknownState && (
+              <p className="text-xs text-muted-foreground mb-2">Was möchtest du machen?</p>
+            )}
+            <div className="grid grid-cols-2 gap-2">
+              {ACTION_CONFIG.map((action) => (
+                <Button
+                  key={action.id}
+                  variant="outline"
+                  className="h-auto flex-col items-start p-3 gap-1 text-left hover:bg-muted/50"
+                  onClick={() => handleSelectAction(action.id)}
+                  disabled={isProcessing}
+                >
+                  <div className="flex items-center gap-2 w-full">
+                    <action.icon className={`w-4 h-4 ${action.color}`} />
+                    <span className="font-medium text-sm">{action.label}</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground pl-6">
+                    {action.description}
+                  </span>
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* "Aktion auswählen" link (when no intent recognized yet) */}
+        {!showActions && !recognizedIntent && !isProcessing && hasText && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full text-muted-foreground"
+            onClick={() => setShowActions(true)}
+          >
+            <ChevronDown className="w-4 h-4 mr-2" />
+            Aktion auswählen
+          </Button>
+        )}
 
         {/* Bottom Actions */}
         <div className="flex gap-2 pt-2 border-t border-border">
@@ -364,18 +632,34 @@ export function VoiceAssistantOverlay({
             variant="ghost"
             className="flex-1"
             onClick={handleCancel}
+            disabled={isProcessing}
           >
             <X className="w-4 h-4 mr-2" />
             Abbrechen
           </Button>
-          {isRecording && (
+          {(isRecording || (hasText && !recognizedIntent)) && (
             <Button
               variant="default"
               className="flex-1 bg-success hover:bg-success/90 text-success-foreground"
-              onClick={stopRecording}
+              onClick={handleFinish}
+              disabled={isProcessing || !hasText}
+            >
+              {isProcessing ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Check className="w-4 h-4 mr-2" />
+              )}
+              Fertig
+            </Button>
+          )}
+          {analyticsAnswer && (
+            <Button
+              variant="default"
+              className="flex-1"
+              onClick={handleCancel}
             >
               <Check className="w-4 h-4 mr-2" />
-              Fertig
+              Schließen
             </Button>
           )}
         </div>
