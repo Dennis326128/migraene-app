@@ -113,7 +113,9 @@ export function useSpeechRecognition(options: SpeechRecognitionOptions = {}): Us
       }, 1000);
     };
 
-    pauseTimerRef.current = setTimeout(startCountdown, 2000);
+    // Migraine-friendly: Wait 3 seconds of silence before starting countdown
+    // This gives users time for word-finding pauses
+    pauseTimerRef.current = setTimeout(startCountdown, 3000);
   }, [pauseThreshold, onPauseDetected, clearTimers, log]);
 
   const resetPauseDetection = useCallback(() => {

@@ -7,6 +7,7 @@ import { toast } from '@/hooks/use-toast';
 import { useMeds, useUpdateMed, useMarkMedAsIntolerant } from '@/features/meds/hooks/useMeds';
 import type { VoiceUserContext, VoiceMedicationUpdate } from '@/types/voice.types';
 import type { ParsedReminder, ParsedAppointment, DiaryFilter, AnalysisOptions, ReportOptions } from '@/lib/voice/navigationIntents';
+import { VOICE_TIMING, isTranscriptSufficient } from '@/lib/voice/voiceTimingConfig';
 
 // ============================================
 // Types
@@ -64,6 +65,7 @@ export function useSmartVoiceRouter(options: SmartVoiceRouterOptions) {
   const [isSaving, setIsSaving] = useState(false);
   const [lastResult, setLastResult] = useState<VoiceRouterResult | null>(null);
   const isCancellingRef = useRef(false);
+  const recordingStartTimeRef = useRef<number>(0);
   const navigate = useNavigate();
   const { data: userMeds = [] } = useMeds();
   const updateMed = useUpdateMed();
@@ -73,7 +75,8 @@ export function useSmartVoiceRouter(options: SmartVoiceRouterOptions) {
     language: 'de-DE',
     continuous: true,
     interimResults: true,
-    pauseThreshold: 12,
+    // Migraine-friendly: 5 seconds silence threshold (generous for word-finding issues)
+    pauseThreshold: VOICE_TIMING.PAUSE_THRESHOLD_SECONDS,
     onTranscriptReady: async (transcript, confidence) => {
       // Skip processing if cancelled
       if (isCancellingRef.current) {
@@ -82,7 +85,31 @@ export function useSmartVoiceRouter(options: SmartVoiceRouterOptions) {
         return;
       }
       
-      console.log('🎤 Smart Router: Transcript received:', transcript);
+      // Check if enough time has passed (MIN_LISTEN_MS)
+      const elapsedMs = Date.now() - recordingStartTimeRef.current;
+      const hasMinTime = elapsedMs >= VOICE_TIMING.MIN_LISTEN_MS;
+      
+      // Check if transcript is long enough
+      const isSufficient = isTranscriptSufficient(transcript);
+      
+      console.log('🎤 Smart Router: Transcript received:', {
+        transcript,
+        elapsedMs,
+        hasMinTime,
+        isSufficient
+      });
+      
+      // If transcript too short and not enough time, show hint and don't trigger unknown
+      if (!isSufficient && !hasMinTime) {
+        console.log('⏳ Transcript too short and recording too brief - hint to speak longer');
+        toast({
+          title: '🎤 Bitte etwas länger sprechen',
+          description: 'Nimm dir Zeit beim Sprechen.',
+          variant: 'default'
+        });
+        return;
+      }
+      
       setIsSaving(true);
       
       try {
@@ -457,6 +484,7 @@ export function useSmartVoiceRouter(options: SmartVoiceRouterOptions) {
   // Track if we're cancelling to prevent processing
   const startVoice = async () => {
     isCancellingRef.current = false;
+    recordingStartTimeRef.current = Date.now();
     try {
       await speechRecognition.startRecording();
     } catch (error) {

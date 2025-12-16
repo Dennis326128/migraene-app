@@ -15,7 +15,8 @@ import { useReminderBadgeCount, useUpcoming24hWarnings } from "@/features/remind
 import { CreateReminderInput } from "@/types/reminder.types";
 import { toast } from "sonner";
 import { VoiceNoteReviewModal } from "./VoiceNoteReviewModal";
-import { saveVoiceNote } from "@/lib/voice/saveNote";
+import { saveVoiceNote } from '@/lib/voice/saveNote';
+import { setVoiceDraft } from '@/lib/voice/voiceDraftStorage';
 import { QuickContextNoteModal } from "./QuickContextNoteModal";
 import { VoiceHelpOverlay } from "./VoiceHelpOverlay";
 import { VoiceUnknownIntentOverlay } from "./VoiceUnknownIntentOverlay";
@@ -55,6 +56,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   const [showVoiceHelp, setShowVoiceHelp] = useState(false);
   const [showUnknownIntent, setShowUnknownIntent] = useState(false);
   const [unknownTranscript, setUnknownTranscript] = useState('');
+  const [unknownDraftText, setUnknownDraftText] = useState('');
   
   const createReminder = useCreateReminder();
   const createMultipleReminders = useCreateMultipleReminders();
@@ -102,6 +104,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
     },
     onUnknownIntent: (transcript) => {
       setUnknownTranscript(transcript);
+      setUnknownDraftText(transcript); // Initialize draft with transcript
       setShowUnknownIntent(true);
     },
   });
@@ -545,12 +548,20 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         open={showUnknownIntent}
         onOpenChange={setShowUnknownIntent}
         transcript={unknownTranscript}
-        onSelectAction={(action) => {
+        draftText={unknownDraftText}
+        onDraftTextChange={setUnknownDraftText}
+        onSelectAction={(action, draftText) => {
+          // Store draft for target flows using utility
+          if (draftText && draftText.trim()) {
+            setVoiceDraft(draftText.trim());
+          }
+          
           switch (action) {
             case 'pain_entry':
               onNewEntry();
               break;
             case 'quick_entry':
+              setVoiceData({ initialNotes: draftText });
               setShowQuickEntry(true);
               break;
             case 'medication':
@@ -563,11 +574,11 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               onNavigate?.('diary-timeline');
               break;
             case 'note':
-              setPendingVoiceNote(unknownTranscript);
+              setPendingVoiceNote(draftText || unknownTranscript);
               setShowVoiceNoteReview(true);
               break;
             case 'retry':
-              handleVoiceEntry();
+              // Don't close - handled inside overlay now
               break;
           }
         }}
