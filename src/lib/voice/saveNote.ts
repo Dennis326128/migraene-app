@@ -15,7 +15,7 @@ export interface ContextMetadata {
 export interface SaveVoiceNoteOptions {
   rawText: string;
   sttConfidence?: number;
-  source?: 'voice' | 'manual' | 'import';
+  source?: 'voice' | 'manual' | 'import' | 'mixed';
   contextType?: ContextType;
   metadata?: ContextMetadata;
 }
