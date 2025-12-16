@@ -159,7 +159,77 @@ export async function countMedDaysByCategory(
 }
 
 /**
- * Zählt TAGE mit einem bestimmten Medikament (Fuzzy-Match auf Namen)
+ * Normalisiert Medikamentennamen für Vergleiche
+ * Entfernt Dosierung, Sonderzeichen, extra Leerzeichen
+ */
+function normalizeMedName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/\d+\s*(mg|ml|g|µg|mcg|tabletten?|kapseln?|stück|st\.?|tab\.?)/gi, '')
+    .replace(/[®™©]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Prüft ob zwei Medikamentennamen matchen (robust)
+ */
+function matchesMedName(entryMed: string, searchMed: string): boolean {
+  const entryNorm = normalizeMedName(entryMed);
+  const searchNorm = normalizeMedName(searchMed);
+  
+  // Exakter Match
+  if (entryNorm === searchNorm) return true;
+  
+  // Enthält den Suchbegriff
+  if (entryNorm.includes(searchNorm)) return true;
+  
+  // Suchbegriff enthält den Eintrag (für Kurzformen)
+  if (searchNorm.includes(entryNorm) && entryNorm.length >= 4) return true;
+  
+  // Levenshtein für Tippfehler (nur bei kurzen Namen)
+  if (searchNorm.length <= 12 && entryNorm.length <= 12) {
+    const distance = levenshteinDistance(entryNorm, searchNorm);
+    const maxLen = Math.max(entryNorm.length, searchNorm.length);
+    // Erlaube ~20% Unterschied
+    if (distance <= Math.ceil(maxLen * 0.2)) return true;
+  }
+  
+  return false;
+}
+
+/**
+ * Einfache Levenshtein-Distanz für Fuzzy-Matching
+ */
+function levenshteinDistance(a: string, b: string): number {
+  const matrix: number[][] = [];
+  
+  for (let i = 0; i <= b.length; i++) {
+    matrix[i] = [i];
+  }
+  for (let j = 0; j <= a.length; j++) {
+    matrix[0][j] = j;
+  }
+  
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1
+        );
+      }
+    }
+  }
+  
+  return matrix[b.length][a.length];
+}
+
+/**
+ * Zählt TAGE mit einem bestimmten Medikament (robustes Fuzzy-Match)
  */
 export async function countMedDaysByName(
   userId: string,
@@ -169,7 +239,6 @@ export async function countMedDaysByName(
   try {
     const startStr = format(timeRange.start, 'yyyy-MM-dd');
     const endStr = format(timeRange.end, 'yyyy-MM-dd');
-    const searchLower = medName.toLowerCase();
     
     const { data: entries, error } = await supabase
       .from('pain_entries')
@@ -182,20 +251,27 @@ export async function countMedDaysByName(
     if (error) throw error;
     
     const daysWithMed = new Set<string>();
+    const matchedMeds = new Map<string, number>();
     
     for (const entry of entries || []) {
       const meds = entry.medications as string[] | null;
       if (!meds) continue;
       
       for (const med of meds) {
-        // Fuzzy match: enthält oder beginnt mit
-        if (med.toLowerCase().includes(searchLower) || 
-            searchLower.includes(med.toLowerCase().substring(0, 4))) {
+        if (matchesMedName(med, medName)) {
           if (entry.selected_date) {
             daysWithMed.add(entry.selected_date);
+            matchedMeds.set(med, (matchedMeds.get(med) || 0) + 1);
           }
         }
       }
+    }
+    
+    // Details: welche Varianten gefunden
+    let details = `Suche: "${medName}"`;
+    if (matchedMeds.size > 0) {
+      const variants = Array.from(matchedMeds.keys()).slice(0, 3).join(', ');
+      details += ` (gefunden: ${variants})`;
     }
     
     return {
@@ -203,7 +279,7 @@ export async function countMedDaysByName(
       queryType: 'count_med_days_by_name',
       value: daysWithMed.size,
       unit: 'Tage',
-      details: `Suche: "${medName}"`
+      details
     };
   } catch (error) {
     console.error('countMedDaysByName error:', error);
@@ -263,6 +339,38 @@ export async function countMigraineDays(
 }
 
 /**
+ * Konvertiert pain_level String zu numerischem Wert
+ * pain_level kann sein: 'keine', 'leicht', 'mittel', 'stark', 'sehr stark', '-'
+ * oder in manchen Fällen numerische Strings
+ */
+function painLevelToNumber(painLevel: string): number | null {
+  const lower = painLevel.toLowerCase().trim();
+  
+  // Textuelle Werte (Hauptformat in der App)
+  const textMap: Record<string, number> = {
+    'keine': 0,
+    '-': 0,
+    'leicht': 2,
+    'mittel': 5,
+    'stark': 7,
+    'sehr stark': 9,
+    'sehr_stark': 9,
+  };
+  
+  if (textMap[lower] !== undefined) {
+    return textMap[lower];
+  }
+  
+  // Numerische Strings als Fallback
+  const num = parseInt(painLevel, 10);
+  if (!isNaN(num) && num >= 0 && num <= 10) {
+    return num;
+  }
+  
+  return null;
+}
+
+/**
  * Durchschnittlicher Schmerzlevel
  */
 export async function avgPainLevel(
@@ -292,10 +400,10 @@ export async function avgPainLevel(
       };
     }
     
-    // pain_level ist string ("1"-"10")
+    // pain_level ist String ('keine', 'leicht', 'mittel', 'stark', 'sehr stark')
     const levels = entries
-      .map(e => parseInt(e.pain_level, 10))
-      .filter(n => !isNaN(n));
+      .map(e => painLevelToNumber(e.pain_level))
+      .filter((n): n is number => n !== null && n > 0); // Nur Einträge mit Schmerz
     
     if (levels.length === 0) {
       return {
@@ -303,18 +411,26 @@ export async function avgPainLevel(
         queryType: 'avg_pain_level',
         value: 0,
         unit: '',
-        details: 'Keine gültigen Schmerzwerte'
+        details: 'Keine Einträge mit Schmerz im Zeitraum'
       };
     }
     
     const avg = levels.reduce((a, b) => a + b, 0) / levels.length;
     
+    // Konvertiere zurück zu verständlichem Text
+    let levelText = '';
+    if (avg <= 1) levelText = 'keine';
+    else if (avg <= 3) levelText = 'leicht';
+    else if (avg <= 5) levelText = 'mittel';
+    else if (avg <= 7) levelText = 'stark';
+    else levelText = 'sehr stark';
+    
     return {
       success: true,
       queryType: 'avg_pain_level',
       value: Math.round(avg * 10) / 10,
-      unit: '/ 10',
-      details: `Basierend auf ${levels.length} Einträgen`
+      unit: `/ 10 (${levelText})`,
+      details: `Basierend auf ${levels.length} Einträgen mit Schmerz`
     };
   } catch (error) {
     console.error('avgPainLevel error:', error);
