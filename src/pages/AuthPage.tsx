@@ -6,13 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertTriangle, FlaskConical, Loader2 } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { ensureUserProfile } from "@/utils/ensureUserProfile";
 import { signupSchema, loginSchema } from "@/lib/zod/authSchemas";
-import { isDemoEnabled, startDemoUser, type DemoProgress } from "@/lib/demo";
-import { Progress } from "@/components/ui/progress";
 
 export default function AuthPage() {
   const { toast } = useToast();
@@ -25,10 +23,6 @@ export default function AuthPage() {
   const [rememberMe, setRememberMe] = useState(true);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
-  
-  // Demo mode state
-  const [demoLoading, setDemoLoading] = useState(false);
-  const [demoProgress, setDemoProgress] = useState<DemoProgress | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data }) => {
@@ -189,34 +183,6 @@ export default function AuthPage() {
     }
   };
 
-  const handleDemoStart = async () => {
-    if (!isDemoEnabled()) return;
-    
-    setDemoLoading(true);
-    setDemoProgress({ message: 'Starte Demo...', percent: 0 });
-
-    const result = await startDemoUser((progress) => {
-      setDemoProgress(progress);
-    });
-
-    if (result.success) {
-      toast({
-        title: "Demo bereit",
-        description: demoProgress?.message || "Demo-Daten wurden erstellt",
-      });
-      navigate("/");
-    } else {
-      toast({
-        title: "Demo-Fehler",
-        description: result.error,
-        variant: "destructive",
-      });
-    }
-
-    setDemoLoading(false);
-    setDemoProgress(null);
-  };
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md space-y-6">
@@ -358,48 +324,6 @@ export default function AuthPage() {
           </div>
         </CardContent>
         </Card>
-
-        {/* DEV-only Demo Button */}
-        {isDemoEnabled() && (
-          <Card className="w-full border-dashed border-yellow-500/50 bg-yellow-50/50 dark:bg-yellow-950/20">
-            <CardContent className="pt-4 space-y-3">
-              <div className="flex items-center gap-2 text-sm text-yellow-700 dark:text-yellow-300">
-                <FlaskConical className="h-4 w-4" />
-                <span className="font-medium">Entwicklermodus</span>
-              </div>
-              
-              {demoProgress && (
-                <div className="space-y-2">
-                  <Progress value={demoProgress.percent} className="h-2" />
-                  <p className="text-xs text-muted-foreground">{demoProgress.message}</p>
-                </div>
-              )}
-              
-              <Button
-                variant="outline"
-                onClick={handleDemoStart}
-                disabled={demoLoading || loading}
-                className="w-full border-yellow-500/50 hover:bg-yellow-100 dark:hover:bg-yellow-900/30"
-              >
-                {demoLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Demo wird erstellt...
-                  </>
-                ) : (
-                  <>
-                    <FlaskConical className="mr-2 h-4 w-4" />
-                    Demo: Max Mustermann starten
-                  </>
-                )}
-              </Button>
-              
-              <p className="text-xs text-muted-foreground text-center">
-                Erstellt einen Test-Account mit 90 Tagen Beispieldaten
-              </p>
-            </CardContent>
-          </Card>
-        )}
       </div>
     </div>
   );
