@@ -141,6 +141,7 @@ function mapResultTypeToAction(resultType: string): ActionType | null {
     case 'create_quick_entry':
       return 'quick_entry';
     case 'create_medication_update':
+    case 'create_medication_effect':
       return 'medication';
     case 'navigate_reminder_create':
     case 'navigate_appointment_create':

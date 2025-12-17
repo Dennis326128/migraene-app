@@ -11,6 +11,7 @@ import { useOnboarding } from "@/hooks/useOnboarding";
 import { ReminderFormWithVoiceData } from "@/components/Reminders/ReminderFormWithVoiceData";
 import { useCreateReminder, useCreateMultipleReminders } from "@/features/reminders/hooks/useReminders";
 import { useReminderBadgeCount, useUpcoming24hWarnings } from "@/features/reminders/hooks/useReminderBadge";
+import { useUnratedMedicationEntries } from "@/features/medication-effects/hooks/useMedicationEffects";
 import { CreateReminderInput } from "@/types/reminder.types";
 import { toast } from "sonner";
 import { VoiceNoteReviewModal } from "./VoiceNoteReviewModal";
@@ -59,6 +60,14 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   const createMultipleReminders = useCreateMultipleReminders();
   const { count: reminderBadgeCount } = useReminderBadgeCount();
   const { reminders: upcomingWarnings } = useUpcoming24hWarnings();
+  
+  // Unrated medication count for badge
+  const { data: unratedEntries } = useUnratedMedicationEntries();
+  const unratedMedsCount = (unratedEntries || []).reduce(
+    (sum, entry) => sum + entry.medications.filter(
+      med => !entry.rated_medications.includes(med)
+    ).length, 0
+  );
 
   const handleQuickEntryClose = () => {
     setShowQuickEntry(false);
@@ -199,6 +208,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               variant="warning" 
               touchFeedback 
               onClick={() => window.location.href = '/medication-effects'}
+              className="relative"
             >
               <StartPageCardHeader
                 icon="💊"
@@ -206,6 +216,11 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 title="Medikamenten-Wirkung"
                 subtitle="Wirksamkeit bewerten"
               />
+              {unratedMedsCount > 0 && (
+                <span className="absolute top-2 right-2 min-w-[20px] h-5 px-1.5 flex items-center justify-center text-xs font-semibold bg-destructive text-destructive-foreground rounded-full">
+                  {unratedMedsCount > 99 ? '99+' : unratedMedsCount}
+                </span>
+              )}
             </StartPageCard>
 
             {/* Grid: Medikamente & Übergebrauch */}
