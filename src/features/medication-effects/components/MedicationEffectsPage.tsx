@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Loader2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -6,25 +6,34 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
+import { toast as sonnerToast } from 'sonner';
 import { 
   useUnratedMedicationEntries, 
-  useCreateMedicationEffect 
+  useCreateMedicationEffect,
+  useDeleteMedicationFromEntry,
+  useRestoreMedicationToEntry
 } from '../hooks/useMedicationEffects';
 import { getRatedMedicationEntries, type RecentMedicationEntry } from '../api/medicationEffects.api';
 import { UnratedEffectCard } from './UnratedEffectCard';
 import { RatedEffectCard } from './RatedEffectCard';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { MedicationEffectPayload } from '../api/medicationEffects.api';
 
 const PAGE_SIZE = 30;
+const UNDO_TIMEOUT_MS = 8000;
 
 export function MedicationEffectsPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'open' | 'history'>('open');
   const [historyPage, setHistoryPage] = useState(0);
   const [allRatedEntries, setAllRatedEntries] = useState<RecentMedicationEntry[]>([]);
   const [hasMore, setHasMore] = useState(true);
+  const [deletingItem, setDeletingItem] = useState<{ entryId: number; medName: string } | null>(null);
+  
+  // Ref for undo timeout
+  const undoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Query for unrated entries
   const { 
@@ -59,7 +68,18 @@ export function MedicationEffectsPage() {
     }
   }, [ratedEntries, historyPage]);
 
+  // Cleanup undo timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (undoTimeoutRef.current) {
+        clearTimeout(undoTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const createEffect = useCreateMedicationEffect();
+  const deleteEntry = useDeleteMedicationFromEntry();
+  const restoreEntry = useRestoreMedicationToEntry();
 
   // Flatten unrated medications
   const unratedMeds = (unratedEntries || []).flatMap(entry => 
@@ -93,13 +113,11 @@ export function MedicationEffectsPage() {
       await createEffect.mutateAsync(payload);
       
       // Calculate remaining open effects after this save
-      // Current unratedMeds minus the one we just saved
       const remainingOpenEffects = unratedMeds.filter(
         item => !(item.entry.id === entryId && item.medName === medName)
       );
       
       if (remainingOpenEffects.length === 0) {
-        // No more open effects - navigate to home
         toast({
           title: '✅ Alle Bewertungen erledigt',
           description: 'Du bist wieder auf der Startseite.'
@@ -118,6 +136,58 @@ export function MedicationEffectsPage() {
         variant: 'destructive'
       });
       throw error;
+    }
+  };
+
+  const handleDeleteEntry = async (entryId: number, medName: string) => {
+    setDeletingItem({ entryId, medName });
+    
+    try {
+      await deleteEntry.mutateAsync({ entryId, medName });
+      
+      // Show toast with undo action using sonner directly
+      sonnerToast(`${medName} gelöscht`, {
+        description: 'Einnahme wurde entfernt.',
+        duration: UNDO_TIMEOUT_MS,
+        action: {
+          label: 'Rückgängig',
+          onClick: () => handleUndoDelete(entryId, medName)
+        }
+      });
+      
+      // Calculate remaining open effects
+      const remainingOpenEffects = unratedMeds.filter(
+        item => !(item.entry.id === entryId && item.medName === medName)
+      );
+      
+      if (remainingOpenEffects.length === 0) {
+        // Navigate to home after a short delay
+        setTimeout(() => navigate('/'), 500);
+      }
+    } catch (error) {
+      toast({
+        title: 'Fehler beim Löschen',
+        description: 'Die Einnahme konnte nicht gelöscht werden.',
+        variant: 'destructive'
+      });
+    } finally {
+      setDeletingItem(null);
+    }
+  };
+
+  const handleUndoDelete = async (entryId: number, medName: string) => {
+    try {
+      await restoreEntry.mutateAsync({ entryId, medName });
+      toast({
+        title: 'Rückgängig gemacht',
+        description: `${medName} wurde wiederhergestellt.`
+      });
+    } catch (error) {
+      toast({
+        title: 'Fehler',
+        description: 'Konnte nicht rückgängig gemacht werden.',
+        variant: 'destructive'
+      });
     }
   };
 
@@ -193,7 +263,9 @@ export function MedicationEffectsPage() {
               entry={entry}
               medName={medName}
               onSave={(data) => handleSaveEffect(entry.id, medName, data)}
+              onDelete={handleDeleteEntry}
               isSaving={createEffect.isPending}
+              isDeleting={deletingItem?.entryId === entry.id && deletingItem?.medName === medName}
             />
           ))}
         </TabsContent>

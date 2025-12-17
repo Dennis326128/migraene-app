@@ -74,7 +74,7 @@ export function RatedEffectCard({ entry, effect }: RatedEffectCardProps) {
             {/* Row 2: Effect Badge + Pain Badge side by side */}
             <div className="flex flex-wrap items-center gap-2 mb-2">
               <Badge 
-                variant={effectScore !== null && effectScore >= 7 ? 'default' : 'secondary'}
+                variant={effectScore !== null && effectScore >= 3 ? 'default' : 'secondary'}
                 className="text-xs shrink-0"
               >
                 {getEffectEmoji(effectScore)} {getEffectLabel(effectScore)}

@@ -7,6 +7,8 @@ import {
   getRecentMedicationsWithEffects,
   getMedicationEffectsForPeriod,
   getRatedMedicationEntries,
+  deleteMedicationFromEntry,
+  restoreMedicationToEntry,
   type MedicationEffectPayload 
 } from "../api/medicationEffects.api";
 
@@ -71,5 +73,33 @@ export function useRatedMedicationEntries(limit = 30, offset = 0) {
     queryKey: ["ratedMedicationEntries", limit, offset],
     queryFn: () => getRatedMedicationEntries(limit, offset),
     staleTime: 1 * 60 * 1000,
+  });
+}
+
+export function useDeleteMedicationFromEntry() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ entryId, medName }: { entryId: number; medName: string }) => 
+      deleteMedicationFromEntry(entryId, medName),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["unratedMedicationEntries"] });
+      qc.invalidateQueries({ queryKey: ["medicationEffects"] });
+      qc.invalidateQueries({ queryKey: ["ratedMedicationEntries"] });
+      qc.invalidateQueries({ queryKey: ["entries"] });
+    },
+  });
+}
+
+export function useRestoreMedicationToEntry() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ entryId, medName }: { entryId: number; medName: string }) => 
+      restoreMedicationToEntry(entryId, medName),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["unratedMedicationEntries"] });
+      qc.invalidateQueries({ queryKey: ["medicationEffects"] });
+      qc.invalidateQueries({ queryKey: ["ratedMedicationEntries"] });
+      qc.invalidateQueries({ queryKey: ["entries"] });
+    },
   });
 }
