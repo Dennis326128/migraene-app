@@ -71,3 +71,6 @@ verify_jwt = true
 
 [functions.ai-draft-from-text]
 verify_jwt = true
+
+[functions.create-demo-user]
+verify_jwt = false
