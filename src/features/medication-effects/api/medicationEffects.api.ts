@@ -252,3 +252,78 @@ export async function getUnratedMedicationsCount(): Promise<number> {
   });
   return count;
 }
+
+/**
+ * Delete a medication from a pain entry
+ * This removes the medication from the entry's medications array
+ * and also removes any associated medication effects
+ */
+export async function deleteMedicationFromEntry(entryId: number, medName: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  // First, get the current entry to update medications array
+  const { data: entry, error: fetchError } = await supabase
+    .from("pain_entries")
+    .select("medications")
+    .eq("id", entryId)
+    .eq("user_id", user.id)
+    .single();
+
+  if (fetchError) throw fetchError;
+  if (!entry) throw new Error("Entry not found");
+
+  // Remove the medication from the array
+  const updatedMeds = (entry.medications || []).filter((med: string) => med !== medName);
+
+  // Update the entry
+  const { error: updateError } = await supabase
+    .from("pain_entries")
+    .update({ medications: updatedMeds })
+    .eq("id", entryId)
+    .eq("user_id", user.id);
+
+  if (updateError) throw updateError;
+
+  // Also delete any medication effects for this med
+  const { error: effectsError } = await supabase
+    .from("medication_effects")
+    .delete()
+    .eq("entry_id", entryId)
+    .eq("med_name", medName);
+
+  if (effectsError) {
+    console.warn("Could not delete medication effects:", effectsError);
+  }
+}
+
+/**
+ * Restore a deleted medication to a pain entry (for undo)
+ */
+export async function restoreMedicationToEntry(entryId: number, medName: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  // Get current entry
+  const { data: entry, error: fetchError } = await supabase
+    .from("pain_entries")
+    .select("medications")
+    .eq("id", entryId)
+    .eq("user_id", user.id)
+    .single();
+
+  if (fetchError) throw fetchError;
+  if (!entry) throw new Error("Entry not found");
+
+  // Add the medication back if not already present
+  const currentMeds = entry.medications || [];
+  if (!currentMeds.includes(medName)) {
+    const { error: updateError } = await supabase
+      .from("pain_entries")
+      .update({ medications: [...currentMeds, medName] })
+      .eq("id", entryId)
+      .eq("user_id", user.id);
+
+    if (updateError) throw updateError;
+  }
+}

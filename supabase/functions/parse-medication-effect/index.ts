@@ -36,10 +36,16 @@ serve(async (req) => {
             role: 'system',
             content: `Du bist ein Assistent für eine Migräne-App. Extrahiere aus deutschen Spracheingaben strukturierte Informationen zur Medikamenten-Wirkung.
 
-WICHTIG:
-- effectScore: 0-10 (0=gar nicht geholfen, 10=perfekt geholfen)
-- Erkenne Formulierungen wie "gar nicht geholfen" → 0, "kaum geholfen" → 2, "mittelmäßig" → 5, "gut geholfen" → 7, "sehr gut" → 9, "perfekt" → 10
-- Erkenne auch direkte Angaben wie "drei von zehn" → 3
+WICHTIG - 6-Stufen-Skala (0-5):
+- effectScore: 0-5 (0=Keine Wirkung, 1=Gering, 2=Mittel, 3=Gut, 4=Sehr gut, 5=Perfekt)
+- Erkenne Formulierungen:
+  "gar nicht geholfen" / "keine Wirkung" / "null" → 0
+  "kaum geholfen" / "gering" / "wenig" → 1
+  "mittelmäßig" / "mittel" / "so lala" → 2
+  "gut geholfen" / "gut" → 3
+  "sehr gut" / "richtig gut" → 4
+  "perfekt" / "super" / "komplett schmerzfrei" → 5
+- Erkenne auch Prozentwerte: "50%" → 2-3, "80%" → 4, "100%" → 5
 - sideEffects: Liste von Nebenwirkungen (Übelkeit, Schwindel, Müdigkeit, Kopfschmerzen, Magenschmerzen, Herzrasen, Schwitzen, etc.)
 - notesSummary: Kurze Zusammenfassung (1-2 Sätze) von Infos, die nicht in effectScore/sideEffects passen
 
