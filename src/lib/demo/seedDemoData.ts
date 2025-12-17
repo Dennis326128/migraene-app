@@ -15,6 +15,19 @@ interface MedicationRecord {
   name: string;
 }
 
+/** Clamp value to integer in range [min, max] */
+const clampInt = (value: number, min: number, max: number): number =>
+  Math.max(min, Math.min(max, Math.round(value)));
+
+/** Build detailed error message from Supabase error */
+const buildErrorMessage = (context: string, error: any): string => {
+  const parts = [error.message];
+  if (error.details) parts.push(`Details: ${error.details}`);
+  if (error.hint) parts.push(`Hint: ${error.hint}`);
+  if (error.code) parts.push(`Code: ${error.code}`);
+  return `${context}: ${parts.join(' | ')}`
+};
+
 // Pain level mapping for the app
 const PAIN_LEVELS = ['keine', 'leicht', 'mittel', 'stark', 'sehr stark'] as const;
 const AURA_TYPES = ['keine', 'visuell', 'sensorisch', 'motorisch', 'sprachlich'] as const;
@@ -102,7 +115,7 @@ async function seedPatientData(userId: string): Promise<void> {
     title: profile.title,
   }, { onConflict: 'user_id' });
 
-  if (error) throw new Error(`Failed to seed patient data: ${error.message}`);
+  if (error) throw new Error(buildErrorMessage('Failed to seed patient data', error));
 }
 
 async function seedDoctors(userId: string): Promise<void> {
@@ -112,7 +125,7 @@ async function seedDoctors(userId: string): Promise<void> {
   }));
 
   const { error } = await supabase.from('doctors').insert(doctorsWithUserId);
-  if (error) throw new Error(`Failed to seed doctors: ${error.message}`);
+  if (error) throw new Error(buildErrorMessage('Failed to seed doctors', error));
 }
 
 async function seedMedications(userId: string): Promise<MedicationRecord[]> {
@@ -143,7 +156,7 @@ async function seedMedications(userId: string): Promise<MedicationRecord[]> {
   }));
 
   const { data, error } = await supabase.from('user_medications').insert(medsWithUserId).select('id, name');
-  if (error) throw new Error(`Failed to seed medications: ${error.message}`);
+  if (error) throw new Error(buildErrorMessage('Failed to seed medications', error));
   
   return data || [];
 }
@@ -162,7 +175,7 @@ async function seedMedicationCourses(userId: string, medications: MedicationReco
         type: 'prophylaxe',
         start_date: format(subDays(new Date(), 180), 'yyyy-MM-dd'),
         is_active: true,
-        baseline_migraine_days: '8-10',
+        baseline_migraine_days: String(clampInt(8, 0, 31)),
         baseline_impairment_level: 'mittel',
         note_for_physician: 'DEMO – Prophylaxe seit 6 Monaten',
       });
@@ -171,7 +184,7 @@ async function seedMedicationCourses(userId: string, medications: MedicationReco
 
   if (courses.length > 0) {
     const { error } = await supabase.from('medication_courses').insert(courses);
-    if (error) throw new Error(`Failed to seed medication courses: ${error.message}`);
+    if (error) throw new Error(buildErrorMessage('Failed to seed medication courses', error));
   }
 }
 
@@ -256,7 +269,7 @@ async function seedReminders(userId: string, medications: MedicationRecord[]): P
 
   if (reminders.length > 0) {
     const { error } = await supabase.from('reminders').insert(reminders);
-    if (error) throw new Error(`Failed to seed reminders: ${error.message}`);
+    if (error) throw new Error(buildErrorMessage('Failed to seed reminders', error));
   }
 }
 
@@ -332,7 +345,7 @@ async function seedPainEntries(
   for (let i = 0; i < entries.length; i += batchSize) {
     const batch = entries.slice(i, i + batchSize);
     const { error } = await supabase.from('pain_entries').insert(batch);
-    if (error) throw new Error(`Failed to insert entries batch: ${error.message}`);
+    if (error) throw new Error(buildErrorMessage('Failed to insert entries batch', error));
     
     inserted += batch.length;
     const percent = 60 + Math.floor((inserted / entries.length) * 35);

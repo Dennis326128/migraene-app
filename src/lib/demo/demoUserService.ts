@@ -112,9 +112,16 @@ export async function startDemoUser(onProgress?: ProgressCallback): Promise<{ su
 
   } catch (error: any) {
     console.error('[DemoUser] Error:', error);
+    const errorParts: string[] = [];
+    if (error?.message) errorParts.push(error.message);
+    if (error?.details) errorParts.push(`Details: ${error.details}`);
+    if (error?.hint) errorParts.push(`Hint: ${error.hint}`);
+    if (error?.code) errorParts.push(`Code: ${error.code}`);
     return { 
       success: false, 
-      error: error?.message || 'Unbekannter Fehler beim Erstellen des Demo-Users' 
+      error: errorParts.length > 0 
+        ? errorParts.join(' | ') 
+        : 'Unbekannter Fehler beim Erstellen des Demo-Users' 
     };
   }
 }
@@ -146,9 +153,16 @@ export async function resetDemoUserData(onProgress?: ProgressCallback): Promise<
     return { success: true };
 
   } catch (error: any) {
+    const errorParts: string[] = [];
+    if (error?.message) errorParts.push(error.message);
+    if (error?.details) errorParts.push(`Details: ${error.details}`);
+    if (error?.hint) errorParts.push(`Hint: ${error.hint}`);
+    if (error?.code) errorParts.push(`Code: ${error.code}`);
     return { 
       success: false, 
-      error: error?.message || 'Fehler beim Zurücksetzen der Demo-Daten' 
+      error: errorParts.length > 0 
+        ? errorParts.join(' | ') 
+        : 'Fehler beim Zurücksetzen der Demo-Daten' 
     };
   }
 }
