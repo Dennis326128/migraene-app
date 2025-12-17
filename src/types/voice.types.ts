@@ -3,7 +3,7 @@
  * Zentrale Typen für Voice-Erkennung und -Analyse
  */
 
-export type VoiceIntent = 'pain_entry' | 'reminder' | 'medication_update' | 'note' | 'analytics_query' | 'unknown';
+export type VoiceIntent = 'pain_entry' | 'reminder' | 'medication_update' | 'medication_effect' | 'note' | 'analytics_query' | 'unknown';
 
 export type MedicationUpdateAction = 'discontinued' | 'intolerance' | 'started' | 'dosage_changed';
 

@@ -67,6 +67,18 @@ const INTOLERANCE_REASONS = [
   'durchfall', 'verstopfung',
 ];
 
+// Medication effect rating patterns
+const MEDICATION_EFFECT_PATTERNS = [
+  /(?:hat|haben)\s+(?:gut|sehr gut|super|prima|toll|bestens|hervorragend|perfekt)\s+(?:geholfen|gewirkt|funktioniert)/i,
+  /(?:hat|haben)\s+(?:nicht|kaum|wenig|schlecht|gar nicht|überhaupt nicht)\s+(?:geholfen|gewirkt|funktioniert)/i,
+  /(?:hat|haben)\s+(?:etwas|einigermaßen|halbwegs|mittelmäßig|mäßig)\s+(?:geholfen|gewirkt|funktioniert)/i,
+  /wirkung\s*[:=]?\s*(gut|schlecht|mittel|keine|stark|schwach)/i,
+  /bewert(?:e|ung)\s+(?:\w+)\s+(?:mit|auf)\s+(\d+)/i,
+  /(?:\w+)\s+(?:hat|war)\s+(?:wirksam|unwirksam|effektiv|ineffektiv)/i,
+  /(?:schmerz|kopfschmerz|migräne)\s+(?:war|ist|wurde)\s+(?:besser|weg|weniger|stärker|schlimmer)/i,
+  /(?:nach|mit)\s+(?:\w+)\s+(?:besser|weg|weniger)/i,
+];
+
 /**
  * Hauptfunktion: Analysiert Voice-Transkript und extrahiert strukturierte Daten
  */
@@ -145,6 +157,11 @@ function classifyIntent(
     return { intent: 'medication_update', intentConfidence: medUpdateMatch.confidence };
   }
 
+  // 1.5. Check: Medication Effect Rating? (Bewertung der Wirksamkeit)
+  if (isMedicationEffectRating(lower)) {
+    return { intent: 'medication_effect', intentConfidence: 0.85 };
+  }
+
   // 2. Check: Reminder-Trigger?
   if (isReminderTrigger(transcript)) {
     return { intent: 'reminder', intentConfidence: 0.9 };
@@ -204,6 +221,13 @@ function isAnalyticsQuestion(lower: string): boolean {
   ];
   
   return topics.some(t => lower.includes(t));
+}
+
+/**
+ * Erkennt Medication Effect Rating Aussagen
+ */
+function isMedicationEffectRating(lower: string): boolean {
+  return MEDICATION_EFFECT_PATTERNS.some(pattern => pattern.test(lower));
 }
 
 /**
