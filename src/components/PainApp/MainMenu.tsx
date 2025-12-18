@@ -24,6 +24,7 @@ import { UpcomingWarningBanner } from "@/components/Reminders/UpcomingWarningBan
 import { CriticalMedicationPopup } from "@/components/Reminders/CriticalMedicationPopup";
 import { devError } from "@/lib/utils/devLogger";
 import { Button } from "@/components/ui/button";
+import { FeedbackButton } from "@/components/Feedback";
 
 
 interface MainMenuProps {
@@ -332,6 +333,15 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               />
             </StartPageCard>
           </StartPageButtonGrid>
+
+          {/* Feedback Button */}
+          <div className="pt-6 pb-2">
+            <FeedbackButton 
+              variant="ghost" 
+              size="sm" 
+              className="w-full text-muted-foreground hover:text-foreground"
+            />
+          </div>
 
         </div>
       </div>

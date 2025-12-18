@@ -586,6 +586,66 @@ export type Database = {
         }
         Relationships: []
       }
+      user_feedback: {
+        Row: {
+          app_version: string | null
+          build: string | null
+          category: string | null
+          contact_email: string | null
+          created_at: string
+          extra: Json | null
+          id: string
+          include_tech_info: boolean
+          locale: string | null
+          message: string | null
+          platform: string | null
+          route: string | null
+          screen: Json | null
+          severity: string | null
+          timezone: string | null
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          app_version?: string | null
+          build?: string | null
+          category?: string | null
+          contact_email?: string | null
+          created_at?: string
+          extra?: Json | null
+          id?: string
+          include_tech_info?: boolean
+          locale?: string | null
+          message?: string | null
+          platform?: string | null
+          route?: string | null
+          screen?: Json | null
+          severity?: string | null
+          timezone?: string | null
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          app_version?: string | null
+          build?: string | null
+          category?: string | null
+          contact_email?: string | null
+          created_at?: string
+          extra?: Json | null
+          id?: string
+          include_tech_info?: boolean
+          locale?: string | null
+          message?: string | null
+          platform?: string | null
+          route?: string | null
+          screen?: Json | null
+          severity?: string | null
+          timezone?: string | null
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_medication_limits: {
         Row: {
           created_at: string
