@@ -7,6 +7,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { SaveButton } from '@/components/ui/save-button';
 import { Textarea } from '@/components/ui/textarea';
 import { Mic, Utensils, Activity, Droplets, Calendar, Heart, Eye } from 'lucide-react';
 import { toast } from 'sonner';
@@ -633,13 +634,11 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
               Zurücksetzen
             </Button>
             <div className="flex-1" />
-            <Button
+            <SaveButton
               onClick={handleSave}
-              disabled={isSaving}
-              className="min-w-[140px] bg-[#22C55E] hover:bg-[#16A34A] text-[#020617] font-semibold shadow-sm disabled:bg-[#4B5563] disabled:text-[#9CA3AF]"
-            >
-              {isSaving ? 'Speichert...' : 'Speichern'}
-            </Button>
+              loading={isSaving}
+              className="min-w-[140px]"
+            />
           </div>
         </div>
       </DialogContent>

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
-import { SaveButton } from "@/components/ui/navigation-buttons";
+import { SaveButton } from "@/components/ui/save-button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -766,13 +766,11 @@ export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProp
         >
           Abbrechen
         </Button>
-        <Button
+        <SaveButton
           onClick={handleSave}
           className="flex-1"
-          disabled={saving || createMut.isPending || updateMut.isPending || setEntrySymptomsMut.isPending}
-        >
-          {(saving || createMut.isPending || updateMut.isPending || setEntrySymptomsMut.isPending) ? "Wird gespeichert..." : "Speichern"}
-        </Button>
+          loading={saving || createMut.isPending || updateMut.isPending || setEntrySymptomsMut.isPending}
+        />
       </div>
       </div>
     </div>

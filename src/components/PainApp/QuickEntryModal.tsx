@@ -5,7 +5,8 @@ import { PainSlider } from "@/components/ui/pain-slider";
 import { normalizePainLevel } from "@/lib/utils/pain";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { X, Clock, Save, Zap, Mic, ChevronDown, ChevronUp } from "lucide-react";
+import { X, Clock, Zap, Mic, ChevronDown, ChevronUp } from "lucide-react";
+import { SaveButton } from "@/components/ui/save-button";
 import { useToast } from "@/hooks/use-toast";
 import { useMeds, useRecentMeds } from "@/features/meds/hooks/useMeds";
 import { useCreateEntry } from "@/features/entries/hooks/useEntryMutations";
@@ -482,15 +483,12 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
               <X className="h-4 w-4 mr-1" />
               Abbrechen
             </Button>
-            <Button 
-              variant="success"
+            <SaveButton 
               onClick={handleSave}
-              disabled={painLevel < 0 || saving}
+              disabled={painLevel < 0}
+              loading={saving}
               className="flex-1"
-            >
-              <Save className="h-4 w-4 mr-1" />
-              {saving ? "Speichere..." : "Speichern"}
-            </Button>
+            />
           </div>
         </div>
       </DialogContent>

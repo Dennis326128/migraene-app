@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { SaveButton } from "@/components/ui/save-button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -231,13 +232,11 @@ export function MedicationEffectModal({
             >
               Abbrechen
             </Button>
-            <Button 
+            <SaveButton 
               onClick={handleSave}
               disabled={!selectedMed || !effectRating}
               className="flex-1"
-            >
-              Speichern
-            </Button>
+            />
           </div>
         </div>
       </DialogContent>
