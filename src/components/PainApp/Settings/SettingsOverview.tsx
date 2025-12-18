@@ -1,10 +1,11 @@
 import { Card } from "@/components/ui/card";
-import { ChevronRight, Pill, Shield, HelpCircle, User, Stethoscope, LogOut, CloudSun } from "lucide-react";
+import { ChevronRight, Pill, Shield, HelpCircle, User, Stethoscope, LogOut, CloudSun, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
+import { FeedbackSheet } from "@/components/Feedback";
 
 interface SettingsOverviewProps {
   onNavigate: (section: 'medications' | 'privacy' | 'help' | 'account' | 'doctors' | 'logout') => void;
@@ -13,6 +14,7 @@ interface SettingsOverviewProps {
 export const SettingsOverview = ({ onNavigate }: SettingsOverviewProps) => {
   const isMobile = useIsMobile();
   const [loading, setLoading] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
 
   const handleWeatherBackfill = async () => {
     setLoading(true);
@@ -73,6 +75,13 @@ export const SettingsOverview = ({ onNavigate }: SettingsOverviewProps) => {
       title: 'Hilfe & Tutorial',
       description: 'App-Tour wiederholen und Hilfe erhalten',
       gradient: 'from-accent/10 to-accent/5',
+    },
+    {
+      id: 'feedback' as const,
+      icon: MessageSquare,
+      title: 'Feedback',
+      description: 'Verbesserungsvorschläge oder Fehler melden',
+      gradient: 'from-violet-500/10 to-violet-500/5',
     },
     {
       id: 'logout' as const,
@@ -140,7 +149,13 @@ export const SettingsOverview = ({ onNavigate }: SettingsOverviewProps) => {
               section.gradient,
               isMobile && "p-4"
             )}
-            onClick={() => onNavigate(section.id)}
+            onClick={() => {
+              if (section.id === 'feedback') {
+                setShowFeedback(true);
+              } else {
+                onNavigate(section.id as any);
+              }
+            }}
           >
             <div className="flex items-center gap-4">
               <div className={cn(
@@ -176,6 +191,9 @@ export const SettingsOverview = ({ onNavigate }: SettingsOverviewProps) => {
           </Card>
         );
       })}
+      
+      {/* Feedback Sheet */}
+      <FeedbackSheet open={showFeedback} onOpenChange={setShowFeedback} />
     </div>
   );
 };
