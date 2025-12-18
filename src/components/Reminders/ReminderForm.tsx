@@ -162,7 +162,20 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
     setTimes(newTimes);
   };
 
-  // FIXED: Default date is ALWAYS today for new reminders
+  // FIXED: Default date is ALWAYS today for new reminders (all types)
+  const getDefaultDate = (): string => {
+    // For editing: use existing date
+    if (reminder) {
+      return extractDateFromDateTime(reminder.date_time);
+    }
+    // For prefill: use prefill date if valid, otherwise today
+    if (prefill?.prefill_date && prefill.prefill_date.trim().length > 0) {
+      return prefill.prefill_date;
+    }
+    // Default: ALWAYS today
+    return getTodayDate();
+  };
+
   const defaultValues: FormData = reminder
     ? {
         type: reminder.type,
@@ -178,8 +191,8 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
     ? {
         type: prefill.type,
         title: prefill.title,
-        date: prefill.prefill_date || getTodayDate(), // ALWAYS today if no prefill
-        time: (prefill as any).prefill_time || '',
+        date: getDefaultDate(), // ALWAYS today if no valid prefill_date
+        time: (prefill as any).prefill_time || format(new Date(), 'HH:mm'),
         repeat: prefill.repeat || 'none',
         notes: prefill.notes || '',
         notification_enabled: prefill.notification_enabled ?? true,
