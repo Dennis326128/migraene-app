@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Bell, BellOff, Clock, Plus, Pencil, Trash2, Calendar, X } from "lucide-react";
-import { format } from "date-fns";
+import { format, addMonths, addDays } from "date-fns";
 import { de } from "date-fns/locale";
 import { toast } from "sonner";
 import { useCreateReminder, useUpdateReminder, useDeleteReminder } from "@/features/reminders/hooks/useReminders";
@@ -21,6 +21,10 @@ interface MedicationReminderSheetProps {
   onClose: () => void;
   medication: Med | null;
   reminderStatus?: MedicationReminderStatus;
+  // Alternative: pass just a medication name (for courses)
+  medicationName?: string;
+  // If true, default to monthly repeat (for prophylaxis courses)
+  isProphylaxis?: boolean;
 }
 
 export const MedicationReminderSheet: React.FC<MedicationReminderSheetProps> = ({
@@ -28,14 +32,31 @@ export const MedicationReminderSheet: React.FC<MedicationReminderSheetProps> = (
   onClose,
   medication,
   reminderStatus,
+  medicationName: providedMedicationName,
+  isProphylaxis = false,
 }) => {
   const createReminder = useCreateReminder();
   const updateReminder = useUpdateReminder();
   const deleteReminder = useDeleteReminder();
   
+  // Determine medication name from either Med object or direct prop
+  const medicationName = medication?.name ?? providedMedicationName ?? "";
+  
+  // Default repeat based on medication type
+  const defaultRepeat: ReminderRepeat = isProphylaxis ? "monthly" : "daily";
+  
+  // Smart default date for prophylaxis (next month) vs regular (today)
+  const smartDefaultDate = useMemo(() => {
+    if (isProphylaxis) {
+      return format(addMonths(new Date(), 1), 'yyyy-MM-dd');
+    }
+    return format(new Date(), 'yyyy-MM-dd');
+  }, [isProphylaxis]);
+  
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [newTime, setNewTime] = useState("12:00");
-  const [newRepeat, setNewRepeat] = useState<ReminderRepeat>("daily");
+  const [newDate, setNewDate] = useState(smartDefaultDate);
+  const [newTime, setNewTime] = useState("09:00");
+  const [newRepeat, setNewRepeat] = useState<ReminderRepeat>(defaultRepeat);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [reminderToDelete, setReminderToDelete] = useState<Reminder | null>(null);
   
@@ -44,12 +65,12 @@ export const MedicationReminderSheet: React.FC<MedicationReminderSheetProps> = (
     isActive = false, 
     reminders = [], 
     nextTriggerDate = null, 
-    isIntervalMed = false, 
+    isIntervalMed = isProphylaxis, 
     reminderCount = 0 
   } = reminderStatus ?? {};
 
-  // Early return if no medication (prevents rendering with null data)
-  if (!medication) {
+  // Early return if no medication name
+  if (!medicationName) {
     return null;
   }
 
@@ -66,21 +87,22 @@ export const MedicationReminderSheet: React.FC<MedicationReminderSheetProps> = (
   const handleCreateReminder = async () => {
     setIsSubmitting(true);
     try {
-      const today = format(new Date(), 'yyyy-MM-dd');
-      const dateTime = `${today}T${newTime}:00`;
+      // Use the selected date for prophylaxis or today for regular meds
+      const dateToUse = isProphylaxis ? newDate : format(new Date(), 'yyyy-MM-dd');
+      const dateTime = `${dateToUse}T${newTime}:00`;
       
       await createReminder.mutateAsync({
         type: 'medication',
-        title: `${medication.name} einnehmen`,
+        title: `${medicationName} einnehmen`,
         date_time: dateTime,
         repeat: newRepeat,
         notification_enabled: true,
-        medications: [medication.name],
+        medications: [medicationName],
       });
       
       setShowCreateForm(false);
-      setNewTime("12:00");
-      setNewRepeat("daily");
+      setNewTime("09:00");
+      setNewRepeat(defaultRepeat);
       toast.success("Erinnerung erstellt");
     } catch (error) {
       console.error("Error creating reminder:", error);
@@ -141,7 +163,7 @@ export const MedicationReminderSheet: React.FC<MedicationReminderSheetProps> = (
                 isActive ? "text-primary" : "text-muted-foreground"
               )} />
               <SheetTitle className="text-lg">
-                Erinnerung für {medication.name}
+                Erinnerung für {medicationName}
               </SheetTitle>
             </div>
             <SheetDescription>
@@ -224,6 +246,20 @@ export const MedicationReminderSheet: React.FC<MedicationReminderSheetProps> = (
                     </Button>
                   </div>
                   
+                  {/* Date picker for prophylaxis (interval meds) */}
+                  {isProphylaxis && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">Datum der nächsten Einnahme</Label>
+                      <input
+                        type="date"
+                        value={newDate}
+                        onChange={(e) => setNewDate(e.target.value)}
+                        min={format(new Date(), 'yyyy-MM-dd')}
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      />
+                    </div>
+                  )}
+                  
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <Label className="text-xs text-muted-foreground">Uhrzeit</Label>
@@ -288,7 +324,7 @@ export const MedicationReminderSheet: React.FC<MedicationReminderSheetProps> = (
           <AlertDialogHeader>
             <AlertDialogTitle>Erinnerung löschen?</AlertDialogTitle>
             <AlertDialogDescription>
-              Diese Erinnerung für {medication.name} wird unwiderruflich gelöscht.
+              Diese Erinnerung für {medicationName} wird unwiderruflich gelöscht.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

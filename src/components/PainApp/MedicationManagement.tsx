@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useMeds, useAddMed, useDeleteMed, type Med, type CreateMedInput } from "@/features/meds/hooks/useMeds";
 import { useCreateReminder } from "@/features/reminders/hooks/useReminders";
-import { useMedicationsReminderMap, type MedicationReminderStatus } from "@/features/reminders/hooks/useMedicationReminders";
+import { useMedicationsReminderMap, useCoursesReminderMap, type MedicationReminderStatus } from "@/features/reminders/hooks/useMedicationReminders";
 import { parseMedicationInput, parsedToMedInput } from "@/lib/utils/parseMedicationInput";
 import { Pill, Plus, Pencil, Trash2, Bell, BellOff, ArrowLeft, Clock, AlertTriangle, Download, Loader2, Ban, History, ChevronDown, Mic, MicOff } from "lucide-react";
 import { toast } from "sonner";
@@ -169,13 +169,15 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
   const deleteMed = useDeleteMed();
   const createReminder = useCreateReminder();
   
-  // Get reminder status for all medications
+  // Get reminder status for all medications and courses
   const reminderStatusMap = useMedicationsReminderMap(medications || []);
+  const courseReminderMap = useCoursesReminderMap(medicationCourses?.filter(c => c.is_active) || []);
   
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showReminderModal, setShowReminderModal] = useState(false);
+  const [showCourseReminderModal, setShowCourseReminderModal] = useState(false);
   const [showDoctorSelection, setShowDoctorSelection] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   
@@ -184,6 +186,7 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
   const [showIntolerance, setShowIntolerance] = useState(true);
   
   const [selectedMedication, setSelectedMedication] = useState<Med | null>(null);
+  const [selectedCourse, setSelectedCourse] = useState<MedicationCourse | null>(null);
   const [medicationName, setMedicationName] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   
@@ -487,6 +490,11 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
     setShowReminderModal(true);
   };
 
+  const openCourseReminderDialog = (course: MedicationCourse) => {
+    setSelectedCourse(course);
+    setShowCourseReminderModal(true);
+  };
+
   const handleCreateReminders = async (remindersData: {
     time: string;
     repeat: ReminderRepeat;
@@ -666,13 +674,14 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
                 <MedicationCourseCard
                   key={course.id}
                   course={course}
+                  reminderStatus={courseReminderMap.get(course.id)}
                   onEdit={(c) => {
                     // Öffne Course Wizard - wird durch MedicationCoursesList gehandhabt
-                    // Hier nur Click-Handler für Konsistenz
                   }}
                   onDelete={(c) => {
                     // Löschen wird durch MedicationCoursesList gehandhabt
                   }}
+                  onReminder={(c) => openCourseReminderDialog(c)}
                 />
               ))}
               {/* Reguläre Medikamente aus user_medications */}
@@ -973,6 +982,19 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
         }}
         medication={selectedMedication}
         reminderStatus={selectedMedication ? reminderStatusMap.get(selectedMedication.id) : undefined}
+      />
+
+      {/* Course Reminder Sheet (for Prophylaxis like Ajovy) */}
+      <MedicationReminderSheet
+        isOpen={showCourseReminderModal}
+        onClose={() => {
+          setShowCourseReminderModal(false);
+          setSelectedCourse(null);
+        }}
+        medication={null}
+        medicationName={selectedCourse?.medication_name}
+        reminderStatus={selectedCourse ? courseReminderMap.get(selectedCourse.id) : undefined}
+        isProphylaxis={true}
       />
     </div>
   );
