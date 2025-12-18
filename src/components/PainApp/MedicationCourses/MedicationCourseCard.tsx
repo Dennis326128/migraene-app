@@ -2,15 +2,19 @@ import React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, Trash2, Calendar, Star, AlertCircle } from "lucide-react";
+import { Pencil, Trash2, Calendar, Star, AlertCircle, Bell, BellOff } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
 import type { MedicationCourse } from "@/features/medication-courses";
+import type { MedicationReminderStatus } from "@/features/reminders/hooks/useMedicationReminders";
+import { cn } from "@/lib/utils";
 
 interface MedicationCourseCardProps {
   course: MedicationCourse;
+  reminderStatus?: MedicationReminderStatus;
   onEdit: (course: MedicationCourse) => void;
   onDelete: (course: MedicationCourse) => void;
+  onReminder?: (course: MedicationCourse) => void;
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -48,9 +52,20 @@ function formatDateRange(startDate: string, endDate: string | null, isActive: bo
 
 export const MedicationCourseCard: React.FC<MedicationCourseCardProps> = ({
   course,
+  reminderStatus,
   onEdit,
   onDelete,
+  onReminder,
 }) => {
+  const hasActiveReminder = reminderStatus?.isActive ?? false;
+  const nextTriggerDate = reminderStatus?.nextTriggerDate;
+  
+  // Format next trigger date for display
+  const formatNextDate = () => {
+    if (!nextTriggerDate) return null;
+    return format(nextTriggerDate, 'dd.MM.yyyy');
+  };
+
   return (
     <Card className="hover:shadow-md transition-shadow">
       <CardContent className="p-4">
@@ -103,6 +118,23 @@ export const MedicationCourseCard: React.FC<MedicationCourseCardProps> = ({
               </div>
             )}
 
+            {/* Reminder status for active courses */}
+            {course.is_active && onReminder && (
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground leading-tight">
+                {hasActiveReminder ? (
+                  <>
+                    <Bell className="h-3.5 w-3.5 text-primary" />
+                    <span>Erinnerung aktiv{formatNextDate() && ` · nächste: ${formatNextDate()}`}</span>
+                  </>
+                ) : (
+                  <>
+                    <BellOff className="h-3.5 w-3.5" />
+                    <span>Keine Erinnerung eingerichtet</span>
+                  </>
+                )}
+              </div>
+            )}
+
             {/* Absetzgrund (nur wenn nicht aktiv) */}
             {!course.is_active && course.discontinuation_reason && (
               <p className="text-xs text-muted-foreground">
@@ -113,6 +145,25 @@ export const MedicationCourseCard: React.FC<MedicationCourseCardProps> = ({
 
           {/* Actions */}
           <div className="flex items-center gap-1 shrink-0">
+            {/* Reminder button - only for active courses */}
+            {course.is_active && onReminder && (
+              <Button
+                variant={hasActiveReminder ? "secondary" : "ghost"}
+                size="icon"
+                onClick={() => onReminder(course)}
+                title={hasActiveReminder ? "Erinnerung bearbeiten" : "Erinnerung einrichten"}
+                className={cn(
+                  "h-10 w-10",
+                  hasActiveReminder && "bg-primary/10 hover:bg-primary/20"
+                )}
+              >
+                {hasActiveReminder ? (
+                  <Bell className="h-4 w-4 text-primary" />
+                ) : (
+                  <BellOff className="h-4 w-4 text-muted-foreground" />
+                )}
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon"
