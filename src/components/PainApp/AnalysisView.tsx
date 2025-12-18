@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, BarChart3, Brain } from "lucide-react";
+import { ArrowLeft, BarChart3, Brain, AlertTriangle } from "lucide-react";
 import { TimeRangeButtons, type TimeRangePreset } from "./TimeRangeButtons";
 import TimeSeriesChart from "@/components/TimeSeriesChart";
 import { useEntries } from "@/features/entries/hooks/useEntries";
@@ -13,11 +13,11 @@ import { useMedicationEffectsForEntries } from "@/features/medication-effects/ho
 import { useMedicationLimits } from "@/features/medication-limits/hooks/useMedicationLimits";
 import { computeStatistics } from "@/lib/statistics";
 import type { MedicationEffect, MedicationLimit, EntrySymptom } from "@/lib/statistics";
-import { AlertTriangle } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { FullscreenChartModal, FullscreenChartButton } from "./FullscreenChartModal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { subMonths, startOfDay, endOfDay } from "date-fns";
+import { useUserDefaults } from "@/features/settings/hooks/useUserSettings";
 
 // Session storage keys
 const SESSION_KEY_PRESET = "stats_timeRange_preset";
@@ -69,6 +69,10 @@ export function AnalysisView({ onBack, onNavigateToLimits }: AnalysisViewProps) 
   // Fullscreen modals
   const [timeDistributionFullscreen, setTimeDistributionFullscreen] = useState(false);
   const [timeSeriesFullscreen, setTimeSeriesFullscreen] = useState(false);
+
+  // User settings for warning threshold
+  const { data: userDefaults } = useUserDefaults();
+  const warningThreshold = userDefaults?.medication_limit_warning_threshold_pct ?? 80;
 
   // Persist timeRange to sessionStorage
   useEffect(() => {
@@ -194,6 +198,25 @@ export function AnalysisView({ onBack, onNavigateToLimits }: AnalysisViewProps) 
     );
   }, [filteredEntries, medicationEffectsData, entrySymptoms, medicationLimits, entries]);
 
+  // TEIL D: Check if any medication has warning/reached/exceeded status
+  const hasOveruseWarning = useMemo(() => {
+    return patternStats.medicationAndEffect.topMedications.some(med => {
+      if (!med.limitInfo) return false;
+      const percentage = (med.limitInfo.rolling30Count / med.limitInfo.limit) * 100;
+      // Show banner if percentage >= user's threshold OR already over limit
+      return percentage >= warningThreshold || med.limitInfo.isOverLimit;
+    });
+  }, [patternStats, warningThreshold]);
+
+  // Get medications with warnings for display
+  const medicationsWithWarning = useMemo(() => {
+    return patternStats.medicationAndEffect.topMedications.filter(med => {
+      if (!med.limitInfo) return false;
+      const percentage = (med.limitInfo.rolling30Count / med.limitInfo.limit) * 100;
+      return percentage >= warningThreshold || med.limitInfo.isOverLimit;
+    });
+  }, [patternStats, warningThreshold]);
+
   const { data: timeDistribution = [] } = useTimeDistribution({ from, to });
 
   return (
@@ -221,13 +244,12 @@ export function AnalysisView({ onBack, onNavigateToLimits }: AnalysisViewProps) 
           </TabsList>
 
           <TabsContent value="statistik" className="mt-6">
-            {/* Time Range Selection */}
+            {/* TEIL A: Simplified Time Range Selection */}
             <Card className="mb-6">
-              <CardHeader>
-                <CardTitle className="text-base">Filter & Zeitraum</CardTitle>
-                <p className="text-sm text-muted-foreground">Zeitraum</p>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Zeitraum</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-0">
                 <TimeRangeButtons 
                   value={timeRange}
                   onChange={handleTimeRangeChange}
@@ -290,23 +312,28 @@ export function AnalysisView({ onBack, onNavigateToLimits }: AnalysisViewProps) 
               <>
                 <PatternCards statistics={patternStats} isLoading={entriesLoading} />
 
-                {onNavigateToLimits && (
-                  <Card className="border-primary/20 bg-primary/5 mb-6">
+                {/* TEIL D: Conditional overuse banner - only when warning/reached/exceeded */}
+                {onNavigateToLimits && hasOveruseWarning && (
+                  <Card className="border-warning/50 bg-warning/10 mb-6">
                     <CardContent className="p-4">
                       <div className="flex items-start gap-3">
-                        <AlertTriangle className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
+                        <AlertTriangle className="h-5 w-5 text-warning flex-shrink-0 mt-0.5" />
                         <div className="flex-1">
-                          <h4 className="font-medium mb-1">Medikamenten-Übergebrauch im Blick</h4>
-                          <p className="text-sm text-muted-foreground mb-3">
-                            Überwache deine Medikamenteneinnahme und vermeide Überkonsum durch individuelle Limits.
+                          <h4 className="font-medium mb-1">
+                            {medicationsWithWarning.some(m => m.limitInfo?.isOverLimit)
+                              ? "Medikamenten-Übergebrauch"
+                              : "Übergebrauch droht"
+                            }
+                          </h4>
+                          <p className="text-sm text-muted-foreground mb-2">
+                            {medicationsWithWarning.map(m => m.name).join(", ")}
                           </p>
                           <Button 
                             variant="outline" 
                             size="sm"
                             onClick={onNavigateToLimits}
-                            className="w-full sm:w-auto"
                           >
-                            📊 Zur Limits-Übersicht
+                            Zur Limits-Übersicht
                           </Button>
                         </div>
                       </div>
@@ -316,13 +343,8 @@ export function AnalysisView({ onBack, onNavigateToLimits }: AnalysisViewProps) 
 
                 {/* Time Distribution Chart */}
                 <Card className="mb-6">
-                  <CardHeader className="flex flex-row items-center justify-between">
-                    <div>
-                      <CardTitle>Tageszeit-Verteilung</CardTitle>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Anzahl Migräne-Episoden nach Tageszeit
-                      </p>
-                    </div>
+                  <CardHeader className="flex flex-row items-center justify-between pb-2">
+                    <CardTitle className="text-base">Tageszeit-Verteilung</CardTitle>
                     <FullscreenChartButton onClick={() => setTimeDistributionFullscreen(true)} />
                   </CardHeader>
                   <CardContent>
@@ -332,13 +354,8 @@ export function AnalysisView({ onBack, onNavigateToLimits }: AnalysisViewProps) 
 
                 {/* Time Series Chart */}
                 <Card className="mb-6">
-                  <CardHeader className="flex flex-row items-center justify-between">
-                    <div>
-                      <CardTitle>Schmerz- & Wetterverlauf</CardTitle>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Zeitlicher Verlauf von Schmerzintensität, Temperatur und Luftdruck
-                      </p>
-                    </div>
+                  <CardHeader className="flex flex-row items-center justify-between pb-2">
+                    <CardTitle className="text-base">Schmerz- & Wetterverlauf</CardTitle>
                     <FullscreenChartButton onClick={() => setTimeSeriesFullscreen(true)} />
                   </CardHeader>
                   <CardContent>
@@ -350,29 +367,23 @@ export function AnalysisView({ onBack, onNavigateToLimits }: AnalysisViewProps) 
                 </Card>
 
                 {/* Hint to AI Tab */}
-                <Card 
-                  className="mb-6 border-primary/20 bg-primary/5"
-                >
+                <Card className="mb-6 border-primary/20 bg-primary/5">
                   <CardContent className="p-4">
                     <div className="flex items-start gap-3">
                       <Brain className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
                       <div className="flex-1">
-                        <h4 className="font-medium mb-1">Noch mehr Zusammenhänge sehen?</h4>
+                        <h4 className="font-medium mb-1">Mehr Zusammenhänge?</h4>
                         <p className="text-sm text-muted-foreground mb-3">
-                          Im Tab <strong>"KI-Muster"</strong> analysiert die KI deine Voice-Notizen, Eintragsnotizen, Symptome, Wetterdaten und Medikamente, um mögliche Trigger und Zusammenhänge zu erkennen.
+                          Im Tab <strong>"KI-Muster"</strong> analysiert die KI deine Daten nach möglichen Triggern.
                         </p>
                         <Button 
                           variant="outline" 
                           size="sm"
                           onClick={() => setViewMode("ki-muster")}
-                          className="w-full sm:w-auto"
                         >
                           <Brain className="h-4 w-4 mr-2" />
-                          Zur KI-Muster-Analyse
+                          Zur KI-Analyse
                         </Button>
-                        <p className="text-xs text-muted-foreground mt-3">
-                          Diese KI-basierte Analyse dient als Orientierungshilfe und ersetzt keine ärztliche Diagnose.
-                        </p>
                       </div>
                     </div>
                   </CardContent>
@@ -383,29 +394,29 @@ export function AnalysisView({ onBack, onNavigateToLimits }: AnalysisViewProps) 
 
           <TabsContent value="ki-muster" className="mt-6">
             <VoiceNotesAIAnalysis />
-        </TabsContent>
-      </Tabs>
+          </TabsContent>
+        </Tabs>
       </div>
 
       {/* Fullscreen Modals */}
       <FullscreenChartModal
-          open={timeDistributionFullscreen}
-          onOpenChange={setTimeDistributionFullscreen}
-          title="Tageszeit-Verteilung"
-        >
-          <TimeDistributionChart data={timeDistribution} />
-        </FullscreenChartModal>
+        open={timeDistributionFullscreen}
+        onOpenChange={setTimeDistributionFullscreen}
+        title="Tageszeit-Verteilung"
+      >
+        <TimeDistributionChart data={timeDistribution} />
+      </FullscreenChartModal>
 
-        <FullscreenChartModal
-          open={timeSeriesFullscreen}
-          onOpenChange={setTimeSeriesFullscreen}
-          title="Schmerz- & Wetterverlauf"
-        >
-          <TimeSeriesChart 
-            entries={filteredEntries}
-            dateRange={{ from, to }}
-          />
-        </FullscreenChartModal>
+      <FullscreenChartModal
+        open={timeSeriesFullscreen}
+        onOpenChange={setTimeSeriesFullscreen}
+        title="Schmerz- & Wetterverlauf"
+      >
+        <TimeSeriesChart 
+          entries={filteredEntries}
+          dateRange={{ from, to }}
+        />
+      </FullscreenChartModal>
     </div>
   );
 }

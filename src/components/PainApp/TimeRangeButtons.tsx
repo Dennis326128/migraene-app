@@ -21,39 +21,28 @@ export function TimeRangeButtons({ value, onChange, className = "", compact = fa
     { key: "custom", label: "Benutzerdefiniert" }
   ];
 
-  if (compact) {
-    // Compact horizontal scroll layout for PDF export
-    return (
-      <div className={`overflow-x-auto -mx-1 px-1 ${className}`}>
-        <div className="flex gap-1.5 whitespace-nowrap pb-1">
-          {presets.map(({ key, label }) => (
-            <Button
-              key={key}
-              variant={value === key ? "default" : "outline"}
-              onClick={() => onChange(key)}
-              className="h-8 px-3 text-xs shrink-0"
-            >
-              {label}
-            </Button>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  // Default grid layout
+  // TEIL A: Single row horizontal scrollable chip bar
+  // Works on all screen sizes - scrolls on small screens, fits on large
   return (
-    <div className={`grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 ${className}`}>
-      {presets.map(({ key, label }) => (
-        <Button
-          key={key}
-          variant={value === key ? "default" : "outline"}
-          onClick={() => onChange(key)}
-          className="text-xs sm:text-sm"
-        >
-          {label}
-        </Button>
-      ))}
+    <div className={`overflow-x-auto -mx-1 px-1 ${className}`}>
+      <div className="flex gap-2 pb-1" style={{ WebkitOverflowScrolling: 'touch' }}>
+        {presets.map(({ key, label }) => (
+          <Button
+            key={key}
+            variant={value === key ? "default" : "outline"}
+            onClick={() => onChange(key)}
+            className={`
+              shrink-0 whitespace-nowrap touch-manipulation
+              ${compact 
+                ? "h-8 px-3 text-xs" 
+                : "h-11 px-4 text-sm min-w-[80px]"
+              }
+            `}
+          >
+            {label}
+          </Button>
+        ))}
+      </div>
     </div>
   );
 }
