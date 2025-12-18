@@ -42,7 +42,7 @@ export interface MedicationLimitInfo {
 export interface MedicationEffectStats {
   name: string;
   rangeCount: number;        // Einnahmen im Zeitraum
-  avgEffect: number | null;  // Durchschnitt auf 0-5 Skala (null wenn keine Bewertungen)
+  avgEffect: number | null;  // Durchschnitt auf 0-10 Skala (null wenn keine Bewertungen)
   ratedCount: number;        // Anzahl bewerteter Einnahmen
   sideEffectCount: number;
   limitInfo?: MedicationLimitInfo;
@@ -245,7 +245,7 @@ export function computeStatistics(
 
   // 4. Medikamente & Wirkung (TEIL E: Mit echten Wirkungsdaten)
   const medCounts = new Map<string, number>(); // Count im ausgewählten Zeitraum
-  // NEW: Track effect scores per medication (0-5 scale)
+  // NEW: Track effect scores per medication (0-10 scale)
   const medEffectScores = new Map<string, number[]>();
   const medSideEffects = new Map<string, number>();
 

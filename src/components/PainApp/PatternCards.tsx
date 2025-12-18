@@ -89,7 +89,7 @@ function MedicationEffectDisplay({ med, showLimit = false }: { med: MedicationEf
         {med.avgEffect !== null ? (
           <>
             <span className="text-muted-foreground">Ø Wirkung:</span>
-            <span className="font-medium">{med.avgEffect}/5</span>
+            <span className="font-medium">{med.avgEffect}/10</span>
             <span className="text-xs text-muted-foreground">
               ({getEffectLabel(Math.round(med.avgEffect))})
             </span>

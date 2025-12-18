@@ -4,7 +4,7 @@ import { getEffectLabel, getEffectEmoji, getEffectColor } from "@/lib/utils/medi
 interface MedicationStat {
   name: string;
   count: number;
-  avgEffect: number | null;  // 0-5 scale (already normalized)
+  avgEffect: number | null;  // 0-10 scale
   ratedCount: number;
 }
 
@@ -51,7 +51,7 @@ export default function MedicationStatisticsCard({ from, to, medications }: Medi
               {med.avgEffect !== null ? (
                 <div className="flex items-center gap-2">
                   <span style={{ color: getEffectColor(Math.round(med.avgEffect)) }}>
-                    • Ø Wirkung: {med.avgEffect.toFixed(1)}/5
+                    • Ø Wirkung: {med.avgEffect.toFixed(1)}/10
                   </span>
                   <span className="text-base">{getEffectEmoji(Math.round(med.avgEffect))}</span>
                   <span className="text-xs text-muted-foreground">
