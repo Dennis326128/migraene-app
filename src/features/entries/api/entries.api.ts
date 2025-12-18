@@ -68,6 +68,8 @@ export async function listEntries(params: ListParams = {}): Promise<PainEntry[]>
       selected_date,
       selected_time,
       pain_level,
+      pain_location,
+      aura_type,
       medications,
       notes,
       weather:weather_logs!pain_entries_weather_id_fkey (
@@ -91,6 +93,8 @@ export async function listEntries(params: ListParams = {}): Promise<PainEntry[]>
 
   return (data || []).map((e: any) => ({
     ...e,
+    pain_location: e.pain_location || null,
+    aura_type: e.aura_type || 'keine',
     medications: e.medications || [],
     weather: normalizeWeather(e.weather),
   })) as PainEntry[];
@@ -100,7 +104,7 @@ export async function getEntry(id: string): Promise<PainEntry | null> {
   const { data, error } = await supabase
     .from("pain_entries")
     .select(`
-      id, timestamp_created, selected_date, selected_time, pain_level, medications, notes,
+      id, timestamp_created, selected_date, selected_time, pain_level, pain_location, aura_type, medications, notes,
       weather:weather_logs!pain_entries_weather_id_fkey (
         id, location, temperature_c, pressure_mb, humidity, condition_text, pressure_change_24h, moon_phase, moonrise, moonset
       )
@@ -113,6 +117,8 @@ export async function getEntry(id: string): Promise<PainEntry | null> {
 
   return {
     ...data,
+    pain_location: data.pain_location || null,
+    aura_type: data.aura_type || 'keine',
     medications: data.medications || [],
     weather: normalizeWeather(data.weather),
   } as PainEntry;
