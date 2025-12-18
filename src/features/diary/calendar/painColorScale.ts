@@ -1,38 +1,26 @@
 /**
- * Pain Color Scale - Migraine-friendly palette
+ * Pain Color Scale - Clean Orange→Red Heatmap
  * 
  * Design goals:
- * - Low pain (0-3): Cool, calming colors (blue-gray)
- * - Medium pain (4-6): Neutral transition (sand/beige, NOT orange)
- * - High pain (7-8): Warm but dark (dark red/reddish brown)
- * - Severe pain (9-10): Clear warning (bright red)
- * - Good contrast for dark mode text readability
+ * - Low pain (0-3): Neutral/dark (no orange tint)
+ * - Medium pain (4-7): Amber/orange gradient
+ * - High pain (8-10): Red, with 10 being bright alarm red
+ * - Good contrast for text readability
  */
 
-// Direct color definitions - no CSS variable dependency for predictable results
-// All colors in HSL format: { h: hue (0-360), s: saturation (0-100), l: lightness (0-100) }
-
-const PAIN_COLORS: Record<number, { h: number; s: number; l: number }> = {
-  // 0: Almost invisible / very subtle neutral
-  0: { h: 220, s: 10, l: 25 },  // Very dark blue-gray, barely visible
-  
-  // 1-3: Cool, desaturated blue-gray (calming)
-  1: { h: 210, s: 15, l: 35 },  // Dark cool gray
-  2: { h: 205, s: 18, l: 42 },  // Cool gray
-  3: { h: 200, s: 20, l: 48 },  // Light cool gray
-  
-  // 4-6: Neutral transition (sand/beige/warm gray - NOT orange)
-  4: { h: 45, s: 15, l: 50 },   // Muted sand
-  5: { h: 40, s: 22, l: 52 },   // Warm sand
-  6: { h: 35, s: 28, l: 48 },   // Deeper sand/tan
-  
-  // 7-8: Warm but dark (reddish brown)
-  7: { h: 15, s: 45, l: 40 },   // Dark reddish brown
-  8: { h: 8, s: 55, l: 38 },    // Deep red-brown
-  
-  // 9-10: Clear warning red
-  9: { h: 0, s: 70, l: 45 },    // Strong red
-  10: { h: 0, s: 85, l: 50 },   // Bright signal red
+// Direct hex colors for predictable results
+const PAIN_COLORS_HEX: Record<number, string> = {
+  0: 'rgba(255, 255, 255, 0.03)',  // Nearly transparent
+  1: '#2a2f36',  // Neutral dark, minimal warm
+  2: '#333842',  // Neutral dark
+  3: '#3d4350',  // Neutral dark, slightly lighter
+  4: '#fbbf24',  // amber-400
+  5: '#f59e0b',  // amber-500
+  6: '#f97316',  // orange-500
+  7: '#fb5a3c',  // orange-red transition
+  8: '#ef4444',  // red-500
+  9: '#dc2626',  // red-600
+  10: '#ff2d2d', // Bright alarm red
 };
 
 // Generate 11 colors for pain levels 0-10
@@ -44,8 +32,7 @@ export function generateColorScale(): string[] {
   const colors: string[] = [];
   
   for (let level = 0; level <= 10; level++) {
-    const color = PAIN_COLORS[level];
-    colors.push(`hsl(${color.h} ${color.s}% ${color.l}%)`);
+    colors.push(PAIN_COLORS_HEX[level]);
   }
   
   cachedColorScale = colors;
@@ -63,16 +50,19 @@ export function getColorForPain(painLevel: number | null): string {
   return colors[level];
 }
 
-// Determine if dark text should be used on a pain color background
-// Based on lightness and saturation of the color
-export function shouldUseDarkText(painLevel: number | null): boolean {
-  if (painLevel === null || painLevel === undefined) return false;
+// Get text color for contrast on pain backgrounds
+export function getTextColorForPain(painLevel: number | null): string {
+  if (painLevel === null || painLevel === undefined) return '#fff';
   
-  // With our new palette:
-  // 0-3: Dark backgrounds (blue-gray) -> light text
-  // 4-6: Medium backgrounds (sand) -> dark text works
-  // 7-10: Dark backgrounds (red tones) -> light text
-  return painLevel >= 4 && painLevel <= 6;
+  // 0-3: Light gray text on dark neutral backgrounds
+  // 4+: White text on colored backgrounds
+  return painLevel <= 3 ? '#cbd5e1' : '#ffffff';
+}
+
+// Determine if dark text should be used (kept for backwards compat, but now unused)
+export function shouldUseDarkText(painLevel: number | null): boolean {
+  // All backgrounds now use light text
+  return false;
 }
 
 // Check if this is a severe pain level (for visual emphasis)
