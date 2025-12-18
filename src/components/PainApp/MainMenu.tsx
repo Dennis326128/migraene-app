@@ -5,7 +5,7 @@ import { QuickEntryModal } from "./QuickEntryModal";
 import { StartPageCard, StartPageCardHeader, StartPageButtonGrid, SectionHeader, CardBadge } from "@/components/ui/start-page-card";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Mic, MessageCircle, X, RefreshCw } from "lucide-react";
+import { Mic, X, RefreshCw } from "lucide-react";
 
 import { useOnboarding } from "@/hooks/useOnboarding";
 import { ReminderFormWithVoiceData } from "@/components/Reminders/ReminderFormWithVoiceData";
@@ -20,7 +20,6 @@ import { setVoiceDraft } from '@/lib/voice/voiceDraftStorage';
 import { QuickContextNoteModal } from "./QuickContextNoteModal";
 import { VoiceHelpOverlay } from "./VoiceHelpOverlay";
 import { VoiceAssistantOverlay } from "./VoiceAssistantOverlay";
-import { VoiceQAOverlay, getLastQAFromSession, clearLastQAFromSession, type QAAnswer } from "./VoiceQAOverlay";
 import { UpcomingWarningBanner } from "@/components/Reminders/UpcomingWarningBanner";
 import { CriticalMedicationPopup } from "@/components/Reminders/CriticalMedicationPopup";
 import { devError } from "@/lib/utils/devLogger";
@@ -57,8 +56,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   const [showQuickContextNote, setShowQuickContextNote] = useState(false);
   const [showVoiceHelp, setShowVoiceHelp] = useState(false);
   const [showVoiceAssistant, setShowVoiceAssistant] = useState(false);
-  const [showVoiceQA, setShowVoiceQA] = useState(false);
-  const [lastQAAnswer, setLastQAAnswer] = useState<QAAnswer | null>(() => getLastQAFromSession());
   
   const createReminder = useCreateReminder();
   const createMultipleReminders = useCreateMultipleReminders();
@@ -155,56 +152,9 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 icon={<Mic className="w-5 h-5 text-voice" />}
                 iconBgClassName="bg-voice-light/30"
                 title="Spracheingabe"
-                subtitle="Per Sprache erfassen"
-              />
-            </StartPageCard>
-
-            {/* 1.5) FRAGE STELLEN - Voice Q&A */}
-            <StartPageCard 
-              variant="neutral" 
-              touchFeedback
-              onClick={() => setShowVoiceQA(true)}
-            >
-              <StartPageCardHeader
-                icon={<MessageCircle className="w-5 h-5 text-primary" />}
-                iconBgClassName="bg-primary/20"
-                title="Frage stellen"
                 subtitle="Per Sprache oder Text"
               />
             </StartPageCard>
-
-            {/* Letzte Antwort Karte */}
-            {lastQAAnswer && (
-              <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs text-muted-foreground font-medium">Letzte Antwort</p>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-6 w-6"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      clearLastQAFromSession();
-                      setLastQAAnswer(null);
-                    }}
-                  >
-                    <X className="w-3 h-3" />
-                  </Button>
-                </div>
-                <p className="text-sm text-foreground line-clamp-2">{lastQAAnswer.answerShort}</p>
-                <div className="flex gap-2">
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="text-xs h-7"
-                    onClick={() => setShowVoiceQA(true)}
-                  >
-                    <RefreshCw className="w-3 h-3 mr-1" />
-                    Neue Frage
-                  </Button>
-                </div>
-              </div>
-            )}
 
             {/* 2) Migräne-Eintrag (Detail) */}
             <StartPageCard 
@@ -456,7 +406,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
       <VoiceAssistantOverlay
         open={showVoiceAssistant}
         onOpenChange={setShowVoiceAssistant}
-        onSelectAction={(action, draftText) => {
+        onSelectAction={(action, draftText, prefillData) => {
           if (draftText && draftText.trim()) {
             setVoiceDraft(draftText.trim());
           }
@@ -466,7 +416,8 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               onNewEntry();
               break;
             case 'quick_entry':
-              setVoiceData({ initialNotes: draftText });
+              // Use prefillData from voice recognition if available
+              setVoiceData(prefillData || { initialNotes: draftText });
               setShowQuickEntry(true);
               break;
             case 'medication':
@@ -479,17 +430,16 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               onNavigate?.('diary-timeline');
               break;
             case 'note':
+              // Notes are now saved directly in VoiceAssistantOverlay with undo
+              // This is fallback for manual selection
               setPendingVoiceNote(draftText);
               setShowVoiceNoteReview(true);
               break;
+            case 'question':
+              // Questions are handled directly in VoiceAssistantOverlay
+              break;
           }
         }}
-      />
-
-      <VoiceQAOverlay
-        open={showVoiceQA}
-        onOpenChange={setShowVoiceQA}
-        onAnswerReceived={(answer) => setLastQAAnswer(answer)}
       />
       
       {/* Critical medication reminder popup (shown once per day) */}

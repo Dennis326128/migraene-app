@@ -1,21 +1,23 @@
 /**
- * VoiceAssistantOverlay - Unified voice input dialog (Phase 1 + 2)
+ * VoiceAssistantOverlay - Unified voice input entry point
  * 
- * Phase 1: Migränefreundliches UX
- * - Kacheln NICHT dauerhaft sichtbar (progressive disclosure)
- * - "Fertig" führt zur Intent-Erkennung
- * - Bei sicherem Intent: 1 CTA + "Andere wählen"
- * - Bei unsicherem Intent: Grid mit Kacheln
- * - Lange Pausen tolerieren (kein Auto-Restart)
+ * Handles ALL voice/text intents:
+ * - Pain entries (quick/detail)
+ * - Questions (Q&A)
+ * - Context notes
+ * - Reminders
+ * - Medication updates
  * 
- * Phase 2: Analytics Q&A
- * - Erkennt Statistik-Fragen
- * - Zeigt Antwort als Karte
+ * Uses confidence-based auto-actions:
+ * - >= 0.85: Auto-execute
+ * - 0.60-0.85: Show confirmation
+ * - < 0.60: Show action picker
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Progress } from '@/components/ui/progress';
 import {
   Dialog,
   DialogContent,
@@ -37,7 +39,9 @@ import {
   Loader2,
   ChevronDown,
   BarChart3,
-  ExternalLink
+  MessageCircle,
+  RefreshCw,
+  Undo2
 } from 'lucide-react';
 import { isBrowserSttSupported } from '@/lib/voice/sttConfig';
 import { cn } from '@/lib/utils';
@@ -51,17 +55,27 @@ import {
   type ParsedAnalyticsQuery
 } from '@/lib/analytics/queryFunctions';
 import type { VoiceAnalyticsQuery } from '@/types/voice.types';
+import { saveVoiceNote } from '@/lib/voice/saveNote';
+import { toast } from 'sonner';
+
+// ============================================
+// Constants - Confidence Thresholds
+// ============================================
+
+const AUTO_ACTION_THRESHOLD = 0.85;
+const CONFIRM_THRESHOLD = 0.60;
 
 // ============================================
 // Types
 // ============================================
 
-type ActionType = 'pain_entry' | 'quick_entry' | 'medication' | 'reminder' | 'diary' | 'note';
+type ActionType = 'pain_entry' | 'quick_entry' | 'medication' | 'reminder' | 'diary' | 'note' | 'question';
+type OverlayState = 'input' | 'processing' | 'confirmation' | 'action_picker' | 'qa_answer';
 
 interface VoiceAssistantOverlayProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSelectAction: (action: ActionType, draftText: string) => void;
+  onSelectAction: (action: ActionType, draftText: string, prefillData?: any) => void;
 }
 
 interface RecognizedIntent {
@@ -70,17 +84,15 @@ interface RecognizedIntent {
   result: VoiceRouterResult;
 }
 
-interface AnalyticsAnswer {
+interface QAAnswer {
   headline: string;
   answer: string;
   details?: string;
 }
 
 // ============================================
-// Constants
+// Action Configuration
 // ============================================
-
-const CONFIDENCE_THRESHOLD = 0.7;
 
 const ACTION_CONFIG: Array<{
   id: ActionType;
@@ -90,6 +102,13 @@ const ACTION_CONFIG: Array<{
   color: string;
 }> = [
   {
+    id: 'quick_entry',
+    label: 'Schnell-Eintrag',
+    description: 'Schmerz jetzt festhalten',
+    icon: Zap,
+    color: 'text-destructive',
+  },
+  {
     id: 'pain_entry',
     label: 'Migräne-Eintrag',
     description: 'Detaillierte Dokumentation',
@@ -97,18 +116,18 @@ const ACTION_CONFIG: Array<{
     color: 'text-success',
   },
   {
-    id: 'quick_entry',
-    label: 'Schnell-Eintrag',
-    description: 'Kurz & schnell',
-    icon: Zap,
-    color: 'text-destructive',
+    id: 'question',
+    label: 'Frage beantworten',
+    description: 'Statistiken & Auswertungen',
+    icon: MessageCircle,
+    color: 'text-primary',
   },
   {
-    id: 'medication',
-    label: 'Medikament',
-    description: 'Wirkung bewerten',
-    icon: Pill,
-    color: 'text-primary',
+    id: 'note',
+    label: 'Als Notiz speichern',
+    description: 'Für später',
+    icon: Save,
+    color: 'text-voice',
   },
   {
     id: 'reminder',
@@ -118,18 +137,11 @@ const ACTION_CONFIG: Array<{
     color: 'text-warning',
   },
   {
-    id: 'diary',
-    label: 'Tagebuch',
-    description: 'Einträge ansehen',
-    icon: BookOpen,
-    color: 'text-muted-foreground',
-  },
-  {
-    id: 'note',
-    label: 'Als Notiz speichern',
-    description: 'Für später',
-    icon: Save,
-    color: 'text-voice',
+    id: 'medication',
+    label: 'Medikament',
+    description: 'Wirkung bewerten',
+    icon: Pill,
+    color: 'text-primary',
   },
 ];
 
@@ -137,7 +149,7 @@ const ACTION_CONFIG: Array<{
 function mapResultTypeToAction(resultType: string): ActionType | null {
   switch (resultType) {
     case 'create_pain_entry':
-      return 'pain_entry';
+      return 'quick_entry'; // Default to quick for voice
     case 'create_quick_entry':
       return 'quick_entry';
     case 'create_medication_update':
@@ -150,9 +162,16 @@ function mapResultTypeToAction(resultType: string): ActionType | null {
       return 'diary';
     case 'create_note':
       return 'note';
+    case 'analytics_query':
+      return 'question';
     default:
       return null;
   }
+}
+
+function getActionLabel(actionType: ActionType): string {
+  const config = ACTION_CONFIG.find(a => a.id === actionType);
+  return config?.label || actionType;
 }
 
 // ============================================
@@ -172,10 +191,10 @@ export function VoiceAssistantOverlay({
   const [committedText, setCommittedText] = useState('');
   const [interimText, setInterimText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [showActions, setShowActions] = useState(false);
+  const [overlayState, setOverlayState] = useState<OverlayState>('input');
   const [recognizedIntent, setRecognizedIntent] = useState<RecognizedIntent | null>(null);
-  const [analyticsAnswer, setAnalyticsAnswer] = useState<AnalyticsAnswer | null>(null);
+  const [qaAnswer, setQaAnswer] = useState<QAAnswer | null>(null);
+  const [liveIntentPreview, setLiveIntentPreview] = useState<{ type: string; confidence: number } | null>(null);
   
   // Hooks
   const isSttSupported = isBrowserSttSupported();
@@ -215,6 +234,33 @@ export function VoiceAssistantOverlay({
       textarea.setSelectionRange(newCursorPos, newCursorPos);
     });
   }, [committedText]);
+
+  // ============================================
+  // Live Intent Preview
+  // ============================================
+
+  const updateLivePreview = useCallback((text: string) => {
+    if (!text.trim() || text.length < 3) {
+      setLiveIntentPreview(null);
+      return;
+    }
+    
+    try {
+      const userContext = { userMeds, timezone: 'Europe/Berlin', language: 'de-DE' };
+      const result = routeVoiceCommand(text, userContext);
+      setLiveIntentPreview({ type: result.type, confidence: result.confidence });
+    } catch {
+      setLiveIntentPreview(null);
+    }
+  }, [userMeds]);
+
+  // Update preview when text changes
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      updateLivePreview(committedText + interimText);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [committedText, interimText, updateLivePreview]);
 
   // ============================================
   // Speech Recognition
@@ -259,7 +305,6 @@ export function VoiceAssistantOverlay({
 
     recognition.onerror = (event: any) => {
       console.error('Voice recording error:', event.error);
-      // Don't stop on 'no-speech' - migraine-friendly, let user take time
       if (event.error !== 'no-speech' && event.error !== 'aborted') {
         setIsRecording(false);
         setInterimText('');
@@ -267,8 +312,6 @@ export function VoiceAssistantOverlay({
     };
 
     recognition.onend = () => {
-      // Migränefreundlich: KEIN Auto-Restart!
-      // User hat "Fertig" Button wenn fertig
       setIsRecording(false);
       setInterimText('');
     };
@@ -292,14 +335,82 @@ export function VoiceAssistantOverlay({
   }, []);
 
   // ============================================
-  // Intent Recognition (Phase 1 - "Fertig" Button)
+  // Note Saving with Undo
+  // ============================================
+
+  const saveNoteDirectly = useCallback(async (text: string) => {
+    try {
+      const noteId = await saveVoiceNote({
+        rawText: text,
+        sttConfidence: 0.95,
+        source: 'voice'
+      });
+      
+      toast.success('✅ Notiz gespeichert', {
+        description: text.length > 50 ? text.substring(0, 50) + '...' : text,
+        action: {
+          label: 'Rückgängig',
+          onClick: async () => {
+            try {
+              // Soft delete the note
+              await supabase
+                .from('voice_notes')
+                .update({ deleted_at: new Date().toISOString() })
+                .eq('id', noteId);
+              toast.success('Notiz rückgängig gemacht');
+            } catch (e) {
+              console.error('Undo failed:', e);
+              toast.error('Rückgängig fehlgeschlagen');
+            }
+          }
+        },
+        duration: 8000
+      });
+      
+      window.dispatchEvent(new Event('voice-note-saved'));
+      return true;
+    } catch (error) {
+      console.error('Note save error:', error);
+      toast.error('Notiz konnte nicht gespeichert werden');
+      return false;
+    }
+  }, []);
+
+  // ============================================
+  // Q&A Processing
+  // ============================================
+
+  const processQuestion = useCallback(async (text: string, voiceQuery: VoiceAnalyticsQuery) => {
+    if (!userId || voiceQuery.queryType === 'unknown') return null;
+    
+    try {
+      const timeRange = getTimeRange(voiceQuery.timeRangeDays);
+      const parsedQuery: ParsedAnalyticsQuery = {
+        queryType: voiceQuery.queryType,
+        medName: voiceQuery.medName,
+        medCategory: voiceQuery.medCategory as any,
+        timeRange,
+        confidence: voiceQuery.confidence
+      };
+      
+      const queryResult = await executeAnalyticsQuery(userId, parsedQuery);
+      return formatAnalyticsResult(parsedQuery, queryResult);
+    } catch (error) {
+      console.error('Q&A error:', error);
+      return null;
+    }
+  }, [userId]);
+
+  // ============================================
+  // Intent Processing (Fertig button)
   // ============================================
 
   const processIntent = useCallback(async () => {
     if (!committedText.trim()) return;
     
-    setIsProcessing(true);
-    setAnalyticsAnswer(null);
+    stopRecording();
+    setOverlayState('processing');
+    setQaAnswer(null);
     
     try {
       const userContext = {
@@ -311,61 +422,94 @@ export function VoiceAssistantOverlay({
       const result = routeVoiceCommand(committedText, userContext);
       console.log('🎯 Intent Result:', result);
       
-      // Analytics Query? (Phase 2)
-      if (result.type === 'analytics_query' && userId) {
-        const voiceQuery = result.payload as VoiceAnalyticsQuery | undefined;
-        if (voiceQuery && voiceQuery.queryType !== 'unknown') {
-          const timeRange = getTimeRange(voiceQuery.timeRangeDays);
-          const parsedQuery: ParsedAnalyticsQuery = {
-            queryType: voiceQuery.queryType,
-            medName: voiceQuery.medName,
-            medCategory: voiceQuery.medCategory as any,
-            timeRange,
-            confidence: voiceQuery.confidence
-          };
-          
-          const queryResult = await executeAnalyticsQuery(userId, parsedQuery);
-          const formatted = formatAnalyticsResult(parsedQuery, queryResult);
-          
-          setAnalyticsAnswer(formatted);
-          setRecognizedIntent({
-            type: result.type,
-            confidence: result.confidence,
-            result
+      const intent: RecognizedIntent = {
+        type: result.type,
+        confidence: result.confidence,
+        result
+      };
+      
+      setRecognizedIntent(intent);
+      
+      // Handle based on confidence level
+      const isHighConfidence = result.confidence >= AUTO_ACTION_THRESHOLD;
+      const isMediumConfidence = result.confidence >= CONFIRM_THRESHOLD && result.confidence < AUTO_ACTION_THRESHOLD;
+      
+      // === HIGH CONFIDENCE: Auto-action ===
+      if (isHighConfidence) {
+        // Q&A: Show answer directly
+        if (result.type === 'analytics_query' && userId) {
+          const voiceQuery = result.payload as VoiceAnalyticsQuery | undefined;
+          if (voiceQuery) {
+            const answer = await processQuestion(committedText, voiceQuery);
+            if (answer) {
+              setQaAnswer(answer);
+              setOverlayState('qa_answer');
+              return;
+            }
+          }
+        }
+        
+        // Note: Save directly with undo
+        if (result.type === 'create_note') {
+          const success = await saveNoteDirectly(committedText);
+          if (success) {
+            onOpenChange(false);
+            return;
+          }
+        }
+        
+        // Pain entry: Open QuickEntry with prefill
+        if (result.type === 'create_pain_entry' || result.type === 'create_quick_entry') {
+          const payload = result.payload as any;
+          onSelectAction('quick_entry', committedText, {
+            initialPainLevel: payload?.painEntry?.painLevel,
+            initialNotes: payload?.painEntry?.notes || committedText,
+            initialMedicationStates: payload?.painEntry?.medications?.reduce((acc: any, med: any) => {
+              acc[med.name] = true;
+              return acc;
+            }, {}),
           });
-          setIsProcessing(false);
+          onOpenChange(false);
+          return;
+        }
+        
+        // Reminder: Open reminder form
+        if (result.type === 'navigate_reminder_create' || result.type === 'navigate_appointment_create') {
+          onSelectAction('reminder', committedText, result.payload);
+          onOpenChange(false);
+          return;
+        }
+        
+        // Medication: Navigate
+        if (result.type === 'create_medication_update' || result.type === 'create_medication_effect') {
+          onSelectAction('medication', committedText);
+          onOpenChange(false);
           return;
         }
       }
       
-      // Speichere erkannten Intent
-      setRecognizedIntent({
-        type: result.type,
-        confidence: result.confidence,
-        result
-      });
-      
-      // Bei niedrigem Confidence: zeige Actions
-      if (result.confidence < CONFIDENCE_THRESHOLD || result.type === 'unknown') {
-        setShowActions(true);
+      // === MEDIUM CONFIDENCE: Show confirmation ===
+      if (isMediumConfidence && result.type !== 'unknown') {
+        setOverlayState('confirmation');
+        return;
       }
+      
+      // === LOW CONFIDENCE / UNKNOWN: Show action picker ===
+      setOverlayState('action_picker');
       
     } catch (error) {
       console.error('Intent processing error:', error);
-      setShowActions(true);
-    } finally {
-      setIsProcessing(false);
+      setOverlayState('action_picker');
     }
-  }, [committedText, userMeds, userId]);
+  }, [committedText, userMeds, userId, stopRecording, processQuestion, saveNoteDirectly, onSelectAction, onOpenChange]);
+
+  // ============================================
+  // Action Handlers
+  // ============================================
 
   const handleFinish = useCallback(() => {
-    stopRecording();
     processIntent();
-  }, [stopRecording, processIntent]);
-
-  // ============================================
-  // Action Selection
-  // ============================================
+  }, [processIntent]);
 
   const handleSelectAction = useCallback((action: ActionType) => {
     stopRecording();
@@ -373,19 +517,61 @@ export function VoiceAssistantOverlay({
     onOpenChange(false);
   }, [stopRecording, onSelectAction, committedText, onOpenChange]);
 
-  const handleSelectSuggestedAction = useCallback(() => {
+  const handleConfirmAction = useCallback(async () => {
     if (!recognizedIntent) return;
     
-    const action = mapResultTypeToAction(recognizedIntent.type);
+    const result = recognizedIntent.result;
+    
+    // Q&A
+    if (result.type === 'analytics_query' && userId) {
+      setOverlayState('processing');
+      const voiceQuery = result.payload as VoiceAnalyticsQuery | undefined;
+      if (voiceQuery) {
+        const answer = await processQuestion(committedText, voiceQuery);
+        if (answer) {
+          setQaAnswer(answer);
+          setOverlayState('qa_answer');
+          return;
+        }
+      }
+    }
+    
+    // Note
+    if (result.type === 'create_note') {
+      const success = await saveNoteDirectly(committedText);
+      if (success) {
+        onOpenChange(false);
+        return;
+      }
+    }
+    
+    // Map to action
+    const action = mapResultTypeToAction(result.type);
     if (action) {
       handleSelectAction(action);
     }
-  }, [recognizedIntent, handleSelectAction]);
+  }, [recognizedIntent, userId, committedText, processQuestion, saveNoteDirectly, handleSelectAction, onOpenChange]);
+
+  const handleAskAnother = useCallback(() => {
+    setCommittedText('');
+    setQaAnswer(null);
+    setRecognizedIntent(null);
+    setOverlayState('input');
+    // Optionally auto-start recording
+    if (isSttSupported) {
+      setTimeout(() => startRecording(), 300);
+    }
+  }, [isSttSupported, startRecording]);
 
   const handleCancel = useCallback(() => {
     stopRecording();
     onOpenChange(false);
   }, [stopRecording, onOpenChange]);
+
+  const handleBackToInput = useCallback(() => {
+    setOverlayState('input');
+    setRecognizedIntent(null);
+  }, []);
 
   // ============================================
   // Lifecycle
@@ -405,9 +591,10 @@ export function VoiceAssistantOverlay({
       stopRecording();
       setCommittedText('');
       setInterimText('');
-      setShowActions(false);
+      setOverlayState('input');
       setRecognizedIntent(null);
-      setAnalyticsAnswer(null);
+      setQaAnswer(null);
+      setLiveIntentPreview(null);
     }
   }, [open, isSttSupported, startRecording, stopRecording]);
 
@@ -417,9 +604,8 @@ export function VoiceAssistantOverlay({
 
   const hasText = committedText.trim().length > 0;
   const suggestedAction = recognizedIntent ? mapResultTypeToAction(recognizedIntent.type) : null;
-  const suggestedActionConfig = suggestedAction ? ACTION_CONFIG.find(a => a.id === suggestedAction) : null;
-  const showSuggestion = recognizedIntent && recognizedIntent.confidence >= CONFIDENCE_THRESHOLD && suggestedActionConfig && !analyticsAnswer;
-  const showUnknownState = recognizedIntent && (recognizedIntent.confidence < CONFIDENCE_THRESHOLD || recognizedIntent.type === 'unknown') && !analyticsAnswer;
+  const isProcessing = overlayState === 'processing';
+  const showFertigButton = overlayState === 'input' || overlayState === 'confirmation';
 
   // ============================================
   // Render
@@ -443,7 +629,7 @@ export function VoiceAssistantOverlay({
                 <Loader2 className="w-5 h-5 animate-spin text-primary" />
                 <span>Verarbeite…</span>
               </>
-            ) : analyticsAnswer ? (
+            ) : overlayState === 'qa_answer' ? (
               <>
                 <BarChart3 className="w-5 h-5 text-primary" />
                 <span>Auswertung</span>
@@ -458,148 +644,99 @@ export function VoiceAssistantOverlay({
           <DialogDescription className="text-left">
             {isRecording 
               ? 'Sprich in deinem Tempo – oder tippe jederzeit.'
-              : analyticsAnswer 
+              : overlayState === 'qa_answer' 
                 ? 'Hier ist deine Auswertung:'
-                : 'Tippe oder diktiere, dann wähle eine Aktion.'}
+                : overlayState === 'confirmation'
+                  ? 'Stimmt das?'
+                  : 'Per Sprache oder Text – Fragen, Einträge, Notizen.'}
           </DialogDescription>
         </DialogHeader>
 
-        {/* Analytics Answer Card (Phase 2) */}
-        {analyticsAnswer && (
-          <div className="bg-primary/10 border border-primary/20 rounded-lg p-4 space-y-2">
-            <p className="text-xs text-muted-foreground uppercase tracking-wide">
-              {analyticsAnswer.headline}
-            </p>
-            <p className="text-2xl font-semibold text-foreground">
-              {analyticsAnswer.answer}
-            </p>
-            {analyticsAnswer.details && (
-              <p className="text-sm text-muted-foreground">
-                {analyticsAnswer.details}
+        {/* Q&A Answer View */}
+        {overlayState === 'qa_answer' && qaAnswer && (
+          <div className="space-y-4">
+            <div className="bg-primary/10 border border-primary/20 rounded-lg p-4 space-y-2">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide">
+                {qaAnswer.headline}
               </p>
-            )}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="mt-2 text-primary"
-              onClick={() => {
-                onSelectAction('diary', committedText);
-                onOpenChange(false);
-              }}
-            >
-              <ExternalLink className="w-4 h-4 mr-2" />
-              Zum Tagebuch
-            </Button>
+              <p className="text-2xl font-semibold text-foreground">
+                {qaAnswer.answer}
+              </p>
+              {qaAnswer.details && (
+                <p className="text-sm text-muted-foreground">
+                  {qaAnswer.details}
+                </p>
+              )}
+            </div>
+            
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={handleAskAnother}
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Weitere Frage
+              </Button>
+              <Button
+                variant="default"
+                className="flex-1"
+                onClick={handleCancel}
+              >
+                <Check className="w-4 h-4 mr-2" />
+                Fertig
+              </Button>
+            </div>
           </div>
         )}
 
-        {/* Text Input Area */}
-        <div className="space-y-2">
-          <label className="text-xs text-muted-foreground">
-            {hasText ? 'Erkannter Text (bearbeitbar)' : 'Dein Text erscheint hier…'}
-          </label>
-          <Textarea
-            ref={textareaRef}
-            value={committedText}
-            onChange={(e) => setCommittedText(e.target.value)}
-            placeholder="Tippe oder sprich…"
-            className={cn(
-              "min-h-[80px] resize-none transition-colors",
-              isRecording && "border-voice/50 bg-voice/5"
-            )}
-          />
-          
-          {/* Live interim preview */}
-          {interimText && (
-            <p className="text-xs text-muted-foreground italic px-1 py-1 bg-muted/30 rounded">
-              Live: {interimText}
-            </p>
-          )}
-
-          {/* Recording toggle button */}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className={cn(
-              "w-full",
-              isRecording 
-                ? "border-voice/50 text-voice hover:bg-voice/10" 
-                : "border-muted text-muted-foreground hover:bg-muted/30"
-            )}
-            onClick={isRecording ? stopRecording : startRecording}
-            disabled={!isSttSupported || isProcessing}
-          >
-            {isRecording ? (
-              <>
-                <MicOff className="w-4 h-4 mr-2" />
-                Aufnahme pausieren
-              </>
-            ) : (
-              <>
-                <Mic className="w-4 h-4 mr-2" />
-                {hasText ? 'Weiter aufnehmen' : 'Aufnahme starten'}
-              </>
-            )}
-          </Button>
-          
-          {!isSttSupported && (
-            <p className="text-xs text-muted-foreground text-center">
-              Spracheingabe nicht verfügbar. Bitte tippe.
-            </p>
-          )}
-        </div>
-
-        {/* Suggestion CTA (when intent recognized with high confidence) */}
-        {showSuggestion && suggestedActionConfig && (
-          <div className="space-y-2 pt-2">
-            <p className="text-xs text-muted-foreground">Vorschlag:</p>
-            <Button
-              className="w-full h-auto py-3 justify-start gap-3"
-              variant="default"
-              onClick={handleSelectSuggestedAction}
-            >
-              <suggestedActionConfig.icon className="w-5 h-5" />
-              <div className="text-left">
-                <p className="font-medium">{suggestedActionConfig.label}</p>
-                <p className="text-xs opacity-80">{suggestedActionConfig.description}</p>
-              </div>
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full text-muted-foreground"
-              onClick={() => setShowActions(true)}
-            >
-              <ChevronDown className="w-4 h-4 mr-2" />
-              Andere Aktion wählen…
-            </Button>
+        {/* Confirmation View */}
+        {overlayState === 'confirmation' && recognizedIntent && suggestedAction && (
+          <div className="space-y-4">
+            <div className="bg-muted/50 rounded-lg p-3">
+              <p className="text-sm text-muted-foreground mb-1">Erkannt:</p>
+              <p className="font-medium">{getActionLabel(suggestedAction)}</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Sicherheit: {Math.round(recognizedIntent.confidence * 100)}%
+              </p>
+            </div>
+            
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setOverlayState('action_picker')}
+              >
+                Ändern
+              </Button>
+              <Button
+                variant="default"
+                className="flex-1 bg-success hover:bg-success/90 text-success-foreground"
+                onClick={handleConfirmAction}
+              >
+                <Check className="w-4 h-4 mr-2" />
+                Fertig
+              </Button>
+            </div>
           </div>
         )}
 
-        {/* Unknown State Header */}
-        {showUnknownState && (
-          <div className="pt-2">
-            <p className="text-sm text-muted-foreground mb-2">
-              Nicht sicher verstanden – bitte wähle eine Aktion:
+        {/* Action Picker View */}
+        {overlayState === 'action_picker' && (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Was möchtest du machen?
             </p>
-          </div>
-        )}
-
-        {/* Action Selection (progressive disclosure) */}
-        {(showActions || showUnknownState) && !analyticsAnswer && (
-          <div className="pt-2">
-            {!showUnknownState && (
-              <p className="text-xs text-muted-foreground mb-2">Was möchtest du machen?</p>
-            )}
             <div className="grid grid-cols-2 gap-2">
               {ACTION_CONFIG.map((action) => (
                 <Button
                   key={action.id}
                   variant="outline"
-                  className="h-auto flex-col items-start p-3 gap-1 text-left hover:bg-muted/50"
+                  className={cn(
+                    "h-auto flex-col items-start p-3 gap-1 text-left hover:bg-muted/50",
+                    suggestedAction === action.id && "border-primary bg-primary/5"
+                  )}
                   onClick={() => handleSelectAction(action.id)}
-                  disabled={isProcessing}
                 >
                   <div className="flex items-center gap-2 w-full">
                     <action.icon className={`w-4 h-4 ${action.color}`} />
@@ -611,34 +748,110 @@ export function VoiceAssistantOverlay({
                 </Button>
               ))}
             </div>
+            
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full"
+              onClick={handleBackToInput}
+            >
+              ← Zurück zur Eingabe
+            </Button>
           </div>
         )}
 
-        {/* "Aktion auswählen" link (when no intent recognized yet) */}
-        {!showActions && !recognizedIntent && !isProcessing && hasText && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full text-muted-foreground"
-            onClick={() => setShowActions(true)}
-          >
-            <ChevronDown className="w-4 h-4 mr-2" />
-            Aktion auswählen
-          </Button>
+        {/* Input View */}
+        {(overlayState === 'input' || overlayState === 'processing') && !qaAnswer && (
+          <div className="space-y-3">
+            {/* Text Input Area */}
+            <div className="space-y-2">
+              <label className="text-xs text-muted-foreground">
+                {hasText ? 'Dein Text (bearbeitbar)' : 'Tippe oder sprich…'}
+              </label>
+              <Textarea
+                ref={textareaRef}
+                value={committedText}
+                onChange={(e) => setCommittedText(e.target.value)}
+                placeholder="z.B. 'Migräne Stärke 7' oder 'Wie oft Triptan letzten Monat?'"
+                className={cn(
+                  "min-h-[80px] resize-none transition-colors",
+                  isRecording && "border-voice/50 bg-voice/5"
+                )}
+                disabled={isProcessing}
+              />
+              
+              {/* Live interim preview */}
+              {interimText && (
+                <p className="text-xs text-muted-foreground italic px-1 py-1 bg-muted/30 rounded">
+                  Live: {interimText}
+                </p>
+              )}
+
+              {/* Live intent preview */}
+              {liveIntentPreview && hasText && overlayState === 'input' && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground px-1">
+                  <span>Erkannt:</span>
+                  <span className="font-medium">
+                    {liveIntentPreview.type === 'analytics_query' ? 'Frage' :
+                     liveIntentPreview.type === 'create_note' ? 'Notiz' :
+                     liveIntentPreview.type === 'create_pain_entry' ? 'Eintrag' :
+                     liveIntentPreview.type === 'navigate_reminder_create' ? 'Erinnerung' :
+                     liveIntentPreview.type}
+                  </span>
+                  <span className="text-muted-foreground/70">
+                    ({Math.round(liveIntentPreview.confidence * 100)}%)
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Recording toggle button */}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={cn(
+                "w-full",
+                isRecording 
+                  ? "border-voice/50 text-voice hover:bg-voice/10" 
+                  : "border-muted text-muted-foreground hover:bg-muted/30"
+              )}
+              onClick={isRecording ? stopRecording : startRecording}
+              disabled={!isSttSupported || isProcessing}
+            >
+              {isRecording ? (
+                <>
+                  <MicOff className="w-4 h-4 mr-2" />
+                  Aufnahme pausieren
+                </>
+              ) : (
+                <>
+                  <Mic className="w-4 h-4 mr-2" />
+                  {hasText ? 'Weiter aufnehmen' : 'Aufnahme starten'}
+                </>
+              )}
+            </Button>
+            
+            {!isSttSupported && (
+              <p className="text-xs text-muted-foreground text-center bg-muted/50 p-2 rounded">
+                🎤 Mikrofon nicht verfügbar – bitte tippe deinen Text.
+              </p>
+            )}
+          </div>
         )}
 
-        {/* Bottom Actions */}
-        <div className="flex gap-2 pt-2 border-t border-border">
-          <Button
-            variant="ghost"
-            className="flex-1"
-            onClick={handleCancel}
-            disabled={isProcessing}
-          >
-            <X className="w-4 h-4 mr-2" />
-            Abbrechen
-          </Button>
-          {(isRecording || (hasText && !recognizedIntent)) && (
+        {/* Bottom Actions - Always visible Fertig + Abbrechen */}
+        {overlayState !== 'qa_answer' && overlayState !== 'action_picker' && overlayState !== 'confirmation' && (
+          <div className="flex gap-2 pt-2 border-t border-border">
+            <Button
+              variant="ghost"
+              className="flex-1"
+              onClick={handleCancel}
+              disabled={isProcessing}
+            >
+              <X className="w-4 h-4 mr-2" />
+              Abbrechen
+            </Button>
             <Button
               variant="default"
               className="flex-1 bg-success hover:bg-success/90 text-success-foreground"
@@ -652,18 +865,8 @@ export function VoiceAssistantOverlay({
               )}
               Fertig
             </Button>
-          )}
-          {analyticsAnswer && (
-            <Button
-              variant="default"
-              className="flex-1"
-              onClick={handleCancel}
-            >
-              <Check className="w-4 h-4 mr-2" />
-              Schließen
-            </Button>
-          )}
-        </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

@@ -196,31 +196,99 @@ function classifyIntent(
 }
 
 /**
- * Erkennt Analytics-Fragen
+ * Erkennt Analytics-Fragen / Q&A Intent
+ * Verbessert: Erkennt W-Fragen, Fragezeichen, und typische Frage-Phrasen
  */
 function isAnalyticsQuestion(lower: string): boolean {
-  // Frage-Pattern
-  const questionPatterns = [
-    /wie\s*(?:viele?|oft)/,
+  // 1. Check for question mark
+  if (lower.includes('?')) {
+    // If question mark present and health/data topic mentioned, it's likely a question
+    const healthTopics = [
+      'migräne', 'kopfschmerz', 'schmerz', 'medikament', 'triptan', 
+      'tag', 'tage', 'woche', 'monat', 'einnahme', 'anfall', 'attacke'
+    ];
+    if (healthTopics.some(t => lower.includes(t))) {
+      return true;
+    }
+  }
+  
+  // 2. W-Fragen am Anfang (strong indicator)
+  const wQuestionStart = /^(wie|was|warum|welche|wann|wo|wieviel|woher|wohin|weshalb|wieso|wer|wen|wem)\s/;
+  if (wQuestionStart.test(lower)) {
+    return true;
+  }
+  
+  // 3. W-Fragen irgendwo mit Health Context
+  const wQuestionPatterns = [
+    /wie\s*(?:viele?|oft|lang|stark)/,
     /wieviele?/,
+    /wann\s+(?:hatte|war|hab)/,
+    /was\s+(?:hilft|wirkt|war)/,
+    /welche\s+(?:medikament|tag|woche)/,
+  ];
+  if (wQuestionPatterns.some(p => p.test(lower))) {
+    return true;
+  }
+  
+  // 4. Analytik-Keywords
+  const analyticsTriggers = [
     /zähl/,
     /durchschnitt/,
     /statistik/,
     /auswertung/,
+    /analyse/,
+    /übersicht/,
   ];
+  if (analyticsTriggers.some(p => p.test(lower))) {
+    return true;
+  }
   
-  const hasQuestion = questionPatterns.some(p => p.test(lower));
-  if (!hasQuestion) return false;
-  
-  // Medikamente oder Migräne erwähnt?
-  const topics = [
-    'triptan', 'sumatriptan', 'rizatriptan', 'zolmitriptan',
-    'schmerzmittel', 'ibuprofen', 'paracetamol',
-    'migräne', 'kopfschmerz',
-    'tag', 'tage', 'woche', 'monat'
+  // 5. Typische Frage-Phrasen
+  const questionPhrases = [
+    'kannst du',
+    'könntest du',
+    'zeige mir',
+    'zeig mir',
+    'analysiere',
+    'analysier',
+    'erklär',
+    'erkläre',
+    'sag mir',
+    'hilf mir',
+    'gibt es',
+    'habe ich',
+    'hatte ich',
+    'bin ich',
+    'ist das',
+    'stimmt es',
   ];
+  if (questionPhrases.some(phrase => lower.includes(phrase))) {
+    // Also needs health context
+    const healthTopics = ['migräne', 'kopfschmerz', 'schmerz', 'medikament', 'triptan', 'tag', 'einnahme'];
+    if (healthTopics.some(t => lower.includes(t))) {
+      return true;
+    }
+  }
   
-  return topics.some(t => lower.includes(t));
+  // 6. Legacy pattern: Question pattern + topic (original logic)
+  const legacyPatterns = [
+    /wie\s*(?:viele?|oft)/,
+    /wieviele?/,
+  ];
+  const hasLegacyQuestion = legacyPatterns.some(p => p.test(lower));
+  if (hasLegacyQuestion) {
+    const topics = [
+      'triptan', 'sumatriptan', 'rizatriptan', 'zolmitriptan',
+      'schmerzmittel', 'ibuprofen', 'paracetamol',
+      'migräne', 'kopfschmerz',
+      'tag', 'tage', 'woche', 'monat'
+    ];
+    if (topics.some(t => lower.includes(t))) {
+      return true;
+    }
+  }
+  
+  return false;
 }
 
 /**
