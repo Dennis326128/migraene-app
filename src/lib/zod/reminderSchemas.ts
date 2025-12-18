@@ -50,7 +50,7 @@ export const reminderNotesSchema = z.string()
   .nullable();
 
 // Reminder type validation
-export const reminderTypeSchema = z.enum(['medication', 'appointment'], {
+export const reminderTypeSchema = z.enum(['medication', 'appointment', 'todo'], {
   errorMap: () => ({ message: "Ungültiger Erinnerungstyp" })
 });
 

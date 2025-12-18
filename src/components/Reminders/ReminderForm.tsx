@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/collapsible';
 import type { Reminder, CreateReminderInput, UpdateReminderInput, ReminderPrefill } from '@/types/reminder.types';
 import { format, parseISO } from 'date-fns';
-import { ArrowLeft, Clock, Plus, X, CalendarPlus, Info, Bell, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Clock, Plus, X, CalendarPlus, Info, Bell, ChevronDown, ListTodo, Pill, Calendar } from 'lucide-react';
 import { MedicationSelector } from './MedicationSelector';
 import { TimeOfDaySelector, getDefaultTimeSlots, type TimeSlot } from './TimeOfDaySelector';
 import { cloneReminderForCreate, generateSeriesId } from '@/features/reminders/helpers/reminderHelpers';
@@ -35,10 +35,10 @@ import {
 } from '@/features/reminders/helpers/attention';
 
 const reminderSchema = z.object({
-  type: z.enum(['medication', 'appointment']),
+  type: z.enum(['medication', 'appointment', 'todo']),
   title: z.string().min(1, 'Titel ist erforderlich'),
   date: z.string().min(1, 'Datum ist erforderlich'),
-  time: z.string().min(1, 'Uhrzeit ist erforderlich'),
+  time: z.string().optional(),
   repeat: z.enum(['none', 'daily', 'weekly', 'monthly']),
   notes: z.string().optional(),
   notification_enabled: z.boolean(),
@@ -82,6 +82,9 @@ const extractTimeFromDateTime = (dateTime: string): string => {
   }
 };
 
+// Get today's date as default (ALWAYS)
+const getTodayDate = (): string => format(new Date(), 'yyyy-MM-dd');
+
 export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, onCreateAnother }: ReminderFormProps) => {
   const isEditing = !!reminder;
   const dateInputRef = useRef<HTMLInputElement>(null);
@@ -101,15 +104,12 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
     return getDefaultTimeSlots();
   });
 
-  // Dynamische Uhrzeiten (max 4 für medication, max 1 für appointment)
-  // BUGFIX: Proper prefilling of time when editing or using prefill
+  // Dynamische Uhrzeiten (max 4 für medication, max 1 für appointment/todo)
   const [times, setTimes] = useState<string[]>(() => {
     if (reminder) {
       return [extractTimeFromDateTime(reminder.date_time)];
     }
     if (prefill?.prefill_date) {
-      // For follow-up, we suggest the original time as a starting point
-      // This is passed via the prefill mechanism
       return [(prefill as any).prefill_time || format(new Date(), 'HH:mm')];
     }
     return [format(new Date(), 'HH:mm')];
@@ -162,7 +162,7 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
     setTimes(newTimes);
   };
 
-  // BUGFIX: Proper date/time extraction for editing
+  // FIXED: Default date is ALWAYS today for new reminders
   const defaultValues: FormData = reminder
     ? {
         type: reminder.type,
@@ -178,7 +178,7 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
     ? {
         type: prefill.type,
         title: prefill.title,
-        date: prefill.prefill_date || '',
+        date: prefill.prefill_date || getTodayDate(), // ALWAYS today if no prefill
         time: (prefill as any).prefill_time || '',
         repeat: prefill.repeat || 'none',
         notes: prefill.notes || '',
@@ -187,7 +187,7 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
     : {
         type: 'medication',
         title: '',
-        date: format(new Date(), 'yyyy-MM-dd'),
+        date: getTodayDate(), // ALWAYS today
         time: format(new Date(), 'HH:mm'),
         repeat: 'none',
         notes: '',
@@ -208,17 +208,18 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
 
   const isMedicationType = type === 'medication';
   const isAppointmentType = type === 'appointment';
+  const isTodoType = type === 'todo';
   const enabledTimeSlots = timeSlots.filter(slot => slot.enabled);
   const useMultipleTimeSlots = isMedicationType && repeat === 'daily' && enabledTimeSlots.length > 0;
 
-  // For appointments, limit to 1 time
-  const maxTimes = isAppointmentType ? 1 : 4;
+  // For appointments and todos, limit to 1 time
+  const maxTimes = isMedicationType ? 4 : 1;
 
   const handleCreateAnotherAppointment = () => {
     if (!onCreateAnother) return;
 
     const currentFormState = {
-      type: type as 'medication' | 'appointment',
+      type: type as 'medication' | 'appointment' | 'todo',
       title: watch('title'),
       notes: watch('notes') || '',
       notification_enabled: notificationEnabled,
@@ -270,9 +271,12 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
       }
     }
 
+    // Use default time if not provided (for todos without time)
+    const effectiveTime = times[0] || '09:00';
+
     // For editing, use single reminder
     if (isEditing) {
-      const dateTime = `${data.date}T${times[0]}:00`;
+      const dateTime = `${data.date}T${effectiveTime}:00`;
       
       const submitData: UpdateReminderInput = {
         type: data.type,
@@ -321,8 +325,8 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
     }
 
     // Create reminders for each dynamic time
-    if (times.length === 1) {
-      const dateTime = `${data.date}T${times[0]}:00`;
+    if (times.length === 1 || isTodoType || isAppointmentType) {
+      const dateTime = `${data.date}T${effectiveTime}:00`;
       
       const submitData: CreateReminderInput = {
         type: data.type,
@@ -367,6 +371,15 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
   // Show "Weiteren Termin anlegen" button for appointments when date is set
   const canCreateAnother = isAppointmentType && dateValue && onCreateAnother;
 
+  // Get type icon
+  const getTypeIcon = () => {
+    switch (type) {
+      case 'medication': return <Pill className="h-4 w-4" />;
+      case 'appointment': return <Calendar className="h-4 w-4" />;
+      case 'todo': return <ListTodo className="h-4 w-4" />;
+    }
+  };
+
   return (
     <div className="px-3 sm:px-4 py-4 sm:py-6 pb-safe">
       <div className="flex items-center gap-3 mb-6">
@@ -387,22 +400,43 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
 
       <Card className="p-4 sm:p-6 max-h-[75vh] overflow-y-auto modern-scrollbar">
         <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-6">
+          {/* Type Selection */}
           <div className="space-y-2">
             <Label htmlFor="type">Typ</Label>
             <Select
               value={type}
-              onValueChange={(value) => setValue('type', value as 'medication' | 'appointment')}
+              onValueChange={(value) => setValue('type', value as 'medication' | 'appointment' | 'todo')}
             >
               <SelectTrigger>
-                <SelectValue />
+                <div className="flex items-center gap-2">
+                  {getTypeIcon()}
+                  <SelectValue />
+                </div>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="medication">Medikament</SelectItem>
-                <SelectItem value="appointment">Termin</SelectItem>
+                <SelectItem value="medication">
+                  <div className="flex items-center gap-2">
+                    <Pill className="h-4 w-4" />
+                    Medikament
+                  </div>
+                </SelectItem>
+                <SelectItem value="appointment">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    Termin
+                  </div>
+                </SelectItem>
+                <SelectItem value="todo">
+                  <div className="flex items-center gap-2">
+                    <ListTodo className="h-4 w-4" />
+                    To-do
+                  </div>
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
 
+          {/* Medication Selector - only for medication type */}
           {isMedicationType && (
             <MedicationSelector
               selectedMedications={selectedMedications}
@@ -410,6 +444,7 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
             />
           )}
 
+          {/* TimeOfDay Selector - only for daily medication */}
           {!isEditing && isMedicationType && repeat === 'daily' && (
             <TimeOfDaySelector
               timeSlots={timeSlots}
@@ -417,13 +452,15 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
             />
           )}
 
+          {/* Title - for todo, show as "Text" */}
           {(!useMultipleTimeSlots || isEditing) && (
             <>
               <div className="space-y-2">
-                <Label htmlFor="title">Titel</Label>
+                <Label htmlFor="title">{isTodoType ? 'Text' : 'Titel'}</Label>
                 <Input
                   id="title"
                   {...register('title')}
+                  placeholder={isTodoType ? 'z. B. Rezept abholen' : 'Titel eingeben...'}
                   className="touch-manipulation"
                 />
                 {errors.title && (
@@ -431,6 +468,7 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
                 )}
               </div>
 
+              {/* Date */}
               <div className="space-y-2">
                 <Label htmlFor="date">Datum</Label>
                 <Input
@@ -445,9 +483,11 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
                 )}
               </div>
 
-              {/* Dynamische Uhrzeiten */}
+              {/* Time - optional for todo */}
               <div className="space-y-3">
-                <Label>Uhrzeit{times.length > 1 ? 'en' : ''}</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Uhrzeit{times.length > 1 ? 'en' : ''} {isTodoType && <span className="text-muted-foreground font-normal">(optional)</span>}</Label>
+                </div>
                 
                 <div className="space-y-2">
                   {times.map((time, index) => (
@@ -514,26 +554,29 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
             </div>
           )}
 
-          {/* Repeat dropdown - hidden for appointments */}
-          {isMedicationType && (
-            <div className="space-y-2">
-              <Label htmlFor="repeat">Wiederholung</Label>
-              <Select
-                value={repeat}
-                onValueChange={(value) => setValue('repeat', value as any)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Keine</SelectItem>
-                  <SelectItem value="daily">Täglich</SelectItem>
-                  <SelectItem value="weekly">Wöchentlich</SelectItem>
-                  <SelectItem value="monthly">Monatlich</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+          {/* Repeat Section - STABLE POSITION, NO JUMPING */}
+          <div className="space-y-2 pt-2 border-t">
+            <Label htmlFor="repeat">Wiederholung</Label>
+            <Select
+              value={repeat}
+              onValueChange={(value) => setValue('repeat', value as any)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Keine</SelectItem>
+                <SelectItem value="daily">Täglich</SelectItem>
+                <SelectItem value="weekly">Wöchentlich</SelectItem>
+                <SelectItem value="monthly">Monatlich</SelectItem>
+              </SelectContent>
+            </Select>
+            {repeat !== 'none' && (
+              <p className="text-xs text-muted-foreground">
+                Diese Erinnerung wird {repeat === 'daily' ? 'jeden Tag' : repeat === 'weekly' ? 'jede Woche' : 'jeden Monat'} wiederholt.
+              </p>
+            )}
+          </div>
 
           {/* Follow-up section for appointments */}
           {isAppointmentType && (
@@ -684,6 +727,7 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
             </Button>
           )}
 
+          {/* Notes */}
           <div className="space-y-2">
             <Label htmlFor="notes">Notizen (optional)</Label>
             <Textarea
@@ -694,6 +738,7 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
             />
           </div>
 
+          {/* Notifications toggle */}
           <div className="flex items-center justify-between">
             <Label htmlFor="notifications" className="cursor-pointer">
               Benachrichtigungen
@@ -705,6 +750,7 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
             />
           </div>
 
+          {/* Status (only when editing) */}
           {isEditing && (
             <div className="space-y-2">
               <Label htmlFor="status">Status</Label>
@@ -724,6 +770,7 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
             </div>
           )}
 
+          {/* Action buttons */}
           <div className="flex gap-3 pt-4 items-center">
             {isEditing && onDelete && (
               <Button
