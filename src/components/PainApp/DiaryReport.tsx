@@ -713,42 +713,16 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         </Card>
 
         {/* ═══════════════════════════════════════════════════════════════════
-            OPTIONEN CARD (Toggle-Listen-Stil)
+            OPTIONEN CARD (Toggle-Listen-Stil) - Priorisiert für chron. Migräne
         ═══════════════════════════════════════════════════════════════════ */}
         <Card className="divide-y divide-border/50">
-          {/* Section: Essentials */}
-          <div className="p-4 space-y-0.5">
-            <ToggleRow
-              label="Statistiken & Diagramme"
-              checked={includeStats}
-              onCheckedChange={setIncludeStats}
-            />
-            <ToggleRow
-              label="Einträge (Tabelle)"
-              checked={includeEntriesList}
-              onCheckedChange={setIncludeEntriesList}
-            />
-            <ToggleRow
-              label="KI-Analyse"
-              checked={includeAnalysis}
-              onCheckedChange={setIncludeAnalysis}
-            />
-            <ToggleRow
-              label="Therapien (Prophylaxe & Akut)"
-              checked={includeTherapies}
-              onCheckedChange={setIncludeTherapies}
-              disabled={medicationCourses.length === 0}
-              subtext={medicationCourses.length === 0 ? "Keine Therapien vorhanden" : undefined}
-            />
-          </div>
-
-          {/* Section: Medikamente - moved up */}
+          {/* Section 1: Medikamente im PDF (höchste Priorität) */}
           <div className="p-4 space-y-2">
             <ToggleRow
-              label="Alle Medikamente"
+              label="Medikamente im PDF"
               checked={allMedications}
               onCheckedChange={setAllMedications}
-              subtext={allMedications ? undefined : "Wenn aus: Auswahl treffen"}
+              subtext={allMedications ? "Alle Medikamente werden einbezogen" : "Auswahl treffen"}
             />
             
             {!allMedications && medOptions.length > 0 && (
@@ -793,23 +767,67 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
             )}
           </div>
 
-          {/* Section: Weitere Optionen (Accordion) */}
+          {/* Section 2: Arztdaten einbinden */}
+          <div className="p-4">
+            <ToggleRow
+              label="Arztdaten einbinden"
+              checked={includeDoctorData}
+              onCheckedChange={setIncludeDoctorData}
+              subtext="Name, Adresse, Kontaktdaten des Arztes"
+            />
+          </div>
+
+          {/* Section 3: Einträge (Tabelle) */}
+          <div className="p-4">
+            <ToggleRow
+              label="Einträge (Tabelle)"
+              checked={includeEntriesList}
+              onCheckedChange={setIncludeEntriesList}
+            />
+          </div>
+
+          {/* Section: Weitere Optionen (Accordion) - standardmäßig eingeklappt */}
           <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
             <CollapsibleTrigger className="flex items-center justify-between w-full p-4 text-sm text-muted-foreground hover:text-foreground transition-colors">
-              <span>Weitere Optionen</span>
+              <div className="flex items-center gap-2">
+                <span>Weitere Optionen</span>
+                {/* Badge wenn Optionen von Default abweichen */}
+                {(() => {
+                  const hasChanges = 
+                    !includeStats || 
+                    !includeAnalysis || 
+                    !includeTherapies || 
+                    !includeEntryNotes || 
+                    includeContextNotes;
+                  return hasChanges ? (
+                    <span className="text-xs text-primary">• geändert</span>
+                  ) : null;
+                })()}
+              </div>
               {advancedOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
             </CollapsibleTrigger>
             <CollapsibleContent className="px-4 pb-4 space-y-0.5">
               <ToggleRow
+                label="Statistiken & Diagramme"
+                checked={includeStats}
+                onCheckedChange={setIncludeStats}
+              />
+              <ToggleRow
+                label="KI-Analyse"
+                checked={includeAnalysis}
+                onCheckedChange={setIncludeAnalysis}
+              />
+              <ToggleRow
+                label="Therapien (Prophylaxe & Akut)"
+                checked={includeTherapies}
+                onCheckedChange={setIncludeTherapies}
+                disabled={medicationCourses.length === 0}
+                subtext={medicationCourses.length === 0 ? "Keine Therapien vorhanden" : undefined}
+              />
+              <ToggleRow
                 label="Notizen aus Schmerzeinträgen"
                 checked={includeEntryNotes}
                 onCheckedChange={setIncludeEntryNotes}
-              />
-              <ToggleRow
-                label="Arztdaten einbinden"
-                checked={includeDoctorData}
-                onCheckedChange={setIncludeDoctorData}
-                subtext="Name, Adresse, Kontaktdaten des Arztes"
               />
               <div className="border-t border-border/30 pt-2 mt-2">
                 <ToggleRow
