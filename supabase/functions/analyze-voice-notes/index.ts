@@ -32,28 +32,31 @@ const AnalysisRequestSchema = z.object({
   message: 'Datumsbereich ungültig: fromDate darf nicht in der Zukunft liegen, toDate muss >= fromDate sein, und max. 730 Tage (2 Jahre) Spanne'
 });
 
-// Generic error handler to prevent exposing internal structures
-function handleError(error: unknown, context: string): Response {
-  // Log detailed error internally
-  console.error(`❌ [${context}] Error:`, error);
+// Generic error handler with requestId
+function handleError(error: unknown, context: string, requestId: string): Response {
+  console.error(`❌ [${context}] [${requestId}] Error:`, error);
   if (error instanceof Error) {
-    console.error('Stack trace:', error.stack);
+    console.error(`[${requestId}] Stack trace:`, error.stack);
   }
 
-  // Determine error type and return generic message
+  const errorMessage = error instanceof Error ? error.message.toLowerCase() : '';
+  
+  // Zod validation error
   if (error instanceof z.ZodError) {
     return new Response(JSON.stringify({ 
-      error: 'Ungültige Datumseingabe'
+      requestId,
+      error: 'Ungültige Datumseingabe',
+      details: error.errors.map(e => e.message)
     }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
 
-  // Check for authentication errors
-  const errorMessage = error instanceof Error ? error.message.toLowerCase() : '';
-  if (errorMessage.includes('authorization') || errorMessage.includes('authentifizierung') || errorMessage.includes('unauthorized')) {
+  // Auth errors
+  if (errorMessage.includes('authorization') || errorMessage.includes('authentifizierung') || errorMessage.includes('unauthorized') || errorMessage.includes('keine authentifizierung')) {
     return new Response(JSON.stringify({ 
+      requestId,
       error: 'Authentifizierung fehlgeschlagen'
     }), {
       status: 401,
@@ -61,9 +64,10 @@ function handleError(error: unknown, context: string): Response {
     });
   }
 
-  // Check for rate limit / credit errors (preserve these as they're user-facing)
+  // Rate limit
   if (errorMessage.includes('rate limit') || errorMessage.includes('429')) {
     return new Response(JSON.stringify({ 
+      requestId,
       error: 'Rate Limit erreicht. Bitte später erneut versuchen.'
     }), {
       status: 429,
@@ -71,8 +75,10 @@ function handleError(error: unknown, context: string): Response {
     });
   }
 
+  // Credits exhausted
   if (errorMessage.includes('guthaben') || errorMessage.includes('402') || errorMessage.includes('credits')) {
     return new Response(JSON.stringify({ 
+      requestId,
       error: 'Guthaben aufgebraucht. Bitte Credits hinzufügen.'
     }), {
       status: 402,
@@ -82,6 +88,7 @@ function handleError(error: unknown, context: string): Response {
 
   // Generic server error
   return new Response(JSON.stringify({ 
+    requestId,
     error: 'Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.'
   }), {
     status: 500,
@@ -89,7 +96,7 @@ function handleError(error: unknown, context: string): Response {
   });
 }
 
-// Tag-Extraktion (inline für Edge Function)
+// Tag extraction helpers
 interface ExtractedTag {
   tag: string;
   category: 'mood' | 'sleep' | 'stress' | 'food' | 'activity' | 'wellbeing' | 'other';
@@ -154,48 +161,98 @@ function extractHashtags(text: string): string[] {
 }
 
 serve(async (req) => {
+  // Generate request ID at the very start
+  const requestId = crypto.randomUUID();
+  const startTime = Date.now();
+  
+  console.log(`[analyze-voice-notes] [${requestId}] Request started`);
+
+  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Validate request body
+    // Parse and validate request body
     let requestBody: z.infer<typeof AnalysisRequestSchema>;
+    
     try {
       const rawBody = await req.json();
+      console.log(`[${requestId}] Raw body received:`, JSON.stringify(rawBody));
       requestBody = AnalysisRequestSchema.parse(rawBody);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        console.error('❌ Validation error:', error.errors);
+      console.log(`[${requestId}] Validation passed, mode: ${requestBody.mode}`);
+    } catch (parseError) {
+      if (parseError instanceof z.ZodError) {
+        console.error(`[${requestId}] Zod validation error:`, parseError.errors);
         return new Response(JSON.stringify({ 
+          requestId,
           error: 'Ungültige Datumseingabe',
-          details: error.errors.map(e => e.message)
+          details: parseError.errors.map(e => e.message)
         }), { 
           status: 400, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
-      throw error;
+      // Invalid JSON
+      console.error(`[${requestId}] JSON parse error:`, parseError);
+      return new Response(JSON.stringify({ 
+        requestId,
+        error: 'Ungültiges JSON im Request-Body'
+      }), { 
+        status: 400, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
-    const { fromDate, toDate } = requestBody;
+    const { fromDate, toDate, mode } = requestBody;
     
     // Auth check
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader) throw new Error('Keine Authentifizierung');
+    if (!authHeader) {
+      console.error(`[${requestId}] No Authorization header`);
+      return new Response(JSON.stringify({ 
+        requestId,
+        error: 'Keine Authentifizierung'
+      }), { 
+        status: 401, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY');
+    
+    if (!supabaseUrl || !supabaseKey) {
+      console.error(`[${requestId}] Missing Supabase env vars`);
+      return new Response(JSON.stringify({ 
+        requestId,
+        error: 'Server-Konfigurationsfehler'
+      }), { 
+        status: 500, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
     
     const supabase = createClient(supabaseUrl, supabaseKey, {
       global: { headers: { Authorization: authHeader } }
     });
 
-    // Get user ID from auth
+    // Get user from JWT
     const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) throw new Error('Authentifizierung fehlgeschlagen');
+    if (authError || !user) {
+      console.error(`[${requestId}] Auth error:`, authError);
+      return new Response(JSON.stringify({ 
+        requestId,
+        error: 'Authentifizierung fehlgeschlagen'
+      }), { 
+        status: 401, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
 
-    // Check if AI analysis is enabled
+    console.log(`[${requestId}] User authenticated: ${user.id}`);
+
+    // Check if AI is enabled for user
     const { data: profile } = await supabase
       .from('user_profiles')
       .select('ai_enabled')
@@ -203,7 +260,9 @@ serve(async (req) => {
       .single();
 
     if (!profile?.ai_enabled) {
+      console.log(`[${requestId}] AI disabled for user`);
       return new Response(JSON.stringify({ 
+        requestId,
         error: 'AI-Analyse ist in den Einstellungen deaktiviert' 
       }), { 
         status: 403, 
@@ -220,7 +279,12 @@ serve(async (req) => {
       .lte('occurred_at', toDate)
       .order('occurred_at', { ascending: true });
 
-    if (voiceError) throw voiceError;
+    if (voiceError) {
+      console.error(`[${requestId}] Voice notes error:`, voiceError);
+      throw voiceError;
+    }
+
+    console.log(`[${requestId}] Voice notes fetched: ${voiceNotes?.length || 0}`);
 
     // Extract tags from voice notes
     const allTags: Array<ExtractedTag & { noteText: string; date: string }> = [];
@@ -240,7 +304,7 @@ serve(async (req) => {
       });
     });
 
-    // Group tags by category
+    // Group tags
     const tagStats: Record<string, number> = {};
     allTags.forEach(({ tag }) => {
       tagStats[tag] = (tagStats[tag] || 0) + 1;
@@ -256,7 +320,7 @@ serve(async (req) => {
       .slice(0, 10)
       .map(([tag, count]) => ({ tag, count }));
 
-    // Fetch ALL pain entries with structured data and weather
+    // Fetch pain entries with weather
     const { data: painEntries, error: painError } = await supabase
       .from('pain_entries')
       .select(`
@@ -282,9 +346,23 @@ serve(async (req) => {
       .lte('timestamp_created', toDate)
       .order('timestamp_created', { ascending: true });
 
-    if (painError) throw painError;
+    if (painError) {
+      console.error(`[${requestId}] Pain entries error:`, painError);
+      throw painError;
+    }
 
-    // Structure data for LLM analysis
+    console.log(`[${requestId}] Pain entries fetched: ${painEntries?.length || 0}`);
+
+    // Fetch medication courses for before/after analysis
+    const { data: medicationCourses } = await supabase
+      .from('medication_courses')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('start_date', { ascending: true });
+
+    console.log(`[${requestId}] Medication courses fetched: ${medicationCourses?.length || 0}`);
+
+    // Structure entries for analysis
     const structuredEntries = (painEntries || []).map(entry => {
       const weather = Array.isArray(entry.weather) ? entry.weather[0] : entry.weather;
       const date = entry.selected_date || entry.timestamp_created.split('T')[0];
@@ -309,19 +387,22 @@ serve(async (req) => {
       };
     });
 
-    // Combine with voice notes
+    // Combine all data
     const allData = [
       ...structuredEntries,
       ...(voiceNotes || []).map(n => ({
         date: new Date(n.occurred_at).toISOString().split('T')[0],
         time: new Date(n.occurred_at).toISOString().split('T')[1].substring(0, 5),
-        type: 'voice_note',
+        type: 'voice_note' as const,
         text: n.text
       }))
     ].sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
 
+    // No data case
     if (allData.length === 0) {
+      console.log(`[${requestId}] No data found in range`);
       return new Response(JSON.stringify({ 
+        requestId,
         insights: 'Keine Daten im gewählten Zeitraum gefunden.',
         analyzed_entries: 0,
         voice_notes_count: 0,
@@ -333,7 +414,22 @@ serve(async (req) => {
       });
     }
 
-    // Build detailed prompt for LLM
+    // Build medication courses summary for prompt
+    let medicationCoursesSummary = '';
+    if (medicationCourses && medicationCourses.length > 0) {
+      const prophylaxeCourses = medicationCourses.filter(c => c.type === 'prophylaxe');
+      if (prophylaxeCourses.length > 0) {
+        medicationCoursesSummary = `\n\n💊 PROPHYLAXE-VERLÄUFE:\n${prophylaxeCourses.map(c => {
+          const status = c.is_active ? 'aktiv' : `beendet am ${c.end_date || 'unbekannt'}`;
+          const effectiveness = c.subjective_effectiveness !== null 
+            ? ` (Selbstbewertung: ${c.subjective_effectiveness}/10)` 
+            : '';
+          return `  • ${c.medication_name}: ${c.dose_text || 'Dosis nicht angegeben'}, Start: ${c.start_date || 'unbekannt'}, Status: ${status}${effectiveness}`;
+        }).join('\n')}`;
+      }
+    }
+
+    // Build tags summary
     const tagsSummary = topTags.length > 0 
       ? `\n\n🏷️ HÄUFIGSTE KONTEXT-TAGS:\n${topTags.map(t => `  • ${t.label}: ${t.count}x erkannt`).join('\n')}`
       : '';
@@ -342,9 +438,12 @@ serve(async (req) => {
       ? `\n\n#️⃣ HASHTAGS:\n${topHashtags.map(h => `  • ${h.tag}: ${h.count}x`).join('\n')}`
       : '';
 
-    const dataText = allData.map(d => {
-      if (d.type === 'voice_note') {
-        // Extract tags from this specific note
+    // Build data text (with limits to prevent prompt overflow)
+    const MAX_DATA_ENTRIES = 200;
+    const limitedData = allData.slice(-MAX_DATA_ENTRIES); // Take most recent
+    
+    const dataText = limitedData.map(d => {
+      if ('type' in d && d.type === 'voice_note') {
         const noteTags = extractTags(d.text);
         const noteHashtags = extractHashtags(d.text);
         const tagsStr = noteTags.length > 0 
@@ -353,7 +452,7 @@ serve(async (req) => {
         const hashtagsStr = noteHashtags.length > 0 
           ? ` ${noteHashtags.join(' ')}` 
           : '';
-        return `[${d.date} ${d.time}] 📝 NOTIZ: ${d.text}${tagsStr}${hashtagsStr}`;
+        return `[${d.date} ${d.time}] 📝 NOTIZ: ${d.text.substring(0, 200)}${d.text.length > 200 ? '...' : ''}${tagsStr}${hashtagsStr}`;
       }
       
       let entry = `[${d.date} ${d.time}] 🩺 MIGRÄNE-EINTRAG
@@ -372,7 +471,7 @@ serve(async (req) => {
       }
       
       if (d.notes) {
-        entry += `\n  💬 Notiz: ${d.notes}`;
+        entry += `\n  💬 Notiz: ${d.notes.substring(0, 150)}${d.notes.length > 150 ? '...' : ''}`;
       }
       
       return entry;
@@ -380,97 +479,115 @@ serve(async (req) => {
 
     const hasWeatherData = structuredEntries.some(e => e.weather !== null);
 
-    // Call Lovable AI
+    // Check for LLM API key
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) throw new Error('LOVABLE_API_KEY nicht konfiguriert');
-
-    // Build prompt based on mode
-    const { mode = 'full' } = validatedBody;
     
+    // If no API key, return deterministic analysis
+    if (!LOVABLE_API_KEY) {
+      console.log(`[${requestId}] No LOVABLE_API_KEY, returning deterministic analysis`);
+      
+      const deterministicInsights = buildDeterministicInsights(
+        structuredEntries, 
+        allTags, 
+        topTags, 
+        medicationCourses || [],
+        fromDate,
+        toDate
+      );
+      
+      return new Response(JSON.stringify({
+        requestId,
+        insights: deterministicInsights,
+        analyzed_entries: painEntries?.length || 0,
+        voice_notes_count: voiceNotes?.length || 0,
+        total_analyzed: allData.length,
+        has_weather_data: hasWeatherData,
+        date_range: { from: fromDate.split('T')[0], to: toDate.split('T')[0] },
+        ai_available: false,
+        tags: {
+          total_tags: allTags.length,
+          unique_tags: topTags.length,
+          top_tags: topTags,
+          top_hashtags: topHashtags,
+          tags_by_category: buildTagsByCategory(allTags)
+        }
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Build prompt based on mode (FIX: use requestBody.mode, not validatedBody)
     let prompt: string;
     let systemMessage: string;
     
     if (mode === 'doctor_summary') {
-      // Compact medical summary for doctors
       systemMessage = 'Sie sind ein medizinischer Assistent für Fachpersonal. Schreiben Sie präzise, faktisch und kompakt.';
       prompt = `Sie erhalten Migräne-Daten (${allData.length} Einträge von ${fromDate.split('T')[0]} bis ${toDate.split('T')[0]}) für eine KOMPAKTE ärztliche Zusammenfassung.
 
 DATENSATZ:
 
-${dataText}${tagsSummary}${hashtagsSummary}
+${dataText}${tagsSummary}${hashtagsSummary}${medicationCoursesSummary}
 
 AUFGABE:
 Erstellen Sie eine KOMPAKTE Zusammenfassung (80-120 Wörter) für medizinisches Fachpersonal.
 
 FOKUS: Nur Muster, die NICHT offensichtlich aus Rohdaten erkennbar sind:
 • Wetter-Trigger (z.B. Luftdruckabfall >5 hPa/24h)
-• Kontext-Faktoren aus Tags/Notizen mit zeitlichem Zusammenhang (z.B. "Schlafmangel-Tags 1-2 Tage vor Anfällen")
+• Kontext-Faktoren aus Tags/Notizen mit zeitlichem Zusammenhang
 • Temporale Muster (z.B. Tageszeit-Cluster)
-
-WEGLASSEN (bereits in PDF-Statistiken enthalten):
-• Medikamentenhäufigkeit
-• Durchschnittliche Schmerzintensität
-• Aufzählung einzelner Einträge
-• Gesamtanzahl Anfälle
+• Prophylaxe-Wirkung (vorher/nachher Vergleich falls Daten vorhanden)
 
 FORMAT:
 • Stichpunktartig, keine Einleitung
-• 2-3 konkrete Handlungsempfehlungen für Diagnostik/Therapie
-• Medizinisch präzise, aber ohne Fachjargon
-
-BEISPIEL:
-• Auffälliger Zusammenhang: Luftdruckabfall >8 hPa/24h korreliert mit 70% der Anfälle
-• Kontext: "Schlecht geschlafen"-Tags treten 1-2 Tage vor Migräne auf (6 von 8 Fällen)
-• Empfehlung: Wetterbasierte Prophylaxe prüfen, Schlafhygiene fokussieren, Triggerdiary fortführen`;
+• 2-3 konkrete Handlungsempfehlungen
+• Medizinisch präzise, aber ohne Fachjargon`;
     } else {
-      // Full patient-friendly analysis
-      systemMessage = 'Sie sind ein hilfreicher medizinischer Assistent, der Migräne-Patienten dabei unterstützt, ihre Daten zu verstehen. Schreiben Sie klar, verständlich und patientenfreundlich. Verwenden Sie die Höflichkeitsform "Sie".';
-      prompt = `Sie erhalten eine ausführliche, faktenbasierte Analyse von Migräne-Daten (inkl. Wetter, Wochentage, Medikamente, Schmerzlevel UND automatisch erkannte Kontext-Tags aus Notizen). 
+      systemMessage = 'Sie sind ein hilfreicher Assistent für Kopfschmerz-Musteranalyse. Schreiben Sie klar, verständlich und verwenden Sie die Höflichkeitsform "Sie". Dies ist KEINE medizinische Beratung, sondern eine private Datenauswertung.';
+      prompt = `Analysieren Sie diese Kopfschmerz-Daten (${allData.length} Einträge von ${fromDate.split('T')[0]} bis ${toDate.split('T')[0]}) für eine KI-MUSTER-ANALYSE.
 
-DATENSATZ (${allData.length} Einträge von ${fromDate.split('T')[0]} bis ${toDate.split('T')[0]}):
+DATENSATZ:
 
-${dataText}${tagsSummary}${hashtagsSummary}
+${dataText}${tagsSummary}${hashtagsSummary}${medicationCoursesSummary}
 
 AUFGABE:
-Erstellen Sie eine kurze, leicht verständliche Zusammenfassung für Betroffene. WICHTIG: Berücksichtigen Sie auch die erkannten Kontext-Tags (z.B. "Gestresst", "Schlecht geschlafen", "Viel getrunken") und Hashtags für Muster-Erkennung.
+Erstellen Sie eine strukturierte Muster-Analyse für den Nutzer. WICHTIG: Dies ist eine PRIVATE Datenauswertung, KEIN ärztlicher Rat.
 
-VORGEHEN:
-1. Schreiben Sie in klaren, einfachen Sätzen und verwenden Sie die Höflichkeitsform „Sie"
-2. Geben Sie nur die wichtigsten 3–6 Kernaussagen wieder – keine langen Listen, Tabellen oder Aufzählungen von Einträgen
-3. **NEU: Analysieren Sie Zusammenhänge zwischen Kontext-Tags und Schmerzeinträgen** (z.B. "Migräne trat häufig auf, wenn Sie am Vortag schlecht geschlafen haben" oder "Stress-Tags erscheinen oft 1-2 Tage vor Schmerzeinträgen")
-4. Vermeiden Sie Rohdaten und Details wie:
-   - ISO-Zeitstempel (z.B. 2025-10-04 15:39:00)
-   - Lange Zahlen mit vielen Nachkommastellen (z.B. -8.199999999999932)
-   - Vollständige Auflistungen einzelner Messwerte
-   Fassen Sie solche Informationen stattdessen zusammen (z.B. „Mehrere Anfälle traten bei hoher Luftfeuchtigkeit über 80 % auf.")
+INHALTLICHE STRUKTUR (ca. 200-300 Wörter):
 
-DATUMS- UND ZAHLENFORMAT:
-5. Schreiben Sie Daten im deutschen, gut lesbaren Format:
-   - „am 04.10.2025 gegen 15:30 Uhr" oder
-   - „am 4. Oktober 2025"
-   Verwenden Sie KEINE Sekunden und KEINE technischen Zeitstempel
-6. Runden Sie Zahlen sinnvoll:
-   - Luftdruckänderungen auf ganze hPa
-   - Temperatur auf ganze °C
-   - Prozentwerte auf ganze Prozent
+**📊 Zusammenfassung**
+- Kurze Übersicht: Anzahl Episoden, Zeitraum, allgemeine Tendenz
 
-INHALTLICHE STRUKTUR (insgesamt ca. 200–280 Wörter):
-a) Kurze Überschrift (z.B. „Kurz-Auswertung Ihrer Migräne-Einträge")
-b) 1 kurzer Absatz zur Häufigkeit der Migräne (z.B. welcher Monat auffällig war)
-c) **NEU: 1 Absatz zu Kontext-Mustern**: Häufigste Tags und deren mögliche Zusammenhänge mit Migräne (z.B. "Sie haben oft 'Gestresst' und 'Schlecht geschlafen' notiert - diese Faktoren scheinen in zeitlichem Zusammenhang mit Ihren Migräne-Anfällen zu stehen")
-d) 1 kurzer Absatz zu möglichen Mustern (z.B. Tageszeiten, Wetter wie hohe Luftfeuchtigkeit oder Luftdruckwechsel – nur wenn in den Daten erwähnt)
-e) 1 kurzer Absatz zu Medikamenten (häufig genutzte Mittel, aber ohne alle Dosierungen und jede einzelne Einnahme aufzuzählen)
-f) 1 kurzer Absatz zu Symptomen (z.B. typische Schmerzlokalisation, ob Aura vorhanden ist oder nicht)
-g) Optional: 2–3 Stichpunkte „Für Ihr nächstes Arztgespräch", **inkl. auffälliger Kontext-Muster** in einfachen Formulierungen
+**🔍 Erkannte Muster**
+- Tageszeit-Muster (falls erkennbar)
+- Wetter-Zusammenhänge (Luftdruck, Temperatur falls Daten vorhanden)
+- Kontext-Faktoren aus Tags (Schlaf, Stress, etc.)
 
-STIL UND SICHERHEIT:
-8. Bleiben Sie streng faktenbasiert und spekulieren Sie nicht
-9. Bei Tag-Zusammenhängen: Verwenden Sie vorsichtige Formulierungen wie "scheint zusammenzuhängen", "tritt häufig auf", "könnte ein Faktor sein"
-10. Wenn die Datenlage begrenzt ist, erwähnen Sie das EINMAL am Ende in einem kurzen Satz (z.B. „Die Ergebnisse sind vorläufig, weil bisher nur eine begrenzte Anzahl an Einträgen vorliegt.")
-11. Nutzen Sie eine freundliche, unterstützende Formulierung, aber machen Sie klar, dass die Auswertung keinen ärztlichen Rat ersetzt und als Grundlage für ein Arztgespräch dienen soll
+**⚡ Mögliche Trigger**
+- Was verschlechtert? (basierend auf Daten, nicht Spekulation)
+- Vorsichtige Formulierung: "scheint zusammenzuhängen", "tritt häufig auf"
 
-Formatieren Sie die Antwort in gut lesbarem Markdown OHNE Rohdaten-Listen und OHNE technischen Fachjargon.`;
+**✅ Was zu helfen scheint**
+- Medikamente mit positiver Wirkung
+- Faktoren die mit weniger Episoden korrelieren
+
+${medicationCourses && medicationCourses.length > 0 ? `
+**📈 Prophylaxe-Verlauf**
+- Vergleich vor/nach Therapiebeginn (falls genug Daten)
+- Subjektive Wirksamkeit aus Nutzer-Angaben
+` : ''}
+
+**💡 Hinweise**
+- 2-3 konkrete Beobachtungen für Selbst-Tracking
+- Hinweis: Dies ersetzt keine ärztliche Beratung
+
+FORMATIERUNG:
+- Gut lesbares Markdown
+- Keine Rohdaten-Listen oder technische Timestamps
+- Deutsche Datumsformate (dd.MM.yyyy)
+- Zahlen sinnvoll runden`;
     }
+
+    console.log(`[${requestId}] Calling AI Gateway, mode: ${mode}`);
 
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -488,8 +605,12 @@ Formatieren Sie die Antwort in gut lesbarem Markdown OHNE Rohdaten-Listen und OH
     });
 
     if (!aiResponse.ok) {
+      const errorText = await aiResponse.text();
+      console.error(`[${requestId}] AI Gateway Error: ${aiResponse.status}`, errorText);
+      
       if (aiResponse.status === 429) {
         return new Response(JSON.stringify({ 
+          requestId,
           error: 'Rate Limit erreicht. Bitte später erneut versuchen.' 
         }), {
           status: 429,
@@ -498,59 +619,190 @@ Formatieren Sie die Antwort in gut lesbarem Markdown OHNE Rohdaten-Listen und OH
       }
       if (aiResponse.status === 402) {
         return new Response(JSON.stringify({ 
+          requestId,
           error: 'Guthaben aufgebraucht. Bitte Credits hinzufügen.' 
         }), {
           status: 402,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-      const errorText = await aiResponse.text();
-      console.error('AI Gateway Error:', aiResponse.status, errorText);
-      throw new Error(`AI-Analyse fehlgeschlagen: ${aiResponse.status}`);
+      
+      // Fallback to deterministic if AI fails
+      console.log(`[${requestId}] AI failed, falling back to deterministic`);
+      const deterministicInsights = buildDeterministicInsights(
+        structuredEntries, 
+        allTags, 
+        topTags, 
+        medicationCourses || [],
+        fromDate,
+        toDate
+      );
+      
+      return new Response(JSON.stringify({
+        requestId,
+        insights: deterministicInsights + '\n\n*Hinweis: KI-Text war vorübergehend nicht verfügbar.*',
+        analyzed_entries: painEntries?.length || 0,
+        voice_notes_count: voiceNotes?.length || 0,
+        total_analyzed: allData.length,
+        has_weather_data: hasWeatherData,
+        date_range: { from: fromDate.split('T')[0], to: toDate.split('T')[0] },
+        ai_available: false,
+        tags: {
+          total_tags: allTags.length,
+          unique_tags: topTags.length,
+          top_tags: topTags,
+          top_hashtags: topHashtags,
+          tags_by_category: buildTagsByCategory(allTags)
+        }
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     const aiData = await aiResponse.json();
     const insights = aiData.choices[0].message.content;
 
-    // Log metadata only (no content)
-    await supabase.from('audit_logs').insert({
-      user_id: user.id,
-      action: 'AI_ANALYSIS',
-      table_name: 'voice_notes',
-      old_data: {
-        model: 'gemini-2.5-flash',
-        voice_notes_count: voiceNotes?.length || 0,
-        pain_entries_count: painEntries?.length || 0,
-        total_analyzed: allData.length,
-        has_weather_data: hasWeatherData,
-        tokens: aiData.usage?.total_tokens || 0
-      }
-    });
+    console.log(`[${requestId}] AI response received, tokens: ${aiData.usage?.total_tokens || 'unknown'}`);
+
+    // Audit log (non-blocking)
+    try {
+      await supabase.from('audit_logs').insert({
+        user_id: user.id,
+        action: 'AI_PATTERN_ANALYSIS',
+        table_name: 'pain_entries',
+        old_data: {
+          requestId,
+          model: 'gemini-2.5-flash',
+          mode,
+          voice_notes_count: voiceNotes?.length || 0,
+          pain_entries_count: painEntries?.length || 0,
+          total_analyzed: allData.length,
+          has_weather_data: hasWeatherData,
+          tokens: aiData.usage?.total_tokens || 0
+        }
+      });
+    } catch (auditError) {
+      // Log but don't fail the request
+      console.error(`[${requestId}] Audit log failed (non-fatal):`, auditError);
+    }
+
+    const duration = Date.now() - startTime;
+    console.log(`[${requestId}] Request completed in ${duration}ms`);
 
     return new Response(JSON.stringify({
+      requestId,
       insights,
       analyzed_entries: painEntries?.length || 0,
       voice_notes_count: voiceNotes?.length || 0,
       total_analyzed: allData.length,
       has_weather_data: hasWeatherData,
       date_range: { from: fromDate.split('T')[0], to: toDate.split('T')[0] },
+      ai_available: true,
       tags: {
         total_tags: allTags.length,
         unique_tags: topTags.length,
         top_tags: topTags,
         top_hashtags: topHashtags,
-        tags_by_category: Object.entries(
-          allTags.reduce((acc, tag) => {
-            acc[tag.category] = (acc[tag.category] || 0) + 1;
-            return acc;
-          }, {} as Record<string, number>)
-        ).map(([category, count]) => ({ category, count }))
+        tags_by_category: buildTagsByCategory(allTags)
       }
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
   } catch (error) {
-    return handleError(error, 'analyze-voice-notes');
+    return handleError(error, 'analyze-voice-notes', requestId);
   }
 });
+
+// Helper to build tags by category
+function buildTagsByCategory(allTags: Array<ExtractedTag & { noteText: string; date: string }>) {
+  return Object.entries(
+    allTags.reduce((acc, tag) => {
+      acc[tag.category] = (acc[tag.category] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>)
+  ).map(([category, count]) => ({ category, count }));
+}
+
+// Deterministic insights when AI is unavailable
+function buildDeterministicInsights(
+  entries: Array<{ date: string; pain_level: string; aura_type: string; medications: string; weather: any }>,
+  allTags: ExtractedTag[],
+  topTags: Array<{ tag: string; label: string; count: number }>,
+  courses: any[],
+  fromDate: string,
+  toDate: string
+): string {
+  const totalEntries = entries.length;
+  const fromFormatted = new Date(fromDate).toLocaleDateString('de-DE');
+  const toFormatted = new Date(toDate).toLocaleDateString('de-DE');
+  
+  let md = `## 📊 Kopfschmerz-Muster (${fromFormatted} – ${toFormatted})\n\n`;
+  md += `**${totalEntries} Einträge** im gewählten Zeitraum.\n\n`;
+  
+  // Pain level distribution
+  const painLevels: Record<string, number> = {};
+  entries.forEach(e => {
+    painLevels[e.pain_level] = (painLevels[e.pain_level] || 0) + 1;
+  });
+  
+  if (Object.keys(painLevels).length > 0) {
+    md += `### Schmerzintensität\n`;
+    Object.entries(painLevels)
+      .sort(([,a], [,b]) => b - a)
+      .forEach(([level, count]) => {
+        md += `- ${level}: ${count}x (${Math.round(count/totalEntries*100)}%)\n`;
+      });
+    md += '\n';
+  }
+  
+  // Top tags
+  if (topTags.length > 0) {
+    md += `### Häufige Faktoren\n`;
+    topTags.slice(0, 5).forEach(t => {
+      md += `- ${t.label}: ${t.count}x erkannt\n`;
+    });
+    md += '\n';
+  }
+  
+  // Medications
+  const meds: Record<string, number> = {};
+  entries.forEach(e => {
+    if (e.medications && e.medications !== 'keine') {
+      e.medications.split(',').forEach(m => {
+        const name = m.trim();
+        if (name) meds[name] = (meds[name] || 0) + 1;
+      });
+    }
+  });
+  
+  if (Object.keys(meds).length > 0) {
+    md += `### Medikamente\n`;
+    Object.entries(meds)
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, 5)
+      .forEach(([med, count]) => {
+        md += `- ${med}: ${count}x verwendet\n`;
+      });
+    md += '\n';
+  }
+  
+  // Prophylaxe courses
+  const prophylaxe = courses.filter(c => c.type === 'prophylaxe');
+  if (prophylaxe.length > 0) {
+    md += `### Prophylaxe-Verläufe\n`;
+    prophylaxe.forEach(c => {
+      const status = c.is_active ? '🟢 aktiv' : '⏹️ beendet';
+      md += `- **${c.medication_name}** (${c.dose_text || 'Dosis nicht angegeben'}): ${status}`;
+      if (c.subjective_effectiveness !== null) {
+        md += ` – Selbstbewertung: ${c.subjective_effectiveness}/10`;
+      }
+      md += '\n';
+    });
+    md += '\n';
+  }
+  
+  md += `---\n*Diese Auswertung basiert auf Ihren Tracker-Daten. Sie ersetzt keine ärztliche Beratung.*`;
+  
+  return md;
+}
