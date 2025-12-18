@@ -1,72 +1,39 @@
 /**
- * Pain Color Scale - Maps pain levels 0-10 to colors using CSS variables
- * Interpolates between pain-light, pain-medium, pain-strong, pain-severe
+ * Pain Color Scale - Migraine-friendly palette
+ * 
+ * Design goals:
+ * - Low pain (0-3): Cool, calming colors (blue-gray)
+ * - Medium pain (4-6): Neutral transition (sand/beige, NOT orange)
+ * - High pain (7-8): Warm but dark (dark red/reddish brown)
+ * - Severe pain (9-10): Clear warning (bright red)
+ * - Good contrast for dark mode text readability
  */
 
-// Get HSL values from CSS variables
-function getHSLFromCSSVar(varName: string): { h: number; s: number; l: number } | null {
-  if (typeof window === 'undefined') return null;
-  
-  const value = getComputedStyle(document.documentElement)
-    .getPropertyValue(varName)
-    .trim();
-  
-  if (!value) return null;
-  
-  // Parse "142 76% 36%" format
-  const parts = value.split(/\s+/);
-  if (parts.length >= 3) {
-    return {
-      h: parseFloat(parts[0]),
-      s: parseFloat(parts[1]),
-      l: parseFloat(parts[2])
-    };
-  }
-  return null;
-}
+// Direct color definitions - no CSS variable dependency for predictable results
+// All colors in HSL format: { h: hue (0-360), s: saturation (0-100), l: lightness (0-100) }
 
-// Linear interpolation between two HSL colors
-function interpolateHSL(
-  color1: { h: number; s: number; l: number },
-  color2: { h: number; s: number; l: number },
-  t: number
-): { h: number; s: number; l: number } {
-  // For hue, take shortest path
-  let hDiff = color2.h - color1.h;
-  if (Math.abs(hDiff) > 180) {
-    if (hDiff > 0) hDiff -= 360;
-    else hDiff += 360;
-  }
+const PAIN_COLORS: Record<number, { h: number; s: number; l: number }> = {
+  // 0: Almost invisible / very subtle neutral
+  0: { h: 220, s: 10, l: 25 },  // Very dark blue-gray, barely visible
   
-  return {
-    h: (color1.h + hDiff * t + 360) % 360,
-    s: color1.s + (color2.s - color1.s) * t,
-    l: color1.l + (color2.l - color1.l) * t
-  };
-}
-
-// Default fallback colors matching index.css pain levels (HSL values)
-const FALLBACK_COLORS: { h: number; s: number; l: number }[] = [
-  { h: 142, s: 76, l: 36 },  // pain-light (green) - matches --pain-light
-  { h: 45, s: 93, l: 47 },   // pain-medium (yellow) - matches --pain-medium
-  { h: 24, s: 100, l: 50 },  // pain-strong (orange) - matches --pain-strong
-  { h: 0, s: 84, l: 60 }     // pain-severe (red) - matches --pain-severe
-];
-
-// Get base colors from CSS or fallback
-function getBaseColors(): { h: number; s: number; l: number }[] {
-  const painLight = getHSLFromCSSVar('--pain-light');
-  const painMedium = getHSLFromCSSVar('--pain-medium');
-  const painStrong = getHSLFromCSSVar('--pain-strong');
-  const painSevere = getHSLFromCSSVar('--pain-severe');
+  // 1-3: Cool, desaturated blue-gray (calming)
+  1: { h: 210, s: 15, l: 35 },  // Dark cool gray
+  2: { h: 205, s: 18, l: 42 },  // Cool gray
+  3: { h: 200, s: 20, l: 48 },  // Light cool gray
   
-  return [
-    painLight || FALLBACK_COLORS[0],
-    painMedium || FALLBACK_COLORS[1],
-    painStrong || FALLBACK_COLORS[2],
-    painSevere || FALLBACK_COLORS[3]
-  ];
-}
+  // 4-6: Neutral transition (sand/beige/warm gray - NOT orange)
+  4: { h: 45, s: 15, l: 50 },   // Muted sand
+  5: { h: 40, s: 22, l: 52 },   // Warm sand
+  6: { h: 35, s: 28, l: 48 },   // Deeper sand/tan
+  
+  // 7-8: Warm but dark (reddish brown)
+  7: { h: 15, s: 45, l: 40 },   // Dark reddish brown
+  8: { h: 8, s: 55, l: 38 },    // Deep red-brown
+  
+  // 9-10: Clear warning red
+  9: { h: 0, s: 70, l: 45 },    // Strong red
+  10: { h: 0, s: 85, l: 50 },   // Bright signal red
+};
 
 // Generate 11 colors for pain levels 0-10
 let cachedColorScale: string[] | null = null;
@@ -74,27 +41,11 @@ let cachedColorScale: string[] | null = null;
 export function generateColorScale(): string[] {
   if (cachedColorScale) return cachedColorScale;
   
-  const baseColors = getBaseColors();
   const colors: string[] = [];
   
   for (let level = 0; level <= 10; level++) {
-    let color: { h: number; s: number; l: number };
-    
-    if (level <= 3) {
-      // 0-3: interpolate between pain-light and pain-medium
-      const t = level / 3;
-      color = interpolateHSL(baseColors[0], baseColors[1], t);
-    } else if (level <= 6) {
-      // 4-6: interpolate between pain-medium and pain-strong
-      const t = (level - 3) / 3;
-      color = interpolateHSL(baseColors[1], baseColors[2], t);
-    } else {
-      // 7-10: interpolate between pain-strong and pain-severe
-      const t = (level - 6) / 4;
-      color = interpolateHSL(baseColors[2], baseColors[3], t);
-    }
-    
-    colors.push(`hsl(${Math.round(color.h)} ${Math.round(color.s)}% ${Math.round(color.l)}%)`);
+    const color = PAIN_COLORS[level];
+    colors.push(`hsl(${color.h} ${color.s}% ${color.l}%)`);
   }
   
   cachedColorScale = colors;
@@ -113,12 +64,21 @@ export function getColorForPain(painLevel: number | null): string {
 }
 
 // Determine if dark text should be used on a pain color background
-// Yellow/light colors (low pain levels) need dark text for readability
+// Based on lightness and saturation of the color
 export function shouldUseDarkText(painLevel: number | null): boolean {
   if (painLevel === null || painLevel === undefined) return false;
-  // Levels 0-4 are lighter colors (green to yellow) - use dark text
-  // Levels 5+ are darker colors (orange to red) - use light text
-  return painLevel <= 4;
+  
+  // With our new palette:
+  // 0-3: Dark backgrounds (blue-gray) -> light text
+  // 4-6: Medium backgrounds (sand) -> dark text works
+  // 7-10: Dark backgrounds (red tones) -> light text
+  return painLevel >= 4 && painLevel <= 6;
+}
+
+// Check if this is a severe pain level (for visual emphasis)
+export function isSeverePain(painLevel: number | null): boolean {
+  if (painLevel === null || painLevel === undefined) return false;
+  return painLevel >= 9;
 }
 
 // Get legend data for UI
