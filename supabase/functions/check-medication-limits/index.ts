@@ -72,6 +72,16 @@ serve(async (req) => {
     console.log('🔍 Checking medications:', medications);
     console.log('👤 For user:', user.id);
 
+    // Load user's warning threshold (default: 80%)
+    const { data: profileData } = await supabase
+      .from('user_profiles')
+      .select('medication_limit_warning_threshold_pct')
+      .eq('user_id', user.id)
+      .single();
+
+    const warningPct = profileData?.medication_limit_warning_threshold_pct ?? 80;
+    console.log('⚙️ Warning threshold:', warningPct, '%');
+
     // Get ALL active limits for this user first
     const { data: allLimits, error: limitsError } = await supabase
       .from('user_medication_limits')
@@ -162,7 +172,7 @@ serve(async (req) => {
         status = 'exceeded';
       } else if (currentCount === limit.limit_count) {
         status = 'reached';
-      } else if (percentage >= 90) {
+      } else if (percentage >= warningPct) {
         status = 'warning';
       } else {
         status = 'safe';
