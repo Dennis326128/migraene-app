@@ -183,14 +183,16 @@ export function AnalysisView({ onBack, onNavigateToLimits }: AnalysisViewProps) 
   }, []);
 
   // Compute pattern statistics
+  // Pass allEntries for correct rolling 30-day limit calculation
   const patternStats = useMemo(() => {
     return computeStatistics(
       filteredEntries,
       medicationEffectsData as MedicationEffect[],
       entrySymptoms,
-      medicationLimits as MedicationLimit[]
+      medicationLimits as MedicationLimit[],
+      entries // All entries for rolling 30-day calculation
     );
-  }, [filteredEntries, medicationEffectsData, entrySymptoms, medicationLimits]);
+  }, [filteredEntries, medicationEffectsData, entrySymptoms, medicationLimits, entries]);
 
   const { data: timeDistribution = [] } = useTimeDistribution({ from, to });
 

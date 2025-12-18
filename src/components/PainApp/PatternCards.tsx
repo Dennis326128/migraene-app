@@ -1,12 +1,61 @@
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Activity, MapPin, Brain, Pill } from "lucide-react";
+import { Activity, MapPin, Brain, Pill, Info } from "lucide-react";
 import { formatPainLocation, formatAuraType } from "@/lib/utils/pain";
-import type { PatternStatistics } from "@/lib/statistics";
+import type { PatternStatistics, MedicationLimitInfo } from "@/lib/statistics";
+import { Progress } from "@/components/ui/progress";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface PatternCardsProps {
   statistics: PatternStatistics;
   isLoading?: boolean;
+}
+
+// Component for displaying the rolling 30-day limit info
+function Rolling30DayLimitDisplay({ limitInfo }: { limitInfo: MedicationLimitInfo }) {
+  const percentage = Math.min(100, (limitInfo.rolling30Count / limitInfo.limit) * 100);
+  const isWarning = percentage >= 80 && percentage < 100;
+  const isOver = limitInfo.isOverLimit;
+
+  return (
+    <div className="mt-2 pt-2 border-t border-border/50">
+      <div className="flex items-center gap-1 mb-1.5">
+        <span className="text-xs font-medium text-muted-foreground">30-Tage-Limit</span>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Info className="h-3 w-3 text-muted-foreground/70 cursor-help" />
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-[200px]">
+              <p className="text-xs">Rollierend: zählt die letzten 30 Tage ab heute.</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
+      
+      <div className="flex items-center justify-between text-sm mb-1">
+        <span className={`font-medium ${isOver ? 'text-destructive' : isWarning ? 'text-warning' : 'text-foreground'}`}>
+          Letzte 30 Tage: {limitInfo.rolling30Count} / {limitInfo.limit}
+        </span>
+        <span className={`text-xs ${isOver ? 'text-destructive' : isWarning ? 'text-warning' : 'text-muted-foreground'}`}>
+          {isOver 
+            ? `+${limitInfo.overBy} über Limit` 
+            : `Noch ${limitInfo.remaining} übrig`
+          }
+        </span>
+      </div>
+      
+      <Progress 
+        value={percentage} 
+        className={`h-2 ${isOver ? '[&>div]:bg-destructive' : isWarning ? '[&>div]:bg-warning' : ''}`}
+      />
+    </div>
+  );
 }
 
 export function PatternCards({ statistics, isLoading = false }: PatternCardsProps) {
@@ -209,30 +258,38 @@ export function PatternCards({ statistics, isLoading = false }: PatternCardsProp
                   <p className="text-base font-bold text-primary">
                     {medicationAndEffect.mostUsed.name}
                   </p>
+                  
+                  {/* Zeile 1: Einnahmen im Zeitraum */}
                   <p className="text-xs text-muted-foreground mt-1">
-                    {medicationAndEffect.mostUsed.count} Einnahmen
+                    Im Zeitraum: {medicationAndEffect.mostUsed.rangeCount} Einnahmen
                     {medicationAndEffect.mostUsed.avgRating > 0 && (
-                      <>, Ø Wirkung {medicationAndEffect.mostUsed.avgRating}/10</>
+                      <span className="ml-1">• Ø Wirkung {medicationAndEffect.mostUsed.avgRating}/10</span>
                     )}
                   </p>
+                  
                   {medicationAndEffect.mostUsed.sideEffectCount > 0 && (
                     <p className="text-xs text-muted-foreground mt-0.5">
                       Nebenwirkungen bei {medicationAndEffect.mostUsed.sideEffectCount} Episoden dokumentiert
                     </p>
                   )}
-                {medicationAndEffect.mostUsed && 'limitInfo' in medicationAndEffect.mostUsed && medicationAndEffect.mostUsed.limitInfo && (
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Limit ({(medicationAndEffect.mostUsed.limitInfo as any).period}): {(medicationAndEffect.mostUsed.limitInfo as any).used} von {(medicationAndEffect.mostUsed.limitInfo as any).limit} genutzt
-                  </p>
-                )}
+                  
+                  {/* Zeile 2: Rolling 30-Tage-Limit */}
+                  {medicationAndEffect.mostUsed.limitInfo ? (
+                    <Rolling30DayLimitDisplay limitInfo={medicationAndEffect.mostUsed.limitInfo} />
+                  ) : (
+                    <p className="text-xs text-muted-foreground/70 mt-2 pt-2 border-t border-border/50">
+                      Kein 30-Tage-Limit festgelegt
+                    </p>
+                  )}
                 </div>
+                
                 {medicationAndEffect.topMedications.length > 1 && (
                   <div className="space-y-1.5 text-sm">
                     {medicationAndEffect.topMedications.slice(1, 3).map((med, idx) => (
                       <div key={idx} className="flex justify-between">
                         <span className="text-muted-foreground">{med.name}:</span>
                         <span className="font-medium">
-                          {med.count}x
+                          {med.rangeCount}x im Zeitraum
                           {med.avgRating > 0 && <> (Ø {med.avgRating}/10)</>}
                         </span>
                       </div>

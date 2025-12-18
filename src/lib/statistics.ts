@@ -1,5 +1,6 @@
 import type { MigraineEntry } from "@/types/painApp";
 import { normalizePainLevel } from "@/lib/utils/pain";
+import { subDays, startOfDay, endOfDay, parseISO, isWithinInterval } from "date-fns";
 
 export interface MedicationEffect {
   id: string;
@@ -25,6 +26,16 @@ export interface EntrySymptom {
   symptom_name?: string;
 }
 
+// Updated interface with rolling 30-day limit info
+export interface MedicationLimitInfo {
+  rolling30Count: number;    // Einnahmen in den letzten 30 Tagen (rollierend)
+  limit: number;             // Das definierte Limit
+  period: string;            // z.B. "month"
+  remaining: number;         // Verbleibende Einnahmen
+  overBy: number;            // Überschreitung (0 wenn nicht überschritten)
+  isOverLimit: boolean;      // true wenn überschritten
+}
+
 export interface PatternStatistics {
   painProfile: {
     average: number;
@@ -48,30 +59,65 @@ export interface PatternStatistics {
   medicationAndEffect: {
     mostUsed: {
       name: string;
-      count: number;
+      rangeCount: number;      // Einnahmen im ausgewählten Zeitraum
       avgRating: number;
       sideEffectCount: number;
+      limitInfo?: MedicationLimitInfo;
     } | null;
     topMedications: Array<{
       name: string;
-      count: number;
+      rangeCount: number;      // Einnahmen im ausgewählten Zeitraum
       avgRating: number;
       sideEffectCount: number;
-      limitInfo?: { used: number; limit: number; period: string };
+      limitInfo?: MedicationLimitInfo;
     }>;
   };
 }
 
+/**
+ * Berechnet die Anzahl der Medikamenteneinnahmen in den letzten 30 Tagen (rollierend)
+ */
+function calculateRolling30DayCount(
+  medName: string,
+  allEntries: MigraineEntry[]
+): number {
+  const now = new Date();
+  const rollingWindowStart = startOfDay(subDays(now, 30));
+  const rollingWindowEnd = endOfDay(now);
+
+  let count = 0;
+  allEntries.forEach(entry => {
+    const entryDateStr = entry.selected_date || entry.timestamp_created?.split('T')[0];
+    if (!entryDateStr) return;
+    
+    try {
+      const entryDate = parseISO(entryDateStr);
+      if (isWithinInterval(entryDate, { start: rollingWindowStart, end: rollingWindowEnd })) {
+        if (entry.medications?.includes(medName)) {
+          count++;
+        }
+      }
+    } catch {
+      // Skip invalid dates
+    }
+  });
+
+  return count;
+}
+
 export function computeStatistics(
-  entries: MigraineEntry[],
+  filteredEntries: MigraineEntry[],
   medicationEffects: MedicationEffect[],
   entrySymptoms: EntrySymptom[],
-  medicationLimits: MedicationLimit[]
+  medicationLimits: MedicationLimit[],
+  allEntries?: MigraineEntry[]  // Optional: alle Einträge für rolling 30-day Berechnung
 ): PatternStatistics {
-  const totalEpisodes = entries.length;
+  const totalEpisodes = filteredEntries.length;
+  // Für rolling 30-day Berechnung: nutze allEntries wenn vorhanden, sonst filteredEntries
+  const entriesForRolling = allEntries || filteredEntries;
 
   // 1. Schmerzprofil
-  const painLevels = entries
+  const painLevels = filteredEntries
     .map(e => normalizePainLevel(e.pain_level))
     .filter(level => level !== null) as number[];
 
@@ -118,7 +164,7 @@ export function computeStatistics(
 
   // 2. Schmerzlokalisation
   const locationCounts = new Map<string, number>();
-  entries.forEach(entry => {
+  filteredEntries.forEach(entry => {
     const location = entry.pain_location;
     if (location && location !== 'keine') {
       locationCounts.set(location, (locationCounts.get(location) || 0) + 1);
@@ -142,7 +188,7 @@ export function computeStatistics(
 
   // 3. Aura & Symptome
   const auraCounts = new Map<string, number>();
-  entries.forEach(entry => {
+  filteredEntries.forEach(entry => {
     const aura = entry.aura_type || 'keine';
     auraCounts.set(aura, (auraCounts.get(aura) || 0) + 1);
   });
@@ -186,11 +232,11 @@ export function computeStatistics(
   };
 
   // 4. Medikamente & Wirkung
-  const medCounts = new Map<string, number>();
+  const medCounts = new Map<string, number>(); // Count im ausgewählten Zeitraum
   const medRatings = new Map<string, number[]>();
   const medSideEffects = new Map<string, number>();
 
-  entries.forEach(entry => {
+  filteredEntries.forEach(entry => {
     entry.medications?.forEach(med => {
       medCounts.set(med, (medCounts.get(med) || 0) + 1);
     });
@@ -210,28 +256,43 @@ export function computeStatistics(
   });
 
   const topMedications = Array.from(medCounts.entries())
-    .map(([name, count]) => {
+    .map(([name, rangeCount]) => {
       const ratings = medRatings.get(name) || [];
       const avgRating = ratings.length > 0
         ? ratings.reduce((sum, val) => sum + val, 0) / ratings.length
         : 0;
       const sideEffectCount = medSideEffects.get(name) || 0;
 
-      // Limit info
+      // Limit info mit korrekter rolling 30-day Berechnung
       const limit = medicationLimits.find(l => l.medication_name === name && l.is_active);
-      const limitInfo = limit
-        ? { used: count, limit: limit.limit_count, period: limit.period_type }
-        : undefined;
+      let limitInfo: MedicationLimitInfo | undefined;
+      
+      if (limit && limit.period_type === 'month') {
+        // Rolling 30-day Berechnung - UNABHÄNGIG vom gewählten Zeitraum
+        const rolling30Count = calculateRolling30DayCount(name, entriesForRolling);
+        const limitCount = limit.limit_count;
+        const remaining = Math.max(0, limitCount - rolling30Count);
+        const overBy = Math.max(0, rolling30Count - limitCount);
+        
+        limitInfo = {
+          rolling30Count,
+          limit: limitCount,
+          period: limit.period_type,
+          remaining,
+          overBy,
+          isOverLimit: rolling30Count > limitCount,
+        };
+      }
 
       return {
         name,
-        count,
+        rangeCount, // Einnahmen im ausgewählten Zeitraum
         avgRating: Math.round(avgRating * 10) / 10,
         sideEffectCount,
         limitInfo,
       };
     })
-    .sort((a, b) => b.count - a.count);
+    .sort((a, b) => b.rangeCount - a.rangeCount);
 
   const medicationAndEffect = {
     mostUsed: topMedications.length > 0 ? topMedications[0] : null,
