@@ -10,7 +10,7 @@ import { mapTextLevelToScore } from "@/lib/utils/pain";
 import { useMedicationEffectsForEntries } from "@/features/medication-effects/hooks/useMedicationEffects";
 import { usePatientData, useDoctors } from "@/features/account/hooks/useAccount";
 import { useMedicationCourses } from "@/features/medication-courses/hooks/useMedicationCourses";
-import { Loader2, ArrowLeft, FileText, Table, Pill, ChevronDown, ChevronRight, MoreHorizontal } from "lucide-react";
+import { Loader2, ArrowLeft, FileText, Table, Pill, ChevronDown, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { TimeRangeButtons, type TimeRangePreset } from "./TimeRangeButtons";
@@ -28,12 +28,6 @@ import { DoctorSelectionDialog, type Doctor } from "./DoctorSelectionDialog";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { devLog, devWarn } from "@/lib/utils/devLogger";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 
 type Preset = TimeRangePreset;
 
@@ -64,7 +58,7 @@ interface ReportSettingsState {
   includeEntriesList: boolean;
   includeAnalysis: boolean;
   includeTherapies: boolean;
-  includeHeaderData: boolean; // Combined personal + doctor
+  includeDoctorData: boolean;
   allMedications: boolean;
   selectedMedIds: string[];
   includeEntryNotes: boolean;
@@ -78,10 +72,10 @@ const DEFAULT_SETTINGS: Omit<ReportSettingsState, 'customStart' | 'customEnd'> =
   includeEntriesList: true,
   includeAnalysis: true,
   includeTherapies: true,
-  includeHeaderData: true,
+  includeDoctorData: true,
   allMedications: true,
   selectedMedIds: [],
-  includeEntryNotes: false,
+  includeEntryNotes: true,
   includeContextNotes: false,
   lastDoctorIds: [],
 };
@@ -99,15 +93,15 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
   const [includeEntriesList, setIncludeEntriesList] = useState<boolean>(true);
   const [includeAnalysis, setIncludeAnalysis] = useState<boolean>(true);
   const [includeTherapies, setIncludeTherapies] = useState<boolean>(true);
-  const [includeHeaderData, setIncludeHeaderData] = useState<boolean>(true);
   
   // Medications
   const [allMedications, setAllMedications] = useState<boolean>(true);
   const [selectedMedIds, setSelectedMedIds] = useState<string[]>([]);
   const [medOptions, setMedOptions] = useState<string[]>([]);
   
-  // Notes
-  const [includeEntryNotes, setIncludeEntryNotes] = useState<boolean>(false);
+  // Notes & Advanced
+  const [includeEntryNotes, setIncludeEntryNotes] = useState<boolean>(true);
+  const [includeDoctorData, setIncludeDoctorData] = useState<boolean>(true);
   const [includeContextNotes, setIncludeContextNotes] = useState<boolean>(false);
   
   // Advanced section
@@ -157,7 +151,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         
         if (settings) {
           // Time range
-          if (settings.default_report_preset && ["3m","6m","12m","all","custom"].includes(settings.default_report_preset)) {
+          if (settings.default_report_preset && ["1m","3m","6m","12m","all","custom"].includes(settings.default_report_preset)) {
             setPreset(settings.default_report_preset as Preset);
           }
           
@@ -167,10 +161,8 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
           if (settings.include_ai_analysis !== null) setIncludeAnalysis(settings.include_ai_analysis);
           if (settings.include_medication_summary !== null) setIncludeTherapies(settings.include_medication_summary);
           
-          // Header (combined)
-          const hasPatient = settings.include_patient_data !== false;
-          const hasDoctor = settings.include_doctor_data !== false;
-          setIncludeHeaderData(hasPatient || hasDoctor);
+          // Doctor data
+          if (settings.include_doctor_data !== null) setIncludeDoctorData(settings.include_doctor_data);
           
           // Medications
           if (settings.include_all_medications !== null) setAllMedications(settings.include_all_medications);
@@ -205,7 +197,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
       if (validSelectedIds.length !== selectedDoctorIds.length) {
         setSelectedDoctorIds(validSelectedIds);
       }
-    } else if (doctors.length > 0 && includeHeaderData) {
+    } else if (doctors.length > 0 && includeDoctorData) {
       setSelectedDoctorIds(doctors.map(d => d.id).filter(Boolean) as string[]);
     }
   }, [doctors, doctorPreferencesLoaded]);
@@ -227,6 +219,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     const end = fmt(today);
     let start: string;
     switch (preset) {
+      case "1m": start = fmt(addMonths(today, -1)); break;
       case "3m": start = fmt(addMonths(today, -3)); break;
       case "6m": start = fmt(addMonths(today, -6)); break;
       case "12m": start = fmt(addMonths(today, -12)); break;
@@ -259,15 +252,15 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
             user_id: user.id,
             default_report_preset: preset,
             include_statistics: includeStats,
-            include_chart: includeStats, // Keep in sync
+            include_chart: includeStats,
             include_ai_analysis: includeAnalysis,
             include_entries_list: includeEntriesList,
             include_medication_summary: includeTherapies,
-            include_patient_data: includeHeaderData,
-            include_doctor_data: includeHeaderData,
+            include_patient_data: true, // Always included
+            include_doctor_data: includeDoctorData,
             include_all_medications: allMedications,
             selected_medications: selectedMedIds,
-            last_include_doctors_flag: includeHeaderData,
+            last_include_doctors_flag: includeDoctorData,
             last_doctor_export_ids: selectedDoctorIds,
           }, { onConflict: "user_id" });
       } catch (error) {
@@ -280,7 +273,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [settingsLoaded, preset, includeStats, includeAnalysis, includeEntriesList, includeTherapies, includeHeaderData, allMedications, selectedMedIds, selectedDoctorIds]);
+  }, [settingsLoaded, preset, includeStats, includeAnalysis, includeEntriesList, includeTherapies, includeDoctorData, allMedications, selectedMedIds, selectedDoctorIds]);
 
   // Load medication options
   useEffect(() => {
@@ -344,10 +337,24 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
   }, [filteredEntries, medicationEffects]);
 
   const selectedDoctorsForExport = useMemo(() => {
-    if (!includeHeaderData) return [];
+    if (!includeDoctorData) return [];
     if (doctors.length === 1) return doctors;
     return doctors.filter(d => d.id && selectedDoctorIds.includes(d.id));
-  }, [doctors, selectedDoctorIds, includeHeaderData]);
+  }, [doctors, selectedDoctorIds, includeDoctorData]);
+
+  // Check if all medications are selected
+  const allMedsSelected = useMemo(() => {
+    return medOptions.length > 0 && medOptions.every(m => selectedMedIds.includes(m));
+  }, [medOptions, selectedMedIds]);
+
+  // Toggle all medications
+  const handleToggleAllMeds = () => {
+    if (allMedsSelected) {
+      setSelectedMedIds([]);
+    } else {
+      setSelectedMedIds([...medOptions]);
+    }
+  };
 
   // PDF Generation
   const actuallyGenerateDiaryPDF = async (selectedDoctors: Doctor[]) => {
@@ -366,7 +373,8 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
           const { data, error } = await supabase.functions.invoke('generate-doctor-summary', {
             body: { 
               fromDate: `${from}T00:00:00Z`, 
-              toDate: `${to}T23:59:59Z`
+              toDate: `${to}T23:59:59Z`,
+              includeContextNotes: includeContextNotes
             }
           });
           
@@ -393,8 +401,8 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         includeChart: includeStats,
         includeAnalysis: includeAnalysis && !!aiAnalysis,
         includeEntriesList,
-        includePatientData: includeHeaderData,
-        includeDoctorData: includeHeaderData && selectedDoctors.length > 0,
+        includePatientData: true, // Always include
+        includeDoctorData: includeDoctorData && selectedDoctors.length > 0,
         includeMedicationCourses: includeTherapies,
         includePatientNotes: false,
         freeTextExportMode: freeTextMode as any,
@@ -473,12 +481,13 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
       return;
     }
 
-    if (includeHeaderData && !patientData?.first_name && !patientData?.last_name) {
+    // Patient data is always included, so check if it exists
+    if (!patientData?.first_name && !patientData?.last_name) {
       setShowMissingDataDialog(true);
       return;
     }
 
-    if (includeHeaderData && doctors.length > 1) {
+    if (includeDoctorData && doctors.length > 1) {
       setPendingPdfType("diary");
       setShowDoctorSelection(true);
       return;
@@ -656,11 +665,11 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
       <div className="p-4 space-y-4">
 
         {/* ═══════════════════════════════════════════════════════════════════
-            ZEITRAUM CARD
+            ZEITRAUM CARD - Compact horizontal scroll
         ═══════════════════════════════════════════════════════════════════ */}
         <Card className="p-4 space-y-3">
           <h3 className="text-sm font-semibold text-muted-foreground">Zeitraum</h3>
-          <TimeRangeButtons value={preset} onChange={handlePresetChange} />
+          <TimeRangeButtons value={preset} onChange={handlePresetChange} compact />
 
           {preset === "custom" && (
             <div className="grid grid-cols-2 gap-3 pt-1">
@@ -731,15 +740,9 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
               disabled={medicationCourses.length === 0}
               subtext={medicationCourses.length === 0 ? "Keine Therapien vorhanden" : undefined}
             />
-            <ToggleRow
-              label="Kopfzeile: Persönliche Daten & Arzt"
-              checked={includeHeaderData}
-              onCheckedChange={setIncludeHeaderData}
-              subtext="Patientendaten & Arztangaben im PDF"
-            />
           </div>
 
-          {/* Section: Medikamente */}
+          {/* Section: Medikamente - moved up */}
           <div className="p-4 space-y-2">
             <ToggleRow
               label="Alle Medikamente"
@@ -754,16 +757,18 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
                   <span className="text-xs text-muted-foreground">
                     Ausgewählt: {selectedMedIds.length}
                   </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => setSelectedMedIds([...medOptions])}
-                  >
-                    Alles auswählen
-                  </Button>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
+                  {/* "Alle" chip at the front */}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={allMedsSelected ? "default" : "outline"}
+                    onClick={handleToggleAllMeds}
+                    className="text-xs h-7 px-2.5 font-medium"
+                  >
+                    Alle
+                  </Button>
                   {medOptions.map(m => {
                     const isSelected = selectedMedIds.includes(m);
                     return (
@@ -788,15 +793,6 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
             )}
           </div>
 
-          {/* Section: Notizen (simplified) */}
-          <div className="p-4">
-            <ToggleRow
-              label="Notizen aus Schmerzeinträgen"
-              checked={includeEntryNotes}
-              onCheckedChange={setIncludeEntryNotes}
-            />
-          </div>
-
           {/* Section: Weitere Optionen (Accordion) */}
           <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
             <CollapsibleTrigger className="flex items-center justify-between w-full p-4 text-sm text-muted-foreground hover:text-foreground transition-colors">
@@ -805,11 +801,24 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
             </CollapsibleTrigger>
             <CollapsibleContent className="px-4 pb-4 space-y-0.5">
               <ToggleRow
-                label="Kontextnotizen einbinden"
-                checked={includeContextNotes}
-                onCheckedChange={setIncludeContextNotes}
-                subtext="Zusätzliche Kontext-/Systemnotizen (kann PDF verlängern)"
+                label="Notizen aus Schmerzeinträgen"
+                checked={includeEntryNotes}
+                onCheckedChange={setIncludeEntryNotes}
               />
+              <ToggleRow
+                label="Arztdaten einbinden"
+                checked={includeDoctorData}
+                onCheckedChange={setIncludeDoctorData}
+                subtext="Name, Adresse, Kontaktdaten des Arztes"
+              />
+              <div className="border-t border-border/30 pt-2 mt-2">
+                <ToggleRow
+                  label="Alle Kontextnotizen einbinden"
+                  checked={includeContextNotes}
+                  onCheckedChange={setIncludeContextNotes}
+                  subtext="Zusätzliche Kontext-/Systemnotizen (kann PDF verlängern und beeinflusst KI-Analyse)"
+                />
+              </div>
             </CollapsibleContent>
           </Collapsible>
         </Card>
@@ -906,7 +915,6 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         }}
         preSelectedIds={selectedDoctorIds}
         title={pendingPdfType === "diary" ? "Arzt für Kopfschmerztagebuch auswählen" : "Arzt für Medikationsplan auswählen"}
-        description="Wählen Sie die Ärzte aus, deren Kontaktdaten im PDF erscheinen sollen."
       />
     </div>
   );
