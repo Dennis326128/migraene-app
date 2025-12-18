@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, BarChart3, Brain } from "lucide-react";
-import { TimeRangeButtons } from "./TimeRangeButtons";
+import { TimeRangeButtons, type TimeRangePreset } from "./TimeRangeButtons";
 import TimeSeriesChart from "@/components/TimeSeriesChart";
 import { useEntries } from "@/features/entries/hooks/useEntries";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,10 +14,39 @@ import { useMedicationLimits } from "@/features/medication-limits/hooks/useMedic
 import { computeStatistics } from "@/lib/statistics";
 import type { MedicationEffect, MedicationLimit, EntrySymptom } from "@/lib/statistics";
 import { AlertTriangle } from "lucide-react";
-import { EmptyState } from "@/components/ui/empty-state";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { FullscreenChartModal, FullscreenChartButton } from "./FullscreenChartModal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { subMonths, startOfDay, endOfDay } from "date-fns";
+
+// Session storage keys
+const SESSION_KEY_PRESET = "stats_timeRange_preset";
+const SESSION_KEY_CUSTOM_START = "stats_timeRange_customStart";
+const SESSION_KEY_CUSTOM_END = "stats_timeRange_customEnd";
+
+const VALID_PRESETS: TimeRangePreset[] = ["1m", "3m", "6m", "12m", "all", "custom"];
+
+function getInitialTimeRange(): TimeRangePreset {
+  try {
+    const stored = sessionStorage.getItem(SESSION_KEY_PRESET);
+    if (stored && VALID_PRESETS.includes(stored as TimeRangePreset)) {
+      return stored as TimeRangePreset;
+    }
+  } catch {
+    // sessionStorage not available
+  }
+  return "3m"; // Default
+}
+
+function getInitialCustomDates(): { start: string; end: string } {
+  try {
+    const start = sessionStorage.getItem(SESSION_KEY_CUSTOM_START) || "";
+    const end = sessionStorage.getItem(SESSION_KEY_CUSTOM_END) || "";
+    return { start, end };
+  } catch {
+    return { start: "", end: "" };
+  }
+}
 
 interface AnalysisViewProps {
   onBack: () => void;
@@ -26,9 +55,12 @@ interface AnalysisViewProps {
 
 export function AnalysisView({ onBack, onNavigateToLimits }: AnalysisViewProps) {
   const isMobile = useIsMobile();
-  const [timeRange, setTimeRange] = useState<"3m" | "6m" | "12m" | "all" | "custom">("3m");
-  const [customFrom, setCustomFrom] = useState("");
-  const [customTo, setCustomTo] = useState("");
+  
+  // Initialize from sessionStorage
+  const [timeRange, setTimeRange] = useState<TimeRangePreset>(getInitialTimeRange);
+  const initialCustom = getInitialCustomDates();
+  const [customFrom, setCustomFrom] = useState(initialCustom.start);
+  const [customTo, setCustomTo] = useState(initialCustom.end);
   const [firstEntryDate, setFirstEntryDate] = useState<string | null>(null);
   
   // View mode for tabs
@@ -38,8 +70,29 @@ export function AnalysisView({ onBack, onNavigateToLimits }: AnalysisViewProps) 
   const [timeDistributionFullscreen, setTimeDistributionFullscreen] = useState(false);
   const [timeSeriesFullscreen, setTimeSeriesFullscreen] = useState(false);
 
+  // Persist timeRange to sessionStorage
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(SESSION_KEY_PRESET, timeRange);
+    } catch {
+      // sessionStorage not available
+    }
+  }, [timeRange]);
+
+  // Persist custom dates to sessionStorage
+  useEffect(() => {
+    try {
+      if (timeRange === "custom") {
+        sessionStorage.setItem(SESSION_KEY_CUSTOM_START, customFrom);
+        sessionStorage.setItem(SESSION_KEY_CUSTOM_END, customTo);
+      }
+    } catch {
+      // sessionStorage not available
+    }
+  }, [timeRange, customFrom, customTo]);
+
   // Handle time range change with smart defaults for custom range
-  const handleTimeRangeChange = (newRange: "3m" | "6m" | "12m" | "all" | "custom") => {
+  const handleTimeRangeChange = (newRange: TimeRangePreset) => {
     if (newRange === "custom") {
       // Set sensible defaults: end = today, start = today - 3 months
       const now = new Date();
@@ -94,13 +147,16 @@ export function AnalysisView({ onBack, onNavigateToLimits }: AnalysisViewProps) 
     }
     
     // Calculate months based on preset
-    const monthsMap = { "3m": 3, "6m": 6, "12m": 12 };
+    const monthsMap: Record<string, number> = { "1m": 1, "3m": 3, "6m": 6, "12m": 12 };
     const months = monthsMap[timeRange] || 3;
     
-    const from = new Date(now.getFullYear(), now.getMonth() - months, now.getDate());
+    // Use date-fns for robust month calculation
+    const fromDate = startOfDay(subMonths(now, months));
+    const toDate = endOfDay(now);
+    
     return {
-      from: from.toISOString().split('T')[0],
-      to: today
+      from: fromDate.toISOString().split('T')[0],
+      to: toDate.toISOString().split('T')[0]
     };
   }, [timeRange, customFrom, customTo, firstEntryDate]);
 
