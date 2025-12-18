@@ -1,12 +1,14 @@
 import type { MigraineEntry } from "@/types/painApp";
 import { normalizePainLevel } from "@/lib/utils/pain";
 import { subDays, startOfDay, endOfDay, parseISO, isWithinInterval } from "date-fns";
+import { getEffectiveScore } from "@/lib/utils/medicationEffects";
 
 export interface MedicationEffect {
   id: string;
   entry_id: number;
   med_name: string;
   effect_rating: string;
+  effect_score?: number | null;
   side_effects: string[] | null;
   confidence: string | null;
   method: string | null;
@@ -36,6 +38,16 @@ export interface MedicationLimitInfo {
   isOverLimit: boolean;      // true wenn überschritten
 }
 
+// NEW: Medication effect statistics for Teil E
+export interface MedicationEffectStats {
+  name: string;
+  rangeCount: number;        // Einnahmen im Zeitraum
+  avgEffect: number | null;  // Durchschnitt auf 0-5 Skala (null wenn keine Bewertungen)
+  ratedCount: number;        // Anzahl bewerteter Einnahmen
+  sideEffectCount: number;
+  limitInfo?: MedicationLimitInfo;
+}
+
 export interface PatternStatistics {
   painProfile: {
     average: number;
@@ -55,24 +67,12 @@ export interface PatternStatistics {
     noAuraPercentage: number;
     mostCommonAura: { type: string; percentage: number } | null;
     topSymptoms: Array<{ name: string; count: number; percentage: number }>;
-    hasAuraDocumentation: boolean;     // true wenn Aura-Daten explizit dokumentiert wurden
-    hasSymptomDocumentation: boolean;  // true wenn Symptome dokumentiert wurden
+    hasMeaningfulAura: boolean;       // true wenn echte Aura-Typen (nicht "keine") vorhanden
+    hasSymptomDocumentation: boolean; // true wenn Symptome dokumentiert wurden
   };
   medicationAndEffect: {
-    mostUsed: {
-      name: string;
-      rangeCount: number;      // Einnahmen im ausgewählten Zeitraum
-      avgRating: number;
-      sideEffectCount: number;
-      limitInfo?: MedicationLimitInfo;
-    } | null;
-    topMedications: Array<{
-      name: string;
-      rangeCount: number;      // Einnahmen im ausgewählten Zeitraum
-      avgRating: number;
-      sideEffectCount: number;
-      limitInfo?: MedicationLimitInfo;
-    }>;
+    mostUsed: MedicationEffectStats | null;
+    topMedications: MedicationEffectStats[];
   };
 }
 
@@ -198,8 +198,9 @@ export function computeStatistics(
   const noAuraCount = auraCounts.get('keine') || 0;
   const noAuraPercentage = totalEpisodes > 0 ? Math.round((noAuraCount / totalEpisodes) * 100) : 0;
 
+  // TEIL C: Filter für echte Aura-Typen (nicht 'keine', 'none', null, undefined, '')
   const auraWithoutNone = Array.from(auraCounts.entries())
-    .filter(([type]) => type !== 'keine')
+    .filter(([type]) => type !== 'keine' && type !== 'none' && type !== '' && type !== null)
     .sort((a, b) => b[1] - a[1]);
 
   const totalWithAura = auraWithoutNone.reduce((sum, [, count]) => sum + count, 0);
@@ -227,13 +228,9 @@ export function computeStatistics(
     .sort((a, b) => b.count - a.count)
     .slice(0, 3);
 
-  // Aura-Dokumentation prüfen:
-  // "keine" explizit dokumentiert ZÄHLT als Dokumentation (Nutzer hat bewusst "keine Aura" gewählt)
-  // Nur null/undefined/leer = KEINE Dokumentation
-  const entriesWithAuraField = filteredEntries.filter(e => 
-    e.aura_type !== null && e.aura_type !== undefined && e.aura_type !== ''
-  );
-  const hasAuraDocumentation = entriesWithAuraField.length > 0;
+  // TEIL C: "Meaningful Aura" = echte Aura-Typen vorhanden (nicht nur "keine/none")
+  // hasMeaningfulAura: true wenn mindestens ein Eintrag einen echten Aura-Typ hat
+  const hasMeaningfulAura = totalWithAura > 0;
 
   // Symptom-Dokumentation prüfen
   const hasSymptomDocumentation = entrySymptoms.length > 0;
@@ -242,27 +239,33 @@ export function computeStatistics(
     noAuraPercentage,
     mostCommonAura,
     topSymptoms,
-    hasAuraDocumentation,
+    hasMeaningfulAura,
     hasSymptomDocumentation,
   };
 
-  // 4. Medikamente & Wirkung
+  // 4. Medikamente & Wirkung (TEIL E: Mit echten Wirkungsdaten)
   const medCounts = new Map<string, number>(); // Count im ausgewählten Zeitraum
-  const medRatings = new Map<string, number[]>();
+  // NEW: Track effect scores per medication (0-5 scale)
+  const medEffectScores = new Map<string, number[]>();
   const medSideEffects = new Map<string, number>();
 
+  // Count medication usage in filtered entries
   filteredEntries.forEach(entry => {
     entry.medications?.forEach(med => {
       medCounts.set(med, (medCounts.get(med) || 0) + 1);
     });
   });
 
+  // Process medication effects with proper 0-5 scale conversion
   medicationEffects.forEach(effect => {
-    const ratings = medRatings.get(effect.med_name) || [];
-    const rating = parseFloat(effect.effect_rating);
-    if (!isNaN(rating)) {
-      ratings.push(rating);
-      medRatings.set(effect.med_name, ratings);
+    const effectScore = getEffectiveScore(effect.effect_score, effect.effect_rating);
+    
+    // Only count rated effects (not null/undefined)
+    // WICHTIG: 0 = "Keine Wirkung" zählt als Bewertung!
+    if (effectScore !== null) {
+      const scores = medEffectScores.get(effect.med_name) || [];
+      scores.push(effectScore);
+      medEffectScores.set(effect.med_name, scores);
     }
 
     if (effect.side_effects && effect.side_effects.length > 0) {
@@ -270,12 +273,16 @@ export function computeStatistics(
     }
   });
 
-  const topMedications = Array.from(medCounts.entries())
+  const topMedications: MedicationEffectStats[] = Array.from(medCounts.entries())
     .map(([name, rangeCount]) => {
-      const ratings = medRatings.get(name) || [];
-      const avgRating = ratings.length > 0
-        ? ratings.reduce((sum, val) => sum + val, 0) / ratings.length
-        : 0;
+      const scores = medEffectScores.get(name) || [];
+      const ratedCount = scores.length;
+      
+      // Calculate average only from rated effects (0 counts, null/undefined doesn't)
+      const avgEffect = ratedCount > 0
+        ? Math.round((scores.reduce((sum, val) => sum + val, 0) / ratedCount) * 10) / 10
+        : null;
+      
       const sideEffectCount = medSideEffects.get(name) || 0;
 
       // Limit info mit korrekter rolling 30-day Berechnung
@@ -301,8 +308,9 @@ export function computeStatistics(
 
       return {
         name,
-        rangeCount, // Einnahmen im ausgewählten Zeitraum
-        avgRating: Math.round(avgRating * 10) / 10,
+        rangeCount,
+        avgEffect,
+        ratedCount,
         sideEffectCount,
         limitInfo,
       };
@@ -311,7 +319,7 @@ export function computeStatistics(
 
   const medicationAndEffect = {
     mostUsed: topMedications.length > 0 ? topMedications[0] : null,
-    topMedications: topMedications.slice(0, 3),
+    topMedications: topMedications.slice(0, 5), // Top 5 für Wirkungsübersicht
   };
 
   return {
