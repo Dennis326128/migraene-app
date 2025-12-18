@@ -19,8 +19,8 @@ import { cn } from "@/lib/utils";
 interface MedicationReminderSheetProps {
   isOpen: boolean;
   onClose: () => void;
-  medication: Med;
-  reminderStatus: MedicationReminderStatus;
+  medication: Med | null;
+  reminderStatus?: MedicationReminderStatus;
 }
 
 export const MedicationReminderSheet: React.FC<MedicationReminderSheetProps> = ({
@@ -39,7 +39,19 @@ export const MedicationReminderSheet: React.FC<MedicationReminderSheetProps> = (
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [reminderToDelete, setReminderToDelete] = useState<Reminder | null>(null);
   
-  const { isActive, reminders, nextTriggerDate, isIntervalMed, reminderCount } = reminderStatus;
+  // Defensive destructuring with fallbacks to prevent crash if reminderStatus is undefined
+  const { 
+    isActive = false, 
+    reminders = [], 
+    nextTriggerDate = null, 
+    isIntervalMed = false, 
+    reminderCount = 0 
+  } = reminderStatus ?? {};
+
+  // Early return if no medication (prevents rendering with null data)
+  if (!medication) {
+    return null;
+  }
 
   // Generate time options (every 30 minutes)
   const timeOptions: string[] = [];
