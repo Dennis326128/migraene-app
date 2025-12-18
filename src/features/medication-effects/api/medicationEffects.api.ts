@@ -1,11 +1,12 @@
 import { supabase } from "@/integrations/supabase/client";
+import { subDays, startOfDay } from "date-fns";
 
 export type MedicationEffect = {
   id: string;
   entry_id: number;
   med_name: string;
   effect_rating: 'none' | 'poor' | 'moderate' | 'good' | 'very_good';
-  effect_score: number | null; // NEW: 0-10 numeric score, NULL = unrated
+  effect_score: number | null; // 0-10 numeric score, NULL = unrated
   side_effects: string[];
   notes: string;
   method: 'ui' | 'voice';
@@ -18,7 +19,7 @@ export type MedicationEffectPayload = {
   entry_id: number;
   med_name: string;
   effect_rating: 'none' | 'poor' | 'moderate' | 'good' | 'very_good';
-  effect_score?: number | null; // NEW: 0-10 numeric score
+  effect_score?: number | null; // 0-10 numeric score
   side_effects: string[];
   notes: string;
   method?: 'ui' | 'voice';
@@ -34,22 +35,37 @@ export type UnratedMedicationEntry = {
   rated_medications: string[];
 };
 
+/**
+ * Get entries with medications that are still open for rating.
+ * 
+ * Rating window logic: "end of intake day + 72 hours"
+ * An entry is open for rating until 72h after the end of its calendar day.
+ * 
+ * Examples (assuming today is Dec 17):
+ * - Entry from Dec 14 08:00 → open until Dec 17 23:59:59 ✓ (included)
+ * - Entry from Dec 14 21:00 → open until Dec 17 23:59:59 ✓ (included)  
+ * - Entry from Dec 13 23:00 → expired Dec 16 23:59:59 ✗ (excluded)
+ * 
+ * Calculation: cutoff = startOfDay(now - 3 days)
+ * This ensures entries from 3 calendar days ago are still included,
+ * matching the "end of day + 72h" requirement.
+ */
 export async function getUnratedMedicationEntries(): Promise<UnratedMedicationEntry[]> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
 
-  // Get entries with medications from last 48 hours
-  const twoDaysAgo = new Date();
-  twoDaysAgo.setHours(twoDaysAgo.getHours() - 48);
+  // Calculate cutoff: entries from startOfDay(now - 3 days) onwards are "open"
+  // This implements "end of intake day + 72h" logic
+  const cutoff = startOfDay(subDays(new Date(), 3));
 
   const { data: entries, error: entriesError } = await supabase
     .from("pain_entries")
     .select("id, medications, selected_date, selected_time, pain_level")
     .eq("user_id", user.id)
     .not("medications", "is", null)
-    .gte("timestamp_created", twoDaysAgo.toISOString())
+    .gte("timestamp_created", cutoff.toISOString())
     .order("timestamp_created", { ascending: false })
-    .limit(10);
+    .limit(20);
 
   if (entriesError) throw entriesError;
 
