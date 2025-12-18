@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Brain, Loader2, Calendar as CalendarIcon } from 'lucide-react';
+import { Brain, Loader2, Calendar as CalendarIcon, AlertTriangle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import ReactMarkdown from 'react-markdown';
@@ -15,11 +15,13 @@ import { de } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
 interface AnalysisResult {
+  requestId?: string;
   insights: string;
   analyzed_entries: number;
   voice_notes_count: number;
   total_analyzed: number;
   has_weather_data: boolean;
+  ai_available?: boolean;
   date_range: { from: string; to: string };
   tags?: {
     total_tags: number;
@@ -30,10 +32,17 @@ interface AnalysisResult {
   };
 }
 
+interface AnalysisError {
+  requestId?: string;
+  error: string;
+  details?: string[];
+}
+
 export function VoiceNotesAIAnalysis() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [insights, setInsights] = useState<string | null>(null);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [analysisError, setAnalysisError] = useState<AnalysisError | null>(null);
   const [dateRange, setDateRange] = useState<{from: Date, to: Date}>({
     from: subMonths(new Date(), 3),
     to: new Date()
@@ -84,7 +93,7 @@ export function VoiceNotesAIAnalysis() {
     } catch (error) {
       console.error('Error loading first entry date:', error);
       toast({
-        title: '⚠️ Hinweis',
+        title: 'Hinweis',
         description: 'Konnte erstes Eintragsdatum nicht laden, verwende Standardzeitraum',
         variant: 'destructive'
       });
@@ -94,12 +103,15 @@ export function VoiceNotesAIAnalysis() {
   };
 
   const runAnalysis = async () => {
+    // Clear previous error
+    setAnalysisError(null);
+    
     // Validate date range before sending
     const daysDiff = Math.ceil((dateRange.to.getTime() - dateRange.from.getTime()) / (1000 * 60 * 60 * 24));
     
     if (daysDiff > 730) {
       toast({
-        title: '⚠️ Zeitraum zu groß',
+        title: 'Zeitraum zu groß',
         description: 'Bitte wählen Sie einen Zeitraum von maximal 2 Jahren (730 Tage)',
         variant: 'destructive'
       });
@@ -108,7 +120,7 @@ export function VoiceNotesAIAnalysis() {
 
     if (dateRange.from > new Date()) {
       toast({
-        title: '⚠️ Ungültiges Datum',
+        title: 'Ungültiges Datum',
         description: 'Das Start-Datum darf nicht in der Zukunft liegen',
         variant: 'destructive'
       });
@@ -124,24 +136,69 @@ export function VoiceNotesAIAnalysis() {
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        // Try to extract error details from the response
+        let errorData: AnalysisError = { error: error.message || 'Unbekannter Fehler' };
+        
+        // Check if error has context with response body
+        if (error.context?.body) {
+          try {
+            const bodyText = await error.context.body.text();
+            const parsed = JSON.parse(bodyText);
+            errorData = {
+              requestId: parsed.requestId,
+              error: parsed.error || error.message,
+              details: parsed.details
+            };
+          } catch {
+            // Ignore parse errors
+          }
+        }
+        
+        setAnalysisError(errorData);
+        toast({
+          title: 'Analyse fehlgeschlagen',
+          description: errorData.error,
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      // Check if response contains an error
+      if (data.error) {
+        setAnalysisError({
+          requestId: data.requestId,
+          error: data.error,
+          details: data.details
+        });
+        toast({
+          title: 'Analyse fehlgeschlagen',
+          description: data.error,
+          variant: 'destructive'
+        });
+        return;
+      }
 
       setInsights(data.insights);
       setAnalysisResult(data);
       
       const parts = [];
-      if (data.analyzed_entries > 0) parts.push(`${data.analyzed_entries} Migräne-Einträge`);
-      if (data.voice_notes_count > 0) parts.push(`${data.voice_notes_count} Voice-Notizen`);
+      if (data.analyzed_entries > 0) parts.push(`${data.analyzed_entries} Einträge`);
+      if (data.voice_notes_count > 0) parts.push(`${data.voice_notes_count} Notizen`);
       
       toast({
-        title: '✅ Analyse abgeschlossen',
-        description: `${parts.join(' + ')} analysiert${data.has_weather_data ? ' (inkl. Wetter-Daten)' : ''}`
+        title: 'Analyse abgeschlossen',
+        description: `${parts.join(' + ')} analysiert${data.has_weather_data ? ' (inkl. Wetter)' : ''}${data.ai_available === false ? ' (ohne KI)' : ''}`
       });
     } catch (error) {
       console.error('AI Analysis Error:', error);
+      
+      const errorMsg = error instanceof Error ? error.message : 'Analyse fehlgeschlagen';
+      setAnalysisError({ error: errorMsg });
+      
       toast({
-        title: '❌ Fehler',
-        description: error instanceof Error ? error.message : 'Analyse fehlgeschlagen',
+        title: 'Fehler',
+        description: errorMsg,
         variant: 'destructive'
       });
     } finally {
@@ -154,13 +211,14 @@ export function VoiceNotesAIAnalysis() {
       <Alert>
         <Brain className="h-4 w-4" />
         <AlertDescription>
-          Die KI-Analyse wertet alle Ihre Einträge aus:
+          Die KI-Musteranalyse wertet alle Ihre Tracker-Daten aus:
           <ul className="list-disc ml-4 mt-2 space-y-1">
-            <li>Schmerzeinträge mit Notizen</li>
-            <li>Potentielle Faktoren und Auslöser (Stimmung, Schlaf, Stress, etc.)</li>
-            <li>Wetterdaten & Medikamente</li>
+            <li>Kopfschmerz-Einträge mit Notizen</li>
+            <li>Potentielle Trigger und Faktoren (Stimmung, Schlaf, Stress, etc.)</li>
+            <li>Wetterdaten & Medikamenten-Wirkung</li>
+            <li>Prophylaxe-Verläufe (Before/After)</li>
           </ul>
-          <p className="mt-2">So erkennt sie Muster, Trigger und Zusammenhänge zwischen Schlagwörtern und Schmerzeinträgen. Anonymisiert & DSGVO-konform.</p>
+          <p className="mt-2 text-xs text-muted-foreground">Private Nutzung – keine medizinische Beratung. DSGVO-konform.</p>
         </AlertDescription>
       </Alert>
 
@@ -168,7 +226,7 @@ export function VoiceNotesAIAnalysis() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Brain className="h-5 w-5" />
-            KI-Analyse Tagebuch
+            KI-Musteranalyse
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -276,6 +334,28 @@ export function VoiceNotesAIAnalysis() {
             </div>
           </div>
 
+          {/* Error Display */}
+          {analysisError && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                <div className="space-y-1">
+                  <p className="font-medium">{analysisError.error}</p>
+                  {analysisError.details && (
+                    <ul className="text-xs list-disc ml-4">
+                      {analysisError.details.map((d, i) => <li key={i}>{d}</li>)}
+                    </ul>
+                  )}
+                  {analysisError.requestId && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Request-ID: <code className="bg-muted px-1 rounded">{analysisError.requestId}</code>
+                    </p>
+                  )}
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* Analysis Button */}
           <Button
             onClick={runAnalysis}
@@ -286,12 +366,12 @@ export function VoiceNotesAIAnalysis() {
             {isAnalyzing ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Analysiere...
+                Analysiere Muster...
               </>
             ) : (
               <>
                 <Brain className="h-4 w-4" />
-                Analyse starten
+                Muster-Analyse starten
               </>
             )}
           </Button>
@@ -318,14 +398,24 @@ export function VoiceNotesAIAnalysis() {
                 </Card>
               </div>
 
+              {/* AI availability hint */}
+              {analysisResult.ai_available === false && (
+                <Alert>
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription className="text-sm">
+                    KI-Text war nicht verfügbar – die Analyse basiert auf statistischer Auswertung.
+                  </AlertDescription>
+                </Alert>
+              )}
+
               {/* Tag Statistics */}
               {analysisResult.tags && analysisResult.tags.total_tags > 0 && (
-                <Card className="p-4 bg-gradient-to-br from-purple-500/5 to-pink-500/5 border-purple-200/20">
+                <Card className="p-4 bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-sm">Erkannte Muster aus Voice-Notizen</h3>
+                      <h3 className="text-sm font-medium">Erkannte Muster aus Notizen</h3>
                       <Badge variant="outline" className="text-xs">
-                        {analysisResult.tags.total_tags} Schlagwörter
+                        {analysisResult.tags.total_tags} Faktoren
                       </Badge>
                     </div>
                     
@@ -365,11 +455,11 @@ export function VoiceNotesAIAnalysis() {
             </div>
           )}
 
-          {!insights && !isAnalyzing && (
+          {!insights && !isAnalyzing && !analysisError && (
             <div className="text-center py-12 text-muted-foreground">
               <Brain className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>Klicken Sie auf "Analyse starten" für eine KI-gestützte Auswertung Ihrer Tagebucheinträge</p>
-              <p className="text-sm mt-2">Die Analyse erkennt automatisch Muster, Schlagwörter und Zusammenhänge aus Ihren Notizen und gibt Empfehlungen für Ihr Arztgespräch.</p>
+              <p>Klicken Sie auf "Muster-Analyse starten" für eine KI-gestützte Auswertung</p>
+              <p className="text-sm mt-2">Die Analyse erkennt Muster, Trigger und Zusammenhänge aus Ihren Kopfschmerz-Daten.</p>
             </div>
           )}
         </CardContent>
