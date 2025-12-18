@@ -7,6 +7,7 @@
 import { registerSkills, skillRegistry } from './registry';
 import { navigationSkills } from './nav';
 import { helpSkills } from './help';
+import { querySkills } from './query';
 
 // ============================================
 // Register All Skills
@@ -21,7 +22,9 @@ export function initializeSkills(): void {
   // Help Skills
   registerSkills(helpSkills);
   
-  // TODO: Query Skills (Phase 2)
+  // Query Skills (Phase 2)
+  registerSkills(querySkills);
+  
   // TODO: Action Skills (Phase 3)
   // TODO: Delete Skills (Phase 3)
   
@@ -36,3 +39,4 @@ export { skillRegistry, registerSkill, registerSkills, debugSkillMatches } from 
 export type { Skill, SkillMatchResult, SkillCategory, VoiceUserContext } from './types';
 export { navigationSkills } from './nav';
 export { helpSkills } from './help';
+export { querySkills } from './query';
