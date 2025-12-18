@@ -1,6 +1,6 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
-import { getColorForPain, shouldUseDarkText } from './painColorScale';
+import { getColorForPain, shouldUseDarkText, isSeverePain } from './painColorScale';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { isToday, format } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -24,6 +24,7 @@ export const DayCell: React.FC<DayCellProps> = ({
   const today = isToday(date);
   const hasEntries = entryCount > 0;
   const hasPainData = hasEntries && maxPain !== null;
+  const isSevere = hasPainData && isSeverePain(maxPain);
   
   // Get pain color for full background
   const painColor = hasPainData ? getColorForPain(maxPain) : undefined;
@@ -54,12 +55,14 @@ export const DayCell: React.FC<DayCellProps> = ({
               hasEntries && 'cursor-pointer active:scale-95',
               !hasEntries && 'cursor-default',
               // Today marker - thin ring that doesn't break the color
-              today && 'ring-2 ring-primary ring-offset-1 ring-offset-background'
+              today && 'ring-2 ring-primary ring-offset-1 ring-offset-background',
+              // Severe pain marker - stronger border for 9-10
+              isSevere && !today && 'ring-2 ring-red-600 dark:ring-red-500'
             )}
             style={hasPainData && painColor ? {
               // Full background with pain color
               backgroundColor: painColor,
-              color: useDarkText ? 'hsl(0 0% 10%)' : 'hsl(0 0% 100%)',
+              color: useDarkText ? 'hsl(0 0% 15%)' : 'hsl(0 0% 98%)',
             } : hasEntries && !hasPainData ? {
               // Has entries but no pain data - muted fill
               backgroundColor: 'hsl(var(--muted) / 0.5)',
@@ -72,7 +75,9 @@ export const DayCell: React.FC<DayCellProps> = ({
             <span className={cn(
               "text-xs font-medium leading-none",
               today && !hasPainData && "text-primary font-semibold",
-              !hasPainData && !hasEntries && (isCurrentMonth ? "text-muted-foreground" : "text-muted-foreground/50")
+              !hasPainData && !hasEntries && (isCurrentMonth ? "text-muted-foreground" : "text-muted-foreground/50"),
+              // Extra emphasis for severe pain
+              isSevere && "font-bold"
             )}>
               {dayNumber}
             </span>
