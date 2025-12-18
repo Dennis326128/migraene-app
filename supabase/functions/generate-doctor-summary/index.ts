@@ -12,7 +12,7 @@ const corsHeaders = {
  * Generiert einen strukturierten, arztorientierten KI-Kurzbericht
  * aus Migräne-Tagebuch-Daten für PDF-Reports.
  * 
- * Input: { fromDate, toDate }
+ * Input: { fromDate, toDate, includeContextNotes?: boolean }
  * Output: { summary: string } - Fließtext mit fett hervorgehobenen Überschriften
  */
 
@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { fromDate, toDate } = await req.json();
+    const { fromDate, toDate, includeContextNotes = false } = await req.json();
 
     if (!fromDate || !toDate) {
       return new Response(
@@ -133,6 +133,27 @@ Deno.serve(async (req) => {
       .eq('user_id', user.id)
       .order('start_date', { ascending: false });
 
+    // Kontextnotizen laden wenn aktiviert
+    let contextNotesText = '';
+    if (includeContextNotes) {
+      const { data: voiceNotes } = await supabaseClient
+        .from('voice_notes')
+        .select('text, occurred_at, context_type')
+        .eq('user_id', user.id)
+        .gte('occurred_at', fromDate)
+        .lte('occurred_at', toDate)
+        .is('deleted_at', null)
+        .order('occurred_at', { ascending: true });
+
+      if (voiceNotes && voiceNotes.length > 0) {
+        contextNotesText = voiceNotes.map(n => {
+          const date = formatDateGerman(n.occurred_at);
+          const contextLabel = n.context_type ? ` [${n.context_type}]` : '';
+          return `${date}${contextLabel}: ${n.text}`;
+        }).join('\n');
+      }
+    }
+
     // Formatiere Medikamentenverläufe für den Prompt
     const coursesText = medicationCourses && medicationCourses.length > 0
       ? medicationCourses.map(c => {
@@ -150,6 +171,11 @@ Deno.serve(async (req) => {
           return `- ${c.medication_name} (${c.type}): ${c.dose_text || 'Dosis nicht angegeben'}, seit ${formatDateGerman(c.start_date)}, Status: ${status}${effectiveness}${sideEffects}${discontinuation}`;
         }).join('\n')
       : 'Keine Medikamentenverläufe dokumentiert';
+
+    // Context notes section for prompt
+    const contextNotesSection = includeContextNotes && contextNotesText 
+      ? `\n\nKONTEXTNOTIZEN (Sprachnotizen/Zusatzinformationen):\n${contextNotesText}\n\nWichtig: Berücksichtige die Kontextnotizen bei der Analyse der "Besonderen Auffälligkeiten". Falls relevante Muster oder Trigger in den Kontextnotizen erwähnt werden (z.B. Stress, Schlaf, Ernährung, Hormone), erwähne diese im Bericht.`
+      : '';
 
     // Prompt für strukturierten Arztbericht
     const prompt = `Du bist eine medizinisch neutrale KI. Werte Migräne-Tagebuchdaten aus und erstelle einen sehr kurzen, sachlichen Kurzbericht für Ärzt:innen.
@@ -193,11 +219,11 @@ STRUKTUR (nur auffällige Punkte erwähnen, irrelevante Abschnitte komplett wegl
    Beispiel: "Prophylaxe: Topiramat 100 mg seit 01.09.2024 aktiv, subjektive Wirksamkeit 7/10. Amitriptylin 25 mg wurde am 15.06.2024 wegen Nebenwirkungen (Müdigkeit) abgesetzt."
    Wenn keine Verläufe dokumentiert: diesen Abschnitt KOMPLETT WEGLASSEN.
 
-7. Besondere Auffälligkeiten: Nur klinisch relevante Besonderheiten erwähnen.
+7. Besondere Auffälligkeiten: Nur klinisch relevante Besonderheiten erwähnen.${includeContextNotes ? ' Berücksichtige hierbei auch relevante Informationen aus den Kontextnotizen (z.B. Stressfaktoren, Schlafmuster, hormonelle Zusammenhänge).' : ''}
    Beispiel: "Besondere Auffälligkeiten: Auffällig sind die hohe Attackenfrequenz und wiederholte Mehrfacheinnahmen von Akutmedikation an einzelnen Tagen."
    Maximal 2-3 Sätze.
 
-8. Am Ende IMMER: "Hinweis: Automatisch aus den eingegebenen Daten generiert; ersetzt keine ärztliche Diagnose oder Therapieentscheidung."
+8. Am Ende IMMER: "Hinweis: Automatisch aus den eingegebenen Daten generiert; ersetzt keine ärztliche Diagnose oder Therapieentscheidung."${includeContextNotes ? ' Falls Kontextnotizen einbezogen wurden, ergänze: "Kontextnotizen wurden berücksichtigt."' : ''}
 
 DATEN:
 Anzahl Attacken: ${entries.length}
@@ -207,6 +233,7 @@ ${limits && limits.length > 0 ? `Medikamentenlimits: ${limits.map(l => `${l.medi
 
 Medikamentenverläufe (Prophylaxe/Akuttherapie):
 ${coursesText}
+${contextNotesSection}
 
 Einträge:
 ${entries.map(e => {
@@ -291,7 +318,10 @@ Gib NUR den fertig formatierten Text zurück, KEIN Markdown.`;
       .trim();
 
     return new Response(
-      JSON.stringify({ summary }),
+      JSON.stringify({ 
+        summary,
+        context_notes_included: includeContextNotes && contextNotesText.length > 0
+      }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
