@@ -8,6 +8,7 @@ import { registerSkills, skillRegistry } from './registry';
 import { navigationSkills } from './nav';
 import { helpSkills } from './help';
 import { querySkills } from './query';
+import { actionSkills } from './action';
 
 // ============================================
 // Register All Skills
@@ -25,8 +26,8 @@ export function initializeSkills(): void {
   // Query Skills (Phase 2)
   registerSkills(querySkills);
   
-  // TODO: Action Skills (Phase 3)
-  // TODO: Delete Skills (Phase 3)
+  // Action Skills (Phase 3)
+  registerSkills(actionSkills);
   
   console.log(`[Skills] Registered ${skillRegistry.getAll().length} skills`);
 }
@@ -40,3 +41,4 @@ export type { Skill, SkillMatchResult, SkillCategory, VoiceUserContext } from '.
 export { navigationSkills } from './nav';
 export { helpSkills } from './help';
 export { querySkills } from './query';
+export { actionSkills } from './action';
