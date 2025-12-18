@@ -6,16 +6,17 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useMeds, useAddMed, useDeleteMed, type Med, type CreateMedInput } from "@/features/meds/hooks/useMeds";
-import { useReminders, useCreateReminder } from "@/features/reminders/hooks/useReminders";
+import { useCreateReminder } from "@/features/reminders/hooks/useReminders";
+import { useMedicationsReminderMap, type MedicationReminderStatus } from "@/features/reminders/hooks/useMedicationReminders";
 import { parseMedicationInput, parsedToMedInput } from "@/lib/utils/parseMedicationInput";
-import { Pill, Plus, Pencil, Trash2, Bell, ArrowLeft, Clock, AlertTriangle, Download, Loader2, Ban, History, ChevronDown, Mic, MicOff } from "lucide-react";
+import { Pill, Plus, Pencil, Trash2, Bell, BellOff, ArrowLeft, Clock, AlertTriangle, Download, Loader2, Ban, History, ChevronDown, Mic, MicOff } from "lucide-react";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { MedicationReminderModal } from "@/components/Reminders/MedicationReminderModal";
+import { MedicationReminderSheet } from "@/components/Reminders/MedicationReminderSheet";
 import { MedicationEditModal } from "./MedicationEditModal";
 
 import { MedicationCoursesList, MedicationCourseCard } from "./MedicationCourses";
@@ -61,12 +62,20 @@ const getMedicationBadge = (med: Med) => {
 // Medication Card Component
 const MedicationCard: React.FC<{
   med: Med;
-  reminderCount: number;
+  reminderStatus?: MedicationReminderStatus;
   onEdit: () => void;
   onDelete: () => void;
   onReminder: () => void;
-}> = ({ med, reminderCount, onEdit, onDelete, onReminder }) => {
+}> = ({ med, reminderStatus, onEdit, onDelete, onReminder }) => {
   const isInactive = med.is_active === false || !!med.discontinued_at || med.intolerance_flag;
+  const hasActiveReminder = reminderStatus?.isActive ?? false;
+  const isIntervalMed = reminderStatus?.isIntervalMed ?? false;
+  
+  // Format next trigger date for interval meds
+  const formatNextDate = () => {
+    if (!reminderStatus?.nextTriggerDate) return null;
+    return format(reminderStatus.nextTriggerDate, 'dd.MM.yyyy');
+  };
   
   return (
     <Card className={cn(
@@ -88,10 +97,20 @@ const MedicationCard: React.FC<{
             {med.intolerance_notes && (
               <p className="text-xs text-destructive mt-1">⚠️ {med.intolerance_notes}</p>
             )}
-            {reminderCount > 0 && !isInactive && (
+            {/* Mini-line for interval medications (Ajovy, etc.) */}
+            {!isInactive && isIntervalMed && (
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground leading-tight mt-1">
-                <Clock className="h-4 w-4" />
-                <span>{reminderCount} aktive Erinnerung{reminderCount !== 1 ? 'en' : ''}</span>
+                {hasActiveReminder ? (
+                  <>
+                    <Bell className="h-3.5 w-3.5 text-primary" />
+                    <span>Erinnerung aktiv{formatNextDate() && ` · nächste: ${formatNextDate()}`}</span>
+                  </>
+                ) : (
+                  <>
+                    <BellOff className="h-3.5 w-3.5" />
+                    <span>Keine Erinnerung eingerichtet</span>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -99,13 +118,20 @@ const MedicationCard: React.FC<{
           <div className="flex items-center gap-1 shrink-0">
             {!isInactive && (
               <Button
-                variant="ghost"
+                variant={hasActiveReminder ? "secondary" : "ghost"}
                 size="icon"
                 onClick={onReminder}
-                title="Erinnerungen verwalten"
-                className="h-10 w-10"
+                title={hasActiveReminder ? "Erinnerung aktiv" : "Erinnerung einrichten"}
+                className={cn(
+                  "h-10 w-10",
+                  hasActiveReminder && "bg-primary/10 hover:bg-primary/20"
+                )}
               >
-                <Bell className="h-4 w-4" />
+                {hasActiveReminder ? (
+                  <Bell className="h-4 w-4 text-primary" />
+                ) : (
+                  <BellOff className="h-4 w-4 text-muted-foreground" />
+                )}
               </Button>
             )}
             <Button
@@ -135,7 +161,6 @@ const MedicationCard: React.FC<{
 
 export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBack, onNavigateToLimits }) => {
   const { data: medications, isLoading } = useMeds();
-  const { data: reminders } = useReminders();
   const { data: patientData } = usePatientData();
   const { data: doctors } = useDoctors();
   const { data: medicationCourses } = useMedicationCourses();
@@ -143,6 +168,9 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
   const addMed = useAddMed();
   const deleteMed = useDeleteMed();
   const createReminder = useCreateReminder();
+  
+  // Get reminder status for all medications
+  const reminderStatusMap = useMedicationsReminderMap(medications || []);
   
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -258,15 +286,6 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
     
     return { regular, onDemand, inactive, intolerant };
   }, [medications]);
-
-  // Get reminders count for a medication
-  const getMedicationRemindersCount = (medName: string) => {
-    return reminders?.filter(r => 
-      r.type === 'medication' && 
-      r.medications?.includes(medName) &&
-      r.status === 'pending'
-    ).length || 0;
-  };
 
   // PDF Generation with options
   const generatePdfWithOptions = async (selectedDoctors: Doctor[], options: PdfExportOptions) => {
@@ -626,7 +645,7 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
                   <MedicationCard
                     key={med.id}
                     med={med}
-                    reminderCount={0}
+                    reminderStatus={reminderStatusMap.get(med.id)}
                     onEdit={() => openEditModal(med)}
                     onDelete={() => openDeleteDialog(med)}
                     onReminder={() => {}}
@@ -661,7 +680,7 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
                 <MedicationCard
                   key={med.id}
                   med={med}
-                  reminderCount={getMedicationRemindersCount(med.name)}
+                  reminderStatus={reminderStatusMap.get(med.id)}
                   onEdit={() => openEditModal(med)}
                   onDelete={() => openDeleteDialog(med)}
                   onReminder={() => openReminderDialog(med)}
@@ -680,7 +699,7 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
                 <MedicationCard
                   key={med.id}
                   med={med}
-                  reminderCount={getMedicationRemindersCount(med.name)}
+                  reminderStatus={reminderStatusMap.get(med.id)}
                   onEdit={() => openEditModal(med)}
                   onDelete={() => openDeleteDialog(med)}
                   onReminder={() => openReminderDialog(med)}
@@ -753,7 +772,7 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
                     <MedicationCard
                       key={med.id}
                       med={med}
-                      reminderCount={0}
+                      reminderStatus={reminderStatusMap.get(med.id)}
                       onEdit={() => openEditModal(med)}
                       onDelete={() => openDeleteDialog(med)}
                       onReminder={() => {}}
@@ -912,7 +931,7 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
             <AlertDialogDescription>
               Möchten Sie "{selectedMedication?.name}" wirklich löschen? 
               Diese Aktion kann nicht rückgängig gemacht werden.
-              {getMedicationRemindersCount(selectedMedication?.name || '') > 0 && (
+              {selectedMedication && reminderStatusMap.get(selectedMedication.id)?.isActive && (
                 <span className="block mt-2 text-warning font-medium">
                   ⚠️ Es gibt noch aktive Erinnerungen für dieses Medikament.
                 </span>
@@ -945,22 +964,16 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
         description="Wählen Sie die Ärzte aus, deren Kontaktdaten im Medikationsplan erscheinen sollen."
       />
 
-      {/* Medication Reminder Modal */}
-      {selectedMedication && (
-        <MedicationReminderModal
-          isOpen={showReminderModal}
-          onClose={() => {
-            setShowReminderModal(false);
-            setSelectedMedication(null);
-          }}
-          medicationName={selectedMedication.name}
-          existingReminders={reminders?.filter(r => 
-            r.type === 'medication' && 
-            r.medications?.includes(selectedMedication.name)
-          )}
-          onSubmit={handleCreateReminders}
-        />
-      )}
+      {/* Medication Reminder Sheet */}
+      <MedicationReminderSheet
+        isOpen={showReminderModal}
+        onClose={() => {
+          setShowReminderModal(false);
+          setSelectedMedication(null);
+        }}
+        medication={selectedMedication}
+        reminderStatus={selectedMedication ? reminderStatusMap.get(selectedMedication.id) : undefined}
+      />
     </div>
   );
 };
