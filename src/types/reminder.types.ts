@@ -1,4 +1,4 @@
-export type ReminderType = 'medication' | 'appointment';
+export type ReminderType = 'medication' | 'appointment' | 'todo';
 export type ReminderRepeat = 'none' | 'daily' | 'weekly' | 'monthly';
 export type ReminderStatus = 'pending' | 'processing' | 'done' | 'missed' | 'cancelled' | 'completed' | 'failed';
 export type TimeOfDay = 'morning' | 'noon' | 'evening' | 'night';
@@ -34,6 +34,9 @@ export interface Reminder {
   follow_up_interval_unit?: FollowUpIntervalUnit | null;
   next_follow_up_date?: string | null;
   series_id?: string | null;
+  // Snooze fields
+  snoozed_until?: string | null;
+  snooze_count?: number;
   // Timestamps
   last_popup_date?: string | null;
   created_at: string;

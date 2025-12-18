@@ -443,6 +443,8 @@ export type Database = {
           notify_offsets_minutes: number[] | null
           repeat: string
           series_id: string | null
+          snooze_count: number | null
+          snoozed_until: string | null
           status: string
           time_of_day: string | null
           title: string
@@ -465,6 +467,8 @@ export type Database = {
           notify_offsets_minutes?: number[] | null
           repeat?: string
           series_id?: string | null
+          snooze_count?: number | null
+          snoozed_until?: string | null
           status?: string
           time_of_day?: string | null
           title: string
@@ -487,6 +491,8 @@ export type Database = {
           notify_offsets_minutes?: number[] | null
           repeat?: string
           series_id?: string | null
+          snooze_count?: number | null
+          snoozed_until?: string | null
           status?: string
           time_of_day?: string | null
           title?: string

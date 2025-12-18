@@ -6,7 +6,7 @@ import type { Reminder, CreateReminderInput } from '@/types/reminder.types';
  */
 
 export interface ReminderFormState {
-  type: 'medication' | 'appointment';
+  type: 'medication' | 'appointment' | 'todo';
   title: string;
   date: string;
   times: string[];

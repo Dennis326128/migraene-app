@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { format, addDays } from 'date-fns';
+import { format, addDays, isBefore } from 'date-fns';
 import type { Reminder } from '@/types/reminder.types';
 import { 
   isReminderAttentionNeeded, 
@@ -20,6 +20,7 @@ export interface DueReminder extends Reminder {
  * In-app reminder check hook
  * Triggers on app start and visibility change
  * Uses centralized attention logic + last_popup_date for spam protection
+ * Supports snooze with snoozed_until field
  */
 export function useInAppDueReminders() {
   const queryClient = useQueryClient();
@@ -61,8 +62,21 @@ export function useInAppDueReminders() {
         isReminderAttentionNeeded(r as Reminder, now)
       );
 
-      // Filter: only show if last_popup_date != today (spam protection)
-      const filtered = needsAttention.filter(r => r.last_popup_date !== today);
+      // Filter: 
+      // 1. last_popup_date != today (spam protection)
+      // 2. snoozed_until is null or in the past
+      const filtered = needsAttention.filter(r => {
+        // Skip if already shown today
+        if (r.last_popup_date === today) return false;
+        
+        // Check snooze: if snoozed_until exists and is in the future, skip
+        if (r.snoozed_until) {
+          const snoozedUntil = new Date(r.snoozed_until);
+          if (snoozedUntil > now) return false;
+        }
+        
+        return true;
+      });
 
       // Add attention level to each reminder
       return filtered.map(r => ({
@@ -129,6 +143,36 @@ export function useInAppDueReminders() {
     },
   });
 
+  // NEW: Snooze until a specific time
+  const snoozeUntilMutation = useMutation({
+    mutationFn: async ({ reminderId, until }: { reminderId: string; until: Date }) => {
+      const { data: existing, error: fetchError } = await supabase
+        .from('reminders')
+        .select('snooze_count')
+        .eq('id', reminderId)
+        .single();
+      
+      if (fetchError) throw fetchError;
+      
+      const newSnoozeCount = ((existing?.snooze_count as number) || 0) + 1;
+      
+      const { error } = await supabase
+        .from('reminders')
+        .update({
+          snoozed_until: until.toISOString(),
+          snooze_count: newSnoozeCount,
+          last_popup_date: today,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', reminderId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['due-reminders'] });
+      queryClient.invalidateQueries({ queryKey: ['reminders'] });
+    },
+  });
+
   // Cancel reminder
   const cancelReminderMutation = useMutation({
     mutationFn: async (reminderId: string) => {
@@ -161,6 +205,11 @@ export function useInAppDueReminders() {
     setSheetOpen(false);
   }, [snoozeAll]);
 
+  // Wrapper for snooze until
+  const snoozeReminderUntil = useCallback((reminderId: string, until: Date) => {
+    snoozeUntilMutation.mutate({ reminderId, until });
+  }, [snoozeUntilMutation]);
+
   // Split reminders into overdue and upcoming
   const overdueReminders = dueReminders.filter(r => r.isOverdue);
   const upcomingReminders = dueReminders.filter(r => !r.isOverdue);
@@ -176,11 +225,13 @@ export function useInAppDueReminders() {
     closeSheet,
     completeReminder: completeReminderMutation.mutate,
     snoozeReminder: snoozeReminderMutation.mutate,
+    snoozeReminderUntil,
     cancelReminder: cancelReminderMutation.mutate,
     snoozeAll,
     isUpdating:
       completeReminderMutation.isPending ||
       snoozeReminderMutation.isPending ||
+      snoozeUntilMutation.isPending ||
       cancelReminderMutation.isPending,
   };
 }
