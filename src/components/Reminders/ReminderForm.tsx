@@ -421,10 +421,7 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
               onValueChange={(value) => setValue('type', value as 'medication' | 'appointment' | 'todo')}
             >
               <SelectTrigger>
-                <div className="flex items-center gap-2">
-                  {getTypeIcon()}
-                  <SelectValue />
-                </div>
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="medication">
