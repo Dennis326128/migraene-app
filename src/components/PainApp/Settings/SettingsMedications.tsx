@@ -8,9 +8,11 @@ import { useMeds, useAddMed, useDeleteMed, useUpdateMed, type Med } from "@/feat
 import { useMedicationCourses } from "@/features/medication-courses";
 import { usePatientData, useDoctors } from "@/features/account/hooks/useAccount";
 import { useMedicationLimits } from "@/features/medication-limits/hooks/useMedicationLimits";
+import { useMedicationsReminderMap, type MedicationReminderStatus } from "@/features/reminders/hooks/useMedicationReminders";
 import { buildMedicationPlanPdf } from "@/lib/pdf/medicationPlan";
-import { Trash2, Plus, Pill, Loader2, Pencil, Download, ChevronDown, ChevronUp, Link2, Calendar } from "lucide-react";
+import { Trash2, Plus, Pill, Loader2, Pencil, Download, ChevronDown, ChevronUp, Link2, Calendar, Bell, BellOff } from "lucide-react";
 import { MedicationEditModal } from "../MedicationEditModal";
+import { MedicationReminderSheet } from "@/components/Reminders/MedicationReminderSheet";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { toast as sonnerToast } from "sonner";
@@ -25,12 +27,14 @@ interface MedicationListItemProps {
   onEdit: (med: Med) => void;
   onToggleActive: (med: Med) => void;
   onDelete: (name: string) => void;
+  onReminderClick: (med: Med) => void;
   isDeleting: boolean;
   isMobile: boolean;
   showDates?: boolean;
+  reminderStatus?: MedicationReminderStatus;
 }
 
-const MedicationListItem = ({ med, onEdit, onToggleActive, onDelete, isDeleting, isMobile, showDates }: MedicationListItemProps) => {
+const MedicationListItem = ({ med, onEdit, onToggleActive, onDelete, onReminderClick, isDeleting, isMobile, showDates, reminderStatus }: MedicationListItemProps) => {
   const isInactive = med.is_active === false;
   
   const formatDateRange = () => {
@@ -39,6 +43,11 @@ const MedicationListItem = ({ med, onEdit, onToggleActive, onDelete, isDeleting,
     const end = med.end_date ? format(new Date(med.end_date), "MM/yyyy", { locale: de }) : "heute";
     return `${start} – ${end}`;
   };
+
+  // Determine bell icon state
+  const hasActiveReminder = reminderStatus?.isActive ?? false;
+  const isIntervalMed = reminderStatus?.isIntervalMed ?? false;
+  const nextTriggerDate = reminderStatus?.nextTriggerDate;
 
   return (
     <div
@@ -78,28 +87,68 @@ const MedicationListItem = ({ med, onEdit, onToggleActive, onDelete, isDeleting,
               </Badge>
             )}
           </div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            {(med.wirkstoff || med.staerke || med.darreichungsform) && (
-              <span className="truncate">
-                {[med.wirkstoff, med.staerke, med.darreichungsform].filter(Boolean).join(" · ")}
-              </span>
-            )}
-            {showDates && formatDateRange() && (
-              <span className="flex items-center gap-1">
-                <Calendar className="h-3 w-3" />
-                {formatDateRange()}
-              </span>
-            )}
-            {!showDates && med.start_date && (
-              <span className="flex items-center gap-1">
-                <Calendar className="h-3 w-3" />
-                Seit {format(new Date(med.start_date), "MM/yyyy", { locale: de })}
-              </span>
+          <div className="flex flex-col gap-0.5">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              {(med.wirkstoff || med.staerke || med.darreichungsform) && (
+                <span className="truncate">
+                  {[med.wirkstoff, med.staerke, med.darreichungsform].filter(Boolean).join(" · ")}
+                </span>
+              )}
+              {showDates && formatDateRange() && (
+                <span className="flex items-center gap-1">
+                  <Calendar className="h-3 w-3" />
+                  {formatDateRange()}
+                </span>
+              )}
+              {!showDates && med.start_date && (
+                <span className="flex items-center gap-1">
+                  <Calendar className="h-3 w-3" />
+                  Seit {format(new Date(med.start_date), "MM/yyyy", { locale: de })}
+                </span>
+              )}
+            </div>
+            {/* Reminder mini-line for interval medications (Ajovy, etc.) */}
+            {!showDates && !isInactive && isIntervalMed && (
+              <div className="flex items-center gap-1.5 text-xs">
+                {hasActiveReminder ? (
+                  <span className="text-primary flex items-center gap-1">
+                    <Bell className="h-3 w-3" />
+                    Erinnerung aktiv
+                    {nextTriggerDate && (
+                      <> · nächste: {format(nextTriggerDate, "dd.MM.yyyy", { locale: de })}</>
+                    )}
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground flex items-center gap-1">
+                    <BellOff className="h-3 w-3" />
+                    Keine Erinnerung eingerichtet
+                  </span>
+                )}
+              </div>
             )}
           </div>
         </div>
       </div>
       <div className="flex items-center gap-1 shrink-0">
+        {/* Bell icon for reminder - always visible and clickable */}
+        {!showDates && !isInactive && (
+          <Button
+            variant="ghost"
+            size={isMobile ? "sm" : "icon"}
+            onClick={() => onReminderClick(med)}
+            className={cn(
+              "hover:bg-primary/10",
+              hasActiveReminder ? "text-primary" : "text-muted-foreground hover:text-primary"
+            )}
+            title={hasActiveReminder ? "Erinnerungen verwalten" : "Erinnerung einrichten"}
+          >
+            {hasActiveReminder ? (
+              <Bell className="h-4 w-4" />
+            ) : (
+              <BellOff className="h-4 w-4" />
+            )}
+          </Button>
+        )}
         <Button
           variant="ghost"
           size={isMobile ? "sm" : "icon"}
@@ -132,12 +181,16 @@ export const SettingsMedications = () => {
   const [editingMed, setEditingMed] = useState<Med | null>(null);
   const [showInactive, setShowInactive] = useState(false);
   const [showDoctorSelection, setShowDoctorSelection] = useState(false);
+  const [reminderMed, setReminderMed] = useState<Med | null>(null);
   
   const { data: medications = [], isLoading: medsLoading } = useMeds();
   const { data: courses } = useMedicationCourses();
   const { data: patientData } = usePatientData();
   const { data: doctors } = useDoctors();
   const { data: medicationLimits } = useMedicationLimits();
+  
+  // Get reminder status map for all medications
+  const reminderStatusMap = useMedicationsReminderMap(medications);
   
   const addMed = useAddMed();
   const deleteMed = useDeleteMed();
@@ -150,6 +203,11 @@ export const SettingsMedications = () => {
   // Split active medications by intake type
   const regularMedications = activeMedications.filter(m => m.intake_type === "regular");
   const asNeededMedications = activeMedications.filter(m => m.intake_type !== "regular");
+
+  // Handler for opening reminder sheet
+  const handleReminderClick = (med: Med) => {
+    setReminderMed(med);
+  };
 
   const handleAddMedication = async () => {
     if (!newMedName.trim()) return;
@@ -419,8 +477,10 @@ export const SettingsMedications = () => {
                     onEdit={setEditingMed}
                     onToggleActive={handleToggleActive}
                     onDelete={handleDeleteMedication}
+                    onReminderClick={handleReminderClick}
                     isDeleting={deleteMed.isPending}
                     isMobile={isMobile}
+                    reminderStatus={reminderStatusMap.get(med.id)}
                   />
                 ))}
               </div>
@@ -444,8 +504,10 @@ export const SettingsMedications = () => {
                   onEdit={setEditingMed}
                   onToggleActive={handleToggleActive}
                   onDelete={handleDeleteMedication}
+                  onReminderClick={handleReminderClick}
                   isDeleting={deleteMed.isPending}
                   isMobile={isMobile}
+                  reminderStatus={reminderStatusMap.get(med.id)}
                 />
               ))}
               
@@ -482,6 +544,7 @@ export const SettingsMedications = () => {
                       onEdit={setEditingMed}
                       onToggleActive={handleToggleActive}
                       onDelete={handleDeleteMedication}
+                      onReminderClick={handleReminderClick}
                       isDeleting={deleteMed.isPending}
                       isMobile={isMobile}
                       showDates
@@ -525,6 +588,24 @@ export const SettingsMedications = () => {
         title="Arzt für Medikationsplan auswählen"
         description="Wählen Sie die Ärzte aus, deren Kontaktdaten im Medikationsplan erscheinen sollen."
       />
+
+      {/* Medication Reminder Sheet */}
+      {reminderMed && (
+        <MedicationReminderSheet
+          isOpen={!!reminderMed}
+          onClose={() => setReminderMed(null)}
+          medication={reminderMed}
+          reminderStatus={reminderStatusMap.get(reminderMed.id) || {
+            hasReminder: false,
+            isActive: false,
+            reminderCount: 0,
+            reminders: [],
+            nextTriggerDate: null,
+            isIntervalMed: false,
+            repeatType: null,
+          }}
+        />
+      )}
     </div>
   );
 };
