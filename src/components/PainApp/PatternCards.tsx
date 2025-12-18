@@ -1,10 +1,11 @@
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Activity, MapPin, Brain, Pill, Info } from "lucide-react";
+import { Activity, MapPin, Brain, Pill, Info, AlertTriangle } from "lucide-react";
 import { formatPainLocation, formatAuraType } from "@/lib/utils/pain";
 import { getEffectLabel } from "@/lib/utils/medicationEffects";
 import type { PatternStatistics, MedicationLimitInfo, MedicationEffectStats } from "@/lib/statistics";
 import { Progress } from "@/components/ui/progress";
+import { Button } from "@/components/ui/button";
 import {
   Tooltip,
   TooltipContent,
@@ -12,9 +13,17 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
+interface OveruseInfo {
+  hasWarning: boolean;
+  medicationsWithWarning: MedicationEffectStats[];
+  onNavigateToLimits?: () => void;
+  warningThreshold: number;
+}
+
 interface PatternCardsProps {
   statistics: PatternStatistics;
   isLoading?: boolean;
+  overuseInfo?: OveruseInfo;
 }
 
 // Helper component for Info icon with tooltip
@@ -105,7 +114,7 @@ function MedicationEffectDisplay({ med, showLimit = false }: { med: MedicationEf
   );
 }
 
-export function PatternCards({ statistics, isLoading = false }: PatternCardsProps) {
+export function PatternCards({ statistics, isLoading = false, overuseInfo }: PatternCardsProps) {
   if (isLoading) {
     return (
       <div className="space-y-4 mb-6">
@@ -128,6 +137,21 @@ export function PatternCards({ statistics, isLoading = false }: PatternCardsProp
 
   // TEIL C: Show Aura Card only if meaningful aura data exists OR symptoms are documented
   const showAuraCard = auraAndSymptoms.hasMeaningfulAura || auraAndSymptoms.hasSymptomDocumentation;
+
+  // Determine if medication card should span full width (when overuse warning is shown)
+  const hasOveruse = overuseInfo?.hasWarning ?? false;
+  const medsWithOveruse = overuseInfo?.medicationsWithWarning ?? [];
+  
+  // Determine worst status for display
+  const worstStatus = medsWithOveruse.some(m => m.limitInfo?.isOverLimit) 
+    ? 'exceeded' 
+    : medsWithOveruse.some(m => {
+        if (!m.limitInfo) return false;
+        const pct = (m.limitInfo.rolling30Count / m.limitInfo.limit) * 100;
+        return pct >= 100;
+      })
+    ? 'reached'
+    : 'warning';
 
   return (
     <div className="space-y-4 mb-6">
@@ -278,7 +302,8 @@ export function PatternCards({ statistics, isLoading = false }: PatternCardsProp
         )}
 
         {/* TEIL E: Medikamente & Wirkung - mit echtem Wirkungs-Abschnitt */}
-        <Card>
+        {/* Spans full width when overuse warning is shown */}
+        <Card className={hasOveruse ? 'md:col-span-2' : ''}>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -317,6 +342,39 @@ export function PatternCards({ statistics, isLoading = false }: PatternCardsProp
               <p className="text-sm text-muted-foreground">
                 Keine Medikamente im Zeitraum
               </p>
+            )}
+
+            {/* Integrated overuse warning section */}
+            {hasOveruse && medsWithOveruse.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-warning/30 bg-warning/5 -mx-4 px-4 pb-1 rounded-b-lg">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="h-5 w-5 text-warning flex-shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-medium text-sm">Übergebrauch</span>
+                      <span className="text-xs text-warning">
+                        {worstStatus === 'exceeded' ? 'überschritten' : worstStatus === 'reached' ? 'erreicht' : 'droht'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      {medsWithOveruse.length <= 2 
+                        ? medsWithOveruse.map(m => m.name).join(", ")
+                        : `${medsWithOveruse.slice(0, 2).map(m => m.name).join(", ")} +${medsWithOveruse.length - 2} weitere`
+                      }
+                    </p>
+                    {overuseInfo?.onNavigateToLimits && (
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={overuseInfo.onNavigateToLimits}
+                      >
+                        Zur Limits-Übersicht
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>

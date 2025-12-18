@@ -310,36 +310,16 @@ export function AnalysisView({ onBack, onNavigateToLimits }: AnalysisViewProps) 
             {/* Pattern Cards */}
             {!entriesLoading && filteredEntries.length > 0 && (
               <>
-                <PatternCards statistics={patternStats} isLoading={entriesLoading} />
-
-                {/* TEIL D: Conditional overuse banner - only when warning/reached/exceeded */}
-                {onNavigateToLimits && hasOveruseWarning && (
-                  <Card className="border-warning/50 bg-warning/10 mb-6">
-                    <CardContent className="p-4">
-                      <div className="flex items-start gap-3">
-                        <AlertTriangle className="h-5 w-5 text-warning flex-shrink-0 mt-0.5" />
-                        <div className="flex-1">
-                          <h4 className="font-medium mb-1">
-                            {medicationsWithWarning.some(m => m.limitInfo?.isOverLimit)
-                              ? "Medikamenten-Übergebrauch"
-                              : "Übergebrauch droht"
-                            }
-                          </h4>
-                          <p className="text-sm text-muted-foreground mb-2">
-                            {medicationsWithWarning.map(m => m.name).join(", ")}
-                          </p>
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={onNavigateToLimits}
-                          >
-                            Zur Limits-Übersicht
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
+                <PatternCards 
+                  statistics={patternStats} 
+                  isLoading={entriesLoading}
+                  overuseInfo={{
+                    hasWarning: hasOveruseWarning,
+                    medicationsWithWarning,
+                    onNavigateToLimits,
+                    warningThreshold
+                  }}
+                />
 
                 {/* Time Distribution Chart */}
                 <Card className="mb-6">
