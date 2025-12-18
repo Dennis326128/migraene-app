@@ -1,9 +1,10 @@
 import { Card } from "@/components/ui/card";
+import { getEffectLabel, getEffectEmoji, getEffectColor } from "@/lib/utils/medicationEffects";
 
 interface MedicationStat {
   name: string;
   count: number;
-  avgEffect: number | null;
+  avgEffect: number | null;  // 0-5 scale (already normalized)
   ratedCount: number;
 }
 
@@ -11,22 +12,6 @@ interface MedicationStatisticsCardProps {
   from: string;
   to: string;
   medications: MedicationStat[];
-}
-
-function getEffectEmoji(avgEffect: number): string {
-  if (avgEffect <= 2) return "❌";
-  if (avgEffect <= 4) return "🔴";
-  if (avgEffect <= 6) return "🟡";
-  if (avgEffect <= 8) return "🟢";
-  return "✅";
-}
-
-function getEffectColor(avgEffect: number): string {
-  if (avgEffect <= 2) return "text-destructive";
-  if (avgEffect <= 4) return "text-orange-500";
-  if (avgEffect <= 6) return "text-yellow-500";
-  if (avgEffect <= 8) return "text-green-500";
-  return "text-green-600";
 }
 
 export default function MedicationStatisticsCard({ from, to, medications }: MedicationStatisticsCardProps) {
@@ -64,9 +49,14 @@ export default function MedicationStatisticsCard({ from, to, medications }: Medi
                 )}
               </div>
               {med.avgEffect !== null ? (
-                <div className={`flex items-center gap-2 ${getEffectColor(med.avgEffect)}`}>
-                  <span>• Ø Wirkung: {med.avgEffect.toFixed(1)}/10</span>
-                  <span className="text-base">{getEffectEmoji(med.avgEffect)}</span>
+                <div className="flex items-center gap-2">
+                  <span style={{ color: getEffectColor(Math.round(med.avgEffect)) }}>
+                    • Ø Wirkung: {med.avgEffect.toFixed(1)}/5
+                  </span>
+                  <span className="text-base">{getEffectEmoji(Math.round(med.avgEffect))}</span>
+                  <span className="text-xs text-muted-foreground">
+                    ({getEffectLabel(Math.round(med.avgEffect))})
+                  </span>
                 </div>
               ) : (
                 <div className="text-muted-foreground">
