@@ -18,83 +18,13 @@ const AnalysisRequestSchema = z.object({
   const from = new Date(data.fromDate);
   const to = new Date(data.toDate);
   const now = new Date();
-  
-  // Check: fromDate not in future
   if (from > now) return false;
-  
-  // Check: toDate >= fromDate
   if (to < from) return false;
-  
-  // Check: Max 730 days range (2 years for medical long-term analysis)
   const daysDiff = (to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24);
   return daysDiff <= 730;
 }, {
   message: 'Datumsbereich ungültig: fromDate darf nicht in der Zukunft liegen, toDate muss >= fromDate sein, und max. 730 Tage (2 Jahre) Spanne'
 });
-
-// Generic error handler with requestId
-function handleError(error: unknown, context: string, requestId: string): Response {
-  console.error(`❌ [${context}] [${requestId}] Error:`, error);
-  if (error instanceof Error) {
-    console.error(`[${requestId}] Stack trace:`, error.stack);
-  }
-
-  const errorMessage = error instanceof Error ? error.message.toLowerCase() : '';
-  
-  // Zod validation error
-  if (error instanceof z.ZodError) {
-    return new Response(JSON.stringify({ 
-      requestId,
-      error: 'Ungültige Datumseingabe',
-      details: error.errors.map(e => e.message)
-    }), {
-      status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
-  }
-
-  // Auth errors
-  if (errorMessage.includes('authorization') || errorMessage.includes('authentifizierung') || errorMessage.includes('unauthorized') || errorMessage.includes('keine authentifizierung')) {
-    return new Response(JSON.stringify({ 
-      requestId,
-      error: 'Authentifizierung fehlgeschlagen'
-    }), {
-      status: 401,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
-  }
-
-  // Rate limit
-  if (errorMessage.includes('rate limit') || errorMessage.includes('429')) {
-    return new Response(JSON.stringify({ 
-      requestId,
-      error: 'Rate Limit erreicht. Bitte später erneut versuchen.'
-    }), {
-      status: 429,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
-  }
-
-  // Credits exhausted
-  if (errorMessage.includes('guthaben') || errorMessage.includes('402') || errorMessage.includes('credits')) {
-    return new Response(JSON.stringify({ 
-      requestId,
-      error: 'Guthaben aufgebraucht. Bitte Credits hinzufügen.'
-    }), {
-      status: 402,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
-  }
-
-  // Generic server error
-  return new Response(JSON.stringify({ 
-    requestId,
-    error: 'Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.'
-  }), {
-    status: 500,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-  });
-}
 
 // Tag extraction helpers
 interface ExtractedTag {
@@ -160,14 +90,54 @@ function extractHashtags(text: string): string[] {
   return matches ? matches.map(tag => tag.toLowerCase()) : [];
 }
 
+// Structured JSON output schema
+interface StructuredAnalysis {
+  schemaVersion: number;
+  timeRange: { from: string; to: string };
+  dataCoverage: {
+    entries: number;
+    notes: number;
+    weatherDays: number;
+    medDays: number;
+    prophylaxisCourses: number;
+  };
+  overview: {
+    headline: string;
+    disclaimer: string;
+  };
+  keyFindings: Array<{
+    title: string;
+    finding: string;
+    evidence: string;
+    confidence: 'low' | 'medium' | 'high';
+  }>;
+  sections: Array<{
+    id: string;
+    title: string;
+    bullets?: string[];
+    evidence?: string[];
+    subsections?: Array<{
+      title: string;
+      bullets: string[];
+      evidence?: string[];
+    }>;
+    beforeAfter?: Array<{
+      medication: string;
+      window: string;
+      before: string;
+      after: string;
+      note: string;
+    }>;
+  }>;
+  tagsFromNotes: Array<{ tag: string; count: number }>;
+}
+
 serve(async (req) => {
-  // Generate request ID at the very start
   const requestId = crypto.randomUUID();
   const startTime = Date.now();
   
   console.log(`[analyze-voice-notes] [${requestId}] Request started`);
 
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -193,7 +163,6 @@ serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
-      // Invalid JSON
       console.error(`[${requestId}] JSON parse error:`, parseError);
       return new Response(JSON.stringify({ 
         requestId,
@@ -237,7 +206,6 @@ serve(async (req) => {
       global: { headers: { Authorization: authHeader } }
     });
 
-    // Get user from JWT
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
       console.error(`[${requestId}] Auth error:`, authError);
@@ -353,7 +321,7 @@ serve(async (req) => {
 
     console.log(`[${requestId}] Pain entries fetched: ${painEntries?.length || 0}`);
 
-    // Fetch medication courses for before/after analysis
+    // Fetch medication courses
     const { data: medicationCourses } = await supabase
       .from('medication_courses')
       .select('*')
@@ -387,6 +355,11 @@ serve(async (req) => {
       };
     });
 
+    // Count weather and med days
+    const weatherDays = new Set(structuredEntries.filter(e => e.weather).map(e => e.date)).size;
+    const medDays = new Set(structuredEntries.filter(e => e.medications !== 'keine').map(e => e.date)).size;
+    const prophylaxeCourses = (medicationCourses || []).filter(c => c.type === 'prophylaxe');
+
     // Combine all data
     const allData = [
       ...structuredEntries,
@@ -401,9 +374,18 @@ serve(async (req) => {
     // No data case
     if (allData.length === 0) {
       console.log(`[${requestId}] No data found in range`);
+      const emptyResult: StructuredAnalysis = {
+        schemaVersion: 1,
+        timeRange: { from: fromDate.split('T')[0], to: toDate.split('T')[0] },
+        dataCoverage: { entries: 0, notes: 0, weatherDays: 0, medDays: 0, prophylaxisCourses: 0 },
+        overview: { headline: 'Keine Daten', disclaimer: 'Keine Daten im gewählten Zeitraum gefunden.' },
+        keyFindings: [],
+        sections: [],
+        tagsFromNotes: []
+      };
       return new Response(JSON.stringify({ 
         requestId,
-        insights: 'Keine Daten im gewählten Zeitraum gefunden.',
+        structured: emptyResult,
         analyzed_entries: 0,
         voice_notes_count: 0,
         total_analyzed: 0,
@@ -414,180 +396,120 @@ serve(async (req) => {
       });
     }
 
-    // Build medication courses summary for prompt
-    let medicationCoursesSummary = '';
-    if (medicationCourses && medicationCourses.length > 0) {
-      const prophylaxeCourses = medicationCourses.filter(c => c.type === 'prophylaxe');
-      if (prophylaxeCourses.length > 0) {
-        medicationCoursesSummary = `\n\n💊 PROPHYLAXE-VERLÄUFE:\n${prophylaxeCourses.map(c => {
-          const status = c.is_active ? 'aktiv' : `beendet am ${c.end_date || 'unbekannt'}`;
-          const effectiveness = c.subjective_effectiveness !== null 
-            ? ` (Selbstbewertung: ${c.subjective_effectiveness}/10)` 
-            : '';
-          return `  • ${c.medication_name}: ${c.dose_text || 'Dosis nicht angegeben'}, Start: ${c.start_date || 'unbekannt'}, Status: ${status}${effectiveness}`;
-        }).join('\n')}`;
-      }
-    }
-
-    // Build tags summary
-    const tagsSummary = topTags.length > 0 
-      ? `\n\n🏷️ HÄUFIGSTE KONTEXT-TAGS:\n${topTags.map(t => `  • ${t.label}: ${t.count}x erkannt`).join('\n')}`
-      : '';
-    
-    const hashtagsSummary = topHashtags.length > 0
-      ? `\n\n#️⃣ HASHTAGS:\n${topHashtags.map(h => `  • ${h.tag}: ${h.count}x`).join('\n')}`
-      : '';
-
-    // Build data text (with limits to prevent prompt overflow)
+    // Build data for AI prompt (limited)
     const MAX_DATA_ENTRIES = 200;
-    const limitedData = allData.slice(-MAX_DATA_ENTRIES); // Take most recent
+    const limitedData = allData.slice(-MAX_DATA_ENTRIES);
     
     const dataText = limitedData.map(d => {
       if ('type' in d && d.type === 'voice_note') {
-        const noteTags = extractTags(d.text);
-        const noteHashtags = extractHashtags(d.text);
-        const tagsStr = noteTags.length > 0 
-          ? ` [Tags: ${noteTags.map(t => TAG_LABELS[t.tag] || t.tag).join(', ')}]` 
-          : '';
-        const hashtagsStr = noteHashtags.length > 0 
-          ? ` ${noteHashtags.join(' ')}` 
-          : '';
-        return `[${d.date} ${d.time}] 📝 NOTIZ: ${d.text.substring(0, 200)}${d.text.length > 200 ? '...' : ''}${tagsStr}${hashtagsStr}`;
+        return `[${d.date} ${d.time}] NOTIZ: ${d.text.substring(0, 200)}`;
       }
-      
-      let entry = `[${d.date} ${d.time}] 🩺 MIGRÄNE-EINTRAG
-  • Schmerzlevel: ${d.pain_level}
-  • Aura: ${d.aura_type}
-  • Lokalisation: ${d.pain_location}
-  • Medikamente: ${d.medications}`;
-      
+      let entry = `[${d.date} ${d.time}] EINTRAG: Schmerz=${d.pain_level}, Aura=${d.aura_type}, Ort=${d.pain_location}, Medikamente=${d.medications}`;
       if (d.weather) {
-        entry += `
-  🌤️ WETTER:
-  • Temperatur: ${d.weather.temp}°C
-  • Luftdruck: ${d.weather.pressure} hPa${d.weather.pressure_change ? ` (Δ24h: ${d.weather.pressure_change > 0 ? '+' : ''}${d.weather.pressure_change} hPa)` : ''}
-  • Luftfeuchtigkeit: ${d.weather.humidity}%
-  • Bedingung: ${d.weather.condition}${d.weather.moon_phase ? `\n  • Mondphase: ${d.weather.moon_phase}` : ''}`;
+        entry += ` | Wetter: ${d.weather.temp}C, ${d.weather.pressure}hPa${d.weather.pressure_change ? ` (24h: ${d.weather.pressure_change > 0 ? '+' : ''}${d.weather.pressure_change})` : ''}, ${d.weather.humidity}%`;
       }
-      
-      if (d.notes) {
-        entry += `\n  💬 Notiz: ${d.notes.substring(0, 150)}${d.notes.length > 150 ? '...' : ''}`;
-      }
-      
+      if (d.notes) entry += ` | Notiz: ${d.notes.substring(0, 100)}`;
       return entry;
-    }).join('\n\n');
+    }).join('\n');
 
     const hasWeatherData = structuredEntries.some(e => e.weather !== null);
+
+    // Build medication courses summary
+    let coursesSummary = '';
+    if (prophylaxeCourses.length > 0) {
+      coursesSummary = '\n\nPROPHYLAXE-VERLÄUFE:\n' + prophylaxeCourses.map(c => {
+        const status = c.is_active ? 'aktiv' : `beendet ${c.end_date || ''}`;
+        return `- ${c.medication_name}: ${c.dose_text || ''}, Start: ${c.start_date || '?'}, Status: ${status}${c.subjective_effectiveness !== null ? `, Bewertung: ${c.subjective_effectiveness}/10` : ''}`;
+      }).join('\n');
+    }
+
+    // Tags summary
+    const tagsSummary = topTags.length > 0 
+      ? '\n\nERKANNTE KONTEXT-TAGS:\n' + topTags.map(t => `- ${t.label}: ${t.count}x`).join('\n')
+      : '';
 
     // Check for LLM API key
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     
-    // If no API key, return deterministic analysis
+    // Build deterministic analysis as fallback
+    const deterministicResult = buildDeterministicStructured(
+      structuredEntries,
+      topTags,
+      prophylaxeCourses,
+      fromDate,
+      toDate,
+      weatherDays,
+      medDays
+    );
+    
     if (!LOVABLE_API_KEY) {
       console.log(`[${requestId}] No LOVABLE_API_KEY, returning deterministic analysis`);
-      
-      const deterministicInsights = buildDeterministicInsights(
-        structuredEntries, 
-        allTags, 
-        topTags, 
-        medicationCourses || [],
-        fromDate,
-        toDate
-      );
-      
       return new Response(JSON.stringify({
         requestId,
-        insights: deterministicInsights,
+        structured: deterministicResult,
         analyzed_entries: painEntries?.length || 0,
         voice_notes_count: voiceNotes?.length || 0,
         total_analyzed: allData.length,
         has_weather_data: hasWeatherData,
         date_range: { from: fromDate.split('T')[0], to: toDate.split('T')[0] },
         ai_available: false,
-        tags: {
-          total_tags: allTags.length,
-          unique_tags: topTags.length,
-          top_tags: topTags,
-          top_hashtags: topHashtags,
-          tags_by_category: buildTagsByCategory(allTags)
-        }
+        tags: { total_tags: allTags.length, unique_tags: topTags.length, top_tags: topTags, top_hashtags: topHashtags }
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Build prompt based on mode (FIX: use requestBody.mode, not validatedBody)
-    let prompt: string;
-    let systemMessage: string;
-    
-    if (mode === 'doctor_summary') {
-      systemMessage = 'Sie sind ein medizinischer Assistent für Fachpersonal. Schreiben Sie präzise, faktisch und kompakt.';
-      prompt = `Sie erhalten Migräne-Daten (${allData.length} Einträge von ${fromDate.split('T')[0]} bis ${toDate.split('T')[0]}) für eine KOMPAKTE ärztliche Zusammenfassung.
+    // JSON schema for AI
+    const jsonSchema = `{
+  "schemaVersion": 1,
+  "timeRange": { "from": "YYYY-MM-DD", "to": "YYYY-MM-DD" },
+  "dataCoverage": { "entries": number, "notes": number, "weatherDays": number, "medDays": number, "prophylaxisCourses": number },
+  "overview": { "headline": "kurze Überschrift", "disclaimer": "Private Auswertung, keine medizinische Beratung." },
+  "keyFindings": [{ "title": "Kurztitel", "finding": "Haupterkenntnis", "evidence": "Datenbasis", "confidence": "low|medium|high" }],
+  "sections": [
+    { "id": "timeOfDay", "title": "Tageszeit-Muster", "bullets": ["..."], "evidence": ["..."] },
+    { "id": "weather", "title": "Wetter", "subsections": [{ "title": "Luftdruck", "bullets": ["..."], "evidence": ["..."] }] },
+    { "id": "medication", "title": "Medikation", "bullets": ["..."], "beforeAfter": [{ "medication": "Name", "window": "8 Wochen", "before": "...", "after": "...", "note": "n=..." }] },
+    { "id": "dataQuality", "title": "Datenlage", "bullets": ["..."] }
+  ],
+  "tagsFromNotes": [{ "tag": "Label", "count": number }]
+}`;
+
+    const systemMessage = `Du bist ein Kopfschmerz-Musteranalyse-System. Antworte NUR mit validem JSON im exakten Schema.
+
+REGELN:
+- Keine Emojis
+- Keine Begrüßungen oder Floskeln
+- Sachlich und faktisch
+- Kurze Bulletpoints statt langer Absätze
+- Jede Behauptung mit evidence-Satz belegen
+- Deutsche Sprache
+- Keine medizinischen Empfehlungen
+
+JSON-SCHEMA:
+${jsonSchema}`;
+
+    const prompt = `Analysiere diese Kopfschmerz-Daten (${allData.length} Einträge, ${fromDate.split('T')[0]} bis ${toDate.split('T')[0]}).
 
 DATENSATZ:
-
-${dataText}${tagsSummary}${hashtagsSummary}${medicationCoursesSummary}
-
-AUFGABE:
-Erstellen Sie eine KOMPAKTE Zusammenfassung (80-120 Wörter) für medizinisches Fachpersonal.
-
-FOKUS: Nur Muster, die NICHT offensichtlich aus Rohdaten erkennbar sind:
-• Wetter-Trigger (z.B. Luftdruckabfall >5 hPa/24h)
-• Kontext-Faktoren aus Tags/Notizen mit zeitlichem Zusammenhang
-• Temporale Muster (z.B. Tageszeit-Cluster)
-• Prophylaxe-Wirkung (vorher/nachher Vergleich falls Daten vorhanden)
-
-FORMAT:
-• Stichpunktartig, keine Einleitung
-• 2-3 konkrete Handlungsempfehlungen
-• Medizinisch präzise, aber ohne Fachjargon`;
-    } else {
-      systemMessage = 'Sie sind ein hilfreicher Assistent für Kopfschmerz-Musteranalyse. Schreiben Sie klar, verständlich und verwenden Sie die Höflichkeitsform "Sie". Dies ist KEINE medizinische Beratung, sondern eine private Datenauswertung.';
-      prompt = `Analysieren Sie diese Kopfschmerz-Daten (${allData.length} Einträge von ${fromDate.split('T')[0]} bis ${toDate.split('T')[0]}) für eine KI-MUSTER-ANALYSE.
-
-DATENSATZ:
-
-${dataText}${tagsSummary}${hashtagsSummary}${medicationCoursesSummary}
+${dataText}${tagsSummary}${coursesSummary}
 
 AUFGABE:
-Erstellen Sie eine strukturierte Muster-Analyse für den Nutzer. WICHTIG: Dies ist eine PRIVATE Datenauswertung, KEIN ärztlicher Rat.
+Erstelle eine strukturierte Musteranalyse als JSON. Fokus auf:
+1. Tageszeit-Muster (wann treten Kopfschmerzen auf?)
+2. Wetter-Zusammenhänge (Luftdruck, Temperatur, falls Daten vorhanden)
+3. Kontext-Faktoren (Tags: Schlaf, Stress, etc.)
+4. Medikationsmuster (was wird genommen, was hilft?)
+5. Prophylaxe vor/nach (falls Kurse vorhanden)
+6. Datenlage-Einschätzung (wie belastbar sind die Muster?)
 
-INHALTLICHE STRUKTUR (ca. 200-300 Wörter):
+keyFindings: 3-5 wichtigste Erkenntnisse
+sections: Thematische Abschnitte mit Bulletpoints
+tagsFromNotes: Die erkannten Kontext-Tags mit Anzahl
 
-**📊 Zusammenfassung**
-- Kurze Übersicht: Anzahl Episoden, Zeitraum, allgemeine Tendenz
+Antworte NUR mit dem JSON-Objekt, kein Markdown-Wrapper.`;
 
-**🔍 Erkannte Muster**
-- Tageszeit-Muster (falls erkennbar)
-- Wetter-Zusammenhänge (Luftdruck, Temperatur falls Daten vorhanden)
-- Kontext-Faktoren aus Tags (Schlaf, Stress, etc.)
-
-**⚡ Mögliche Trigger**
-- Was verschlechtert? (basierend auf Daten, nicht Spekulation)
-- Vorsichtige Formulierung: "scheint zusammenzuhängen", "tritt häufig auf"
-
-**✅ Was zu helfen scheint**
-- Medikamente mit positiver Wirkung
-- Faktoren die mit weniger Episoden korrelieren
-
-${medicationCourses && medicationCourses.length > 0 ? `
-**📈 Prophylaxe-Verlauf**
-- Vergleich vor/nach Therapiebeginn (falls genug Daten)
-- Subjektive Wirksamkeit aus Nutzer-Angaben
-` : ''}
-
-**💡 Hinweise**
-- 2-3 konkrete Beobachtungen für Selbst-Tracking
-- Hinweis: Dies ersetzt keine ärztliche Beratung
-
-FORMATIERUNG:
-- Gut lesbares Markdown
-- Keine Rohdaten-Listen oder technische Timestamps
-- Deutsche Datumsformate (dd.MM.yyyy)
-- Zahlen sinnvoll runden`;
-    }
-
-    console.log(`[${requestId}] Calling AI Gateway, mode: ${mode}`);
+    console.log(`[${requestId}] Calling AI Gateway`);
 
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -609,60 +531,74 @@ FORMATIERUNG:
       console.error(`[${requestId}] AI Gateway Error: ${aiResponse.status}`, errorText);
       
       if (aiResponse.status === 429) {
-        return new Response(JSON.stringify({ 
-          requestId,
-          error: 'Rate Limit erreicht. Bitte später erneut versuchen.' 
-        }), {
-          status: 429,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        return new Response(JSON.stringify({ requestId, error: 'Rate Limit erreicht. Bitte später erneut versuchen.' }), {
+          status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
       if (aiResponse.status === 402) {
-        return new Response(JSON.stringify({ 
-          requestId,
-          error: 'Guthaben aufgebraucht. Bitte Credits hinzufügen.' 
-        }), {
-          status: 402,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        return new Response(JSON.stringify({ requestId, error: 'Guthaben aufgebraucht. Bitte Credits hinzufügen.' }), {
+          status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
       
-      // Fallback to deterministic if AI fails
+      // Fallback to deterministic
       console.log(`[${requestId}] AI failed, falling back to deterministic`);
-      const deterministicInsights = buildDeterministicInsights(
-        structuredEntries, 
-        allTags, 
-        topTags, 
-        medicationCourses || [],
-        fromDate,
-        toDate
-      );
-      
       return new Response(JSON.stringify({
         requestId,
-        insights: deterministicInsights + '\n\n*Hinweis: KI-Text war vorübergehend nicht verfügbar.*',
+        structured: deterministicResult,
         analyzed_entries: painEntries?.length || 0,
         voice_notes_count: voiceNotes?.length || 0,
         total_analyzed: allData.length,
         has_weather_data: hasWeatherData,
         date_range: { from: fromDate.split('T')[0], to: toDate.split('T')[0] },
         ai_available: false,
-        tags: {
-          total_tags: allTags.length,
-          unique_tags: topTags.length,
-          top_tags: topTags,
-          top_hashtags: topHashtags,
-          tags_by_category: buildTagsByCategory(allTags)
-        }
+        tags: { total_tags: allTags.length, unique_tags: topTags.length, top_tags: topTags, top_hashtags: topHashtags }
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     const aiData = await aiResponse.json();
-    const insights = aiData.choices[0].message.content;
-
+    let aiContent = aiData.choices[0].message.content;
+    
     console.log(`[${requestId}] AI response received, tokens: ${aiData.usage?.total_tokens || 'unknown'}`);
+
+    // Parse JSON from AI response
+    let structuredResult: StructuredAnalysis;
+    try {
+      // Remove markdown code blocks if present
+      aiContent = aiContent.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
+      structuredResult = JSON.parse(aiContent);
+      
+      // Ensure schema version
+      structuredResult.schemaVersion = 1;
+      structuredResult.timeRange = { from: fromDate.split('T')[0], to: toDate.split('T')[0] };
+      structuredResult.dataCoverage = {
+        entries: painEntries?.length || 0,
+        notes: voiceNotes?.length || 0,
+        weatherDays,
+        medDays,
+        prophylaxisCourses: prophylaxeCourses.length
+      };
+      
+      // Merge tags from deterministic extraction if AI didn't include them
+      if (!structuredResult.tagsFromNotes || structuredResult.tagsFromNotes.length === 0) {
+        structuredResult.tagsFromNotes = topTags.map(t => ({ tag: t.label, count: t.count }));
+      }
+      
+    } catch (parseError) {
+      console.error(`[${requestId}] Failed to parse AI JSON:`, parseError);
+      console.error(`[${requestId}] Raw AI content:`, aiContent.substring(0, 500));
+      
+      // Fall back to deterministic with AI text as additional info
+      structuredResult = {
+        ...deterministicResult,
+        overview: {
+          ...deterministicResult.overview,
+          headline: 'Musteranalyse (Fallback)'
+        }
+      };
+    }
 
     // Audit log (non-blocking)
     try {
@@ -682,7 +618,6 @@ FORMATIERUNG:
         }
       });
     } catch (auditError) {
-      // Log but don't fail the request
       console.error(`[${requestId}] Audit log failed (non-fatal):`, auditError);
     }
 
@@ -691,7 +626,7 @@ FORMATIERUNG:
 
     return new Response(JSON.stringify({
       requestId,
-      insights,
+      structured: structuredResult,
       analyzed_entries: painEntries?.length || 0,
       voice_notes_count: voiceNotes?.length || 0,
       total_analyzed: allData.length,
@@ -702,43 +637,37 @@ FORMATIERUNG:
         total_tags: allTags.length,
         unique_tags: topTags.length,
         top_tags: topTags,
-        top_hashtags: topHashtags,
-        tags_by_category: buildTagsByCategory(allTags)
+        top_hashtags: topHashtags
       }
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
   } catch (error) {
-    return handleError(error, 'analyze-voice-notes', requestId);
+    console.error(`[${requestId}] Unhandled error:`, error);
+    return new Response(JSON.stringify({ 
+      requestId,
+      error: error instanceof Error ? error.message : 'Ein Fehler ist aufgetreten'
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
   }
 });
 
-// Helper to build tags by category
-function buildTagsByCategory(allTags: Array<ExtractedTag & { noteText: string; date: string }>) {
-  return Object.entries(
-    allTags.reduce((acc, tag) => {
-      acc[tag.category] = (acc[tag.category] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>)
-  ).map(([category, count]) => ({ category, count }));
-}
-
-// Deterministic insights when AI is unavailable
-function buildDeterministicInsights(
-  entries: Array<{ date: string; pain_level: string; aura_type: string; medications: string; weather: any }>,
-  allTags: ExtractedTag[],
+// Build deterministic structured analysis
+function buildDeterministicStructured(
+  entries: Array<{ date: string; time: string; pain_level: string; aura_type: string; medications: string; weather: any }>,
   topTags: Array<{ tag: string; label: string; count: number }>,
   courses: any[],
   fromDate: string,
-  toDate: string
-): string {
+  toDate: string,
+  weatherDays: number,
+  medDays: number
+): StructuredAnalysis {
   const totalEntries = entries.length;
   const fromFormatted = new Date(fromDate).toLocaleDateString('de-DE');
   const toFormatted = new Date(toDate).toLocaleDateString('de-DE');
-  
-  let md = `## 📊 Kopfschmerz-Muster (${fromFormatted} – ${toFormatted})\n\n`;
-  md += `**${totalEntries} Einträge** im gewählten Zeitraum.\n\n`;
   
   // Pain level distribution
   const painLevels: Record<string, number> = {};
@@ -746,24 +675,17 @@ function buildDeterministicInsights(
     painLevels[e.pain_level] = (painLevels[e.pain_level] || 0) + 1;
   });
   
-  if (Object.keys(painLevels).length > 0) {
-    md += `### Schmerzintensität\n`;
-    Object.entries(painLevels)
-      .sort(([,a], [,b]) => b - a)
-      .forEach(([level, count]) => {
-        md += `- ${level}: ${count}x (${Math.round(count/totalEntries*100)}%)\n`;
-      });
-    md += '\n';
-  }
+  // Time distribution
+  const hourBuckets: Record<string, number> = { 'Morgen (6-12)': 0, 'Mittag (12-18)': 0, 'Abend (18-24)': 0, 'Nacht (0-6)': 0 };
+  entries.forEach(e => {
+    const hour = parseInt(e.time.split(':')[0], 10);
+    if (hour >= 6 && hour < 12) hourBuckets['Morgen (6-12)']++;
+    else if (hour >= 12 && hour < 18) hourBuckets['Mittag (12-18)']++;
+    else if (hour >= 18) hourBuckets['Abend (18-24)']++;
+    else hourBuckets['Nacht (0-6)']++;
+  });
   
-  // Top tags
-  if (topTags.length > 0) {
-    md += `### Häufige Faktoren\n`;
-    topTags.slice(0, 5).forEach(t => {
-      md += `- ${t.label}: ${t.count}x erkannt\n`;
-    });
-    md += '\n';
-  }
+  const topTimeSlot = Object.entries(hourBuckets).sort(([,a], [,b]) => b - a)[0];
   
   // Medications
   const meds: Record<string, number> = {};
@@ -776,33 +698,106 @@ function buildDeterministicInsights(
     }
   });
   
-  if (Object.keys(meds).length > 0) {
-    md += `### Medikamente\n`;
-    Object.entries(meds)
-      .sort(([,a], [,b]) => b - a)
-      .slice(0, 5)
-      .forEach(([med, count]) => {
-        md += `- ${med}: ${count}x verwendet\n`;
-      });
-    md += '\n';
-  }
+  const topMeds = Object.entries(meds).sort(([,a], [,b]) => b - a).slice(0, 5);
+
+  // Build key findings
+  const keyFindings: StructuredAnalysis['keyFindings'] = [];
   
-  // Prophylaxe courses
-  const prophylaxe = courses.filter(c => c.type === 'prophylaxe');
-  if (prophylaxe.length > 0) {
-    md += `### Prophylaxe-Verläufe\n`;
-    prophylaxe.forEach(c => {
-      const status = c.is_active ? '🟢 aktiv' : '⏹️ beendet';
-      md += `- **${c.medication_name}** (${c.dose_text || 'Dosis nicht angegeben'}): ${status}`;
-      if (c.subjective_effectiveness !== null) {
-        md += ` – Selbstbewertung: ${c.subjective_effectiveness}/10`;
-      }
-      md += '\n';
+  if (topTimeSlot && topTimeSlot[1] > 0) {
+    keyFindings.push({
+      title: 'Tageszeit',
+      finding: `Häufigste Kopfschmerzen: ${topTimeSlot[0]}`,
+      evidence: `${topTimeSlot[1]} von ${totalEntries} Einträgen`,
+      confidence: topTimeSlot[1] >= 5 ? 'high' : 'medium'
     });
-    md += '\n';
   }
   
-  md += `---\n*Diese Auswertung basiert auf Ihren Tracker-Daten. Sie ersetzt keine ärztliche Beratung.*`;
+  if (topMeds.length > 0) {
+    keyFindings.push({
+      title: 'Medikation',
+      finding: `Meist verwendet: ${topMeds[0][0]}`,
+      evidence: `${topMeds[0][1]}x im Zeitraum`,
+      confidence: 'high'
+    });
+  }
   
-  return md;
+  if (topTags.length > 0) {
+    keyFindings.push({
+      title: 'Kontext',
+      finding: `Häufiger Faktor: ${topTags[0].label}`,
+      evidence: `${topTags[0].count}x erkannt`,
+      confidence: topTags[0].count >= 3 ? 'medium' : 'low'
+    });
+  }
+
+  // Build sections
+  const sections: StructuredAnalysis['sections'] = [];
+  
+  // Time section
+  sections.push({
+    id: 'timeOfDay',
+    title: 'Tageszeit-Muster',
+    bullets: Object.entries(hourBuckets)
+      .filter(([, count]) => count > 0)
+      .sort(([,a], [,b]) => b - a)
+      .map(([slot, count]) => `${slot}: ${count} Einträge (${Math.round(count/totalEntries*100)}%)`),
+    evidence: [`Basierend auf ${totalEntries} Einträgen`]
+  });
+  
+  // Medication section
+  if (topMeds.length > 0) {
+    sections.push({
+      id: 'medication',
+      title: 'Medikation',
+      bullets: topMeds.map(([med, count]) => `${med}: ${count}x verwendet`),
+      beforeAfter: courses.filter(c => c.type === 'prophylaxe').map(c => ({
+        medication: c.medication_name,
+        window: 'Gesamtzeitraum',
+        before: c.start_date ? `Start: ${new Date(c.start_date).toLocaleDateString('de-DE')}` : 'Startdatum unbekannt',
+        after: c.is_active ? 'Läuft noch' : `Beendet: ${c.end_date ? new Date(c.end_date).toLocaleDateString('de-DE') : 'unbekannt'}`,
+        note: c.subjective_effectiveness !== null ? `Selbstbewertung: ${c.subjective_effectiveness}/10` : 'Keine Bewertung'
+      }))
+    });
+  }
+  
+  // Weather section (if data available)
+  if (weatherDays > 0) {
+    sections.push({
+      id: 'weather',
+      title: 'Wetter',
+      bullets: [`${weatherDays} Tage mit Wetterdaten erfasst`],
+      evidence: ['Detaillierte Wetter-Korrelationen erfordern mehr Datenpunkte']
+    });
+  }
+  
+  // Data quality section
+  sections.push({
+    id: 'dataQuality',
+    title: 'Datenlage',
+    bullets: [
+      `${totalEntries} Einträge im Zeitraum ${fromFormatted} bis ${toFormatted}`,
+      `${weatherDays} Tage mit Wetterdaten`,
+      `${medDays} Tage mit Medikamenteneinnahme`,
+      `${courses.filter(c => c.type === 'prophylaxe').length} Prophylaxe-Verläufe dokumentiert`
+    ]
+  });
+
+  return {
+    schemaVersion: 1,
+    timeRange: { from: fromDate.split('T')[0], to: toDate.split('T')[0] },
+    dataCoverage: {
+      entries: totalEntries,
+      notes: 0,
+      weatherDays,
+      medDays,
+      prophylaxisCourses: courses.filter(c => c.type === 'prophylaxe').length
+    },
+    overview: {
+      headline: 'Musteranalyse',
+      disclaimer: 'Private Auswertung, keine medizinische Beratung.'
+    },
+    keyFindings,
+    sections,
+    tagsFromNotes: topTags.map(t => ({ tag: t.label, count: t.count }))
+  };
 }
