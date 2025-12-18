@@ -1,7 +1,7 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 
-export type TimeRangePreset = "3m" | "6m" | "12m" | "all" | "custom";
+export type TimeRangePreset = "1m" | "3m" | "6m" | "12m" | "all" | "custom";
 
 interface TimeRangeButtonsProps {
   value: TimeRangePreset;
@@ -11,6 +11,7 @@ interface TimeRangeButtonsProps {
 
 export function TimeRangeButtons({ value, onChange, className = "" }: TimeRangeButtonsProps) {
   const presets: { key: TimeRangePreset; label: string }[] = [
+    { key: "1m", label: "1 Monat" },
     { key: "3m", label: "3 Monate" },
     { key: "6m", label: "6 Monate" },
     { key: "12m", label: "12 Monate" },
@@ -19,7 +20,7 @@ export function TimeRangeButtons({ value, onChange, className = "" }: TimeRangeB
   ];
 
   return (
-    <div className={`grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 ${className}`}>
+    <div className={`grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 ${className}`}>
       {presets.map(({ key, label }) => (
         <Button
           key={key}
