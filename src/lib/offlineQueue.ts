@@ -6,7 +6,7 @@ interface OfflineQueueDB extends DBSchema {
     key: string;
     value: {
       id: string;
-      type: 'pain_entry' | 'medication' | 'voice_note';
+      type: 'pain_entry' | 'medication' | 'voice_note' | 'reminder';
       data: any;
       timestamp: number;
       retries: number;
@@ -23,25 +23,29 @@ interface OfflineQueueDB extends DBSchema {
 }
 
 let db: IDBPDatabase<OfflineQueueDB> | null = null;
+let syncInProgress = false;
 
 export async function initOfflineDB() {
   if (db) return db;
   
-  db = await openDB<OfflineQueueDB>('migraine-offline', 1, {
-    upgrade(db) {
-      // Queue für unsyncte Einträge
-      if (!db.objectStoreNames.contains('pending-entries')) {
-        db.createObjectStore('pending-entries', { keyPath: 'id' });
-      }
-      
-      // Sync-Status
-      if (!db.objectStoreNames.contains('sync-status')) {
-        db.createObjectStore('sync-status', { keyPath: 'key' });
-      }
-    },
-  });
-  
-  return db;
+  try {
+    db = await openDB<OfflineQueueDB>('migraine-offline', 1, {
+      upgrade(db) {
+        if (!db.objectStoreNames.contains('pending-entries')) {
+          db.createObjectStore('pending-entries', { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains('sync-status')) {
+          db.createObjectStore('sync-status', { keyPath: 'key' });
+        }
+      },
+    });
+    
+    console.log('📦 Offline DB initialized');
+    return db;
+  } catch (error) {
+    console.error('Failed to init offline DB:', error);
+    return null;
+  }
 }
 
 export async function addToOfflineQueue(type: string, data: any) {
@@ -90,54 +94,110 @@ export async function updateSyncStatus() {
 
 export async function syncPendingEntries() {
   if (!navigator.onLine) {
-    console.log('Offline - skipping sync');
+    console.log('📴 Offline - skipping sync');
     return { success: 0, failed: 0 };
   }
   
-  const pending = await getPendingEntries();
-  let success = 0;
-  let failed = 0;
+  if (syncInProgress) {
+    console.log('🔄 Sync already in progress');
+    return { success: 0, failed: 0 };
+  }
   
-  for (const entry of pending) {
-    try {
-      // Hier je nach Type entsprechende API aufrufen
-      if (entry.type === 'pain_entry') {
-        const { supabase } = await import('@/lib/supabaseClient');
-        const { error } = await supabase
-          .from('pain_entries')
-          .insert(entry.data);
+  syncInProgress = true;
+  
+  try {
+    const pending = await getPendingEntries();
+    if (pending.length === 0) {
+      return { success: 0, failed: 0 };
+    }
+    
+    console.log(`🔄 Syncing ${pending.length} pending entries...`);
+    let success = 0;
+    let failed = 0;
+    
+    for (const entry of pending) {
+      try {
+        if (entry.type === 'pain_entry') {
+          const { supabase } = await import('@/lib/supabaseClient');
+          
+          // UPSERT um Duplikate zu vermeiden
+          const { error } = await supabase
+            .from('pain_entries')
+            .upsert(entry.data, {
+              onConflict: 'user_id,selected_date,selected_time',
+              ignoreDuplicates: false
+            });
+          
+          if (error) throw error;
+        } else if (entry.type === 'medication') {
+          const { supabase } = await import('@/lib/supabaseClient');
+          const { error } = await supabase
+            .from('user_medications')
+            .insert(entry.data);
+          if (error) throw error;
+        } else if (entry.type === 'reminder') {
+          const { supabase } = await import('@/lib/supabaseClient');
+          const { error } = await supabase
+            .from('reminders')
+            .insert(entry.data);
+          if (error) throw error;
+        }
         
-        if (error) throw error;
-      }
-      
-      await removePendingEntry(entry.id);
-      success++;
-      
-    } catch (error) {
-      console.error('Sync failed for entry:', entry.id, error);
-      failed++;
-      
-      // Max 3 Retries
-      if (entry.retries >= 3) {
         await removePendingEntry(entry.id);
-        toast.error("Sync fehlgeschlagen", {
-          description: "Eintrag konnte nicht synchronisiert werden"
-        });
-      } else {
-        const database = await initOfflineDB();
-        await database.put('pending-entries', {
-          ...entry,
-          retries: entry.retries + 1
-        });
+        success++;
+        
+      } catch (error: any) {
+        console.error('Sync failed for entry:', entry.id, error);
+        failed++;
+        
+        // Bei Duplikat-Fehler: als erfolgreich markieren (Eintrag existiert bereits)
+        if (error?.code === '23505') {
+          console.log('Entry already exists, removing from queue');
+          await removePendingEntry(entry.id);
+          success++;
+          failed--;
+          continue;
+        }
+        
+        // Max 5 Retries
+        if (entry.retries >= 5) {
+          await removePendingEntry(entry.id);
+          toast.error("Sync fehlgeschlagen", {
+            description: "Ein Eintrag konnte nicht synchronisiert werden und wurde verworfen."
+          });
+        } else {
+          const database = await initOfflineDB();
+          if (database) {
+            await database.put('pending-entries', {
+              ...entry,
+              retries: entry.retries + 1
+            });
+          }
+        }
       }
     }
+    
+    if (success > 0) {
+      toast.success("Synchronisiert", {
+        description: `${success} ${success === 1 ? 'Eintrag' : 'Einträge'} erfolgreich hochgeladen`
+      });
+    }
+    
+    return { success, failed };
+  } finally {
+    syncInProgress = false;
   }
-  
-  if (success > 0) {
-    toast.success("Synchronisiert", {
-      description: `${success} Einträge erfolgreich hochgeladen`
-    });
-  }
-  
-  return { success, failed };
+}
+
+// Auto-sync bei Online-Event
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', async () => {
+    console.log('🌐 Back online - triggering sync...');
+    // Kurze Verzögerung um sicherzustellen, dass Verbindung stabil ist
+    setTimeout(async () => {
+      if (navigator.onLine) {
+        await syncPendingEntries();
+      }
+    }, 1000);
+  });
 }

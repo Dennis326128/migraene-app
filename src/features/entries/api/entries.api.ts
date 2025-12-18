@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabaseClient";
 import type { PainEntry } from "@/types/painApp";
 import { EntryPayloadSchema, type EntryPayload } from "@/lib/zod/schemas";
+import { addToOfflineQueue, syncPendingEntries } from "@/lib/offlineQueue";
 
 export type ListParams = { 
   from?: string; 
@@ -117,7 +118,7 @@ export async function getEntry(id: string): Promise<PainEntry | null> {
   } as PainEntry;
 }
 
-export async function createEntry(payload: PainEntryPayload) {
+export async function createEntry(payload: PainEntryPayload): Promise<string> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Kein Nutzer");
 
@@ -131,38 +132,61 @@ export async function createEntry(payload: PainEntryPayload) {
 
   const insert = {
     user_id: user.id,
-    timestamp_created: atISO, // wichtig: Ereigniszeitpunkt
+    timestamp_created: atISO,
     ...parsed,
   };
 
-  // UPSERT statt INSERT - vermeidet Duplikate bei gleichem Datum+Uhrzeit
-  const { data, error } = await supabase
-    .from("pain_entries")
-    .upsert(insert, { 
-      onConflict: 'user_id,selected_date,selected_time',
-      ignoreDuplicates: false // Bei Konflikt: UPDATE
-    })
-    .select("id")
-    .single();
+  // OFFLINE CHECK: Bei fehlender Verbindung in Queue speichern
+  if (!navigator.onLine) {
+    console.log('📴 Offline - saving to local queue');
+    const offlineId = await addToOfflineQueue('pain_entry', insert);
+    return `offline_${offlineId}`;
+  }
 
-  if (error) {
-    // Bei Date/Timestamp-Fehlern: Version-Check triggern
-    if (error.code === '23505' || /timestamp|date/i.test(error.message)) {
-      console.warn('⚠️ Potential version mismatch detected');
-      import('@/lib/version').then(m => m.triggerVersionCheckFromAPI()).catch(() => {});
+  try {
+    // UPSERT statt INSERT - vermeidet Duplikate bei gleichem Datum+Uhrzeit
+    const { data, error } = await supabase
+      .from("pain_entries")
+      .upsert(insert, { 
+        onConflict: 'user_id,selected_date,selected_time',
+        ignoreDuplicates: false
+      })
+      .select("id")
+      .single();
+
+    if (error) {
+      // Bei Netzwerk-Fehlern: in Queue speichern
+      if (error.message?.includes('fetch') || error.message?.includes('network') || error.code === 'PGRST000') {
+        console.log('🔄 Network error - saving to offline queue');
+        const offlineId = await addToOfflineQueue('pain_entry', insert);
+        return `offline_${offlineId}`;
+      }
+
+      // Bei Date/Timestamp-Fehlern: Version-Check triggern
+      if (error.code === '23505' || /timestamp|date/i.test(error.message)) {
+        console.warn('⚠️ Potential version mismatch detected');
+        import('@/lib/version').then(m => m.triggerVersionCheckFromAPI()).catch(() => {});
+      }
+      
+      console.error('Entry save failed:', {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+      });
+      
+      throw error;
     }
     
-    console.error('Entry save failed:', {
-      code: error.code,
-      message: error.message,
-      details: error.details,
-      buildId: import.meta.env.VITE_BUILD_ID
-    });
-    
-    throw error;
+    return data.id as string;
+  } catch (err: any) {
+    // Bei unerwarteten Fehlern (z.B. Timeout): in Queue speichern
+    if (err?.message?.includes('fetch') || err?.message?.includes('Failed') || !navigator.onLine) {
+      console.log('🔄 Request failed - saving to offline queue');
+      const offlineId = await addToOfflineQueue('pain_entry', insert);
+      return `offline_${offlineId}`;
+    }
+    throw err;
   }
-  
-  return data.id as string;
 }
 
 export async function updateEntry(id: string, patch: Partial<PainEntryPayload>) {
