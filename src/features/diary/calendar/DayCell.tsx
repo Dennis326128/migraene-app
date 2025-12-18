@@ -1,6 +1,6 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
-import { getColorForPain, shouldUseDarkText, isSeverePain } from './painColorScale';
+import { getColorForPain, getTextColorForPain, isSeverePain } from './painColorScale';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { isToday, format } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -28,7 +28,7 @@ export const DayCell: React.FC<DayCellProps> = ({
   
   // Get pain color for full background
   const painColor = hasPainData ? getColorForPain(maxPain) : undefined;
-  const useDarkText = hasPainData && maxPain !== null ? shouldUseDarkText(maxPain) : false;
+  const textColor = hasPainData && maxPain !== null ? getTextColorForPain(maxPain) : undefined;
   
   // Tooltip text
   const tooltipText = hasEntries
@@ -62,7 +62,7 @@ export const DayCell: React.FC<DayCellProps> = ({
             style={hasPainData && painColor ? {
               // Full background with pain color
               backgroundColor: painColor,
-              color: useDarkText ? 'hsl(0 0% 15%)' : 'hsl(0 0% 98%)',
+              color: textColor,
             } : hasEntries && !hasPainData ? {
               // Has entries but no pain data - muted fill
               backgroundColor: 'hsl(var(--muted) / 0.5)',
