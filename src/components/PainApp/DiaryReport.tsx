@@ -2,22 +2,17 @@ import React, { useEffect, useMemo, useState, useRef, useCallback } from "react"
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import type { PainEntry } from "@/types/painApp";
 import { useEntries } from "@/features/entries/hooks/useEntries";
 import { buildDiaryPdf } from "@/lib/pdf/report";
 import { buildMedicationPlanPdf } from "@/lib/pdf/medicationPlan";
-import { getUserSettings, upsertUserSettings } from "@/features/settings/api/settings.api";
 import { mapTextLevelToScore } from "@/lib/utils/pain";
 import { useMedicationEffectsForEntries } from "@/features/medication-effects/hooks/useMedicationEffects";
 import { usePatientData, useDoctors } from "@/features/account/hooks/useAccount";
 import { useMedicationCourses } from "@/features/medication-courses/hooks/useMedicationCourses";
-import MedicationStatisticsCard from "./MedicationStatisticsCard";
-import TimeSeriesChart from "@/components/TimeSeriesChart";
-import { Loader2, ArrowLeft, FileText, Table, Pill, Plus, Edit, UserPlus, User, Info, ChevronDown, ChevronRight } from "lucide-react";
+import { Loader2, ArrowLeft, FileText, Table, Pill, ChevronDown, ChevronRight, MoreHorizontal } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import ReactMarkdown from "react-markdown";
 import { TimeRangeButtons, type TimeRangePreset } from "./TimeRangeButtons";
 import {
   AlertDialog,
@@ -31,9 +26,14 @@ import {
 } from "@/components/ui/alert-dialog";
 import { DoctorSelectionDialog, type Doctor } from "./DoctorSelectionDialog";
 import { Switch } from "@/components/ui/switch";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { devLog, devWarn } from "@/lib/utils/devLogger";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 type Preset = TimeRangePreset;
 
@@ -55,55 +55,83 @@ function mapEffectToNumber(rating: string): number {
   return map[rating] || 0;
 }
 
+// Persisted settings interface
+interface ReportSettingsState {
+  preset: Preset;
+  customStart: string;
+  customEnd: string;
+  includeStats: boolean;
+  includeEntriesList: boolean;
+  includeAnalysis: boolean;
+  includeTherapies: boolean;
+  includeHeaderData: boolean; // Combined personal + doctor
+  allMedications: boolean;
+  selectedMedIds: string[];
+  includeEntryNotes: boolean;
+  includeContextNotes: boolean;
+  lastDoctorIds: string[];
+}
+
+const DEFAULT_SETTINGS: Omit<ReportSettingsState, 'customStart' | 'customEnd'> = {
+  preset: "3m",
+  includeStats: true,
+  includeEntriesList: true,
+  includeAnalysis: true,
+  includeTherapies: true,
+  includeHeaderData: true,
+  allMedications: true,
+  selectedMedIds: [],
+  includeEntryNotes: false,
+  includeContextNotes: false,
+  lastDoctorIds: [],
+};
+
 export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void; onNavigate?: (target: string) => void }) {
   const today = useMemo(() => new Date(), []);
+  
+  // Core state
   const [preset, setPreset] = useState<Preset>("3m");
-  const [customStart, setCustomStart] = useState<string>("");
+  const [customStart, setCustomStart] = useState<string>(fmt(addMonths(today, -3)));
   const [customEnd, setCustomEnd] = useState<string>(fmt(today));
-  const [selectedMeds, setSelectedMeds] = useState<string[]>([]);
-  const [medOptions, setMedOptions] = useState<string[]>([]);
-  const [userEmail, setUserEmail] = useState<string>("");
   
-  // Content inclusion flags
+  // Essentials toggles
   const [includeStats, setIncludeStats] = useState<boolean>(true);
-  const [includeChart, setIncludeChart] = useState<boolean>(true);
-  const [includeAnalysis, setIncludeAnalysis] = useState<boolean>(true);
   const [includeEntriesList, setIncludeEntriesList] = useState<boolean>(true);
-  const [includePatientData, setIncludePatientData] = useState<boolean>(true);
-  const [includeDoctorData, setIncludeDoctorData] = useState<boolean>(false);
-  const [includeMedicationCourses, setIncludeMedicationCourses] = useState<boolean>(true);
-  const [includePatientNotes, setIncludePatientNotes] = useState<boolean>(true);
-  const [patientNotes, setPatientNotes] = useState<string>("");
+  const [includeAnalysis, setIncludeAnalysis] = useState<boolean>(true);
+  const [includeTherapies, setIncludeTherapies] = useState<boolean>(true);
+  const [includeHeaderData, setIncludeHeaderData] = useState<boolean>(true);
   
-  const [freeTextExportMode, setFreeTextExportMode] = useState<'none' | 'short_notes' | 'notes_and_context'>('none');
+  // Medications
+  const [allMedications, setAllMedications] = useState<boolean>(true);
+  const [selectedMedIds, setSelectedMedIds] = useState<string[]>([]);
+  const [medOptions, setMedOptions] = useState<string[]>([]);
   
+  // Notes
+  const [includeEntryNotes, setIncludeEntryNotes] = useState<boolean>(false);
+  const [includeContextNotes, setIncludeContextNotes] = useState<boolean>(false);
+  
+  // Advanced section
+  const [advancedOpen, setAdvancedOpen] = useState<boolean>(false);
+  
+  // Doctor selection
   const [selectedDoctorIds, setSelectedDoctorIds] = useState<string[]>([]);
   const [doctorPreferencesLoaded, setDoctorPreferencesLoaded] = useState(false);
   
-  const [generated, setGenerated] = useState<PainEntry[]>([]);
-  const [previousSelection, setPreviousSelection] = useState<string[]>([]);
-  const [allSelected, setAllSelected] = useState<boolean>(false);
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // UI state
+  const [userEmail, setUserEmail] = useState<string>("");
   const [analysisReport, setAnalysisReport] = useState<string>("");
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [isGeneratingMedPlan, setIsGeneratingMedPlan] = useState(false);
   const [showMissingDataDialog, setShowMissingDataDialog] = useState(false);
   const [showDoctorSelection, setShowDoctorSelection] = useState(false);
   const [pendingPdfType, setPendingPdfType] = useState<"diary" | "medplan" | null>(null);
-
-  // UI State for collapsibles
-  const [filterOpen, setFilterOpen] = useState(false);
-  const [notesOpen, setNotesOpen] = useState(false);
-
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+  
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
   const { data: patientData } = usePatientData();
   const { data: doctors = [] } = useDoctors();
   const { data: medicationCourses = [] } = useMedicationCourses();
-
-  // Initialize collapsible states based on data
-  useEffect(() => {
-    if (selectedMeds.length > 0) setFilterOpen(true);
-    if (patientNotes.trim()) setNotesOpen(true);
-  }, []);
 
   // Load user email
   useEffect(() => {
@@ -114,7 +142,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     });
   }, []);
 
-  // Load report settings from database
+  // Load all report settings from database
   useEffect(() => {
     (async () => {
       try {
@@ -128,32 +156,39 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
           .maybeSingle();
         
         if (settings) {
-          if (settings.default_report_preset && (["3m","6m","12m","custom"] as const).includes(settings.default_report_preset as any)) {
+          // Time range
+          if (settings.default_report_preset && ["3m","6m","12m","all","custom"].includes(settings.default_report_preset)) {
             setPreset(settings.default_report_preset as Preset);
           }
-          if (settings.selected_medications && Array.isArray(settings.selected_medications)) {
-            setSelectedMeds(settings.selected_medications);
-            if (settings.selected_medications.length > 0) setFilterOpen(true);
-          }
+          
+          // Essentials
           if (settings.include_statistics !== null) setIncludeStats(settings.include_statistics);
-          if (settings.include_chart !== null) setIncludeChart(settings.include_chart);
-          if (settings.include_ai_analysis !== null) setIncludeAnalysis(settings.include_ai_analysis);
           if (settings.include_entries_list !== null) setIncludeEntriesList(settings.include_entries_list);
-          if (settings.include_patient_data !== null) setIncludePatientData(settings.include_patient_data);
+          if (settings.include_ai_analysis !== null) setIncludeAnalysis(settings.include_ai_analysis);
+          if (settings.include_medication_summary !== null) setIncludeTherapies(settings.include_medication_summary);
           
-          const lastIncludeDoctors = (settings as any).last_include_doctors_flag;
-          const lastDoctorIds = (settings as any).last_doctor_export_ids;
+          // Header (combined)
+          const hasPatient = settings.include_patient_data !== false;
+          const hasDoctor = settings.include_doctor_data !== false;
+          setIncludeHeaderData(hasPatient || hasDoctor);
           
-          if (typeof lastIncludeDoctors === 'boolean') {
-            setIncludeDoctorData(lastIncludeDoctors);
+          // Medications
+          if (settings.include_all_medications !== null) setAllMedications(settings.include_all_medications);
+          if (settings.selected_medications && Array.isArray(settings.selected_medications)) {
+            setSelectedMedIds(settings.selected_medications);
           }
+          
+          // Doctor IDs
+          const lastDoctorIds = (settings as any).last_doctor_export_ids;
           if (Array.isArray(lastDoctorIds) && lastDoctorIds.length > 0) {
             setSelectedDoctorIds(lastDoctorIds);
           }
         }
+        setSettingsLoaded(true);
         setDoctorPreferencesLoaded(true);
       } catch (error) {
         console.error("Error loading report settings:", error);
+        setSettingsLoaded(true);
         setDoctorPreferencesLoaded(true);
       }
     })();
@@ -170,26 +205,34 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
       if (validSelectedIds.length !== selectedDoctorIds.length) {
         setSelectedDoctorIds(validSelectedIds);
       }
-    } else if (doctors.length > 0 && includeDoctorData) {
+    } else if (doctors.length > 0 && includeHeaderData) {
       setSelectedDoctorIds(doctors.map(d => d.id).filter(Boolean) as string[]);
     }
   }, [doctors, doctorPreferencesLoaded]);
 
-  const selectedDoctorsForExport = useMemo(() => {
-    if (!includeDoctorData) return [];
-    if (doctors.length === 1) return doctors;
-    return doctors.filter(d => d.id && selectedDoctorIds.includes(d.id));
-  }, [doctors, selectedDoctorIds, includeDoctorData]);
+  // Handle preset change - set custom dates when switching to custom
+  const handlePresetChange = useCallback((newPreset: Preset) => {
+    if (newPreset === 'custom' && preset !== 'custom') {
+      setCustomStart(fmt(addMonths(today, -3)));
+      setCustomEnd(fmt(today));
+    }
+    setPreset(newPreset);
+  }, [preset, today]);
 
+  // Compute date range
   const { from, to } = useMemo(() => {
     if (preset === "custom" && customStart && customEnd) {
       return { from: customStart, to: customEnd };
     }
     const end = fmt(today);
-    const start =
-      preset === "3m" ? fmt(addMonths(new Date(today), -3)) :
-      preset === "6m" ? fmt(addMonths(new Date(today), -6)) :
-      fmt(addMonths(new Date(today), -12));
+    let start: string;
+    switch (preset) {
+      case "3m": start = fmt(addMonths(today, -3)); break;
+      case "6m": start = fmt(addMonths(today, -6)); break;
+      case "12m": start = fmt(addMonths(today, -12)); break;
+      case "all": start = "2000-01-01"; break;
+      default: start = fmt(addMonths(today, -3));
+    }
     return { from: start, to: end };
   }, [preset, customStart, customEnd, today]);
 
@@ -199,6 +242,8 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
 
   // Save report settings (debounced)
   useEffect(() => {
+    if (!settingsLoaded) return;
+    
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
@@ -212,27 +257,30 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
           .from("user_report_settings")
           .upsert({
             user_id: user.id,
-            selected_medications: selectedMeds,
+            default_report_preset: preset,
             include_statistics: includeStats,
-            include_chart: includeChart,
+            include_chart: includeStats, // Keep in sync
             include_ai_analysis: includeAnalysis,
             include_entries_list: includeEntriesList,
-            include_patient_data: includePatientData,
-            include_doctor_data: includeDoctorData,
-            last_include_doctors_flag: includeDoctorData,
+            include_medication_summary: includeTherapies,
+            include_patient_data: includeHeaderData,
+            include_doctor_data: includeHeaderData,
+            include_all_medications: allMedications,
+            selected_medications: selectedMedIds,
+            last_include_doctors_flag: includeHeaderData,
             last_doctor_export_ids: selectedDoctorIds,
           }, { onConflict: "user_id" });
       } catch (error) {
         console.error("Error saving report settings:", error);
       }
-    }, 1000);
+    }, 400);
     
     return () => {
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [selectedMeds, includeStats, includeChart, includeAnalysis, includeEntriesList, includePatientData, includeDoctorData, selectedDoctorIds]);
+  }, [settingsLoaded, preset, includeStats, includeAnalysis, includeEntriesList, includeTherapies, includeHeaderData, allMedications, selectedMedIds, selectedDoctorIds]);
 
   // Load medication options
   useEffect(() => {
@@ -253,27 +301,17 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     })();
   }, [entries]);
 
+  // Filter entries based on medication selection
   const filteredEntries = useMemo(() => {
-    if (selectedMeds.length === 0) {
+    if (allMedications || selectedMedIds.length === 0) {
       return entries;
     }
-    const medsSet = new Set(selectedMeds);
+    const medsSet = new Set(selectedMedIds);
     return entries.filter(e => {
       const meds = e.medications || [];
       return meds.some(m => medsSet.has(m)) || meds.length === 0;
     });
-  }, [entries, selectedMeds]);
-
-  const avgPain = useMemo(() => {
-    if (!filteredEntries.length) return 0;
-    const validEntries = filteredEntries.filter(e => {
-      const score = mapTextLevelToScore(e.pain_level);
-      return score > 0;
-    });
-    if (!validEntries.length) return 0;
-    const sum = validEntries.reduce((s, e) => s + mapTextLevelToScore(e.pain_level), 0);
-    return (sum / validEntries.length).toFixed(2);
-  }, [filteredEntries]);
+  }, [entries, allMedications, selectedMedIds]);
 
   const medicationStats = useMemo(() => {
     const stats = new Map<string, { count: number; totalEffect: number; ratedCount: number }>();
@@ -305,18 +343,20 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     }));
   }, [filteredEntries, medicationEffects]);
 
-  const formatGermanDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString("de-DE", { day: "numeric", month: "long", year: "numeric" });
-  };
+  const selectedDoctorsForExport = useMemo(() => {
+    if (!includeHeaderData) return [];
+    if (doctors.length === 1) return doctors;
+    return doctors.filter(d => d.id && selectedDoctorIds.includes(d.id));
+  }, [doctors, selectedDoctorIds, includeHeaderData]);
 
+  // PDF Generation
   const actuallyGenerateDiaryPDF = async (selectedDoctors: Doctor[]) => {
     setIsGeneratingReport(true);
     
     try {
       devLog('PDF Generierung gestartet', { 
         context: 'DiaryReport',
-        data: { from, to, entriesCount: filteredEntries.length, includeAnalysis, includeStats, includeChart, includeEntriesList, includePatientData, includeDoctorData }
+        data: { from, to, entriesCount: filteredEntries.length }
       });
 
       let aiAnalysis = undefined;
@@ -339,27 +379,30 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         }
       }
 
+      // Determine freeTextExportMode based on toggle
+      const freeTextMode = includeContextNotes ? 'notes_and_context' : (includeEntryNotes ? 'short_notes' : 'none');
+
       const pdfBytes = await buildDiaryPdf({
         title: "Kopfschmerztagebuch",
         from,
         to,
         entries: filteredEntries,
-        selectedMeds,
+        selectedMeds: allMedications ? [] : selectedMedIds,
         
         includeStats,
-        includeChart,
+        includeChart: includeStats,
         includeAnalysis: includeAnalysis && !!aiAnalysis,
         includeEntriesList,
-        includePatientData,
-        includeDoctorData,
-        includeMedicationCourses,
-        includePatientNotes: includePatientNotes && !!patientNotes.trim(),
-        freeTextExportMode,
+        includePatientData: includeHeaderData,
+        includeDoctorData: includeHeaderData && selectedDoctors.length > 0,
+        includeMedicationCourses: includeTherapies,
+        includePatientNotes: false,
+        freeTextExportMode: freeTextMode as any,
         
         analysisReport: aiAnalysis,
-        patientNotes: includePatientNotes ? patientNotes : "",
+        patientNotes: "",
         medicationStats: medicationStats,
-        medicationCourses: includeMedicationCourses ? medicationCourses.map(c => ({
+        medicationCourses: includeTherapies ? medicationCourses.map(c => ({
           medication_name: c.medication_name,
           type: c.type,
           dose_text: c.dose_text || undefined,
@@ -399,8 +442,6 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         })) : undefined
       });
 
-      console.log("PDF erfolgreich generiert, Größe:", pdfBytes.byteLength, "bytes");
-
       const blob = new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -432,18 +473,12 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
       return;
     }
 
-    if (!from || !to) {
-      console.error("PDF Generierung - Ungültige Daten:", { from, to });
-      toast.error("Zeitraum ist nicht korrekt definiert.");
-      return;
-    }
-
-    if (includePatientData && !patientData?.first_name && !patientData?.last_name) {
+    if (includeHeaderData && !patientData?.first_name && !patientData?.last_name) {
       setShowMissingDataDialog(true);
       return;
     }
 
-    if (includeDoctorData && doctors.length > 1) {
+    if (includeHeaderData && doctors.length > 1) {
       setPendingPdfType("diary");
       setShowDoctorSelection(true);
       return;
@@ -519,8 +554,8 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
       const link = document.createElement('a');
       link.href = url;
       
-      const today = new Date();
-      const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      const todayDate = new Date();
+      const dateStr = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, '0')}-${String(todayDate.getDate()).padStart(2, '0')}`;
       link.download = `Medikationsplan_${dateStr}.pdf`;
       link.click();
       URL.revokeObjectURL(url);
@@ -576,9 +611,36 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     toast.success("CSV erfolgreich exportiert");
   };
 
+  // Toggle row component for consistent styling
+  const ToggleRow = ({ 
+    label, 
+    checked, 
+    onCheckedChange, 
+    disabled, 
+    subtext 
+  }: { 
+    label: string; 
+    checked: boolean; 
+    onCheckedChange: (checked: boolean) => void; 
+    disabled?: boolean;
+    subtext?: string;
+  }) => (
+    <div className={`flex items-center justify-between py-2.5 ${disabled ? 'opacity-50' : ''}`}>
+      <div className="flex-1 min-w-0">
+        <span className="text-sm">{label}</span>
+        {subtext && <p className="text-xs text-muted-foreground mt-0.5">{subtext}</p>}
+      </div>
+      <Switch 
+        checked={checked} 
+        onCheckedChange={onCheckedChange}
+        disabled={disabled}
+        className="ml-3 shrink-0"
+      />
+    </div>
+  );
+
   return (
-    <TooltipProvider delayDuration={300}>
-    <div className="min-h-screen bg-background pb-20">
+    <div className="min-h-screen bg-background pb-28">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-background border-b border-border px-4 py-3 flex items-center gap-3">
         <Button 
@@ -588,432 +650,222 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         >
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <h1 className="text-xl font-semibold flex-1">Kopfschmerztagebuch (PDF)</h1>
+        <h1 className="text-lg font-semibold flex-1">Kopfschmerztagebuch (PDF)</h1>
       </div>
 
       <div className="p-4 space-y-4">
 
         {/* ═══════════════════════════════════════════════════════════════════
-            BLOCK 1: ZEITRAUM
+            ZEITRAUM CARD
         ═══════════════════════════════════════════════════════════════════ */}
         <Card className="p-4 space-y-3">
-          <h3 className="text-sm font-semibold">Zeitraum</h3>
-          <TimeRangeButtons value={preset} onChange={setPreset} />
+          <h3 className="text-sm font-semibold text-muted-foreground">Zeitraum</h3>
+          <TimeRangeButtons value={preset} onChange={handlePresetChange} />
 
           {preset === "custom" && (
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-3 pt-1">
               <div>
-                <label className="block text-sm mb-1">Start</label>
-                <input className="border-border/30 border rounded px-2 h-10 w-full bg-background text-foreground" type="date" value={customStart} onChange={e => setCustomStart(e.target.value)} />
+                <label className="block text-xs text-muted-foreground mb-1">Start</label>
+                <input 
+                  className="border-border/40 border rounded-md px-3 h-10 w-full bg-background text-foreground text-sm" 
+                  type="date" 
+                  value={customStart} 
+                  onChange={e => setCustomStart(e.target.value)} 
+                />
               </div>
               <div>
-                <label className="block text-sm mb-1">Ende</label>
-                <input className="border-border/30 border rounded px-2 h-10 w-full bg-background text-foreground" type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} />
+                <label className="block text-xs text-muted-foreground mb-1">Ende</label>
+                <input 
+                  className="border-border/40 border rounded-md px-3 h-10 w-full bg-background text-foreground text-sm" 
+                  type="date" 
+                  value={customEnd} 
+                  onChange={e => setCustomEnd(e.target.value)} 
+                />
               </div>
             </div>
           )}
 
-          {/* Entry summary directly under time range */}
-          <div className="text-sm text-muted-foreground">
-            {filteredEntries.length > 0 ? (
+          {/* Entry count */}
+          <div className="text-sm text-muted-foreground pt-1">
+            {isLoading ? (
+              <span className="flex items-center gap-2">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Lade Einträge...
+              </span>
+            ) : filteredEntries.length > 0 ? (
               <span>
-                <span className="font-semibold text-foreground">{filteredEntries.length}</span> Einträge 
+                <span className="font-medium text-foreground">{filteredEntries.length}</span> Einträge 
                 {" "}({format(new Date(from), 'dd.MM.yyyy')} – {format(new Date(to), 'dd.MM.yyyy')})
               </span>
             ) : (
               <span className="text-destructive">Keine Einträge im Zeitraum</span>
             )}
           </div>
-
-          {/* Filter (collapsible) */}
-          <Collapsible open={filterOpen} onOpenChange={setFilterOpen}>
-            <CollapsibleTrigger className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors py-1">
-              {filterOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-              <span>Filter (optional)</span>
-              {selectedMeds.length > 0 && !filterOpen && (
-                <span className="text-primary">• {selectedMeds.length} Medikamente</span>
-              )}
-            </CollapsibleTrigger>
-            <CollapsibleContent className="pt-2 space-y-2">
-              <div className="flex items-center gap-1">
-                <span className="text-xs text-muted-foreground">Nur ausgewählte Medikamente im PDF</span>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Info className="h-3 w-3 text-muted-foreground cursor-help" />
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="max-w-xs text-xs">
-                    Wenn du bestimmte Medikamente auswählst, werden nur Einträge angezeigt, bei denen diese Medikamente dokumentiert wurden. Standard: alle Medikamente.
-                  </TooltipContent>
-                </Tooltip>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={allSelected ? "default" : "outline"}
-                  onClick={() => {
-                    if (allSelected) {
-                      setSelectedMeds(previousSelection);
-                      setAllSelected(false);
-                    } else {
-                      setPreviousSelection(selectedMeds);
-                      setSelectedMeds([...medOptions]);
-                      setAllSelected(true);
-                    }
-                  }}
-                  className="text-xs font-semibold"
-                >
-                  Alle
-                </Button>
-                {medOptions.map(m => {
-                  const isSelected = selectedMeds.includes(m);
-                  return (
-                    <Button
-                      key={m}
-                      type="button"
-                      size="sm"
-                      variant={isSelected ? "default" : "outline"}
-                      onClick={() => {
-                        setSelectedMeds(prev => isSelected ? prev.filter(x=>x!==m) : [...prev, m]);
-                        setAllSelected(false);
-                      }}
-                      aria-pressed={isSelected}
-                      className="text-xs"
-                    >
-                      {m}
-                    </Button>
-                  );
-                })}
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
         </Card>
 
         {/* ═══════════════════════════════════════════════════════════════════
-            BLOCK 2: INHALT
+            OPTIONEN CARD (Toggle-Listen-Stil)
         ═══════════════════════════════════════════════════════════════════ */}
-        <Card className="p-4 space-y-4">
-          <h3 className="text-sm font-semibold">Inhalt</h3>
-          
-          {/* Hauptoptionen */}
-          <div className="space-y-3">
-            <label className="flex items-center gap-3 text-sm cursor-pointer">
-              <Checkbox 
-                checked={includeStats && includeChart} 
-                onCheckedChange={(checked) => {
-                  setIncludeStats(!!checked);
-                  setIncludeChart(!!checked);
-                }} 
-              />
-              <span className="font-medium">Statistiken & Diagramme</span>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-xs text-xs">
-                  Zeigt Frequenz und Wirksamkeit deiner Medikamente sowie den Verlauf der Schmerzstärke in Diagrammen.
-                </TooltipContent>
-              </Tooltip>
-            </label>
-            
-            <label className="flex items-center gap-3 text-sm cursor-pointer">
-              <Checkbox 
-                checked={includeAnalysis} 
-                onCheckedChange={(checked) => {
-                  setIncludeAnalysis(!!checked);
-                  if (!checked) setAnalysisReport("");
-                }} 
-              />
-              <span className="font-medium">KI-Analyse</span>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-xs text-xs">
-                  Erkennt mögliche Muster und Auffälligkeiten in deinen Daten. Hinweis: Dies ist keine medizinische Diagnose und ersetzt keine ärztliche Beratung.
-                </TooltipContent>
-              </Tooltip>
-            </label>
-            
-            <label className="flex items-center gap-3 text-sm cursor-pointer">
-              <Checkbox 
-                checked={includeEntriesList} 
-                onCheckedChange={(checked) => setIncludeEntriesList(!!checked)} 
-              />
-              <span className="font-medium">Einträge (Tabelle)</span>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-xs text-xs">
-                  Alle einzelnen Kopfschmerz-Einträge in Tabellenform. Ideal für Arzttermine.
-                </TooltipContent>
-              </Tooltip>
-            </label>
+        <Card className="divide-y divide-border/50">
+          {/* Section: Essentials */}
+          <div className="p-4 space-y-0.5">
+            <ToggleRow
+              label="Statistiken & Diagramme"
+              checked={includeStats}
+              onCheckedChange={setIncludeStats}
+            />
+            <ToggleRow
+              label="Einträge (Tabelle)"
+              checked={includeEntriesList}
+              onCheckedChange={setIncludeEntriesList}
+            />
+            <ToggleRow
+              label="KI-Analyse"
+              checked={includeAnalysis}
+              onCheckedChange={setIncludeAnalysis}
+            />
+            <ToggleRow
+              label="Therapien (Prophylaxe & Akut)"
+              checked={includeTherapies}
+              onCheckedChange={setIncludeTherapies}
+              disabled={medicationCourses.length === 0}
+              subtext={medicationCourses.length === 0 ? "Keine Therapien vorhanden" : undefined}
+            />
+            <ToggleRow
+              label="Kopfzeile: Persönliche Daten & Arzt"
+              checked={includeHeaderData}
+              onCheckedChange={setIncludeHeaderData}
+              subtext="Patientendaten & Arztangaben im PDF"
+            />
           </div>
 
-          {/* Weitere Inhalte */}
-          <div className="pt-3 border-t space-y-3">
-            <span className="text-xs text-muted-foreground">Weitere Inhalte</span>
+          {/* Section: Medikamente */}
+          <div className="p-4 space-y-2">
+            <ToggleRow
+              label="Alle Medikamente"
+              checked={allMedications}
+              onCheckedChange={setAllMedications}
+              subtext={allMedications ? undefined : "Wenn aus: Auswahl treffen"}
+            />
             
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-sm">Therapien (Prophylaxe & Akut)</span>
-                {medicationCourses.length === 0 && (
-                  <span className="text-xs text-muted-foreground">(keine)</span>
-                )}
-              </div>
-              <Switch 
-                checked={includeMedicationCourses} 
-                onCheckedChange={setIncludeMedicationCourses}
-                disabled={medicationCourses.length === 0}
-              />
-            </div>
-            
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-sm">Persönliche Daten</span>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="max-w-xs text-xs">
-                    Deaktiviere diese Option, wenn du das Tagebuch anonym teilen möchtest.
-                  </TooltipContent>
-                </Tooltip>
-              </div>
-              <Switch 
-                checked={includePatientData} 
-                onCheckedChange={setIncludePatientData}
-              />
-            </div>
-            
-            {/* Arztangaben inline */}
-            {doctors.length === 0 ? (
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Arztangaben</span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-xs h-7"
-                  onClick={() => {
-                    if (onNavigate) {
-                      onNavigate('settings-doctors?origin=export_migraine_diary');
-                    }
-                  }}
-                >
-                  <Plus className="h-3 w-3 mr-1" />
-                  Hinzufügen
-                </Button>
-              </div>
-            ) : doctors.length === 1 ? (
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm">Arztangaben</span>
-                  <span className="text-xs text-muted-foreground">
-                    ({[doctors[0]?.title, doctors[0]?.first_name, doctors[0]?.last_name].filter(Boolean).join(' ')})
-                  </span>
-                </div>
-                <Switch
-                  checked={includeDoctorData}
-                  onCheckedChange={(checked) => {
-                    setIncludeDoctorData(checked);
-                    if (checked && doctors[0]?.id) {
-                      setSelectedDoctorIds([doctors[0].id]);
-                    }
-                  }}
-                />
-              </div>
-            ) : (
-              <div className="space-y-2">
+            {!allMedications && medOptions.length > 0 && (
+              <div className="pt-2 space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm">Arztangaben</span>
                   <span className="text-xs text-muted-foreground">
-                    {selectedDoctorIds.length === 0 ? 'Keine ausgewählt' : `${selectedDoctorIds.length} ausgewählt`}
+                    Ausgewählt: {selectedMedIds.length}
                   </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => setSelectedMedIds([...medOptions])}
+                  >
+                    Alles auswählen
+                  </Button>
                 </div>
-                <div className="space-y-1.5">
-                  {doctors.map((doctor) => {
-                    const isSelected = doctor.id ? selectedDoctorIds.includes(doctor.id) : false;
+                <div className="flex flex-wrap gap-1.5">
+                  {medOptions.map(m => {
+                    const isSelected = selectedMedIds.includes(m);
                     return (
-                      <div
-                        key={doctor.id}
-                        className="flex items-center gap-2 p-2 rounded bg-secondary/30 cursor-pointer hover:bg-secondary/50 transition-colors"
+                      <Button
+                        key={m}
+                        type="button"
+                        size="sm"
+                        variant={isSelected ? "default" : "outline"}
                         onClick={() => {
-                          if (!doctor.id) return;
-                          setSelectedDoctorIds(prev => 
-                            isSelected ? prev.filter(id => id !== doctor.id) : [...prev, doctor.id!]
+                          setSelectedMedIds(prev => 
+                            isSelected ? prev.filter(x => x !== m) : [...prev, m]
                           );
-                          if (!isSelected && !includeDoctorData) {
-                            setIncludeDoctorData(true);
-                          }
                         }}
+                        className="text-xs h-7 px-2"
                       >
-                        <Checkbox
-                          checked={isSelected}
-                          onCheckedChange={() => {}}
-                          className="shrink-0"
-                        />
-                        <span className="text-sm flex-1">
-                          {[doctor.title, doctor.first_name, doctor.last_name].filter(Boolean).join(' ') || 'Unbekannt'}
-                          {doctor.specialty && <span className="text-muted-foreground ml-1">({doctor.specialty})</span>}
-                        </span>
-                      </div>
+                        {m}
+                      </Button>
                     );
                   })}
                 </div>
               </div>
             )}
           </div>
-        </Card>
 
-        {/* ═══════════════════════════════════════════════════════════════════
-            BLOCK 3: NOTIZEN & ANMERKUNGEN
-        ═══════════════════════════════════════════════════════════════════ */}
-        <Card className="p-4 space-y-4">
-          <h3 className="text-sm font-semibold">Notizen</h3>
-          
-          <div className="space-y-2">
-            <label className="flex items-center gap-3 text-sm cursor-pointer p-2 rounded-lg border border-border/50 hover:border-primary/30 transition-colors has-[:checked]:border-primary/50 has-[:checked]:bg-primary/5">
-              <input 
-                type="radio" 
-                name="freeTextMode" 
-                value="none"
-                checked={freeTextExportMode === 'none'} 
-                onChange={() => setFreeTextExportMode('none')}
-                className="accent-primary"
-              />
-              <span className="font-medium">Keine Notizen</span>
-              <span className="text-xs text-muted-foreground">(empfohlen)</span>
-            </label>
-            
-            <label className="flex items-center gap-3 text-sm cursor-pointer p-2 rounded-lg border border-border/50 hover:border-primary/30 transition-colors has-[:checked]:border-primary/50 has-[:checked]:bg-primary/5">
-              <input 
-                type="radio" 
-                name="freeTextMode" 
-                value="short_notes"
-                checked={freeTextExportMode === 'short_notes'} 
-                onChange={() => setFreeTextExportMode('short_notes')}
-                className="accent-primary"
-              />
-              <span className="font-medium">Kurze Notizen</span>
-            </label>
-            
-            <label className="flex items-center gap-3 text-sm cursor-pointer p-2 rounded-lg border border-border/50 hover:border-primary/30 transition-colors has-[:checked]:border-primary/50 has-[:checked]:bg-primary/5">
-              <input 
-                type="radio" 
-                name="freeTextMode" 
-                value="notes_and_context"
-                checked={freeTextExportMode === 'notes_and_context'} 
-                onChange={() => setFreeTextExportMode('notes_and_context')}
-                className="accent-primary"
-              />
-              <span className="font-medium">Notizen + Anhang</span>
-            </label>
-
-            {/* Kontextuelle Beschreibung nur für ausgewählte Option */}
-            {freeTextExportMode !== 'none' && (
-              <p className="text-xs text-muted-foreground pl-2 mt-1">
-                {freeTextExportMode === 'short_notes' 
-                  ? 'Kurze Notizen in der Einträge-Tabelle anzeigen.'
-                  : 'Kurze Notizen + ausführlicher Kontext-Anhang am Ende.'}
-              </p>
-            )}
+          {/* Section: Notizen (simplified) */}
+          <div className="p-4">
+            <ToggleRow
+              label="Notizen aus Schmerzeinträgen"
+              checked={includeEntryNotes}
+              onCheckedChange={setIncludeEntryNotes}
+            />
           </div>
 
-          {/* Anmerkungen (Accordion) */}
-          <Collapsible open={notesOpen} onOpenChange={setNotesOpen}>
-            <CollapsibleTrigger className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors py-1 w-full">
-              {notesOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-              <span>Anmerkungen (optional)</span>
-              {patientNotes.trim() && !notesOpen && (
-                <span className="text-primary text-xs">• vorhanden</span>
-              )}
+          {/* Section: Weitere Optionen (Accordion) */}
+          <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+            <CollapsibleTrigger className="flex items-center justify-between w-full p-4 text-sm text-muted-foreground hover:text-foreground transition-colors">
+              <span>Weitere Optionen</span>
+              {advancedOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
             </CollapsibleTrigger>
-            <CollapsibleContent className="pt-2 space-y-2">
-              <textarea
-                value={patientNotes}
-                onChange={e => {
-                  const newValue = e.target.value.slice(0, 1000);
-                  setPatientNotes(newValue);
-                  if (newValue.trim() && !includePatientNotes) {
-                    setIncludePatientNotes(true);
-                  }
-                }}
-                placeholder="Hinweise/Fragen für den Arzt..."
-                className="w-full min-h-[80px] max-h-[150px] p-3 text-sm border border-border/50 rounded-md bg-background resize-y focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50"
-                rows={3}
+            <CollapsibleContent className="px-4 pb-4 space-y-0.5">
+              <ToggleRow
+                label="Kontextnotizen einbinden"
+                checked={includeContextNotes}
+                onCheckedChange={setIncludeContextNotes}
+                subtext="Zusätzliche Kontext-/Systemnotizen (kann PDF verlängern)"
               />
-              <div className="flex justify-between items-center">
-                {patientNotes.trim() && (
-                  <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Checkbox 
-                      checked={includePatientNotes} 
-                      onCheckedChange={(checked) => setIncludePatientNotes(!!checked)} 
-                      className="h-3 w-3"
-                    />
-                    Im PDF anzeigen
-                  </label>
-                )}
-                <span className={`text-xs ml-auto ${patientNotes.length > 900 ? 'text-destructive' : 'text-muted-foreground'}`}>
-                  {patientNotes.length}/1000
-                </span>
-              </div>
             </CollapsibleContent>
           </Collapsible>
         </Card>
+      </div>
 
-        {/* ═══════════════════════════════════════════════════════════════════
-            EXPORT BEREICH
-        ═══════════════════════════════════════════════════════════════════ */}
-        <Card className="p-4 space-y-3">
+      {/* ═══════════════════════════════════════════════════════════════════
+          STICKY ACTION BAR
+      ═══════════════════════════════════════════════════════════════════ */}
+      <div className="fixed bottom-0 left-0 right-0 bg-background border-t border-border p-4 space-y-2">
+        <Button 
+          onClick={generatePDF}
+          disabled={!filteredEntries.length || isGeneratingReport}
+          size="lg"
+          className="w-full"
+        >
+          {isGeneratingReport ? (
+            <>
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              PDF wird erstellt...
+            </>
+          ) : (
+            <>
+              <FileText className="mr-2 h-5 w-5" />
+              PDF erstellen{filteredEntries.length > 0 ? ` (${filteredEntries.length})` : ''}
+            </>
+          )}
+        </Button>
+
+        {/* Secondary actions - less prominent */}
+        <div className="flex justify-center gap-4">
           <Button 
-            onClick={generatePDF}
+            onClick={exportCSV}
             disabled={!filteredEntries.length || isGeneratingReport}
-            size="lg"
-            className="w-full"
+            variant="ghost"
+            size="sm"
+            className="text-xs text-muted-foreground hover:text-foreground"
           >
-            {isGeneratingReport ? (
-              <>
-                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                PDF wird erstellt...
-              </>
-            ) : (
-              <>
-                <FileText className="mr-2 h-5 w-5" />
-                PDF erstellen{filteredEntries.length > 0 ? ` (${filteredEntries.length})` : ''}
-              </>
-            )}
+            <Table className="mr-1.5 h-3.5 w-3.5" />
+            CSV exportieren
           </Button>
 
-          <div className="flex gap-2">
-            <Button 
-              onClick={exportCSV}
-              disabled={!filteredEntries.length || isGeneratingReport}
-              variant="outline"
-              className="flex-1"
-              size="sm"
-            >
-              <Table className="mr-2 h-4 w-4" />
-              CSV
-            </Button>
-
-            <Button 
-              onClick={generateMedicationPlanPdf}
-              disabled={medicationCourses.length === 0 || isGeneratingMedPlan || isGeneratingReport}
-              variant="outline"
-              className="flex-1"
-              size="sm"
-            >
-              {isGeneratingMedPlan ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Pill className="mr-2 h-4 w-4" />
-              )}
-              Medikationsplan
-            </Button>
-          </div>
-        </Card>
+          <Button 
+            onClick={generateMedicationPlanPdf}
+            disabled={medicationCourses.length === 0 || isGeneratingMedPlan || isGeneratingReport}
+            variant="ghost"
+            size="sm"
+            className="text-xs text-muted-foreground hover:text-foreground"
+          >
+            {isGeneratingMedPlan ? (
+              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Pill className="mr-1.5 h-3.5 w-3.5" />
+            )}
+            Medikationsplan
+          </Button>
+        </div>
       </div>
 
       {/* Missing Data Dialog */}
@@ -1022,7 +874,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
           <AlertDialogHeader>
             <AlertDialogTitle>Daten nicht vorhanden</AlertDialogTitle>
             <AlertDialogDescription>
-              Sie haben noch keine persönlichen Daten oder Arztdaten hinterlegt. 
+              Sie haben noch keine persönlichen Daten hinterlegt. 
               Möchten Sie diese jetzt in den Kontoeinstellungen eingeben?
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -1050,7 +902,6 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         onConfirm={(selected) => {
           const newIds = selected.map(d => d.id).filter(Boolean) as string[];
           setSelectedDoctorIds(newIds);
-          setIncludeDoctorData(newIds.length > 0);
           handleDoctorSelectionConfirm(selected);
         }}
         preSelectedIds={selectedDoctorIds}
@@ -1058,6 +909,5 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         description="Wählen Sie die Ärzte aus, deren Kontaktdaten im PDF erscheinen sollen."
       />
     </div>
-    </TooltipProvider>
   );
 }
