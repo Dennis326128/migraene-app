@@ -83,12 +83,11 @@ const extractTimeFromDateTime = (dateTime: string): string => {
   }
 };
 
-// Get today's date as default (ALWAYS)
+// Get today's date as default
 const getTodayDate = (): string => format(new Date(), 'yyyy-MM-dd');
 
 export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, onCreateAnother }: ReminderFormProps) => {
   const isEditing = !!reminder;
-  const dateInputRef = useRef<HTMLInputElement>(null);
   
   const [selectedMedications, setSelectedMedications] = useState<string[]>(
     reminder?.medications || prefill?.medications || []
@@ -137,12 +136,6 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
   });
   const [notifyOffsetsOpen, setNotifyOffsetsOpen] = useState(false);
 
-  // Focus date input when prefill mode (for "Weiteren Termin anlegen")
-  useEffect(() => {
-    if (prefill && !prefill.prefill_date && dateInputRef.current) {
-      setTimeout(() => dateInputRef.current?.focus(), 100);
-    }
-  }, [prefill]);
 
   const handleAddTime = () => {
     if (times.length < 4) {
@@ -163,20 +156,7 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
     setTimes(newTimes);
   };
 
-  // FIXED: Default date is ALWAYS today for new reminders (all types)
-  const getDefaultDate = (): string => {
-    // For editing: use existing date
-    if (reminder) {
-      return extractDateFromDateTime(reminder.date_time);
-    }
-    // For prefill: use prefill date if valid, otherwise today
-    if (prefill?.prefill_date && prefill.prefill_date.trim().length > 0) {
-      return prefill.prefill_date;
-    }
-    // Default: ALWAYS today
-    return getTodayDate();
-  };
-
+  // Default values - these are initial values, the useEffect handles mode-switching correctly
   const defaultValues: FormData = reminder
     ? {
         type: reminder.type,
@@ -192,7 +172,7 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
     ? {
         type: prefill.type,
         title: prefill.title,
-        date: getDefaultDate(), // ALWAYS today if no valid prefill_date
+        date: prefill.prefill_date?.trim() || getTodayDate(),
         time: (prefill as any).prefill_time || format(new Date(), 'HH:mm'),
         repeat: prefill.repeat || 'none',
         notes: prefill.notes || '',
@@ -201,7 +181,7 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
     : {
         type: 'medication',
         title: '',
-        date: getTodayDate(), // ALWAYS today
+        date: getTodayDate(),
         time: format(new Date(), 'HH:mm'),
         repeat: 'none',
         notes: '',
@@ -554,7 +534,6 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
                   id="date"
                   type="date"
                   {...register('date')}
-                  ref={dateInputRef}
                   className="touch-manipulation"
                 />
                 {errors.date && (
