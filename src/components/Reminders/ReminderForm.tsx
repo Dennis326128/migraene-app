@@ -208,12 +208,80 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
         notification_enabled: true,
       };
 
-  const { register, handleSubmit, watch, setValue, formState } = useForm<FormData>({
+  const { register, handleSubmit, watch, setValue, reset, formState } = useForm<FormData>({
     resolver: zodResolver(reminderSchema),
     defaultValues,
   });
 
   const { errors, isSubmitting } = formState;
+
+  // CRITICAL: Reset form when switching between create/edit modes (like QuickEntryModal)
+  useEffect(() => {
+    const now = new Date();
+    const todayDate = format(now, 'yyyy-MM-dd');
+    const currentTime = format(now, 'HH:mm');
+
+    if (!reminder && !prefill) {
+      // Create Mode: Reset to fresh defaults with today's date
+      reset({
+        type: 'medication',
+        title: '',
+        date: todayDate,
+        time: currentTime,
+        repeat: 'none',
+        notes: '',
+        notification_enabled: true,
+      });
+      
+      // Reset all local states
+      setSelectedMedications([]);
+      setTimes([currentTime]);
+      setTimeSlots(getDefaultTimeSlots());
+      setFollowUpEnabled(false);
+      setFollowUpValue(3);
+      setFollowUpUnit('months');
+      setSeriesId(undefined);
+      setNotifyOffsets(DEFAULT_APPOINTMENT_OFFSETS);
+    } else if (reminder) {
+      // Edit Mode: Reset with reminder data
+      reset({
+        type: reminder.type,
+        title: reminder.title,
+        date: extractDateFromDateTime(reminder.date_time),
+        time: extractTimeFromDateTime(reminder.date_time),
+        repeat: reminder.repeat,
+        notes: reminder.notes || '',
+        notification_enabled: reminder.notification_enabled,
+        status: reminder.status,
+      });
+      
+      setSelectedMedications(reminder.medications || []);
+      setTimes([extractTimeFromDateTime(reminder.date_time)]);
+      setFollowUpEnabled((reminder as any).follow_up_enabled || false);
+      setFollowUpValue((reminder as any).follow_up_interval_value || 3);
+      setFollowUpUnit((reminder as any).follow_up_interval_unit || 'months');
+      setSeriesId((reminder as any).series_id);
+      setNotifyOffsets((reminder as any).notify_offsets_minutes || DEFAULT_APPOINTMENT_OFFSETS);
+    } else if (prefill) {
+      // Prefill Mode: Reset with prefill data, fallback to today
+      reset({
+        type: prefill.type,
+        title: prefill.title,
+        date: prefill.prefill_date?.trim() || todayDate,
+        time: (prefill as any).prefill_time || currentTime,
+        repeat: prefill.repeat || 'none',
+        notes: prefill.notes || '',
+        notification_enabled: prefill.notification_enabled ?? true,
+      });
+      
+      setSelectedMedications(prefill.medications || []);
+      setTimes([(prefill as any).prefill_time || currentTime]);
+      setFollowUpEnabled(prefill.follow_up_enabled || false);
+      setFollowUpValue(prefill.follow_up_interval_value || 3);
+      setFollowUpUnit(prefill.follow_up_interval_unit || 'months');
+      setSeriesId(prefill.series_id);
+    }
+  }, [reminder, prefill, reset]);
 
   const type = watch('type');
   const notificationEnabled = watch('notification_enabled');
