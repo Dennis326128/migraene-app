@@ -6,7 +6,9 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Plus, Clock, Calendar, CalendarDays, Trash2, Loader2, ChevronDown } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Plus, Clock, Calendar, CalendarDays, Trash2, Loader2, ChevronDown, AlertTriangle, Info } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useMeds } from "@/features/meds/hooks/useMeds";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -18,6 +20,12 @@ import {
 } from "@/components/ui/collapsible";
 import { TouchSafeCollapsibleTrigger } from "@/components/ui/touch-collapsible";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   useMedicationLimits,
   useCreateMedicationLimit,
   useUpdateMedicationLimit,
@@ -25,6 +33,8 @@ import {
   type MedicationLimit,
   type CreateMedicationLimitPayload
 } from "@/features/medication-limits/hooks/useMedicationLimits";
+import { getUserDefaults, upsertUserDefaults } from "@/features/settings/api/settings.api";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 const periodIcons = {
   day: Clock,
@@ -44,11 +54,49 @@ interface MedicationLimitsSettingsProps {
 
 export function MedicationLimitsSettings({ onNavigateToMedications }: MedicationLimitsSettingsProps = {}) {
   const isMobile = useIsMobile();
+  const queryClient = useQueryClient();
   const { data: medications = [] } = useMeds();
   const { data: serverLimits = [] } = useMedicationLimits();
   const createLimit = useCreateMedicationLimit();
   const updateLimit = useUpdateMedicationLimit();
   const deleteLimit = useDeleteMedicationLimit();
+
+  // Warning threshold state
+  const { data: userDefaults, isLoading: loadingDefaults } = useQuery({
+    queryKey: ['userDefaults'],
+    queryFn: getUserDefaults,
+  });
+  
+  const [warningThreshold, setWarningThreshold] = useState<number>(80);
+  
+  // Sync threshold from user defaults
+  useEffect(() => {
+    if (userDefaults?.medication_limit_warning_threshold_pct) {
+      setWarningThreshold(userDefaults.medication_limit_warning_threshold_pct);
+    }
+  }, [userDefaults]);
+
+  const thresholdMutation = useMutation({
+    mutationFn: async (threshold: number) => {
+      await upsertUserDefaults({ medication_limit_warning_threshold_pct: threshold });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['userDefaults'] });
+    },
+    onError: () => {
+      toast({
+        title: "Fehler",
+        description: "Warnschwelle konnte nicht gespeichert werden.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleThresholdChange = (value: string) => {
+    const threshold = Number(value);
+    setWarningThreshold(threshold);
+    thresholdMutation.mutate(threshold);
+  };
 
   // Optimistic UI State
   const [localLimits, setLocalLimits] = useState<MedicationLimit[]>([]);
@@ -344,6 +392,49 @@ export function MedicationLimitsSettings({ onNavigateToMedications }: Medication
       <p className={cn("text-sm text-muted-foreground mb-4", isMobile && "text-xs")}>
         Verwalten Sie Ihre individuellen Medikamentenlimits, um Überkonsum zu vermeiden.
       </p>
+
+      {/* Warnschwelle Section */}
+      <Card className="mb-4">
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-warning" />
+            <CardTitle className="text-base">Warnschwelle</CardTitle>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-[250px]">
+                  <p className="text-sm">
+                    Ab welcher Auslastung deines 30-Tage-Limits soll eine Warnung erscheinen?
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <ToggleGroup 
+            type="single" 
+            value={String(warningThreshold)}
+            onValueChange={handleThresholdChange}
+            className="grid grid-cols-3 gap-2"
+          >
+            <ToggleGroupItem value="80" className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
+              Früh (80%)
+            </ToggleGroupItem>
+            <ToggleGroupItem value="90" className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
+              Standard (90%)
+            </ToggleGroupItem>
+            <ToggleGroupItem value="100" className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
+              Spät (100%)
+            </ToggleGroupItem>
+          </ToggleGroup>
+          <p className="text-xs text-muted-foreground mt-2">
+            Aktuell: Warnung ab {warningThreshold}% Auslastung
+          </p>
+        </CardContent>
+      </Card>
 
       {/* Existing Limits */}
       <div className="space-y-2 max-h-[350px] overflow-y-auto modern-scrollbar pr-1">

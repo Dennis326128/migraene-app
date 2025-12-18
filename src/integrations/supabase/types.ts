@@ -759,6 +759,7 @@ export type Database = {
           default_symptoms: string[] | null
           latitude: number | null
           longitude: number | null
+          medication_limit_warning_threshold_pct: number
           notes_layout: string | null
           quick_entry_mode: boolean | null
           track_cycle: boolean | null
@@ -776,6 +777,7 @@ export type Database = {
           default_symptoms?: string[] | null
           latitude?: number | null
           longitude?: number | null
+          medication_limit_warning_threshold_pct?: number
           notes_layout?: string | null
           quick_entry_mode?: boolean | null
           track_cycle?: boolean | null
@@ -793,6 +795,7 @@ export type Database = {
           default_symptoms?: string[] | null
           latitude?: number | null
           longitude?: number | null
+          medication_limit_warning_threshold_pct?: number
           notes_layout?: string | null
           quick_entry_mode?: boolean | null
           track_cycle?: boolean | null

@@ -55,6 +55,8 @@ export interface PatternStatistics {
     noAuraPercentage: number;
     mostCommonAura: { type: string; percentage: number } | null;
     topSymptoms: Array<{ name: string; count: number; percentage: number }>;
+    hasAuraDocumentation: boolean;     // true wenn Aura-Daten explizit dokumentiert wurden
+    hasSymptomDocumentation: boolean;  // true wenn Symptome dokumentiert wurden
   };
   medicationAndEffect: {
     mostUsed: {
@@ -225,10 +227,23 @@ export function computeStatistics(
     .sort((a, b) => b.count - a.count)
     .slice(0, 3);
 
+  // Aura-Dokumentation prüfen:
+  // "keine" explizit dokumentiert ZÄHLT als Dokumentation (Nutzer hat bewusst "keine Aura" gewählt)
+  // Nur null/undefined/leer = KEINE Dokumentation
+  const entriesWithAuraField = filteredEntries.filter(e => 
+    e.aura_type !== null && e.aura_type !== undefined && e.aura_type !== ''
+  );
+  const hasAuraDocumentation = entriesWithAuraField.length > 0;
+
+  // Symptom-Dokumentation prüfen
+  const hasSymptomDocumentation = entrySymptoms.length > 0;
+
   const auraAndSymptoms = {
     noAuraPercentage,
     mostCommonAura,
     topSymptoms,
+    hasAuraDocumentation,
+    hasSymptomDocumentation,
   };
 
   // 4. Medikamente & Wirkung

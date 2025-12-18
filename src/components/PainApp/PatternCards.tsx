@@ -79,6 +79,10 @@ export function PatternCards({ statistics, isLoading = false }: PatternCardsProp
 
   const { painProfile, painLocation, auraAndSymptoms, medicationAndEffect } = statistics;
 
+  // Determine if Aura Card should be shown
+  // Show if there's any explicit aura documentation OR any symptoms documented
+  const showAuraCard = auraAndSymptoms.hasAuraDocumentation || auraAndSymptoms.hasSymptomDocumentation;
+
   return (
     <div className="space-y-4 mb-6">
       <h3 className="text-lg font-semibold">Deine Muster in diesem Zeitraum</h3>
@@ -172,66 +176,86 @@ export function PatternCards({ statistics, isLoading = false }: PatternCardsProp
                 </p>
               </div>
             )}
+            
+            {/* Mini-Info wenn Aura-Card ausgeblendet */}
+            {!showAuraCard && (
+              <div className="mt-3 pt-3 border-t border-border/50 flex items-center gap-2 text-xs text-muted-foreground">
+                <Brain className="h-3.5 w-3.5" />
+                <span>Aura: keine dokumentiert (im Zeitraum)</span>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-3 w-3 cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-[200px]">
+                      <p className="text-xs">Du kannst Aura/Symptome in Einträgen dokumentieren.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        {/* Aura & Symptome */}
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-2">
-              <Brain className="h-5 w-5 text-primary" />
-              <CardTitle className="text-base">Aura & Begleitsymptome</CardTitle>
-            </div>
-            <CardDescription className="text-xs">
-              Wie oft tritt eine Aura auf und welche Symptome begleiten dich?
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {auraAndSymptoms.mostCommonAura && auraAndSymptoms.mostCommonAura.percentage < 20 && (
-              <div className="text-xs text-amber-500 mb-2 flex items-center gap-1">
-                <span className="font-medium">⚠️</span>
-                <span>Wenige Aura-Einträge für aussagekräftige Statistik</span>
+        {/* Aura & Symptome - nur wenn Daten vorhanden */}
+        {showAuraCard && (
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-2">
+                <Brain className="h-5 w-5 text-primary" />
+                <CardTitle className="text-base">Aura & Begleitsymptome</CardTitle>
               </div>
-            )}
-            <div className="space-y-1.5 text-sm">
-              <div className="flex justify-between pb-1">
-                <span className="text-muted-foreground">Keine Aura:</span>
-                <span className="font-medium">{auraAndSymptoms.noAuraPercentage}%</span>
-              </div>
-              {auraAndSymptoms.mostCommonAura && (
-                <div className="flex justify-between pb-2 border-b border-border">
-                  <span className="text-muted-foreground">Häufigste Aura:</span>
-                  <span className="font-medium">
-                    {formatAuraType(auraAndSymptoms.mostCommonAura.type)} ({auraAndSymptoms.mostCommonAura.percentage}%)
-                  </span>
+              <CardDescription className="text-xs">
+                Wie oft tritt eine Aura auf und welche Symptome begleiten dich?
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {auraAndSymptoms.mostCommonAura && auraAndSymptoms.mostCommonAura.percentage < 20 && (
+                <div className="text-xs text-amber-500 mb-2 flex items-center gap-1">
+                  <span className="font-medium">⚠️</span>
+                  <span>Wenige Aura-Einträge für aussagekräftige Statistik</span>
                 </div>
               )}
-            </div>
-            {auraAndSymptoms.topSymptoms.length > 0 && (
-              <>
-                <p className="text-xs font-medium text-foreground pt-1">Top Symptome:</p>
-                <div className="space-y-1.5 text-sm">
-                  {auraAndSymptoms.topSymptoms.map((symptom, idx) => (
-                    <div key={idx} className="flex justify-between">
-                      <span className="text-muted-foreground">{symptom.name}:</span>
-                      <span className="font-medium">{symptom.percentage}%</span>
-                    </div>
-                  ))}
+              <div className="space-y-1.5 text-sm">
+                <div className="flex justify-between pb-1">
+                  <span className="text-muted-foreground">Keine Aura:</span>
+                  <span className="font-medium">{auraAndSymptoms.noAuraPercentage}%</span>
                 </div>
-              </>
-            )}
-            {auraAndSymptoms.topSymptoms.length === 0 && !auraAndSymptoms.mostCommonAura && (
-              <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">
-                  Im gewählten Zeitraum wurden keine Symptome dokumentiert.
-                </p>
-                <p className="text-xs text-muted-foreground mt-2 p-2 bg-muted/50 rounded-md">
-                  💡 <span className="font-medium">Tipp:</span> Wähle einen längeren Zeitraum oder dokumentiere Symptome bei zukünftigen Einträgen.
-                </p>
+                {auraAndSymptoms.mostCommonAura && (
+                  <div className="flex justify-between pb-2 border-b border-border">
+                    <span className="text-muted-foreground">Häufigste Aura:</span>
+                    <span className="font-medium">
+                      {formatAuraType(auraAndSymptoms.mostCommonAura.type)} ({auraAndSymptoms.mostCommonAura.percentage}%)
+                    </span>
+                  </div>
+                )}
               </div>
-            )}
-          </CardContent>
-        </Card>
+              {auraAndSymptoms.topSymptoms.length > 0 && (
+                <>
+                  <p className="text-xs font-medium text-foreground pt-1">Top Symptome:</p>
+                  <div className="space-y-1.5 text-sm">
+                    {auraAndSymptoms.topSymptoms.map((symptom, idx) => (
+                      <div key={idx} className="flex justify-between">
+                        <span className="text-muted-foreground">{symptom.name}:</span>
+                        <span className="font-medium">{symptom.percentage}%</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+              {auraAndSymptoms.topSymptoms.length === 0 && !auraAndSymptoms.mostCommonAura && (
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    Im gewählten Zeitraum wurden keine Symptome dokumentiert.
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-2 p-2 bg-muted/50 rounded-md">
+                    💡 <span className="font-medium">Tipp:</span> Wähle einen längeren Zeitraum oder dokumentiere Symptome bei zukünftigen Einträgen.
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Medikamente & Wirkung */}
         <Card>
