@@ -1,6 +1,6 @@
 import * as React from "react"
 import { Button, ButtonProps } from "@/components/ui/button"
-import { Loader2, Check } from "lucide-react"
+import { Loader2, Check, Save } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export type SubmitButtonState = "idle" | "loading" | "success" | "error"
@@ -27,6 +27,7 @@ const SubmitButton = React.forwardRef<HTMLButtonElement, SubmitButtonProps>(
       successDuration = 1500,
       className,
       disabled,
+      variant = "success",
       ...props
     },
     ref
@@ -53,7 +54,7 @@ const SubmitButton = React.forwardRef<HTMLButtonElement, SubmitButtonProps>(
       if (isLoading) {
         return (
           <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            <Loader2 className="h-4 w-4 animate-spin" />
             {loadingText}
           </>
         )
@@ -61,7 +62,7 @@ const SubmitButton = React.forwardRef<HTMLButtonElement, SubmitButtonProps>(
       if (isSuccess) {
         return (
           <>
-            <Check className="mr-2 h-4 w-4" />
+            <Check className="h-4 w-4" />
             {successText}
           </>
         )
@@ -69,16 +70,21 @@ const SubmitButton = React.forwardRef<HTMLButtonElement, SubmitButtonProps>(
       if (isError) {
         return errorText
       }
-      return idleText
+      return (
+        <>
+          <Save className="h-4 w-4" />
+          {idleText}
+        </>
+      )
     }
 
     return (
       <Button
         ref={ref}
+        variant={isSuccess ? "default" : isError ? "destructive" : variant}
         className={cn(
-          "transition-all duration-200",
+          "gap-2 transition-all duration-200",
           isSuccess && "bg-emerald-600 hover:bg-emerald-600 text-white",
-          isError && "bg-destructive hover:bg-destructive",
           className
         )}
         disabled={disabled || isLoading || isSuccess}

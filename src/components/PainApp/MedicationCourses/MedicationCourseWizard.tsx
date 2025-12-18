@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { SaveButton } from "@/components/ui/save-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -557,9 +558,11 @@ export const MedicationCourseWizard: React.FC<MedicationCourseWizardProps> = ({
               Weiter <ChevronRight className="h-4 w-4 ml-1" />
             </Button>
           ) : (
-            <Button onClick={handleSubmit} disabled={isSubmitting || !canProceed()}>
-              {isSubmitting ? "Speichern..." : "Speichern"}
-            </Button>
+            <SaveButton 
+              onClick={handleSubmit} 
+              disabled={!canProceed()}
+              loading={isSubmitting}
+            />
           )}
         </div>
       </DialogContent>

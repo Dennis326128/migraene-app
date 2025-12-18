@@ -6,7 +6,8 @@
 import React, { useCallback } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { Mic, MicOff, Save, Trash2 } from 'lucide-react';
+import { SaveButton } from '@/components/ui/save-button';
+import { Mic, MicOff, Trash2 } from 'lucide-react';
 import { useVoiceTextInput } from '@/hooks/useVoiceTextInput';
 import { cn } from '@/lib/utils';
 
@@ -149,15 +150,12 @@ export const VoiceTextInput: React.FC<VoiceTextInputProps> = ({
 
       {/* Action Buttons */}
       <div className="flex gap-2">
-        <Button
+        <SaveButton
           onClick={handleSave}
           disabled={!canSave}
           className="flex-1"
           size="sm"
-        >
-          <Save className="h-4 w-4 mr-2" />
-          Speichern
-        </Button>
+        />
         
         <Button
           variant="outline"

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { SaveButton } from "@/components/ui/save-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -156,9 +157,11 @@ export default function SettingsForm() {
         </div>
 
         <div className="flex gap-2">
-          <Button onClick={handleSave} disabled={hasError || isFetching || upsert.isPending || upsertDefaults.isPending}>
-            {(upsert.isPending || upsertDefaults.isPending) ? "Speichern…" : "Speichern"}
-          </Button>
+          <SaveButton 
+            onClick={handleSave} 
+            disabled={hasError || isFetching}
+            loading={upsert.isPending || upsertDefaults.isPending}
+          />
           <Button variant="outline" onClick={handleReset} disabled={upsert.isPending || upsertDefaults.isPending}>Zurücksetzen</Button>
         </div>
       </Card>

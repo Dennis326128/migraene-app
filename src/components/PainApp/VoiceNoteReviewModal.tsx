@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { SaveButton } from '@/components/ui/save-button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Mic } from 'lucide-react';
@@ -94,9 +95,11 @@ export function VoiceNoteReviewModal({
           <Button variant="outline" onClick={onClose} disabled={isSaving}>
             Abbrechen
           </Button>
-          <Button onClick={handleSave} disabled={isSaving || !text.trim()}>
-            {isSaving ? 'Speichere...' : '✅ Speichern'}
-          </Button>
+          <SaveButton 
+            onClick={handleSave} 
+            disabled={!text.trim()}
+            loading={isSaving}
+          />
         </DialogFooter>
       </DialogContent>
     </Dialog>

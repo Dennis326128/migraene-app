@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
+import { SaveButton } from '@/components/ui/save-button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -802,14 +803,11 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
             >
               Abbrechen
             </Button>
-            <Button
+            <SaveButton
               type="submit"
-              variant="success"
-              disabled={isSubmitting}
+              loading={isSubmitting}
               className="touch-manipulation min-h-11 min-w-[120px]"
-            >
-              {isSubmitting ? 'Speichern...' : '💾 Speichern'}
-            </Button>
+            />
           </div>
         </form>
       </Card>
