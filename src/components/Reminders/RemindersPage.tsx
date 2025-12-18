@@ -43,6 +43,7 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
   const [filterType, setFilterType] = useState<FilterType>('all');
   const [rangeFilter, setRangeFilter] = useState<RangeFilter>('all');
   const [hasNotificationPermission, setHasNotificationPermission] = useState(false);
+  const [formKey, setFormKey] = useState(0); // Force re-mount on new reminder
 
   const { data: activeReminders = [], isLoading: loadingActive } = useActiveReminders();
   const { data: historyReminders = [], isLoading: loadingHistory } = useHistoryReminders();
@@ -319,6 +320,7 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
   if (viewMode === 'form') {
     return (
       <ReminderForm
+        key={`reminder-form-${formKey}-${editingReminder?.id || 'new'}`}
         reminder={editingReminder || undefined}
         prefill={prefillData || undefined}
         onSubmit={editingReminder ? handleUpdate : handleCreate}
@@ -342,6 +344,7 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
             onClick={() => {
               setPrefillData(null);
               setEditingReminder(null);
+              setFormKey(prev => prev + 1); // Force form re-mount with fresh date
               setViewMode('form');
             }}
             className="w-full touch-manipulation min-h-14 text-lg font-semibold shadow-md"
