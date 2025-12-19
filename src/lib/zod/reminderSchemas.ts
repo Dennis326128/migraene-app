@@ -55,7 +55,7 @@ export const reminderTypeSchema = z.enum(['medication', 'appointment', 'todo'], 
 });
 
 // Reminder repeat validation
-export const reminderRepeatSchema = z.enum(['none', 'daily', 'weekly', 'monthly'], {
+export const reminderRepeatSchema = z.enum(['none', 'daily', 'weekly', 'monthly', 'weekdays'], {
   errorMap: () => ({ message: "Ungültiger Wiederholungstyp" })
 });
 

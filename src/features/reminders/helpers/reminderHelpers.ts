@@ -10,12 +10,13 @@ export interface ReminderFormState {
   title: string;
   date: string;
   times: string[];
-  repeat: 'none' | 'daily' | 'weekly' | 'monthly';
+  repeat: 'none' | 'daily' | 'weekly' | 'monthly' | 'weekdays';
   notes: string;
   notification_enabled: boolean;
   status?: string;
   medications?: string[];
   time_of_day?: string;
+  weekdays?: string[];
   // Follow-up fields
   follow_up_enabled?: boolean;
   follow_up_interval_value?: number;

@@ -23,12 +23,18 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import type { Reminder, CreateReminderInput, UpdateReminderInput, ReminderPrefill } from '@/types/reminder.types';
+import type { Reminder, CreateReminderInput, UpdateReminderInput, ReminderPrefill, Weekday as ReminderWeekday } from '@/types/reminder.types';
 import { format, parseISO } from 'date-fns';
 import { ArrowLeft, Clock, Plus, X, CalendarPlus, Info, Bell, ChevronDown, ListTodo, Pill, Calendar } from 'lucide-react';
 import { MedicationSelector } from './MedicationSelector';
 import { TimeOfDaySelector, getDefaultTimeSlots, type TimeSlot } from './TimeOfDaySelector';
 import { cloneReminderForCreate, generateSeriesId } from '@/features/reminders/helpers/reminderHelpers';
+import { 
+  NOTIFY_OFFSET_PRESETS, 
+  DEFAULT_APPOINTMENT_OFFSETS,
+  formatNotifyOffsets 
+} from '@/features/reminders/helpers/attention';
+import { WeekdayPicker, type Weekday, weekdaysToEnglish, weekdaysToGerman, formatWeekdays } from '@/components/ui/weekday-picker';
 import { 
   NOTIFY_OFFSET_PRESETS, 
   DEFAULT_APPOINTMENT_OFFSETS,
@@ -40,7 +46,7 @@ const reminderSchema = z.object({
   title: z.string().min(1, 'Titel ist erforderlich'),
   date: z.string().min(1, 'Datum ist erforderlich'),
   time: z.string().optional(),
-  repeat: z.enum(['none', 'daily', 'weekly', 'monthly']),
+  repeat: z.enum(['none', 'daily', 'weekly', 'monthly', 'weekdays']),
   notes: z.string().optional(),
   notification_enabled: z.boolean(),
   status: z.enum(['pending', 'done', 'missed', 'cancelled', 'processing', 'completed', 'failed']).optional(),
@@ -613,7 +619,7 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
           )}
 
           {/* Repeat Section - STABLE POSITION, NO JUMPING */}
-          <div className="space-y-2 pt-2 border-t">
+          <div className="space-y-3 pt-2 border-t">
             <Label htmlFor="repeat">Wiederholung</Label>
             <Select
               value={repeat}
@@ -625,11 +631,28 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
               <SelectContent>
                 <SelectItem value="none">Keine</SelectItem>
                 <SelectItem value="daily">Täglich</SelectItem>
+                <SelectItem value="weekdays">Wochentage</SelectItem>
                 <SelectItem value="weekly">Wöchentlich</SelectItem>
                 <SelectItem value="monthly">Monatlich</SelectItem>
               </SelectContent>
             </Select>
-            {repeat !== 'none' && (
+            
+            {/* Weekday Picker when weekdays selected */}
+            {repeat === 'weekdays' && (
+              <div className="space-y-2 p-3 bg-muted/30 rounded-lg">
+                <Label className="text-sm">An welchen Tagen?</Label>
+                <WeekdayPicker
+                  value={[]}
+                  onChange={() => {}}
+                  size="sm"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Mindestens ein Tag erforderlich
+                </p>
+              </div>
+            )}
+            
+            {repeat !== 'none' && repeat !== 'weekdays' && (
               <p className="text-xs text-muted-foreground">
                 Diese Erinnerung wird {repeat === 'daily' ? 'jeden Tag' : repeat === 'weekly' ? 'jede Woche' : 'jeden Monat'} wiederholt.
               </p>
