@@ -18,6 +18,8 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useUserDefaults } from "@/features/settings/hooks/useUserSettings";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
+import { WeekdayPicker, type Weekday, formatWeekdays } from "@/components/ui/weekday-picker";
+import { format } from "date-fns";
 
 interface MedicationEditModalProps {
   medication: Med | null;
@@ -149,6 +151,8 @@ export const MedicationEditModal = ({ medication, open, onOpenChange }: Medicati
   const [showIntakeChangeConfirm, setShowIntakeChangeConfirm] = useState(false);
   const [pendingIntakeType, setPendingIntakeType] = useState<string | null>(null);
   const [customReasons, setCustomReasons] = useState<string[]>([]);
+  const [hasStartDate, setHasStartDate] = useState(false);
+  const [scheduleType, setScheduleType] = useState<"daily" | "weekdays">("daily");
 
   const [formData, setFormData] = useState<UpdateMedInput>({
     name: "",
@@ -212,6 +216,14 @@ export const MedicationEditModal = ({ medication, open, onOpenChange }: Medicati
       const inferredIntakeType = medication.intake_type || 
         (medication.art === "prophylaxe" || medication.art === "regelmaessig" ? "regular" : "as_needed");
       
+      // Determine if start date should be shown (has existing start_date)
+      const hasExistingStartDate = !!medication.start_date;
+      setHasStartDate(hasExistingStartDate);
+      
+      // Determine schedule type from weekdays
+      const hasWeekdays = medication.regular_weekdays && medication.regular_weekdays.length > 0;
+      setScheduleType(hasWeekdays ? "weekdays" : "daily");
+      
       setFormData({
         name: medication.name || "",
         wirkstoff: medication.wirkstoff || "",
@@ -245,6 +257,10 @@ export const MedicationEditModal = ({ medication, open, onOpenChange }: Medicati
         end_date: medication.end_date || "",
         is_active: medication.is_active !== false,
       });
+    } else {
+      // Reset for new medication
+      setHasStartDate(false);
+      setScheduleType("daily");
     }
   }, [medication]);
 
@@ -331,6 +347,7 @@ export const MedicationEditModal = ({ medication, open, onOpenChange }: Medicati
         regular_weekdays: [],
         regular_notes: "",
       }));
+      setScheduleType("daily");
     } else {
       setFormData(prev => ({
         ...prev,
@@ -346,6 +363,32 @@ export const MedicationEditModal = ({ medication, open, onOpenChange }: Medicati
     }
     setShowIntakeChangeConfirm(false);
     setPendingIntakeType(null);
+  };
+
+  // Handler for start date toggle
+  const handleStartDateToggle = (enabled: boolean) => {
+    setHasStartDate(enabled);
+    if (enabled) {
+      // Set to today when enabling
+      const today = format(new Date(), 'yyyy-MM-dd');
+      updateField("start_date", today);
+    } else {
+      // Clear when disabling
+      updateField("start_date", "");
+    }
+  };
+
+  // Handler for schedule type change
+  const handleScheduleTypeChange = (type: "daily" | "weekdays") => {
+    setScheduleType(type);
+    if (type === "daily") {
+      updateField("regular_weekdays", []);
+    }
+  };
+
+  // Handler for weekdays change
+  const handleWeekdaysChange = (days: Weekday[]) => {
+    updateField("regular_weekdays", days);
   };
 
   const handleActiveToggle = (isActive: boolean) => {
@@ -416,6 +459,10 @@ export const MedicationEditModal = ({ medication, open, onOpenChange }: Medicati
     const finalData: UpdateMedInput = { 
       ...formData,
       staerke: combinedStaerke,
+      // Only save start_date if toggle is ON
+      start_date: hasStartDate ? formData.start_date : null,
+      // For regular medications with weekdays schedule, ensure weekdays are saved
+      regular_weekdays: isRegular && scheduleType === "weekdays" ? formData.regular_weekdays : [],
     };
     
     if (formData.intolerance_flag) {
@@ -570,16 +617,33 @@ export const MedicationEditModal = ({ medication, open, onOpenChange }: Medicati
                 </Select>
               </div>
 
-              {/* Start Date */}
-              <div className="space-y-2">
-                <Label htmlFor="start_date">Beginn der Einnahme (optional)</Label>
-                <Input
-                  id="start_date"
-                  type="date"
-                  value={formData.start_date || ""}
-                  onChange={(e) => updateField("start_date", e.target.value)}
-                  className="h-9"
-                />
+              {/* Start Date Toggle */}
+              <div className="space-y-3 p-4 rounded-lg bg-muted/30 border border-border/30">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm font-medium">Startdatum hinzufügen</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Nur falls du dokumentieren möchtest, seit wann du es nimmst
+                    </p>
+                  </div>
+                  <Switch
+                    checked={hasStartDate}
+                    onCheckedChange={handleStartDateToggle}
+                  />
+                </div>
+                
+                {hasStartDate && (
+                  <div className="space-y-2 pt-2 border-t border-border/30">
+                    <Label htmlFor="start_date" className="text-sm">Startdatum</Label>
+                    <Input
+                      id="start_date"
+                      type="date"
+                      value={formData.start_date || ""}
+                      onChange={(e) => updateField("start_date", e.target.value)}
+                      className="h-9"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Active Toggle + End Date */}
@@ -648,26 +712,70 @@ export const MedicationEditModal = ({ medication, open, onOpenChange }: Medicati
                   </div>
                 </div>
               ) : (
-                // Regular: show time-based doses
-                <div className="space-y-3 p-4 rounded-lg bg-muted/30 border border-border/30">
-                  <p className="text-sm font-medium text-muted-foreground">Dosierung (Regelmäßig)</p>
-                  <div className="grid grid-cols-4 gap-2">
-                    {[
-                      { key: "dosis_morgens", label: "Mo" },
-                      { key: "dosis_mittags", label: "Mi" },
-                      { key: "dosis_abends", label: "Ab" },
-                      { key: "dosis_nacht", label: "Na" },
-                    ].map(({ key, label }) => (
-                      <div key={key} className="space-y-1">
-                        <Label className="text-xs text-center block">{label}</Label>
-                        <Input
-                          value={(formData as any)[key] || ""}
-                          onChange={(e) => updateField(key as any, e.target.value)}
-                          placeholder="0"
-                          className="text-center h-9"
-                        />
-                      </div>
-                    ))}
+                // Regular: show schedule type + doses
+                <div className="space-y-4 p-4 rounded-lg bg-muted/30 border border-border/30">
+                  <p className="text-sm font-medium text-muted-foreground">Einnahmeplan (Regelmäßig)</p>
+                  
+                  {/* Schedule Type Selector */}
+                  <div className="space-y-2">
+                    <Label className="text-sm">Frequenz</Label>
+                    <Select
+                      value={scheduleType}
+                      onValueChange={(v) => handleScheduleTypeChange(v as "daily" | "weekdays")}
+                    >
+                      <SelectTrigger className="h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="daily">Täglich</SelectItem>
+                        <SelectItem value="weekdays">Bestimmte Wochentage</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {/* Weekday Picker (only when weekdays selected) */}
+                  {scheduleType === "weekdays" && (
+                    <div className="space-y-2">
+                      <Label className="text-sm">Einnahme an</Label>
+                      <WeekdayPicker
+                        value={(formData.regular_weekdays || []) as Weekday[]}
+                        onChange={handleWeekdaysChange}
+                        size="sm"
+                      />
+                      {formData.regular_weekdays?.length === 0 && (
+                        <p className="text-xs text-amber-500">
+                          Bitte mindestens einen Tag auswählen
+                        </p>
+                      )}
+                      {formData.regular_weekdays && formData.regular_weekdays.length > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          {formatWeekdays(formData.regular_weekdays as Weekday[])}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Time-based doses */}
+                  <div className="space-y-2 pt-2 border-t border-border/30">
+                    <Label className="text-sm">Dosierung pro Einnahme</Label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {[
+                        { key: "dosis_morgens", label: "Mo" },
+                        { key: "dosis_mittags", label: "Mi" },
+                        { key: "dosis_abends", label: "Ab" },
+                        { key: "dosis_nacht", label: "Na" },
+                      ].map(({ key, label }) => (
+                        <div key={key} className="space-y-1">
+                          <Label className="text-xs text-center block">{label}</Label>
+                          <Input
+                            value={(formData as any)[key] || ""}
+                            onChange={(e) => updateField(key as any, e.target.value)}
+                            placeholder="0"
+                            className="text-center h-9"
+                          />
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}

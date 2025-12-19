@@ -1,8 +1,9 @@
 export type ReminderType = 'medication' | 'appointment' | 'todo';
-export type ReminderRepeat = 'none' | 'daily' | 'weekly' | 'monthly';
+export type ReminderRepeat = 'none' | 'daily' | 'weekly' | 'monthly' | 'weekdays';
 export type ReminderStatus = 'pending' | 'processing' | 'done' | 'missed' | 'cancelled' | 'completed' | 'failed';
 export type TimeOfDay = 'morning' | 'noon' | 'evening' | 'night';
 export type FollowUpIntervalUnit = 'weeks' | 'months';
+export type Weekday = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
 
 // Notification channels for future push notification support
 export interface NotificationChannels {
@@ -23,6 +24,8 @@ export interface Reminder {
   notification_enabled: boolean;
   medications?: string[];
   time_of_day?: TimeOfDay | null;
+  // Weekdays for weekday repeat type
+  weekdays?: Weekday[] | null;
   // Actual DB field for notification offsets (array of minutes)
   notify_offsets_minutes?: number[] | null;
   // Future-ready fields for push notifications
@@ -52,6 +55,7 @@ export interface CreateReminderInput {
   notification_enabled?: boolean;
   medications?: string[];
   time_of_day?: TimeOfDay;
+  weekdays?: Weekday[];
   pre_notify_offset_minutes?: number;
   notification_channels?: NotificationChannels;
   // Follow-up fields
@@ -72,6 +76,7 @@ export interface UpdateReminderInput {
   notification_enabled?: boolean;
   medications?: string[];
   time_of_day?: TimeOfDay;
+  weekdays?: Weekday[];
   pre_notify_offset_minutes?: number;
   notification_channels?: NotificationChannels;
   // Follow-up fields
