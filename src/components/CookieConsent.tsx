@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { X, Shield, Cookie, BarChart } from 'lucide-react';
+import { LegalLinks } from '@/components/ui/legal-links';
 
 interface CookiePreferences {
   necessary: boolean;
@@ -76,26 +76,7 @@ export function CookieConsent() {
           <p className="text-sm text-muted-foreground">
             Wir verwenden Cookies und lokale Speicherung für die beste Erfahrung.
             Lesen Sie unsere{' '}
-            <Link 
-              to="/privacy"
-              className="text-primary underline hover:no-underline"
-            >
-              Datenschutzerklärung
-            </Link>
-            ,{' '}
-            <Link 
-              to="/terms"
-              className="text-primary underline hover:no-underline"
-            >
-              AGB
-            </Link>
-            {' '}und{' '}
-            <Link 
-              to="/imprint"
-              className="text-primary underline hover:no-underline"
-            >
-              Impressum
-            </Link>
+            <LegalLinks variant="text" openInNewTab />
             .
           </p>
 
