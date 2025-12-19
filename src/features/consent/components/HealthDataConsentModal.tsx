@@ -103,10 +103,13 @@ export const HealthDataConsentModal: React.FC<HealthDataConsentModalProps> = ({
                   <h4 className="font-medium mb-1">Zweck der Verarbeitung</h4>
                   <ul className="text-sm text-muted-foreground space-y-1">
                     <li>• Erfassung Ihrer Migräne-Episoden</li>
-                    <li>• Erstellung von Analysen und Trends</li>
+                    <li>• <strong>Automatisierte statistische Auswertung</strong> (Trends, Häufigkeiten, mögliche Zusammenhänge)</li>
                     <li>• PDF-Berichte für Arztbesuche</li>
-                    <li>• Medikamenten-Tracking mit Übergebrauchswarnung</li>
+                    <li>• Medikamenten-Tracking</li>
                   </ul>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Es werden keine Diagnosen gestellt und keine Therapie-/Medikamentenempfehlungen gegeben.
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -122,8 +125,7 @@ export const HealthDataConsentModal: React.FC<HealthDataConsentModalProps> = ({
                     Wichtiger Hinweis
                   </h4>
                   <p className="text-sm text-amber-700 dark:text-amber-300">
-                    Diese App ersetzt keine ärztliche Beratung, Diagnose oder Behandlung. 
-                    Bei gesundheitlichen Problemen wenden Sie sich bitte an einen Arzt.
+                    Diese App ersetzt keine ärztliche Beratung, Diagnose oder Behandlung.
                   </p>
                 </div>
               </div>
