@@ -20,23 +20,99 @@ export function AccountDeletion() {
 
   const handleExportData = async () => {
     try {
-      // Get all user data for export
+      // Get all user data for GDPR-compliant export (Art. 20 DSGVO)
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const [entries, meds, profile] = await Promise.all([
+      // Fetch ALL user tables in parallel for complete data portability
+      const [
+        profile,
+        painEntries,
+        medications,
+        medicationCourses,
+        medicationLimits,
+        medicationEffects,
+        reminders,
+        doctors,
+        patientData,
+        voiceNotes,
+        voiceNoteSegments,
+        weatherLogs,
+        reportSettings,
+        entrySymptoms,
+        userConsents,
+        userFeedback
+      ] = await Promise.all([
+        supabase.from('user_profiles').select('*').eq('user_id', user.id).single(),
         supabase.from('pain_entries').select('*').eq('user_id', user.id),
         supabase.from('user_medications').select('*').eq('user_id', user.id),
-        supabase.from('user_profiles').select('*').eq('user_id', user.id).single()
+        supabase.from('medication_courses').select('*').eq('user_id', user.id),
+        supabase.from('user_medication_limits').select('*').eq('user_id', user.id),
+        supabase.from('medication_effects').select('*'),
+        supabase.from('reminders').select('*').eq('user_id', user.id),
+        supabase.from('doctors').select('*').eq('user_id', user.id),
+        supabase.from('patient_data').select('*').eq('user_id', user.id).single(),
+        supabase.from('voice_notes').select('*').eq('user_id', user.id),
+        supabase.from('voice_note_segments').select('*'),
+        supabase.from('weather_logs').select('*').eq('user_id', user.id),
+        supabase.from('user_report_settings').select('*').eq('user_id', user.id).single(),
+        supabase.from('entry_symptoms').select('*'),
+        supabase.from('user_consents').select('*').eq('user_id', user.id),
+        supabase.from('user_feedback').select('*').eq('user_id', user.id)
       ]);
+
+      // Filter medication_effects to only include user's entries
+      const userEntryIds = (painEntries.data || []).map(e => e.id);
+      const userMedicationEffects = (medicationEffects.data || []).filter(
+        me => userEntryIds.includes(me.entry_id)
+      );
+
+      // Filter voice_note_segments to only include user's voice notes
+      const userVoiceNoteIds = (voiceNotes.data || []).map(v => v.id);
+      const userVoiceNoteSegments = (voiceNoteSegments.data || []).filter(
+        s => userVoiceNoteIds.includes(s.voice_note_id)
+      );
+
+      // Filter entry_symptoms to only include user's entries
+      const userEntrySymptoms = (entrySymptoms.data || []).filter(
+        es => userEntryIds.includes(es.entry_id)
+      );
 
       const exportData = {
         exportDate: new Date().toISOString(),
+        gdprArticle: 'Art. 20 DSGVO - Recht auf Datenübertragbarkeit',
         userId: user.id,
         email: user.email,
+        
+        // Core profile data
         profile: profile.data,
-        painEntries: entries.data || [],
-        medications: meds.data || []
+        patientData: patientData.data,
+        
+        // Health data
+        painEntries: painEntries.data || [],
+        entrySymptoms: userEntrySymptoms,
+        
+        // Medication data
+        medications: medications.data || [],
+        medicationCourses: medicationCourses.data || [],
+        medicationLimits: medicationLimits.data || [],
+        medicationEffects: userMedicationEffects,
+        
+        // Reminders & Doctors
+        reminders: reminders.data || [],
+        doctors: doctors.data || [],
+        
+        // Voice notes
+        voiceNotes: voiceNotes.data || [],
+        voiceNoteSegments: userVoiceNoteSegments,
+        
+        // Weather & Settings
+        weatherLogs: weatherLogs.data || [],
+        reportSettings: reportSettings.data,
+        
+        // Consent records
+        consents: userConsents.data || [],
+        feedback: userFeedback.data || []
       };
 
       // Create and download JSON file
@@ -46,7 +122,7 @@ export function AccountDeletion() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `migraine-data-export-${new Date().toISOString().split('T')[0]}.json`;
+      a.download = `migraine-vollstaendiger-datenexport-${new Date().toISOString().split('T')[0]}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -54,10 +130,11 @@ export function AccountDeletion() {
 
       setDownloadedData(true);
       toast({
-        title: "Daten exportiert",
-        description: "Ihre Daten wurden als JSON-Datei heruntergeladen."
+        title: "Vollständiger Datenexport",
+        description: "Alle Ihre Daten wurden DSGVO-konform als JSON exportiert."
       });
     } catch (error) {
+      console.error('Export error:', error);
       toast({
         title: "Exportfehler",
         description: "Beim Exportieren der Daten ist ein Fehler aufgetreten.",
