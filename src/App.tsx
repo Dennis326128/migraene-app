@@ -124,9 +124,15 @@ function App() {
               <Route path="/auth" element={<AuthPage />} />
               <Route path="/auth/callback" element={<AuthCallbackPage />} />
               <Route path="/reset-password" element={<PasswordResetPage />} />
+              {/* Legal pages - primary routes */}
               <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route path="/imprint" element={<Imprint />} />
               <Route path="/terms" element={<TermsOfService />} />
+              
+              {/* German URL redirects for SEO and user-friendliness */}
+              <Route path="/datenschutz" element={<Navigate to="/privacy" replace />} />
+              <Route path="/impressum" element={<Navigate to="/imprint" replace />} />
+              <Route path="/agb" element={<Navigate to="/terms" replace />} />
               <Route 
                 path="/" 
                 element={

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -75,26 +76,26 @@ export function CookieConsent() {
           <p className="text-sm text-muted-foreground">
             Wir verwenden Cookies und lokale Speicherung für die beste Erfahrung.
             Lesen Sie unsere{' '}
-            <button 
+            <Link 
+              to="/privacy"
               className="text-primary underline hover:no-underline"
-              onClick={() => window.location.href = '/privacy'}
             >
               Datenschutzerklärung
-            </button>
+            </Link>
             ,{' '}
-            <button 
+            <Link 
+              to="/terms"
               className="text-primary underline hover:no-underline"
-              onClick={() => window.location.href = '/terms'}
             >
               AGB
-            </button>
+            </Link>
             {' '}und{' '}
-            <button 
+            <Link 
+              to="/imprint"
               className="text-primary underline hover:no-underline"
-              onClick={() => window.location.href = '/imprint'}
             >
               Impressum
-            </button>
+            </Link>
             .
           </p>
 
