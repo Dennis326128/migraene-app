@@ -812,11 +812,15 @@ export type Database = {
       }
       user_profiles: {
         Row: {
+          account_status: string
           ai_draft_engine: string | null
           ai_enabled: boolean
           custom_medication_reasons: string[] | null
+          deactivated_at: string | null
           default_pain_location: string | null
           default_symptoms: string[] | null
+          deletion_requested_at: string | null
+          deletion_scheduled_for: string | null
           latitude: number | null
           longitude: number | null
           medication_limit_warning_threshold_pct: number
@@ -830,11 +834,15 @@ export type Database = {
           voice_notes_enabled: boolean
         }
         Insert: {
+          account_status?: string
           ai_draft_engine?: string | null
           ai_enabled?: boolean
           custom_medication_reasons?: string[] | null
+          deactivated_at?: string | null
           default_pain_location?: string | null
           default_symptoms?: string[] | null
+          deletion_requested_at?: string | null
+          deletion_scheduled_for?: string | null
           latitude?: number | null
           longitude?: number | null
           medication_limit_warning_threshold_pct?: number
@@ -848,11 +856,15 @@ export type Database = {
           voice_notes_enabled?: boolean
         }
         Update: {
+          account_status?: string
           ai_draft_engine?: string | null
           ai_enabled?: boolean
           custom_medication_reasons?: string[] | null
+          deactivated_at?: string | null
           default_pain_location?: string | null
           default_symptoms?: string[] | null
+          deletion_requested_at?: string | null
+          deletion_scheduled_for?: string | null
           latitude?: number | null
           longitude?: number | null
           medication_limit_warning_threshold_pct?: number
@@ -1156,7 +1168,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cancel_account_deletion: { Args: never; Returns: undefined }
+      deactivate_user_account: { Args: never; Returns: undefined }
       delete_user_account: { Args: never; Returns: undefined }
+      get_account_status: { Args: never; Returns: Json }
       get_recent_medications: {
         Args: { p_limit?: number; p_user_id: string }
         Returns: {
@@ -1166,6 +1181,7 @@ export type Database = {
           use_count: number
         }[]
       }
+      reactivate_user_account: { Args: never; Returns: undefined }
       record_med_effect: {
         Args: {
           p_effect_rating_0_4: number
@@ -1178,6 +1194,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      request_account_deletion: { Args: never; Returns: Json }
       rpc_entries_filtered: {
         Args: {
           p_aura_types?: string[]

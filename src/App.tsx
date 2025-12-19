@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 import { Session, User } from "@supabase/supabase-js";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -10,6 +10,7 @@ import Index from "./pages/Index";
 import AuthPage from "./pages/AuthPage";
 import AuthCallbackPage from "./pages/AuthCallbackPage";
 import PasswordResetPage from "./pages/PasswordResetPage";
+import AccountStatusPage from "./pages/AccountStatusPage";
 import NotFound from "./pages/NotFound";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Imprint from "./pages/Imprint";
@@ -18,6 +19,7 @@ import { MedicationEffectsPage } from "./features/medication-effects/components/
 import { registerOfflineSupport } from "@/hooks/useOptimizedCache";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { initOfflineDB, syncPendingEntries } from "@/lib/offlineQueue";
+import { getAccountStatus, AccountStatus } from "@/features/account/api/accountStatus.api";
 
 // Lazy load QA page (DEV only)
 const QAPage = React.lazy(() => import("./pages/QAPage"));
@@ -36,6 +38,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [accountStatus, setAccountStatus] = useState<AccountStatus | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -50,6 +53,17 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
           }
           setSession(session);
           setUser(session?.user ?? null);
+          
+          // Check account status if logged in
+          if (session?.user) {
+            try {
+              const status = await getAccountStatus();
+              setAccountStatus(status);
+            } catch (e) {
+              console.error('[AuthGuard] Error checking account status:', e);
+            }
+          }
+          
           setLoading(false);
         }
       } catch (error) {
@@ -71,6 +85,21 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
           }
           setSession(session);
           setUser(session?.user ?? null);
+          
+          // Check account status on auth change
+          if (session?.user) {
+            setTimeout(async () => {
+              try {
+                const status = await getAccountStatus();
+                if (mounted) setAccountStatus(status);
+              } catch (e) {
+                console.error('[AuthGuard] Error checking account status:', e);
+              }
+            }, 0);
+          } else {
+            setAccountStatus(null);
+          }
+          
           setLoading(false);
         }
       }
@@ -110,6 +139,11 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
+  // If account is deactivated or deletion requested, redirect to status page
+  if (session && accountStatus && accountStatus.status !== 'active') {
+    return <Navigate to="/account-status" replace />;
+  }
+
   return session ? <>{children}</> : <Navigate to="/auth" replace />;
 }
 
@@ -133,7 +167,11 @@ function App() {
               <Route path="/datenschutz" element={<Navigate to="/privacy" replace />} />
               <Route path="/impressum" element={<Navigate to="/imprint" replace />} />
               <Route path="/agb" element={<Navigate to="/terms" replace />} />
-              <Route 
+              
+              {/* Account status page for deactivated/deletion-pending accounts */}
+              <Route path="/account-status" element={<AccountStatusPage />} />
+              
+              <Route
                 path="/" 
                 element={
                   <AuthGuard>
