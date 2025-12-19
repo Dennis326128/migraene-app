@@ -9,6 +9,8 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import Index from "./pages/Index";
 import AuthPage from "./pages/AuthPage";
 import AuthCallbackPage from "./pages/AuthCallbackPage";
+import AuthConfirmPage from "./pages/AuthConfirmPage";
+import AuthUpdatePasswordPage from "./pages/AuthUpdatePasswordPage";
 import PasswordResetPage from "./pages/PasswordResetPage";
 import AccountStatusPage from "./pages/AccountStatusPage";
 import ConsentRequiredPage from "./pages/ConsentRequiredPage";
@@ -167,6 +169,8 @@ function App() {
             <Routes>
               <Route path="/auth" element={<AuthPage />} />
               <Route path="/auth/callback" element={<AuthCallbackPage />} />
+              <Route path="/auth/confirm" element={<AuthConfirmPage />} />
+              <Route path="/auth/update-password" element={<AuthUpdatePasswordPage />} />
               <Route path="/reset-password" element={<PasswordResetPage />} />
               
               {/* Legal pages - primary routes */}
