@@ -28,13 +28,13 @@ export default function MedicalDisclaimerPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-lg">
-              Diese App ist ein <strong>Dokumentations- und Selbstbeobachtungswerkzeug</strong>. 
-              Sie ersetzt keine ärztliche Beratung, Diagnose oder Behandlung.
+              Diese App führt eine <strong>automatisierte statistische Auswertung</strong> Ihrer 
+              Angaben durch (Trends, Häufigkeiten, mögliche Zusammenhänge).
             </p>
             <p>
-              Alle Informationen, Analysen und Trends, die diese App bereitstellt, 
-              dienen ausschließlich zu Informationszwecken und zur Unterstützung 
-              Ihrer persönlichen Gesundheitsdokumentation.
+              Es werden <strong>keine Diagnosen</strong> gestellt und <strong>keine Therapie- 
+              oder Medikamentenempfehlungen</strong> gegeben. Die App ersetzt keine ärztliche 
+              Beratung, Diagnose oder Behandlung.
             </p>
           </CardContent>
         </Card>
@@ -61,9 +61,9 @@ export default function MedicalDisclaimerPage() {
               <li className="flex items-start gap-3">
                 <div className="w-2 h-2 rounded-full bg-primary mt-2" />
                 <div>
-                  <p className="font-medium">Statistische Auswertungen</p>
+                  <p className="font-medium">Automatisierte statistische Auswertung</p>
                   <p className="text-sm text-muted-foreground">
-                    Visualisierung von Häufigkeiten und zeitlichen Mustern
+                    Trends, Häufigkeiten und mögliche Zusammenhänge aus Ihren Angaben
                   </p>
                 </div>
               </li>
@@ -147,33 +147,27 @@ export default function MedicalDisclaimerPage() {
           </CardContent>
         </Card>
 
-        {/* Emergency */}
-        <Card className="border-destructive/50 bg-destructive/5">
+        {/* Medical Help */}
+        <Card className="border-amber-500/50 bg-amber-50/50 dark:bg-amber-950/20">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-destructive">
+            <CardTitle className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
               <Phone className="h-5 w-5" />
-              Im Notfall
+              Wann Sie medizinische Hilfe holen sollten
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <p className="font-medium">
-              Rufen Sie bei folgenden Symptomen sofort 112 an:
+            <p className="text-sm">
+              Bei akuten oder ungewöhnlichen Beschwerden holen Sie bitte medizinische Hilfe.
             </p>
-            <ul className="text-sm space-y-1 list-disc list-inside ml-2">
-              <li>Plötzliche, extrem starke Kopfschmerzen („Vernichtungskopfschmerz")</li>
-              <li>Kopfschmerzen mit Bewusstseinsveränderungen</li>
-              <li>Kopfschmerzen mit neurologischen Ausfällen (Lähmungen, Sehstörungen, Sprachstörungen)</li>
-              <li>Kopfschmerzen mit hohem Fieber und Nackensteife</li>
+            <p className="text-sm text-muted-foreground">
+              Insbesondere bei:
+            </p>
+            <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside ml-2">
+              <li>Plötzlichen, ungewöhnlich starken Kopfschmerzen</li>
+              <li>Begleitsymptomen wie Bewusstseinsveränderungen, Lähmungen oder Sehstörungen</li>
               <li>Kopfschmerzen nach Kopfverletzung</li>
+              <li>Beschwerden, die Ihnen ungewöhnlich erscheinen</li>
             </ul>
-            <div className="bg-destructive/10 rounded-lg p-4 mt-4">
-              <p className="text-lg font-bold text-center">
-                Notruf Deutschland: 112
-              </p>
-              <p className="text-sm text-center text-muted-foreground mt-1">
-                Ärztlicher Bereitschaftsdienst: 116 117
-              </p>
-            </div>
           </CardContent>
         </Card>
 
