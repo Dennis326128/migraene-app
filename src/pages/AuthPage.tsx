@@ -10,6 +10,7 @@ import { AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { ensureUserProfile } from "@/utils/ensureUserProfile";
+import { LegalLinks } from "@/components/ui/legal-links";
 import { signupSchema, loginSchema } from "@/lib/zod/authSchemas";
 
 // Google Icon SVG
@@ -417,6 +418,9 @@ export default function AuthPage() {
           </div>
         </CardContent>
         </Card>
+        
+        {/* Legal Links Footer */}
+        <LegalLinks variant="inline" className="pt-2" />
       </div>
     </div>
   );
