@@ -128,7 +128,8 @@ export default function AuthPage() {
       if (isLogin) {
         result = await supabase.auth.signInWithPassword({ email, password });
       } else {
-        const redirectUrl = `${window.location.origin}/`;
+        // Prefetch-sichere URL: führt zu /auth/confirm, dann weiter zu /
+        const redirectUrl = `${window.location.origin}/auth/confirm?type=email&next=/`;
         result = await supabase.auth.signUp({
           email,
           password,
@@ -202,7 +203,8 @@ export default function AuthPage() {
 
     setLoading(true);
     try {
-      const redirectUrl = `${window.location.origin}/reset-password`;
+      // Prefetch-sichere URL: führt zu /auth/confirm, dann weiter zu /auth/update-password
+      const redirectUrl = `${window.location.origin}/auth/confirm?type=recovery&next=/auth/update-password`;
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: redirectUrl,
       });
