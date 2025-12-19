@@ -65,6 +65,26 @@ const ChartContainer = React.forwardRef<
 })
 ChartContainer.displayName = "Chart"
 
+// Security: Validate CSS color values to prevent XSS via style injection
+const CSS_COLOR_REGEX = /^(#[0-9A-Fa-f]{3,8}|rgb\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*\)|rgba\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*[\d.]+\s*\)|hsl\(\s*\d{1,3}\s*,\s*\d{1,3}%?\s*,\s*\d{1,3}%?\s*\)|hsla\(\s*\d{1,3}\s*,\s*\d{1,3}%?\s*,\s*\d{1,3}%?\s*,\s*[\d.]+\s*\)|[a-zA-Z]+)$/;
+
+function sanitizeCSSColor(color: string | undefined): string | null {
+  if (!color) return null;
+  // Remove any potential script injection attempts
+  const trimmed = color.trim();
+  // Only allow valid CSS color formats
+  if (CSS_COLOR_REGEX.test(trimmed)) {
+    return trimmed;
+  }
+  console.warn(`Invalid CSS color value rejected: ${trimmed}`);
+  return null;
+}
+
+// Security: Sanitize CSS key names to prevent injection
+function sanitizeCSSKey(key: string): string {
+  return key.replace(/[^a-zA-Z0-9-_]/g, '');
+}
+
 const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
   const colorConfig = Object.entries(config).filter(
     ([_, config]) => config.theme || config.color
@@ -83,11 +103,14 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
 ${prefix} [data-chart=${id}] {
 ${colorConfig
   .map(([key, itemConfig]) => {
-    const color =
+    const rawColor =
       itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ||
       itemConfig.color
-    return color ? `  --color-${key}: ${color};` : null
+    const color = sanitizeCSSColor(rawColor)
+    const safeKey = sanitizeCSSKey(key)
+    return color ? `  --color-${safeKey}: ${color};` : null
   })
+  .filter(Boolean)
   .join("\n")}
 }
 `
