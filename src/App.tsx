@@ -8,6 +8,7 @@ import { Session, User } from "@supabase/supabase-js";
 import ErrorBoundary from "./components/ErrorBoundary";
 import Index from "./pages/Index";
 import AuthPage from "./pages/AuthPage";
+import AuthCallbackPage from "./pages/AuthCallbackPage";
 import PasswordResetPage from "./pages/PasswordResetPage";
 import NotFound from "./pages/NotFound";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
@@ -121,6 +122,7 @@ function App() {
             <OfflineIndicator />
             <Routes>
               <Route path="/auth" element={<AuthPage />} />
+              <Route path="/auth/callback" element={<AuthCallbackPage />} />
               <Route path="/reset-password" element={<PasswordResetPage />} />
               <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route path="/imprint" element={<Imprint />} />
