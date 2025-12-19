@@ -4,12 +4,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { useMeds, useAddMed, useDeleteMed, useUpdateMed, type Med } from "@/features/meds/hooks/useMeds";
+import { useMeds, useAddMed, useDeleteMed, useUpdateMed, useIntoleranceMeds, type Med } from "@/features/meds/hooks/useMeds";
 import { useMedicationCourses } from "@/features/medication-courses";
 import { usePatientData, useDoctors } from "@/features/account/hooks/useAccount";
 import { useMedicationLimits } from "@/features/medication-limits/hooks/useMedicationLimits";
 import { useMedicationsReminderMap, type MedicationReminderStatus } from "@/features/reminders/hooks/useMedicationReminders";
-import { buildMedicationPlanPdf } from "@/lib/pdf/medicationPlan";
+import { buildMedicationPlanPdf, type PdfExportOptions } from "@/lib/pdf/medicationPlan";
 import { Trash2, Plus, Pill, Loader2, Pencil, Download, ChevronDown, ChevronUp, Link2, Calendar, Bell, BellOff } from "lucide-react";
 import { MedicationEditModal } from "../MedicationEditModal";
 import { MedicationReminderSheet } from "@/components/Reminders/MedicationReminderSheet";
@@ -184,6 +184,7 @@ export const SettingsMedications = () => {
   const [reminderMed, setReminderMed] = useState<Med | null>(null);
   
   const { data: medications = [], isLoading: medsLoading } = useMeds();
+  const { data: intoleranceMeds = [] } = useIntoleranceMeds();
   const { data: courses } = useMedicationCourses();
   const { data: patientData } = usePatientData();
   const { data: doctors } = useDoctors();
@@ -278,12 +279,17 @@ export const SettingsMedications = () => {
     }
   };
 
-  const generatePdfWithDoctors = async (selectedDoctors: Doctor[]) => {
+  const generatePdfWithDoctors = async (selectedDoctors: Doctor[], options?: PdfExportOptions) => {
     setIsGeneratingPdf(true);
     try {
+      // Combine active medications with intolerant ones if option is enabled
+      const medsForPdf = options?.includeIntolerance
+        ? [...activeMedications, ...intoleranceMeds.filter(m => !activeMedications.some(a => a.id === m.id))]
+        : activeMedications;
+      
       const pdfBytes = await buildMedicationPlanPdf({
         medicationCourses: courses || [],
-        userMedications: activeMedications?.map(m => ({
+        userMedications: medsForPdf?.map(m => ({
           id: m.id,
           name: m.name,
           wirkstoff: m.wirkstoff,
@@ -299,6 +305,9 @@ export const SettingsMedications = () => {
           hinweise: m.hinweise,
           art: m.art,
           is_active: m.is_active,
+          intolerance_flag: m.intolerance_flag,
+          intolerance_notes: m.intolerance_notes,
+          intolerance_reason_type: m.intolerance_reason_type,
         })),
         medicationLimits: medicationLimits?.map(l => ({
           medication_name: l.medication_name,
@@ -329,6 +338,7 @@ export const SettingsMedications = () => {
           fax: doc.fax,
           email: doc.email,
         })),
+        options,
       });
 
       const blob = new Blob([new Uint8Array(pdfBytes)], { type: "application/pdf" });
