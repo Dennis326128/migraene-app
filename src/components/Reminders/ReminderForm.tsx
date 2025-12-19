@@ -35,11 +35,6 @@ import {
   formatNotifyOffsets 
 } from '@/features/reminders/helpers/attention';
 import { WeekdayPicker, type Weekday, weekdaysToEnglish, weekdaysToGerman, formatWeekdays } from '@/components/ui/weekday-picker';
-import { 
-  NOTIFY_OFFSET_PRESETS, 
-  DEFAULT_APPOINTMENT_OFFSETS,
-  formatNotifyOffsets 
-} from '@/features/reminders/helpers/attention';
 
 const reminderSchema = z.object({
   type: z.enum(['medication', 'appointment', 'todo']),
