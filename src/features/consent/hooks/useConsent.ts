@@ -4,8 +4,8 @@ import {
   saveHealthDataConsent,
   saveMedicalDisclaimerAccepted,
   withdrawHealthDataConsent,
-  hasValidHealthDataConsent,
-  UserConsent,
+  getConsentStatus,
+  ConsentStatus,
 } from "../api/consent.api";
 
 const CONSENT_KEY = ["user-consent"];
@@ -18,11 +18,11 @@ export function useConsent() {
   });
 }
 
-export function useHealthDataConsentStatus() {
+export function useConsentStatus() {
   return useQuery({
-    queryKey: [...CONSENT_KEY, "health-data-valid"],
-    queryFn: hasValidHealthDataConsent,
-    staleTime: 5 * 60 * 1000,
+    queryKey: [...CONSENT_KEY, "status"],
+    queryFn: getConsentStatus,
+    staleTime: 30 * 1000, // Refresh more often for gate checks
   });
 }
 
@@ -59,14 +59,18 @@ export function useWithdrawConsent() {
   });
 }
 
-export function useNeedsHealthDataConsent() {
-  const { data: consent, isLoading } = useConsent();
+/**
+ * Hook für ConsentGate - prüft ob alle Einwilligungen vorhanden sind
+ */
+export function useNeedsConsent() {
+  const { data: status, isLoading, error } = useConsentStatus();
 
-  const needsConsent = !isLoading && (
-    !consent || 
-    consent.health_data_consent !== true || 
-    consent.consent_withdrawn_at !== null
-  );
-
-  return { needsConsent, isLoading };
+  return {
+    isLoading,
+    error,
+    needsMedicalDisclaimer: status?.needsMedicalDisclaimer ?? false,
+    needsHealthDataConsent: status?.needsHealthDataConsent ?? false,
+    isWithdrawn: status?.isWithdrawn ?? false,
+    hasAllConsents: status?.hasConsent ?? false,
+  };
 }
