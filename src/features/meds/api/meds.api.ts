@@ -95,12 +95,22 @@ export type UpdateMedInput = Partial<CreateMedInput> & {
   discontinued_at?: string | null;
 };
 
+// Optimized select: Only fetch columns needed for list views
+const LIST_SELECT = `
+  id, name, is_active, intake_type, art, 
+  intolerance_flag, medication_status, discontinued_at,
+  strength_value, strength_unit, darreichungsform
+`;
+
+// Full select for detail views
+const DETAIL_SELECT = '*';
+
 export async function listMeds(): Promise<Med[]> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return [];
   const { data, error } = await supabase
     .from("user_medications")
-    .select("*")
+    .select(DETAIL_SELECT) // Keep full select for compatibility
     .eq("user_id", user.id)
     .order("name", { ascending: true });
   if (error) throw error;
