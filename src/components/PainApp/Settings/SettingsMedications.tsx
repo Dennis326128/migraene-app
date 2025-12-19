@@ -12,6 +12,7 @@ import { useMedicationsReminderMap, type MedicationReminderStatus } from "@/feat
 import { buildMedicationPlanPdf, type PdfExportOptions } from "@/lib/pdf/medicationPlan";
 import { Trash2, Plus, Pill, Loader2, Pencil, Download, ChevronDown, ChevronUp, Link2, Calendar, Bell, BellOff } from "lucide-react";
 import { MedicationEditModal } from "../MedicationEditModal";
+import { MedicationPlanExportDialog } from "../MedicationPlanExportDialog";
 import { MedicationReminderSheet } from "@/components/Reminders/MedicationReminderSheet";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -181,6 +182,8 @@ export const SettingsMedications = () => {
   const [editingMed, setEditingMed] = useState<Med | null>(null);
   const [showInactive, setShowInactive] = useState(false);
   const [showDoctorSelection, setShowDoctorSelection] = useState(false);
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const [pendingExportOptions, setPendingExportOptions] = useState<PdfExportOptions | undefined>();
   const [reminderMed, setReminderMed] = useState<Med | null>(null);
   
   const { data: medications = [], isLoading: medsLoading } = useMeds();
@@ -364,7 +367,7 @@ export const SettingsMedications = () => {
     }
   };
 
-  const handleGenerateMedicationPlan = async () => {
+  const handleGenerateMedicationPlan = () => {
     const hasMedications = (courses && courses.length > 0) || (activeMedications && activeMedications.length > 0);
     
     if (!hasMedications) {
@@ -376,19 +379,28 @@ export const SettingsMedications = () => {
       return;
     }
 
+    // Open export dialog first
+    setShowExportDialog(true);
+  };
+
+  const handleExportConfirm = async (options: PdfExportOptions) => {
+    setShowExportDialog(false);
+    
     // If multiple doctors, show selection dialog
     if (doctors && doctors.length > 1) {
+      setPendingExportOptions(options);
       setShowDoctorSelection(true);
       return;
     }
 
     // Otherwise generate directly
-    await generatePdfWithDoctors(doctors || []);
+    await generatePdfWithDoctors(doctors || [], options);
   };
 
   const handleDoctorSelectionConfirm = async (selectedDoctors: Doctor[]) => {
     setShowDoctorSelection(false);
-    await generatePdfWithDoctors(selectedDoctors);
+    await generatePdfWithDoctors(selectedDoctors, pendingExportOptions);
+    setPendingExportOptions(undefined);
   };
 
   const totalActiveMedications = (courses?.filter(c => c.is_active)?.length || 0) + activeMedications.length;
@@ -587,6 +599,14 @@ export const SettingsMedications = () => {
         medication={editingMed}
         open={!!editingMed}
         onOpenChange={(open) => !open && setEditingMed(null)}
+      />
+
+      {/* Export Options Dialog */}
+      <MedicationPlanExportDialog
+        open={showExportDialog}
+        onOpenChange={setShowExportDialog}
+        onExport={handleExportConfirm}
+        intoleranceMeds={intoleranceMeds}
       />
 
       {/* Doctor Selection Dialog */}
