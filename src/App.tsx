@@ -11,11 +11,14 @@ import AuthPage from "./pages/AuthPage";
 import AuthCallbackPage from "./pages/AuthCallbackPage";
 import PasswordResetPage from "./pages/PasswordResetPage";
 import AccountStatusPage from "./pages/AccountStatusPage";
+import ConsentRequiredPage from "./pages/ConsentRequiredPage";
+import MedicalDisclaimerPage from "./pages/MedicalDisclaimerPage";
 import NotFound from "./pages/NotFound";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Imprint from "./pages/Imprint";
 import TermsOfService from "./pages/TermsOfService";
 import { MedicationEffectsPage } from "./features/medication-effects/components/MedicationEffectsPage";
+import { ConsentGate } from "./features/consent";
 import { registerOfflineSupport } from "@/hooks/useOptimizedCache";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { initOfflineDB, syncPendingEntries } from "@/lib/offlineQueue";
@@ -144,7 +147,14 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     return <Navigate to="/account-status" replace />;
   }
 
-  return session ? <>{children}</> : <Navigate to="/auth" replace />;
+  // Wrap authenticated content with ConsentGate
+  return session ? (
+    <ConsentGate>
+      {children}
+    </ConsentGate>
+  ) : (
+    <Navigate to="/auth" replace />
+  );
 }
 
 function App() {
@@ -158,15 +168,20 @@ function App() {
               <Route path="/auth" element={<AuthPage />} />
               <Route path="/auth/callback" element={<AuthCallbackPage />} />
               <Route path="/reset-password" element={<PasswordResetPage />} />
+              
               {/* Legal pages - primary routes */}
               <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route path="/imprint" element={<Imprint />} />
               <Route path="/terms" element={<TermsOfService />} />
+              <Route path="/medical-disclaimer" element={<MedicalDisclaimerPage />} />
               
               {/* German URL redirects for SEO and user-friendliness */}
               <Route path="/datenschutz" element={<Navigate to="/privacy" replace />} />
               <Route path="/impressum" element={<Navigate to="/imprint" replace />} />
               <Route path="/agb" element={<Navigate to="/terms" replace />} />
+              
+              {/* Consent required page (for users who decline consent) */}
+              <Route path="/consent-required" element={<ConsentRequiredPage />} />
               
               {/* Account status page for deactivated/deletion-pending accounts */}
               <Route path="/account-status" element={<AccountStatusPage />} />

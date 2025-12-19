@@ -1,18 +1,89 @@
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { AccountDeletion } from "@/components/AccountDeletion";
-import { Shield } from "lucide-react";
+import { Shield, Download, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { LegalLinks } from "@/components/ui/legal-links";
 import { ConsentManagementSection } from "@/features/consent/components/ConsentManagementSection";
+import { supabase } from "@/integrations/supabase/client";
+import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
+import { Link } from "react-router-dom";
 
 export const SettingsPrivacy = () => {
   const isMobile = useIsMobile();
+  const { toast } = useToast();
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportData = async () => {
+    setIsExporting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('export-user-data');
+      
+      if (error) throw error;
+
+      // Create and download file
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `dsgvo-export-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: "Export erfolgreich",
+        description: `${data?.export_info?.total_records || 0} Datensätze exportiert.`,
+      });
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({
+        title: "Export fehlgeschlagen",
+        description: "Bitte versuchen Sie es später erneut.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   return (
     <div className="space-y-4">
       {/* Consent Management - Art. 9 DSGVO */}
       <ConsentManagementSection />
+
+      {/* Data Export - Art. 20 DSGVO */}
+      <Card className={cn("p-6", isMobile && "p-4")}>
+        <h2 className={cn("text-lg font-medium mb-4 flex items-center gap-2", isMobile && "text-base")}>
+          <Download className="h-5 w-5" />
+          Datenexport (Art. 20 DSGVO)
+        </h2>
+        <p className={cn("text-sm text-muted-foreground mb-4", isMobile && "text-xs")}>
+          Sie haben das Recht, Ihre Daten in einem maschinenlesbaren Format zu erhalten.
+          Der Export enthält alle Ihre gespeicherten Daten.
+        </p>
+        <Button 
+          onClick={handleExportData}
+          disabled={isExporting}
+          variant="outline"
+          className="w-full sm:w-auto"
+        >
+          {isExporting ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Exportiere...
+            </>
+          ) : (
+            <>
+              <Download className="h-4 w-4 mr-2" />
+              Daten exportieren (JSON)
+            </>
+          )}
+        </Button>
+      </Card>
 
       {/* Legal Documents */}
       <Card className={cn("p-6", isMobile && "p-4")}>
@@ -24,7 +95,20 @@ export const SettingsPrivacy = () => {
           Hier finden Sie alle rechtlichen Informationen zu dieser App.
         </p>
         
-        <LegalLinks variant="buttons" />
+        <div className="space-y-2">
+          <LegalLinks variant="buttons" />
+          <Button 
+            variant="outline" 
+            className="w-full justify-between"
+            asChild
+          >
+            <Link to="/medical-disclaimer">
+              <span className="flex items-center gap-2">
+                🏥 Medizinischer Hinweis
+              </span>
+            </Link>
+          </Button>
+        </div>
       </Card>
 
       {/* Account Management */}

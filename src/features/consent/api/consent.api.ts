@@ -23,8 +23,6 @@ export async function getUserConsent(): Promise<UserConsent | null> {
     .from("user_consents")
     .select("*")
     .eq("user_id", user.id)
-    .order("created_at", { ascending: false })
-    .limit(1)
     .maybeSingle();
 
   if (error) {
@@ -35,63 +33,70 @@ export async function getUserConsent(): Promise<UserConsent | null> {
   return data as UserConsent | null;
 }
 
+/**
+ * Speichert Health Data Consent via UPSERT (genau 1 Zeile pro User)
+ */
 export async function saveHealthDataConsent(consent: boolean): Promise<void> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Nicht authentifiziert");
 
-  // Check if consent record exists
-  const existing = await getUserConsent();
+  const now = new Date().toISOString();
+  
+  const { error } = await supabase
+    .from("user_consents")
+    .upsert({
+      user_id: user.id,
+      terms_version: "1.0",
+      terms_accepted_at: now,
+      privacy_version: "1.0",
+      privacy_accepted_at: now,
+      health_data_consent: consent,
+      health_data_consent_at: consent ? now : null,
+      health_data_consent_version: "1.1",
+      consent_withdrawn_at: consent ? null : now,
+    }, { 
+      onConflict: "user_id",
+      ignoreDuplicates: false 
+    });
 
-  if (existing) {
-    // Update existing record
-    const { error } = await supabase
-      .from("user_consents")
-      .update({
-        health_data_consent: consent,
-        health_data_consent_at: consent ? new Date().toISOString() : null,
-        health_data_consent_version: "1.0",
-        consent_withdrawn_at: consent ? null : new Date().toISOString(),
-      })
-      .eq("user_id", user.id);
-
-    if (error) throw error;
-  } else {
-    // Create new consent record with health data consent
-    const { error } = await supabase
-      .from("user_consents")
-      .insert({
-        user_id: user.id,
-        terms_version: "1.0",
-        terms_accepted_at: new Date().toISOString(),
-        privacy_version: "1.0",
-        privacy_accepted_at: new Date().toISOString(),
-        health_data_consent: consent,
-        health_data_consent_at: consent ? new Date().toISOString() : null,
-        health_data_consent_version: "1.0",
-      });
-
-    if (error) throw error;
-  }
+  if (error) throw error;
 }
 
+/**
+ * Speichert Medical Disclaimer Akzeptanz via UPSERT
+ */
 export async function saveMedicalDisclaimerAccepted(): Promise<void> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Nicht authentifiziert");
 
+  const now = new Date().toISOString();
+
+  // Hole bestehenden Consent für Merge
   const existing = await getUserConsent();
+  
+  const { error } = await supabase
+    .from("user_consents")
+    .upsert({
+      user_id: user.id,
+      terms_version: existing?.terms_version || "1.0",
+      terms_accepted_at: existing?.terms_accepted_at || now,
+      privacy_version: existing?.privacy_version || "1.0",
+      privacy_accepted_at: existing?.privacy_accepted_at || now,
+      health_data_consent: existing?.health_data_consent ?? false,
+      health_data_consent_at: existing?.health_data_consent_at || null,
+      health_data_consent_version: existing?.health_data_consent_version || "1.1",
+      medical_disclaimer_accepted_at: now,
+    }, { 
+      onConflict: "user_id",
+      ignoreDuplicates: false 
+    });
 
-  if (existing) {
-    const { error } = await supabase
-      .from("user_consents")
-      .update({
-        medical_disclaimer_accepted_at: new Date().toISOString(),
-      })
-      .eq("user_id", user.id);
-
-    if (error) throw error;
-  }
+  if (error) throw error;
 }
 
+/**
+ * Widerruft Health Data Consent (eindeutig 1 Datensatz)
+ */
 export async function withdrawHealthDataConsent(reason?: string): Promise<void> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Nicht authentifiziert");
@@ -108,10 +113,56 @@ export async function withdrawHealthDataConsent(reason?: string): Promise<void> 
   if (error) throw error;
 }
 
+/**
+ * Prüft ob gültige Gesundheitsdaten-Einwilligung vorliegt
+ */
 export async function hasValidHealthDataConsent(): Promise<boolean> {
   const consent = await getUserConsent();
   if (!consent) return false;
   
   return consent.health_data_consent === true && 
          consent.consent_withdrawn_at === null;
+}
+
+/**
+ * Prüft ob Medical Disclaimer akzeptiert wurde
+ */
+export async function hasMedicalDisclaimerAccepted(): Promise<boolean> {
+  const consent = await getUserConsent();
+  return consent?.medical_disclaimer_accepted_at !== null;
+}
+
+/**
+ * Consent-Status für Gate-Checks
+ */
+export interface ConsentStatus {
+  isLoading: boolean;
+  hasConsent: boolean;
+  needsHealthDataConsent: boolean;
+  needsMedicalDisclaimer: boolean;
+  isWithdrawn: boolean;
+}
+
+export async function getConsentStatus(): Promise<Omit<ConsentStatus, 'isLoading'>> {
+  const consent = await getUserConsent();
+  
+  if (!consent) {
+    return {
+      hasConsent: false,
+      needsHealthDataConsent: true,
+      needsMedicalDisclaimer: true,
+      isWithdrawn: false,
+    };
+  }
+
+  const isWithdrawn = consent.consent_withdrawn_at !== null;
+  const needsHealthDataConsent = !consent.health_data_consent || isWithdrawn;
+  const needsMedicalDisclaimer = !consent.medical_disclaimer_accepted_at;
+
+  return {
+    hasConsent: !needsHealthDataConsent && !needsMedicalDisclaimer,
+    needsHealthDataConsent,
+    needsMedicalDisclaimer,
+    isWithdrawn,
+  };
 }
