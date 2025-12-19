@@ -552,37 +552,55 @@ export type Database = {
       }
       user_consents: {
         Row: {
+          consent_withdrawn_at: string | null
           created_at: string
+          health_data_consent: boolean | null
+          health_data_consent_at: string | null
+          health_data_consent_version: string | null
           id: string
           ip_address: unknown
+          medical_disclaimer_accepted_at: string | null
           privacy_accepted_at: string
           privacy_version: string
           terms_accepted_at: string
           terms_version: string
           user_agent: string | null
           user_id: string
+          withdrawal_reason: string | null
         }
         Insert: {
+          consent_withdrawn_at?: string | null
           created_at?: string
+          health_data_consent?: boolean | null
+          health_data_consent_at?: string | null
+          health_data_consent_version?: string | null
           id?: string
           ip_address?: unknown
+          medical_disclaimer_accepted_at?: string | null
           privacy_accepted_at?: string
           privacy_version?: string
           terms_accepted_at?: string
           terms_version?: string
           user_agent?: string | null
           user_id: string
+          withdrawal_reason?: string | null
         }
         Update: {
+          consent_withdrawn_at?: string | null
           created_at?: string
+          health_data_consent?: boolean | null
+          health_data_consent_at?: string | null
+          health_data_consent_version?: string | null
           id?: string
           ip_address?: unknown
+          medical_disclaimer_accepted_at?: string | null
           privacy_accepted_at?: string
           privacy_version?: string
           terms_accepted_at?: string
           terms_version?: string
           user_agent?: string | null
           user_id?: string
+          withdrawal_reason?: string | null
         }
         Relationships: []
       }
