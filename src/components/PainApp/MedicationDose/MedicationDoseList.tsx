@@ -1,0 +1,174 @@
+/**
+ * MedicationDoseList
+ * Complete medication selection list with dose chips
+ * Handles "Keine Medikamente" logic and multi-select
+ */
+
+import React, { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { MedicationWithDose, useMedicationDoseStates } from "./MedicationWithDose";
+import { Check } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { DEFAULT_DOSE_QUARTERS } from "@/lib/utils/doseFormatter";
+
+interface Medication {
+  id: string;
+  name: string;
+}
+
+interface MedicationDoseListProps {
+  medications: Medication[];
+  selectedMedications: Map<string, { doseQuarters: number; medicationId?: string }>;
+  onSelectionChange: (
+    medications: Map<string, { doseQuarters: number; medicationId?: string }>
+  ) => void;
+  noMedicationSelected: boolean;
+  onNoMedicationChange: (value: boolean) => void;
+  disabled?: boolean;
+  recentMedications?: Array<{ id: string; name: string; use_count: number }>;
+  showRecent?: boolean;
+  className?: string;
+}
+
+export const MedicationDoseList: React.FC<MedicationDoseListProps> = ({
+  medications,
+  selectedMedications,
+  onSelectionChange,
+  noMedicationSelected,
+  onNoMedicationChange,
+  disabled = false,
+  recentMedications = [],
+  showRecent = true,
+  className,
+}) => {
+  const [showAllMedications, setShowAllMedications] = useState(false);
+
+  const handleNoMedicationClick = () => {
+    if (!noMedicationSelected) {
+      // Clear all medications and select "Keine"
+      onSelectionChange(new Map());
+      onNoMedicationChange(true);
+    } else {
+      onNoMedicationChange(false);
+    }
+  };
+
+  const handleMedicationToggle = (med: Medication) => {
+    const newMap = new Map(selectedMedications);
+    
+    if (newMap.has(med.name)) {
+      // Deselect
+      newMap.delete(med.name);
+    } else {
+      // Select with default dose
+      newMap.set(med.name, {
+        doseQuarters: DEFAULT_DOSE_QUARTERS,
+        medicationId: med.id,
+      });
+      // Auto-deselect "Keine Medikamente"
+      if (noMedicationSelected) {
+        onNoMedicationChange(false);
+      }
+    }
+    
+    onSelectionChange(newMap);
+  };
+
+  const handleDoseChange = (medName: string, doseQuarters: number) => {
+    const newMap = new Map(selectedMedications);
+    const existing = newMap.get(medName);
+    if (existing) {
+      newMap.set(medName, { ...existing, doseQuarters });
+      onSelectionChange(newMap);
+    }
+  };
+
+  // Separate recent from other medications
+  const recentIds = new Set(recentMedications.map((m) => m.id));
+  const otherMedications = medications.filter((m) => !recentIds.has(m.id));
+
+  return (
+    <div className={cn("space-y-3", className)}>
+      {/* "Keine Medikamente" Option */}
+      <Button
+        type="button"
+        variant={noMedicationSelected ? "secondary" : "outline"}
+        className={cn(
+          "w-full justify-start h-auto py-2.5",
+          noMedicationSelected && "ring-1 ring-primary/50"
+        )}
+        onClick={handleNoMedicationClick}
+        disabled={disabled}
+      >
+        <div className="flex items-center gap-2">
+          {noMedicationSelected && <Check className="h-4 w-4 text-primary" />}
+          <span>Keine Medikamente</span>
+        </div>
+      </Button>
+
+      {/* Recent Medications */}
+      {showRecent && recentMedications.length > 0 && (
+        <div className="space-y-2">
+          <div className="text-xs text-muted-foreground font-medium px-1">
+            Zuletzt verwendet
+          </div>
+          <div className="space-y-1.5">
+            {recentMedications.map((med) => (
+              <MedicationWithDose
+                key={med.id}
+                medication={med}
+                selected={selectedMedications.has(med.name)}
+                doseQuarters={
+                  selectedMedications.get(med.name)?.doseQuarters ?? DEFAULT_DOSE_QUARTERS
+                }
+                onToggle={() => handleMedicationToggle(med)}
+                onDoseChange={(dose) => handleDoseChange(med.name, dose)}
+                disabled={disabled || noMedicationSelected}
+                showUsageCount={med.use_count}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* All Other Medications */}
+      {otherMedications.length > 0 && (
+        <div className="space-y-2">
+          {showRecent && recentMedications.length > 0 && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowAllMedications(!showAllMedications)}
+              className="w-full justify-between text-xs text-muted-foreground hover:text-foreground"
+            >
+              <span>Alle Medikamente ({otherMedications.length})</span>
+              <span>{showAllMedications ? "▲" : "▼"}</span>
+            </Button>
+          )}
+
+          {(showAllMedications || !showRecent || recentMedications.length === 0) && (
+            <div className="space-y-1.5">
+              {otherMedications.map((med) => (
+                <MedicationWithDose
+                  key={med.id}
+                  medication={med}
+                  selected={selectedMedications.has(med.name)}
+                  doseQuarters={
+                    selectedMedications.get(med.name)?.doseQuarters ?? DEFAULT_DOSE_QUARTERS
+                  }
+                  onToggle={() => handleMedicationToggle(med)}
+                  onDoseChange={(dose) => handleDoseChange(med.name, dose)}
+                  disabled={disabled || noMedicationSelected}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Re-export the hook
+export { useMedicationDoseStates };

@@ -14,13 +14,16 @@ import { MigraineEntry } from "@/types/painApp";
 import { logAndSaveWeatherAt, logAndSaveWeatherAtCoords } from "@/utils/weatherLogger";
 import { updateUserProfileCoordinates } from "@/utils/coordinateUpdater";
 import { useCreateEntry, useUpdateEntry, useDeleteEntry } from "@/features/entries/hooks/useEntryMutations";
-import { useMeds, useAddMed, useDeleteMed } from "@/features/meds/hooks/useMeds";
+import { useMeds, useAddMed, useDeleteMed, useRecentMeds } from "@/features/meds/hooks/useMeds";
 import { useSymptomCatalog, useEntrySymptoms, useSetEntrySymptoms } from "@/features/symptoms/hooks/useSymptoms";
 import { useCheckMedicationLimits, type LimitCheck } from "@/features/medication-limits/hooks/useMedicationLimits";
 import { useUserDefaults, useUpsertUserDefaults } from "@/features/settings/hooks/useUserSettings";
+import { useEntryIntakes, useSyncIntakes } from "@/features/medication-intakes/hooks/useMedicationIntakes";
 import { PainSlider } from "@/components/ui/pain-slider";
 import { normalizePainLevel } from "@/lib/utils/pain";
 import { ContextInputField } from "./ContextInputField";
+import { MedicationDoseList } from "./MedicationDose";
+import { DEFAULT_DOSE_QUARTERS } from "@/lib/utils/doseFormatter";
 import { devLog, devWarn } from "@/lib/utils/devLogger";
 
 interface NewEntryProps {

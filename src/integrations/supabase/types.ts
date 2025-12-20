@@ -264,6 +264,54 @@ export type Database = {
           },
         ]
       }
+      medication_intakes: {
+        Row: {
+          created_at: string
+          dose_quarters: number
+          entry_id: number
+          id: string
+          medication_id: string | null
+          medication_name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          dose_quarters?: number
+          entry_id: number
+          id?: string
+          medication_id?: string | null
+          medication_name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          dose_quarters?: number
+          entry_id?: number
+          id?: string
+          medication_id?: string | null
+          medication_name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "medication_intakes_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "pain_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "medication_intakes_medication_id_fkey"
+            columns: ["medication_id"]
+            isOneToOne: false
+            referencedRelation: "user_medications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pain_entries: {
         Row: {
           aura_type: string
