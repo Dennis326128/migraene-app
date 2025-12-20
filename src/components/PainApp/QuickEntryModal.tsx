@@ -61,7 +61,7 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
   
   // Medication state with dose support
   const [selectedMedications, setSelectedMedications] = useState<Map<string, { doseQuarters: number; medicationId?: string }>>(new Map());
-  const [noMedicationSelected, setNoMedicationSelected] = useState(true);
+  
   
   const [saving, setSaving] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -96,10 +96,8 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
           }
         });
         setSelectedMedications(newMap);
-        setNoMedicationSelected(newMap.size === 0);
       } else {
         setSelectedMedications(new Map());
-        setNoMedicationSelected(true);
       }
       
       // Check if this is a voice entry
@@ -405,8 +403,6 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
                 }))}
                 selectedMedications={selectedMedications}
                 onSelectionChange={setSelectedMedications}
-                noMedicationSelected={noMedicationSelected}
-                onNoMedicationChange={setNoMedicationSelected}
                 recentMedications={recentMeds}
                 showRecent={true}
                 disabled={saving}
