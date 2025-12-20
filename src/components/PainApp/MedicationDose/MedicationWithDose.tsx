@@ -53,10 +53,10 @@ export const MedicationWithDose: React.FC<MedicationWithDoseProps> = ({
     <>
       <Button
         type="button"
-        variant={selected ? "secondary" : "outline"}
+        variant="outline"
         className={cn(
           "h-auto min-h-[2.75rem] py-2 px-3 justify-between w-full",
-          selected && "ring-1 ring-primary/50",
+          selected && "bg-primary text-primary-foreground border-primary hover:bg-primary/90 hover:text-primary-foreground",
           className
         )}
         onClick={onToggle}
@@ -64,14 +64,9 @@ export const MedicationWithDose: React.FC<MedicationWithDoseProps> = ({
       >
         <div className="flex items-center gap-2 min-w-0">
           {selected && (
-            <Check className="h-4 w-4 text-primary flex-shrink-0" />
+            <Check className="h-4 w-4 flex-shrink-0" />
           )}
           <span className="truncate text-left">{medication.name}</span>
-          {showUsageCount !== undefined && showUsageCount > 0 && (
-            <span className="text-xs text-muted-foreground flex-shrink-0">
-              ({showUsageCount}×)
-            </span>
-          )}
         </div>
 
         {selected && (
