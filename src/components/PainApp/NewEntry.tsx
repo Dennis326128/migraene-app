@@ -73,7 +73,7 @@ export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProp
   const [selectedTime, setSelectedTime] = useState<string>("");
   // Medication state: Map<name, {doseQuarters, medicationId}>
   const [selectedMedications, setSelectedMedications] = useState<Map<string, { doseQuarters: number; medicationId?: string }>>(new Map());
-  const [noMedicationSelected, setNoMedicationSelected] = useState(true);
+  
   const [medicationsWithEffectiveness, setMedicationsWithEffectiveness] = useState<MedicationWithEffectiveness[]>([]);
   const [newMedication, setNewMedication] = useState("");
   const [showAddMedication, setShowAddMedication] = useState(false);
@@ -152,45 +152,39 @@ export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProp
       setSelectedTime(entry.selected_time?.substring(0, 5) || new Date().toTimeString().slice(0, 5));
       setNotes(entry.notes || "");
       
-      // Check if entry has medications
-      const hasMeds = entry.medications && entry.medications.length > 0 && entry.medications[0] !== "-";
-      setNoMedicationSelected(!hasMeds);
     } else {
       const now = new Date();
       setSelectedDate(now.toISOString().slice(0, 10));
       setSelectedTime(now.toTimeString().slice(0, 5));
       setSelectedMedications(new Map());
-      setNoMedicationSelected(true);
     }
   }, [entry]);
   
   // Load existing intakes when editing (separate effect to wait for data)
   useEffect(() => {
     if (entry && existingIntakes.length > 0) {
-      const newMap = new Map<string, { doseQuarters: number; medicationId?: string }>();
+      const intakeMap = new Map<string, { doseQuarters: number; medicationId?: string }>();
       existingIntakes.forEach(intake => {
-        newMap.set(intake.medication_name, {
+        intakeMap.set(intake.medication_name, {
           doseQuarters: intake.dose_quarters,
           medicationId: intake.medication_id ?? undefined,
         });
       });
-      setSelectedMedications(newMap);
-      setNoMedicationSelected(false);
+      setSelectedMedications(intakeMap);
     } else if (entry && entry.medications && entry.medications.length > 0 && entry.medications[0] !== "-") {
       // Fallback: use legacy medications array with default dose
-      const newMap = new Map<string, { doseQuarters: number; medicationId?: string }>();
+      const legacyMap = new Map<string, { doseQuarters: number; medicationId?: string }>();
       entry.medications.forEach(medName => {
         if (medName && medName !== "-") {
           const med = medOptions.find(m => (typeof m === 'string' ? m : m.name) === medName);
-          newMap.set(medName, {
+          legacyMap.set(medName, {
             doseQuarters: DEFAULT_DOSE_QUARTERS,
             medicationId: med && typeof med !== 'string' ? med.id : undefined,
           });
         }
       });
-      if (newMap.size > 0) {
-        setSelectedMedications(newMap);
-        setNoMedicationSelected(false);
+      if (legacyMap.size > 0) {
+        setSelectedMedications(legacyMap);
       }
     }
   }, [entry, existingIntakes, medOptions]);
@@ -208,7 +202,6 @@ export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProp
         newMap.set(name, { doseQuarters: DEFAULT_DOSE_QUARTERS });
         return newMap;
       });
-      setNoMedicationSelected(false);
       toast({ title: "Medikament hinzugefügt", description: `${name} wurde hinzugefügt.` });
     } catch (e: any) {
       toast({ title: "Fehler", description: e.message ?? String(e), variant: "destructive" });
@@ -666,8 +659,6 @@ export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProp
           }))}
           selectedMedications={selectedMedications}
           onSelectionChange={setSelectedMedications}
-          noMedicationSelected={noMedicationSelected}
-          onNoMedicationChange={setNoMedicationSelected}
           recentMedications={recentMeds}
           showRecent={true}
           disabled={saving}

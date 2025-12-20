@@ -22,8 +22,6 @@ interface MedicationDoseListProps {
   onSelectionChange: (
     medications: Map<string, { doseQuarters: number; medicationId?: string }>
   ) => void;
-  noMedicationSelected: boolean;
-  onNoMedicationChange: (value: boolean) => void;
   disabled?: boolean;
   recentMedications?: Array<{ id: string; name: string; use_count: number }>;
   showRecent?: boolean;
@@ -34,24 +32,12 @@ export const MedicationDoseList: React.FC<MedicationDoseListProps> = ({
   medications,
   selectedMedications,
   onSelectionChange,
-  noMedicationSelected,
-  onNoMedicationChange,
   disabled = false,
   recentMedications = [],
   showRecent = true,
   className,
 }) => {
   const [showAllMedications, setShowAllMedications] = useState(false);
-
-  const handleNoMedicationClick = () => {
-    if (!noMedicationSelected) {
-      // Clear all medications and select "Keine"
-      onSelectionChange(new Map());
-      onNoMedicationChange(true);
-    } else {
-      onNoMedicationChange(false);
-    }
-  };
 
   const handleMedicationToggle = (med: Medication) => {
     const newMap = new Map(selectedMedications);
@@ -65,10 +51,6 @@ export const MedicationDoseList: React.FC<MedicationDoseListProps> = ({
         doseQuarters: DEFAULT_DOSE_QUARTERS,
         medicationId: med.id,
       });
-      // Auto-deselect "Keine Medikamente"
-      if (noMedicationSelected) {
-        onNoMedicationChange(false);
-      }
     }
     
     onSelectionChange(newMap);
@@ -89,23 +71,6 @@ export const MedicationDoseList: React.FC<MedicationDoseListProps> = ({
 
   return (
     <div className={cn("space-y-3", className)}>
-      {/* "Keine Medikamente" Option */}
-      <Button
-        type="button"
-        variant={noMedicationSelected ? "secondary" : "outline"}
-        className={cn(
-          "w-full justify-start h-auto py-2.5",
-          noMedicationSelected && "ring-1 ring-primary/50"
-        )}
-        onClick={handleNoMedicationClick}
-        disabled={disabled}
-      >
-        <div className="flex items-center gap-2">
-          {noMedicationSelected && <Check className="h-4 w-4 text-primary" />}
-          <span>Keine Medikamente</span>
-        </div>
-      </Button>
-
       {/* Recent Medications */}
       {showRecent && recentMedications.length > 0 && (
         <div className="space-y-2">
@@ -123,7 +88,7 @@ export const MedicationDoseList: React.FC<MedicationDoseListProps> = ({
                 }
                 onToggle={() => handleMedicationToggle(med)}
                 onDoseChange={(dose) => handleDoseChange(med.name, dose)}
-                disabled={disabled || noMedicationSelected}
+                disabled={disabled}
                 showUsageCount={med.use_count}
               />
             ))}
@@ -159,7 +124,7 @@ export const MedicationDoseList: React.FC<MedicationDoseListProps> = ({
                   }
                   onToggle={() => handleMedicationToggle(med)}
                   onDoseChange={(dose) => handleDoseChange(med.name, dose)}
-                  disabled={disabled || noMedicationSelected}
+                  disabled={disabled}
                 />
               ))}
             </div>
