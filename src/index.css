@@ -6,6 +6,32 @@
 html,
 body {
   background-color: hsl(220 13% 9%);
+  /* Fallback text color in case Tailwind layers / CSS vars load late */
+  color: hsl(210 40% 98%);
+}
+
+/* Fallback design tokens (prevents "no colors" if @layer rules are skipped) */
+:root {
+  --background: 220 13% 9%;
+  --foreground: 210 40% 98%;
+  --card: 220 13% 12%;
+  --card-foreground: 210 40% 98%;
+  --popover: 220 13% 10%;
+  --popover-foreground: 210 40% 98%;
+  --primary: 142 76% 36%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 220 13% 15%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 220 13% 15%;
+  --muted-foreground: 220 9% 46%;
+  --accent: 142 76% 36%;
+  --accent-foreground: 210 40% 98%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 220 13% 18%;
+  --input: 220 13% 15%;
+  --ring: 142 76% 36%;
+  --radius: 0.75rem;
 }
 
 /* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
