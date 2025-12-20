@@ -71,7 +71,9 @@ export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProp
   const [painLocation, setPainLocation] = useState<string>("");
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedTime, setSelectedTime] = useState<string>("");
-  const [selectedMedications, setSelectedMedications] = useState<string[]>(["-"]);
+  // Medication state: Map<name, {doseQuarters, medicationId}>
+  const [selectedMedications, setSelectedMedications] = useState<Map<string, { doseQuarters: number; medicationId?: string }>>(new Map());
+  const [noMedicationSelected, setNoMedicationSelected] = useState(true);
   const [medicationsWithEffectiveness, setMedicationsWithEffectiveness] = useState<MedicationWithEffectiveness[]>([]);
   const [newMedication, setNewMedication] = useState("");
   const [showAddMedication, setShowAddMedication] = useState(false);
@@ -125,6 +127,9 @@ export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProp
   const createMut = useCreateEntry();
   const updateMut = useUpdateEntry();
   const deleteMut = useDeleteEntry();
+  const { data: recentMeds = [] } = useRecentMeds(5);
+  const { data: existingIntakes = [] } = useEntryIntakes(entryIdNum);
+  const syncIntakesMut = useSyncIntakes();
 
   // Load user defaults for new entries
   useEffect(() => {
@@ -145,14 +150,50 @@ export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProp
       setPainLocation((entry as any).pain_location || "");
       setSelectedDate(entry.selected_date || new Date().toISOString().slice(0, 10));
       setSelectedTime(entry.selected_time?.substring(0, 5) || new Date().toTimeString().slice(0, 5));
-      setSelectedMedications([...entry.medications]);
       setNotes(entry.notes || "");
+      
+      // Check if entry has medications
+      const hasMeds = entry.medications && entry.medications.length > 0 && entry.medications[0] !== "-";
+      setNoMedicationSelected(!hasMeds);
     } else {
       const now = new Date();
       setSelectedDate(now.toISOString().slice(0, 10));
       setSelectedTime(now.toTimeString().slice(0, 5));
+      setSelectedMedications(new Map());
+      setNoMedicationSelected(true);
     }
   }, [entry]);
+  
+  // Load existing intakes when editing (separate effect to wait for data)
+  useEffect(() => {
+    if (entry && existingIntakes.length > 0) {
+      const newMap = new Map<string, { doseQuarters: number; medicationId?: string }>();
+      existingIntakes.forEach(intake => {
+        newMap.set(intake.medication_name, {
+          doseQuarters: intake.dose_quarters,
+          medicationId: intake.medication_id ?? undefined,
+        });
+      });
+      setSelectedMedications(newMap);
+      setNoMedicationSelected(false);
+    } else if (entry && entry.medications && entry.medications.length > 0 && entry.medications[0] !== "-") {
+      // Fallback: use legacy medications array with default dose
+      const newMap = new Map<string, { doseQuarters: number; medicationId?: string }>();
+      entry.medications.forEach(medName => {
+        if (medName && medName !== "-") {
+          const med = medOptions.find(m => (typeof m === 'string' ? m : m.name) === medName);
+          newMap.set(medName, {
+            doseQuarters: DEFAULT_DOSE_QUARTERS,
+            medicationId: med && typeof med !== 'string' ? med.id : undefined,
+          });
+        }
+      });
+      if (newMap.size > 0) {
+        setSelectedMedications(newMap);
+        setNoMedicationSelected(false);
+      }
+    }
+  }, [entry, existingIntakes, medOptions]);
 
   const handleAddNewMedication = async () => {
     const name = newMedication.trim();
@@ -161,12 +202,13 @@ export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProp
       await addMedMut.mutateAsync(name);
       setNewMedication("");
       setShowAddMedication(false);
-      // Optional: gleich in Auswahl setzen
+      // Add new medication to selection with default dose
       setSelectedMedications((prev) => {
-        const next = [...prev];
-        if (next.length === 1 && next[0] === "-") next[0] = name; else next.push(name);
-        return next;
+        const newMap = new Map(prev);
+        newMap.set(name, { doseQuarters: DEFAULT_DOSE_QUARTERS });
+        return newMap;
       });
+      setNoMedicationSelected(false);
       toast({ title: "Medikament hinzugefügt", description: `${name} wurde hinzugefügt.` });
     } catch (e: any) {
       toast({ title: "Fehler", description: e.message ?? String(e), variant: "destructive" });
@@ -178,8 +220,12 @@ export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProp
     if (!confirm(`Möchten Sie ${name} wirklich löschen?`)) return;
     try {
       await delMedMut.mutateAsync(name);
-      // Auswahl bereinigen
-      setSelectedMedications((prev) => prev.map((m) => (m === name ? "-" : m)));
+      // Remove from selection
+      setSelectedMedications((prev) => {
+        const newMap = new Map(prev);
+        newMap.delete(name);
+        return newMap;
+      });
       toast({ title: "Gelöscht", description: `${name} wurde gelöscht.` });
     } catch (e: any) {
       toast({ title: "Fehler", description: e.message ?? String(e), variant: "destructive" });
@@ -343,13 +389,16 @@ export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProp
         .filter(Boolean)
         .join('\n\n---\n\n');
       
+      // Convert Map to medications array for legacy field
+      const medicationsArray = Array.from(selectedMedications.keys());
+      
       const payload = {
         selected_date: selectedDate,
         selected_time: selectedTime.substring(0, 5),
         pain_level: painLevel,
-        aura_type: "keine" as const, // Always set to default since aura is removed
+        aura_type: "keine" as const,
         pain_location: (painLocation || null) as "einseitig_links" | "einseitig_rechts" | "beidseitig" | "stirn" | "nacken" | "schlaefe" | null,
-        medications: selectedMedications.filter((m) => m !== "-" && m.trim() !== ""),
+        medications: medicationsArray,
         notes: combinedNotes || null,
         weather_id: weatherId,
         latitude,
@@ -403,6 +452,14 @@ export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProp
       const numericId = Number(savedId);
       if (Number.isFinite(numericId)) {
         await setEntrySymptomsMut.mutateAsync({ entryId: numericId, symptomIds: selectedSymptoms });
+        
+        // Sync medication intakes with doses
+        const medications = Array.from(selectedMedications.entries()).map(([name, data]) => ({
+          name,
+          medicationId: data.medicationId,
+          doseQuarters: data.doseQuarters,
+        }));
+        await syncIntakesMut.mutateAsync({ entryId: numericId, medications });
       }
 
       // Process context text with AI (fire-and-forget, non-blocking)
@@ -598,44 +655,23 @@ export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProp
         
       </Card>
 
-      {/* Medikamente */}
+      {/* Medikamente mit Dosis-Auswahl */}
       <Card className="p-6 mb-4">
         <Label className="text-base font-medium mb-3 block">Medikamenteneinnahme</Label>
         
-        <div className="grid gap-2">
-          <Button
-            type="button"
-            variant={selectedMedications.length === 0 || (selectedMedications.length === 1 && selectedMedications[0] === "-") ? "default" : "outline"}
-            className="justify-start"
-            onClick={() => setSelectedMedications(["-"])}
-            aria-pressed={selectedMedications.length === 0 || (selectedMedications.length === 1 && selectedMedications[0] === "-")}
-          >
-            Keine Medikamente
-          </Button>
-          {medOptions.map((med) => {
-            const medName = typeof med === 'string' ? med : med.name;
-            const isSelected = selectedMedications.includes(medName);
-            
-            return (
-              <Button
-                key={typeof med === 'string' ? med : med.id}
-                type="button"
-                variant={isSelected ? "default" : "outline"}
-                className="justify-start"
-                onClick={() => {
-                  if (isSelected) {
-                    setSelectedMedications(prev => prev.filter(m => m !== medName));
-                  } else {
-                    setSelectedMedications(prev => [...prev.filter(m => m !== "-"), medName]);
-                  }
-                }}
-                aria-pressed={isSelected}
-              >
-                {medName}
-              </Button>
-            );
-          })}
-        </div>
+        <MedicationDoseList
+          medications={medOptions.map((med) => ({
+            id: typeof med === 'string' ? med : med.id,
+            name: typeof med === 'string' ? med : med.name,
+          }))}
+          selectedMedications={selectedMedications}
+          onSelectionChange={setSelectedMedications}
+          noMedicationSelected={noMedicationSelected}
+          onNoMedicationChange={setNoMedicationSelected}
+          recentMedications={recentMeds}
+          showRecent={true}
+          disabled={saving}
+        />
 
         {/* Neues Medikament hinzufügen */}
         <div className="mt-4 flex gap-2">
