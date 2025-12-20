@@ -7,8 +7,9 @@ import { SettingsHelp } from "./Settings/SettingsHelp";
 import { SettingsAccount } from "./Settings/SettingsAccount";
 import { SettingsDoctorsWithOrigin } from "./Settings/SettingsDoctorsWithOrigin";
 import { SettingsLogout } from "./Settings/SettingsLogout";
+import { PWAInstallGuide } from "@/components/PWA";
 
-type SettingsSection = 'overview' | 'medications' | 'privacy' | 'help' | 'account' | 'doctors' | 'logout';
+type SettingsSection = 'overview' | 'medications' | 'privacy' | 'help' | 'account' | 'doctors' | 'logout' | 'install';
 
 const SettingsPage = ({ onBack }: { onBack: () => void }) => {
   const [section, setSection] = useState<SettingsSection>('overview');
@@ -35,6 +36,8 @@ const SettingsPage = ({ onBack }: { onBack: () => void }) => {
         return 'Behandelnde Ärzte';
       case 'logout':
         return 'Abmelden';
+      case 'install':
+        return 'App installieren';
       default:
         return 'Einstellungen';
     }
@@ -45,16 +48,17 @@ const SettingsPage = ({ onBack }: { onBack: () => void }) => {
       {section === 'overview' && (
         <SettingsOverview onNavigate={setSection} />
       )}
-        {section === 'medications' && <SettingsMedications />}
-        {section === 'privacy' && <SettingsPrivacy />}
-        {section === 'help' && <SettingsHelp />}
-        {section === 'account' && <SettingsAccount onReturn={() => setSection('overview')} />}
-        {section === 'doctors' && (
-          <SettingsDoctorsWithOrigin 
-            onBack={() => setSection('overview')}
-          />
-        )}
-        {section === 'logout' && <SettingsLogout />}
+      {section === 'medications' && <SettingsMedications />}
+      {section === 'privacy' && <SettingsPrivacy />}
+      {section === 'help' && <SettingsHelp />}
+      {section === 'account' && <SettingsAccount onReturn={() => setSection('overview')} />}
+      {section === 'doctors' && (
+        <SettingsDoctorsWithOrigin 
+          onBack={() => setSection('overview')}
+        />
+      )}
+      {section === 'logout' && <SettingsLogout />}
+      {section === 'install' && <PWAInstallGuide />}
     </SettingsLayout>
   );
 };
