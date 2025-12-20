@@ -74,6 +74,11 @@ export async function listEntries(params: ListParams = {}): Promise<PainEntry[]>
       notes,
       weather:weather_logs!pain_entries_weather_id_fkey (
         id, location, temperature_c, pressure_mb, humidity, condition_text, pressure_change_24h, moon_phase, moonrise, moonset
+      ),
+      medication_intakes (
+        medication_name,
+        medication_id,
+        dose_quarters
       )
     `)
     .eq("user_id", user.id)
@@ -96,6 +101,7 @@ export async function listEntries(params: ListParams = {}): Promise<PainEntry[]>
     pain_location: e.pain_location || null,
     aura_type: e.aura_type || 'keine',
     medications: e.medications || [],
+    medication_intakes: e.medication_intakes || [],
     weather: normalizeWeather(e.weather),
   })) as PainEntry[];
 }
