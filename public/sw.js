@@ -1,5 +1,6 @@
 // Service Worker für Offline-Funktionalität
-const CACHE_NAME = 'migraine-app-v1.0.0';
+// NOTE: Cache-Version wird bewusst erhöht, um stale CSS/JS (z.B. falsche Farben) zu vermeiden.
+const CACHE_NAME = 'migraine-app-v1.0.1';
 const OFFLINE_URL = '/offline.html';
 
 // Kritische Ressourcen für Offline-Betrieb
@@ -15,10 +16,10 @@ const CRITICAL_RESOURCES = [
 const CACHE_STRATEGIES = {
   // API calls - Network First mit Fallback
   API: /^https:\/\/.*\.supabase\.co\/rest\/v1\//,
-  
+
   // Statische Assets - Cache First
-  STATIC: /\.(js|css|png|jpg|jpeg|gif|svg|woff2?)$/,
-  
+  STATIC: /\.(png|jpg|jpeg|gif|svg|woff2?)$/,
+
   // HTML Pages - Stale While Revalidate
   PAGES: /^https?:\/\/[^\/]+\/?$/
 };
@@ -34,18 +35,16 @@ self.addEventListener('activate', (event) => {
   console.log('[SW] Activating...');
   event.waitUntil(
     (async () => {
-      // Alle alten Caches löschen
+      // Alle Caches löschen (auch den vorherigen Cache-Namen), um stale CSS/JS zu vermeiden
       const keys = await caches.keys();
-      await Promise.all(
-        keys.map(k => k !== CACHE_NAME ? caches.delete(k) : Promise.resolve())
-      );
-      
+      await Promise.all(keys.map((k) => caches.delete(k)));
+
       // Alle Clients übernehmen
       await self.clients.claim();
-      
+
       // Clients benachrichtigen, dass neue Version da ist
       const clients = await self.clients.matchAll({ type: 'window' });
-      clients.forEach(client => {
+      clients.forEach((client) => {
         client.postMessage({ type: 'NEW_VERSION_AVAILABLE' });
       });
     })()
@@ -66,13 +65,19 @@ self.addEventListener('fetch', (event) => {
   // Nur GET Requests cachen
   if (request.method !== 'GET') return;
 
+  // Scripts & Styles: Network First (verhindert "alte" UI-Farben durch Cache)
+  if (request.destination === 'script' || request.destination === 'style') {
+    event.respondWith(networkFirstStrategy(request));
+    return;
+  }
+
   // API Calls - Network First
   if (CACHE_STRATEGIES.API.test(request.url)) {
     event.respondWith(networkFirstStrategy(request));
     return;
   }
 
-  // Statische Assets - Cache First
+  // Statische Assets (Bilder/Fonts) - Cache First
   if (CACHE_STRATEGIES.STATIC.test(request.url)) {
     event.respondWith(cacheFirstStrategy(request));
     return;
