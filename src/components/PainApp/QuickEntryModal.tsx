@@ -2,16 +2,18 @@ import React, { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { PainSlider } from "@/components/ui/pain-slider";
-import { normalizePainLevel } from "@/lib/utils/pain";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { X, Clock, Zap, Mic, ChevronDown, ChevronUp } from "lucide-react";
+import { X, Clock, Zap, Mic } from "lucide-react";
 import { SaveButton } from "@/components/ui/save-button";
 import { useToast } from "@/hooks/use-toast";
 import { useMeds, useRecentMeds } from "@/features/meds/hooks/useMeds";
 import { useCreateEntry } from "@/features/entries/hooks/useEntryMutations";
+import { useSyncIntakes } from "@/features/medication-intakes/hooks/useMedicationIntakes";
 import { logAndSaveWeatherAt, logAndSaveWeatherAtCoords } from "@/utils/weatherLogger";
 import { useCheckMedicationLimits } from "@/features/medication-limits/hooks/useMedicationLimits";
+import { MedicationDoseList } from "./MedicationDose";
+import { DEFAULT_DOSE_QUARTERS } from "@/lib/utils/doseFormatter";
 
 interface QuickEntryModalProps {
   open: boolean;
@@ -33,13 +35,6 @@ const timeOptions = [
   { value: "custom", label: "Zeitpunkt wählen", minutes: null },
 ];
 
-const painLevels = [
-  { value: "leicht", label: "Leicht (2/10)", color: "bg-green-500" },
-  { value: "mittel", label: "Mittel (5/10)", color: "bg-yellow-500" },
-  { value: "stark", label: "Stark (7/10)", color: "bg-orange-500" },
-  { value: "sehr_stark", label: "Sehr stark (9/10)", color: "bg-red-500" },
-];
-
 export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({ 
   open, 
   onClose, 
@@ -56,17 +51,21 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
   const { data: medOptions = [] } = useMeds();
   const { data: recentMeds = [] } = useRecentMeds(5);
   const createMut = useCreateEntry();
+  const syncIntakesMut = useSyncIntakes();
   const checkLimits = useCheckMedicationLimits();
 
   const [painLevel, setPainLevel] = useState<number>(7);
-  const [selectedTime, setSelectedTime] = useState<string>("now");
+  const [selectedTime, setSelectedTime] = useState<string>("jetzt");
   const [customTime, setCustomTime] = useState<string>("");
   const [customDate, setCustomDate] = useState<string>("");
-  const [medicationStates, setMedicationStates] = useState<Record<string, boolean>>({});
+  
+  // Medication state with dose support
+  const [selectedMedications, setSelectedMedications] = useState<Map<string, { doseQuarters: number; medicationId?: string }>>(new Map());
+  const [noMedicationSelected, setNoMedicationSelected] = useState(true);
+  
   const [saving, setSaving] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [isVoiceEntry, setIsVoiceEntry] = useState(false);
-  const [showAllMedications, setShowAllMedications] = useState(false);
 
   // Initialize form - use voice data or defaults
   useEffect(() => {
@@ -85,11 +84,23 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
       setSelectedTime(initialSelectedTime ?? "jetzt");
       
       // Set medication states from voice input or reset
-      const newStates: Record<string, boolean> = {};
-      medOptions.forEach(med => {
-        newStates[med.name] = initialMedicationStates?.[med.name] ?? false;
-      });
-      setMedicationStates(newStates);
+      if (initialMedicationStates) {
+        const newMap = new Map<string, { doseQuarters: number; medicationId?: string }>();
+        Object.entries(initialMedicationStates).forEach(([name, selected]) => {
+          if (selected) {
+            const med = medOptions.find(m => m.name === name);
+            newMap.set(name, { 
+              doseQuarters: DEFAULT_DOSE_QUARTERS,
+              medicationId: med?.id
+            });
+          }
+        });
+        setSelectedMedications(newMap);
+        setNoMedicationSelected(newMap.size === 0);
+      } else {
+        setSelectedMedications(new Map());
+        setNoMedicationSelected(true);
+      }
       
       // Check if this is a voice entry
       const hasVoiceData = initialPainLevel !== undefined || 
@@ -120,10 +131,8 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
     return now;
   };
 
-  const getSelectedMedications = () => {
-    return Object.entries(medicationStates)
-      .filter(([_, taken]) => taken === true)
-      .map(([name]) => name);
+  const getSelectedMedicationNames = () => {
+    return Array.from(selectedMedications.keys());
   };
 
   const handleSave = async () => {
@@ -201,25 +210,36 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
       }
 
       // Create entry
+      const medicationNames = getSelectedMedicationNames();
       const payload = {
         selected_date: selectedDate,
         selected_time: selectedTimeStr,
         pain_level: painLevel,
         aura_type: "keine" as const,
         pain_location: null,
-        medications: getSelectedMedications(),
+        medications: medicationNames,
         notes: initialNotes ? `Spracheintrag: ${initialNotes}` : "Schnelleintrag",
         weather_id: weatherId,
         latitude,
         longitude,
       };
 
-      await createMut.mutateAsync(payload as any);
+      const savedId = await createMut.mutateAsync(payload as any);
+      
+      // Sync medication intakes with doses
+      const numericId = Number(savedId);
+      if (Number.isFinite(numericId) && selectedMedications.size > 0) {
+        const medications = Array.from(selectedMedications.entries()).map(([name, data]) => ({
+          name,
+          medicationId: data.medicationId,
+          doseQuarters: data.doseQuarters,
+        }));
+        await syncIntakesMut.mutateAsync({ entryId: numericId, medications });
+      }
 
       // Post-save medication limit check
-      const savedMedications = payload.medications || [];
-      if (savedMedications.length > 0) {
-        checkLimits.mutateAsync(savedMedications)
+      if (medicationNames.length > 0) {
+        checkLimits.mutateAsync(medicationNames)
           .then((limitResults) => {
             console.log('✅ QuickEntry limit check results:', limitResults);
             const warningNeeded = limitResults.some(r => 
@@ -228,20 +248,11 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
             
             if (warningNeeded && onLimitWarning) {
               console.log('⚠️ QuickEntry triggering limit warning');
-              // Call parent callback before closing modal
               setTimeout(() => onLimitWarning(limitResults), 1500);
             }
           })
           .catch((error) => {
             console.error('❌ QuickEntry limit check failed:', error);
-            console.error('Error details:', {
-              message: error?.message,
-              status: error?.status,
-              data: error?.data,
-              stack: error?.stack,
-              full: error
-            });
-            // Silent fail: User has already saved
           });
       }
       
@@ -283,8 +294,8 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
               <div className="space-y-2 p-3 bg-muted/50 rounded-lg text-sm">
                 <div><strong>Schmerzstärke:</strong> {painLevel}/10</div>
                 <div><strong>Zeitpunkt:</strong> {selectedTime === "jetzt" ? "Jetzt" : selectedTime === "1h" ? "Vor 1 Stunde" : "Eigene Zeit"}</div>
-                {getSelectedMedications().length > 0 && (
-                  <div><strong>Medikamente:</strong> {getSelectedMedications().join(", ")}</div>
+                {getSelectedMedicationNames().length > 0 && (
+                  <div><strong>Medikamente:</strong> {getSelectedMedicationNames().join(", ")}</div>
                 )}
                 {initialNotes && (
                   <div><strong>Notizen:</strong> {initialNotes}</div>
@@ -382,93 +393,24 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
             )}
           </Card>
 
-          {/* Medications */}
+          {/* Medications with Dose Selection */}
           {medOptions.length > 0 && (
             <Card className="p-4">
               <Label className="text-base font-medium mb-3 block">Medikamente</Label>
               
-              {/* Recently Used Medications */}
-              {recentMeds.length > 0 && (
-                <div className="space-y-2 mb-3">
-                  <div className="text-xs text-muted-foreground font-medium">Zuletzt verwendet</div>
-                  <div className="flex flex-wrap gap-2">
-                    {recentMeds.map((med) => {
-                      const isSelected = medicationStates[med.name] || false;
-                      const isVoiceRecognized = initialMedicationStates?.[med.name];
-                      
-                      return (
-                        <Button
-                          key={med.id}
-                          type="button"
-                          variant={isSelected ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => 
-                            setMedicationStates(prev => ({ 
-                              ...prev, 
-                              [med.name]: !isSelected 
-                            }))
-                          }
-                          className="gap-1.5"
-                          aria-pressed={isSelected}
-                        >
-                          {med.name}
-                          {isVoiceRecognized && <Mic className="h-3 w-3" />}
-                          {med.use_count > 0 && (
-                            <span className="text-xs opacity-70">({med.use_count}×)</span>
-                          )}
-                        </Button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* All Medications (Collapsible) */}
-              {medOptions.length > recentMeds.length && (
-                <div className="space-y-2">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowAllMedications(!showAllMedications)}
-                    className="w-full justify-between text-xs text-muted-foreground hover:text-foreground"
-                  >
-                    <span>Alle Medikamente ({medOptions.length})</span>
-                    {showAllMedications ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  </Button>
-                  
-                  {showAllMedications && (
-                    <div className="flex flex-wrap gap-2 pt-2 border-t">
-                      {medOptions
-                        .filter(med => !recentMeds.find(r => r.id === med.id))
-                        .map((med) => {
-                          const isSelected = medicationStates[med.name] || false;
-                          const isVoiceRecognized = initialMedicationStates?.[med.name];
-                          
-                          return (
-                            <Button
-                              key={med.id}
-                              type="button"
-                              variant={isSelected ? "default" : "outline"}
-                              size="sm"
-                              onClick={() => 
-                                setMedicationStates(prev => ({ 
-                                  ...prev, 
-                                  [med.name]: !prev[med.name]
-                                }))
-                              }
-                              className="gap-1.5"
-                              aria-pressed={isSelected}
-                            >
-                              {med.name}
-                              {isVoiceRecognized && <Mic className="h-3 w-3" />}
-                            </Button>
-                          );
-                        })}
-                    </div>
-                  )}
-                </div>
-              )}
+              <MedicationDoseList
+                medications={medOptions.map((med) => ({
+                  id: med.id,
+                  name: med.name,
+                }))}
+                selectedMedications={selectedMedications}
+                onSelectionChange={setSelectedMedications}
+                noMedicationSelected={noMedicationSelected}
+                onNoMedicationChange={setNoMedicationSelected}
+                recentMedications={recentMeds}
+                showRecent={true}
+                disabled={saving}
+              />
             </Card>
           )}
 
