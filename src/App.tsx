@@ -21,10 +21,10 @@ import Imprint from "./pages/Imprint";
 import TermsOfService from "./pages/TermsOfService";
 import { MedicationEffectsPage } from "./features/medication-effects/components/MedicationEffectsPage";
 import { ConsentGate } from "./features/consent";
-import { registerOfflineSupport } from "@/hooks/useOptimizedCache";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { initOfflineDB, syncPendingEntries } from "@/lib/offlineQueue";
 import { getAccountStatus, AccountStatus } from "@/features/account/api/accountStatus.api";
+import { PWAUpdateBanner } from "@/components/PWA";
 
 // Lazy load QA page (DEV only)
 const QAPage = React.lazy(() => import("./pages/QAPage"));
@@ -112,8 +112,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
     getInitialSession();
 
-    // Register service worker for offline support
-    registerOfflineSupport();
+    // Note: Service Worker is now registered by vite-plugin-pwa
 
     // Initialize offline DB
     initOfflineDB();
@@ -213,6 +212,8 @@ function App() {
               } />
               <Route path="*" element={<NotFound />} />
             </Routes>
+            <PWAUpdateBanner />
+            <OfflineIndicator />
             <Toaster />
           </TooltipProvider>
         </BrowserRouter>
