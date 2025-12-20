@@ -11,6 +11,12 @@ export interface WeatherData {
   moonset?: number | null;
 }
 
+export interface MedicationIntakeInfo {
+  medication_name: string;
+  medication_id?: string | null;
+  dose_quarters: number;
+}
+
 export interface MigraineEntry {
   id: string;
   timestamp_created: string;
@@ -20,6 +26,7 @@ export interface MigraineEntry {
   aura_type?: string;
   pain_location?: string;
   medications: string[];
+  medication_intakes?: MedicationIntakeInfo[];
   notes?: string | null;
   weather_id?: number | null;
   weather?: WeatherData;

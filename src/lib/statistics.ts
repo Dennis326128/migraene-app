@@ -1,7 +1,8 @@
-import type { MigraineEntry } from "@/types/painApp";
+import type { MigraineEntry, MedicationIntakeInfo } from "@/types/painApp";
 import { normalizePainLevel } from "@/lib/utils/pain";
 import { subDays, startOfDay, endOfDay, parseISO, isWithinInterval } from "date-fns";
 import { getEffectiveScore } from "@/lib/utils/medicationEffects";
+import { DEFAULT_DOSE_QUARTERS } from "@/lib/utils/doseFormatter";
 
 export interface MedicationEffect {
   id: string;
@@ -41,9 +42,10 @@ export interface MedicationLimitInfo {
 // NEW: Medication effect statistics for Teil E
 export interface MedicationEffectStats {
   name: string;
-  rangeCount: number;        // Einnahmen im Zeitraum
-  avgEffect: number | null;  // Durchschnitt auf 0-10 Skala (null wenn keine Bewertungen)
-  ratedCount: number;        // Anzahl bewerteter Einnahmen
+  rangeCount: number;             // Einnahmen (Tage) im Zeitraum
+  totalTabletsEquivalent: number; // Gesamt-Tabletten (dose_quarters / 4)
+  avgEffect: number | null;       // Durchschnitt auf 0-10 Skala (null wenn keine Bewertungen)
+  ratedCount: number;             // Anzahl bewerteter Einnahmen
   sideEffectCount: number;
   limitInfo?: MedicationLimitInfo;
 }
@@ -243,16 +245,24 @@ export function computeStatistics(
     hasSymptomDocumentation,
   };
 
-  // 4. Medikamente & Wirkung (TEIL E: Mit echten Wirkungsdaten)
-  const medCounts = new Map<string, number>(); // Count im ausgewählten Zeitraum
+  // 4. Medikamente & Wirkung (TEIL E: Mit echten Wirkungsdaten + Dosis)
+  const medCounts = new Map<string, number>(); // Count im ausgewählten Zeitraum (Tage)
+  const medTotalQuarters = new Map<string, number>(); // Total dose_quarters
   // NEW: Track effect scores per medication (0-10 scale)
   const medEffectScores = new Map<string, number[]>();
   const medSideEffects = new Map<string, number>();
 
-  // Count medication usage in filtered entries
+  // Count medication usage in filtered entries with dose
   filteredEntries.forEach(entry => {
+    const intakeMap = new Map<string, number>(
+      (entry.medication_intakes || []).map(i => [i.medication_name, i.dose_quarters])
+    );
+    
     entry.medications?.forEach(med => {
       medCounts.set(med, (medCounts.get(med) || 0) + 1);
+      // Add dose quarters (default 4 if no intake record)
+      const quarters = intakeMap.get(med) ?? DEFAULT_DOSE_QUARTERS;
+      medTotalQuarters.set(med, (medTotalQuarters.get(med) || 0) + quarters);
     });
   });
 
@@ -277,6 +287,8 @@ export function computeStatistics(
     .map(([name, rangeCount]) => {
       const scores = medEffectScores.get(name) || [];
       const ratedCount = scores.length;
+      const totalQuarters = medTotalQuarters.get(name) || (rangeCount * DEFAULT_DOSE_QUARTERS);
+      const totalTabletsEquivalent = Math.round((totalQuarters / 4) * 100) / 100; // Round to 2 decimals
       
       // Calculate average only from rated effects (0 counts, null/undefined doesn't)
       const avgEffect = ratedCount > 0
@@ -309,13 +321,14 @@ export function computeStatistics(
       return {
         name,
         rangeCount,
+        totalTabletsEquivalent,
         avgEffect,
         ratedCount,
         sideEffectCount,
         limitInfo,
       };
     })
-    .sort((a, b) => b.rangeCount - a.rangeCount);
+    .sort((a, b) => b.totalTabletsEquivalent - a.totalTabletsEquivalent); // Sort by total tablets
 
   const medicationAndEffect = {
     mostUsed: topMedications.length > 0 ? topMedications[0] : null,

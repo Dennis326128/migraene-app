@@ -39,7 +39,8 @@
  */
 
 import { PDFDocument, StandardFonts, rgb, PDFPage, PDFFont } from "pdf-lib";
-import type { PainEntry } from "@/types/painApp";
+import type { PainEntry, MedicationIntakeInfo } from "@/types/painApp";
+import { formatDoseFromQuarters, DEFAULT_DOSE_QUARTERS } from "@/lib/utils/doseFormatter";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES & CONSTANTS
@@ -166,6 +167,28 @@ function sanitizeForPDF(text: string | undefined | null): string {
   }
   
   return sanitized;
+}
+
+/**
+ * Formatiert Medikamente mit Dosis für PDF-Anzeige
+ * z.B. "Sumatriptan 1/2; Ibuprofen 1"
+ */
+function formatMedicationsWithDose(
+  medications: string[] | undefined,
+  intakes: MedicationIntakeInfo[] | undefined
+): string {
+  if (!medications || medications.length === 0) return '-';
+  
+  const intakeMap = new Map(
+    (intakes || []).map(i => [i.medication_name, i.dose_quarters])
+  );
+  
+  return medications.map(med => {
+    const quarters = intakeMap.get(med) ?? DEFAULT_DOSE_QUARTERS;
+    const doseStr = formatDoseFromQuarters(quarters);
+    // Always show dose for clarity in PDF
+    return `${med} ${doseStr}`;
+  }).join("; ");
 }
 
 /**
@@ -1023,10 +1046,8 @@ function drawTableRow(
   // Schmerz
   const painText = formatPainLevel(entry.pain_level);
   
-  // Medikamente (mit Umbruch)
-  const medsText = entry.medications && entry.medications.length > 0 
-    ? entry.medications.join("; ") 
-    : '-';
+  // Medikamente (mit Umbruch + Dosis)
+  const medsText = formatMedicationsWithDose(entry.medications, entry.medication_intakes);
   const medsLines = wrapText(medsText, colWidths.meds, 8, font);
   
   // Besonderheiten (kombiniert Aura, Lokalisation, Notizen)
@@ -1842,9 +1863,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
           ? formatDateTimeGerman(entry.selected_date, entry.selected_time)
           : formatDateTimeGerman(entry.timestamp_created || '');
         const painText = formatPainLevel(entry.pain_level);
-        const medsText = entry.medications && entry.medications.length > 0 
-          ? entry.medications.join(", ") 
-          : '-';
+        const medsText = formatMedicationsWithDose(entry.medications, entry.medication_intakes);
         
         // Überschrift für diesen Eintrag
         page.drawText(`${dateTime} - Intensitat: ${painText}`, {

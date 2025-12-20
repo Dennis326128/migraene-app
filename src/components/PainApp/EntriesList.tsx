@@ -8,6 +8,8 @@ import { PainEntry, MigraineEntry } from "@/types/painApp";
 import { useEntries } from "@/features/entries/hooks/useEntries";
 import { useDeleteEntry } from "@/features/entries/hooks/useEntryMutations";
 import { useSymptomCatalog, useEntrySymptoms } from "@/features/symptoms/hooks/useSymptoms";
+import { useEntryIntakes } from "@/features/medication-intakes/hooks/useMedicationIntakes";
+import { formatDoseFromQuarters, DEFAULT_DOSE_QUARTERS } from "@/lib/utils/doseFormatter";
 import { EmptyState } from "@/components/ui/empty-state";
 import { 
   Thermometer, 
@@ -36,8 +38,23 @@ export const EntriesList = ({
   const { data: symptomCatalog = [] } = useSymptomCatalog();
   const entryIdNum = selectedEntry?.id ? Number(selectedEntry.id) : null;
   const { data: symptomIds = [] } = useEntrySymptoms(entryIdNum);
+  const { data: entryIntakes = [] } = useEntryIntakes(entryIdNum);
   const symptomNameById = new Map(symptomCatalog.map(s => [s.id, s.name]));
   const symptomNames = symptomIds.map(id => symptomNameById.get(id) || id);
+  
+  // Build medication display with doses
+  const formatMedicationsWithDose = (entry: MigraineEntry, intakes: typeof entryIntakes) => {
+    if (!entry.medications?.length) return "Keine";
+    
+    const intakeMap = new Map(intakes.map(i => [i.medication_name, i.dose_quarters]));
+    
+    return entry.medications.map(med => {
+      const quarters = intakeMap.get(med) ?? DEFAULT_DOSE_QUARTERS;
+      const doseStr = formatDoseFromQuarters(quarters);
+      // Only show dose if not "1" (default)
+      return quarters !== DEFAULT_DOSE_QUARTERS ? `${med} · ${doseStr}` : med;
+    }).join(", ");
+  };
 
   const sorted = useMemo(
     () => [...entries].sort((a, b) =>
@@ -189,9 +206,7 @@ export const EntriesList = ({
 
               <p>
                 <strong>💊 Medikamente:</strong>{" "}
-                {selectedEntry.medications?.length 
-                  ? selectedEntry.medications.join(", ") 
-                  : "Keine"}
+                {formatMedicationsWithDose(selectedEntry, entryIntakes)}
               </p>
 
               <p><strong>🧩 Symptome:</strong> {symptomNames.length ? symptomNames.join(", ") : "Keine"}</p>
