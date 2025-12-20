@@ -89,7 +89,6 @@ export const MedicationDoseList: React.FC<MedicationDoseListProps> = ({
                 onToggle={() => handleMedicationToggle(med)}
                 onDoseChange={(dose) => handleDoseChange(med.name, dose)}
                 disabled={disabled}
-                showUsageCount={med.use_count}
               />
             ))}
           </div>
