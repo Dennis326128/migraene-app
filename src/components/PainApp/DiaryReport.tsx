@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { PainEntry } from "@/types/painApp";
 import { useEntries } from "@/features/entries/hooks/useEntries";
+import { fetchAllEntriesForExport } from "@/features/entries/api/entries.api";
 import { buildDiaryPdf } from "@/lib/pdf/report";
 import { buildMedicationPlanPdf } from "@/lib/pdf/medicationPlan";
 import { mapTextLevelToScore } from "@/lib/utils/pain";
@@ -363,56 +364,74 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     }
   };
 
-  // PDF Generation
+  // PDF Generation - ALWAYS fetches fresh data
   const actuallyGenerateDiaryPDF = async (selectedDoctors: Doctor[]) => {
     setIsGeneratingReport(true);
     
     try {
-      // SANITY CHECK 1: Konsistenz prüfen
-      if (import.meta.env.DEV && reportData) {
-        console.log('[DiaryReport] Sanity Check:', {
-          entriesCount: entries.length,
-          reportDataAttacks: reportData.kpis.totalAttacks,
-          fromDate: from,
-          toDate: to,
-          reportDataFrom: reportData.fromDate,
-          reportDataTo: reportData.toDate
-        });
-        
-        if (entries.length !== reportData.kpis.totalAttacks) {
-          console.warn('[DiaryReport] INKONSISTENZ: entries.length !== reportData.kpis.totalAttacks');
-        }
+      // KRITISCH: Lade ALLE Einträge frisch aus der DB - NICHT aus dem UI-Cache!
+      console.log(`[PDF Export] Lade frische Daten für Zeitraum ${from} bis ${to}...`);
+      const freshEntries = await fetchAllEntriesForExport(from, to);
+      
+      console.log(`[PDF Export] ${freshEntries.length} Einträge geladen (UI hatte: ${entries.length})`);
+      
+      // Warnung wenn UI-Daten abweichen (= UI war unvollständig)
+      if (freshEntries.length !== entries.length) {
+        console.warn(`[PDF Export] ACHTUNG: UI zeigte ${entries.length} Einträge, aber DB hat ${freshEntries.length}!`);
+      }
+      
+      // Berechne Report-Daten aus den FRISCHEN Einträgen
+      const freshEntryIds = freshEntries.map(e => Number(e.id));
+      
+      // Lade auch frische Medikamenteneffekte
+      const { data: freshEffects } = await supabase
+        .from('medication_effects')
+        .select('*')
+        .in('entry_id', freshEntryIds);
+      
+      const freshReportData = buildReportData({
+        entries: freshEntries,
+        medicationEffects: (freshEffects || []).map(e => ({
+          entry_id: e.entry_id,
+          med_name: e.med_name,
+          effect_rating: e.effect_rating,
+          effect_score: e.effect_score,
+        })),
+        fromDate: from,
+        toDate: to,
+        now: new Date(),
+      });
+      
+      // SANITY CHECK: Konsistenz prüfen
+      console.log('[PDF Export] Sanity Check:', {
+        freshEntriesCount: freshEntries.length,
+        reportDataAttacks: freshReportData.kpis.totalAttacks,
+        daysInRange: freshReportData.kpis.daysInRange,
+        daysWithPain: freshReportData.kpis.daysWithPain,
+        daysWithMedication: freshReportData.kpis.daysWithAcuteMedication
+      });
+      
+      if (freshEntries.length !== freshReportData.kpis.totalAttacks) {
+        console.error('[PDF Export] FEHLER: Entries-Count stimmt nicht mit KPIs überein!');
       }
       
       devLog('PDF Generierung gestartet', { 
         context: 'DiaryReport',
-        data: { from, to, entriesCount: entries.length, reportDataAttacks: reportData?.kpis.totalAttacks }
+        data: { from, to, freshEntriesCount: freshEntries.length, attacks: freshReportData.kpis.totalAttacks }
       });
 
       let aiAnalysis = undefined;
       
       if (includeAnalysis) {
         try {
-          // OPTION A: Übergebe kompakte Entry-Daten an Edge Function für Konsistenz
-          const entryPayload = entries.map(e => ({
-            id: e.id,
-            date: getEntryDate(e),
-            time: e.selected_time || '',
-            pain_level: e.pain_level,
-            aura_type: e.aura_type,
-            pain_location: e.pain_location,
-            medications: e.medications || [],
-            notes: e.notes?.substring(0, 200) // Gekürzt um Payload klein zu halten
-          }));
-          
           const { data, error } = await supabase.functions.invoke('generate-doctor-summary', {
             body: { 
               fromDate: `${from}T00:00:00Z`, 
               toDate: `${to}T23:59:59Z`,
               includeContextNotes: includeContextNotes,
-              // Neue Felder für konsistente Daten
-              totalAttacks: reportData?.kpis.totalAttacks || entries.length,
-              daysInRange: reportData?.kpis.daysInRange || 1
+              // Konsistente Daten aus frischem Report
+              totalAttacks: freshReportData.kpis.totalAttacks,
+              daysInRange: freshReportData.kpis.daysInRange
             }
           });
           
@@ -428,12 +447,23 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
       // Determine freeTextExportMode based on toggle
       const freeTextMode = includeContextNotes ? 'notes_and_context' : (includeEntryNotes ? 'short_notes' : 'none');
 
-      // WICHTIG: Für PDF verwenden wir ALLE entries (nicht filteredEntries) für konsistente KPIs
+      // Medikamenten-Statistik aus frischen Daten - korrekt gemappt
+      const freshMedicationStats = freshReportData.acuteMedicationStats.map(stat => ({
+        name: stat.name,
+        count: stat.last30Units, // Für Abwärtskompatibilität
+        avgEffect: stat.avgEffectiveness ?? 0,
+        ratedCount: stat.ratedCount,
+        totalUnitsInRange: stat.totalUnitsInRange,
+        avgPerMonth: stat.avgPerMonth,
+        last30Units: stat.last30Units,
+      }));
+
+      // PDF mit FRISCHEN Daten generieren
       const pdfBytes = await buildDiaryPdf({
         title: "Kopfschmerztagebuch",
         from,
         to,
-        entries: entries, // ALLE entries für konsistente Attackenzahl
+        entries: freshEntries, // FRISCHE entries, nicht UI-cache
         selectedMeds: allMedications ? [] : selectedMedIds,
         
         includeStats,
@@ -448,7 +478,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         
         analysisReport: aiAnalysis,
         patientNotes: "",
-        medicationStats: medicationStats,
+        medicationStats: freshMedicationStats,
         medicationCourses: includeTherapies ? medicationCourses.map(c => ({
           medication_name: c.medication_name,
           type: c.type,
