@@ -315,9 +315,12 @@ Gib NUR den fertig formatierten Text zurück, KEIN Markdown.`;
       .replace(/^#+\s*/gm, '')
       .replace(/^-\s+/gm, '')
       .replace(/•/g, '')
-      // Remove any Hinweis/Disclaimer paragraph (robust pattern)
-      .replace(/\n*Hinweis:.*$/gis, '')
+      // Remove any Hinweis/Disclaimer paragraph (robust patterns - beginning, end, or standalone)
+      .replace(/^Hinweis:.*$/gim, '')
+      .replace(/\n+Hinweis:.*$/gis, '')
       .replace(/\n*\d+\.\s*Hinweis:.*$/gis, '')
+      .replace(/Wichtiger Hinweis:.*$/gis, '')
+      .replace(/\n{3,}/g, '\n\n')
       .trim();
 
     return new Response(
