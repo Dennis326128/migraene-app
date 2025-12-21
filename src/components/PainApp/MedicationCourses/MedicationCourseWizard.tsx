@@ -1,22 +1,15 @@
-import React, { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { SaveButton } from "@/components/ui/save-button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Slider } from "@/components/ui/slider";
-import { Switch } from "@/components/ui/switch";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { CalendarIcon, ChevronLeft, ChevronRight, Check, Pill, Clock, Activity, Star } from "lucide-react";
+import { ChevronLeft, ChevronRight, Check, Pill, Clock, Activity, Star, Loader2 } from "lucide-react";
 import { format, startOfMonth } from "date-fns";
-import { de } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { useMeds } from "@/features/meds/hooks/useMeds";
+import { 
+  EditDialogLayout, 
+  DialogFooterButtons 
+} from "@/components/ui/edit-dialog-layout";
 import { 
   buildDoseText, 
   parseDoseText,
@@ -24,6 +17,9 @@ import {
   type StructuredDosage 
 } from "./StructuredDosageInput";
 import { MedicationCourseStep1 } from "./MedicationCourseStep1";
+import { MedicationCourseStep2 } from "./MedicationCourseStep2";
+import { MedicationCourseStep3 } from "./MedicationCourseStep3";
+import { MedicationCourseStep4 } from "./MedicationCourseStep4";
 import type { 
   MedicationCourse, 
   MedicationCourseType, 
@@ -47,39 +43,17 @@ const STEPS = [
   { id: 4, title: "Bewertung", icon: Star },
 ];
 
-const DAYS_RANGE_OPTIONS: { value: BaselineDaysRange; label: string }[] = [
-  { value: "<5", label: "< 5 Tage" },
-  { value: "5-10", label: "5–10 Tage" },
-  { value: "11-15", label: "11–15 Tage" },
-  { value: "16-20", label: "16–20 Tage" },
-  { value: ">20", label: "> 20 Tage" },
-  { value: "unknown", label: "Weiß nicht" },
-];
-
-const IMPAIRMENT_OPTIONS: { value: ImpairmentLevel; label: string }[] = [
-  { value: "wenig", label: "Wenig" },
-  { value: "mittel", label: "Mittel" },
-  { value: "stark", label: "Stark" },
-  { value: "unknown", label: "Weiß nicht" },
-];
-
-const DISCONTINUATION_OPTIONS: { value: DiscontinuationReason; label: string }[] = [
-  { value: "keine_wirkung", label: "Keine ausreichende Wirkung" },
-  { value: "nebenwirkungen", label: "Nebenwirkungen" },
-  { value: "migraene_gebessert", label: "Migräne gebessert" },
-  { value: "kinderwunsch", label: "Kinderwunsch / Schwangerschaft" },
-  { value: "andere", label: "Andere Gründe" },
-];
-
 export const MedicationCourseWizard: React.FC<MedicationCourseWizardProps> = ({
   isOpen,
   onClose,
   onSubmit,
   existingCourse,
 }) => {
-  const { data: medications = [] } = useMeds();
+  const { data: medications = [], isLoading: medsLoading } = useMeds();
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(false);
+  const hydratedRef = useRef(false);
 
   // Form state
   const [medicationName, setMedicationName] = useState("");
@@ -103,21 +77,44 @@ export const MedicationCourseWizard: React.FC<MedicationCourseWizardProps> = ({
   const [discontinuationDetails, setDiscontinuationDetails] = useState("");
   const [noteForPhysician, setNoteForPhysician] = useState("");
 
-  // Initialize form with existing data
+  // Reset hydration flag when dialog closes
   useEffect(() => {
+    if (!isOpen) {
+      hydratedRef.current = false;
+      setIsHydrated(false);
+    }
+  }, [isOpen]);
+
+  // Initialize form with existing data - ONLY ONCE per open
+  useEffect(() => {
+    if (!isOpen || hydratedRef.current) return;
+    
     if (existingCourse) {
+      // Edit mode: prefill all values from existing course
+      console.log('[MedicationCourseWizard] Hydrating form with existing course:', existingCourse.medication_name);
+      
       setMedicationName(existingCourse.medication_name);
+      setCustomMedication("");
       setType(existingCourse.type);
+      
       // Parse existing dose_text into structured format
       if (existingCourse.dose_text) {
         const parsed = parseDoseText(existingCourse.dose_text);
+        const defaultDosage = getDefaultStructuredDosage();
         setStructuredDosage({
-          ...getDefaultStructuredDosage(),
+          ...defaultDosage,
           ...parsed,
+          // Ensure rhythm is set based on type if not parsed
+          doseRhythm: parsed.doseRhythm || (existingCourse.type === 'akut' ? 'as_needed' : 'daily'),
         });
       } else {
-        setStructuredDosage(getDefaultStructuredDosage());
+        // No dose_text - set sensible defaults based on type
+        setStructuredDosage({
+          ...getDefaultStructuredDosage(),
+          doseRhythm: existingCourse.type === 'akut' ? 'as_needed' : 'daily',
+        });
       }
+      
       setIsActive(existingCourse.is_active);
       setStartDate(existingCourse.start_date ? new Date(existingCourse.start_date) : undefined);
       setEndDate(existingCourse.end_date ? new Date(existingCourse.end_date) : undefined);
@@ -131,8 +128,14 @@ export const MedicationCourseWizard: React.FC<MedicationCourseWizardProps> = ({
       setDiscontinuationReason(existingCourse.discontinuation_reason || "");
       setDiscontinuationDetails(existingCourse.discontinuation_details || "");
       setNoteForPhysician(existingCourse.note_for_physician || "");
+      
+      hydratedRef.current = true;
+      setIsHydrated(true);
     } else {
+      // Create mode: reset to defaults
       resetForm();
+      hydratedRef.current = true;
+      setIsHydrated(true);
     }
   }, [existingCourse, isOpen]);
 
@@ -171,11 +174,11 @@ export const MedicationCourseWizard: React.FC<MedicationCourseWizardProps> = ({
       case 1:
         return getFinalMedicationName().trim().length > 0;
       case 2:
-        return true; // Start date is now optional
+        return true;
       case 3:
-        return true; // All optional
+        return true;
       case 4:
-        return true; // All optional
+        return true;
       default:
         return false;
     }
@@ -234,7 +237,6 @@ export const MedicationCourseWizard: React.FC<MedicationCourseWizardProps> = ({
     isActive: boolean;
   }) => {
     if (data.medicationName) {
-      // Check if it's a known medication from user's list
       const existingMed = medications.find(
         (m) => m.name.toLowerCase() === data.medicationName.toLowerCase()
       );
@@ -293,279 +295,111 @@ export const MedicationCourseWizard: React.FC<MedicationCourseWizardProps> = ({
     </div>
   );
 
-  const renderStep1 = () => (
-    <MedicationCourseStep1
-      medications={medications}
-      medicationName={medicationName}
-      setMedicationName={setMedicationName}
-      customMedication={customMedication}
-      setCustomMedication={setCustomMedication}
-      type={type}
-      setType={setType}
-      structuredDosage={structuredDosage}
-      setStructuredDosage={setStructuredDosage}
-      onVoiceData={handleVoiceData}
-    />
-  );
+  const renderCurrentStep = () => {
+    switch (currentStep) {
+      case 1:
+        return (
+          <MedicationCourseStep1
+            medications={medications}
+            medicationName={medicationName}
+            setMedicationName={setMedicationName}
+            customMedication={customMedication}
+            setCustomMedication={setCustomMedication}
+            type={type}
+            setType={setType}
+            structuredDosage={structuredDosage}
+            setStructuredDosage={setStructuredDosage}
+            onVoiceData={handleVoiceData}
+            isEditMode={!!existingCourse}
+          />
+        );
+      case 2:
+        return (
+          <MedicationCourseStep2
+            isActive={isActive}
+            setIsActive={setIsActive}
+            startDate={startDate}
+            setStartDate={setStartDate}
+            endDate={endDate}
+            setEndDate={setEndDate}
+          />
+        );
+      case 3:
+        return (
+          <MedicationCourseStep3
+            baselineMigraineDays={baselineMigraineDays}
+            setBaselineMigraineDays={setBaselineMigraineDays}
+            baselineAcuteMedDays={baselineAcuteMedDays}
+            setBaselineAcuteMedDays={setBaselineAcuteMedDays}
+            baselineTriptanDoses={baselineTriptanDoses}
+            setBaselineTriptanDoses={setBaselineTriptanDoses}
+            baselineImpairment={baselineImpairment}
+            setBaselineImpairment={setBaselineImpairment}
+          />
+        );
+      case 4:
+        return (
+          <MedicationCourseStep4
+            effectiveness={effectiveness}
+            setEffectiveness={setEffectiveness}
+            hadSideEffects={hadSideEffects}
+            setHadSideEffects={setHadSideEffects}
+            sideEffectsText={sideEffectsText}
+            setSideEffectsText={setSideEffectsText}
+            isActive={isActive}
+            discontinuationReason={discontinuationReason}
+            setDiscontinuationReason={setDiscontinuationReason}
+            discontinuationDetails={discontinuationDetails}
+            setDiscontinuationDetails={setDiscontinuationDetails}
+            noteForPhysician={noteForPhysician}
+            setNoteForPhysician={setNoteForPhysician}
+          />
+        );
+      default:
+        return null;
+    }
+  };
 
-  const renderStep2 = () => (
-    <div className="space-y-6">
-      <div className="space-y-3">
-        <Label>Nimmst du dieses Medikament aktuell?</Label>
-        <div className="flex items-center gap-3">
-          <Switch checked={isActive} onCheckedChange={setIsActive} />
-          <span className="text-sm">{isActive ? "Ja, aktuell in Einnahme" : "Nein, nicht mehr"}</span>
-        </div>
-      </div>
-
-      <div className="space-y-3">
-        <Label>
-          {isActive ? "Seit wann ungefähr?" : "Von wann ungefähr?"} 
-          <span className="text-muted-foreground font-normal"> (optional)</span>
-        </Label>
-        <p className="text-xs text-muted-foreground mb-2">
-          Kannst du später nachtragen, wenn du recherchiert hast.
-        </p>
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              className={cn(
-                "w-full justify-start text-left font-normal",
-                !startDate && "text-muted-foreground"
-              )}
-            >
-              <CalendarIcon className="mr-2 h-4 w-4" />
-              {startDate ? format(startDate, "MMMM yyyy", { locale: de }) : "Monat/Jahr auswählen"}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <Calendar
-              mode="single"
-              selected={startDate}
-              onSelect={(date) => date && setStartDate(startOfMonth(date))}
-              initialFocus
-              className={cn("p-3 pointer-events-auto")}
-              disabled={(date) => date > new Date()}
-              captionLayout="dropdown-buttons"
-              fromYear={2010}
-              toYear={new Date().getFullYear()}
-            />
-          </PopoverContent>
-        </Popover>
-      </div>
-
-      {!isActive && (
-        <div className="space-y-3">
-          <Label>Bis wann ungefähr?</Label>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className={cn(
-                  "w-full justify-start text-left font-normal",
-                  !endDate && "text-muted-foreground"
-                )}
-              >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {endDate ? format(endDate, "MMMM yyyy", { locale: de }) : "Monat/Jahr auswählen"}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                mode="single"
-                selected={endDate}
-                onSelect={(date) => date && setEndDate(startOfMonth(date))}
-                initialFocus
-                className={cn("p-3 pointer-events-auto")}
-                disabled={(date) => date > new Date() || (startDate && date < startDate)}
-              />
-            </PopoverContent>
-          </Popover>
-        </div>
+  const footerContent = (
+    <div className="flex justify-between w-full">
+      <Button
+        variant="outline"
+        onClick={currentStep === 1 ? handleClose : handleBack}
+        className="min-w-[100px]"
+      >
+        {currentStep === 1 ? "Abbrechen" : <><ChevronLeft className="h-4 w-4 mr-1" /> Zurück</>}
+      </Button>
+      
+      {currentStep < STEPS.length ? (
+        <Button onClick={handleNext} disabled={!canProceed()} className="min-w-[100px]">
+          Weiter <ChevronRight className="h-4 w-4 ml-1" />
+        </Button>
+      ) : (
+        <SaveButton 
+          onClick={handleSubmit} 
+          disabled={!canProceed()}
+          loading={isSubmitting}
+        />
       )}
     </div>
   );
 
-  const renderStep3 = () => (
-    <div className="space-y-6">
-      <p className="text-sm text-muted-foreground">
-        Wie war die Situation <strong>vor Beginn</strong> dieser Behandlung? (optional, grobe Einschätzung)
-      </p>
-
-      <div className="space-y-3">
-        <Label>Migränetage pro Monat</Label>
-        <Select value={baselineMigraineDays} onValueChange={(v) => setBaselineMigraineDays(v as BaselineDaysRange)}>
-          <SelectTrigger>
-            <SelectValue placeholder="Auswählen..." />
-          </SelectTrigger>
-          <SelectContent>
-            {DAYS_RANGE_OPTIONS.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="space-y-3">
-        <Label>Tage mit Akutmedikament pro Monat</Label>
-        <Select value={baselineAcuteMedDays} onValueChange={(v) => setBaselineAcuteMedDays(v as BaselineDaysRange)}>
-          <SelectTrigger>
-            <SelectValue placeholder="Auswählen..." />
-          </SelectTrigger>
-          <SelectContent>
-            {DAYS_RANGE_OPTIONS.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="triptan-doses">Triptan-Dosen pro Monat (ca.)</Label>
-        <Input
-          id="triptan-doses"
-          type="number"
-          placeholder="z.B. 15"
-          value={baselineTriptanDoses}
-          onChange={(e) => setBaselineTriptanDoses(e.target.value)}
-          min={0}
-          max={100}
-        />
-      </div>
-
-      <div className="space-y-3">
-        <Label>Einschränkung im Alltag</Label>
-        <Select value={baselineImpairment} onValueChange={(v) => setBaselineImpairment(v as ImpairmentLevel)}>
-          <SelectTrigger>
-            <SelectValue placeholder="Auswählen..." />
-          </SelectTrigger>
-          <SelectContent>
-            {IMPAIRMENT_OPTIONS.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-    </div>
-  );
-
-  const renderStep4 = () => (
-    <div className="space-y-6">
-      <div className="space-y-3">
-        <Label>Wie gut hat diese Behandlung geholfen?</Label>
-        <div className="px-2">
-          <Slider
-            value={[effectiveness]}
-            onValueChange={([v]) => setEffectiveness(v)}
-            min={0}
-            max={10}
-            step={1}
-            className="mt-2"
-          />
-          <div className="flex justify-between text-xs text-muted-foreground mt-1">
-            <span>Gar nicht</span>
-            <span className="font-medium text-primary">{effectiveness}/10</span>
-            <span>Sehr gut</span>
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-3">
-        <div className="flex items-center gap-3">
-          <Switch checked={hadSideEffects} onCheckedChange={setHadSideEffects} />
-          <Label>Relevante Nebenwirkungen?</Label>
-        </div>
-        
-        {hadSideEffects && (
-          <Textarea
-            placeholder="Beschreibe kurz die Nebenwirkungen..."
-            value={sideEffectsText}
-            onChange={(e) => setSideEffectsText(e.target.value)}
-            rows={2}
-          />
-        )}
-      </div>
-
-      {!isActive && (
-        <div className="space-y-3">
-          <Label>Warum wurde die Behandlung beendet?</Label>
-          <Select value={discontinuationReason} onValueChange={(v) => setDiscontinuationReason(v as DiscontinuationReason)}>
-            <SelectTrigger>
-              <SelectValue placeholder="Auswählen..." />
-            </SelectTrigger>
-            <SelectContent>
-              {DISCONTINUATION_OPTIONS.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          
-          {discontinuationReason && (
-            <Input
-              placeholder="Details (optional)..."
-              value={discontinuationDetails}
-              onChange={(e) => setDiscontinuationDetails(e.target.value)}
-            />
-          )}
-        </div>
-      )}
-
-      <div className="space-y-2">
-        <Label htmlFor="note">Notiz für den Arzt (optional)</Label>
-        <Textarea
-          id="note"
-          placeholder="Zusätzliche Informationen für Ihren Arzt..."
-          value={noteForPhysician}
-          onChange={(e) => setNoteForPhysician(e.target.value)}
-          rows={2}
-        />
-      </div>
-    </div>
-  );
+  // Show loading state while hydrating
+  const isLoading = !isHydrated || medsLoading;
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto overflow-x-hidden modern-scrollbar">
-        <DialogHeader>
-          <DialogTitle>
-            {existingCourse ? "Medikamentenverlauf bearbeiten" : "Medikamentenverlauf hinzufügen"}
-          </DialogTitle>
-          <DialogDescription>
-            Dokumentiere deine Behandlungen für den Arztbericht
-          </DialogDescription>
-        </DialogHeader>
-
-        {renderStepIndicator()}
-
-        <div className="min-h-[300px]">
-          {currentStep === 1 && renderStep1()}
-          {currentStep === 2 && renderStep2()}
-          {currentStep === 3 && renderStep3()}
-          {currentStep === 4 && renderStep4()}
-        </div>
-
-        <div className="flex justify-between pt-4 border-t">
-          <Button
-            variant="outline"
-            onClick={currentStep === 1 ? handleClose : handleBack}
-          >
-            {currentStep === 1 ? "Abbrechen" : <><ChevronLeft className="h-4 w-4 mr-1" /> Zurück</>}
-          </Button>
-          
-          {currentStep < STEPS.length ? (
-            <Button onClick={handleNext} disabled={!canProceed()}>
-              Weiter <ChevronRight className="h-4 w-4 ml-1" />
-            </Button>
-          ) : (
-            <SaveButton 
-              onClick={handleSubmit} 
-              disabled={!canProceed()}
-              loading={isSubmitting}
-            />
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
+    <EditDialogLayout
+      open={isOpen}
+      onOpenChange={(open) => !open && handleClose()}
+      title={existingCourse ? "Behandlung bearbeiten" : "Neue Behandlung hinzufügen"}
+      description="Dokumentiere deine Behandlungen für den Arztbericht"
+      footer={footerContent}
+      isLoading={isLoading}
+    >
+      {renderStepIndicator()}
+      <div className="min-h-[300px]">
+        {renderCurrentStep()}
+      </div>
+    </EditDialogLayout>
   );
 };

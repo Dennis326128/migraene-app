@@ -38,6 +38,8 @@ interface MedicationCourseStep1Props {
     startDate: Date | undefined;
     isActive: boolean;
   }) => void;
+  /** Whether we're editing an existing course */
+  isEditMode?: boolean;
 }
 
 // Treatment type options with icons and descriptions
@@ -151,13 +153,28 @@ export const MedicationCourseStep1: React.FC<MedicationCourseStep1Props> = ({
   structuredDosage,
   setStructuredDosage,
   onVoiceData,
+  isEditMode,
 }) => {
-  const [intakeMode, setIntakeMode] = useState<"regular" | "as_needed">(
-    structuredDosage.doseRhythm === "as_needed" ? "as_needed" : "regular"
-  );
-  const [regularPreset, setRegularPreset] = useState<string>("1x");
+  // Derive initial intake mode from structuredDosage
+  const [intakeMode, setIntakeMode] = useState<"regular" | "as_needed">(() => {
+    return structuredDosage.doseRhythm === "as_needed" ? "as_needed" : "regular";
+  });
+  
+  // Derive initial preset from structuredDosage
+  const [regularPreset, setRegularPreset] = useState<string>(() => {
+    if (structuredDosage.doseRhythm === "weekly") return "weekly";
+    if (structuredDosage.doseRhythm === "monthly") return "monthly";
+    const { morning, noon, evening, night } = structuredDosage.doseSchedule;
+    const total = morning + noon + evening + night;
+    if (total === 1 && morning === 1) return "1x";
+    if (total === 2 && morning === 1 && evening === 1) return "2x";
+    if (total === 3 && morning === 1 && noon === 1 && evening === 1) return "3x";
+    if (total > 0) return "custom";
+    return "1x";
+  });
+  
   const [showDetails, setShowDetails] = useState(false);
-  const [showCustomSchedule, setShowCustomSchedule] = useState(false);
+  const [showCustomSchedule, setShowCustomSchedule] = useState(() => regularPreset === "custom");
 
   // Get final medication name
   const finalMedName = medicationName === "__custom__" ? customMedication : medicationName;
