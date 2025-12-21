@@ -19,8 +19,9 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { MedicationReminderSheet } from "@/components/Reminders/MedicationReminderSheet";
 import { MedicationEditModal } from "./MedicationEditModal";
 
-import { MedicationCoursesList, MedicationCourseCard } from "./MedicationCourses";
-import type { MedicationCourse } from "@/features/medication-courses";
+import { MedicationCoursesList, MedicationCourseCard, MedicationCourseWizard } from "./MedicationCourses";
+import type { MedicationCourse, CreateMedicationCourseInput } from "@/features/medication-courses";
+import { useUpdateMedicationCourse, useDeleteMedicationCourse } from "@/features/medication-courses";
 import { format } from "date-fns";
 import type { ReminderRepeat } from "@/types/reminder.types";
 import { buildMedicationPlanPdf, type PdfExportOptions } from "@/lib/pdf/medicationPlan";
@@ -168,6 +169,8 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
   const addMed = useAddMed();
   const deleteMed = useDeleteMed();
   const createReminder = useCreateReminder();
+  const updateCourse = useUpdateMedicationCourse();
+  const deleteCourse = useDeleteMedicationCourse();
   
   // Get reminder status for all medications and courses
   const reminderStatusMap = useMedicationsReminderMap(medications || []);
@@ -180,6 +183,9 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
   const [showCourseReminderModal, setShowCourseReminderModal] = useState(false);
   const [showDoctorSelection, setShowDoctorSelection] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [showCourseWizard, setShowCourseWizard] = useState(false);
+  const [editingCourse, setEditingCourse] = useState<MedicationCourse | null>(null);
+  const [deletingCourse, setDeletingCourse] = useState<MedicationCourse | null>(null);
   
   // Collapsible sections state
   const [showInactive, setShowInactive] = useState(false);
@@ -495,6 +501,42 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
     setShowCourseReminderModal(true);
   };
 
+  // Course edit/delete handlers
+  const openCourseEditWizard = (course: MedicationCourse) => {
+    setEditingCourse(course);
+    setShowCourseWizard(true);
+  };
+
+  const openCourseDeleteDialog = (course: MedicationCourse) => {
+    setDeletingCourse(course);
+  };
+
+  const handleCourseUpdate = async (data: CreateMedicationCourseInput) => {
+    if (!editingCourse) return;
+    try {
+      await updateCourse.mutateAsync({ id: editingCourse.id, input: data });
+      toast.success("Behandlung aktualisiert");
+    } catch (error) {
+      toast.error("Fehler beim Aktualisieren");
+    }
+  };
+
+  const handleCourseDelete = async () => {
+    if (!deletingCourse) return;
+    try {
+      await deleteCourse.mutateAsync(deletingCourse.id);
+      toast.success("Behandlung gelöscht");
+      setDeletingCourse(null);
+    } catch (error) {
+      toast.error("Fehler beim Löschen");
+    }
+  };
+
+  const closeCourseWizard = () => {
+    setShowCourseWizard(false);
+    setEditingCourse(null);
+  };
+
   const handleCreateReminders = async (remindersData: {
     time: string;
     repeat: ReminderRepeat;
@@ -675,13 +717,9 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
                   key={course.id}
                   course={course}
                   reminderStatus={courseReminderMap.get(course.id)}
-                  onEdit={(c) => {
-                    // Öffne Course Wizard - wird durch MedicationCoursesList gehandhabt
-                  }}
-                  onDelete={(c) => {
-                    // Löschen wird durch MedicationCoursesList gehandhabt
-                  }}
-                  onReminder={(c) => openCourseReminderDialog(c)}
+                  onEdit={openCourseEditWizard}
+                  onDelete={openCourseDeleteDialog}
+                  onReminder={openCourseReminderDialog}
                 />
               ))}
               {/* Reguläre Medikamente aus user_medications */}
@@ -798,8 +836,8 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
                     <MedicationCourseCard
                       key={course.id}
                       course={course}
-                      onEdit={() => {}}
-                      onDelete={() => {}}
+                      onEdit={openCourseEditWizard}
+                      onDelete={openCourseDeleteDialog}
                     />
                   ))}
                 </div>
@@ -996,6 +1034,36 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
         reminderStatus={selectedCourse ? courseReminderMap.get(selectedCourse.id) : undefined}
         isProphylaxis={true}
       />
+
+      {/* Course Edit Wizard */}
+      <MedicationCourseWizard
+        isOpen={showCourseWizard}
+        onClose={closeCourseWizard}
+        onSubmit={handleCourseUpdate}
+        existingCourse={editingCourse}
+      />
+
+      {/* Course Delete Confirmation */}
+      <AlertDialog open={!!deletingCourse} onOpenChange={(open) => !open && setDeletingCourse(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Behandlung löschen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Möchtest du die Behandlung „{deletingCourse?.medication_name}" wirklich löschen?
+              Diese Aktion kann nicht rückgängig gemacht werden.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleCourseDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Löschen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
