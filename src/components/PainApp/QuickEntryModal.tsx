@@ -24,8 +24,12 @@ interface QuickEntryModalProps {
   initialSelectedTime?: string;
   initialCustomDate?: string;
   initialCustomTime?: string;
-  initialMedicationStates?: Record<string, boolean>;
+  initialMedicationStates?: Record<string, { doseQuarters: number; medicationId?: string }>;
   initialNotes?: string;
+  initialMedicationEffect?: {
+    rating: 'none' | 'poor' | 'moderate' | 'good' | 'very_good';
+    confidence: 'high' | 'medium' | 'low';
+  };
   onLimitWarning?: (checks: any[]) => void;
 }
 
@@ -83,17 +87,16 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
       setPainLevel(validatedPainLevel);
       setSelectedTime(initialSelectedTime ?? "jetzt");
       
-      // Set medication states from voice input or reset
+      // Set medication states from voice input (with doseQuarters) or reset
       if (initialMedicationStates) {
         const newMap = new Map<string, { doseQuarters: number; medicationId?: string }>();
-        Object.entries(initialMedicationStates).forEach(([name, selected]) => {
-          if (selected) {
-            const med = medOptions.find(m => m.name === name);
-            newMap.set(name, { 
-              doseQuarters: DEFAULT_DOSE_QUARTERS,
-              medicationId: med?.id
-            });
-          }
+        Object.entries(initialMedicationStates).forEach(([name, data]) => {
+          // data is now { doseQuarters, medicationId } from voice
+          const med = medOptions.find(m => m.name === name || m.id === data.medicationId);
+          newMap.set(med?.name || name, { 
+            doseQuarters: data.doseQuarters || DEFAULT_DOSE_QUARTERS,
+            medicationId: data.medicationId || med?.id
+          });
         });
         setSelectedMedications(newMap);
       } else {

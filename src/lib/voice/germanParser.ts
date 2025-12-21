@@ -1,369 +1,674 @@
 import { berlinDateToday } from "@/lib/tz";
-import { mapTextLevelToScore } from "@/lib/utils/pain";
+
+// ============================================
+// Types
+// ============================================
+
+export type ConfidenceLevelType = 'high' | 'medium' | 'low';
+
+export interface ParsedMedicationHit {
+  raw: string;
+  normalizedName: string;
+  matchedMedicationId?: string;
+  matchedMedicationName?: string;
+  doseQuarters?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+  strengthMg?: number;
+  confidence: number;
+}
 
 export interface ParsedVoiceEntry {
   selectedDate: string;
   selectedTime: string;
-  painLevel: string; // NUMERIC VALUE (0-10) as string, e.g., "5", "7", "9"
-  medications: string[];
+  painLevel: string;
+  medications: string[]; // Legacy: string array for backwards compatibility
+  medicationsStructured: ParsedMedicationHit[]; // New: structured medication data
   notes: string;
   isNow: boolean;
   confidence: {
-    time: 'high' | 'medium' | 'low';
-    pain: 'high' | 'medium' | 'low';
-    meds: 'high' | 'medium' | 'low';
+    time: ConfidenceLevelType;
+    pain: ConfidenceLevelType;
+    meds: ConfidenceLevelType;
   };
   medicationEffect?: {
     rating: 'none' | 'poor' | 'moderate' | 'good' | 'very_good';
     medName?: string;
     sideEffects?: string[];
-    confidence: 'high' | 'medium' | 'low';
+    confidence: ConfidenceLevelType;
   };
 }
 
-// Number words to digits mapping for German
-const NUMBER_WORDS: Record<string, string> = {
-  'null': '0',
-  'eins': '1',
-  'zwei': '2', 
-  'drei': '3',
-  'vier': '4',
-  'fünf': '5',
-  'sechs': '6',
-  'sieben': '7',
-  'acht': '8',
-  'neun': '9',
-  'zehn': '10'
+interface NormalizedTranscript {
+  original: string;
+  normalized: string;
+  tokens: string[];
+}
+
+interface TimeResult {
+  date: string;
+  time: string;
+  isNow: boolean;
+}
+
+// ============================================
+// Constants - Compiled once for performance
+// ============================================
+
+// Extended number words (0-60 for minutes)
+const NUMBER_WORDS: Record<string, number> = {
+  'null': 0, 'kein': 0, 'keine': 0,
+  'eins': 1, 'ein': 1, 'eine': 1, 'einen': 1, 'einer': 1,
+  'zwei': 2, 'zwo': 2,
+  'drei': 3,
+  'vier': 4,
+  'fünf': 5, 'fuenf': 5,
+  'sechs': 6,
+  'sieben': 7,
+  'acht': 8,
+  'neun': 9,
+  'zehn': 10,
+  'elf': 11,
+  'zwölf': 12, 'zwoelf': 12,
+  'dreizehn': 13,
+  'vierzehn': 14,
+  'fünfzehn': 15, 'fuenfzehn': 15,
+  'sechzehn': 16,
+  'siebzehn': 17,
+  'achtzehn': 18,
+  'neunzehn': 19,
+  'zwanzig': 20,
+  'einundzwanzig': 21,
+  'zweiundzwanzig': 22,
+  'dreiundzwanzig': 23,
+  'vierundzwanzig': 24,
+  'fünfundzwanzig': 25, 'fuenfundzwanzig': 25,
+  'dreißig': 30, 'dreissig': 30,
+  'vierzig': 40,
+  'fünfzig': 50, 'fuenfzig': 50,
+  'sechzig': 60,
 };
 
-// Time phrases for robust parsing
-const TIME_PHRASES: Record<string, { hours?: number; minutes?: number; relative?: boolean }> = {
-  'viertel nach': { minutes: 15, relative: true },
-  'halb': { minutes: 30, relative: true },
-  'viertel vor': { minutes: -15, relative: true },
-  'drei viertel': { minutes: 45, relative: true },
-  'heute morgen': { hours: 7, minutes: 0 },
-  'heute mittag': { hours: 12, minutes: 0 },
-  'heute abend': { hours: 20, minutes: 0 },
-  'gestern morgen': { hours: 7, minutes: 0, relative: true },
-  'gestern abend': { hours: 20, minutes: 0, relative: true }
+// Medication aliases (common ASR errors + abbreviations)
+const MEDICATION_ALIASES: Record<string, string> = {
+  // Triptans
+  'suma': 'sumatriptan',
+  'sumatriptan': 'sumatriptan',
+  'somatriptan': 'sumatriptan', // Common ASR error
+  'zomatriptan': 'sumatriptan',
+  'sumo': 'sumatriptan',
+  'riza': 'rizatriptan',
+  'rizatriptan': 'rizatriptan',
+  'risatriptan': 'rizatriptan',
+  'maxalt': 'rizatriptan',
+  'nara': 'naratriptan',
+  'naratriptan': 'naratriptan',
+  'ele': 'eletriptan',
+  'eletriptan': 'eletriptan',
+  'relpax': 'eletriptan',
+  'almo': 'almotriptan',
+  'almotriptan': 'almotriptan',
+  'frova': 'frovatriptan',
+  'frovatriptan': 'frovatriptan',
+  'zolmi': 'zolmitriptan',
+  'zolmitriptan': 'zolmitriptan',
+  'imigran': 'sumatriptan',
+  // NSAIDs
+  'ibu': 'ibuprofen',
+  'ibuprofen': 'ibuprofen',
+  'iboprofen': 'ibuprofen',
+  'para': 'paracetamol',
+  'paracetamol': 'paracetamol',
+  'aspirin': 'acetylsalicylsaeure',
+  'ass': 'acetylsalicylsaeure',
+  'acetylsalicylsäure': 'acetylsalicylsaeure',
+  'naproxen': 'naproxen',
+  'diclofenac': 'diclofenac',
+  'diclo': 'diclofenac',
+  'voltaren': 'diclofenac',
+  // Others
+  'novalgin': 'metamizol',
+  'metamizol': 'metamizol',
+  'novaminsulfon': 'metamizol',
+  'mcp': 'metoclopramid',
+  'metoclopramid': 'metoclopramid',
+  'vomex': 'dimenhydrinat',
+  'dimenhydrinat': 'dimenhydrinat',
 };
 
-// Convert number words to digits in text
-export function convertNumberWords(text: string): string {
-  let result = text;
+// ASR normalization replacements
+const ASR_REPLACEMENTS: Array<[RegExp, string]> = [
+  [/\b('ner|ner|'ne|ne)\s+/gi, 'einer '],
+  [/\b('nen|nen)\s+/gi, 'einen '],
+  [/\b('nem|nem)\s+/gi, 'einem '],
+  [/\b1\s*h\b/gi, '1 stunde'],
+  [/\b(\d+)\s*h\b/gi, '$1 stunden'],
+  [/\b(\d+)\s*min\b/gi, '$1 minuten'],
+  [/\b(\d+)\s*std\b/gi, '$1 stunden'],
+  [/(\d+)\s*\/\s*10\b/gi, '$1 von 10'],
+  [/(\d+)\s*von\s*zehn/gi, '$1'],
+  [/\bheute\s+morgen\b/gi, 'heute morgen'],
+  [/\bgestern\s+abend\b/gi, 'gestern abend'],
+];
+
+// Pre-compiled regex patterns
+const RELATIVE_TIME_PATTERNS = [
+  { regex: /\b(vor|seit)\s+(\d+(?:[.,]\d+)?)\s*(minute(?:n)?|min)/i, type: 'minutes' as const },
+  { regex: /\b(vor|seit)\s+(\d+(?:[.,]\d+)?)\s*(stunde(?:n)?|std|h)/i, type: 'hours' as const },
+  { regex: /\b(vor|seit)\s+(einer?|einem)\s*(minute)/i, type: 'one_minute' as const },
+  { regex: /\b(vor|seit)\s+(einer?|einem)\s*(stunde)/i, type: 'one_hour' as const },
+  { regex: /\b(anderthalb|eineinhalb)\s*(stunde(?:n)?)/i, type: 'ninety_minutes' as const },
+  { regex: /\b(anderthalb|eineinhalb)\s*(minute(?:n)?)/i, type: 'ninety_seconds' as const },
+];
+
+const ABSOLUTE_TIME_PATTERNS = [
+  { regex: /\b(?:um|gegen)?\s*(\d{1,2})[:.](\d{2})\b/i, type: 'clock' as const },
+  { regex: /\b(?:um|gegen)?\s*(\d{1,2})\s*uhr(?:\s*(\d{1,2}))?\b/i, type: 'uhr' as const },
+  { regex: /\bhalb\s+(\d{1,2})\b/i, type: 'halb' as const },
+  { regex: /\bviertel\s+nach\s+(\d{1,2})\b/i, type: 'viertel_nach' as const },
+  { regex: /\bviertel\s+vor\s+(\d{1,2})\b/i, type: 'viertel_vor' as const },
+  { regex: /\bdrei\s*viertel\s+(\d{1,2})\b/i, type: 'drei_viertel' as const },
+];
+
+const NOW_PATTERNS = /\b(jetzt|gerade|sofort|eben|soeben|aktuell)\b/i;
+
+const DAY_PATTERNS: Array<{ regex: RegExp; daysAgo: number; defaultHour?: number }> = [
+  { regex: /\bheute\s+morgen\b/i, daysAgo: 0, defaultHour: 7 },
+  { regex: /\bheute\s+mittag\b/i, daysAgo: 0, defaultHour: 12 },
+  { regex: /\bheute\s+nachmittag\b/i, daysAgo: 0, defaultHour: 15 },
+  { regex: /\bheute\s+abend\b/i, daysAgo: 0, defaultHour: 20 },
+  { regex: /\bheute\s+nacht\b/i, daysAgo: 0, defaultHour: 23 },
+  { regex: /\bgestern\s+morgen\b/i, daysAgo: 1, defaultHour: 7 },
+  { regex: /\bgestern\s+mittag\b/i, daysAgo: 1, defaultHour: 12 },
+  { regex: /\bgestern\s+nachmittag\b/i, daysAgo: 1, defaultHour: 15 },
+  { regex: /\bgestern\s+abend\b/i, daysAgo: 1, defaultHour: 20 },
+  { regex: /\bgestern\s+nacht\b/i, daysAgo: 1, defaultHour: 23 },
+  { regex: /\bgestern\b/i, daysAgo: 1 },
+  { regex: /\bvorgestern\b/i, daysAgo: 2 },
+];
+
+const PAIN_CONTEXT_REGEX = /\b(schmerz|pain|migräne|kopfschmerz|stärke|level|intensität|attacke|skala)/i;
+const MG_CONTEXT_REGEX = /\b\d+\s*mg\b/i;
+
+const DOSE_PATTERNS: Array<{ regex: RegExp; quarters: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 }> = [
+  { regex: /\b(ein\s*)?viertel\b/i, quarters: 1 },
+  { regex: /\b(1\/4|0[.,]25)\b/i, quarters: 1 },
+  { regex: /\bhalbe?\b/i, quarters: 2 },
+  { regex: /\b(1\/2|0[.,]5)\b/i, quarters: 2 },
+  { regex: /\bdrei\s*viertel\b/i, quarters: 3 },
+  { regex: /\b(3\/4|0[.,]75)\b/i, quarters: 3 },
+  { regex: /\b(eine?|1)\s*tablette?\b/i, quarters: 4 },
+  { regex: /\banderthalb\s*tablette/i, quarters: 6 },
+  { regex: /\b(eineinhalb|1[.,]5)\s*tablette/i, quarters: 6 },
+  { regex: /\b(zwei|2)\s*tablette/i, quarters: 8 },
+];
+
+const EFFECT_PATTERNS: Array<{ regex: RegExp; rating: 'none' | 'poor' | 'moderate' | 'good' | 'very_good' }> = [
+  { regex: /\b(gar\s*nicht|überhaupt\s*nicht|null|keine\s*wirkung|unwirksam)\b/i, rating: 'none' },
+  { regex: /\b(schlecht|kaum|wenig|schwach|nicht\s*geholfen)\b/i, rating: 'poor' },
+  { regex: /\b(mittel|ok|okay|mittelgut|etwas|teilweise|einigermaßen)\b/i, rating: 'moderate' },
+  { regex: /\b(gut|besser|geholfen|wirksam|effektiv)\b/i, rating: 'good' },
+  { regex: /\b(sehr\s*gut|ausgezeichnet|perfekt|super|toll|hervorragend|bestens)\b/i, rating: 'very_good' },
+];
+
+// ============================================
+// Normalization Layer
+// ============================================
+
+export function normalizeTranscriptDE(text: string): NormalizedTranscript {
+  let normalized = text.toLowerCase().trim();
   
-  // Convert written numbers to digits
-  for (const [word, digit] of Object.entries(NUMBER_WORDS)) {
-    const regex = new RegExp(`\\b${word}\\b`, 'gi');
-    result = result.replace(regex, digit);
+  // Apply ASR replacements
+  for (const [pattern, replacement] of ASR_REPLACEMENTS) {
+    normalized = normalized.replace(pattern, replacement);
   }
   
-  // Handle "X von zehn" patterns
-  result = result.replace(/(\d+)\s+von\s+zehn/gi, '$1');
+  // Normalize umlauts for consistency
+  normalized = normalized
+    .replace(/ä/g, 'ae')
+    .replace(/ö/g, 'oe')  
+    .replace(/ü/g, 'ue')
+    .replace(/ß/g, 'ss');
+  
+  // Remove double spaces
+  normalized = normalized.replace(/\s+/g, ' ').trim();
+  
+  // Tokenize
+  const tokens = normalized.split(/\s+/).filter(t => t.length > 0);
+  
+  return {
+    original: text,
+    normalized,
+    tokens
+  };
+}
+
+function convertNumberWordsInText(text: string): string {
+  let result = text;
+  
+  // Sort by length desc to match longer words first
+  const sortedWords = Object.keys(NUMBER_WORDS).sort((a, b) => b.length - a.length);
+  
+  for (const word of sortedWords) {
+    const regex = new RegExp(`\\b${word}\\b`, 'gi');
+    result = result.replace(regex, String(NUMBER_WORDS[word]));
+  }
   
   return result;
 }
 
-// German pain level mapping - NOW RETURNS NUMERIC VALUES
-const PAIN_LEVEL_PATTERNS = [
-  { pattern: /(schmerz|pain|migräne|kopfschmerz).{0,20}(10|zehn)/i, level: "10" },
-  { pattern: /(schmerz|pain|migräne|kopfschmerz).{0,20}(9|neun)/i, level: "9" },
-  { pattern: /(schmerz|pain|migräne|kopfschmerz).{0,20}(8|acht)/i, level: "8" },
-  { pattern: /(schmerz|pain|migräne|kopfschmerz).{0,20}(7|sieben)/i, level: "7" },
-  { pattern: /(schmerz|pain|migräne|kopfschmerz).{0,20}(6|sechs)/i, level: "6" },
-  { pattern: /(schmerz|pain|migräne|kopfschmerz).{0,20}(5|fünf)/i, level: "5" },
-  { pattern: /(schmerz|pain|migräne|kopfschmerz).{0,20}(4|vier)/i, level: "4" },
-  { pattern: /(schmerz|pain|migräne|kopfschmerz).{0,20}(3|drei)/i, level: "3" },
-  { pattern: /(schmerz|pain|migräne|kopfschmerz).{0,20}(2|zwei)/i, level: "2" },
-  { pattern: /(schmerz|pain|migräne|kopfschmerz).{0,20}(1|eins)/i, level: "1" },
-  { pattern: /(schmerz|pain|migräne|kopfschmerz).{0,20}(0|null|kein)/i, level: "0" },
-  
-  // Alternative patterns with numbers first
-  { pattern: /(10|zehn).{0,20}(schmerz|pain|migräne|kopfschmerz)/i, level: "10" },
-  { pattern: /(9|neun).{0,20}(schmerz|pain|migräne|kopfschmerz)/i, level: "9" },
-  { pattern: /(8|acht).{0,20}(schmerz|pain|migräne|kopfschmerz)/i, level: "8" },
-  { pattern: /(7|sieben).{0,20}(schmerz|pain|migräne|kopfschmerz)/i, level: "7" },
-  { pattern: /(6|sechs).{0,20}(schmerz|pain|migräne|kopfschmerz)/i, level: "6" },
-  { pattern: /(5|fünf).{0,20}(schmerz|pain|migräne|kopfschmerz)/i, level: "5" },
-  { pattern: /(4|vier).{0,20}(schmerz|pain|migräne|kopfschmerz)/i, level: "4" },
-  { pattern: /(3|drei).{0,20}(schmerz|pain|migräne|kopfschmerz)/i, level: "3" },
-  { pattern: /(2|zwei).{0,20}(schmerz|pain|migräne|kopfschmerz)/i, level: "2" },
-  { pattern: /(1|eins).{0,20}(schmerz|pain|migräne|kopfschmerz)/i, level: "1" },
+// ============================================
+// Levenshtein Distance (for fuzzy matching)
+// ============================================
 
-  // Intensity words - NOW MAPPED TO NUMERIC VALUES
-  { pattern: /(sehr starke?|unerträglich|extremer?|heftige?).{0,30}(schmerz|migräne|kopfschmerz)/i, level: "9" },
-  { pattern: /(starke?|schwere?|massive?).{0,30}(schmerz|migräne|kopfschmerz)/i, level: "7" },
-  { pattern: /(mittlere?|mäßige?|normale?).{0,30}(schmerz|migräne|kopfschmerz)/i, level: "5" },
-  { pattern: /(leichte?|schwache?|geringe?).{0,30}(schmerz|migräne|kopfschmerz)/i, level: "2" },
-];
+export function levenshteinDistance(a: string, b: string): number {
+  const matrix: number[][] = [];
 
-// Generate dynamic medication patterns from user's saved medications
-export function generateUserMedicationPatterns(userMeds: Array<{ name: string }> = []): Array<{ name: string; pattern: RegExp; noDosage?: boolean }> {
-  const patterns: Array<{ name: string; pattern: RegExp; noDosage?: boolean }> = [];
-  
-  console.log('🧬 Generating dynamic patterns for medications:', userMeds.map(m => m.name));
-  
-  userMeds.forEach(med => {
-    const medName = med.name.toLowerCase();
-    const medWords = medName.split(/\s+/);
-    const primaryName = medWords[0]; // First word (e.g., "sumatriptan" from "Sumatriptan 100mg")
-    
-    // Extract dosage if present
-    const dosageMatch = medName.match(/(\d+)\s*mg/);
-    const dosage = dosageMatch ? dosageMatch[1] : null;
-    
-    // Generate abbreviations
-    const abbreviations = [];
-    if (medName.includes('sumatriptan')) abbreviations.push('suma');
-    if (medName.includes('ibuprofen')) abbreviations.push('ibu');
-    if (medName.includes('aspirin')) abbreviations.push('ass');
-    if (medName.includes('paracetamol')) abbreviations.push('para');
-    if (medName.includes('rizatriptan')) abbreviations.push('riza');
-    if (medName.includes('almotriptan')) abbreviations.push('almo');
-    if (medName.includes('naratriptan')) abbreviations.push('nara');
-    
-    // Build pattern variants
-    const nameVariants = [primaryName, ...abbreviations];
-    const namePattern = nameVariants.join('|');
-    
-    // Pattern 1: With flexible dosage
-    if (dosage) {
-      const dosageVariants = [
-        dosage, // exact number
-        dosage.replace(/(\d)00$/, '$1 hundert'), // 800 -> 8 hundert
-        dosage.replace(/(\d)00$/, '$1hundert') // 800 -> 8hundert
-      ];
-      const dosagePattern = dosageVariants.join('|');
-      
-      const withDosagePattern = new RegExp(
-        `\\b(${namePattern})(?:\\s*(?:${dosagePattern})\\s*(?:mg|milligramm)?)?(?:\\s*(?:tablette|kapsel|genommen|eingenommen))?\\b`,
-        'i'
-      );
-      patterns.push({ name: med.name, pattern: withDosagePattern });
+  for (let i = 0; i <= b.length; i++) {
+    matrix[i] = [i];
+  }
+
+  for (let j = 0; j <= a.length; j++) {
+    matrix[0][j] = j;
+  }
+
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1
+        );
+      }
     }
-    
-    // Pattern 2: Without dosage requirement
-    const noDosagePattern = new RegExp(
-      `\\b(${namePattern})(?:\\s*(?:tablette|kapsel|genommen|eingenommen))?\\b`,
-      'i'
-    );
-    patterns.push({ name: med.name, pattern: noDosagePattern, noDosage: true });
-  });
-  
-  console.log('🧬 Generated patterns:', patterns.map(p => ({ name: p.name, pattern: p.pattern.source })));
-  return patterns;
+  }
+
+  return matrix[b.length][a.length];
 }
 
-// Fallback patterns for common medications (when no user meds available)
-const FALLBACK_MEDICATION_PATTERNS = [
-  { name: "Sumatriptan", pattern: /(sumatriptan|suma).{0,20}(\d{1,3})/i },
-  { name: "Ibuprofen", pattern: /(ibuprofen|ibu).{0,20}(\d{1,4})/i },
-  { name: "Aspirin", pattern: /(aspirin|ass).{0,20}(\d{1,4})/i },
-  { name: "Paracetamol", pattern: /(paracetamol|para).{0,20}(\d{1,4})/i },
-  { name: "Sumatriptan", pattern: /\b(sumatriptan|suma)\s*(tablette|kapsel)?\b/i, noDosage: true },
-  { name: "Ibuprofen", pattern: /\b(ibuprofen|ibu)\s*(tablette|kapsel)?\b/i, noDosage: true },
-];
+export function calculateSimilarity(a: string, b: string): number {
+  const distance = levenshteinDistance(a.toLowerCase(), b.toLowerCase());
+  const maxLen = Math.max(a.length, b.length);
+  return maxLen === 0 ? 1 : 1 - (distance / maxLen);
+}
 
-// Time patterns for German voice input  
-const TIME_PATTERNS = [
-  // Relative time patterns
-  { pattern: /vor\s+(\d+|einer?|zwei|drei|vier|fünf|sechs)\s+(minute|minuten)/i, type: 'relative_minutes' },
-  { pattern: /vor\s+(\d+|einer?|zwei|drei|vier|fünf|sechs)\s+(stunde|stunden)/i, type: 'relative_hours' },
-  
-  // Specific times
-  { pattern: /(\d{1,2}):(\d{2})/i, type: 'time' },
-  { pattern: /(\d{1,2})\s+uhr/i, type: 'hour' },
-  { pattern: /(halb|viertel nach|viertel vor|drei viertel)\s+(\d+)/i, type: 'quarter' },
-  
-  // Day references
-  { pattern: /(heute|gestern|vorgestern)/i, type: 'day' },
-  { pattern: /(montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)/i, type: 'weekday' },
-  
-  // "Now" indicators
-  { pattern: /(jetzt|gerade|sofort|eben)/i, type: 'now' }
-];
+// ============================================
+// Time Parsing
+// ============================================
 
-function parseTime(text: string) {
+function parseTime(text: string, tokens: string[]): TimeResult {
   const now = new Date();
   const today = berlinDateToday();
+  const textWithNumbers = convertNumberWordsInText(text);
   
-  // Check for "now" indicators first
-  for (const timePattern of TIME_PATTERNS) {
-    if (timePattern.type === 'now') {
-      const match = text.match(timePattern.pattern);
-      if (match) {
-        console.log('🕒 Time parsed as "now"');
-        return { 
-          date: today, 
-          time: now.toTimeString().slice(0, 5), // Set current time
-          isNow: true 
-        };
+  // 1. Check for "now" indicators first (highest priority)
+  if (NOW_PATTERNS.test(text)) {
+    console.log('🕒 Time parsed as "now"');
+    return { 
+      date: today, 
+      time: now.toTimeString().slice(0, 5),
+      isNow: true 
+    };
+  }
+  
+  // 2. Check relative time patterns
+  for (const pattern of RELATIVE_TIME_PATTERNS) {
+    const match = textWithNumbers.match(pattern.regex);
+    if (match) {
+      let deltaMinutes = 0;
+      
+      switch (pattern.type) {
+        case 'minutes':
+          deltaMinutes = parseFloat(match[2].replace(',', '.'));
+          break;
+        case 'hours':
+          deltaMinutes = parseFloat(match[2].replace(',', '.')) * 60;
+          break;
+        case 'one_minute':
+          deltaMinutes = 1;
+          break;
+        case 'one_hour':
+          deltaMinutes = 60;
+          break;
+        case 'ninety_minutes':
+          deltaMinutes = 90;
+          break;
+        case 'ninety_seconds':
+          deltaMinutes = 1.5;
+          break;
       }
+      
+      const targetTime = new Date(now.getTime() - deltaMinutes * 60 * 1000);
+      console.log(`🕒 Relative time: ${deltaMinutes}min ago -> ${targetTime.toISOString()}`);
+      
+      return {
+        date: targetTime.toISOString().split('T')[0],
+        time: targetTime.toTimeString().slice(0, 5),
+        isNow: false
+      };
     }
   }
   
-  // Try to parse relative time (vor X Minuten/Stunden)
-  for (const timePattern of TIME_PATTERNS) {
-    const match = text.match(timePattern.pattern);
-    if (!match) continue;
-    
-    if (timePattern.type === 'relative_minutes') {
-      const minutesStr = match[1];
-      let minutes = parseInt(minutesStr) || convertWordToNumber(minutesStr) || 0;
+  // 3. Check absolute time patterns
+  for (const pattern of ABSOLUTE_TIME_PATTERNS) {
+    const match = textWithNumbers.match(pattern.regex);
+    if (match) {
+      let hours = 0;
+      let minutes = 0;
       
-      const targetTime = new Date(now.getTime() - minutes * 60 * 1000);
-      const targetDate = targetTime.toISOString().split('T')[0];
-      const targetTimeStr = targetTime.toTimeString().slice(0, 5);
+      switch (pattern.type) {
+        case 'clock':
+          hours = parseInt(match[1], 10);
+          minutes = parseInt(match[2], 10);
+          break;
+        case 'uhr':
+          hours = parseInt(match[1], 10);
+          minutes = match[2] ? parseInt(match[2], 10) : 0;
+          break;
+        case 'halb':
+          // "halb drei" = 2:30 (German convention)
+          hours = (parseInt(match[1], 10) - 1 + 24) % 24;
+          minutes = 30;
+          break;
+        case 'viertel_nach':
+          hours = parseInt(match[1], 10);
+          minutes = 15;
+          break;
+        case 'viertel_vor':
+          hours = (parseInt(match[1], 10) - 1 + 24) % 24;
+          minutes = 45;
+          break;
+        case 'drei_viertel':
+          hours = (parseInt(match[1], 10) - 1 + 24) % 24;
+          minutes = 45;
+          break;
+      }
       
-      console.log(`🕒 Time parsed: ${minutes} minutes ago -> ${targetDate} ${targetTimeStr}`);
-      return { 
-        date: targetDate, 
-        time: targetTimeStr,
-        isNow: false 
-      };
-    }
-    
-    if (timePattern.type === 'relative_hours') {
-      const hoursStr = match[1];
-      let hours = parseInt(hoursStr) || convertWordToNumber(hoursStr) || 0;
+      // Clamp values
+      hours = Math.max(0, Math.min(23, hours));
+      minutes = Math.max(0, Math.min(59, minutes));
       
-      const targetTime = new Date(now.getTime() - hours * 60 * 60 * 1000);
-      const targetDate = targetTime.toISOString().split('T')[0];
-      const targetTimeStr = targetTime.toTimeString().slice(0, 5);
+      const timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+      console.log(`🕒 Absolute time: ${timeStr}`);
       
-      console.log(`🕒 Time parsed: ${hours} hours ago -> ${targetDate} ${targetTimeStr}`);
-      return { 
-        date: targetDate, 
-        time: targetTimeStr,
-        isNow: false 
-      };
-    }
-    
-    if (timePattern.type === 'time') {
-      const hours = match[1];
-      const minutes = match[2];
-      const timeStr = `${hours.padStart(2, '0')}:${minutes}`;
-      
-      console.log(`🕒 Time parsed: specific time -> ${today} ${timeStr}`);
-      return { 
-        date: today, 
+      return {
+        date: today,
         time: timeStr,
-        isNow: false 
-      };
-    }
-    
-    if (timePattern.type === 'day') {
-      const dayRef = match[1].toLowerCase();
-      let targetDate = today;
-      
-      if (dayRef === 'gestern') {
-        const yesterday = new Date(now);
-        yesterday.setDate(yesterday.getDate() - 1);
-        targetDate = yesterday.toISOString().split('T')[0];
-      }
-      
-      console.log(`🕒 Time parsed: day reference -> ${targetDate}`);
-      return { 
-        date: targetDate, 
-        time: now.toTimeString().slice(0, 5), // Set current time as default
-        isNow: false 
+        isNow: false
       };
     }
   }
   
-  // If no specific time found, assume "now"
+  // 4. Check day patterns with defaults
+  for (const dayPattern of DAY_PATTERNS) {
+    if (dayPattern.regex.test(text)) {
+      const targetDate = new Date(now);
+      targetDate.setDate(targetDate.getDate() - dayPattern.daysAgo);
+      
+      let timeStr = now.toTimeString().slice(0, 5);
+      if (dayPattern.defaultHour !== undefined) {
+        timeStr = `${String(dayPattern.defaultHour).padStart(2, '0')}:00`;
+      }
+      
+      console.log(`🕒 Day pattern: ${dayPattern.daysAgo} days ago, ${timeStr}`);
+      
+      return {
+        date: targetDate.toISOString().split('T')[0],
+        time: timeStr,
+        isNow: false
+      };
+    }
+  }
+  
+  // 5. Default to "now"
   console.log('🕒 No specific time found, defaulting to "now"');
   return { 
     date: today, 
-    time: now.toTimeString().slice(0, 5), // Always provide current time
+    time: now.toTimeString().slice(0, 5),
     isNow: true 
   };
 }
 
-function convertWordToNumber(word: string): number {
-  const wordNumbers: { [key: string]: number } = {
-    'einer': 1, 'eine': 1, 'ein': 1,
-    'zwei': 2,
-    'drei': 3,
-    'vier': 4,
-    'fünf': 5,
-    'sechs': 6
-  };
-  
-  return wordNumbers[word.toLowerCase()] || 0;
-}
+// ============================================
+// Pain Level Parsing
+// ============================================
 
-function parsePainLevel(text: string): string {
-  console.log(`🎯 [parsePainLevel] Input text: "${text}"`);
+function parsePainLevel(text: string, tokens: string[]): string {
+  const textWithNumbers = convertNumberWordsInText(text);
   
-  // Step 1: Convert number words to digits first
-  const convertedText = convertNumberWords(text);
-  console.log(`🎯 [parsePainLevel] After number conversion: "${convertedText}"`);
+  // Avoid mg values being interpreted as pain
+  const sanitizedText = textWithNumbers.replace(/\d+\s*mg/gi, '');
   
-  // Step 2: Look for direct numbers 0-10 (highest priority) - RETURN NUMERIC
-  const directNumberMatch = convertedText.match(/\b([0-9]|10)\b/);
-  if (directNumberMatch) {
-    const level = parseInt(directNumberMatch[1]);
+  // 1. Look for explicit pain context + number
+  const painContextMatch = sanitizedText.match(/(?:schmerz|pain|staerke|level|intensitaet|skala)[^\d]*(\d{1,2})/i);
+  if (painContextMatch) {
+    const level = parseInt(painContextMatch[1], 10);
     if (level >= 0 && level <= 10) {
-      console.log(`🎯 [parsePainLevel] Found direct number: ${level} -> HIGH confidence`);
-      return level.toString(); // Return numeric value directly
+      console.log(`🎯 Pain with context: ${level}`);
+      return String(level);
     }
   }
   
-  // Step 3: Try explicit numeric patterns with context - RETURN NUMERIC
-  const numericMatch = convertedText.match(/\b(\d+)\s*(?:\/10|von\s*10|out\s*of\s*10)?\b/);
-  if (numericMatch) {
-    const level = parseInt(numericMatch[1]);
+  // 2. Look for "X von 10" pattern
+  const vonZehnMatch = sanitizedText.match(/(\d{1,2})\s*(?:von\s*10|\/10)/i);
+  if (vonZehnMatch) {
+    const level = parseInt(vonZehnMatch[1], 10);
     if (level >= 0 && level <= 10) {
-      console.log(`🎯 [parsePainLevel] Found contextual number: ${level} -> HIGH confidence`);
-      return level.toString(); // Return numeric value directly
+      console.log(`🎯 Pain X/10: ${level}`);
+      return String(level);
     }
   }
   
-  // Step 4: Check number words first - RETURN NUMERIC
-  const numberWordMatch = text.match(/\b(null|eins|zwei|drei|vier|fünf|sechs|sieben|acht|neun|zehn)\b/i);
-  if (numberWordMatch) {
-    const word = numberWordMatch[1].toLowerCase();
-    const numberMap: Record<string, number> = {
-      'null': 0, 'eins': 1, 'zwei': 2, 'drei': 3, 'vier': 4, 'fünf': 5,
-      'sechs': 6, 'sieben': 7, 'acht': 8, 'neun': 9, 'zehn': 10
-    };
-    if (numberMap[word] !== undefined) {
-      console.log(`🎯 [parsePainLevel] Found number word: "${word}" = ${numberMap[word]} -> HIGH confidence`);
-      return numberMap[word].toString(); // Return numeric value directly
+  // 3. Look for number + pain context (reversed order)
+  const reversedMatch = sanitizedText.match(/(\d{1,2})[^\d]*(?:schmerz|pain|migräne|kopfschmerz)/i);
+  if (reversedMatch) {
+    const level = parseInt(reversedMatch[1], 10);
+    if (level >= 0 && level <= 10) {
+      console.log(`🎯 Pain reversed: ${level}`);
+      return String(level);
     }
   }
   
-  // Step 5: Fall back to category patterns - NOW RETURNS NUMERIC VALUES
-  for (const painPattern of PAIN_LEVEL_PATTERNS) {
-    if (painPattern.pattern.test(convertedText)) {
-      console.log(`🎯 [parsePainLevel] Found category match: ${painPattern.level} -> MEDIUM confidence`);
-      return painPattern.level; // Now returns numeric string like "9", "7", "5"
-    }
+  // 4. Intensity words as fallback
+  if (/\b(sehr\s*stark|unertraeglich|extrem|heftig|maximal)\b/i.test(text)) {
+    console.log('🎯 Pain intensity: very strong -> 9');
+    return '9';
+  }
+  if (/\b(stark|schwer|massiv)\b/i.test(text)) {
+    console.log('🎯 Pain intensity: strong -> 7');
+    return '7';
+  }
+  if (/\b(mittel|maessig|normal)\b/i.test(text)) {
+    console.log('🎯 Pain intensity: medium -> 5');
+    return '5';
+  }
+  if (/\b(leicht|schwach|gering)\b/i.test(text)) {
+    console.log('🎯 Pain intensity: light -> 2');
+    return '2';
+  }
+  if (/\b(keine?|null)\s*(schmerz|migräne|kopfschmerz)/i.test(text)) {
+    console.log('🎯 Pain: none -> 0');
+    return '0';
   }
   
-  console.log('🎯 [parsePainLevel] No pain level found');
+  // 5. Last resort: find any standalone number 0-10 that's not in mg context
+  const standaloneMatch = sanitizedText.match(/\b([0-9]|10)\b/);
+  if (standaloneMatch && PAIN_CONTEXT_REGEX.test(text)) {
+    const level = parseInt(standaloneMatch[1], 10);
+    console.log(`🎯 Pain standalone: ${level}`);
+    return String(level);
+  }
+  
+  console.log('🎯 No pain level found');
   return '';
 }
 
-function parseMedicationEffect(text: string): { rating: 'none' | 'poor' | 'moderate' | 'good' | 'very_good'; confidence: 'high' | 'medium' | 'low' } {
-  const effectPatterns = [
-    { pattern: /(gar nicht|überhaupt nicht|null|keine wirkung)/i, rating: 'none' as const },
-    { pattern: /(schlecht|kaum|wenig|schwach)/i, rating: 'poor' as const },
-    { pattern: /(mittel|ok|okay|mittelgut|etwas|teilweise)/i, rating: 'moderate' as const },
-    { pattern: /(gut|besser|geholfen|wirksam)/i, rating: 'good' as const },
-    { pattern: /(sehr gut|ausgezeichnet|perfekt|super|toll)/i, rating: 'very_good' as const },
-  ];
+// ============================================
+// Dose Extraction
+// ============================================
 
-  // Check for medication effect context
-  const hasEffectContext = /(wirkung|gewirkt|geholfen|tablette|medikament)/i.test(text);
+function extractDoseQuarters(tokenWindow: string[]): 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | undefined {
+  const windowText = tokenWindow.join(' ');
   
-  for (const effectPattern of effectPatterns) {
-    if (effectPattern.pattern.test(text)) {
-      console.log(`💊 Medication effect parsed: ${effectPattern.rating}`);
+  for (const pattern of DOSE_PATTERNS) {
+    if (pattern.regex.test(windowText)) {
+      console.log(`💊 Dose found: ${pattern.quarters} quarters`);
+      return pattern.quarters;
+    }
+  }
+  
+  return undefined;
+}
+
+// ============================================
+// Medication Parsing (Structured)
+// ============================================
+
+interface UserMed {
+  id?: string;
+  name: string;
+}
+
+function parseMedicationsStructured(
+  text: string,
+  tokens: string[],
+  userMeds: UserMed[]
+): ParsedMedicationHit[] {
+  const hits: ParsedMedicationHit[] = [];
+  const foundNames = new Set<string>();
+  
+  // Normalize user meds for matching
+  const normalizedUserMeds = userMeds.map(m => ({
+    ...m,
+    normalized: m.name.toLowerCase().replace(/\s*\d+\s*mg.*$/i, '').trim()
+  }));
+  
+  // Cache for fuzzy match results
+  const fuzzyCache = new Map<string, { med: UserMed; similarity: number } | null>();
+  
+  // Extract candidates from text
+  const candidates: Array<{ raw: string; index: number; strengthMg?: number }> = [];
+  
+  // Look for alias matches
+  for (const [alias, canonical] of Object.entries(MEDICATION_ALIASES)) {
+    const aliasRegex = new RegExp(`\\b${alias}\\b`, 'gi');
+    let match;
+    while ((match = aliasRegex.exec(text)) !== null) {
+      candidates.push({
+        raw: match[0],
+        index: match.index
+      });
+    }
+  }
+  
+  // Look for medication + mg patterns
+  const mgPattern = /\b(\w{3,})\s*(\d{2,4})\s*(?:mg|milligramm)?\b/gi;
+  let mgMatch;
+  while ((mgMatch = mgPattern.exec(text)) !== null) {
+    candidates.push({
+      raw: mgMatch[1],
+      index: mgMatch.index,
+      strengthMg: parseInt(mgMatch[2], 10)
+    });
+  }
+  
+  // Process each candidate (limit to 8 for performance)
+  const uniqueCandidates = Array.from(new Map(candidates.map(c => [c.raw.toLowerCase(), c])).values())
+    .slice(0, 8);
+  
+  for (const candidate of uniqueCandidates) {
+    const rawLower = candidate.raw.toLowerCase();
+    
+    // Skip stopwords
+    if (['vor', 'nach', 'mit', 'und', 'oder', 'bei', 'wegen', 'durch'].includes(rawLower)) {
+      continue;
+    }
+    
+    // Try alias lookup first
+    const canonicalName = MEDICATION_ALIASES[rawLower];
+    
+    // Try to match against user meds
+    let bestMatch: { med: UserMed; similarity: number } | null = null;
+    
+    // 1. Exact match
+    const exactMatch = normalizedUserMeds.find(m => 
+      m.normalized === rawLower || 
+      m.normalized === canonicalName ||
+      m.name.toLowerCase().startsWith(rawLower)
+    );
+    
+    if (exactMatch) {
+      bestMatch = { med: exactMatch, similarity: 0.95 };
+    } else {
+      // 2. Check cache
+      const cacheKey = rawLower;
+      if (fuzzyCache.has(cacheKey)) {
+        bestMatch = fuzzyCache.get(cacheKey)!;
+      } else {
+        // 3. Fuzzy match
+        for (const userMed of normalizedUserMeds) {
+          const sim = calculateSimilarity(rawLower, userMed.normalized);
+          const canonicalSim = canonicalName ? calculateSimilarity(canonicalName, userMed.normalized) : 0;
+          const maxSim = Math.max(sim, canonicalSim);
+          
+          if (maxSim >= 0.75 && (!bestMatch || maxSim > bestMatch.similarity)) {
+            bestMatch = { med: userMed, similarity: maxSim };
+          }
+        }
+        fuzzyCache.set(cacheKey, bestMatch);
+      }
+    }
+    
+    // Get token window for dose extraction
+    const tokenIndex = tokens.findIndex(t => t.includes(rawLower) || rawLower.includes(t));
+    const windowStart = Math.max(0, tokenIndex - 3);
+    const windowEnd = Math.min(tokens.length, tokenIndex + 4);
+    const tokenWindow = tokens.slice(windowStart, windowEnd);
+    
+    const doseQuarters = extractDoseQuarters(tokenWindow);
+    
+    // Build hit
+    const matchedName = bestMatch?.med.name || (canonicalName ? 
+      canonicalName.charAt(0).toUpperCase() + canonicalName.slice(1) : 
+      candidate.raw.charAt(0).toUpperCase() + candidate.raw.slice(1));
+    
+    if (!foundNames.has(matchedName.toLowerCase())) {
+      foundNames.add(matchedName.toLowerCase());
+      
+      hits.push({
+        raw: candidate.raw,
+        normalizedName: rawLower,
+        matchedMedicationId: bestMatch?.med.id,
+        matchedMedicationName: bestMatch?.med.name || matchedName,
+        doseQuarters: doseQuarters || 4, // Default to 1 tablet
+        strengthMg: candidate.strengthMg,
+        confidence: bestMatch?.similarity || (canonicalName ? 0.8 : 0.5)
+      });
+    }
+  }
+  
+  console.log(`💊 Medications parsed:`, hits.map(h => ({
+    name: h.matchedMedicationName,
+    dose: h.doseQuarters,
+    conf: h.confidence
+  })));
+  
+  return hits;
+}
+
+// ============================================
+// Medication Effect Parsing
+// ============================================
+
+function parseMedicationEffect(text: string): ParsedVoiceEntry['medicationEffect'] | undefined {
+  const hasEffectContext = /\b(wirkung|gewirkt|geholfen|tablette|medikament|nehm|einnahme)\b/i.test(text);
+  
+  for (const pattern of EFFECT_PATTERNS) {
+    if (pattern.regex.test(text)) {
+      console.log(`💊 Medication effect: ${pattern.rating}`);
       return {
-        rating: effectPattern.rating,
+        rating: pattern.rating,
         confidence: hasEffectContext ? 'high' : 'medium'
       };
     }
@@ -372,187 +677,165 @@ function parseMedicationEffect(text: string): { rating: 'none' | 'poor' | 'moder
   return undefined;
 }
 
-function parseMedications(text: string, userMeds: Array<{ name: string }> = []): string[] {
-  const medications: string[] = [];
-  
-  console.log(`💊 [parseMedications] Input text: "${text}"`);
-  console.log(`💊 [parseMedications] User medications:`, userMeds.map(m => m.name));
-  
-  // Use dynamic patterns if user medications are available
-  const patterns = userMeds.length > 0 
-    ? generateUserMedicationPatterns(userMeds)
-    : FALLBACK_MEDICATION_PATTERNS;
-  
-  for (const medPattern of patterns) {
-    const match = text.match(medPattern.pattern);
-    
-    if (match) {
-      let medName: string;
-      
-      if (medPattern.noDosage) {
-        // Use the exact saved medication name
-        medName = medPattern.name;
-        console.log(`💊 [parseMedications] Found medication without dosage: "${medName}" from pattern: ${medPattern.pattern.source}`);
-      } else {
-        // Try to preserve original name with dosage
-        medName = medPattern.name;
-        console.log(`💊 [parseMedications] Found medication with dosage: "${medName}" from pattern: ${medPattern.pattern.source}`);
-      }
-      
-      // Avoid duplicates
-      if (!medications.includes(medName)) {
-        medications.push(medName);
-      }
-    }
-  }
-  
-  console.log(`💊 [parseMedications] Final result:`, medications);
-  return medications;
-}
+// ============================================
+// Notes Extraction
+// ============================================
 
-function extractNotes(text: string, parsedTime: any, parsedPain: string, parsedMeds: string[], userMeds: Array<{ name: string }> = []): string {
+function extractNotes(
+  text: string,
+  timeResult: TimeResult,
+  painLevel: string,
+  meds: ParsedMedicationHit[]
+): string {
   let cleanedText = text;
   
-  // Remove recognized time expressions
-  for (const timePattern of TIME_PATTERNS) {
-    cleanedText = cleanedText.replace(timePattern.pattern, '');
+  // Remove time expressions
+  for (const pattern of RELATIVE_TIME_PATTERNS) {
+    cleanedText = cleanedText.replace(pattern.regex, '');
+  }
+  for (const pattern of ABSOLUTE_TIME_PATTERNS) {
+    cleanedText = cleanedText.replace(pattern.regex, '');
+  }
+  cleanedText = cleanedText.replace(NOW_PATTERNS, '');
+  
+  // Remove pain expressions
+  cleanedText = cleanedText.replace(/\b(schmerz|pain|staerke|level)[^\d]*\d+/gi, '');
+  cleanedText = cleanedText.replace(/\d+\s*(?:von\s*10|\/10)/gi, '');
+  
+  // Remove medication names
+  for (const med of meds) {
+    const medRegex = new RegExp(`\\b${med.raw}\\b`, 'gi');
+    cleanedText = cleanedText.replace(medRegex, '');
   }
   
-  // Remove recognized pain expressions  
-  for (const painPattern of PAIN_LEVEL_PATTERNS) {
-    cleanedText = cleanedText.replace(painPattern.pattern, '');
+  // Remove dose expressions
+  for (const pattern of DOSE_PATTERNS) {
+    cleanedText = cleanedText.replace(pattern.regex, '');
   }
   
-  // Remove recognized medications using dynamic patterns
-  const patterns = userMeds.length > 0 
-    ? generateUserMedicationPatterns(userMeds)
-    : FALLBACK_MEDICATION_PATTERNS;
-    
-  for (const medPattern of patterns) {
-    cleanedText = cleanedText.replace(medPattern.pattern, '');
-  }
+  // Remove common filler words
+  cleanedText = cleanedText.replace(/\b(genommen|eingenommen|tablette|mg|milligramm)\b/gi, '');
   
-  // Clean up extra whitespace and punctuation
+  // Clean up whitespace and punctuation
   cleanedText = cleanedText
     .replace(/\s+/g, ' ')
     .replace(/^\s*[,.\-:;]\s*/, '')
+    .replace(/\s*[,.\-:;]\s*$/, '')
     .trim();
-    
+  
   return cleanedText;
 }
 
-// Determine confidence levels for parsed data
-function calculateConfidence(text: string, parsedTime: any, parsedPain: string, parsedMeds: string[]): ParsedVoiceEntry['confidence'] {
-  const normalizedText = convertNumberWords(text.toLowerCase());
-  
-  // Time confidence - if isNow=true, it's always high confidence
-  let timeConfidence: 'high' | 'medium' | 'low' = 'low';
-  if (parsedTime.isNow) {
-    timeConfidence = 'high'; // "now" is explicit and clear
-    console.log(`[Confidence] Time is "now" -> HIGH confidence`);
-  } else if (parsedTime.time && parsedTime.time !== '') {
-    timeConfidence = 'high'; // Explicit time mentioned
-    console.log(`[Confidence] Explicit time "${parsedTime.time}" -> HIGH confidence`);
-  } else {
-    console.log(`[Confidence] No clear time -> LOW confidence`);
+// ============================================
+// Confidence Calculation
+// ============================================
+
+function calculateConfidence(
+  text: string,
+  timeResult: TimeResult,
+  painLevel: string,
+  meds: ParsedMedicationHit[]
+): ParsedVoiceEntry['confidence'] {
+  // Time confidence
+  let timeConfidence: ConfidenceLevelType = 'low';
+  if (timeResult.isNow) {
+    timeConfidence = 'high';
+  } else if (timeResult.time) {
+    timeConfidence = 'high';
   }
   
-  // Pain confidence - treat "0" as valid (no pain)
-  let painConfidence: 'high' | 'medium' | 'low' = 'low';
-  if (parsedPain && parsedPain !== '' && parsedPain !== '-') {
-    // All pain levels are now numeric strings (0-10)
-    const isNumeric = /^([0-9]|10)$/.test(parsedPain);
-    // Check if original text contained number words (including "null" for 0)
-    const hasNumberWords = /\b(null|eins|zwei|drei|vier|fünf|sechs|sieben|acht|neun|zehn)\b/i.test(normalizedText);
-    
-    if (isNumeric || hasNumberWords) {
-      console.log(`[Confidence] Pain level "${parsedPain}" is numeric (0=no pain) -> HIGH confidence`);
-      painConfidence = 'high';
-    } else {
-      console.log(`[Confidence] Pain level "${parsedPain}" -> MEDIUM confidence`);
-      painConfidence = 'medium';
-    }
-  } else {
-    console.log(`[Confidence] No pain level found or invalid: "${parsedPain}" -> LOW confidence`);
+  // Pain confidence
+  let painConfidence: ConfidenceLevelType = 'low';
+  if (painLevel && /^([0-9]|10)$/.test(painLevel)) {
+    painConfidence = 'high';
+  } else if (painLevel) {
+    painConfidence = 'medium';
   }
   
-  // Medication confidence - always high (optional field)
-  let medsConfidence: 'high' | 'medium' | 'low' = 'high';
-  if (parsedMeds.length > 0) {
-    const hasExplicitMeds = /\b(genommen|eingenommen|tablette|medikament|mg|gramm)\b/i.test(normalizedText);
-    medsConfidence = hasExplicitMeds ? 'high' : 'medium';
-    console.log(`[Confidence] Medications found -> ${medsConfidence} confidence`);
-  } else {
-    console.log(`[Confidence] No medications mentioned -> HIGH confidence (optional)`);
+  // Meds confidence
+  let medsConfidence: ConfidenceLevelType = 'high';
+  if (meds.length > 0) {
+    const avgConfidence = meds.reduce((sum, m) => sum + m.confidence, 0) / meds.length;
+    medsConfidence = avgConfidence >= 0.8 ? 'high' : avgConfidence >= 0.6 ? 'medium' : 'low';
   }
   
-  const result = { time: timeConfidence, pain: painConfidence, meds: medsConfidence };
-  console.log(`[Confidence] Final calculated:`, result);
-  return result;
+  return { time: timeConfidence, pain: painConfidence, meds: medsConfidence };
 }
 
-// Check which required fields are missing for slot-filling
-export function getMissingSlots(entry: ParsedVoiceEntry): ('time' | 'pain' | 'meds')[] {
-  const missing: ('time' | 'pain' | 'meds')[] = [];
-  
-  console.log(`[getMissingSlots] Analyzing entry:`, {
-    painLevel: entry.painLevel,
-    isNow: entry.isNow,
-    selectedDate: entry.selectedDate,
-    selectedTime: entry.selectedTime,
-    medications: entry.medications,
-    confidence: entry.confidence
-  });
-  
-  // Time is NEVER missing if isNow=true (this is the key fix!)
-  if (!entry.isNow && (!entry.selectedDate || !entry.selectedTime)) {
-    console.log(`[getMissingSlots] Time marked as missing - not isNow and missing date/time`);
-    missing.push('time');
-  } else {
-    console.log(`[getMissingSlots] Time is OK - isNow=${entry.isNow}, date=${entry.selectedDate}, time=${entry.selectedTime}`);
-  }
-  
-  // Pain is missing only if completely empty (but "0" = no pain is VALID!)
-  if (!entry.painLevel || entry.painLevel === '' || entry.painLevel === '-') {
-    console.log(`[getMissingSlots] Pain marked as missing - truly empty: "${entry.painLevel}"`);
-    missing.push('pain');
-  } else {
-    console.log(`[getMissingSlots] Pain is VALID (including "0" = no pain): "${entry.painLevel}"`);
-  }
-  
-  // Meds are completely optional - never mark as missing unless explicitly requested
-  // (Remove automatic medication slot filling to avoid unnecessary delays)
-  
-  console.log(`[getMissingSlots] Final missing slots:`, missing);
-  return missing;
-}
+// ============================================
+// Main Parser Function
+// ============================================
 
-export function parseGermanVoiceEntry(text: string, userMeds: Array<{ name: string }> = []): ParsedVoiceEntry {
+export function parseGermanVoiceEntry(
+  text: string, 
+  userMeds: Array<{ id?: string; name: string }> = []
+): ParsedVoiceEntry {
   console.log('🎯 Parsing voice entry:', text);
   
-  // Convert number words first
-  const normalizedText = convertNumberWords(text);
+  // Normalize input
+  const { normalized, tokens } = normalizeTranscriptDE(text);
+  console.log('🎯 Normalized:', normalized);
   
-  const timeResult = parseTime(normalizedText);
-  const painLevel = parsePainLevel(normalizedText);
-  const medications = parseMedications(normalizedText);
-  const medicationEffect = parseMedicationEffect(normalizedText);
-  const confidence = calculateConfidence(text, timeResult, painLevel, medications);
+  // Parse components
+  const timeResult = parseTime(normalized, tokens);
+  const painLevel = parsePainLevel(normalized, tokens);
+  const medicationsStructured = parseMedicationsStructured(normalized, tokens, userMeds);
+  const medicationEffect = parseMedicationEffect(normalized);
+  const confidence = calculateConfidence(text, timeResult, painLevel, medicationsStructured);
+  const notes = extractNotes(normalized, timeResult, painLevel, medicationsStructured);
   
-  const notes = extractNotes(normalizedText, timeResult, painLevel, medications);
-  
+  // Build result with both legacy and structured meds
   const result: ParsedVoiceEntry = {
     selectedDate: timeResult.date,
     selectedTime: timeResult.time,
     painLevel,
-    medications,
+    medications: medicationsStructured.map(m => m.matchedMedicationName || m.raw), // Legacy
+    medicationsStructured, // New structured format
     notes,
     isNow: timeResult.isNow,
     confidence,
-    medicationEffect: medicationEffect && medicationEffect.rating !== 'none' ? medicationEffect : undefined
+    medicationEffect: medicationEffect?.rating !== 'none' ? medicationEffect : undefined
   };
   
-  console.log('🎙️ Parsed result:', result);
-  console.log('🎙️ Missing slots check:', getMissingSlots(result));
+  console.log('🎙️ Parsed result:', {
+    pain: result.painLevel,
+    time: result.selectedTime,
+    isNow: result.isNow,
+    meds: result.medicationsStructured.map(m => `${m.matchedMedicationName}(${m.doseQuarters}q)`),
+    effect: result.medicationEffect?.rating
+  });
+  
   return result;
+}
+
+// ============================================
+// Slot Filling Helper
+// ============================================
+
+export function getMissingSlots(entry: ParsedVoiceEntry): ('time' | 'pain' | 'meds')[] {
+  const missing: ('time' | 'pain' | 'meds')[] = [];
+  
+  // Time is never missing if isNow=true
+  if (!entry.isNow && (!entry.selectedDate || !entry.selectedTime)) {
+    missing.push('time');
+  }
+  
+  // Pain is missing only if completely empty
+  if (!entry.painLevel || entry.painLevel === '' || entry.painLevel === '-') {
+    missing.push('pain');
+  }
+  
+  // Meds are optional - never mark as missing
+  
+  return missing;
+}
+
+// Export legacy function for backwards compatibility
+export function generateUserMedicationPatterns(userMeds: Array<{ name: string }> = []): Array<{ name: string; pattern: RegExp; noDosage?: boolean }> {
+  // This is now deprecated - using parseMedicationsStructured instead
+  // Keep for backwards compatibility
+  return userMeds.map(med => ({
+    name: med.name,
+    pattern: new RegExp(`\\b${med.name.split(' ')[0].toLowerCase()}\\b`, 'i')
+  }));
 }
