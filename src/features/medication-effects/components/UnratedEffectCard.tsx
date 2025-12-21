@@ -7,7 +7,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { MedicationEffectSlider } from '@/components/ui/medication-effect-slider';
 import { EffectVoiceButton } from './EffectVoiceButton';
 import { 
-  MoreVertical, 
   Trash2, 
   CheckCircle, 
   Clock, 
@@ -19,12 +18,6 @@ import { COMMON_SIDE_EFFECTS } from '@/lib/utils/medicationEffects';
 import { normalizePainLevel } from '@/lib/utils/pain';
 import type { UnratedMedicationEntry } from '../api/medicationEffects.api';
 import type { ParsedMedicationEffect } from '@/types/medicationEffect.types';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -185,23 +178,17 @@ export function UnratedEffectCard({
             </div>
           </div>
 
-          {/* 3-Dot Menu */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem 
-                onClick={() => setShowDeleteDialog(true)}
-                className="text-destructive focus:text-destructive"
-              >
-                <Trash2 className="w-4 h-4 mr-2" />
-                Einnahme löschen
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {/* Delete Button */}
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+            onClick={() => setShowDeleteDialog(true)}
+            disabled={isDeleting}
+            aria-label="Einnahme löschen"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
         </div>
 
         {/* Main: Effect Rating */}
