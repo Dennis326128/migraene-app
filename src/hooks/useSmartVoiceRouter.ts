@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useSpeechRecognition } from './useSpeechRecognition';
 import { routeVoiceCommand, getRouteForIntent, isNavigationIntent, type VoiceRouterResult } from '@/lib/voice/voiceIntentRouter';
 import { saveVoiceNote } from '@/lib/voice/saveNote';
+import { parseGermanVoiceEntry } from '@/lib/voice/germanParser';
 import { toast } from '@/hooks/use-toast';
 import { useMeds, useUpdateMed, useMarkMedAsIntolerant } from '@/features/meds/hooks/useMeds';
 import type { VoiceUserContext, VoiceMedicationUpdate } from '@/types/voice.types';
@@ -18,8 +19,15 @@ export interface QuickEntryData {
   initialSelectedTime: string;
   initialCustomDate?: string;
   initialCustomTime?: string;
-  initialMedicationStates: Record<string, boolean>;
+  initialMedicationStates: Record<string, { 
+    doseQuarters: number; 
+    medicationId?: string 
+  }>;
   initialNotes: string;
+  initialMedicationEffect?: {
+    rating: 'none' | 'poor' | 'moderate' | 'good' | 'very_good';
+    confidence: 'high' | 'medium' | 'low';
+  };
 }
 
 export interface ReminderData {
@@ -288,53 +296,60 @@ export function useSmartVoiceRouter(options: SmartVoiceRouterOptions) {
       }
 
       case 'create_pain_entry': {
-        const painEntry = result.payload as any;
-        if (painEntry) {
-          // Build medication states (nur high/medium confidence)
-          const medicationStates: Record<string, boolean> = {};
-          painEntry.medications
-            ?.filter((m: any) => m.confidence >= 0.6)
-            .forEach((med: any) => {
-              medicationStates[med.name] = true;
-            });
-          
-          // Determine time selection
-          let selectedTime = 'jetzt';
-          let customDate: string | undefined;
-          let customTime: string | undefined;
-          
-          if (painEntry.occurredAt) {
-            const occurredDate = new Date(painEntry.occurredAt);
-            const now = new Date();
-            const diffMinutes = Math.abs((now.getTime() - occurredDate.getTime()) / 1000 / 60);
-            
-            if (diffMinutes < 5) {
-              selectedTime = 'jetzt';
-            } else if (diffMinutes >= 50 && diffMinutes <= 70) {
-              selectedTime = '1h';
-            } else {
-              selectedTime = 'custom';
-              customDate = occurredDate.toISOString().split('T')[0];
-              customTime = occurredDate.toISOString().split('T')[1].substring(0, 5);
-            }
-          }
-          
-          const quickEntryData: QuickEntryData = {
-            initialPainLevel: painEntry.painLevel || 5,
-            initialSelectedTime: selectedTime,
-            initialCustomDate: customDate,
-            initialCustomTime: customTime,
-            initialMedicationStates: medicationStates,
-            initialNotes: transcript
-          };
-          
-          toast({
-            title: '📝 Schmerz-Eintrag erkannt',
-            description: `Schmerzstärke ${painEntry.painLevel || '?'}/10, ${Object.keys(medicationStates).length} Medikament(e)`
+        // Parse transcript with full structured data using germanParser
+        const parsed = parseGermanVoiceEntry(transcript, userMeds.map(m => ({ id: m.id, name: m.name })));
+        
+        // Build structured medication states with doseQuarters
+        const medicationStates: Record<string, { doseQuarters: number; medicationId?: string }> = {};
+        parsed.medicationsStructured
+          ?.filter(m => m.confidence >= 0.6)
+          .forEach(med => {
+            const name = med.matchedMedicationName || med.raw;
+            medicationStates[name] = {
+              doseQuarters: med.doseQuarters || 4,
+              medicationId: med.matchedMedicationId
+            };
           });
+        
+        // Determine time selection
+        let selectedTime = 'jetzt';
+        let customDate: string | undefined;
+        let customTime: string | undefined;
+        
+        if (!parsed.isNow && parsed.selectedDate && parsed.selectedTime) {
+          const occurredDate = new Date(`${parsed.selectedDate}T${parsed.selectedTime}:00`);
+          const now = new Date();
+          const diffMinutes = Math.abs((now.getTime() - occurredDate.getTime()) / 1000 / 60);
           
-          options.onEntryDetected?.(quickEntryData);
+          if (diffMinutes < 5) {
+            selectedTime = 'jetzt';
+          } else if (diffMinutes >= 50 && diffMinutes <= 70) {
+            selectedTime = '1h';
+          } else {
+            selectedTime = 'custom';
+            customDate = parsed.selectedDate;
+            customTime = parsed.selectedTime;
+          }
         }
+        
+        const quickEntryData: QuickEntryData = {
+          initialPainLevel: parsed.painLevel ? parseInt(parsed.painLevel, 10) : 5,
+          initialSelectedTime: selectedTime,
+          initialCustomDate: customDate,
+          initialCustomTime: customTime,
+          initialMedicationStates: medicationStates,
+          initialNotes: parsed.notes || transcript,
+          initialMedicationEffect: parsed.medicationEffect
+        };
+        
+        console.log('🎯 QuickEntryData from voice:', quickEntryData);
+        
+        toast({
+          title: '📝 Schmerz-Eintrag erkannt',
+          description: `Schmerzstärke ${parsed.painLevel || '?'}/10, ${Object.keys(medicationStates).length} Medikament(e)`
+        });
+        
+        options.onEntryDetected?.(quickEntryData);
         break;
       }
 
