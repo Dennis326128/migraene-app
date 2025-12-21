@@ -106,8 +106,12 @@ type BuildReportParams = {
   medicationStats?: Array<{
     name: string;
     count: number;
-    avgEffect: number;
+    avgEffect: number | null;
     ratedCount: number;
+    // Neue Felder für erweiterte Statistik
+    totalUnitsInRange?: number;
+    avgPerMonth?: number;
+    last30Units?: number;
   }>;
   medicationCourses?: MedicationCourseForPdf[];
   patientData?: {
@@ -1508,18 +1512,27 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // SEITE 2+: MEDIKAMENTEN-STATISTIK
+  // SEITE 2+: AKUTMEDIKATION - KURZSTATISTIK
   // ═══════════════════════════════════════════════════════════════════════════
   
   if (medicationStats && medicationStats.length > 0) {
-    const spaceCheck = ensureSpace(pdfDoc, page, yPos, 150);
+    const spaceCheck = ensureSpace(pdfDoc, page, yPos, 180);
     page = spaceCheck.page;
     yPos = spaceCheck.yPos;
     
-    yPos = drawSectionHeader(page, "MEDIKAMENTEN-STATISTIK", yPos, fontBold, 12);
+    yPos = drawSectionHeader(page, "AKUTMEDIKATION - KURZSTATISTIK", yPos, fontBold, 12);
     
-    // Tabellen-Header
-    const cols = {
+    // Prüfe ob erweiterte Statistik vorhanden
+    const hasExtendedStats = medicationStats[0]?.totalUnitsInRange !== undefined;
+    
+    // Tabellen-Header (angepasst für neue Spalten)
+    const cols = hasExtendedStats ? {
+      name: LAYOUT.margin,
+      totalRange: LAYOUT.margin + 140,
+      avgMonth: LAYOUT.margin + 220,
+      last30: LAYOUT.margin + 300,
+      effectiveness: LAYOUT.margin + 380,
+    } : {
       name: LAYOUT.margin,
       count: LAYOUT.margin + 220,
       effectiveness: LAYOUT.margin + 320,
@@ -1534,44 +1547,95 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       color: rgb(0.95, 0.97, 1.0),
     });
     
-    page.drawText("Medikament", { x: cols.name, y: yPos - 12, size: 9, font: fontBold });
-    page.drawText("Einnahmen", { x: cols.count, y: yPos - 12, size: 9, font: fontBold });
-    page.drawText("Ø Wirksamkeit", { x: cols.effectiveness, y: yPos - 12, size: 9, font: fontBold });
-    page.drawText("Bemerkung", { x: cols.note, y: yPos - 12, size: 9, font: fontBold });
-    yPos -= 30; // Erhöht von 25 auf 30 für mehr Abstand nach Header
+    if (hasExtendedStats) {
+      page.drawText("Medikament", { x: cols.name, y: yPos - 12, size: 8, font: fontBold });
+      page.drawText("Einnahmen", { x: cols.totalRange, y: yPos - 12, size: 8, font: fontBold });
+      page.drawText("Ø / Monat", { x: cols.avgMonth, y: yPos - 12, size: 8, font: fontBold });
+      page.drawText("Letzte 30T", { x: cols.last30, y: yPos - 12, size: 8, font: fontBold });
+      page.drawText("Ø Wirkung", { x: cols.effectiveness, y: yPos - 12, size: 8, font: fontBold });
+    } else {
+      page.drawText("Medikament", { x: cols.name, y: yPos - 12, size: 9, font: fontBold });
+      page.drawText("Einnahmen", { x: cols.count!, y: yPos - 12, size: 9, font: fontBold });
+      page.drawText("Ø Wirksamkeit", { x: cols.effectiveness, y: yPos - 12, size: 9, font: fontBold });
+      page.drawText("Bemerkung", { x: cols.note!, y: yPos - 12, size: 9, font: fontBold });
+    }
+    yPos -= 30;
     
-    // Medikamente
-    for (const stat of medicationStats) {
+    // Medikamente (Top 5)
+    const topMeds = medicationStats.slice(0, 5);
+    for (const stat of topMeds) {
       if (yPos < LAYOUT.margin + 50) {
         page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
         yPos = LAYOUT.pageHeight - LAYOUT.margin;
       }
       
       page.drawText(sanitizeForPDF(stat.name), { x: cols.name, y: yPos, size: 9, font });
-      page.drawText(stat.count.toString(), { x: cols.count, y: yPos, size: 9, font });
       
-      if (stat.ratedCount > 0) {
-        const effectPercent = Math.round((stat.avgEffect / 10) * 100);
-        page.drawText(`${effectPercent}%`, { x: cols.effectiveness, y: yPos, size: 9, font });
-        page.drawText(`(Ø aus ${stat.ratedCount} Bewertungen)`, {
-          x: cols.note, 
-          y: yPos, 
-          size: 8, 
-          font, 
-          color: COLORS.textLight 
+      if (hasExtendedStats) {
+        // Erweiterte Statistik
+        page.drawText(formatGermanDecimal(stat.totalUnitsInRange ?? stat.count, 1), { 
+          x: cols.totalRange, y: yPos, size: 9, font 
         });
+        page.drawText(formatGermanDecimal(stat.avgPerMonth ?? 0, 1), { 
+          x: cols.avgMonth, y: yPos, size: 9, font 
+        });
+        page.drawText(formatGermanDecimal(stat.last30Units ?? 0, 1), { 
+          x: cols.last30, y: yPos, size: 9, font 
+        });
+        
+        if (stat.ratedCount > 0 && stat.avgEffect !== null) {
+          const effectPercent = Math.round((stat.avgEffect / 10) * 100);
+          page.drawText(`${effectPercent}%`, { x: cols.effectiveness, y: yPos, size: 9, font });
+        } else {
+          page.drawText("-", { x: cols.effectiveness, y: yPos, size: 9, font });
+        }
       } else {
-        page.drawText("-", { x: cols.effectiveness, y: yPos, size: 9, font });
-        page.drawText("Keine Wirksamkeitsbewertung", { 
-          x: cols.note, 
-          y: yPos, 
-          size: 8, 
-          font, 
-          color: COLORS.textLight 
-        });
+        // Alte Statistik (Fallback)
+        page.drawText(stat.count.toString(), { x: cols.count!, y: yPos, size: 9, font });
+        
+        if (stat.ratedCount > 0 && stat.avgEffect !== null) {
+          const effectPercent = Math.round((stat.avgEffect / 10) * 100);
+          page.drawText(`${effectPercent}%`, { x: cols.effectiveness, y: yPos, size: 9, font });
+          page.drawText(`(Ø aus ${stat.ratedCount} Bewertungen)`, {
+            x: cols.note!, 
+            y: yPos, 
+            size: 8, 
+            font, 
+            color: COLORS.textLight 
+          });
+        } else {
+          page.drawText("-", { x: cols.effectiveness, y: yPos, size: 9, font });
+          page.drawText("Keine Wirksamkeitsbewertung", { 
+            x: cols.note!, 
+            y: yPos, 
+            size: 8, 
+            font, 
+            color: COLORS.textLight 
+          });
+        }
       }
       
       yPos -= 15;
+    }
+    
+    // Kurze Auffälligkeiten (1-2 Sätze)
+    if (hasExtendedStats && topMeds.length > 0) {
+      yPos -= 10;
+      
+      const topMed = topMeds[0];
+      const insightText = `${topMed.name} wurde in den letzten 30 Tagen ${formatGermanDecimal(topMed.last30Units ?? 0, 1)}-mal dokumentiert (Ø ${formatGermanDecimal(topMed.avgPerMonth ?? 0, 1)}/Monat im Zeitraum).`;
+      
+      const insightLines = wrapText(insightText, LAYOUT.pageWidth - 2 * LAYOUT.margin, 8, font);
+      for (const line of insightLines) {
+        page.drawText(sanitizeForPDF(line), {
+          x: LAYOUT.margin,
+          y: yPos,
+          size: 8,
+          font,
+          color: COLORS.textLight,
+        });
+        yPos -= 10;
+      }
     }
     
     yPos -= LAYOUT.sectionGap;

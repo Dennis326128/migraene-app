@@ -28,6 +28,7 @@ import { DoctorSelectionDialog, type Doctor } from "./DoctorSelectionDialog";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { devLog, devWarn } from "@/lib/utils/devLogger";
+import { buildReportData, type ReportData, getEntryDate } from "@/lib/pdf/reportData";
 
 type Preset = TimeRangePreset;
 
@@ -306,35 +307,41 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     });
   }, [entries, allMedications, selectedMedIds]);
 
-  const medicationStats = useMemo(() => {
-    const stats = new Map<string, { count: number; totalEffect: number; ratedCount: number }>();
+  // Build central report data for consistency (Single Source of Truth)
+  const reportData = useMemo<ReportData | null>(() => {
+    if (entries.length === 0) return null;
     
-    filteredEntries.forEach(entry => {
-      entry.medications?.forEach(med => {
-        if (!stats.has(med)) {
-          stats.set(med, { count: 0, totalEffect: 0, ratedCount: 0 });
-        }
-        const s = stats.get(med)!;
-        s.count++;
-        
-        const effect = medicationEffects.find(e => 
-          e.entry_id === Number(entry.id) && e.med_name === med
-        );
-        
-        if (effect) {
-          s.totalEffect += mapEffectToNumber(effect.effect_rating);
-          s.ratedCount++;
-        }
-      });
+    // WICHTIG: Für KPIs und Attackenzahl verwenden wir ALLE entries im Zeitraum (nicht gefiltert)
+    // Die Medikamenten-Statistik basiert ebenfalls auf allen entries
+    return buildReportData({
+      entries: entries, // Alle entries, nicht filteredEntries
+      medicationEffects: medicationEffects.map(e => ({
+        entry_id: e.entry_id,
+        med_name: e.med_name,
+        effect_rating: e.effect_rating,
+        effect_score: e.effect_score
+      })),
+      fromDate: from,
+      toDate: to,
+      now: new Date()
     });
+  }, [entries, medicationEffects, from, to]);
+
+  // Legacy medicationStats für Abwärtskompatibilität, aber mit erweiterten Feldern
+  const medicationStats = useMemo(() => {
+    if (!reportData) return [];
     
-    return Array.from(stats.entries()).map(([name, data]) => ({
-      name,
-      count: data.count,
-      avgEffect: data.ratedCount > 0 ? data.totalEffect / data.ratedCount : null,
-      ratedCount: data.ratedCount
+    return reportData.acuteMedicationStats.map(stat => ({
+      name: stat.name,
+      count: Math.round(stat.totalUnitsInRange), // Legacy: count = totalUnitsInRange
+      avgEffect: stat.avgEffectiveness,
+      ratedCount: stat.ratedCount,
+      // Neue erweiterte Felder
+      totalUnitsInRange: stat.totalUnitsInRange,
+      avgPerMonth: stat.avgPerMonth,
+      last30Units: stat.last30Units
     }));
-  }, [filteredEntries, medicationEffects]);
+  }, [reportData]);
 
   const selectedDoctorsForExport = useMemo(() => {
     if (!includeDoctorData) return [];
@@ -361,20 +368,51 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     setIsGeneratingReport(true);
     
     try {
+      // SANITY CHECK 1: Konsistenz prüfen
+      if (import.meta.env.DEV && reportData) {
+        console.log('[DiaryReport] Sanity Check:', {
+          entriesCount: entries.length,
+          reportDataAttacks: reportData.kpis.totalAttacks,
+          fromDate: from,
+          toDate: to,
+          reportDataFrom: reportData.fromDate,
+          reportDataTo: reportData.toDate
+        });
+        
+        if (entries.length !== reportData.kpis.totalAttacks) {
+          console.warn('[DiaryReport] INKONSISTENZ: entries.length !== reportData.kpis.totalAttacks');
+        }
+      }
+      
       devLog('PDF Generierung gestartet', { 
         context: 'DiaryReport',
-        data: { from, to, entriesCount: filteredEntries.length }
+        data: { from, to, entriesCount: entries.length, reportDataAttacks: reportData?.kpis.totalAttacks }
       });
 
       let aiAnalysis = undefined;
       
       if (includeAnalysis) {
         try {
+          // OPTION A: Übergebe kompakte Entry-Daten an Edge Function für Konsistenz
+          const entryPayload = entries.map(e => ({
+            id: e.id,
+            date: getEntryDate(e),
+            time: e.selected_time || '',
+            pain_level: e.pain_level,
+            aura_type: e.aura_type,
+            pain_location: e.pain_location,
+            medications: e.medications || [],
+            notes: e.notes?.substring(0, 200) // Gekürzt um Payload klein zu halten
+          }));
+          
           const { data, error } = await supabase.functions.invoke('generate-doctor-summary', {
             body: { 
               fromDate: `${from}T00:00:00Z`, 
               toDate: `${to}T23:59:59Z`,
-              includeContextNotes: includeContextNotes
+              includeContextNotes: includeContextNotes,
+              // Neue Felder für konsistente Daten
+              totalAttacks: reportData?.kpis.totalAttacks || entries.length,
+              daysInRange: reportData?.kpis.daysInRange || 1
             }
           });
           
@@ -390,11 +428,12 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
       // Determine freeTextExportMode based on toggle
       const freeTextMode = includeContextNotes ? 'notes_and_context' : (includeEntryNotes ? 'short_notes' : 'none');
 
+      // WICHTIG: Für PDF verwenden wir ALLE entries (nicht filteredEntries) für konsistente KPIs
       const pdfBytes = await buildDiaryPdf({
         title: "Kopfschmerztagebuch",
         from,
         to,
-        entries: filteredEntries,
+        entries: entries, // ALLE entries für konsistente Attackenzahl
         selectedMeds: allMedications ? [] : selectedMedIds,
         
         includeStats,
@@ -450,6 +489,8 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         })) : undefined
       });
 
+      // Neuer Blob mit Timestamp für "always fresh"
+      const timestamp = Date.now();
       const blob = new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -460,9 +501,10 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
       const fromStr = `${fromDate.getFullYear()}-${String(fromDate.getMonth() + 1).padStart(2, '0')}-${String(fromDate.getDate()).padStart(2, '0')}`;
       const toStr = `${toDate.getFullYear()}-${String(toDate.getMonth() + 1).padStart(2, '0')}-${String(toDate.getDate()).padStart(2, '0')}`;
       
-      link.download = `Kopfschmerztagebuch_${fromStr}_bis_${toStr}.pdf`;
+      // Timestamp im Dateinamen für garantiert frischen Download
+      link.download = `Kopfschmerztagebuch_${fromStr}_bis_${toStr}_${timestamp}.pdf`;
       link.click();
-      URL.revokeObjectURL(url);
+      URL.revokeObjectURL(url); // Sofort aufräumen
       
       toast.success("PDF erfolgreich erstellt");
       
