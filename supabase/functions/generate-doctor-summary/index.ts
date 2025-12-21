@@ -223,7 +223,7 @@ STRUKTUR (nur auffällige Punkte erwähnen, irrelevante Abschnitte komplett wegl
    Beispiel: "Besondere Auffälligkeiten: Auffällig sind die hohe Attackenfrequenz und wiederholte Mehrfacheinnahmen von Akutmedikation an einzelnen Tagen."
    Maximal 2-3 Sätze.
 
-8. Am Ende IMMER: "Hinweis: Automatisch aus den eingegebenen Daten generiert; ersetzt keine ärztliche Diagnose oder Therapieentscheidung."${includeContextNotes ? ' Falls Kontextnotizen einbezogen wurden, ergänze: "Kontextnotizen wurden berücksichtigt."' : ''}
+WICHTIG: Beende den Text direkt nach den "Besonderen Auffälligkeiten". Fuege KEINEN Hinweis, Disclaimer oder "Hinweis:" Absatz hinzu - dieser wird separat im PDF eingefuegt.
 
 DATEN:
 Anzahl Attacken: ${entries.length}
@@ -308,13 +308,16 @@ Gib NUR den fertig formatierten Text zurück, KEIN Markdown.`;
     const aiData = await aiResponse.json();
     let summary = aiData.choices?.[0]?.message?.content || 'Keine Analyse verfügbar';
     
-    // Clean up any remaining markdown artifacts
+    // Clean up any remaining markdown artifacts AND remove any disclaimer/Hinweis text
     summary = summary
       .replace(/\*\*/g, '')
       .replace(/\*/g, '')
       .replace(/^#+\s*/gm, '')
       .replace(/^-\s+/gm, '')
       .replace(/•/g, '')
+      // Remove any Hinweis/Disclaimer paragraph (robust pattern)
+      .replace(/\n*Hinweis:.*$/gis, '')
+      .replace(/\n*\d+\.\s*Hinweis:.*$/gis, '')
       .trim();
 
     return new Response(
