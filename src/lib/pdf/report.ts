@@ -1372,65 +1372,78 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     yPos = result.yPos - 10;
     
     // Hinweis-Box direkt am Ende der KI-Analyse (kompakt, ohne Seitenumbruch)
-    const disclaimerText = "Hinweis: Alle Auswertungen und Hinweise basieren ausschliesslich auf den dokumentierten Daten. Sie stellen keine medizinische Diagnose oder Therapieempfehlung dar und ersetzen nicht die Beratung durch eine Arztin oder einen Arzt.";
-    const disclaimerLines = wrapText(disclaimerText, LAYOUT.pageWidth - 2 * LAYOUT.margin - 20, 8, font);
-    const disclaimerHeight = disclaimerLines.length * 10 + 14;
+    // Text OHNE "Hinweis:" am Anfang - das Label wird separat gerendert
+    const disclaimerContent = "Alle Auswertungen und Hinweise basieren ausschliesslich auf den dokumentierten Daten. Sie stellen keine medizinische Diagnose oder Therapieempfehlung dar und ersetzen nicht die Beratung durch eine Arztin oder einen Arzt.";
+    
+    // Berechne Breite für Text (abzüglich Padding und "Hinweis:" Label)
+    const boxPaddingDisclaimer = 10;
+    const hinweisLabelWidth = fontBold.widthOfTextAtSize("Hinweis: ", 8);
+    const firstLineMaxWidth = LAYOUT.pageWidth - 2 * LAYOUT.margin - 2 * boxPaddingDisclaimer - hinweisLabelWidth;
+    const restLinesMaxWidth = LAYOUT.pageWidth - 2 * LAYOUT.margin - 2 * boxPaddingDisclaimer;
+    
+    // Erste Zeile separat umbrechen (weniger Platz wegen Label)
+    const firstLineWrapped = wrapText(disclaimerContent, firstLineMaxWidth, 8, font);
+    const firstLine = firstLineWrapped[0] || '';
+    
+    // Rest des Textes (nach erster Zeile)
+    const remainingText = disclaimerContent.substring(firstLine.length).trim();
+    const restLines = remainingText ? wrapText(remainingText, restLinesMaxWidth, 8, font) : [];
+    
+    // Gesamthöhe berechnen: Label-Zeile + restliche Zeilen + Padding
+    const lineHeight = 11;
+    const totalLines = 1 + restLines.length;
+    const disclaimerBoxHeight = totalLines * lineHeight + 2 * boxPaddingDisclaimer;
     
     // Prüfe ob Platz für Hinweis
-    if (yPos - disclaimerHeight < LAYOUT.margin + 50) {
+    if (yPos - disclaimerBoxHeight < LAYOUT.margin + 50) {
       page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
       yPos = LAYOUT.pageHeight - LAYOUT.margin;
     }
     
-    // Hinweis-Box Hintergrund
+    // Hinweis-Box Hintergrund (exakt passend)
     page.drawRectangle({
       x: LAYOUT.margin,
-      y: yPos - disclaimerHeight,
+      y: yPos - disclaimerBoxHeight,
       width: LAYOUT.pageWidth - 2 * LAYOUT.margin,
-      height: disclaimerHeight,
+      height: disclaimerBoxHeight,
       color: rgb(0.97, 0.97, 0.95),
       borderColor: COLORS.border,
       borderWidth: 0.5,
     });
     
-    // "Hinweis:" Label (fett)
+    // "Hinweis:" Label (fett) + erste Zeile auf gleicher Y-Position
+    const textStartY = yPos - boxPaddingDisclaimer - 8;
+    
     page.drawText("Hinweis:", {
-      x: LAYOUT.margin + 8,
-      y: yPos - 12,
+      x: LAYOUT.margin + boxPaddingDisclaimer,
+      y: textStartY,
       size: 8,
       font: fontBold,
       color: COLORS.textLight,
     });
     
-    // Disclaimer-Text
-    let disclaimerY = yPos - 12;
-    const hinweisWidth = fontBold.widthOfTextAtSize("Hinweis:", 8);
+    page.drawText(sanitizeForPDF(firstLine), {
+      x: LAYOUT.margin + boxPaddingDisclaimer + hinweisLabelWidth,
+      y: textStartY,
+      size: 8,
+      font,
+      color: COLORS.textLight,
+    });
     
-    // Erste Zeile neben "Hinweis:" beginnen
-    if (disclaimerLines.length > 0) {
-      page.drawText(sanitizeForPDF(disclaimerLines[0]), {
-        x: LAYOUT.margin + 8 + hinweisWidth + 4,
-        y: disclaimerY,
+    // Restliche Zeilen (linksbündig unter Label)
+    let currentY = textStartY - lineHeight;
+    for (const line of restLines) {
+      page.drawText(sanitizeForPDF(line), {
+        x: LAYOUT.margin + boxPaddingDisclaimer,
+        y: currentY,
         size: 8,
         font,
         color: COLORS.textLight,
       });
-      disclaimerY -= 10;
+      currentY -= lineHeight;
     }
     
-    // Restliche Zeilen
-    for (let i = 1; i < disclaimerLines.length; i++) {
-      page.drawText(sanitizeForPDF(disclaimerLines[i]), {
-        x: LAYOUT.margin + 8,
-        y: disclaimerY,
-        size: 8,
-        font,
-        color: COLORS.textLight,
-      });
-      disclaimerY -= 10;
-    }
-    
-    yPos -= disclaimerHeight + 15;
+    yPos -= disclaimerBoxHeight + 15;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

@@ -897,12 +897,12 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
           {isGeneratingReport ? (
             <>
               <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-              PDF wird erstellt...
+              PDF wird erstellt…
             </>
           ) : (
             <>
               <FileText className="mr-2 h-5 w-5" />
-              PDF erstellen{filteredEntries.length > 0 ? ` (${filteredEntries.length})` : ''}
+              PDF erstellen
             </>
           )}
         </Button>
