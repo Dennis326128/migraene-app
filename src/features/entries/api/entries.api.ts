@@ -106,6 +106,79 @@ export async function listEntries(params: ListParams = {}): Promise<PainEntry[]>
   })) as PainEntry[];
 }
 
+/**
+ * Fetch ALL entries for a date range - used for PDF export.
+ * No limit/pagination - loads everything in range.
+ * Uses batched fetching to handle large datasets (Supabase 1000 row limit per request).
+ */
+export async function fetchAllEntriesForExport(from: string, to: string): Promise<PainEntry[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const BATCH_SIZE = 1000; // Supabase max per request
+  let allEntries: PainEntry[] = [];
+  let offset = 0;
+  let hasMore = true;
+
+  // End of day for 'to' date
+  const toDate = new Date(to);
+  toDate.setHours(23, 59, 59, 999);
+  const toIso = toDate.toISOString();
+  const fromIso = new Date(from).toISOString();
+
+  while (hasMore) {
+    const { data, error } = await supabase
+      .from("pain_entries")
+      .select(`
+        id,
+        timestamp_created,
+        selected_date,
+        selected_time,
+        pain_level,
+        pain_location,
+        aura_type,
+        medications,
+        notes,
+        weather:weather_logs!pain_entries_weather_id_fkey (
+          id, location, temperature_c, pressure_mb, humidity, condition_text, pressure_change_24h, moon_phase, moonrise, moonset
+        ),
+        medication_intakes (
+          medication_name,
+          medication_id,
+          dose_quarters
+        )
+      `)
+      .eq("user_id", user.id)
+      .gte("timestamp_created", fromIso)
+      .lte("timestamp_created", toIso)
+      .order("timestamp_created", { ascending: false })
+      .range(offset, offset + BATCH_SIZE - 1);
+
+    if (error) throw error;
+
+    const batch = (data || []).map((e: any) => ({
+      ...e,
+      pain_location: e.pain_location || null,
+      aura_type: e.aura_type || 'keine',
+      medications: e.medications || [],
+      medication_intakes: e.medication_intakes || [],
+      weather: normalizeWeather(e.weather),
+    })) as PainEntry[];
+
+    allEntries = allEntries.concat(batch);
+    
+    // If we got less than BATCH_SIZE, we've fetched everything
+    if (batch.length < BATCH_SIZE) {
+      hasMore = false;
+    } else {
+      offset += BATCH_SIZE;
+    }
+  }
+
+  console.log(`[PDF Export] Fetched ${allEntries.length} entries for range ${from} to ${to}`);
+  return allEntries;
+}
+
 export async function getEntry(id: string): Promise<PainEntry | null> {
   const { data, error } = await supabase
     .from("pain_entries")
