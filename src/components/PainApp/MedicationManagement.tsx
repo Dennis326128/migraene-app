@@ -9,6 +9,7 @@ import { useMeds, useAddMed, useDeleteMed, type Med, type CreateMedInput } from 
 import { useCreateReminder } from "@/features/reminders/hooks/useReminders";
 import { useMedicationsReminderMap, useCoursesReminderMap, type MedicationReminderStatus } from "@/features/reminders/hooks/useMedicationReminders";
 import { parseMedicationInput, parsedToMedInput } from "@/lib/utils/parseMedicationInput";
+import { shouldOfferReminderPrompt } from "@/lib/utils/medicationReminderHeuristic";
 import { Pill, Plus, Pencil, Trash2, Bell, BellOff, ArrowLeft, Clock, AlertTriangle, Download, Loader2, Ban, History, ChevronDown, Mic, MicOff } from "lucide-react";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,6 +18,7 @@ import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { MedicationReminderSheet } from "@/components/Reminders/MedicationReminderSheet";
+import { MedicationReminderPrompt } from "@/components/Reminders/MedicationReminderPrompt";
 import { MedicationEditModal } from "./MedicationEditModal";
 
 import { MedicationCoursesList, MedicationCourseCard, MedicationCourseWizard } from "./MedicationCourses";
@@ -186,6 +188,10 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
   const [showCourseWizard, setShowCourseWizard] = useState(false);
   const [editingCourse, setEditingCourse] = useState<MedicationCourse | null>(null);
   const [deletingCourse, setDeletingCourse] = useState<MedicationCourse | null>(null);
+  
+  // Reminder prompt state for newly added medications
+  const [showReminderPrompt, setShowReminderPrompt] = useState(false);
+  const [newlyAddedMed, setNewlyAddedMed] = useState<Med | null>(null);
   
   // Collapsible sections state
   const [showInactive, setShowInactive] = useState(false);
@@ -462,6 +468,14 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
         toast.success("Medikament hinzugefügt – Details bearbeiten");
       } else {
         toast.success("Medikament hinzugefügt");
+        
+        // Check if we should offer reminder prompt (only for scheduled/prophylaxis meds)
+        // Use intake_type from parsed input, or infer from art
+        const intakeType = medInput.intake_type || (medInput.art === 'regelmaessig' || medInput.art === 'prophylaxe' ? 'regular' : 'as_needed');
+        if (newMed && shouldOfferReminderPrompt(newMed.name, intakeType as any)) {
+          setNewlyAddedMed(newMed);
+          setShowReminderPrompt(true);
+        }
       }
     } catch (error) {
       toast.error("Fehler beim Hinzufügen des Medikaments.");
@@ -1019,7 +1033,27 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
           setSelectedMedication(null);
         }}
         medication={selectedMedication}
+        medicationId={selectedMedication?.id}
         reminderStatus={selectedMedication ? reminderStatusMap.get(selectedMedication.id) : undefined}
+      />
+
+      {/* Reminder Prompt after adding scheduled medication */}
+      <MedicationReminderPrompt
+        open={showReminderPrompt}
+        onOpenChange={setShowReminderPrompt}
+        medicationName={newlyAddedMed?.name || ''}
+        medicationId={newlyAddedMed?.id || ''}
+        onCreateReminder={() => {
+          // Open the reminder sheet for the newly added medication
+          if (newlyAddedMed) {
+            setSelectedMedication(newlyAddedMed);
+            setShowReminderModal(true);
+          }
+          setNewlyAddedMed(null);
+        }}
+        onSkip={() => {
+          setNewlyAddedMed(null);
+        }}
       />
 
       {/* Course Reminder Sheet (for Prophylaxis like Ajovy) */}

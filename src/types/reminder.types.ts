@@ -23,6 +23,8 @@ export interface Reminder {
   status: ReminderStatus;
   notification_enabled: boolean;
   medications?: string[];
+  // Direct FK to user_medications for intelligent linking
+  medication_id?: string | null;
   time_of_day?: TimeOfDay | null;
   // Weekdays for weekday repeat type
   weekdays?: Weekday[] | null;
@@ -54,6 +56,8 @@ export interface CreateReminderInput {
   notes?: string;
   notification_enabled?: boolean;
   medications?: string[];
+  // Direct FK to user_medications
+  medication_id?: string;
   time_of_day?: TimeOfDay;
   weekdays?: Weekday[];
   pre_notify_offset_minutes?: number;
@@ -94,6 +98,8 @@ export interface ReminderPrefill {
   notes?: string;
   notification_enabled?: boolean;
   medications?: string[];
+  // Direct FK to user_medications for linking
+  medication_id?: string;
   repeat?: ReminderRepeat;
   // Follow-up fields
   follow_up_enabled?: boolean;

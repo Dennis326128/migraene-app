@@ -12,13 +12,15 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useUpdateMed, type Med, type UpdateMedInput } from "@/features/meds/hooks/useMeds";
 import { lookupMedicationMetadata } from "@/lib/medicationLookup";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Sparkles, AlertTriangle, Pill, Clock, FileText, Calendar, ChevronDown, Settings2, X } from "lucide-react";
+import { Loader2, Sparkles, AlertTriangle, Pill, Clock, FileText, Calendar, ChevronDown, Settings2, X, Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useMedicationReminderStatus } from "@/features/reminders/hooks/useMedicationReminders";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useUserDefaults } from "@/features/settings/hooks/useUserSettings";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { WeekdayPicker, type Weekday, formatWeekdays } from "@/components/ui/weekday-picker";
+import { MedicationReminderSheet } from "@/components/Reminders/MedicationReminderSheet";
 import { format } from "date-fns";
 
 interface MedicationEditModalProps {
@@ -148,11 +150,13 @@ export const MedicationEditModal = ({ medication, open, onOpenChange }: Medicati
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const updateMed = useUpdateMed();
+  const reminderStatus = useMedicationReminderStatus(medication);
   const [showIntakeChangeConfirm, setShowIntakeChangeConfirm] = useState(false);
   const [pendingIntakeType, setPendingIntakeType] = useState<string | null>(null);
   const [customReasons, setCustomReasons] = useState<string[]>([]);
   const [hasStartDate, setHasStartDate] = useState(false);
   const [scheduleType, setScheduleType] = useState<"daily" | "weekdays">("daily");
+  const [showReminderSheet, setShowReminderSheet] = useState(false);
 
   const [formData, setFormData] = useState<UpdateMedInput>({
     name: "",
@@ -1000,6 +1004,33 @@ export const MedicationEditModal = ({ medication, open, onOpenChange }: Medicati
                     </div>
                   </div>
                 )}
+              </CollapsibleSection>
+
+              {/* Reminder Section */}
+              <CollapsibleSection title="Erinnerung" icon={<Bell className="h-5 w-5" />} defaultOpen={false}>
+                <div className="space-y-3">
+                  {reminderStatus.isActive ? (
+                    <div className="flex items-center justify-between p-3 bg-primary/10 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <Bell className="h-4 w-4 text-primary" />
+                        <span className="text-sm">
+                          {reminderStatus.reminderCount} aktive Erinnerung{reminderStatus.reminderCount !== 1 ? 'en' : ''}
+                        </span>
+                      </div>
+                      <Button variant="outline" size="sm" onClick={() => setShowReminderSheet(true)}>
+                        Bearbeiten
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                      <span className="text-sm text-muted-foreground">Keine Erinnerung eingerichtet</span>
+                      <Button variant="outline" size="sm" onClick={() => setShowReminderSheet(true)}>
+                        <Bell className="h-4 w-4 mr-2" />
+                        Hinzufügen
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </CollapsibleSection>
             </div>
           </div>
