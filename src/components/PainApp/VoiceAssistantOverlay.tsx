@@ -459,15 +459,30 @@ export function VoiceAssistantOverlay({
         }
         
         // Pain entry: Open QuickEntry with prefill
+        // NOTE: payload IS the painEntry directly (from voiceIntentRouter line 94)
         if (result.type === 'create_pain_entry' || result.type === 'create_quick_entry') {
-          const payload = result.payload as any;
+          const painEntry = result.payload as any;
+          console.log('🔧 Voice prefill painEntry:', painEntry);
+          
+          // Build medication states with proper structure
+          const medicationStates: Record<string, { doseQuarters: number; medicationId?: string }> = {};
+          if (painEntry?.medications) {
+            painEntry.medications.forEach((med: any) => {
+              const name = med.name || med;
+              medicationStates[name] = {
+                doseQuarters: med.doseQuarters || 4,
+                medicationId: med.medicationId
+              };
+            });
+          }
+          
           onSelectAction('quick_entry', committedText, {
-            initialPainLevel: payload?.painEntry?.painLevel,
-            initialNotes: payload?.painEntry?.notes || committedText,
-            initialMedicationStates: payload?.painEntry?.medications?.reduce((acc: any, med: any) => {
-              acc[med.name] = true;
-              return acc;
-            }, {}),
+            initialPainLevel: painEntry?.painLevel ? parseInt(String(painEntry.painLevel), 10) : undefined,
+            initialSelectedTime: painEntry?.occurredAt ? 'custom' : undefined,
+            initialCustomDate: painEntry?.occurredAt ? painEntry.occurredAt.split('T')[0] : undefined,
+            initialCustomTime: painEntry?.occurredAt ? painEntry.occurredAt.split('T')[1]?.substring(0, 5) : undefined,
+            initialNotes: painEntry?.notes || committedText,
+            initialMedicationStates: Object.keys(medicationStates).length > 0 ? medicationStates : undefined,
           });
           onOpenChange(false);
           return;
@@ -511,11 +526,46 @@ export function VoiceAssistantOverlay({
     processIntent();
   }, [processIntent]);
 
-  const handleSelectAction = useCallback((action: ActionType) => {
+  const handleSelectAction = useCallback(async (action: ActionType) => {
     stopRecording();
+    
+    // Special handling for "question" action - process Q&A inline
+    if (action === 'question' && userId && committedText.trim()) {
+      setOverlayState('processing');
+      try {
+        // Parse and execute Q&A
+        const userContext = { userMeds, timezone: 'Europe/Berlin', language: 'de-DE' };
+        const result = routeVoiceCommand(committedText, userContext);
+        
+        if (result.type === 'analytics_query') {
+          const voiceQuery = result.payload as VoiceAnalyticsQuery | undefined;
+          if (voiceQuery && voiceQuery.queryType !== 'unknown') {
+            const answer = await processQuestion(committedText, voiceQuery);
+            if (answer) {
+              setQaAnswer(answer);
+              setOverlayState('qa_answer');
+              return; // Stay open to show answer
+            }
+          }
+        }
+        
+        // Fallback: couldn't parse as Q&A - show error and stay
+        toast.error('Frage nicht verstanden', {
+          description: 'Versuche z.B. "Wie viele Kopfschmerztage diesen Monat?"'
+        });
+        setOverlayState('input');
+        return;
+      } catch (error) {
+        console.error('Q&A error:', error);
+        toast.error('Fehler bei der Auswertung');
+        setOverlayState('input');
+        return;
+      }
+    }
+    
     onSelectAction(action, committedText);
     onOpenChange(false);
-  }, [stopRecording, onSelectAction, committedText, onOpenChange]);
+  }, [stopRecording, onSelectAction, committedText, onOpenChange, userId, userMeds, processQuestion]);
 
   const handleConfirmAction = useCallback(async () => {
     if (!recognizedIntent) return;
