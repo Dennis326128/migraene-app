@@ -131,6 +131,39 @@ export type Database = {
           },
         ]
       }
+      hit6_assessments: {
+        Row: {
+          answers: Json
+          created_at: string
+          id: string
+          pdf_last_generated_at: string | null
+          period_end_date: string
+          period_start_date: string
+          score: number
+          user_id: string
+        }
+        Insert: {
+          answers: Json
+          created_at?: string
+          id?: string
+          pdf_last_generated_at?: string | null
+          period_end_date?: string
+          period_start_date?: string
+          score: number
+          user_id: string
+        }
+        Update: {
+          answers?: Json
+          created_at?: string
+          id?: string
+          pdf_last_generated_at?: string | null
+          period_end_date?: string
+          period_start_date?: string
+          score?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       medication_courses: {
         Row: {
           baseline_acute_med_days: string | null
