@@ -484,6 +484,7 @@ export type Database = {
           follow_up_interval_value: number | null
           id: string
           last_popup_date: string | null
+          medication_id: string | null
           medications: string[] | null
           next_follow_up_date: string | null
           notes: string | null
@@ -508,6 +509,7 @@ export type Database = {
           follow_up_interval_value?: number | null
           id?: string
           last_popup_date?: string | null
+          medication_id?: string | null
           medications?: string[] | null
           next_follow_up_date?: string | null
           notes?: string | null
@@ -532,6 +534,7 @@ export type Database = {
           follow_up_interval_value?: number | null
           id?: string
           last_popup_date?: string | null
+          medication_id?: string | null
           medications?: string[] | null
           next_follow_up_date?: string | null
           notes?: string | null
@@ -548,7 +551,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "reminders_medication_id_fkey"
+            columns: ["medication_id"]
+            isOneToOne: false
+            referencedRelation: "user_medications"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       symptom_catalog: {
         Row: {

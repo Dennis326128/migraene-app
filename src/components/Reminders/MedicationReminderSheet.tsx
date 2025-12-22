@@ -23,6 +23,8 @@ interface MedicationReminderSheetProps {
   reminderStatus?: MedicationReminderStatus;
   // Alternative: pass just a medication name (for courses)
   medicationName?: string;
+  // Optional: direct medication ID for linking
+  medicationId?: string;
   // If true, default to monthly repeat (for prophylaxis courses)
   isProphylaxis?: boolean;
 }
@@ -33,14 +35,16 @@ export const MedicationReminderSheet: React.FC<MedicationReminderSheetProps> = (
   medication,
   reminderStatus,
   medicationName: providedMedicationName,
+  medicationId: providedMedicationId,
   isProphylaxis = false,
 }) => {
   const createReminder = useCreateReminder();
   const updateReminder = useUpdateReminder();
   const deleteReminder = useDeleteReminder();
   
-  // Determine medication name from either Med object or direct prop
+  // Determine medication name and ID from either Med object or direct props
   const medicationName = medication?.name ?? providedMedicationName ?? "";
+  const medicationId = medication?.id ?? providedMedicationId;
   
   // Default repeat based on medication type
   const defaultRepeat: ReminderRepeat = isProphylaxis ? "monthly" : "daily";
@@ -98,6 +102,8 @@ export const MedicationReminderSheet: React.FC<MedicationReminderSheetProps> = (
         repeat: newRepeat,
         notification_enabled: true,
         medications: [medicationName],
+        // Include medication_id for direct FK linking
+        medication_id: medicationId,
       });
       
       setShowCreateForm(false);
