@@ -964,6 +964,16 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
             )}
             Medikationsplan
           </Button>
+
+          <Button 
+            onClick={() => onNavigate?.('hit6')}
+            variant="ghost"
+            size="sm"
+            className="text-xs text-muted-foreground hover:text-foreground"
+          >
+            <FileText className="mr-1.5 h-3.5 w-3.5" />
+            HIT-6 (PDF)
+          </Button>
         </div>
       </div>
 

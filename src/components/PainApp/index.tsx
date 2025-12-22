@@ -30,10 +30,11 @@ import {
   LazyRemindersPage,
   LazySettingsDoctorsPage,
   LazyDiaryReport,
+  LazyHit6Screen,
   prefetchCommonViews,
 } from "@/lib/performance/lazyImports";
 
-type View = "menu" | "new" | "list" | "analysis" | "settings" | "settings-doctors" | "medication-overview" | "medication-management" | "voice-notes" | "reminders" | "diary-timeline" | "context-tags" | "diary-report" | "medication-limits";
+type View = "menu" | "new" | "list" | "analysis" | "settings" | "settings-doctors" | "medication-overview" | "medication-management" | "voice-notes" | "reminders" | "diary-timeline" | "context-tags" | "diary-report" | "medication-limits" | "hit6";
 
 // Track where the user navigated from for proper back navigation
 type DiaryReportOrigin = 'home' | 'diary-timeline' | null;
@@ -263,10 +264,22 @@ export const PainApp: React.FC = () => {
               const editId = params.get('id') || undefined;
               setDoctorsOrigin(origin ? { origin, editDoctorId: editId } : null);
               setView('settings-doctors');
+            } else if (target === 'hit6') {
+              setView('hit6');
             }
           }} 
         />,
         "Bericht laden..."
+      )}
+
+      {view === "hit6" && withSuspense(
+        <LazyHit6Screen 
+          onBack={() => {
+            // Navigate back to diary-report
+            setView('diary-report');
+          }}
+        />,
+        "HIT-6 laden..."
       )}
 
       {view === "settings-doctors" && withSuspense(

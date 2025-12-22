@@ -86,6 +86,13 @@ export const LazySettingsDoctorsPage = lazy(() =>
   import("@/components/PainApp/Settings/SettingsDoctorsPage").then(m => ({ default: m.SettingsDoctorsPage }))
 );
 
+/**
+ * Hit6Screen - HIT-6 questionnaire with PDF generation
+ */
+export const LazyHit6Screen = lazy(() => 
+  import("@/components/PainApp/Hit6Screen").then(m => ({ default: m.default }))
+);
+
 // ═══════════════════════════════════════════════════════════════════════════
 // PDF GENERATION - Only load when needed
 // ═══════════════════════════════════════════════════════════════════════════
