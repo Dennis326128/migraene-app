@@ -434,8 +434,12 @@ export function VoiceAssistantOverlay({
       const isHighConfidence = result.confidence >= AUTO_ACTION_THRESHOLD;
       const isMediumConfidence = result.confidence >= CONFIRM_THRESHOLD && result.confidence < AUTO_ACTION_THRESHOLD;
       
-      // === HIGH CONFIDENCE: Auto-action ===
-      if (isHighConfidence) {
+      // Check if pain entry has enough data to auto-proceed (pain level recognized = good enough)
+      const isPainEntryWithData = (result.type === 'create_pain_entry' || result.type === 'create_quick_entry') && 
+        result.payload && (result.payload as any).painLevel !== undefined;
+      
+      // === HIGH CONFIDENCE OR PAIN ENTRY WITH DATA: Auto-action ===
+      if (isHighConfidence || isPainEntryWithData) {
         // Q&A: Show answer directly
         if (result.type === 'analytics_query' && userId) {
           const voiceQuery = result.payload as VoiceAnalyticsQuery | undefined;
@@ -458,11 +462,10 @@ export function VoiceAssistantOverlay({
           }
         }
         
-        // Pain entry: Open QuickEntry with prefill
-        // NOTE: payload IS the painEntry directly (from voiceIntentRouter line 94)
+        // Pain entry: Open QuickEntry with prefill - AUTO-PROCEED when we have data
         if (result.type === 'create_pain_entry' || result.type === 'create_quick_entry') {
           const painEntry = result.payload as any;
-          console.log('🔧 Voice prefill painEntry:', painEntry);
+          console.log('🔧 Voice prefill painEntry (auto-proceed):', painEntry);
           
           // Build medication states with proper structure
           const medicationStates: Record<string, { doseQuarters: number; medicationId?: string }> = {};
@@ -603,15 +606,27 @@ export function VoiceAssistantOverlay({
   }, [recognizedIntent, userId, committedText, processQuestion, saveNoteDirectly, handleSelectAction, onOpenChange]);
 
   const handleAskAnother = useCallback(() => {
+    // First stop any existing recording to reset state
+    stopRecording();
+    
+    // Reset all state
     setCommittedText('');
     setQaAnswer(null);
     setRecognizedIntent(null);
     setOverlayState('input');
-    // Optionally auto-start recording
+    setInterimText('');
+    
+    // Force restart recording after a short delay
     if (isSttSupported) {
-      setTimeout(() => startRecording(), 300);
+      // Ensure recognition is fully stopped before restarting
+      setTimeout(() => {
+        if (recognitionRef.current) {
+          recognitionRef.current = null;
+        }
+        startRecording();
+      }, 400);
     }
-  }, [isSttSupported, startRecording]);
+  }, [isSttSupported, startRecording, stopRecording]);
 
   const handleCancel = useCallback(() => {
     stopRecording();
