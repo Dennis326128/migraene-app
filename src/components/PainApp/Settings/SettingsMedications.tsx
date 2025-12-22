@@ -2,50 +2,86 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { useMeds, useAddMed, useDeleteMed, useUpdateMed, useIntoleranceMeds, type Med } from "@/features/meds/hooks/useMeds";
+import { useMeds, useAddMed, useDeleteMed, useUpdateMed, useIntoleranceMeds, useInactiveMeds, type Med } from "@/features/meds/hooks/useMeds";
 import { useMedicationCourses } from "@/features/medication-courses";
 import { usePatientData, useDoctors } from "@/features/account/hooks/useAccount";
 import { useMedicationLimits } from "@/features/medication-limits/hooks/useMedicationLimits";
 import { useMedicationsReminderMap, type MedicationReminderStatus } from "@/features/reminders/hooks/useMedicationReminders";
+import { useEndActivePhase, useStartNewPhase, useAllPhases } from "@/features/medication-phases";
 import { buildMedicationPlanPdf, type PdfExportOptions } from "@/lib/pdf/medicationPlan";
-import { Trash2, Plus, Pill, Loader2, Pencil, Download, ChevronDown, ChevronUp, Link2, Calendar, Bell, BellOff } from "lucide-react";
+import { Trash2, Plus, Pill, Loader2, Pencil, Download, Calendar, Bell, BellOff, RotateCcw } from "lucide-react";
 import { MedicationEditModal } from "../MedicationEditModal";
 import { MedicationPlanExportDialog } from "../MedicationPlanExportDialog";
+import { MedicationDeactivateSheet } from "../MedicationDeactivateSheet";
 import { MedicationReminderSheet } from "@/components/Reminders/MedicationReminderSheet";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { toast as sonnerToast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { DoctorSelectionDialog, type Doctor } from "../DoctorSelectionDialog";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TYPES
+// ═══════════════════════════════════════════════════════════════════════════
 
 interface MedicationListItemProps {
   med: Med;
   onEdit: (med: Med) => void;
-  onToggleActive: (med: Med) => void;
+  onDeactivate?: (med: Med) => void;
+  onReactivate?: (med: Med) => void;
   onDelete: (name: string) => void;
-  onReminderClick: (med: Med) => void;
+  onReminderClick?: (med: Med) => void;
   isDeleting: boolean;
   isMobile: boolean;
-  showDates?: boolean;
+  variant: "active" | "inactive";
   reminderStatus?: MedicationReminderStatus;
+  latestPhase?: { start_date: string; end_date: string | null; stop_reason: string | null } | null;
+  isReactivating?: boolean;
 }
 
-const MedicationListItem = ({ med, onEdit, onToggleActive, onDelete, onReminderClick, isDeleting, isMobile, showDates, reminderStatus }: MedicationListItemProps) => {
-  const isInactive = med.is_active === false;
-  
+// ═══════════════════════════════════════════════════════════════════════════
+// MEDICATION LIST ITEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+const getStopReasonLabel = (reason: string | null | undefined): string => {
+  const labels: Record<string, string> = {
+    keine_wirkung: "Keine Wirkung",
+    nebenwirkungen: "Nebenwirkungen",
+    therapie_gewechselt: "Therapie gewechselt",
+    sonstiges: "Sonstiges",
+  };
+  return labels[reason || ""] || "";
+};
+
+const MedicationListItem = ({
+  med,
+  onEdit,
+  onDeactivate,
+  onReactivate,
+  onDelete,
+  onReminderClick,
+  isDeleting,
+  isMobile,
+  variant,
+  reminderStatus,
+  latestPhase,
+  isReactivating = false,
+}: MedicationListItemProps) => {
+  const isInactive = variant === "inactive";
+
   const formatDateRange = () => {
-    if (!med.start_date && !med.end_date) return null;
-    const start = med.start_date ? format(new Date(med.start_date), "MM/yyyy", { locale: de }) : "?";
-    const end = med.end_date ? format(new Date(med.end_date), "MM/yyyy", { locale: de }) : "heute";
+    if (!latestPhase) return null;
+    const start = format(new Date(latestPhase.start_date), "MM/yyyy", { locale: de });
+    const end = latestPhase.end_date
+      ? format(new Date(latestPhase.end_date), "MM/yyyy", { locale: de })
+      : "heute";
     return `${start} – ${end}`;
   };
 
-  // Determine bell icon state
   const hasActiveReminder = reminderStatus?.isActive ?? false;
   const isIntervalMed = reminderStatus?.isIntervalMed ?? false;
   const nextTriggerDate = reminderStatus?.nextTriggerDate;
@@ -54,26 +90,19 @@ const MedicationListItem = ({ med, onEdit, onToggleActive, onDelete, onReminderC
     <div
       className={cn(
         "flex items-center justify-between p-3 rounded-lg transition-colors",
-        isInactive 
-          ? "bg-muted/30 opacity-60" 
+        isInactive
+          ? "bg-muted/30"
           : "bg-secondary/20",
         isMobile && "p-2"
       )}
     >
       <div className="flex items-center gap-3 flex-1 min-w-0">
-        {!showDates && (
-          <Switch
-            checked={med.is_active !== false}
-            onCheckedChange={() => onToggleActive(med)}
-            className="shrink-0"
-          />
-        )}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className={cn(
-              "font-medium block truncate", 
+              "font-medium block truncate",
               isMobile && "text-sm",
-              isInactive && "line-through"
+              isInactive && "text-muted-foreground"
             )}>
               {med.name}
             </span>
@@ -82,34 +111,34 @@ const MedicationListItem = ({ med, onEdit, onToggleActive, onDelete, onReminderC
                 Regelmäßig
               </Badge>
             )}
-            {isInactive && !showDates && (
-              <Badge variant="outline" className="text-xs shrink-0">
-                Inaktiv
-              </Badge>
-            )}
           </div>
           <div className="flex flex-col gap-0.5">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
               {(med.wirkstoff || med.staerke || med.darreichungsform) && (
                 <span className="truncate">
                   {[med.wirkstoff, med.staerke, med.darreichungsform].filter(Boolean).join(" · ")}
                 </span>
               )}
-              {showDates && formatDateRange() && (
+              {isInactive && formatDateRange() && (
                 <span className="flex items-center gap-1">
                   <Calendar className="h-3 w-3" />
                   {formatDateRange()}
                 </span>
               )}
-              {!showDates && med.start_date && (
+              {isInactive && latestPhase?.stop_reason && (
+                <Badge variant="outline" className="text-xs">
+                  {getStopReasonLabel(latestPhase.stop_reason)}
+                </Badge>
+              )}
+              {!isInactive && med.start_date && (
                 <span className="flex items-center gap-1">
                   <Calendar className="h-3 w-3" />
                   Seit {format(new Date(med.start_date), "MM/yyyy", { locale: de })}
                 </span>
               )}
             </div>
-            {/* Reminder mini-line for interval medications (Ajovy, etc.) */}
-            {!showDates && !isInactive && isIntervalMed && (
+            {/* Reminder mini-line for interval medications */}
+            {!isInactive && isIntervalMed && onReminderClick && (
               <div className="flex items-center gap-1.5 text-xs">
                 {hasActiveReminder ? (
                   <span className="text-primary flex items-center gap-1">
@@ -122,7 +151,7 @@ const MedicationListItem = ({ med, onEdit, onToggleActive, onDelete, onReminderC
                 ) : (
                   <span className="text-muted-foreground flex items-center gap-1">
                     <BellOff className="h-3 w-3" />
-                    Keine Erinnerung eingerichtet
+                    Keine Erinnerung
                   </span>
                 )}
               </div>
@@ -130,9 +159,28 @@ const MedicationListItem = ({ med, onEdit, onToggleActive, onDelete, onReminderC
           </div>
         </div>
       </div>
+
       <div className="flex items-center gap-1 shrink-0">
-        {/* Bell icon for reminder - always visible and clickable */}
-        {!showDates && !isInactive && (
+        {/* Reactivate button for inactive medications */}
+        {isInactive && onReactivate && (
+          <Button
+            variant="outline"
+            size={isMobile ? "sm" : "default"}
+            onClick={() => onReactivate(med)}
+            disabled={isReactivating}
+            className="gap-1"
+          >
+            {isReactivating ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RotateCcw className="h-4 w-4" />
+            )}
+            <span className={isMobile ? "hidden" : ""}>Reaktivieren</span>
+          </Button>
+        )}
+
+        {/* Reminder bell for active medications */}
+        {!isInactive && onReminderClick && (
           <Button
             variant="ghost"
             size={isMobile ? "sm" : "icon"}
@@ -143,13 +191,10 @@ const MedicationListItem = ({ med, onEdit, onToggleActive, onDelete, onReminderC
             )}
             title={hasActiveReminder ? "Erinnerungen verwalten" : "Erinnerung einrichten"}
           >
-            {hasActiveReminder ? (
-              <Bell className="h-4 w-4" />
-            ) : (
-              <BellOff className="h-4 w-4" />
-            )}
+            {hasActiveReminder ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}
           </Button>
         )}
+
         <Button
           variant="ghost"
           size={isMobile ? "sm" : "icon"}
@@ -159,6 +204,7 @@ const MedicationListItem = ({ med, onEdit, onToggleActive, onDelete, onReminderC
         >
           <Pencil className="h-4 w-4" />
         </Button>
+
         <Button
           variant="ghost"
           size={isMobile ? "sm" : "icon"}
@@ -174,51 +220,74 @@ const MedicationListItem = ({ med, onEdit, onToggleActive, onDelete, onReminderC
   );
 };
 
+// ═══════════════════════════════════════════════════════════════════════════
+// MAIN COMPONENT
+// ═══════════════════════════════════════════════════════════════════════════
+
 export const SettingsMedications = () => {
   const { toast } = useToast();
   const isMobile = useIsMobile();
+
+  // UI State
   const [newMedName, setNewMedName] = useState("");
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [editingMed, setEditingMed] = useState<Med | null>(null);
-  const [showInactive, setShowInactive] = useState(false);
+  const [deactivatingMed, setDeactivatingMed] = useState<Med | null>(null);
+  const [reactivatingMedId, setReactivatingMedId] = useState<string | null>(null);
   const [showDoctorSelection, setShowDoctorSelection] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [pendingExportOptions, setPendingExportOptions] = useState<PdfExportOptions | undefined>();
   const [reminderMed, setReminderMed] = useState<Med | null>(null);
-  
+  const [activeTab, setActiveTab] = useState<"active" | "inactive">("active");
+
+  // Data Queries
   const { data: medications = [], isLoading: medsLoading } = useMeds();
   const { data: intoleranceMeds = [] } = useIntoleranceMeds();
+  const { data: inactiveMedsList = [] } = useInactiveMeds();
   const { data: courses } = useMedicationCourses();
   const { data: patientData } = usePatientData();
   const { data: doctors } = useDoctors();
   const { data: medicationLimits } = useMedicationLimits();
-  
-  // Get reminder status map for all medications
+  const { data: allPhases = [] } = useAllPhases();
   const reminderStatusMap = useMedicationsReminderMap(medications);
-  
+
+  // Mutations
   const addMed = useAddMed();
   const deleteMed = useDeleteMed();
   const updateMed = useUpdateMed();
+  const endPhase = useEndActivePhase();
+  const startPhase = useStartNewPhase();
 
-  // Filter medications by active status and intake type
+  // ─────────────────────────────────────────────────────────────────────────
+  // Derived Data
+  // ─────────────────────────────────────────────────────────────────────────
+
   const activeMedications = medications.filter(m => m.is_active !== false);
-  const inactiveMedications = medications.filter(m => m.is_active === false || m.end_date);
-  
-  // Split active medications by intake type
+  const inactiveMedications = medications.filter(m => m.is_active === false);
+
+  // Split active by intake type
   const regularMedications = activeMedications.filter(m => m.intake_type === "regular");
   const asNeededMedications = activeMedications.filter(m => m.intake_type !== "regular");
 
-  // Handler for opening reminder sheet
-  const handleReminderClick = (med: Med) => {
-    setReminderMed(med);
-  };
+  // Phase lookup map
+  const phasesByMedId = new Map<string, typeof allPhases[0]>();
+  for (const phase of allPhases) {
+    const existing = phasesByMedId.get(phase.medication_id);
+    // Keep the most recent phase
+    if (!existing || new Date(phase.start_date) > new Date(existing.start_date)) {
+      phasesByMedId.set(phase.medication_id, phase);
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Handlers
+  // ─────────────────────────────────────────────────────────────────────────
 
   const handleAddMedication = async () => {
     if (!newMedName.trim()) return;
     try {
-      // Set today's date as default start_date
-      const today = new Date().toISOString().split('T')[0];
-      await addMed.mutateAsync({ 
+      const today = new Date().toISOString().split("T")[0];
+      await addMed.mutateAsync({
         name: newMedName.trim(),
         start_date: today,
       });
@@ -252,26 +321,34 @@ export const SettingsMedications = () => {
     }
   };
 
-  const handleToggleActive = async (med: Med) => {
+  const handleDeactivateClick = (med: Med) => {
+    setDeactivatingMed(med);
+  };
+
+  const handleDeactivateConfirm = async (endDate: string, stopReason: string | null) => {
+    if (!deactivatingMed) return;
+
     try {
-      const newActiveState = med.is_active === false;
-      const updateData: any = { is_active: newActiveState };
-      
-      // If deactivating, set end_date to today
-      if (!newActiveState) {
-        updateData.end_date = new Date().toISOString().split('T')[0];
-      } else {
-        // If reactivating, clear end_date
-        updateData.end_date = null;
-      }
-      
-      await updateMed.mutateAsync({
-        id: med.id,
-        input: updateData,
+      // End the phase
+      await endPhase.mutateAsync({
+        medicationId: deactivatingMed.id,
+        endDate,
+        stopReason,
       });
+
+      // Update medication status
+      await updateMed.mutateAsync({
+        id: deactivatingMed.id,
+        input: {
+          is_active: false,
+          end_date: endDate,
+        },
+      });
+
+      setDeactivatingMed(null);
       toast({
-        title: newActiveState ? "Medikament aktiviert" : "Medikament deaktiviert",
-        description: `${med.name} wurde ${newActiveState ? "aktiviert" : "deaktiviert"}`,
+        title: "Einnahme beendet",
+        description: `${deactivatingMed.name} wurde deaktiviert`,
       });
     } catch (error: any) {
       toast({
@@ -282,14 +359,56 @@ export const SettingsMedications = () => {
     }
   };
 
+  const handleReactivate = async (med: Med) => {
+    setReactivatingMedId(med.id);
+    try {
+      const today = new Date().toISOString().split("T")[0];
+
+      // Start new phase
+      await startPhase.mutateAsync({
+        medicationId: med.id,
+        startDate: today,
+      });
+
+      // Update medication status
+      await updateMed.mutateAsync({
+        id: med.id,
+        input: {
+          is_active: true,
+          end_date: null,
+          start_date: today,
+        },
+      });
+
+      toast({
+        title: "Medikament reaktiviert",
+        description: `${med.name} ist wieder aktiv`,
+      });
+
+      // Switch to active tab
+      setActiveTab("active");
+    } catch (error: any) {
+      toast({
+        title: "Fehler",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setReactivatingMedId(null);
+    }
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // PDF Generation
+  // ─────────────────────────────────────────────────────────────────────────
+
   const generatePdfWithDoctors = async (selectedDoctors: Doctor[], options?: PdfExportOptions) => {
     setIsGeneratingPdf(true);
     try {
-      // Combine active medications with intolerant ones if option is enabled
       const medsForPdf = options?.includeIntolerance
         ? [...activeMedications, ...intoleranceMeds.filter(m => !activeMedications.some(a => a.id === m.id))]
         : activeMedications;
-      
+
       const pdfBytes = await buildMedicationPlanPdf({
         medicationCourses: courses || [],
         userMedications: medsForPdf?.map(m => ({
@@ -368,8 +487,8 @@ export const SettingsMedications = () => {
   };
 
   const handleGenerateMedicationPlan = () => {
-    const hasMedications = (courses && courses.length > 0) || (activeMedications && activeMedications.length > 0);
-    
+    const hasMedications = (courses && courses.length > 0) || activeMedications.length > 0;
+
     if (!hasMedications) {
       toast({
         title: "Keine Medikamente vorhanden",
@@ -379,21 +498,18 @@ export const SettingsMedications = () => {
       return;
     }
 
-    // Open export dialog first
     setShowExportDialog(true);
   };
 
   const handleExportConfirm = async (options: PdfExportOptions) => {
     setShowExportDialog(false);
-    
-    // If multiple doctors, show selection dialog
+
     if (doctors && doctors.length > 1) {
       setPendingExportOptions(options);
       setShowDoctorSelection(true);
       return;
     }
 
-    // Otherwise generate directly
     await generatePdfWithDoctors(doctors || [], options);
   };
 
@@ -405,6 +521,10 @@ export const SettingsMedications = () => {
 
   const totalActiveMedications = (courses?.filter(c => c.is_active)?.length || 0) + activeMedications.length;
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // Render
+  // ─────────────────────────────────────────────────────────────────────────
+
   if (medsLoading) {
     return (
       <div className="text-center py-8">
@@ -415,7 +535,7 @@ export const SettingsMedications = () => {
 
   return (
     <div className="space-y-4">
-      {/* PROMINENT: Medikationsplan Button - Primary Action */}
+      {/* PDF Button */}
       <Card className={cn(
         "border-primary/40 bg-gradient-to-r from-primary/10 to-primary/5",
         "hover:border-primary/60 transition-all duration-200"
@@ -443,9 +563,9 @@ export const SettingsMedications = () => {
                   Medikationsplan (PDF) erstellen
                 </div>
                 <div className={cn("opacity-90 font-normal", isMobile ? "text-xs" : "text-sm")}>
-                  {isGeneratingPdf 
-                    ? "Wird erstellt..." 
-                    : `${totalActiveMedications} aktive Medikamente - für Arzt, Krankenhaus oder Notfall`}
+                  {isGeneratingPdf
+                    ? "Wird erstellt..."
+                    : `${totalActiveMedications} aktive Medikamente`}
                 </div>
               </div>
             </div>
@@ -453,155 +573,154 @@ export const SettingsMedications = () => {
         </CardContent>
       </Card>
 
-      {/* Medication Management */}
+      {/* Medications Card with Tabs */}
       <Card className={cn("p-6", isMobile && "p-4")}>
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
           <h2 className={cn("text-lg font-medium flex items-center gap-2", isMobile && "text-base")}>
             <Pill className="h-5 w-5" />
-            Aktuelle Medikamente
+            Medikamente verwalten
           </h2>
         </div>
-        <p className={cn("text-sm text-muted-foreground mb-4", isMobile && "text-xs")}>
-          Hier verwaltest du deine Medikamente nach Art der Einnahme.
-        </p>
-        
-        <div className="space-y-5">
-          {/* Add medication input */}
-          <div className="flex gap-2">
-            <Input
-              placeholder="Neues Medikament hinzufügen..."
-              value={newMedName}
-              onChange={(e) => setNewMedName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleAddMedication()}
-            />
-            <Button
-              onClick={handleAddMedication}
-              disabled={!newMedName.trim() || addMed.isPending}
-              size={isMobile ? "sm" : "default"}
-              className="shrink-0"
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
-          </div>
 
-          {/* Regular Medications Section */}
-          {regularMedications.length > 0 && (
-            <div className="space-y-2">
-              <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                Regelmäßige Medikamente
-                <Badge variant="secondary" className="text-xs">{regularMedications.length}</Badge>
-              </h3>
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "active" | "inactive")}>
+          <TabsList className="w-full mb-4">
+            <TabsTrigger value="active" className="flex-1">
+              Aktiv
+              <Badge variant="secondary" className="ml-2 text-xs">
+                {activeMedications.length}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger value="inactive" className="flex-1">
+              Inaktiv / Verlauf
+              <Badge variant="outline" className="ml-2 text-xs">
+                {inactiveMedications.length}
+              </Badge>
+            </TabsTrigger>
+          </TabsList>
+
+          {/* ACTIVE TAB */}
+          <TabsContent value="active" className="space-y-5 mt-0">
+            {/* Add medication input */}
+            <div className="flex gap-2">
+              <Input
+                placeholder="Neues Medikament hinzufügen..."
+                value={newMedName}
+                onChange={(e) => setNewMedName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAddMedication()}
+              />
+              <Button
+                onClick={handleAddMedication}
+                disabled={!newMedName.trim() || addMed.isPending}
+                size={isMobile ? "sm" : "default"}
+                className="shrink-0"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+
+            {/* Regular Medications */}
+            {regularMedications.length > 0 && (
               <div className="space-y-2">
-                {regularMedications.map((med) => (
-                  <MedicationListItem
-                    key={med.id}
-                    med={med}
-                    onEdit={setEditingMed}
-                    onToggleActive={handleToggleActive}
-                    onDelete={handleDeleteMedication}
-                    onReminderClick={handleReminderClick}
-                    isDeleting={deleteMed.isPending}
-                    isMobile={isMobile}
-                    reminderStatus={reminderStatusMap.get(med.id)}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* As-Needed Medications Section */}
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              Bedarfsmedikation
-              <Badge variant="secondary" className="text-xs">{asNeededMedications.length}</Badge>
-            </h3>
-            <div className={cn(
-              "space-y-2 max-h-[280px] overflow-y-auto modern-scrollbar pr-1",
-              asNeededMedications.length > 5 && "pb-2"
-            )}>
-              {asNeededMedications.map((med) => (
-                <MedicationListItem
-                  key={med.id}
-                  med={med}
-                  onEdit={setEditingMed}
-                  onToggleActive={handleToggleActive}
-                  onDelete={handleDeleteMedication}
-                  onReminderClick={handleReminderClick}
-                  isDeleting={deleteMed.isPending}
-                  isMobile={isMobile}
-                  reminderStatus={reminderStatusMap.get(med.id)}
-                />
-              ))}
-              
-              {asNeededMedications.length === 0 && regularMedications.length === 0 && (
-                <p className={cn("text-center text-muted-foreground py-4", isMobile && "text-sm")}>
-                  Noch keine Medikamente hinzugefügt
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* Discontinued Medications (Therapieverlauf) - Collapsed */}
-          {inactiveMedications.length > 0 && (
-            <Collapsible open={showInactive} onOpenChange={setShowInactive}>
-              <CollapsibleTrigger className="flex items-center justify-between w-full p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-muted-foreground">
-                    Abgesetzte Medikamente (Therapieverlauf)
-                  </span>
-                  <Badge variant="outline" className="text-xs">{inactiveMedications.length}</Badge>
-                </div>
-                {showInactive ? (
-                  <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                ) : (
-                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                )}
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <div className="space-y-2 mt-2">
-                  {inactiveMedications.map((med) => (
+                <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  Regelmäßige Medikamente
+                  <Badge variant="secondary" className="text-xs">{regularMedications.length}</Badge>
+                </h3>
+                <div className="space-y-2">
+                  {regularMedications.map((med) => (
                     <MedicationListItem
                       key={med.id}
                       med={med}
                       onEdit={setEditingMed}
-                      onToggleActive={handleToggleActive}
+                      onDeactivate={handleDeactivateClick}
                       onDelete={handleDeleteMedication}
-                      onReminderClick={handleReminderClick}
+                      onReminderClick={(m) => setReminderMed(m)}
                       isDeleting={deleteMed.isPending}
                       isMobile={isMobile}
-                      showDates
+                      variant="active"
+                      reminderStatus={reminderStatusMap.get(med.id)}
                     />
                   ))}
                 </div>
-              </CollapsibleContent>
-            </Collapsible>
-          )}
-        </div>
+              </div>
+            )}
+
+            {/* As-Needed Medications */}
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                Bedarfsmedikation
+                <Badge variant="secondary" className="text-xs">{asNeededMedications.length}</Badge>
+              </h3>
+              <div className={cn(
+                "space-y-2 max-h-[280px] overflow-y-auto modern-scrollbar pr-1",
+                asNeededMedications.length > 5 && "pb-2"
+              )}>
+                {asNeededMedications.map((med) => (
+                  <MedicationListItem
+                    key={med.id}
+                    med={med}
+                    onEdit={setEditingMed}
+                    onDeactivate={handleDeactivateClick}
+                    onDelete={handleDeleteMedication}
+                    onReminderClick={(m) => setReminderMed(m)}
+                    isDeleting={deleteMed.isPending}
+                    isMobile={isMobile}
+                    variant="active"
+                    reminderStatus={reminderStatusMap.get(med.id)}
+                  />
+                ))}
+
+                {asNeededMedications.length === 0 && regularMedications.length === 0 && (
+                  <p className={cn("text-center text-muted-foreground py-4", isMobile && "text-sm")}>
+                    Noch keine Medikamente hinzugefügt
+                  </p>
+                )}
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* INACTIVE TAB */}
+          <TabsContent value="inactive" className="space-y-4 mt-0">
+            {inactiveMedications.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">
+                Keine abgesetzten Medikamente
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {inactiveMedications.map((med) => (
+                  <MedicationListItem
+                    key={med.id}
+                    med={med}
+                    onEdit={setEditingMed}
+                    onReactivate={handleReactivate}
+                    onDelete={handleDeleteMedication}
+                    isDeleting={deleteMed.isPending}
+                    isMobile={isMobile}
+                    variant="inactive"
+                    latestPhase={phasesByMedId.get(med.id)}
+                    isReactivating={reactivatingMedId === med.id}
+                  />
+                ))}
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
       </Card>
 
-      {/* Link to Medication Limits */}
-      <div className="flex justify-center">
-        <Button
-          variant="link"
-          className="text-muted-foreground hover:text-foreground text-sm"
-          onClick={() => {
-            // Navigate to medication limits page
-            window.location.hash = '#/medication-limits';
-          }}
-        >
-          <Link2 className="h-4 w-4 mr-2" />
-          Grenzen & Warnungen verwalten
-        </Button>
-      </div>
-
-      {/* Edit Modal */}
+      {/* Modals & Sheets */}
       <MedicationEditModal
         medication={editingMed}
         open={!!editingMed}
         onOpenChange={(open) => !open && setEditingMed(null)}
       />
 
-      {/* Export Options Dialog */}
+      <MedicationDeactivateSheet
+        open={!!deactivatingMed}
+        onOpenChange={(open) => !open && setDeactivatingMed(null)}
+        medication={deactivatingMed}
+        onConfirm={handleDeactivateConfirm}
+        isLoading={endPhase.isPending || updateMed.isPending}
+      />
+
       <MedicationPlanExportDialog
         open={showExportDialog}
         onOpenChange={setShowExportDialog}
@@ -609,7 +728,6 @@ export const SettingsMedications = () => {
         intoleranceMeds={intoleranceMeds}
       />
 
-      {/* Doctor Selection Dialog */}
       <DoctorSelectionDialog
         open={showDoctorSelection}
         onClose={() => setShowDoctorSelection(false)}
@@ -619,7 +737,6 @@ export const SettingsMedications = () => {
         description="Wählen Sie die Ärzte aus, deren Kontaktdaten im Medikationsplan erscheinen sollen."
       />
 
-      {/* Medication Reminder Sheet */}
       {reminderMed && (
         <MedicationReminderSheet
           isOpen={!!reminderMed}
