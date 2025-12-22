@@ -152,65 +152,81 @@ function classifyIntent(
   intentConfidence: number 
 } {
   const lower = transcript.toLowerCase();
+  
+  console.log('[VOICE-NLP] classifyIntent input:', transcript.substring(0, 80));
 
   // 0. Check: Analytics Query? (Fragen zu Statistiken)
   if (isAnalyticsQuestion(lower)) {
+    console.log('[VOICE-NLP] → analytics_query');
     return { intent: 'analytics_query', intentConfidence: 0.9 };
   }
 
-  // 0.5. Check: Add Medication Trigger? (BEFORE pain entry check)
-  // But ONLY if there are NO pain indicators - otherwise it's a pain entry with meds
-  const hasPainContext = /\b(schmerz|kopfschmerz|migräne|stärke|level|intensität|attacke|anfall)\b/i.test(lower);
-  const hasTimeContext = /\b(vor|seit|gestern|heute|jetzt|gerade|genommen|eingenommen)\b/i.test(lower);
+  // 1. PRIORITY CHECK: Add Medication Trigger? 
+  // If user explicitly says "füge...hinzu", "anlegen", "neues medikament" → ADD_MEDICATION
+  // This has HIGH priority - only pain words like "schmerz/migräne" should override it
+  const isAddMedTrigger = isAddMedicationTrigger(transcript);
+  const hasPainKeyword = /\b(schmerz|kopfschmerz|migräne|migraene|attacke|anfall)\b/i.test(lower);
+  const hasPainLevelContext = /\b(stärke|staerke|level|intensität|intensitaet)\s*\d/i.test(lower);
   
-  if (isAddMedicationTrigger(transcript) && !hasPainContext && !hasTimeContext) {
+  // Only block ADD_MEDICATION if there's explicit pain context (not just any number!)
+  if (isAddMedTrigger && !hasPainKeyword && !hasPainLevelContext) {
     const parsed = parseAddMedicationCommand(transcript);
     if (parsed && parsed.name.length >= 2) {
+      console.log('[VOICE-NLP] → add_medication (trigger matched, name:', parsed.name, ')');
       return { intent: 'add_medication', intentConfidence: parsed.confidence };
     }
   }
 
-  // 1. Check: Medication Update Trigger? (Höchste Priorität für Medikamenten-Änderungen)
+  // 2. Check: Medication Update Trigger? (abgesetzt, unverträglich, etc.)
   const medUpdateMatch = detectMedicationUpdateIntent(lower, userContext);
   if (medUpdateMatch.confidence > 0.7) {
+    console.log('[VOICE-NLP] → medication_update');
     return { intent: 'medication_update', intentConfidence: medUpdateMatch.confidence };
   }
 
-  // 1.5. Check: Medication Effect Rating? (Bewertung der Wirksamkeit)
+  // 2.5. Check: Medication Effect Rating? (Bewertung der Wirksamkeit)
   if (isMedicationEffectRating(lower)) {
+    console.log('[VOICE-NLP] → medication_effect');
     return { intent: 'medication_effect', intentConfidence: 0.85 };
   }
 
-  // 2. Check: Reminder-Trigger?
+  // 3. Check: Reminder-Trigger?
   if (isReminderTrigger(transcript)) {
+    console.log('[VOICE-NLP] → reminder');
     return { intent: 'reminder', intentConfidence: 0.9 };
   }
 
-  // 3. Check: Pain Entry Indikatoren
+  // 4. Check: Pain Entry Indikatoren
+  // IMPORTANT: Numbers alone don't indicate pain - need context!
+  // Numbers with "mg" suffix are medication strength, not pain level
+  const textWithoutMg = lower.replace(/\d+\s*(?:mg|milligramm|mcg|ml)\b/gi, '');
+  
   const painIndicators = [
-    'schmerz', 'kopfschmerz', 'migräne',
-    'stärke', 'level', 'intensität',
-    /\b[0-9]|zehn\b/, // Zahlen
+    'schmerz', 'kopfschmerz', 'migräne', 'migraene',
+    'stärke', 'staerke', 'level', 'intensität', 'intensitaet',
     'leicht', 'mittel', 'stark',
-    'attacke', 'anfall'
+    'attacke', 'anfall',
+    'genommen', 'eingenommen', // medication intake context = pain entry
   ];
+  
+  // Check for pain level numbers (0-10) ONLY if not in mg context
+  const hasPainNumber = /\b([0-9]|10)\b/.test(textWithoutMg) && 
+    (hasPainKeyword || /\b(von\s*10|\/10|stärke|level)\b/i.test(lower));
 
-  const hasPainIndicator = painIndicators.some(indicator => {
-    if (typeof indicator === 'string') {
-      return lower.includes(indicator);
-    }
-    return indicator.test(lower);
-  });
+  const hasPainIndicator = painIndicators.some(indicator => lower.includes(indicator));
 
-  if (hasPainIndicator) {
+  if (hasPainIndicator || hasPainNumber) {
+    console.log('[VOICE-NLP] → pain_entry');
     return { intent: 'pain_entry', intentConfidence: 0.85 };
   }
 
-  // 4. Fallback: Note
+  // 5. Fallback: Note
   if (transcript.trim().length > 5) {
+    console.log('[VOICE-NLP] → note');
     return { intent: 'note', intentConfidence: 0.7 };
   }
 
+  console.log('[VOICE-NLP] → unknown');
   return { intent: 'unknown', intentConfidence: 0.3 };
 }
 
