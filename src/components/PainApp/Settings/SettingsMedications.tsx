@@ -726,6 +726,7 @@ export const SettingsMedications = () => {
         onOpenChange={setShowExportDialog}
         onExport={handleExportConfirm}
         intoleranceMeds={intoleranceMeds}
+        inactiveMeds={inactiveMedications}
       />
 
       <DoctorSelectionDialog
