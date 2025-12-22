@@ -17,17 +17,21 @@ describe('isAddMedicationTrigger', () => {
     expect(isAddMedicationTrigger('ich füge sumatriptan 50 mg hinzu')).toBe(true);
   });
 
+  it('matches "füge ein neues Medikament hinzu" (ohne Name)', () => {
+    expect(isAddMedicationTrigger('füge ein neues Medikament hinzu')).toBe(true);
+  });
+
+  it('matches "neues medikament" pattern', () => {
+    expect(isAddMedicationTrigger('neues medikament ibuprofen 400mg')).toBe(true);
+    expect(isAddMedicationTrigger('neues medikament')).toBe(true);
+  });
+
   it('matches "lege ... an" pattern', () => {
     expect(isAddMedicationTrigger('lege sumatriptan an')).toBe(true);
     expect(isAddMedicationTrigger('leg ein neues medikament an')).toBe(true);
   });
 
-  it('matches "neues medikament" pattern', () => {
-    expect(isAddMedicationTrigger('neues medikament ibuprofen 400mg')).toBe(true);
-  });
-
-  it('does NOT match pain entry sentences', () => {
-    // These should still return true for trigger, but intent classification should handle priority
+  it('does NOT match pain entry sentences without add-verbs', () => {
     expect(isAddMedicationTrigger('schmerzstärke 8 sumatriptan genommen')).toBe(false);
     expect(isAddMedicationTrigger('vor 10 minuten kopfschmerz 7')).toBe(false);
   });
@@ -61,12 +65,36 @@ describe('parseAddMedicationCommand', () => {
     const result = parseAddMedicationCommand('schmerzstärke 8 sumatriptan genommen');
     expect(result).toBeNull();
   });
+  
+  it('returns null for "füge ein neues Medikament hinzu" (trigger but no extractable name)', () => {
+    // Note: The trigger matches, but no medication name can be extracted
+    // The classifier should still return add_medication intent in this case
+    const result = parseAddMedicationCommand('füge ein neues Medikament hinzu');
+    // Name might be empty or very short - that's ok, classifier handles it
+    expect(result === null || (result && result.name.length < 2)).toBe(true);
+  });
 });
 
 describe('Intent Classification - ADD_MEDICATION vs PAIN_ENTRY', () => {
   it('classifies "füge medikament X hinzu" as add_medication', () => {
     const result = analyzeVoiceTranscript(
       'füge ein medikament testmedikament hinzu mit 20 milligramm',
+      emptyContext
+    );
+    expect(result.intent).toBe('add_medication');
+  });
+
+  it('classifies "füge ein neues Medikament hinzu" (ohne Name) as add_medication', () => {
+    const result = analyzeVoiceTranscript(
+      'füge ein neues Medikament hinzu',
+      emptyContext
+    );
+    expect(result.intent).toBe('add_medication');
+  });
+
+  it('classifies "neues medikament" as add_medication', () => {
+    const result = analyzeVoiceTranscript(
+      'neues medikament',
       emptyContext
     );
     expect(result.intent).toBe('add_medication');
@@ -96,7 +124,7 @@ describe('Intent Classification - ADD_MEDICATION vs PAIN_ENTRY', () => {
     expect(result.intent).toBe('add_medication');
   });
 
-  // Pain entry should still work
+  // Pain entry should still work - NO regression
   it('classifies "vor zehn minuten schmerzstärke 8 sumatriptan" as pain_entry', () => {
     const result = analyzeVoiceTranscript(
       'vor zehn minuten schmerzstärke 8 sumatriptan',
@@ -141,5 +169,16 @@ describe('ADD_MEDICATION payload extraction', () => {
     expect(result.addMedication?.name).toContain('sumatriptan');
     expect(result.addMedication?.strengthValue).toBe(100);
     expect(result.addMedication?.strengthUnit).toBe('mg');
+  });
+  
+  it('returns empty addMedication payload when no name extracted', () => {
+    const result = analyzeVoiceTranscript(
+      'füge ein neues Medikament hinzu',
+      emptyContext
+    );
+    expect(result.intent).toBe('add_medication');
+    expect(result.addMedication).toBeDefined();
+    // Name can be empty - form will open for user to fill
+    expect(result.addMedication?.name).toBeDefined();
   });
 });

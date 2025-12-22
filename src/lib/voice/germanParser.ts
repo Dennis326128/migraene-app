@@ -226,14 +226,16 @@ const EFFECT_PATTERNS: Array<{ regex: RegExp; rating: 'none' | 'poor' | 'moderat
 // ADD_MEDICATION trigger patterns (use normalized umlaut-free forms: ü→ue, etc.)
 const ADD_MEDICATION_TRIGGERS = [
   /\b(fuege)\s+.+\s+(hinzu|an)\b/i,           // "füge X hinzu" (normalized)
-  /\b(lege|leg)\s+.+\s+an\b/i,                 // "lege X an"
-  /\bneues?\s+medikament\b/i,                  // "neues medikament"
-  /\bmedikament\s+(hinzufuegen|anlegen|erstellen)\b/i, // "medikament hinzufügen"
-  /\b(erstelle?|erstell)\s+(?:ein\s+)?medikament\b/i, // "erstelle medikament"
+  /\b(fuege)\s+(hinzu|ein|neues?)\b/i,        // "füge hinzu" / "füge ein" without explicit med name
+  /\b(lege|leg)\s+.+\s+an\b/i,                // "lege X an"
+  /\bneues?\s+medikament\b/i,                 // "neues medikament"
+  /\bmedikament\s+(hinzufuegen|anlegen|erstellen|hinzu)\b/i, // "medikament hinzufügen"
+  /\b(erstelle?|erstell)\s+(?:ein\s+)?(?:neues?\s+)?medikament\b/i, // "erstelle (neues) medikament"
   /\bmedikament\s+(?:mit\s+(?:dem\s+)?namen?)\b/i,    // "medikament mit dem namen"
   /\b(speichere?|speicher)\s+(?:das\s+)?medikament\b/i, // "speichere medikament"
-  /\bneue\s+(?:arznei|medizin)\b/i,            // "neue arznei"
-  /\bhinzufuegen\b/i,                          // standalone "hinzufügen" (normalized)
+  /\bneue\s+(?:arznei|medizin)\b/i,           // "neue arznei"
+  /\bhinzufuegen\b/i,                         // standalone "hinzufügen" (normalized)
+  /\bmedikament\s+anlegen\b/i,                // "medikament anlegen"
 ];
 
 // Strength unit patterns for medication parsing

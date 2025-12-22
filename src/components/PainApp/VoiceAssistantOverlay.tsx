@@ -950,15 +950,21 @@ export function VoiceAssistantOverlay({
                 </p>
               )}
 
-              {/* Live intent preview */}
+              {/* Live intent preview - deutsche Labels */}
               {liveIntentPreview && hasText && overlayState === 'input' && (
                 <div className="flex items-center gap-2 text-xs text-muted-foreground px-1">
                   <span>Erkannt:</span>
                   <span className="font-medium">
                     {liveIntentPreview.type === 'analytics_query' ? 'Frage' :
                      liveIntentPreview.type === 'create_note' ? 'Notiz' :
-                     liveIntentPreview.type === 'create_pain_entry' ? 'Eintrag' :
+                     liveIntentPreview.type === 'create_pain_entry' ? 'Schmerz-Eintrag' :
+                     liveIntentPreview.type === 'create_quick_entry' ? 'Schnell-Eintrag' :
                      liveIntentPreview.type === 'navigate_reminder_create' ? 'Erinnerung' :
+                     liveIntentPreview.type === 'navigate_appointment_create' ? 'Termin' :
+                     liveIntentPreview.type === 'add_medication' ? 'Neues Medikament' :
+                     liveIntentPreview.type === 'create_medication_update' ? 'Medikament aktualisieren' :
+                     liveIntentPreview.type === 'create_medication_effect' ? 'Medikamenten-Wirkung' :
+                     liveIntentPreview.type === 'unknown' ? 'Nicht erkannt' :
                      liveIntentPreview.type}
                   </span>
                   <span className="text-muted-foreground/70">
