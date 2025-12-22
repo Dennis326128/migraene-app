@@ -430,6 +430,12 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               setVoiceData(prefillData || { initialNotes: draftText });
               setShowQuickEntry(true);
               break;
+            case 'add_medication':
+              // Navigate to medication management screen
+              // prefillData contains the parsed medication info (name, strength, etc.)
+              onNavigate?.('medication-management');
+              // TODO: Pass prefillData to MedicationManagement for pre-filling the add form
+              break;
             case 'medication':
               window.location.href = '/medication-effects';
               break;

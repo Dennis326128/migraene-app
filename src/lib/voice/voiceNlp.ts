@@ -163,18 +163,25 @@ function classifyIntent(
 
   // 1. PRIORITY CHECK: Add Medication Trigger? 
   // If user explicitly says "füge...hinzu", "anlegen", "neues medikament" → ADD_MEDICATION
-  // This has HIGH priority - only pain words like "schmerz/migräne" should override it
+  // This has HIGHEST priority for add-verbs - only pain words like "schmerz/migräne" should override it
   const isAddMedTrigger = isAddMedicationTrigger(transcript);
+  console.log('[VOICE-NLP] isAddMedTrigger:', isAddMedTrigger, 'for:', transcript.substring(0, 50));
+  
   const hasPainKeyword = /\b(schmerz|kopfschmerz|migräne|migraene|attacke|anfall)\b/i.test(lower);
   const hasPainLevelContext = /\b(stärke|staerke|level|intensität|intensitaet)\s*\d/i.test(lower);
   
-  // Only block ADD_MEDICATION if there's explicit pain context (not just any number!)
+  // If ADD trigger matches AND no pain context → ALWAYS return add_medication
+  // Even if no medication name is extracted, the form will open for manual entry
   if (isAddMedTrigger && !hasPainKeyword && !hasPainLevelContext) {
     const parsed = parseAddMedicationCommand(transcript);
-    if (parsed && parsed.name.length >= 2) {
-      console.log('[VOICE-NLP] → add_medication (trigger matched, name:', parsed.name, ')');
-      return { intent: 'add_medication', intentConfidence: parsed.confidence };
-    }
+    console.log('[VOICE-NLP] parseAddMedicationCommand result:', parsed);
+    
+    // Return ADD_MEDICATION even if no name was extracted - form will be empty for user to fill
+    const hasValidName = parsed && parsed.name.length >= 2;
+    const confidence = hasValidName ? parsed.confidence : 0.75; // Lower confidence if no name
+    
+    console.log('[VOICE-NLP] → add_medication (trigger matched, name:', parsed?.name || '(none)', ', confidence:', confidence, ')');
+    return { intent: 'add_medication', intentConfidence: confidence };
   }
 
   // 2. Check: Medication Update Trigger? (abgesetzt, unverträglich, etc.)
@@ -425,10 +432,26 @@ function extractAnalyticsQuery(transcript: string): VoiceAnalyticsQuery {
 
 /**
  * Extracts Add Medication data from transcript
+ * Returns default empty medication if trigger matched but no name extracted
  */
 function extractAddMedication(transcript: string): VoiceAddMedication | undefined {
   const parsed = parseAddMedicationCommand(transcript);
-  if (!parsed) return undefined;
+  
+  // Even if no name extracted, return a default for the form to open
+  if (!parsed) {
+    // Check if it's an add-medication trigger at all
+    if (isAddMedicationTrigger(transcript)) {
+      return {
+        name: '',
+        displayName: '',
+        strengthValue: undefined,
+        strengthUnit: undefined,
+        formFactor: undefined,
+        confidence: 0.7
+      };
+    }
+    return undefined;
+  }
   
   return {
     name: parsed.name,
