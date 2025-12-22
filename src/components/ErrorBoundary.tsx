@@ -43,12 +43,22 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
             <p className="text-muted-foreground mb-4">
               Die Migräne-App ist auf einen unerwarteten Fehler gestoßen.
             </p>
-            <button
-              onClick={() => window.location.reload()}
-              className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
-            >
-              App neu laden
-            </button>
+
+            <div className="flex flex-col gap-2">
+              <a
+                href="/auth"
+                className="px-4 py-2 rounded-md bg-primary text-primary-foreground"
+              >
+                Zur Anmeldung
+              </a>
+              <button
+                onClick={() => window.location.reload()}
+                className="px-4 py-2 bg-secondary text-secondary-foreground rounded-md"
+              >
+                App neu laden
+              </button>
+            </div>
+
             {this.state.error && (
               <details className="mt-4 text-left text-sm">
                 <summary className="cursor-pointer text-muted-foreground">

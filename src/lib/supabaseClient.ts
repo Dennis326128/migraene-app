@@ -17,3 +17,5 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 // Legacy exports for backwards compatibility
 export const VITE_SUPABASE_URL = SUPABASE_URL;
 export const VITE_SUPABASE_ANON_KEY = SUPABASE_ANON_KEY;
+
+

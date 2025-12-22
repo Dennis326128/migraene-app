@@ -1,7 +1,6 @@
 import React from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
-import { CookieConsent } from './components/CookieConsent.tsx'
 import './index.css'
 
 // Version Watcher für Auto-Reload bei neuen Deployments
@@ -24,6 +23,5 @@ initVersionWatcher();
 createRoot(container).render(
   <React.StrictMode>
     <App />
-    <CookieConsent />
   </React.StrictMode>
 );
