@@ -37,6 +37,20 @@ export interface ParsedVoiceEntry {
   };
 }
 
+// ============================================
+// ADD_MEDICATION Parsing Types
+// ============================================
+
+export interface ParsedAddMedication {
+  name: string;
+  displayName: string; // Title-cased for UI
+  strengthValue?: number;
+  strengthUnit?: 'mg' | 'ml' | 'µg' | 'mcg' | 'g';
+  formFactor?: 'tablette' | 'kapsel' | 'spray' | 'tropfen' | 'injektion' | 'pflaster' | 'spritze';
+  confidence: number;
+  rawInput: string;
+}
+
 interface NormalizedTranscript {
   original: string;
   normalized: string;
@@ -207,6 +221,32 @@ const EFFECT_PATTERNS: Array<{ regex: RegExp; rating: 'none' | 'poor' | 'moderat
   { regex: /\b(mittel|ok|okay|mittelgut|etwas|teilweise|einigermaßen)\b/i, rating: 'moderate' },
   { regex: /\b(gut|besser|geholfen|wirksam|effektiv)\b/i, rating: 'good' },
   { regex: /\b(sehr\s*gut|ausgezeichnet|perfekt|super|toll|hervorragend|bestens)\b/i, rating: 'very_good' },
+];
+
+// ADD_MEDICATION trigger patterns
+const ADD_MEDICATION_TRIGGERS = [
+  /\b(fuege|füge)\s+.+\s+(hinzu|an)\b/i,
+  /\b(lege|leg)\s+.+\s+an\b/i,
+  /\bneues?\s+medikament\b/i,
+  /\bmedikament\s+(hinzufuegen|hinzufügen|anlegen|erstellen)\b/i,
+  /\b(erstelle|erstell)\s+(?:ein\s+)?medikament\b/i,
+  /\bmedikament\s+(?:mit\s+(?:dem\s+)?namen?)\b/i,
+  /\b(speichere?|speicher)\s+(?:das\s+)?medikament\b/i,
+  /\bneue\s+(?:arznei|medizin)\b/i,
+];
+
+// Strength unit patterns for medication parsing
+const STRENGTH_UNIT_PATTERN = /\b(\d{1,4})\s*(mg|milligramm|mcg|µg|mikrogramm|g|gramm|ml|milliliter)\b/i;
+
+// Form factor patterns
+const FORM_FACTOR_PATTERNS: Array<{ regex: RegExp; form: ParsedAddMedication['formFactor'] }> = [
+  { regex: /\btablette?n?\b/i, form: 'tablette' },
+  { regex: /\bkapsel[n]?\b/i, form: 'kapsel' },
+  { regex: /\b(nasen)?spray\b/i, form: 'spray' },
+  { regex: /\btropfen\b/i, form: 'tropfen' },
+  { regex: /\binjektion(?:en)?\b/i, form: 'injektion' },
+  { regex: /\bspritze[n]?\b/i, form: 'spritze' },
+  { regex: /\bpflaster\b/i, form: 'pflaster' },
 ];
 
 // ============================================
@@ -838,4 +878,123 @@ export function generateUserMedicationPatterns(userMeds: Array<{ name: string }>
     name: med.name,
     pattern: new RegExp(`\\b${med.name.split(' ')[0].toLowerCase()}\\b`, 'i')
   }));
+}
+
+// ============================================
+// ADD_MEDICATION Parser
+// ============================================
+
+/**
+ * Checks if transcript is an "add medication" command
+ */
+export function isAddMedicationTrigger(text: string): boolean {
+  const { normalized } = normalizeTranscriptDE(text);
+  return ADD_MEDICATION_TRIGGERS.some(pattern => pattern.test(normalized));
+}
+
+/**
+ * Parses "add medication" voice command
+ * Extracts: name, strength, unit, form factor
+ */
+export function parseAddMedicationCommand(text: string): ParsedAddMedication | null {
+  console.log('💊 Parsing add medication command:', text);
+  
+  const { normalized, original } = normalizeTranscriptDE(text);
+  
+  // Must be a valid add trigger
+  if (!isAddMedicationTrigger(normalized)) {
+    return null;
+  }
+  
+  let workingText = normalized;
+  let confidence = 0.7; // Base confidence for valid trigger
+  
+  // 1. Extract strength + unit first (before name extraction)
+  let strengthValue: number | undefined;
+  let strengthUnit: ParsedAddMedication['strengthUnit'];
+  
+  const strengthMatch = workingText.match(STRENGTH_UNIT_PATTERN);
+  if (strengthMatch) {
+    strengthValue = parseInt(strengthMatch[1], 10);
+    const rawUnit = strengthMatch[2].toLowerCase();
+    
+    // Normalize unit
+    if (rawUnit === 'milligramm' || rawUnit === 'mg') strengthUnit = 'mg';
+    else if (rawUnit === 'mikrogramm' || rawUnit === 'mcg' || rawUnit === 'µg') strengthUnit = 'µg';
+    else if (rawUnit === 'gramm' || rawUnit === 'g') strengthUnit = 'g';
+    else if (rawUnit === 'milliliter' || rawUnit === 'ml') strengthUnit = 'ml';
+    
+    // Remove strength from working text
+    workingText = workingText.replace(STRENGTH_UNIT_PATTERN, ' ');
+    confidence += 0.1; // Boost confidence for having strength
+  }
+  
+  // 2. Extract form factor
+  let formFactor: ParsedAddMedication['formFactor'];
+  for (const { regex, form } of FORM_FACTOR_PATTERNS) {
+    if (regex.test(workingText)) {
+      formFactor = form;
+      workingText = workingText.replace(regex, ' ');
+      break;
+    }
+  }
+  
+  // 3. Remove add-verb phrases
+  const removePatterns = [
+    /\b(fuege|füge)\s+(ein\s+)?(medikament\s+)?/gi,
+    /\b(lege|leg)\s+(ein\s+)?(medikament\s+)?/gi,
+    /\bneues?\s+medikament\s*/gi,
+    /\bmedikament\s+(?:mit\s+(?:dem\s+)?namen?)\s*/gi,
+    /\b(erstelle?|erstell)\s+(?:ein\s+)?(?:medikament\s+)?/gi,
+    /\b(speichere?|speicher)\s+(?:das\s+)?(?:medikament\s+)?/gi,
+    /\bneue\s+(?:arznei|medizin)\s*/gi,
+    /\b(?:hinzu|an)\s*$/gi,
+    /\bbitte\b/gi,
+    /\bnamens?\b/gi,
+    /\bmit\s+dem\s+namen\b/gi,
+    /^ein\s+/gi,
+  ];
+  
+  for (const pattern of removePatterns) {
+    workingText = workingText.replace(pattern, ' ');
+  }
+  
+  // 4. Clean and extract name
+  workingText = workingText
+    .replace(/\s+/g, ' ')
+    .replace(/^\s*[,.\-:;]\s*/, '')
+    .replace(/\s*[,.\-:;]\s*$/, '')
+    .trim();
+  
+  // Name validation
+  if (!workingText || workingText.length < 2) {
+    console.log('💊 No valid medication name found');
+    return null;
+  }
+  
+  // Check for known medication alias to boost confidence
+  const lowerName = workingText.toLowerCase();
+  if (MEDICATION_ALIASES[lowerName]) {
+    confidence += 0.15;
+    workingText = MEDICATION_ALIASES[lowerName];
+  }
+  
+  // Title-case the display name
+  const displayName = workingText
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+  
+  const result: ParsedAddMedication = {
+    name: workingText.toLowerCase(),
+    displayName,
+    strengthValue,
+    strengthUnit,
+    formFactor,
+    confidence: Math.min(confidence, 0.95),
+    rawInput: original
+  };
+  
+  console.log('💊 Parsed add medication:', result);
+  return result;
 }

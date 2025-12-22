@@ -29,6 +29,7 @@ export type VoiceRouterResultType =
   | 'create_quick_entry'
   | 'create_medication_update'
   | 'create_medication_effect'
+  | 'add_medication'
   | 'create_note'
   | 'analytics_query'
   | 'unknown';
@@ -115,6 +116,15 @@ export function routeVoiceCommand(
         source: 'content'
       };
 
+    case 'add_medication':
+      return {
+        type: 'add_medication',
+        payload: contentAnalysis.addMedication,
+        rawTranscript: transcript,
+        confidence: contentAnalysis.intentConfidence,
+        source: 'content'
+      };
+
     case 'reminder':
       // If reminder was detected by content analysis, route to navigation
       return {
@@ -180,6 +190,7 @@ export function getRouteForIntent(intentType: VoiceRouterResultType): string | n
     create_quick_entry: null,
     create_medication_update: null,
     create_medication_effect: '/medication-effects',
+    add_medication: null, // Handled in overlay with turbo-create
     create_note: null,
     analytics_query: null, // Handled in overlay
     unknown: null,
