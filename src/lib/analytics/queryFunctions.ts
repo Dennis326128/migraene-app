@@ -339,6 +339,103 @@ export async function countMigraineDays(
 }
 
 /**
+ * Zählt schmerzfreie Tage im Zeitraum
+ * Ein Tag gilt als schmerzfrei, wenn:
+ * - Kein Eintrag an diesem Tag existiert ODER
+ * - Alle Einträge an diesem Tag pain_level = 'keine' oder '-' haben
+ */
+export async function countPainFreeDays(
+  userId: string,
+  timeRange: TimeRange
+): Promise<AnalyticsQueryResult> {
+  try {
+    const startStr = format(timeRange.start, 'yyyy-MM-dd');
+    const endStr = format(timeRange.end, 'yyyy-MM-dd');
+    
+    // Hole alle Einträge im Zeitraum
+    const { data: entries, error } = await supabase
+      .from('pain_entries')
+      .select('selected_date, pain_level')
+      .eq('user_id', userId)
+      .gte('selected_date', startStr)
+      .lte('selected_date', endStr);
+    
+    if (error) throw error;
+    
+    // Berechne Gesamttage im Zeitraum
+    const totalDays = Math.ceil((timeRange.end.getTime() - timeRange.start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    
+    // Finde Tage MIT Schmerz (pain_level != 'keine' und != '-')
+    const daysWithPain = new Set<string>();
+    for (const entry of entries || []) {
+      if (!entry.selected_date) continue;
+      const level = (entry.pain_level || '').toLowerCase().trim();
+      // 'keine' und '-' gelten als schmerzfrei
+      if (level !== 'keine' && level !== '-' && level !== '') {
+        daysWithPain.add(entry.selected_date);
+      }
+    }
+    
+    const painFreeDays = totalDays - daysWithPain.size;
+    
+    return {
+      success: true,
+      queryType: 'pain_free_days',
+      value: painFreeDays,
+      unit: 'Tage',
+      details: `${daysWithPain.size} Tage mit Schmerzen, ${painFreeDays} schmerzfreie Tage`
+    };
+  } catch (error) {
+    console.error('countPainFreeDays error:', error);
+    return {
+      success: false,
+      queryType: 'pain_free_days',
+      value: 0,
+      unit: 'Tage',
+      error: error instanceof Error ? error.message : 'Unbekannter Fehler'
+    };
+  }
+}
+
+/**
+ * Zählt die Anzahl der Einträge im Zeitraum
+ */
+export async function countEntries(
+  userId: string,
+  timeRange: TimeRange
+): Promise<AnalyticsQueryResult> {
+  try {
+    const startStr = format(timeRange.start, 'yyyy-MM-dd');
+    const endStr = format(timeRange.end, 'yyyy-MM-dd');
+    
+    const { count, error } = await supabase
+      .from('pain_entries')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .gte('selected_date', startStr)
+      .lte('selected_date', endStr);
+    
+    if (error) throw error;
+    
+    return {
+      success: true,
+      queryType: 'entries_count',
+      value: count || 0,
+      unit: 'Einträge'
+    };
+  } catch (error) {
+    console.error('countEntries error:', error);
+    return {
+      success: false,
+      queryType: 'entries_count',
+      value: 0,
+      unit: 'Einträge',
+      error: error instanceof Error ? error.message : 'Unbekannter Fehler'
+    };
+  }
+}
+
+/**
  * Konvertiert pain_level String zu numerischem Wert
  * pain_level kann sein: 'keine', 'leicht', 'mittel', 'stark', 'sehr stark', '-'
  * oder in manchen Fällen numerische Strings
@@ -449,7 +546,7 @@ export async function avgPainLevel(
 // ============================================
 
 export type ParsedAnalyticsQuery = {
-  queryType: 'triptan_days' | 'med_days' | 'migraine_days' | 'avg_pain' | 'unknown';
+  queryType: 'triptan_days' | 'med_days' | 'migraine_days' | 'headache_days' | 'pain_free_days' | 'entries_count' | 'avg_pain' | 'unknown';
   medName?: string;
   medCategory?: EffectCategory;
   timeRange: TimeRange;
@@ -513,12 +610,30 @@ export function parseAnalyticsQuery(text: string): ParsedAnalyticsQuery {
     };
   }
   
-  // Migräne-Tage
+  // Migräne-Tage / Kopfschmerztage
   if (/migräne.?tag|kopfschmerz.?tag|wie\s*(?:viele?|oft)\s*(?:migräne|kopfschmerz)/.test(lower)) {
     return {
-      queryType: 'migraine_days',
+      queryType: 'headache_days',
       timeRange,
       confidence: 0.9
+    };
+  }
+  
+  // Schmerzfreie Tage
+  if (/schmerzfrei|ohne\s*(?:kopf)?schmerz|schmerz.?los|keine\s*(?:kopf)?schmerzen/.test(lower) && /tag/.test(lower)) {
+    return {
+      queryType: 'pain_free_days',
+      timeRange,
+      confidence: 0.95
+    };
+  }
+  
+  // Einträge / Attacken zählen
+  if (/wie\s*(?:viele?|oft)|anzahl|zähl/.test(lower) && /eintrag|einträge|attacke|anfall|anfälle/.test(lower)) {
+    return {
+      queryType: 'entries_count',
+      timeRange,
+      confidence: 0.85
     };
   }
   
@@ -569,7 +684,14 @@ export async function executeAnalyticsQuery(
       };
     
     case 'migraine_days':
+    case 'headache_days':
       return countMigraineDays(userId, query.timeRange);
+    
+    case 'pain_free_days':
+      return countPainFreeDays(userId, query.timeRange);
+    
+    case 'entries_count':
+      return countEntries(userId, query.timeRange);
     
     case 'avg_pain':
       return avgPainLevel(userId, query.timeRange);
@@ -619,9 +741,24 @@ export function formatAnalyticsResult(
       };
     
     case 'migraine_days':
+    case 'headache_days':
       return {
         headline: 'Kopfschmerztage',
         answer: `${result.value} Kopfschmerztage in den ${periodText}`,
+        details: result.details
+      };
+    
+    case 'pain_free_days':
+      return {
+        headline: 'Schmerzfreie Tage',
+        answer: `In den ${periodText} hattest du ${result.value} schmerzfreie Tage.`,
+        details: result.details
+      };
+    
+    case 'entries_count':
+      return {
+        headline: 'Einträge',
+        answer: `${result.value} Einträge in den ${periodText}`,
         details: result.details
       };
     

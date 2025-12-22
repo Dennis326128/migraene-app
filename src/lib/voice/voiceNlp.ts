@@ -405,12 +405,30 @@ function extractAnalyticsQuery(transcript: string): VoiceAnalyticsQuery {
     };
   }
   
-  // Migräne-Tage
+  // Migräne-Tage / Kopfschmerztage (Tage MIT Schmerz)
   if (/migräne.?tag|kopfschmerz.?tag|wie\s*(?:viele?|oft)\s*(?:migräne|kopfschmerz)/.test(lower)) {
     return {
-      queryType: 'migraine_days',
+      queryType: 'headache_days',
       timeRangeDays,
       confidence: 0.9
+    };
+  }
+  
+  // Schmerzfreie Tage (Tage OHNE Schmerz)
+  if (/schmerzfrei|ohne\s*(?:kopf)?schmerz|schmerz.?los|keine\s*(?:kopf)?schmerzen/.test(lower) && /tag/.test(lower)) {
+    return {
+      queryType: 'pain_free_days',
+      timeRangeDays,
+      confidence: 0.95
+    };
+  }
+  
+  // Einträge / Attacken zählen
+  if (/wie\s*(?:viele?|oft)|anzahl|zähl/.test(lower) && /eintrag|einträge|attacke|anfall|anfälle/.test(lower)) {
+    return {
+      queryType: 'entries_count',
+      timeRangeDays,
+      confidence: 0.85
     };
   }
   
