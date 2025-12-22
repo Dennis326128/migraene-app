@@ -405,9 +405,20 @@ export const SettingsMedications = () => {
   const generatePdfWithDoctors = async (selectedDoctors: Doctor[], options?: PdfExportOptions) => {
     setIsGeneratingPdf(true);
     try {
-      const medsForPdf = options?.includeIntolerance
-        ? [...activeMedications, ...intoleranceMeds.filter(m => !activeMedications.some(a => a.id === m.id))]
-        : activeMedications;
+      // Combine active, intolerance, and inactive meds based on options
+      let medsForPdf = [...activeMedications];
+      
+      // Add intolerance meds if requested
+      if (options?.includeIntolerance) {
+        const intoleranceMedsNotInActive = intoleranceMeds.filter(m => !activeMedications.some(a => a.id === m.id));
+        medsForPdf = [...medsForPdf, ...intoleranceMedsNotInActive];
+      }
+      
+      // Add inactive meds if requested
+      if (options?.includeInactive) {
+        const inactiveMedsNotIncluded = inactiveMedications.filter(m => !medsForPdf.some(a => a.id === m.id));
+        medsForPdf = [...medsForPdf, ...inactiveMedsNotIncluded];
+      }
 
       const pdfBytes = await buildMedicationPlanPdf({
         medicationCourses: courses || [],
@@ -430,6 +441,9 @@ export const SettingsMedications = () => {
           intolerance_flag: m.intolerance_flag,
           intolerance_notes: m.intolerance_notes,
           intolerance_reason_type: m.intolerance_reason_type,
+          start_date: m.start_date,
+          discontinued_at: m.discontinued_at,
+          medication_status: m.medication_status,
         })),
         medicationLimits: medicationLimits?.map(l => ({
           medication_name: l.medication_name,
