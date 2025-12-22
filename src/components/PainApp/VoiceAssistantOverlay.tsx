@@ -622,8 +622,16 @@ export function VoiceAssistantOverlay({
         const userContext = { userMeds, timezone: 'Europe/Berlin', language: 'de-DE' };
         const result = routeVoiceCommand(committedText, userContext);
         
+        console.log('🔍 Q&A route result:', {
+          type: result.type,
+          payload: result.payload,
+          confidence: result.confidence
+        });
+        
         if (result.type === 'analytics_query') {
           const voiceQuery = result.payload as VoiceAnalyticsQuery | undefined;
+          console.log('🔍 VoiceQuery:', voiceQuery);
+          
           if (voiceQuery && voiceQuery.queryType !== 'unknown') {
             const answer = await processQuestion(committedText, voiceQuery);
             if (answer) {
@@ -636,7 +644,7 @@ export function VoiceAssistantOverlay({
         
         // Fallback: couldn't parse as Q&A - show error and stay
         toast.error('Frage nicht verstanden', {
-          description: 'Versuche z.B. "Wie viele Kopfschmerztage diesen Monat?"'
+          description: 'Versuche z.B. "Wie viele schmerzfreie Tage in den letzten 30 Tagen?"'
         });
         setOverlayState('input');
         return;
