@@ -133,6 +133,7 @@ export type PdfExportOptions = {
   includeInactive: boolean;
   includeIntolerance: boolean;
   includeLimits: boolean;
+  includeStopReasons?: boolean;
 };
 
 export type BuildMedicationPlanParams = {
