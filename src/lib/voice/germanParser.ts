@@ -223,16 +223,17 @@ const EFFECT_PATTERNS: Array<{ regex: RegExp; rating: 'none' | 'poor' | 'moderat
   { regex: /\b(sehr\s*gut|ausgezeichnet|perfekt|super|toll|hervorragend|bestens)\b/i, rating: 'very_good' },
 ];
 
-// ADD_MEDICATION trigger patterns
+// ADD_MEDICATION trigger patterns (use normalized umlaut-free forms: ü→ue, etc.)
 const ADD_MEDICATION_TRIGGERS = [
-  /\b(fuege|füge)\s+.+\s+(hinzu|an)\b/i,
-  /\b(lege|leg)\s+.+\s+an\b/i,
-  /\bneues?\s+medikament\b/i,
-  /\bmedikament\s+(hinzufuegen|hinzufügen|anlegen|erstellen)\b/i,
-  /\b(erstelle|erstell)\s+(?:ein\s+)?medikament\b/i,
-  /\bmedikament\s+(?:mit\s+(?:dem\s+)?namen?)\b/i,
-  /\b(speichere?|speicher)\s+(?:das\s+)?medikament\b/i,
-  /\bneue\s+(?:arznei|medizin)\b/i,
+  /\b(fuege)\s+.+\s+(hinzu|an)\b/i,           // "füge X hinzu" (normalized)
+  /\b(lege|leg)\s+.+\s+an\b/i,                 // "lege X an"
+  /\bneues?\s+medikament\b/i,                  // "neues medikament"
+  /\bmedikament\s+(hinzufuegen|anlegen|erstellen)\b/i, // "medikament hinzufügen"
+  /\b(erstelle?|erstell)\s+(?:ein\s+)?medikament\b/i, // "erstelle medikament"
+  /\bmedikament\s+(?:mit\s+(?:dem\s+)?namen?)\b/i,    // "medikament mit dem namen"
+  /\b(speichere?|speicher)\s+(?:das\s+)?medikament\b/i, // "speichere medikament"
+  /\bneue\s+(?:arznei|medizin)\b/i,            // "neue arznei"
+  /\bhinzufuegen\b/i,                          // standalone "hinzufügen" (normalized)
 ];
 
 // Strength unit patterns for medication parsing
@@ -886,10 +887,13 @@ export function generateUserMedicationPatterns(userMeds: Array<{ name: string }>
 
 /**
  * Checks if transcript is an "add medication" command
+ * Uses normalized text (umlauts converted: ü→ue, etc.)
  */
 export function isAddMedicationTrigger(text: string): boolean {
   const { normalized } = normalizeTranscriptDE(text);
-  return ADD_MEDICATION_TRIGGERS.some(pattern => pattern.test(normalized));
+  const matches = ADD_MEDICATION_TRIGGERS.some(pattern => pattern.test(normalized));
+  console.log('[ADD_MED_TRIGGER]', { input: text.substring(0, 50), normalized: normalized.substring(0, 50), matches });
+  return matches;
 }
 
 /**
@@ -902,7 +906,8 @@ export function parseAddMedicationCommand(text: string): ParsedAddMedication | n
   const { normalized, original } = normalizeTranscriptDE(text);
   
   // Must be a valid add trigger
-  if (!isAddMedicationTrigger(normalized)) {
+  if (!ADD_MEDICATION_TRIGGERS.some(pattern => pattern.test(normalized))) {
+    console.log('💊 No add-medication trigger found in normalized text:', normalized);
     return null;
   }
   
@@ -939,9 +944,9 @@ export function parseAddMedicationCommand(text: string): ParsedAddMedication | n
     }
   }
   
-  // 3. Remove add-verb phrases
+  // 3. Remove add-verb phrases (use normalized umlaut-free forms)
   const removePatterns = [
-    /\b(fuege|füge)\s+(ein\s+)?(medikament\s+)?/gi,
+    /\b(fuege)\s+(ein\s+)?(medikament\s+)?/gi,       // füge (normalized)
     /\b(lege|leg)\s+(ein\s+)?(medikament\s+)?/gi,
     /\bneues?\s+medikament\s*/gi,
     /\bmedikament\s+(?:mit\s+(?:dem\s+)?namen?)\s*/gi,
@@ -953,6 +958,8 @@ export function parseAddMedicationCommand(text: string): ParsedAddMedication | n
     /\bnamens?\b/gi,
     /\bmit\s+dem\s+namen\b/gi,
     /^ein\s+/gi,
+    /\bich\s+/gi,
+    /\bmit\s+\d+\s*(mg|milligramm|mcg|ml)?\s*$/gi, // remove trailing "mit 20 mg"
   ];
   
   for (const pattern of removePatterns) {
