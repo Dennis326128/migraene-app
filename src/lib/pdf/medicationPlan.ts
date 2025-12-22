@@ -74,6 +74,7 @@ export type UserMedicationForPlan = {
   intolerance_flag?: boolean | null;
   intolerance_notes?: string | null;
   intolerance_reason_type?: string | null;
+  start_date?: string | null;
   discontinued_at?: string | null;
   intake_type?: string | null;
   strength_value?: string | null;
@@ -370,6 +371,7 @@ type MedRow = {
   isIntolerant: boolean;
   intoleranceNotes: string;
   intoleranceReason: string;
+  startDate: string;
   discontinuedAt: string;
   discontinuationReason: string;
   asNeededDoseText: string;
@@ -490,6 +492,8 @@ function buildMedicationRows(
       isIntolerant: !!med.intolerance_flag,
       intoleranceNotes: cleanText(med.intolerance_notes || course?.side_effects_text || ""),
       intoleranceReason: getIntoleranceReasonLabel(med.intolerance_reason_type),
+      startDate: med.start_date ? formatDate(med.start_date) : 
+                 (course?.start_date ? formatDate(course.start_date) : ""),
       discontinuedAt: med.discontinued_at ? formatDate(med.discontinued_at) : 
                       (course?.end_date ? formatDate(course.end_date) : ""),
       discontinuationReason: getDiscontinuationReasonLabel(course?.discontinuation_reason),
@@ -1041,8 +1045,20 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
       let line = `- ${med.handelsname}`;
       if (med.wirkstoff && med.wirkstoff !== med.handelsname) line += ` (${med.wirkstoff})`;
       if (med.staerke) line += ` ${med.staerke}`;
-      if (med.discontinuedAt) line += ` - abgesetzt am ${med.discontinuedAt}`;
-      if (med.discontinuationReason) line += ` (${med.discontinuationReason})`;
+      
+      // Show date range: "von X bis Y" or just end date
+      if (med.startDate && med.discontinuedAt) {
+        line += ` (${med.startDate} - ${med.discontinuedAt})`;
+      } else if (med.discontinuedAt) {
+        line += ` (bis ${med.discontinuedAt})`;
+      } else if (med.startDate) {
+        line += ` (ab ${med.startDate})`;
+      }
+      
+      // Show stop reason if enabled
+      if (options.includeStopReasons && med.discontinuationReason) {
+        line += ` - ${med.discontinuationReason}`;
+      }
       
       const lines = wrapText(cleanText(line), fontRegular, 7, tableWidth - 8, 2);
       lines.forEach((l, idx) => {

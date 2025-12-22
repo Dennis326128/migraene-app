@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Loader2, Download, FileText, AlertTriangle, History } from "lucide-react";
+import { supabase } from "@/lib/supabaseClient";
 import type { PdfExportOptions } from "@/lib/pdf/medicationPlan";
 import type { Med } from "@/features/meds/hooks/useMeds";
 
@@ -23,19 +24,79 @@ export const MedicationPlanExportDialog = ({
   inactiveMeds = [],
 }: MedicationPlanExportDialogProps) => {
   const [isExporting, setIsExporting] = useState(false);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   
   // Only show toggles when there are relevant medications
   const hasIntolerances = intoleranceMeds.length > 0;
   const hasInactiveMeds = inactiveMeds.length > 0;
   
-  // Default states
+  // Default states - will be overwritten by saved settings
   const [includeIntolerances, setIncludeIntolerances] = useState(true);
   const [includeInactive, setIncludeInactive] = useState(false);
   const [includeStopReasons, setIncludeStopReasons] = useState(true);
 
+  // Load saved settings when dialog opens
+  useEffect(() => {
+    if (!open) return;
+    
+    (async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          setSettingsLoaded(true);
+          return;
+        }
+        
+        const { data: settings } = await supabase
+          .from("user_report_settings")
+          .select("med_plan_include_inactive, med_plan_include_stop_reasons, med_plan_include_intolerances")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        
+        if (settings) {
+          if (settings.med_plan_include_inactive !== null) {
+            setIncludeInactive(settings.med_plan_include_inactive);
+          }
+          if (settings.med_plan_include_stop_reasons !== null) {
+            setIncludeStopReasons(settings.med_plan_include_stop_reasons);
+          }
+          if (settings.med_plan_include_intolerances !== null) {
+            setIncludeIntolerances(settings.med_plan_include_intolerances);
+          }
+        }
+        setSettingsLoaded(true);
+      } catch (error) {
+        console.error("Error loading med plan settings:", error);
+        setSettingsLoaded(true);
+      }
+    })();
+  }, [open]);
+
+  // Save settings when they change (debounced via export)
+  const saveSettings = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      
+      await supabase
+        .from("user_report_settings")
+        .upsert({
+          user_id: user.id,
+          med_plan_include_inactive: includeInactive,
+          med_plan_include_stop_reasons: includeStopReasons,
+          med_plan_include_intolerances: includeIntolerances,
+        }, { onConflict: "user_id" });
+    } catch (error) {
+      console.error("Error saving med plan settings:", error);
+    }
+  };
+
   const handleExport = async () => {
     setIsExporting(true);
     try {
+      // Save settings before exporting
+      await saveSettings();
+      
       const options: PdfExportOptions = {
         includeActive: true,
         includeInactive: hasInactiveMeds && includeInactive,
@@ -112,7 +173,7 @@ export const MedicationPlanExportDialog = ({
                     Vergangene Medikamente
                   </Label>
                   <p className="text-xs text-muted-foreground">
-                    Zeigt {inactiveMeds.length} früher eingenommene{inactiveMeds.length === 1 ? 's' : ''} Medikament{inactiveMeds.length === 1 ? '' : 'e'} im Plan.
+                    Zeigt {inactiveMeds.length} früher eingenommene{inactiveMeds.length === 1 ? 's' : ''} Medikament{inactiveMeds.length === 1 ? '' : 'e'} mit Zeitraum im Plan.
                   </p>
                 </div>
               </div>

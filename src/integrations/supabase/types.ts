@@ -1047,6 +1047,9 @@ export type Database = {
           include_statistics: boolean | null
           last_doctor_export_ids: string[] | null
           last_include_doctors_flag: boolean | null
+          med_plan_include_inactive: boolean | null
+          med_plan_include_intolerances: boolean | null
+          med_plan_include_stop_reasons: boolean | null
           selected_medications: string[] | null
           updated_at: string | null
           user_id: string
@@ -1064,6 +1067,9 @@ export type Database = {
           include_statistics?: boolean | null
           last_doctor_export_ids?: string[] | null
           last_include_doctors_flag?: boolean | null
+          med_plan_include_inactive?: boolean | null
+          med_plan_include_intolerances?: boolean | null
+          med_plan_include_stop_reasons?: boolean | null
           selected_medications?: string[] | null
           updated_at?: string | null
           user_id: string
@@ -1081,6 +1087,9 @@ export type Database = {
           include_statistics?: boolean | null
           last_doctor_export_ids?: string[] | null
           last_include_doctors_flag?: boolean | null
+          med_plan_include_inactive?: boolean | null
+          med_plan_include_intolerances?: boolean | null
+          med_plan_include_stop_reasons?: boolean | null
           selected_medications?: string[] | null
           updated_at?: string | null
           user_id?: string
