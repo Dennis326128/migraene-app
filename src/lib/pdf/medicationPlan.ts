@@ -135,6 +135,7 @@ export type PdfExportOptions = {
   includeIntolerance: boolean;
   includeLimits: boolean;
   includeStopReasons?: boolean;
+  includeDates?: boolean;
 };
 
 export type BuildMedicationPlanParams = {
@@ -1046,13 +1047,15 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
       if (med.wirkstoff && med.wirkstoff !== med.handelsname) line += ` (${med.wirkstoff})`;
       if (med.staerke) line += ` ${med.staerke}`;
       
-      // Show date range: "von X bis Y" or just end date
-      if (med.startDate && med.discontinuedAt) {
-        line += ` (${med.startDate} - ${med.discontinuedAt})`;
-      } else if (med.discontinuedAt) {
-        line += ` (bis ${med.discontinuedAt})`;
-      } else if (med.startDate) {
-        line += ` (ab ${med.startDate})`;
+      // Show date range only if includeDates is enabled (default true)
+      if (options.includeDates !== false) {
+        if (med.startDate && med.discontinuedAt) {
+          line += ` (${med.startDate} - ${med.discontinuedAt})`;
+        } else if (med.discontinuedAt) {
+          line += ` (bis ${med.discontinuedAt})`;
+        } else if (med.startDate) {
+          line += ` (ab ${med.startDate})`;
+        }
       }
       
       // Show stop reason if enabled
