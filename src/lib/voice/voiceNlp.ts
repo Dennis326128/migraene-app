@@ -13,9 +13,10 @@ import type {
   VoiceMedicationUpdate,
   VoiceAnalyticsQuery,
   MedicationUpdateAction,
-  ConfidenceLevel
+  ConfidenceLevel,
+  VoiceAddMedication
 } from '@/types/voice.types';
-import { parseGermanVoiceEntry, levenshteinDistance } from './germanParser';
+import { parseGermanVoiceEntry, levenshteinDistance, isAddMedicationTrigger, parseAddMedicationCommand } from './germanParser';
 import { parseGermanReminderEntry, isReminderTrigger } from './reminderParser';
 import { parseOccurredAt } from './timeOnly';
 
@@ -97,6 +98,7 @@ export function analyzeVoiceTranscript(
   let painEntry: VoicePainEntry | undefined;
   let reminder: VoiceReminder | undefined;
   let medicationUpdate: VoiceMedicationUpdate | undefined;
+  let addMedication: VoiceAddMedication | undefined;
   let analyticsQuery: VoiceAnalyticsQuery | undefined;
 
   switch (intent) {
@@ -110,6 +112,10 @@ export function analyzeVoiceTranscript(
     
     case 'medication_update':
       medicationUpdate = extractMedicationUpdate(transcript, userContext);
+      break;
+    
+    case 'add_medication':
+      addMedication = extractAddMedication(transcript);
       break;
     
     case 'analytics_query':
@@ -128,6 +134,7 @@ export function analyzeVoiceTranscript(
     painEntry,
     reminder,
     medicationUpdate,
+    addMedication,
     analyticsQuery,
     rawTranscript: transcript,
     sttConfidence
@@ -149,6 +156,18 @@ function classifyIntent(
   // 0. Check: Analytics Query? (Fragen zu Statistiken)
   if (isAnalyticsQuestion(lower)) {
     return { intent: 'analytics_query', intentConfidence: 0.9 };
+  }
+
+  // 0.5. Check: Add Medication Trigger? (BEFORE pain entry check)
+  // But ONLY if there are NO pain indicators - otherwise it's a pain entry with meds
+  const hasPainContext = /\b(schmerz|kopfschmerz|migräne|stärke|level|intensität|attacke|anfall)\b/i.test(lower);
+  const hasTimeContext = /\b(vor|seit|gestern|heute|jetzt|gerade|genommen|eingenommen)\b/i.test(lower);
+  
+  if (isAddMedicationTrigger(transcript) && !hasPainContext && !hasTimeContext) {
+    const parsed = parseAddMedicationCommand(transcript);
+    if (parsed && parsed.name.length >= 2) {
+      return { intent: 'add_medication', intentConfidence: parsed.confidence };
+    }
   }
 
   // 1. Check: Medication Update Trigger? (Höchste Priorität für Medikamenten-Änderungen)
@@ -385,6 +404,23 @@ function extractAnalyticsQuery(transcript: string): VoiceAnalyticsQuery {
     queryType: 'unknown',
     timeRangeDays,
     confidence: 0.3
+  };
+}
+
+/**
+ * Extracts Add Medication data from transcript
+ */
+function extractAddMedication(transcript: string): VoiceAddMedication | undefined {
+  const parsed = parseAddMedicationCommand(transcript);
+  if (!parsed) return undefined;
+  
+  return {
+    name: parsed.name,
+    displayName: parsed.displayName,
+    strengthValue: parsed.strengthValue,
+    strengthUnit: parsed.strengthUnit,
+    formFactor: parsed.formFactor,
+    confidence: parsed.confidence
   };
 }
 

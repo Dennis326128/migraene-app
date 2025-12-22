@@ -3,7 +3,7 @@
  * Zentrale Typen für Voice-Erkennung und -Analyse
  */
 
-export type VoiceIntent = 'pain_entry' | 'reminder' | 'medication_update' | 'medication_effect' | 'note' | 'analytics_query' | 'unknown';
+export type VoiceIntent = 'pain_entry' | 'reminder' | 'medication_update' | 'medication_effect' | 'add_medication' | 'note' | 'analytics_query' | 'unknown';
 
 export type MedicationUpdateAction = 'discontinued' | 'intolerance' | 'started' | 'dosage_changed';
 
@@ -52,12 +52,22 @@ export interface VoiceAnalyticsQuery {
   confidence: number;
 }
 
+export interface VoiceAddMedication {
+  name: string;
+  displayName: string;
+  strengthValue?: number;
+  strengthUnit?: 'mg' | 'ml' | 'µg' | 'mcg' | 'g';
+  formFactor?: string;
+  confidence: number;
+}
+
 export interface VoiceAnalysisResult {
   intent: VoiceIntent;
   intentConfidence: number;
   painEntry?: VoicePainEntry;
   reminder?: VoiceReminder;
   medicationUpdate?: VoiceMedicationUpdate;
+  addMedication?: VoiceAddMedication;
   analyticsQuery?: VoiceAnalyticsQuery;
   rawTranscript: string;
   sttConfidence?: number;

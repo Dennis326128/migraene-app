@@ -46,7 +46,7 @@ import {
 import { isBrowserSttSupported } from '@/lib/voice/sttConfig';
 import { cn } from '@/lib/utils';
 import { routeVoiceCommand, type VoiceRouterResult } from '@/lib/voice/voiceIntentRouter';
-import { useMeds } from '@/features/meds/hooks/useMeds';
+import { useMeds, useAddMed, useDeleteMedById, type CreateMedInput } from '@/features/meds/hooks/useMeds';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   executeAnalyticsQuery, 
@@ -54,7 +54,7 @@ import {
   getTimeRange,
   type ParsedAnalyticsQuery
 } from '@/lib/analytics/queryFunctions';
-import type { VoiceAnalyticsQuery } from '@/types/voice.types';
+import type { VoiceAnalyticsQuery, VoiceAddMedication } from '@/types/voice.types';
 import { saveVoiceNote } from '@/lib/voice/saveNote';
 import { toast } from 'sonner';
 
@@ -69,7 +69,7 @@ const CONFIRM_THRESHOLD = 0.60;
 // Types
 // ============================================
 
-type ActionType = 'pain_entry' | 'quick_entry' | 'medication' | 'reminder' | 'diary' | 'note' | 'question';
+type ActionType = 'pain_entry' | 'quick_entry' | 'medication' | 'add_medication' | 'reminder' | 'diary' | 'note' | 'question';
 type OverlayState = 'input' | 'processing' | 'confirmation' | 'action_picker' | 'qa_answer';
 
 interface VoiceAssistantOverlayProps {
@@ -143,6 +143,13 @@ const ACTION_CONFIG: Array<{
     icon: Pill,
     color: 'text-primary',
   },
+  {
+    id: 'add_medication',
+    label: 'Neues Medikament',
+    description: 'Medikament hinzufügen',
+    icon: PlusCircle,
+    color: 'text-success',
+  },
 ];
 
 // Map router result types to action types
@@ -155,6 +162,8 @@ function mapResultTypeToAction(resultType: string): ActionType | null {
     case 'create_medication_update':
     case 'create_medication_effect':
       return 'medication';
+    case 'add_medication':
+      return 'add_medication';
     case 'navigate_reminder_create':
     case 'navigate_appointment_create':
       return 'reminder';
@@ -199,6 +208,8 @@ export function VoiceAssistantOverlay({
   // Hooks
   const isSttSupported = isBrowserSttSupported();
   const { data: userMeds = [] } = useMeds();
+  const addMedMutation = useAddMed();
+  const deleteMedById = useDeleteMedById();
   const [userId, setUserId] = useState<string | null>(null);
   
   useEffect(() => {
@@ -377,6 +388,60 @@ export function VoiceAssistantOverlay({
   }, []);
 
   // ============================================
+  // Turbo-Create Medication with Undo
+  // ============================================
+
+  const turboCreateMedication = useCallback(async (addMedData: VoiceAddMedication): Promise<boolean> => {
+    try {
+      const medInput: CreateMedInput = {
+        name: addMedData.displayName,
+        staerke: addMedData.strengthValue ? String(addMedData.strengthValue) : undefined,
+        einheit: addMedData.strengthUnit || (addMedData.strengthValue ? 'mg' : undefined),
+        darreichungsform: addMedData.formFactor,
+        art: 'bedarf', // Default to PRN
+        intake_type: 'as_needed',
+      };
+      
+      const newMed = await addMedMutation.mutateAsync(medInput);
+      
+      if (!newMed) {
+        toast.error('Medikament konnte nicht gespeichert werden');
+        return false;
+      }
+      
+      // Format display string
+      const displayStr = addMedData.strengthValue 
+        ? `${addMedData.displayName} ${addMedData.strengthValue} ${addMedData.strengthUnit || 'mg'}`
+        : addMedData.displayName;
+      
+      toast.success(`✅ Medikament hinzugefügt: ${displayStr}`, {
+        description: 'Bei Bedarf (PRN) als Standard',
+        action: {
+          label: 'Rückgängig',
+          onClick: async () => {
+            try {
+              await deleteMedById.mutateAsync(newMed.id);
+              toast.success('Medikament rückgängig gemacht');
+            } catch (e) {
+              console.error('Undo medication failed:', e);
+              toast.error('Rückgängig fehlgeschlagen');
+            }
+          }
+        },
+        duration: 10000
+      });
+      
+      return true;
+    } catch (error) {
+      console.error('Turbo-create medication error:', error);
+      toast.error('Fehler beim Speichern', {
+        description: 'Bitte versuche es manuell.'
+      });
+      return false;
+    }
+  }, [addMedMutation, deleteMedById]);
+
+  // ============================================
   // Q&A Processing
   // ============================================
 
@@ -498,6 +563,23 @@ export function VoiceAssistantOverlay({
           return;
         }
         
+        // ADD MEDICATION: Turbo-create with high confidence, or open form
+        if (result.type === 'add_medication') {
+          const addMedData = result.payload as VoiceAddMedication | undefined;
+          if (addMedData && addMedData.name.length >= 3) {
+            // Turbo-create: Name >= 3 chars and valid
+            const success = await turboCreateMedication(addMedData);
+            if (success) {
+              onOpenChange(false);
+              return;
+            }
+          }
+          // Fallback: Open medication form with prefill
+          onSelectAction('add_medication', committedText, result.payload);
+          onOpenChange(false);
+          return;
+        }
+        
         // Medication: Navigate
         if (result.type === 'create_medication_update' || result.type === 'create_medication_effect') {
           onSelectAction('medication', committedText);
@@ -519,7 +601,7 @@ export function VoiceAssistantOverlay({
       console.error('Intent processing error:', error);
       setOverlayState('action_picker');
     }
-  }, [committedText, userMeds, userId, stopRecording, processQuestion, saveNoteDirectly, onSelectAction, onOpenChange]);
+  }, [committedText, userMeds, userId, stopRecording, processQuestion, saveNoteDirectly, turboCreateMedication, onSelectAction, onOpenChange]);
 
   // ============================================
   // Action Handlers
@@ -598,12 +680,28 @@ export function VoiceAssistantOverlay({
       }
     }
     
+    // Add Medication - turbo-create on confirm
+    if (result.type === 'add_medication') {
+      const addMedData = result.payload as VoiceAddMedication | undefined;
+      if (addMedData && addMedData.name.length >= 2) {
+        const success = await turboCreateMedication(addMedData);
+        if (success) {
+          onOpenChange(false);
+          return;
+        }
+      }
+      // Fallback to form
+      onSelectAction('add_medication', committedText, result.payload);
+      onOpenChange(false);
+      return;
+    }
+    
     // Map to action
     const action = mapResultTypeToAction(result.type);
     if (action) {
       handleSelectAction(action);
     }
-  }, [recognizedIntent, userId, committedText, processQuestion, saveNoteDirectly, handleSelectAction, onOpenChange]);
+  }, [recognizedIntent, userId, committedText, processQuestion, saveNoteDirectly, turboCreateMedication, handleSelectAction, onSelectAction, onOpenChange]);
 
   const handleAskAnother = useCallback(() => {
     // First stop any existing recording to reset state
