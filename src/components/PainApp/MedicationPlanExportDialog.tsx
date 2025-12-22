@@ -34,6 +34,7 @@ export const MedicationPlanExportDialog = ({
   const [includeIntolerances, setIncludeIntolerances] = useState(true);
   const [includeInactive, setIncludeInactive] = useState(false);
   const [includeStopReasons, setIncludeStopReasons] = useState(true);
+  const [includeDates, setIncludeDates] = useState(true);
 
   // Load saved settings when dialog opens
   useEffect(() => {
@@ -49,7 +50,7 @@ export const MedicationPlanExportDialog = ({
         
         const { data: settings } = await supabase
           .from("user_report_settings")
-          .select("med_plan_include_inactive, med_plan_include_stop_reasons, med_plan_include_intolerances")
+          .select("med_plan_include_inactive, med_plan_include_stop_reasons, med_plan_include_intolerances, med_plan_include_dates")
           .eq("user_id", user.id)
           .maybeSingle();
         
@@ -62,6 +63,9 @@ export const MedicationPlanExportDialog = ({
           }
           if (settings.med_plan_include_intolerances !== null) {
             setIncludeIntolerances(settings.med_plan_include_intolerances);
+          }
+          if (settings.med_plan_include_dates !== null) {
+            setIncludeDates(settings.med_plan_include_dates);
           }
         }
         setSettingsLoaded(true);
@@ -85,6 +89,7 @@ export const MedicationPlanExportDialog = ({
           med_plan_include_inactive: includeInactive,
           med_plan_include_stop_reasons: includeStopReasons,
           med_plan_include_intolerances: includeIntolerances,
+          med_plan_include_dates: includeDates,
         }, { onConflict: "user_id" });
     } catch (error) {
       console.error("Error saving med plan settings:", error);
@@ -103,6 +108,7 @@ export const MedicationPlanExportDialog = ({
         includeIntolerance: hasIntolerances && includeIntolerances,
         includeLimits: true,
         includeStopReasons: includeInactive && includeStopReasons,
+        includeDates: includeInactive && includeDates,
       };
       await onExport(options);
       onOpenChange(false);
@@ -179,20 +185,35 @@ export const MedicationPlanExportDialog = ({
               </div>
             )}
 
-            {/* Absetzgründe Toggle - nur wenn inaktive gewählt */}
+            {/* Sub-Toggles - nur wenn inaktive gewählt */}
             {includeInactive && (
-              <div className="flex items-center gap-3 pl-6">
-                <Switch
-                  id="include-stop-reasons"
-                  checked={includeStopReasons}
-                  onCheckedChange={setIncludeStopReasons}
-                />
-                <Label 
-                  htmlFor="include-stop-reasons"
-                  className="text-sm cursor-pointer"
-                >
-                  Absetzgründe anzeigen
-                </Label>
+              <div className="space-y-2 pl-6">
+                <div className="flex items-center gap-3">
+                  <Switch
+                    id="include-dates"
+                    checked={includeDates}
+                    onCheckedChange={setIncludeDates}
+                  />
+                  <Label 
+                    htmlFor="include-dates"
+                    className="text-sm cursor-pointer"
+                  >
+                    Start- & Enddatum anzeigen
+                  </Label>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Switch
+                    id="include-stop-reasons"
+                    checked={includeStopReasons}
+                    onCheckedChange={setIncludeStopReasons}
+                  />
+                  <Label 
+                    htmlFor="include-stop-reasons"
+                    className="text-sm cursor-pointer"
+                  >
+                    Absetzgründe anzeigen
+                  </Label>
+                </div>
               </div>
             )}
           </div>
