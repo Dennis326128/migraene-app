@@ -88,21 +88,33 @@ export function MedicationEffectsPage() {
       .map(med => ({ entry, medName: med }))
   );
 
+  /** Convert slider value (0-5) to effect_rating for backwards compatibility */
+  const sliderToEffectRating = (sliderValue: number): 'none' | 'poor' | 'moderate' | 'good' | 'very_good' => {
+    if (sliderValue <= 0) return 'none';
+    if (sliderValue <= 1) return 'poor';
+    if (sliderValue <= 2) return 'moderate';
+    if (sliderValue <= 3) return 'good';
+    return 'very_good';
+  };
+
   const handleSaveEffect = async (
     entryId: number,
     medName: string,
     data: {
-      effectScore: number;
+      effectScore: number; // 0-5 slider scale
       sideEffects: string[];
       notes: string;
       method: 'ui' | 'voice';
     }
   ) => {
+    // Convert slider scale (0-5) to DB scale (0-10)
+    const dbScore = data.effectScore * 2;
+    
     const payload: MedicationEffectPayload = {
       entry_id: entryId,
       med_name: medName,
-      effect_rating: 'moderate', // Fallback text rating (legacy)
-      effect_score: data.effectScore,
+      effect_rating: sliderToEffectRating(data.effectScore),
+      effect_score: dbScore,
       side_effects: data.sideEffects,
       notes: data.notes,
       method: data.method,

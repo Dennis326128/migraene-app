@@ -117,6 +117,31 @@ export async function createMedicationEffect(payload: MedicationEffectPayload): 
   return data as MedicationEffect;
 }
 
+export type MedicationEffectUpdatePayload = {
+  effect_rating: 'none' | 'poor' | 'moderate' | 'good' | 'very_good';
+  effect_score?: number | null;
+  side_effects?: string[];
+  notes?: string;
+};
+
+export async function updateMedicationEffect(
+  effectId: string, 
+  payload: MedicationEffectUpdatePayload
+): Promise<MedicationEffect> {
+  const { data, error } = await supabase
+    .from("medication_effects")
+    .update({
+      ...payload,
+      updated_at: new Date().toISOString()
+    })
+    .eq("id", effectId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as MedicationEffect;
+}
+
 export async function createMedicationEffects(payloads: MedicationEffectPayload[]): Promise<MedicationEffect[]> {
   const { data, error } = await supabase
     .from("medication_effects")
