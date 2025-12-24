@@ -53,6 +53,7 @@ const PAIN_LOCATIONS = [
   { value: 'stirn', label: 'Stirnbereich' },
   { value: 'nacken', label: 'Nackenbereich' },
   { value: 'schlaefe', label: 'Schläfenbereich' },
+  { value: 'top_of_head_burning', label: 'Kopfoberseite (brennen)' },
 ];
 
 const EFFECT_OPTIONS = [

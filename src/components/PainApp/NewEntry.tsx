@@ -61,6 +61,7 @@ const painLocations = [
   { value: "stirn", label: "Stirnbereich" },
   { value: "nacken", label: "Nackenbereich" },
   { value: "schlaefe", label: "Schläfenbereich" },
+  { value: "top_of_head_burning", label: "Kopfoberseite (brennen)" },
 ];
 
 export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProps) => {
@@ -390,7 +391,7 @@ export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProp
         selected_time: selectedTime.substring(0, 5),
         pain_level: painLevel,
         aura_type: "keine" as const,
-        pain_location: (painLocation || null) as "einseitig_links" | "einseitig_rechts" | "beidseitig" | "stirn" | "nacken" | "schlaefe" | null,
+        pain_location: (painLocation || null) as "einseitig_links" | "einseitig_rechts" | "beidseitig" | "stirn" | "nacken" | "schlaefe" | "top_of_head_burning" | null,
         medications: medicationsArray,
         notes: combinedNotes || null,
         weather_id: weatherId,

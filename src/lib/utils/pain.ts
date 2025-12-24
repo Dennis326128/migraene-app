@@ -49,7 +49,8 @@ export function formatPainLocation(location: string): string {
     "beidseitig": "Beidseitig",
     "stirn": "Stirnbereich",
     "nacken": "Nackenbereich",
-    "schlaefe": "Schläfenbereich"
+    "schlaefe": "Schläfenbereich",
+    "top_of_head_burning": "Kopfoberseite (brennen)"
   };
   return locationLabels[location] || location;
 }

@@ -6,7 +6,7 @@ export const MigraineLevelEnum = z.union([
   z.number().min(0).max(10) // New numeric scale
 ]);
 export const AuraTypeEnum = z.enum(["keine", "visuell", "sensorisch", "sprachlich", "gemischt"]);
-export const PainLocationEnum = z.enum(["einseitig_links", "einseitig_rechts", "beidseitig", "stirn", "nacken", "schlaefe"]);
+export const PainLocationEnum = z.enum(["einseitig_links", "einseitig_rechts", "beidseitig", "stirn", "nacken", "schlaefe", "top_of_head_burning"]);
 
 export const EntryPayloadSchema = z.object({
   selected_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Ungültiges Datum (YYYY-MM-DD)"),
