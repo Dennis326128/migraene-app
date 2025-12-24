@@ -41,6 +41,7 @@
 import { PDFDocument, StandardFonts, rgb, PDFPage, PDFFont } from "pdf-lib";
 import type { PainEntry, MedicationIntakeInfo } from "@/types/painApp";
 import { formatDoseFromQuarters, DEFAULT_DOSE_QUARTERS } from "@/lib/utils/doseFormatter";
+import { formatPainLocation } from "@/lib/utils/pain";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES & CONSTANTS
@@ -991,7 +992,7 @@ function generateSpecialNotesText(entry: PainEntry): string {
   
   // Schmerzlokalisation
   if (entry.pain_location && entry.pain_location !== 'keine' && entry.pain_location !== '-') {
-    parts.push(entry.pain_location);
+    parts.push(formatPainLocation(entry.pain_location));
   }
   
   // Kurze Notizen hinzufügen (max 50 Zeichen für Tabelle)

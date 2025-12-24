@@ -67,7 +67,8 @@ export const locationSchema = z.enum([
   "beidseitig",
   "stirn",
   "nacken",
-  "schlaefe"
+  "schlaefe",
+  "top_of_head_burning"
 ], {
   errorMap: () => ({ message: "Ungültige Schmerzlokalisation" })
 }).optional().nullable();
