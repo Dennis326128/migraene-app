@@ -3,13 +3,15 @@ import {
   getUnratedMedicationEntries, 
   createMedicationEffect, 
   createMedicationEffects,
+  updateMedicationEffect,
   getMedicationEffects,
   getRecentMedicationsWithEffects,
   getMedicationEffectsForPeriod,
   getRatedMedicationEntries,
   deleteMedicationFromEntry,
   restoreMedicationToEntry,
-  type MedicationEffectPayload 
+  type MedicationEffectPayload,
+  type MedicationEffectUpdatePayload
 } from "../api/medicationEffects.api";
 
 export function useUnratedMedicationEntries() {
@@ -39,6 +41,19 @@ export function useCreateMedicationEffects() {
       qc.invalidateQueries({ queryKey: ["unratedMedicationEntries"] });
       qc.invalidateQueries({ queryKey: ["medicationEffects"] });
       qc.invalidateQueries({ queryKey: ["ratedMedicationEntries"] });
+    },
+  });
+}
+
+export function useUpdateMedicationEffect() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ effectId, payload }: { effectId: string; payload: MedicationEffectUpdatePayload }) => 
+      updateMedicationEffect(effectId, payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["medicationEffects"] });
+      qc.invalidateQueries({ queryKey: ["ratedMedicationEntries"] });
+      qc.invalidateQueries({ queryKey: ["recentMedicationsWithEffects"] });
     },
   });
 }

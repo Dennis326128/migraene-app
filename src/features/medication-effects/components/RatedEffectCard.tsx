@@ -1,12 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ChevronRight, Clock } from 'lucide-react';
-import { getEffectLabel, getEffectEmoji, getEffectiveScore } from '@/lib/utils/medicationEffects';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { ChevronRight, Clock, CheckCircle, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { getEffectLabel, getEffectEmoji, getEffectiveScore, COMMON_SIDE_EFFECTS } from '@/lib/utils/medicationEffects';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { MedicationEffectSlider } from '@/components/ui/medication-effect-slider';
 import { normalizePainLevel } from '@/lib/utils/pain';
+import { useUpdateMedicationEffect } from '../hooks/useMedicationEffects';
+import { toast } from 'sonner';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import type { RecentMedicationEntry, MedicationEffect } from '../api/medicationEffects.api';
 
 interface RatedEffectCardProps {
@@ -51,14 +56,102 @@ function getPainDotColor(level: 'mild' | 'moderate' | 'severe'): string {
   }
 }
 
+/** Convert DB score (0-10) to slider scale (0-5) */
+function dbScoreToSlider(dbScore: number | null): number {
+  if (dbScore === null || dbScore === undefined) return 0;
+  return Math.round(dbScore / 2);
+}
+
+/** Convert slider scale (0-5) to DB score (0-10) */
+function sliderToDbScore(sliderValue: number): number {
+  return sliderValue * 2;
+}
+
+/** Convert slider value to effect_rating for backwards compatibility */
+function sliderToEffectRating(sliderValue: number): 'none' | 'poor' | 'moderate' | 'good' | 'very_good' {
+  if (sliderValue <= 0) return 'none';
+  if (sliderValue <= 1) return 'poor';
+  if (sliderValue <= 2) return 'moderate';
+  if (sliderValue <= 3) return 'good';
+  return 'very_good';
+}
+
 export function RatedEffectCard({ entry, effect }: RatedEffectCardProps) {
   const [detailsOpen, setDetailsOpen] = useState(false);
-  // Get score from effect_score or convert from effect_rating for backwards compatibility
-  const effectScore = getEffectiveScore(effect.effect_score, effect.effect_rating);
+  const updateEffect = useUpdateMedicationEffect();
+  
+  // Get the initial DB score (0-10) and convert to slider scale (0-5)
+  const initialDbScore = getEffectiveScore(effect.effect_score, effect.effect_rating);
+  const initialSliderValue = dbScoreToSlider(initialDbScore);
+  
+  // Local state for editing - uses slider scale (0-5)
+  const [sliderValue, setSliderValue] = useState(initialSliderValue);
+  const [sideEffects, setSideEffects] = useState<string[]>(effect.side_effects || []);
+  const [notes, setNotes] = useState(effect.notes || '');
+  const [isSideEffectsOpen, setIsSideEffectsOpen] = useState(false);
+  const [isNotesOpen, setIsNotesOpen] = useState(false);
+  
+  // Reset state when sheet opens with current effect values
+  useEffect(() => {
+    if (detailsOpen) {
+      const dbScore = getEffectiveScore(effect.effect_score, effect.effect_rating);
+      setSliderValue(dbScoreToSlider(dbScore));
+      setSideEffects(effect.side_effects || []);
+      setNotes(effect.notes || '');
+    }
+  }, [detailsOpen, effect]);
+  
+  // Check if there are unsaved changes
+  const hasChanges = useMemo(() => {
+    const originalSliderValue = dbScoreToSlider(getEffectiveScore(effect.effect_score, effect.effect_rating));
+    const originalSideEffects = effect.side_effects || [];
+    const originalNotes = effect.notes || '';
+    
+    return (
+      sliderValue !== originalSliderValue ||
+      JSON.stringify(sideEffects.sort()) !== JSON.stringify([...originalSideEffects].sort()) ||
+      notes !== originalNotes
+    );
+  }, [sliderValue, sideEffects, notes, effect]);
   
   // Normalize pain level to numeric (0-10)
   const painScore = normalizePainLevel(entry.pain_level);
   const painSeverity = getPainSeverityLevel(painScore);
+
+  const toggleSideEffect = (sideEffect: string) => {
+    if (sideEffects.includes(sideEffect)) {
+      setSideEffects(sideEffects.filter(e => e !== sideEffect));
+    } else {
+      setSideEffects([...sideEffects, sideEffect]);
+    }
+  };
+
+  const handleSave = async () => {
+    try {
+      await updateEffect.mutateAsync({
+        effectId: effect.id,
+        payload: {
+          effect_score: sliderToDbScore(sliderValue),
+          effect_rating: sliderToEffectRating(sliderValue),
+          side_effects: sideEffects,
+          notes: notes.trim()
+        }
+      });
+      toast.success('Wirkung gespeichert');
+      setDetailsOpen(false);
+    } catch (error) {
+      console.error('Failed to update effect:', error);
+      toast.error('Fehler beim Speichern');
+    }
+  };
+
+  const handleClose = () => {
+    // Just close without saving
+    setDetailsOpen(false);
+  };
+
+  // For card display, use the original effect score
+  const displayScore = initialDbScore;
 
   return (
     <>
@@ -74,10 +167,10 @@ export function RatedEffectCard({ entry, effect }: RatedEffectCardProps) {
             {/* Row 2: Effect Badge + Pain Badge side by side */}
             <div className="flex flex-wrap items-center gap-2 mb-2">
               <Badge 
-                variant={effectScore !== null && effectScore >= 3 ? 'default' : 'secondary'}
+                variant={displayScore !== null && displayScore >= 5 ? 'default' : 'secondary'}
                 className="text-xs shrink-0"
               >
-                {getEffectEmoji(effectScore)} {getEffectLabel(effectScore)}
+                {getEffectEmoji(displayScore)} {getEffectLabel(displayScore)}
               </Badge>
               <div className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 bg-slate-800 text-slate-100 text-xs font-medium shrink-0 whitespace-nowrap">
                 <span className={`h-2 w-2 rounded-full ${getPainDotColor(painSeverity)}`} />
@@ -96,9 +189,9 @@ export function RatedEffectCard({ entry, effect }: RatedEffectCardProps) {
         </div>
       </Card>
 
-      {/* Detail Sheet */}
+      {/* Detail Sheet - Editable */}
       <Sheet open={detailsOpen} onOpenChange={setDetailsOpen}>
-        <SheetContent side="bottom" className="h-[80vh] overflow-y-auto">
+        <SheetContent side="bottom" className="h-[85vh] overflow-y-auto">
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
               💊 {effect.med_name}
@@ -122,42 +215,102 @@ export function RatedEffectCard({ entry, effect }: RatedEffectCardProps) {
               </div>
             </Card>
 
-            {/* Effect Score (Read-only) */}
+            {/* Effect Score - EDITABLE */}
             <div className="space-y-2">
-              <div className="text-sm font-medium">Wirkung</div>
+              <Label className="text-base font-medium">Wirkung</Label>
               <MedicationEffectSlider
-                value={effectScore ?? 0}
-                onValueChange={() => {}} // Read-only
-                disabled
+                value={sliderValue}
+                onValueChange={setSliderValue}
+                disabled={updateEffect.isPending}
               />
-              <div className="text-center text-sm text-muted-foreground">
-                {getEffectLabel(effectScore)}
-              </div>
             </div>
 
-            {/* Side Effects */}
-            {effect.side_effects && effect.side_effects.length > 0 && (
-              <div className="space-y-2">
-                <div className="text-sm font-medium">Nebenwirkungen</div>
+            {/* Collapsible: Side Effects */}
+            <Collapsible open={isSideEffectsOpen} onOpenChange={setIsSideEffectsOpen}>
+              <CollapsibleTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  className="w-full justify-between h-auto py-2 px-3 hover:bg-muted/50"
+                >
+                  <span className="text-sm font-medium">
+                    Nebenwirkungen {sideEffects.length > 0 && `(${sideEffects.length})`}
+                  </span>
+                  {isSideEffectsOpen ? (
+                    <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-2 pt-2">
+                {/* Selected side effects */}
+                {sideEffects.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {sideEffects.map((sideEffect) => (
+                      <Badge key={sideEffect} variant="secondary" className="text-xs pr-1">
+                        {sideEffect}
+                        <button 
+                          onClick={() => toggleSideEffect(sideEffect)}
+                          className="ml-1 hover:text-destructive"
+                          disabled={updateEffect.isPending}
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+                
+                {/* Available side effects chips */}
                 <div className="flex flex-wrap gap-1">
-                  {effect.side_effects.map((sideEffect) => (
-                    <Badge key={sideEffect} variant="secondary" className="text-xs">
-                      {sideEffect}
-                    </Badge>
-                  ))}
+                  {COMMON_SIDE_EFFECTS
+                    .filter(se => !sideEffects.includes(se))
+                    .slice(0, 8)
+                    .map((sideEffect) => (
+                      <Button
+                        key={sideEffect}
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs px-2"
+                        onClick={() => toggleSideEffect(sideEffect)}
+                        disabled={updateEffect.isPending}
+                      >
+                        + {sideEffect}
+                      </Button>
+                    ))}
                 </div>
-              </div>
-            )}
+              </CollapsibleContent>
+            </Collapsible>
 
-            {/* Notes */}
-            {effect.notes && effect.notes.trim() && (
-              <div className="space-y-2">
-                <div className="text-sm font-medium">Notizen</div>
-                <Card className="p-3 bg-muted/30">
-                  <p className="text-sm whitespace-pre-wrap">{effect.notes}</p>
-                </Card>
-              </div>
-            )}
+            {/* Collapsible: Notes */}
+            <Collapsible open={isNotesOpen} onOpenChange={setIsNotesOpen}>
+              <CollapsibleTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  className="w-full justify-between h-auto py-2 px-3 hover:bg-muted/50"
+                >
+                  <span className="text-sm font-medium">
+                    Notizen {notes.trim() && "(vorhanden)"}
+                  </span>
+                  {isNotesOpen ? (
+                    <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="pt-2">
+                <Textarea 
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Weitere Details..."
+                  className="text-sm resize-none"
+                  rows={2}
+                  disabled={updateEffect.isPending}
+                />
+              </CollapsibleContent>
+            </Collapsible>
 
             {/* Metadata */}
             <div className="pt-2 border-t text-xs text-muted-foreground space-y-1">
@@ -165,13 +318,36 @@ export function RatedEffectCard({ entry, effect }: RatedEffectCardProps) {
               <div>Eingabeart: {effect.method === 'voice' ? '🎤 Sprache' : '✍️ Manuell'}</div>
             </div>
 
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={() => setDetailsOpen(false)}
-            >
-              Schließen
-            </Button>
+            {/* Action Buttons */}
+            <div className="space-y-2 pt-2">
+              {/* Save Button - Only visible if there are changes */}
+              {hasChanges && (
+                <Button
+                  onClick={handleSave}
+                  disabled={updateEffect.isPending}
+                  className="w-full"
+                  size="lg"
+                >
+                  {updateEffect.isPending ? (
+                    'Speichert...'
+                  ) : (
+                    <>
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      Änderungen speichern
+                    </>
+                  )}
+                </Button>
+              )}
+              
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={handleClose}
+                disabled={updateEffect.isPending}
+              >
+                Schließen
+              </Button>
+            </div>
           </div>
         </SheetContent>
       </Sheet>
