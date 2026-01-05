@@ -330,3 +330,31 @@ export async function getFirstEntryDate(): Promise<string | null> {
   // Nur das Datum zurückgeben (ohne Zeit)
   return data.timestamp_created?.split('T')[0] || null;
 }
+
+/**
+ * Count ALL entries in a date range - no limit.
+ * Used for accurate UI display of entry counts.
+ */
+export async function countEntriesInRange(from: string, to: string): Promise<number> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return 0;
+
+  const toDate = new Date(to);
+  toDate.setHours(23, 59, 59, 999);
+  const toIso = toDate.toISOString();
+  const fromIso = new Date(from).toISOString();
+
+  const { count, error } = await supabase
+    .from("pain_entries")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", user.id)
+    .gte("timestamp_created", fromIso)
+    .lte("timestamp_created", toIso);
+
+  if (error) {
+    console.error("Error counting entries:", error);
+    return 0;
+  }
+
+  return count ?? 0;
+}

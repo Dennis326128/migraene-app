@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { PainEntry } from "@/types/painApp";
 import { useEntries } from "@/features/entries/hooks/useEntries";
-import { fetchAllEntriesForExport } from "@/features/entries/api/entries.api";
+import { fetchAllEntriesForExport, countEntriesInRange } from "@/features/entries/api/entries.api";
 import { buildDiaryPdf } from "@/lib/pdf/report";
 import { buildMedicationPlanPdf } from "@/lib/pdf/medicationPlan";
 import { mapTextLevelToScore } from "@/lib/utils/pain";
@@ -234,6 +235,13 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
   const { data: entries = [], isLoading } = useEntries({ from, to });
   const entryIds = useMemo(() => entries.map(e => Number(e.id)), [entries]);
   const { data: medicationEffects = [] } = useMedicationEffectsForEntries(entryIds);
+  
+  // Fetch the ACTUAL total count of entries (no limit) for accurate display
+  const { data: totalEntryCount = 0, isLoading: isCountLoading } = useQuery({
+    queryKey: ["entriesCount", from, to],
+    queryFn: () => countEntriesInRange(from, to),
+    staleTime: 30_000,
+  });
 
   // Save report settings (debounced)
   useEffect(() => {
@@ -766,16 +774,16 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
             </div>
           )}
 
-          {/* Entry count */}
+          {/* Entry count - shows REAL total, not limited UI preview */}
           <div className="text-sm text-muted-foreground pt-1">
-            {isLoading ? (
+            {isLoading || isCountLoading ? (
               <span className="flex items-center gap-2">
                 <Loader2 className="h-3 w-3 animate-spin" />
                 Lade Einträge...
               </span>
-            ) : filteredEntries.length > 0 ? (
+            ) : totalEntryCount > 0 ? (
               <span>
-                <span className="font-medium text-foreground">{filteredEntries.length}</span> Einträge 
+                <span className="font-medium text-foreground">{totalEntryCount.toLocaleString('de-DE')}</span> Einträge 
                 {" "}({format(new Date(from), 'dd.MM.yyyy')} – {format(new Date(to), 'dd.MM.yyyy')})
               </span>
             ) : (
