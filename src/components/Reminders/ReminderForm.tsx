@@ -132,8 +132,8 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
     return format(new Date(), 'HH:mm');
   });
 
-  // Show fine-tune section
-  const [showFineTune, setShowFineTune] = useState(false);
+  // Time picker state for inline editing
+  const [editingTimeOfDay, setEditingTimeOfDay] = useState<TimeOfDay | null>(null);
 
   // Follow-up settings for appointments
   const [followUpEnabled, setFollowUpEnabled] = useState(
@@ -222,7 +222,7 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
       setFollowUpUnit('months');
       setSeriesId(undefined);
       setNotifyOffsets(DEFAULT_APPOINTMENT_OFFSETS);
-      setShowFineTune(false);
+      setEditingTimeOfDay(null);
     } else if (reminder) {
       reset({
         type: reminder.type,
@@ -556,23 +556,55 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
               <div className="grid grid-cols-2 gap-2">
                 {TIME_PRESETS.map((preset) => {
                   const isSelected = selectedTimeOfDay.includes(preset.id);
+                  const isEditing = editingTimeOfDay === preset.id;
+                  
                   return (
-                    <button
+                    <div
                       key={preset.id}
-                      type="button"
-                      onClick={() => toggleTimeOfDay(preset.id)}
-                      className={`flex items-center gap-2 px-3 py-3 rounded-lg border text-sm transition-all touch-manipulation ${
+                      className={`relative flex flex-col rounded-lg border text-sm transition-all ${
                         isSelected
                           ? 'bg-primary text-primary-foreground border-primary'
                           : 'bg-background text-foreground border-border hover:border-primary/50'
                       }`}
                     >
-                      {preset.icon}
-                      <span className="font-medium">{preset.label}</span>
-                      <span className={`ml-auto text-xs ${isSelected ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
-                        {customTimes[preset.id]}
-                      </span>
-                    </button>
+                      {/* Main button for toggle */}
+                      <button
+                        type="button"
+                        onClick={() => toggleTimeOfDay(preset.id)}
+                        className="flex items-center gap-2 px-3 py-3 touch-manipulation"
+                      >
+                        {preset.icon}
+                        <span className="font-medium">{preset.label}</span>
+                      </button>
+                      
+                      {/* Time display/edit - tappable */}
+                      {isSelected && (
+                        <div className="px-3 pb-3 pt-0">
+                          {isEditing ? (
+                            <Input
+                              type="time"
+                              value={customTimes[preset.id]}
+                              onChange={(e) => updateCustomTime(preset.id, e.target.value)}
+                              onBlur={() => setEditingTimeOfDay(null)}
+                              autoFocus
+                              className="h-8 text-sm bg-primary-foreground text-primary touch-manipulation"
+                            />
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingTimeOfDay(preset.id);
+                              }}
+                              className="flex items-center gap-1.5 px-2 py-1 rounded bg-primary-foreground/20 hover:bg-primary-foreground/30 transition-colors touch-manipulation"
+                            >
+                              <Clock className="h-3 w-3" />
+                              <span className="text-sm font-medium">{customTimes[preset.id]}</span>
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
               </div>
@@ -581,45 +613,6 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
                 <p className="text-xs text-amber-600 dark:text-amber-400">
                   Mindestens eine Tageszeit auswählen
                 </p>
-              )}
-
-              {/* Fine-tune times (optional) */}
-              {selectedTimeOfDay.length > 0 && (
-                <Collapsible open={showFineTune} onOpenChange={setShowFineTune}>
-                  <CollapsibleTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="w-full justify-between text-muted-foreground hover:text-foreground"
-                    >
-                      <span className="flex items-center gap-2">
-                        <Clock className="h-4 w-4" />
-                        Uhrzeiten anpassen
-                      </span>
-                      <ChevronDown className={`h-4 w-4 transition-transform ${showFineTune ? 'rotate-180' : ''}`} />
-                    </Button>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="pt-2 space-y-2">
-                    {selectedTimeOfDay.map((tod) => {
-                      const preset = TIME_PRESETS.find(p => p.id === tod)!;
-                      return (
-                        <div key={tod} className="flex items-center gap-3">
-                          <div className="flex items-center gap-2 min-w-[100px]">
-                            {preset.icon}
-                            <span className="text-sm">{preset.label}</span>
-                          </div>
-                          <Input
-                            type="time"
-                            value={customTimes[tod]}
-                            onChange={(e) => updateCustomTime(tod, e.target.value)}
-                            className="flex-1 touch-manipulation"
-                          />
-                        </div>
-                      );
-                    })}
-                  </CollapsibleContent>
-                </Collapsible>
               )}
 
               {/* Summary */}
