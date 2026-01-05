@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -23,19 +23,19 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import type { Reminder, CreateReminderInput, UpdateReminderInput, ReminderPrefill, Weekday as ReminderWeekday } from '@/types/reminder.types';
+import type { Reminder, CreateReminderInput, UpdateReminderInput, ReminderPrefill, TimeOfDay } from '@/types/reminder.types';
 import { format, parseISO } from 'date-fns';
-import { ArrowLeft, Clock, Plus, X, CalendarPlus, Info, Bell, ChevronDown, ListTodo, Pill, Calendar } from 'lucide-react';
+import { ArrowLeft, Clock, Plus, X, CalendarPlus, Info, Bell, ChevronDown, ListTodo, Pill, Calendar, Sunrise, Sun, Sunset, Moon } from 'lucide-react';
 import { MedicationSelector } from './MedicationSelector';
-import { TimeOfDaySelector, getDefaultTimeSlots, type TimeSlot } from './TimeOfDaySelector';
 import { cloneReminderForCreate, generateSeriesId } from '@/features/reminders/helpers/reminderHelpers';
 import { 
   NOTIFY_OFFSET_PRESETS, 
   DEFAULT_APPOINTMENT_OFFSETS,
   formatNotifyOffsets 
 } from '@/features/reminders/helpers/attention';
-import { WeekdayPicker, type Weekday, weekdaysToEnglish, weekdaysToGerman, formatWeekdays } from '@/components/ui/weekday-picker';
+import { WeekdayPicker, type Weekday } from '@/components/ui/weekday-picker';
 
+// Schema
 const reminderSchema = z.object({
   type: z.enum(['medication', 'appointment', 'todo']),
   title: z.string().min(1, 'Titel ist erforderlich'),
@@ -58,13 +58,22 @@ interface ReminderFormProps {
   onCreateAnother?: (prefill: ReminderPrefill) => void;
 }
 
-// Intelligente Standard-Uhrzeiten für zusätzliche Zeitslots
-const getDefaultTimeForSlot = (index: number): string => {
-  const defaultTimes = ['08:00', '12:00', '18:00', '21:00'];
-  return defaultTimes[index] || '12:00';
-};
+// Time of day presets with default times
+interface TimePreset {
+  id: TimeOfDay;
+  label: string;
+  time: string;
+  icon: React.ReactNode;
+}
 
-// Helper to safely parse and format date from date_time
+const TIME_PRESETS: TimePreset[] = [
+  { id: 'morning', label: 'Morgens', time: '08:00', icon: <Sunrise className="h-4 w-4" /> },
+  { id: 'noon', label: 'Mittags', time: '12:00', icon: <Sun className="h-4 w-4" /> },
+  { id: 'evening', label: 'Abends', time: '18:00', icon: <Sunset className="h-4 w-4" /> },
+  { id: 'night', label: 'Nachts', time: '22:00', icon: <Moon className="h-4 w-4" /> },
+];
+
+// Helper functions
 const extractDateFromDateTime = (dateTime: string): string => {
   try {
     const date = parseISO(dateTime);
@@ -74,7 +83,6 @@ const extractDateFromDateTime = (dateTime: string): string => {
   }
 };
 
-// Helper to safely parse and format time from date_time
 const extractTimeFromDateTime = (dateTime: string): string => {
   try {
     const date = parseISO(dateTime);
@@ -84,37 +92,48 @@ const extractTimeFromDateTime = (dateTime: string): string => {
   }
 };
 
-// Get today's date as default
 const getTodayDate = (): string => format(new Date(), 'yyyy-MM-dd');
 
 export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, onCreateAnother }: ReminderFormProps) => {
   const isEditing = !!reminder;
   
+  // Selected medications
   const [selectedMedications, setSelectedMedications] = useState<string[]>(
     reminder?.medications || prefill?.medications || []
   );
-  const [timeSlots, setTimeSlots] = useState<TimeSlot[]>(() => {
-    if (reminder && reminder.time_of_day) {
-      const slots = getDefaultTimeSlots();
-      return slots.map(slot => 
-        slot.timeOfDay === reminder.time_of_day 
-          ? { ...slot, enabled: true, time: extractTimeFromDateTime(reminder.date_time) }
-          : slot
-      );
+
+  // Time of day selections (for daily/weekdays)
+  const [selectedTimeOfDay, setSelectedTimeOfDay] = useState<TimeOfDay[]>(() => {
+    if (reminder?.time_of_day) {
+      return [reminder.time_of_day];
     }
-    return getDefaultTimeSlots();
+    // Default: Morgens selected for medication type
+    return [];
   });
 
-  // Dynamische Uhrzeiten (max 4 für medication, max 1 für appointment/todo)
-  const [times, setTimes] = useState<string[]>(() => {
-    if (reminder) {
-      return [extractTimeFromDateTime(reminder.date_time)];
+  // Custom times per preset (for fine-tuning)
+  const [customTimes, setCustomTimes] = useState<Record<TimeOfDay, string>>(() => {
+    const times: Record<TimeOfDay, string> = {
+      morning: '08:00',
+      noon: '12:00',
+      evening: '18:00',
+      night: '22:00',
+    };
+    if (reminder?.time_of_day) {
+      times[reminder.time_of_day] = extractTimeFromDateTime(reminder.date_time);
     }
-    if (prefill?.prefill_date) {
-      return [(prefill as any).prefill_time || format(new Date(), 'HH:mm')];
-    }
-    return [format(new Date(), 'HH:mm')];
+    return times;
   });
+
+  // Single time for non-daily reminders
+  const [singleTime, setSingleTime] = useState<string>(() => {
+    if (reminder) return extractTimeFromDateTime(reminder.date_time);
+    if (prefill && (prefill as any).prefill_time) return (prefill as any).prefill_time;
+    return format(new Date(), 'HH:mm');
+  });
+
+  // Show fine-tune section
+  const [showFineTune, setShowFineTune] = useState(false);
 
   // Follow-up settings for appointments
   const [followUpEnabled, setFollowUpEnabled] = useState(
@@ -130,34 +149,17 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
     (reminder as any)?.series_id || prefill?.series_id
   );
 
-  // Notify offsets for appointments (iPhone-style)
+  // Notify offsets for appointments
   const [notifyOffsets, setNotifyOffsets] = useState<number[]>(() => {
     const existing = (reminder as any)?.notify_offsets_minutes;
     return existing && existing.length > 0 ? existing : DEFAULT_APPOINTMENT_OFFSETS;
   });
   const [notifyOffsetsOpen, setNotifyOffsetsOpen] = useState(false);
 
+  // Weekdays for weekday repeat
+  const [selectedWeekdays, setSelectedWeekdays] = useState<Weekday[]>([]);
 
-  const handleAddTime = () => {
-    if (times.length < 4) {
-      const nextTime = getDefaultTimeForSlot(times.length);
-      setTimes([...times, nextTime]);
-    }
-  };
-
-  const handleRemoveTime = (index: number) => {
-    if (times.length > 1) {
-      setTimes(times.filter((_, i) => i !== index));
-    }
-  };
-
-  const handleTimeChange = (index: number, value: string) => {
-    const newTimes = [...times];
-    newTimes[index] = value;
-    setTimes(newTimes);
-  };
-
-  // Default values - these are initial values, the useEffect handles mode-switching correctly
+  // Form setup
   const defaultValues: FormData = reminder
     ? {
         type: reminder.type,
@@ -184,7 +186,7 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
         title: '',
         date: getTodayDate(),
         time: format(new Date(), 'HH:mm'),
-        repeat: 'none',
+        repeat: 'daily', // Default to daily for new reminders
         notes: '',
         notification_enabled: true,
       };
@@ -196,35 +198,32 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
 
   const { errors, isSubmitting } = formState;
 
-  // CRITICAL: Reset form when switching between create/edit modes (like QuickEntryModal)
+  // Reset form when switching modes
   useEffect(() => {
     const now = new Date();
     const todayDate = format(now, 'yyyy-MM-dd');
     const currentTime = format(now, 'HH:mm');
 
     if (!reminder && !prefill) {
-      // Create Mode: Reset to fresh defaults with today's date
       reset({
         type: 'medication',
         title: '',
         date: todayDate,
         time: currentTime,
-        repeat: 'none',
+        repeat: 'daily',
         notes: '',
         notification_enabled: true,
       });
-      
-      // Reset all local states
       setSelectedMedications([]);
-      setTimes([currentTime]);
-      setTimeSlots(getDefaultTimeSlots());
+      setSelectedTimeOfDay([]);
+      setSingleTime(currentTime);
       setFollowUpEnabled(false);
       setFollowUpValue(3);
       setFollowUpUnit('months');
       setSeriesId(undefined);
       setNotifyOffsets(DEFAULT_APPOINTMENT_OFFSETS);
+      setShowFineTune(false);
     } else if (reminder) {
-      // Edit Mode: Reset with reminder data
       reset({
         type: reminder.type,
         title: reminder.title,
@@ -235,16 +234,17 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
         notification_enabled: reminder.notification_enabled,
         status: reminder.status,
       });
-      
       setSelectedMedications(reminder.medications || []);
-      setTimes([extractTimeFromDateTime(reminder.date_time)]);
+      if (reminder.time_of_day) {
+        setSelectedTimeOfDay([reminder.time_of_day]);
+      }
+      setSingleTime(extractTimeFromDateTime(reminder.date_time));
       setFollowUpEnabled((reminder as any).follow_up_enabled || false);
       setFollowUpValue((reminder as any).follow_up_interval_value || 3);
       setFollowUpUnit((reminder as any).follow_up_interval_unit || 'months');
       setSeriesId((reminder as any).series_id);
       setNotifyOffsets((reminder as any).notify_offsets_minutes || DEFAULT_APPOINTMENT_OFFSETS);
     } else if (prefill) {
-      // Prefill Mode: Reset with prefill data, fallback to today
       reset({
         type: prefill.type,
         title: prefill.title,
@@ -254,9 +254,8 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
         notes: prefill.notes || '',
         notification_enabled: prefill.notification_enabled ?? true,
       });
-      
       setSelectedMedications(prefill.medications || []);
-      setTimes([(prefill as any).prefill_time || currentTime]);
+      setSingleTime((prefill as any).prefill_time || currentTime);
       setFollowUpEnabled(prefill.follow_up_enabled || false);
       setFollowUpValue(prefill.follow_up_interval_value || 3);
       setFollowUpUnit(prefill.follow_up_interval_unit || 'months');
@@ -272,11 +271,129 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
   const isMedicationType = type === 'medication';
   const isAppointmentType = type === 'appointment';
   const isTodoType = type === 'todo';
-  const enabledTimeSlots = timeSlots.filter(slot => slot.enabled);
-  const useMultipleTimeSlots = isMedicationType && repeat === 'daily' && enabledTimeSlots.length > 0;
+  
+  // Show time-of-day presets for daily/weekdays medication reminders
+  const showTimeOfDayPresets = isMedicationType && (repeat === 'daily' || repeat === 'weekdays');
+  
+  // Need at least one time of day selected for daily meds
+  const hasValidTimeSelection = !showTimeOfDayPresets || selectedTimeOfDay.length > 0;
 
-  // For appointments and todos, limit to 1 time
-  const maxTimes = isMedicationType ? 4 : 1;
+  // Toggle time of day selection
+  const toggleTimeOfDay = (tod: TimeOfDay) => {
+    setSelectedTimeOfDay(prev => 
+      prev.includes(tod) 
+        ? prev.filter(t => t !== tod)
+        : [...prev, tod]
+    );
+  };
+
+  // Update custom time for a preset
+  const updateCustomTime = (tod: TimeOfDay, time: string) => {
+    setCustomTimes(prev => ({ ...prev, [tod]: time }));
+  };
+
+  // Handle form submit
+  const onFormSubmit = (data: FormData) => {
+    // Calculate next_follow_up_date for appointments
+    let next_follow_up_date: string | undefined;
+    let finalSeriesId = seriesId;
+
+    if (isAppointmentType && followUpEnabled && followUpValue && followUpUnit && data.date) {
+      const baseDate = new Date(data.date);
+      if (followUpUnit === 'weeks') {
+        baseDate.setDate(baseDate.getDate() + followUpValue * 7);
+      } else {
+        baseDate.setMonth(baseDate.getMonth() + followUpValue);
+      }
+      next_follow_up_date = format(baseDate, 'yyyy-MM-dd');
+      
+      if (!finalSeriesId) {
+        finalSeriesId = generateSeriesId();
+        setSeriesId(finalSeriesId);
+      }
+    }
+
+    // EDITING MODE
+    if (isEditing) {
+      const effectiveTime = showTimeOfDayPresets && selectedTimeOfDay.length > 0
+        ? customTimes[selectedTimeOfDay[0]]
+        : singleTime || '09:00';
+      const dateTime = `${data.date}T${effectiveTime}:00`;
+      
+      const submitData: UpdateReminderInput = {
+        type: data.type,
+        title: data.title,
+        date_time: dateTime,
+        repeat: data.repeat,
+        notes: data.notes || undefined,
+        notification_enabled: data.notification_enabled,
+        ...(isMedicationType && selectedMedications.length > 0 ? { medications: selectedMedications } : {}),
+        ...(data.status ? { status: data.status } : {}),
+        ...(isAppointmentType ? {
+          follow_up_enabled: followUpEnabled,
+          follow_up_interval_value: followUpEnabled ? followUpValue : undefined,
+          follow_up_interval_unit: followUpEnabled ? followUpUnit : undefined,
+          next_follow_up_date: next_follow_up_date,
+          series_id: finalSeriesId,
+          notify_offsets_minutes: notifyOffsets,
+        } : {}),
+      };
+
+      onSubmit(submitData);
+      return;
+    }
+
+    // CREATE MODE with time-of-day presets (daily medication)
+    if (showTimeOfDayPresets && selectedTimeOfDay.length > 0) {
+      const medsList = selectedMedications.length > 0 ? selectedMedications.join(', ') : 'Medikamente';
+      
+      const reminders: CreateReminderInput[] = selectedTimeOfDay.map((tod) => {
+        const preset = TIME_PRESETS.find(p => p.id === tod)!;
+        const time = customTimes[tod];
+        const dateTime = `${data.date}T${time}:00`;
+        
+        return {
+          type: data.type,
+          title: `${medsList} (${preset.label})`,
+          date_time: dateTime,
+          repeat: data.repeat,
+          notes: data.notes || undefined,
+          notification_enabled: data.notification_enabled,
+          medications: selectedMedications,
+          time_of_day: tod,
+        };
+      });
+
+      onSubmit(reminders);
+      return;
+    }
+
+    // CREATE MODE with single time
+    const effectiveTime = singleTime || '09:00';
+    const dateTime = `${data.date}T${effectiveTime}:00`;
+    
+    const submitData: CreateReminderInput = {
+      type: data.type,
+      title: data.title,
+      date_time: dateTime,
+      repeat: data.repeat,
+      notes: data.notes || undefined,
+      notification_enabled: data.notification_enabled,
+      ...(isMedicationType && selectedMedications.length > 0 ? { medications: selectedMedications } : {}),
+      ...(isAppointmentType ? {
+        follow_up_enabled: followUpEnabled,
+        follow_up_interval_value: followUpEnabled ? followUpValue : undefined,
+        follow_up_interval_unit: followUpEnabled ? followUpUnit : undefined,
+        next_follow_up_date: next_follow_up_date,
+        series_id: finalSeriesId,
+        notify_offsets_minutes: notifyOffsets,
+      } : {}),
+    };
+
+    onSubmit(submitData);
+  };
+
+  const canCreateAnother = isAppointmentType && dateValue && onCreateAnother;
 
   const handleCreateAnotherAppointment = () => {
     if (!onCreateAnother) return;
@@ -295,7 +412,7 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
     };
 
     const cloned = cloneReminderForCreate(
-      { ...currentFormState, date: dateValue, times } as any,
+      { ...currentFormState, date: dateValue, times: [singleTime] } as any,
       { clearDateTime: true, preserveSeriesId: true }
     );
 
@@ -313,138 +430,9 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
     });
   };
 
-  const onFormSubmit = (data: FormData) => {
-    // Calculate next_follow_up_date for appointments
-    let next_follow_up_date: string | undefined;
-    let finalSeriesId = seriesId;
-
-    if (isAppointmentType && followUpEnabled && followUpValue && followUpUnit && data.date) {
-      const baseDate = new Date(data.date);
-      if (followUpUnit === 'weeks') {
-        baseDate.setDate(baseDate.getDate() + followUpValue * 7);
-      } else {
-        baseDate.setMonth(baseDate.getMonth() + followUpValue);
-      }
-      next_follow_up_date = format(baseDate, 'yyyy-MM-dd');
-      
-      // Generate series_id if not exists
-      if (!finalSeriesId) {
-        finalSeriesId = generateSeriesId();
-        setSeriesId(finalSeriesId);
-      }
-    }
-
-    // Use default time if not provided (for todos without time)
-    const effectiveTime = times[0] || '09:00';
-
-    // For editing, use single reminder
-    if (isEditing) {
-      const dateTime = `${data.date}T${effectiveTime}:00`;
-      
-      const submitData: UpdateReminderInput = {
-        type: data.type,
-        title: data.title,
-        date_time: dateTime,
-        repeat: data.repeat,
-        notes: data.notes || undefined,
-        notification_enabled: data.notification_enabled,
-        ...(isMedicationType && selectedMedications.length > 0 ? { medications: selectedMedications } : {}),
-        ...(data.status ? { status: data.status } : {}),
-        // Follow-up fields for appointments
-        ...(isAppointmentType ? {
-          follow_up_enabled: followUpEnabled,
-          follow_up_interval_value: followUpEnabled ? followUpValue : undefined,
-          follow_up_interval_unit: followUpEnabled ? followUpUnit : undefined,
-          next_follow_up_date: next_follow_up_date,
-          series_id: finalSeriesId,
-          notify_offsets_minutes: notifyOffsets,
-        } : {}),
-      };
-
-      onSubmit(submitData);
-      return;
-    }
-
-    // Use TimeOfDaySelector slots for daily medication reminders
-    if (useMultipleTimeSlots) {
-      const reminders: CreateReminderInput[] = enabledTimeSlots.map((slot) => {
-        const dateTime = `${data.date}T${slot.time}:00`;
-        const medsList = selectedMedications.length > 0 ? selectedMedications.join(', ') : 'Medikamente';
-        
-        return {
-          type: data.type,
-          title: `${medsList} (${slot.label})`,
-          date_time: dateTime,
-          repeat: data.repeat,
-          notes: data.notes || undefined,
-          notification_enabled: data.notification_enabled,
-          medications: selectedMedications,
-          time_of_day: slot.timeOfDay,
-        };
-      });
-
-      onSubmit(reminders);
-      return;
-    }
-
-    // Create reminders for each dynamic time
-    if (times.length === 1 || isTodoType || isAppointmentType) {
-      const dateTime = `${data.date}T${effectiveTime}:00`;
-      
-      const submitData: CreateReminderInput = {
-        type: data.type,
-        title: data.title,
-        date_time: dateTime,
-        repeat: data.repeat,
-        notes: data.notes || undefined,
-        notification_enabled: data.notification_enabled,
-        ...(isMedicationType && selectedMedications.length > 0 ? { medications: selectedMedications } : {}),
-        // Follow-up fields for appointments
-        ...(isAppointmentType ? {
-          follow_up_enabled: followUpEnabled,
-          follow_up_interval_value: followUpEnabled ? followUpValue : undefined,
-          follow_up_interval_unit: followUpEnabled ? followUpUnit : undefined,
-          next_follow_up_date: next_follow_up_date,
-          series_id: finalSeriesId,
-          notify_offsets_minutes: notifyOffsets,
-        } : {}),
-      };
-
-      onSubmit(submitData);
-    } else {
-      // Multiple times -> create multiple reminders (medication only)
-      const reminders: CreateReminderInput[] = times.map((time, index) => {
-        const dateTime = `${data.date}T${time}:00`;
-        
-        return {
-          type: data.type,
-          title: times.length > 1 ? `${data.title} (${index + 1})` : data.title,
-          date_time: dateTime,
-          repeat: data.repeat,
-          notes: data.notes || undefined,
-          notification_enabled: data.notification_enabled,
-          ...(isMedicationType && selectedMedications.length > 0 ? { medications: selectedMedications } : {}),
-        };
-      });
-
-      onSubmit(reminders);
-    }
-  };
-
-  // Show "Weiteren Termin anlegen" button for appointments when date is set
-  const canCreateAnother = isAppointmentType && dateValue && onCreateAnother;
-
-  // Get type icon
-  const getTypeIcon = () => {
-    switch (type) {
-      case 'medication': return <Pill className="h-4 w-4" />;
-      case 'appointment': return <Calendar className="h-4 w-4" />;
-      case 'todo': return <ListTodo className="h-4 w-4" />;
-    }
-  };
-
   return (
     <div className="px-3 sm:px-4 py-4 sm:py-6 pb-safe">
+      {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <Button
           type="button"
@@ -462,13 +450,22 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
       </div>
 
       <Card className="p-4 sm:p-6 max-h-[75vh] overflow-y-auto modern-scrollbar">
-        <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-6">
-          {/* Type Selection */}
+        <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-5">
+          
+          {/* 1️⃣ TYPE SELECTION */}
           <div className="space-y-2">
             <Label htmlFor="type">Typ</Label>
             <Select
               value={type}
-              onValueChange={(value) => setValue('type', value as 'medication' | 'appointment' | 'todo')}
+              onValueChange={(value) => {
+                setValue('type', value as 'medication' | 'appointment' | 'todo');
+                // Set smart defaults based on type
+                if (value === 'medication') {
+                  setValue('repeat', 'daily');
+                } else {
+                  setValue('repeat', 'none');
+                }
+              }}
             >
               <SelectTrigger>
                 <SelectValue />
@@ -496,7 +493,7 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
             </Select>
           </div>
 
-          {/* Medication Selector - only for medication type */}
+          {/* 2️⃣ MEDICATION SELECTOR (only for medication type) */}
           {isMedicationType && (
             <MedicationSelector
               selectedMedications={selectedMedications}
@@ -504,17 +501,143 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
             />
           )}
 
-          {/* TimeOfDay Selector - only for daily medication */}
-          {!isEditing && isMedicationType && repeat === 'daily' && (
-            <TimeOfDaySelector
-              timeSlots={timeSlots}
-              onSlotsChange={setTimeSlots}
-            />
+          {/* 3️⃣ REPEAT SELECTION - NOW FIRST AFTER TYPE! */}
+          <div className="space-y-3 p-4 bg-muted/30 rounded-lg border">
+            <Label className="text-base font-medium">Wie oft erinnern?</Label>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {[
+                { value: 'none', label: 'Einmal' },
+                { value: 'daily', label: 'Täglich' },
+                { value: 'weekdays', label: 'Wochentage' },
+                { value: 'weekly', label: 'Wöchentlich' },
+                { value: 'monthly', label: 'Monatlich' },
+              ].map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setValue('repeat', option.value as any)}
+                  className={`px-3 py-2 rounded-lg border text-sm font-medium transition-all touch-manipulation ${
+                    repeat === option.value
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'bg-background text-foreground border-border hover:border-primary/50'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Weekday picker when weekdays selected */}
+            {repeat === 'weekdays' && (
+              <div className="pt-3 space-y-2">
+                <Label className="text-sm">An welchen Tagen?</Label>
+                <WeekdayPicker
+                  value={selectedWeekdays}
+                  onChange={setSelectedWeekdays}
+                  size="sm"
+                />
+                {selectedWeekdays.length === 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Mindestens ein Tag erforderlich
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* 4️⃣ TIME OF DAY PRESETS (for daily/weekdays medication) */}
+          {showTimeOfDayPresets && (
+            <div className="space-y-3 p-4 bg-muted/30 rounded-lg border">
+              <Label className="text-base font-medium">Zu welchen Tageszeiten?</Label>
+              <p className="text-sm text-muted-foreground -mt-1">
+                Wähle eine oder mehrere Zeiten
+              </p>
+              
+              <div className="grid grid-cols-2 gap-2">
+                {TIME_PRESETS.map((preset) => {
+                  const isSelected = selectedTimeOfDay.includes(preset.id);
+                  return (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => toggleTimeOfDay(preset.id)}
+                      className={`flex items-center gap-2 px-3 py-3 rounded-lg border text-sm transition-all touch-manipulation ${
+                        isSelected
+                          ? 'bg-primary text-primary-foreground border-primary'
+                          : 'bg-background text-foreground border-border hover:border-primary/50'
+                      }`}
+                    >
+                      {preset.icon}
+                      <span className="font-medium">{preset.label}</span>
+                      <span className={`ml-auto text-xs ${isSelected ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
+                        {customTimes[preset.id]}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {selectedTimeOfDay.length === 0 && (
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  Mindestens eine Tageszeit auswählen
+                </p>
+              )}
+
+              {/* Fine-tune times (optional) */}
+              {selectedTimeOfDay.length > 0 && (
+                <Collapsible open={showFineTune} onOpenChange={setShowFineTune}>
+                  <CollapsibleTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-between text-muted-foreground hover:text-foreground"
+                    >
+                      <span className="flex items-center gap-2">
+                        <Clock className="h-4 w-4" />
+                        Uhrzeiten anpassen
+                      </span>
+                      <ChevronDown className={`h-4 w-4 transition-transform ${showFineTune ? 'rotate-180' : ''}`} />
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="pt-2 space-y-2">
+                    {selectedTimeOfDay.map((tod) => {
+                      const preset = TIME_PRESETS.find(p => p.id === tod)!;
+                      return (
+                        <div key={tod} className="flex items-center gap-3">
+                          <div className="flex items-center gap-2 min-w-[100px]">
+                            {preset.icon}
+                            <span className="text-sm">{preset.label}</span>
+                          </div>
+                          <Input
+                            type="time"
+                            value={customTimes[tod]}
+                            onChange={(e) => updateCustomTime(tod, e.target.value)}
+                            className="flex-1 touch-manipulation"
+                          />
+                        </div>
+                      );
+                    })}
+                  </CollapsibleContent>
+                </Collapsible>
+              )}
+
+              {/* Summary */}
+              {selectedTimeOfDay.length > 0 && (
+                <p className="text-sm text-muted-foreground pt-2 border-t">
+                  {selectedTimeOfDay.length === 1 
+                    ? `1 Erinnerung wird erstellt (${customTimes[selectedTimeOfDay[0]]})`
+                    : `${selectedTimeOfDay.length} Erinnerungen werden erstellt`
+                  }
+                </p>
+              )}
+            </div>
           )}
 
-          {/* Title - for todo, show as "Text" */}
-          {(!useMultipleTimeSlots || isEditing) && (
+          {/* 5️⃣ SINGLE TIME + DATE (for non-daily or non-medication) */}
+          {!showTimeOfDayPresets && (
             <>
+              {/* Title */}
               <div className="space-y-2">
                 <Label htmlFor="title">{isTodoType ? 'Text' : 'Titel'}</Label>
                 <Input
@@ -542,62 +665,28 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
                 )}
               </div>
 
-              {/* Time - optional for todo */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label>Uhrzeit{times.length > 1 ? 'en' : ''} {isTodoType && <span className="text-muted-foreground font-normal">(optional)</span>}</Label>
+              {/* Time */}
+              <div className="space-y-2">
+                <Label htmlFor="time">
+                  Uhrzeit {isTodoType && <span className="text-muted-foreground font-normal">(optional)</span>}
+                </Label>
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <Input
+                    type="time"
+                    value={singleTime}
+                    onChange={(e) => setSingleTime(e.target.value)}
+                    className="touch-manipulation flex-1"
+                  />
                 </div>
-                
-                <div className="space-y-2">
-                  {times.map((time, index) => (
-                    <div key={index} className="flex items-center gap-2">
-                      <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                      <Input
-                        type="time"
-                        value={time}
-                        onChange={(e) => handleTimeChange(index, e.target.value)}
-                        className="touch-manipulation flex-1"
-                      />
-                      {index > 0 && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleRemoveTime(index)}
-                          className="h-9 w-9 text-muted-foreground hover:text-destructive"
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                {times.length < maxTimes && isMedicationType && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleAddTime}
-                    className="w-full touch-manipulation"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Uhrzeit hinzufügen ({times.length}/{maxTimes})
-                  </Button>
-                )}
-
-                {times.length > 1 && (
-                  <p className="text-sm text-muted-foreground">
-                    Es werden {times.length} Erinnerungen erstellt
-                  </p>
-                )}
               </div>
             </>
           )}
 
-          {useMultipleTimeSlots && !isEditing && (
+          {/* Start date for time-of-day mode */}
+          {showTimeOfDayPresets && selectedTimeOfDay.length > 0 && (
             <div className="space-y-2">
-              <Label htmlFor="date">Startdatum</Label>
+              <Label htmlFor="date">Ab wann?</Label>
               <Input
                 id="date"
                 type="date"
@@ -607,56 +696,12 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
               {errors.date && (
                 <p className="text-sm text-destructive">{errors.date.message}</p>
               )}
-              <p className="text-sm text-muted-foreground">
-                Es werden {enabledTimeSlots.length} Erinnerungen erstellt
-              </p>
             </div>
           )}
 
-          {/* Repeat Section - STABLE POSITION, NO JUMPING */}
-          <div className="space-y-3 pt-2 border-t">
-            <Label htmlFor="repeat">Wiederholung</Label>
-            <Select
-              value={repeat}
-              onValueChange={(value) => setValue('repeat', value as any)}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Keine</SelectItem>
-                <SelectItem value="daily">Täglich</SelectItem>
-                <SelectItem value="weekdays">Wochentage</SelectItem>
-                <SelectItem value="weekly">Wöchentlich</SelectItem>
-                <SelectItem value="monthly">Monatlich</SelectItem>
-              </SelectContent>
-            </Select>
-            
-            {/* Weekday Picker when weekdays selected */}
-            {repeat === 'weekdays' && (
-              <div className="space-y-2 p-3 bg-muted/30 rounded-lg">
-                <Label className="text-sm">An welchen Tagen?</Label>
-                <WeekdayPicker
-                  value={[]}
-                  onChange={() => {}}
-                  size="sm"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Mindestens ein Tag erforderlich
-                </p>
-              </div>
-            )}
-            
-            {repeat !== 'none' && repeat !== 'weekdays' && (
-              <p className="text-xs text-muted-foreground">
-                Diese Erinnerung wird {repeat === 'daily' ? 'jeden Tag' : repeat === 'weekly' ? 'jede Woche' : 'jeden Monat'} wiederholt.
-              </p>
-            )}
-          </div>
-
-          {/* Follow-up section for appointments */}
+          {/* 6️⃣ FOLLOW-UP FOR APPOINTMENTS */}
           {isAppointmentType && (
-            <div className="space-y-4 p-4 bg-muted/50 rounded-lg border">
+            <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label htmlFor="follow-up" className="cursor-pointer font-medium">
@@ -698,17 +743,10 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
                   </Select>
                 </div>
               )}
-
-              {followUpEnabled && (
-                <div className="flex items-start gap-2 text-xs text-muted-foreground bg-background/50 p-2 rounded">
-                  <Info className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
-                  <span>Du wählst Datum und Uhrzeit für jeden Folgetermin individuell.</span>
-                </div>
-              )}
             </div>
           )}
 
-          {/* iPhone-style notification offsets for appointments */}
+          {/* 7️⃣ NOTIFICATION OFFSETS FOR APPOINTMENTS */}
           {isAppointmentType && (
             <Collapsible open={notifyOffsetsOpen} onOpenChange={setNotifyOffsetsOpen}>
               <CollapsibleTrigger asChild>
@@ -732,7 +770,7 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
               <CollapsibleContent className="pt-3">
                 <div className="p-4 bg-muted/50 rounded-lg border space-y-3">
                   <p className="text-xs text-muted-foreground">
-                    Wähle bis zu 4 Erinnerungszeitpunkte (wie beim iPhone)
+                    Wähle bis zu 4 Erinnerungszeitpunkte
                   </p>
                   <div className="grid grid-cols-2 gap-2">
                     {NOTIFY_OFFSET_PRESETS.map((preset) => {
@@ -790,7 +828,7 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
             </Collapsible>
           )}
 
-          {/* "Weiteren Termin anlegen" button */}
+          {/* Create another appointment button */}
           {canCreateAnother && (
             <Button
               type="button"
@@ -871,6 +909,7 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
             <SaveButton
               type="submit"
               loading={isSubmitting}
+              disabled={!hasValidTimeSelection}
               className="touch-manipulation min-h-11 min-w-[120px]"
             />
           </div>
