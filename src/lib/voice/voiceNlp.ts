@@ -651,10 +651,20 @@ function extractPainEntry(
     parsed.medications || []
   );
 
-  // Zeitpunkt
-  const occurredAt = parsed.selectedDate && parsed.selectedTime
-    ? `${parsed.selectedDate}T${parsed.selectedTime}:00`
-    : new Date().toISOString();
+  // Zeitpunkt - WICHTIG: isNow Flag beibehalten!
+  // Wenn isNow=true (kein expliziter Zeitpunkt genannt), setzen wir occurredAt auf undefined
+  // Damit die UI weiß, dass "jetzt" verwendet werden soll
+  let occurredAt: string | undefined;
+  const isNow = parsed.isNow;
+  
+  if (!isNow && parsed.selectedDate && parsed.selectedTime) {
+    // Explizite Zeit wurde genannt -> occurredAt setzen
+    occurredAt = `${parsed.selectedDate}T${parsed.selectedTime}:00`;
+  } else {
+    // isNow=true oder keine Zeit erkannt -> occurredAt bleibt undefined
+    // Die UI wird dann "jetzt" als Default verwenden
+    occurredAt = undefined;
+  }
   
   const occurredAtConfidence = calculateTimeConfidence(transcript);
 
@@ -667,7 +677,8 @@ function extractPainEntry(
     medications,
     occurredAt,
     occurredAtConfidence,
-    notes
+    notes,
+    isNow // WICHTIG: isNow Flag weitergeben!
   };
 }
 

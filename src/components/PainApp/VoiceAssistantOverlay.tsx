@@ -544,11 +544,15 @@ export function VoiceAssistantOverlay({
             });
           }
           
+          // WICHTIG: Zeit-Logik - isNow=true oder keine occurredAt -> "jetzt"
+          // Nur wenn explizite Zeit genannt wurde -> "custom"
+          const hasExplicitTime = painEntry?.occurredAt && !painEntry?.isNow;
+          
           onSelectAction('quick_entry', committedText, {
             initialPainLevel: painEntry?.painLevel ? parseInt(String(painEntry.painLevel), 10) : undefined,
-            initialSelectedTime: painEntry?.occurredAt ? 'custom' : undefined,
-            initialCustomDate: painEntry?.occurredAt ? painEntry.occurredAt.split('T')[0] : undefined,
-            initialCustomTime: painEntry?.occurredAt ? painEntry.occurredAt.split('T')[1]?.substring(0, 5) : undefined,
+            initialSelectedTime: hasExplicitTime ? 'custom' : 'jetzt',
+            initialCustomDate: hasExplicitTime ? painEntry.occurredAt.split('T')[0] : undefined,
+            initialCustomTime: hasExplicitTime ? painEntry.occurredAt.split('T')[1]?.substring(0, 5) : undefined,
             initialNotes: painEntry?.notes || committedText,
             initialMedicationStates: Object.keys(medicationStates).length > 0 ? medicationStates : undefined,
           });

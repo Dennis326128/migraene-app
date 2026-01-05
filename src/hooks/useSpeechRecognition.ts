@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { getSttConfig, isBrowserSttSupported, type SttResult } from '@/lib/voice/sttConfig';
+import { VOICE_TIMING } from '@/lib/voice/voiceTimingConfig';
 
 interface SpeechRecognitionState {
   isRecording: boolean;
@@ -42,7 +43,8 @@ export function useSpeechRecognition(options: SpeechRecognitionOptions = {}): Us
     language = 'de-DE',
     continuous = true,
     interimResults = true,
-    pauseThreshold = 3,
+    // Use generous pause threshold from config (default 30s)
+    pauseThreshold = VOICE_TIMING.PAUSE_THRESHOLD_SECONDS,
     onTranscriptReady,
     onError,
     onDebugLog,
@@ -91,6 +93,17 @@ export function useSpeechRecognition(options: SpeechRecognitionOptions = {}): Us
     onError?.(error);
   }, [log, onError, clearTimers]);
 
+  /**
+   * Pause detection - MIGRAINE FRIENDLY
+   * 
+   * Philosophy: User must click "Fertig" to stop. We only show a countdown
+   * after VERY long silence (30+ seconds) as a gentle hint.
+   * 
+   * This allows users to:
+   * - Think between words/sentences
+   * - Pause to collect their thoughts
+   * - Speak at their own pace without stress
+   */
   const startPauseDetection = useCallback(() => {
     clearTimers();
     
@@ -106,16 +119,17 @@ export function useSpeechRecognition(options: SpeechRecognitionOptions = {}): Us
         if (remainingSeconds <= 0) {
           clearTimers();
           if (recognitionRef.current) {
-            log('⏹️ Auto-stopping after pause threshold');
+            log('⏹️ Auto-stopping after very long pause (30s+)');
             recognitionRef.current.stop();
           }
         }
       }, 1000);
     };
 
-    // Migraine-friendly: Wait 3 seconds of silence before starting countdown
-    // This gives users time for word-finding pauses
-    pauseTimerRef.current = setTimeout(startCountdown, 3000);
+    // MIGRAINE-FRIENDLY: Wait 15 seconds of silence before even considering it a pause
+    // Then wait another pauseThreshold (30s) before auto-stopping
+    // Total: 45 seconds of silence before auto-stop
+    pauseTimerRef.current = setTimeout(startCountdown, VOICE_TIMING.INITIAL_SILENCE_GRACE_MS);
   }, [pauseThreshold, onPauseDetected, clearTimers, log]);
 
   const resetPauseDetection = useCallback(() => {
