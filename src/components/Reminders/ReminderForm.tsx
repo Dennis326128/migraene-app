@@ -35,10 +35,10 @@ import {
 } from '@/features/reminders/helpers/attention';
 import { WeekdayPicker, type Weekday } from '@/components/ui/weekday-picker';
 
-// Schema
+// Schema - title is optional for medication type (auto-generated from medications)
 const reminderSchema = z.object({
   type: z.enum(['medication', 'appointment', 'todo']),
-  title: z.string().min(1, 'Titel ist erforderlich'),
+  title: z.string().optional().default(''),
   date: z.string().min(1, 'Datum ist erforderlich'),
   time: z.string().optional(),
   repeat: z.enum(['none', 'daily', 'weekly', 'monthly', 'weekdays']),
@@ -107,7 +107,10 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
     if (reminder?.time_of_day) {
       return [reminder.time_of_day];
     }
-    // Default: Morgens selected for medication type
+    // Default: Morgens selected for new medication reminders
+    if (!reminder && (!prefill || prefill.type === 'medication')) {
+      return ['morning'];
+    }
     return [];
   });
 
@@ -277,6 +280,13 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
   
   // Need at least one time of day selected for daily meds
   const hasValidTimeSelection = !showTimeOfDayPresets || selectedTimeOfDay.length > 0;
+  
+  // Title validation: required when not using time-of-day presets (which auto-generate title)
+  const titleValue = watch('title');
+  const hasValidTitle = showTimeOfDayPresets || (titleValue && titleValue.trim().length > 0);
+  
+  // Combined validation for submit button
+  const canSubmit = hasValidTimeSelection && hasValidTitle;
 
   // Toggle time of day selection
   const toggleTimeOfDay = (tod: TimeOfDay) => {
@@ -372,9 +382,15 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
     const effectiveTime = singleTime || '09:00';
     const dateTime = `${data.date}T${effectiveTime}:00`;
     
+    // Generate title if empty (for medication type)
+    const effectiveTitle = data.title?.trim() 
+      || (isMedicationType && selectedMedications.length > 0 
+          ? selectedMedications.join(', ') 
+          : 'Erinnerung');
+    
     const submitData: CreateReminderInput = {
       type: data.type,
-      title: data.title,
+      title: effectiveTitle,
       date_time: dateTime,
       repeat: data.repeat,
       notes: data.notes || undefined,
@@ -902,7 +918,7 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
             <SaveButton
               type="submit"
               loading={isSubmitting}
-              disabled={!hasValidTimeSelection}
+              disabled={!canSubmit}
               className="touch-manipulation min-h-11 min-w-[120px]"
             />
           </div>
