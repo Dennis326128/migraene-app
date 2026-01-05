@@ -28,9 +28,10 @@ export interface VoicePainEntry {
   painLevel?: number;
   painLevelConfidence?: number;
   medications?: VoiceMed[];
-  occurredAt?: string; // ISO timestamp
+  occurredAt?: string; // ISO timestamp - only set when explicit time mentioned
   occurredAtConfidence?: number;
   notes?: string;
+  isNow?: boolean; // true = no explicit time mentioned, use "now" as default
 }
 
 export interface VoiceReminder {
