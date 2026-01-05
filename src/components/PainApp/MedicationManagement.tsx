@@ -6,19 +6,20 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useMeds, useAddMed, useDeleteMed, type Med, type CreateMedInput } from "@/features/meds/hooks/useMeds";
-import { useCreateReminder } from "@/features/reminders/hooks/useReminders";
+import { useCreateReminder, useCreateMultipleReminders } from "@/features/reminders/hooks/useReminders";
 import { useMedicationsReminderMap, useCoursesReminderMap, type MedicationReminderStatus } from "@/features/reminders/hooks/useMedicationReminders";
 import { parseMedicationInput, parsedToMedInput } from "@/lib/utils/parseMedicationInput";
-import { shouldOfferReminderPrompt } from "@/lib/utils/medicationReminderHeuristic";
+import { isPrnMedication } from "@/lib/utils/medicationReminderHeuristic";
 import { Pill, Plus, Pencil, Trash2, Bell, BellOff, ArrowLeft, Clock, AlertTriangle, Download, Loader2, Ban, History, ChevronDown, Mic, MicOff } from "lucide-react";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { MedicationReminderSheet } from "@/components/Reminders/MedicationReminderSheet";
-import { MedicationReminderPrompt } from "@/components/Reminders/MedicationReminderPrompt";
+import { ReminderTimePresets, getTimesForPresets, DEFAULT_TIME_PRESETS } from "@/components/Reminders/ReminderTimePresets";
 import { MedicationEditModal } from "./MedicationEditModal";
 
 import { MedicationCoursesList, MedicationCourseCard, MedicationCourseWizard } from "./MedicationCourses";
@@ -73,6 +74,21 @@ const MedicationCard: React.FC<{
   const isInactive = med.is_active === false || !!med.discontinued_at || med.intolerance_flag;
   const hasActiveReminder = reminderStatus?.isActive ?? false;
   const isIntervalMed = reminderStatus?.isIntervalMed ?? false;
+  const reminderCount = reminderStatus?.reminderCount ?? 0;
+  
+  // Format reminder times for display
+  const formatReminderTimes = () => {
+    if (!reminderStatus?.reminders || reminderStatus.reminders.length === 0) return null;
+    
+    const times = reminderStatus.reminders
+      .map(r => format(new Date(r.date_time), 'HH:mm'))
+      .sort()
+      .filter((t, i, arr) => arr.indexOf(t) === i); // Unique times
+    
+    if (times.length === 0) return null;
+    if (times.length === 1) return times[0];
+    return times.join(', ');
+  };
   
   // Format next trigger date for interval meds
   const formatNextDate = () => {
@@ -100,19 +116,17 @@ const MedicationCard: React.FC<{
             {med.intolerance_notes && (
               <p className="text-xs text-destructive mt-1">⚠️ {med.intolerance_notes}</p>
             )}
-            {/* Mini-line for interval medications (Ajovy, etc.) */}
-            {!isInactive && isIntervalMed && (
+            {/* Reminder status line - improved display */}
+            {!isInactive && hasActiveReminder && (
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground leading-tight mt-1">
-                {hasActiveReminder ? (
-                  <>
-                    <Bell className="h-3.5 w-3.5 text-primary" />
-                    <span>Erinnerung aktiv{formatNextDate() && ` · nächste: ${formatNextDate()}`}</span>
-                  </>
+                <Bell className="h-3.5 w-3.5 text-primary" />
+                {isIntervalMed ? (
+                  <span>Erinnerung{formatNextDate() && ` · nächste: ${formatNextDate()}`}</span>
                 ) : (
-                  <>
-                    <BellOff className="h-3.5 w-3.5" />
-                    <span>Keine Erinnerung eingerichtet</span>
-                  </>
+                  <span>
+                    {formatReminderTimes()} 
+                    {reminderCount === 1 ? ' täglich' : ` (${reminderCount}× täglich)`}
+                  </span>
                 )}
               </div>
             )}
@@ -171,6 +185,7 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
   const addMed = useAddMed();
   const deleteMed = useDeleteMed();
   const createReminder = useCreateReminder();
+  const createMultipleReminders = useCreateMultipleReminders();
   const updateCourse = useUpdateMedicationCourse();
   const deleteCourse = useDeleteMedicationCourse();
   
@@ -189,9 +204,9 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
   const [editingCourse, setEditingCourse] = useState<MedicationCourse | null>(null);
   const [deletingCourse, setDeletingCourse] = useState<MedicationCourse | null>(null);
   
-  // Reminder prompt state for newly added medications
-  const [showReminderPrompt, setShowReminderPrompt] = useState(false);
-  const [newlyAddedMed, setNewlyAddedMed] = useState<Med | null>(null);
+  // Inline reminder configuration in add dialog (replaces separate prompt)
+  const [reminderEnabled, setReminderEnabled] = useState(true); // Default ON for regular meds
+  const [selectedReminderPresets, setSelectedReminderPresets] = useState<string[]>(['morning']); // Default: Morgens
   
   // Collapsible sections state
   const [showInactive, setShowInactive] = useState(false);
@@ -201,6 +216,19 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
   const [selectedCourse, setSelectedCourse] = useState<MedicationCourse | null>(null);
   const [medicationName, setMedicationName] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  
+  // Determine if current medication name looks like a PRN medication
+  const looksLikePrn = useMemo(() => {
+    return medicationName.trim() ? isPrnMedication(medicationName) : false;
+  }, [medicationName]);
+  
+  // Reset reminder state when dialog opens
+  useEffect(() => {
+    if (showAddDialog) {
+      setReminderEnabled(true);
+      setSelectedReminderPresets(['morning']);
+    }
+  }, [showAddDialog]);
   
   // Remember user preference for "edit after add" in localStorage
   const [editAfterAdd, setEditAfterAdd] = useState(() => {
@@ -459,23 +487,45 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
       };
       
       const newMed = await addMed.mutateAsync(medInput);
+      
+      // Create reminders directly if enabled and presets selected (inline, no extra prompt)
+      const shouldCreateReminders = reminderEnabled && selectedReminderPresets.length > 0 && !looksLikePrn;
+      
+      if (shouldCreateReminders && newMed) {
+        const times = getTimesForPresets(selectedReminderPresets);
+        const today = format(new Date(), 'yyyy-MM-dd');
+        
+        const reminderInputs = times.map(time => ({
+          type: 'medication' as const,
+          title: `${newMed.name} einnehmen`,
+          date_time: `${today}T${time}:00`,
+          repeat: 'daily' as const,
+          notification_enabled: true,
+          medications: [newMed.name],
+          medication_id: newMed.id,
+        }));
+        
+        try {
+          await createMultipleReminders.mutateAsync(reminderInputs);
+          const timeLabels = selectedReminderPresets
+            .map(id => DEFAULT_TIME_PRESETS.find(p => p.id === id)?.label)
+            .filter(Boolean)
+            .join(', ');
+          toast.success(`Medikament mit Erinnerung (${timeLabels}) hinzugefügt`);
+        } catch (err) {
+          console.error('Failed to create reminders:', err);
+          toast.success("Medikament hinzugefügt (Erinnerung fehlgeschlagen)");
+        }
+      } else {
+        toast.success("Medikament hinzugefügt");
+      }
+      
       setMedicationName("");
       setShowAddDialog(false);
       
       if (editAfterAdd && newMed) {
         setSelectedMedication(newMed);
         setShowEditModal(true);
-        toast.success("Medikament hinzugefügt – Details bearbeiten");
-      } else {
-        toast.success("Medikament hinzugefügt");
-        
-        // Check if we should offer reminder prompt (only for scheduled/prophylaxis meds)
-        // Use intake_type from parsed input, or infer from art
-        const intakeType = medInput.intake_type || (medInput.art === 'regelmaessig' || medInput.art === 'prophylaxe' ? 'regular' : 'as_needed');
-        if (newMed && shouldOfferReminderPrompt(newMed.name, intakeType as any)) {
-          setNewlyAddedMed(newMed);
-          setShowReminderPrompt(true);
-        }
       }
     } catch (error) {
       toast.error("Fehler beim Hinzufügen des Medikaments.");
@@ -926,6 +976,47 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
               
             </div>
             
+            {/* Inline Reminder Configuration - only show for non-PRN medications */}
+            {!looksLikePrn && medicationName.trim() && (
+              <div className="space-y-3 pt-2 border-t border-border/50">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Bell className="h-4 w-4 text-muted-foreground" />
+                    <Label htmlFor="reminder-toggle" className="text-sm font-medium cursor-pointer">
+                      Erinnerung
+                    </Label>
+                  </div>
+                  <Switch
+                    id="reminder-toggle"
+                    checked={reminderEnabled}
+                    onCheckedChange={setReminderEnabled}
+                  />
+                </div>
+                
+                {reminderEnabled && (
+                  <div className="pl-6 space-y-2">
+                    <ReminderTimePresets
+                      selected={selectedReminderPresets}
+                      onSelectionChange={setSelectedReminderPresets}
+                      multiSelect={true}
+                      compact={false}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Täglich · Mehrere Zeiten wählbar
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {/* PRN medication hint */}
+            {looksLikePrn && medicationName.trim() && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2 border-t border-border/50">
+                <Clock className="h-3.5 w-3.5" />
+                <span>Bedarfsmedikament – Erinnerung später über 🔔 möglich</span>
+              </div>
+            )}
+            
             {/* Optional: Edit after add - minimal switch row */}
             <div 
               className="flex items-center gap-3 py-2 cursor-pointer"
@@ -1035,25 +1126,6 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
         medication={selectedMedication}
         medicationId={selectedMedication?.id}
         reminderStatus={selectedMedication ? reminderStatusMap.get(selectedMedication.id) : undefined}
-      />
-
-      {/* Reminder Prompt after adding scheduled medication */}
-      <MedicationReminderPrompt
-        open={showReminderPrompt}
-        onOpenChange={setShowReminderPrompt}
-        medicationName={newlyAddedMed?.name || ''}
-        medicationId={newlyAddedMed?.id || ''}
-        onCreateReminder={() => {
-          // Open the reminder sheet for the newly added medication
-          if (newlyAddedMed) {
-            setSelectedMedication(newlyAddedMed);
-            setShowReminderModal(true);
-          }
-          setNewlyAddedMed(null);
-        }}
-        onSkip={() => {
-          setNewlyAddedMed(null);
-        }}
       />
 
       {/* Course Reminder Sheet (for Prophylaxis like Ajovy) */}
