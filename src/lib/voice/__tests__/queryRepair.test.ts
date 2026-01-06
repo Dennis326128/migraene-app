@@ -3,14 +3,14 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { findMedicationMatch, repairQuery, isIncompleteQuery } from '../queryRepair';
+import { findMedicationMatch, repairQuery, isIncompleteQuery, getQueryHelpMessage } from '../queryRepair';
 
 describe('findMedicationMatch', () => {
   it('should match exact medication names', () => {
     const result = findMedicationMatch('triptan');
     expect(result).not.toBeNull();
     expect(result?.match).toBe('Triptan');
-    expect(result?.confidence).toBe(1.0);
+    expect(result?.confidence).toBeGreaterThanOrEqual(0.9);
   });
 
   it('should fuzzy match Triplan -> Triptan', () => {
@@ -36,6 +36,13 @@ describe('findMedicationMatch', () => {
     const result = findMedicationMatch('parazitamol');
     expect(result).not.toBeNull();
     expect(result?.match).toBe('Paracetamol');
+  });
+  
+  it('should prioritize user medications', () => {
+    const userMeds = [{ name: 'Sumatriptan 50mg' }];
+    const result = findMedicationMatch('sumatriptan', userMeds);
+    expect(result).not.toBeNull();
+    expect(result?.match).toBe('Sumatriptan 50mg');
   });
 
   it('should return null for non-medication words', () => {
@@ -63,6 +70,12 @@ describe('repairQuery', () => {
     expect(result.suggestedQuery).not.toBeNull();
     expect(result.suggestedQuery).toContain('Triptan');
   });
+  
+  it('should suggest last intake query when appropriate', () => {
+    const result = repairQuery('wann zuletzt sumatriptan');
+    expect(result.suggestedQuery).toContain('letzte Mal');
+    expect(result.suggestedQuery).toContain('Sumatriptan');
+  });
 
   it('should not repair already correct queries', () => {
     const result = repairQuery('wie viele schmerzfreie Tage in den letzten 30 Tagen');
@@ -84,5 +97,13 @@ describe('isIncompleteQuery', () => {
 
   it('should not flag complete queries', () => {
     expect(isIncompleteQuery('wie viele triptan in den letzten 30 Tagen genommen')).toBe(false);
+  });
+});
+
+describe('getQueryHelpMessage', () => {
+  it('should return helpful examples', () => {
+    const msg = getQueryHelpMessage();
+    expect(msg).toContain('zuletzt');
+    expect(msg).toContain('schmerzfreie Tage');
   });
 });

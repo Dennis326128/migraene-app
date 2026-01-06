@@ -546,7 +546,7 @@ export async function avgPainLevel(
 // ============================================
 
 export type ParsedAnalyticsQuery = {
-  queryType: 'triptan_days' | 'med_days' | 'migraine_days' | 'headache_days' | 'pain_free_days' | 'entries_count' | 'avg_pain' | 'unknown';
+  queryType: 'triptan_days' | 'med_days' | 'migraine_days' | 'headache_days' | 'pain_free_days' | 'entries_count' | 'avg_pain' | 'last_intake_med' | 'unknown';
   medName?: string;
   medCategory?: EffectCategory;
   timeRange: TimeRange;
@@ -559,6 +559,32 @@ export type ParsedAnalyticsQuery = {
 export function parseAnalyticsQuery(text: string): ParsedAnalyticsQuery {
   const lower = text.toLowerCase();
   const timeRange = parseTimeRangeFromText(text);
+  
+  // =============================================
+  // NEW: "Wann zuletzt X genommen?" → last_intake_med
+  // Must be checked FIRST
+  // =============================================
+  const lastIntakePatterns = [
+    /wann\s+(?:habe?\s+ich\s+)?(?:das\s+)?(?:letzte?\s*(?:mal\s+)?)?(\w+)\s+(?:genommen|eingenommen)/i,
+    /wann\s+(?:habe?\s+ich\s+)?zuletzt\s+(\w+)/i,
+    /letzte?\s+einnahme\s+(?:von\s+)?(\w+)/i,
+    /wann\s+zuletzt\s+(\w+)/i,
+  ];
+  
+  for (const pattern of lastIntakePatterns) {
+    const match = text.match(pattern);
+    if (match && match[1]) {
+      const medName = match[1].trim();
+      if (!['das', 'mal', 'ich', 'ein', 'eine', 'den', 'die', 'wann'].includes(medName.toLowerCase())) {
+        return {
+          queryType: 'last_intake_med',
+          medName,
+          timeRange: getTimeRange(365), // 1 year back for last intake
+          confidence: 0.95
+        };
+      }
+    }
+  }
   
   // Triptan-Fragen
   if (/triptan|sumatriptan|rizatriptan|zolmitriptan|maxalt|imigran/.test(lower)) {
@@ -654,16 +680,118 @@ export function parseAnalyticsQuery(text: string): ParsedAnalyticsQuery {
 }
 
 // ============================================
+// Last Intake Query (NEW)
+// ============================================
+
+/**
+ * Hole die letzte Einnahme eines Medikaments
+ * Sucht in pain_entries nach dem neuesten Eintrag mit dem Medikament
+ */
+export async function getLastMedicationIntake(
+  userId: string,
+  medName: string
+): Promise<AnalyticsQueryResult> {
+  try {
+    const { data: entries, error } = await supabase
+      .from('pain_entries')
+      .select('id, selected_date, selected_time, timestamp_created, medications')
+      .eq('user_id', userId)
+      .not('medications', 'is', null)
+      .order('selected_date', { ascending: false })
+      .order('selected_time', { ascending: false, nullsFirst: false })
+      .limit(500);
+    
+    if (error) throw error;
+    
+    // Search for matching medication
+    const searchNorm = normalizeMedName(medName);
+    
+    for (const entry of entries || []) {
+      const meds = (entry.medications as string[]) || [];
+      
+      for (const med of meds) {
+        if (matchesMedName(med, medName)) {
+          // Found the last intake!
+          const date = entry.selected_date;
+          const time = entry.selected_time;
+          
+          // Format date nicely
+          let formattedDate = '';
+          if (date) {
+            const dateObj = new Date(date);
+            const options: Intl.DateTimeFormatOptions = { 
+              weekday: 'long', 
+              day: '2-digit', 
+              month: '2-digit', 
+              year: 'numeric' 
+            };
+            formattedDate = dateObj.toLocaleDateString('de-DE', options);
+          }
+          
+          // Format time if available
+          let formattedTime = '';
+          if (time) {
+            formattedTime = ` um ${time.substring(0, 5)} Uhr`;
+          }
+          
+          // Capitalize medication name properly
+          const displayMed = capitalizeFirst(med);
+          
+          return {
+            success: true,
+            queryType: 'last_intake_med',
+            value: entry.id,
+            unit: '',
+            details: `Du hast ${displayMed} zuletzt am ${formattedDate}${formattedTime} eingenommen.`
+          };
+        }
+      }
+    }
+    
+    // Not found
+    const displayMed = capitalizeFirst(medName);
+    return {
+      success: true,
+      queryType: 'last_intake_med',
+      value: 0,
+      unit: '',
+      details: `Ich habe keine Einnahme von ${displayMed} gefunden.`
+    };
+  } catch (error) {
+    console.error('getLastMedicationIntake error:', error);
+    return {
+      success: false,
+      queryType: 'last_intake_med',
+      value: 0,
+      unit: '',
+      error: error instanceof Error ? error.message : 'Unbekannter Fehler'
+    };
+  }
+}
+
+/**
+ * Capitalize first letter of medication name
+ */
+function capitalizeFirst(str: string): string {
+  if (!str) return str;
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+// ============================================
 // Main Executor
 // ============================================
 
 /**
  * Führt eine geparste Analytics-Query aus
+ * WICHTIG: Jede Abfrage liest frisch aus der DB, kein Cache!
  */
 export async function executeAnalyticsQuery(
   userId: string,
   query: ParsedAnalyticsQuery
 ): Promise<AnalyticsQueryResult> {
+  // Log for debugging - ensures fresh query each time
+  console.log('[Analytics] Executing fresh query:', query.queryType, query.medName || '');
+  
   switch (query.queryType) {
     case 'triptan_days':
       return countMedDaysByCategory(userId, 'migraene_triptan', query.timeRange);
@@ -678,6 +806,18 @@ export async function executeAnalyticsQuery(
       return {
         success: false,
         queryType: 'med_days',
+        value: 0,
+        unit: '',
+        error: 'Kein Medikament angegeben'
+      };
+    
+    case 'last_intake_med':
+      if (query.medName) {
+        return getLastMedicationIntake(userId, query.medName);
+      }
+      return {
+        success: false,
+        queryType: 'last_intake_med',
         value: 0,
         unit: '',
         error: 'Kein Medikament angegeben'
@@ -722,8 +862,21 @@ export function formatAnalyticsResult(
     };
   }
   
+  // Special case: last_intake_med returns the answer in details
+  if (query.queryType === 'last_intake_med') {
+    const medName = query.medName ? capitalizeFirst(query.medName) : 'Medikament';
+    return {
+      headline: `Letzte Einnahme: ${medName}`,
+      answer: result.details || `Keine Einnahme von ${medName} gefunden.`,
+      details: undefined
+    };
+  }
+  
   const days = Math.ceil((query.timeRange.end.getTime() - query.timeRange.start.getTime()) / (1000 * 60 * 60 * 24));
   const periodText = days === 30 ? 'letzten 30 Tagen' : days === 7 ? 'letzter Woche' : `letzten ${days} Tagen`;
+  
+  // Capitalize medication name in results
+  const medDisplayName = query.medName ? capitalizeFirst(query.medName) : 'Medikament';
   
   switch (query.queryType) {
     case 'triptan_days':
@@ -736,7 +889,7 @@ export function formatAnalyticsResult(
     case 'med_days':
       return {
         headline: 'Medikamententage',
-        answer: `${result.value} ${result.unit} mit ${query.medName || 'Medikament'} in den ${periodText}`,
+        answer: `${result.value} ${result.unit} mit ${medDisplayName} in den ${periodText}`,
         details: result.details
       };
     

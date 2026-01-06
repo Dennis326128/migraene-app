@@ -348,6 +348,7 @@ function isMedicationEffectRating(lower: string): boolean {
 
 /**
  * Extrahiert Analytics-Query Daten
+ * Enhanced: supports last_intake_med query type
  */
 function extractAnalyticsQuery(transcript: string): VoiceAnalyticsQuery {
   const lower = transcript.toLowerCase();
@@ -361,6 +362,36 @@ function extractAnalyticsQuery(transcript: string): VoiceAnalyticsQuery {
     timeRangeDays = 7;
   } else if (/monat/.test(lower)) {
     timeRangeDays = 30;
+  }
+  
+  // =============================================
+  // NEW: "Wann zuletzt X genommen?" → last_intake_med
+  // Must be checked BEFORE other medication queries
+  // =============================================
+  const lastIntakePatterns = [
+    /wann\s+(?:habe?\s+ich\s+)?(?:das\s+)?(?:letzte?\s*(?:mal\s+)?)?(\w+)\s+(?:genommen|eingenommen)/i,
+    /wann\s+(?:habe?\s+ich\s+)?zuletzt\s+(\w+)\s+(?:genommen|eingenommen|nehme)/i,
+    /wann\s+zuletzt\s+(\w+)/i,
+    /letzte?\s+einnahme\s+(?:von\s+)?(\w+)/i,
+    /wann\s+(?:hab\s+ich|habe\s+ich)\s+(\w+)\s+zuletzt/i,
+    /(\w+)\s+zuletzt\s+(?:genommen|eingenommen)/i,
+  ];
+  
+  for (const pattern of lastIntakePatterns) {
+    const match = transcript.match(pattern);
+    if (match && match[1]) {
+      const medName = match[1].trim();
+      // Skip common false positives
+      if (['das', 'mal', 'ich', 'ein', 'eine', 'den', 'die', 'wann'].includes(medName.toLowerCase())) {
+        continue;
+      }
+      return {
+        queryType: 'last_intake_med',
+        medName: medName,
+        timeRangeDays: 365, // Search up to 1 year back
+        confidence: 0.95
+      };
+    }
   }
   
   // Triptan-Fragen
