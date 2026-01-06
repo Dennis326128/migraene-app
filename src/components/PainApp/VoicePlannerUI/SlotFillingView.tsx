@@ -9,10 +9,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { HelpCircle, ChevronLeft } from 'lucide-react';
-import type { SlotFillingPlan } from '@/lib/voice/planner/types';
+
+// Simplified interface for slot filling UI (doesn't require full VoicePlan)
+export interface SimpleSlotFillingPlan {
+  prompt: string;
+  suggestions: Array<{ label: string; value: string }>;
+  missingSlot?: string;
+}
 
 interface SlotFillingViewProps {
-  plan: SlotFillingPlan;
+  plan: SimpleSlotFillingPlan;
   onSelect: (value: string) => void;
   onBack: () => void;
   onCustomInput: (value: string) => void;
