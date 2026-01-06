@@ -81,12 +81,19 @@ import { useNavigate } from 'react-router-dom';
 // ============================================
 
 type ActionType = 'pain_entry' | 'quick_entry' | 'medication' | 'add_medication' | 'reminder' | 'diary' | 'note' | 'question';
-type OverlayState = 'input' | 'processing' | 'confirmation' | 'action_picker' | 'qa_answer' | 'dictation_fallback' | 'slot_filling' | 'disambiguation' | 'noise_retry' | 'query_repair';
+type OverlayState = 'input' | 'processing' | 'confirmation' | 'action_picker' | 'qa_answer' | 'dictation_fallback' | 'slot_filling' | 'disambiguation' | 'noise_retry' | 'query_repair' | 'inline_error';
 
 interface QueryRepairData {
   original: string;
   suggestedQuery: string;
   corrections: Array<{ original: string; corrected: string }>;
+}
+
+// Inline error state (Bug #1: mobile-friendly error display)
+interface InlineErrorData {
+  title: string;
+  message: string;
+  examples?: string[];
 }
 
 interface VoiceAssistantOverlayProps {
@@ -195,7 +202,7 @@ export function VoiceAssistantOverlay({
   const [safariModeActive, setSafariModeActive] = useState(false);
   const [lastCreatedId, setLastCreatedId] = useState<{ type: string; id: string | number } | null>(null);
   const [queryRepairData, setQueryRepairData] = useState<QueryRepairData | null>(null);
-  
+  const [inlineError, setInlineError] = useState<InlineErrorData | null>(null);
   // Hooks
   const isSttSupported = isBrowserSttSupported();
   const { data: userMeds = [] } = useMeds();
@@ -1138,15 +1145,26 @@ export function VoiceAssistantOverlay({
           return;
         }
         
-        toast.error('Frage nicht verstanden', {
-          description: getQueryHelpMessage()
+        // Bug #1: Use inline error instead of toast for mobile readability
+        setInlineError({
+          title: 'Frage nicht verstanden',
+          message: 'Ich konnte deine Frage leider nicht zuordnen. Versuche es mit einer konkreteren Formulierung.',
+          examples: [
+            'Wie viele Triptantage in den letzten 30 Tagen?',
+            'Wann habe ich zuletzt Sumatriptan genommen?',
+            'Wie viele schmerzfreie Tage letzten Monat?'
+          ]
         });
-        setOverlayState('input');
+        setOverlayState('inline_error');
         return;
       } catch (error) {
         console.error('Q&A error:', error);
-        toast.error('Fehler bei der Auswertung');
-        setOverlayState('input');
+        // Bug #1: Use inline error instead of toast
+        setInlineError({
+          title: 'Fehler bei der Auswertung',
+          message: 'Es ist ein technischer Fehler aufgetreten. Bitte versuche es erneut.'
+        });
+        setOverlayState('inline_error');
         return;
       }
     }
@@ -1278,6 +1296,7 @@ export function VoiceAssistantOverlay({
       setNoiseMessage('');
       setSlotFillingState(null);
       setQueryRepairData(null);
+      setInlineError(null); // Bug #1: Clear inline error on close
     }
   }, [open, isSttSupported, startRecording, stopRecording, shouldShowDictationFallback]);
 
@@ -1369,6 +1388,72 @@ export function VoiceAssistantOverlay({
               <RefreshCw className="w-4 h-4 mr-2" />
               Nochmal versuchen
             </Button>
+          </div>
+        )}
+
+        {/* Bug #1: Inline Error View - Mobile-friendly, stays visible until closed */}
+        {overlayState === 'inline_error' && inlineError && (
+          <div className="space-y-4">
+            <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2 text-destructive">
+                  <X className="w-5 h-5 flex-shrink-0" />
+                  <span className="font-medium">{inlineError.title}</span>
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                  onClick={() => {
+                    setInlineError(null);
+                    setOverlayState('input');
+                  }}
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+              <p className="text-sm text-foreground/80 leading-relaxed">{inlineError.message}</p>
+              {inlineError.examples && inlineError.examples.length > 0 && (
+                <div className="space-y-2 pt-2 border-t border-border/50">
+                  <p className="text-xs text-muted-foreground font-medium">Beispiele:</p>
+                  <ul className="text-xs text-muted-foreground space-y-1">
+                    {inlineError.examples.map((example, idx) => (
+                      <li 
+                        key={idx} 
+                        className="cursor-pointer hover:text-foreground transition-colors py-1 px-2 -mx-2 rounded hover:bg-muted/50"
+                        onClick={() => {
+                          setCommittedText(example);
+                          setInlineError(null);
+                          setOverlayState('input');
+                        }}
+                      >
+                        „{example}"
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                className="flex-1" 
+                onClick={() => {
+                  setInlineError(null);
+                  setOverlayState('input');
+                }}
+              >
+                <Edit className="w-4 h-4 mr-2" />
+                Bearbeiten
+              </Button>
+              <Button 
+                variant="default" 
+                className="flex-1" 
+                onClick={handleCancel}
+              >
+                Schließen
+              </Button>
+            </div>
           </div>
         )}
 
@@ -1730,8 +1815,8 @@ export function VoiceAssistantOverlay({
           </div>
         )}
 
-        {/* Bottom Actions */}
-        {overlayState !== 'qa_answer' && overlayState !== 'action_picker' && overlayState !== 'confirmation' && overlayState !== 'disambiguation' && overlayState !== 'noise_retry' && overlayState !== 'dictation_fallback' && overlayState !== 'slot_filling' && overlayState !== 'query_repair' && (
+        {/* Bottom Actions - hide for inline_error too since it has its own buttons */}
+        {overlayState !== 'qa_answer' && overlayState !== 'action_picker' && overlayState !== 'confirmation' && overlayState !== 'disambiguation' && overlayState !== 'noise_retry' && overlayState !== 'dictation_fallback' && overlayState !== 'slot_filling' && overlayState !== 'query_repair' && overlayState !== 'inline_error' && (
           <div className="flex gap-2 pt-2 border-t border-border">
             <Button variant="ghost" className="flex-1" onClick={handleCancel} disabled={isProcessing}>
               <X className="w-4 h-4 mr-2" />
