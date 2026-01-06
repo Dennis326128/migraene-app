@@ -36,6 +36,11 @@ export function useSpeechInput(
   const providerRef = useRef<SpeechProviderInterface | null>(null);
   const finalTranscriptRef = useRef('');
   
+  // Pause-resilient refs
+  const userStoppedRef = useRef(false);
+  const lastFinalSegmentRef = useRef('');
+  const autoRestartTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
   const isSupported = isWebSpeechSupported();
   const providerType = getCurrentProviderType();
   
@@ -44,6 +49,9 @@ export function useSpeechInput(
     return () => {
       if (providerRef.current) {
         providerRef.current.stop();
+      }
+      if (autoRestartTimeoutRef.current) {
+        clearTimeout(autoRestartTimeoutRef.current);
       }
     };
   }, []);
@@ -54,9 +62,21 @@ export function useSpeechInput(
       return;
     }
     
+    // If already listening, don't restart
+    if (isListening && providerRef.current) return;
+    
     setError(null);
     setIsListening(true);
-    finalTranscriptRef.current = '';
+    
+    // Don't reset finalTranscriptRef - keep accumulated text!
+    // Only reset on explicit resetTranscript call
+    userStoppedRef.current = false;
+    
+    // Clear any pending auto-restart
+    if (autoRestartTimeoutRef.current) {
+      clearTimeout(autoRestartTimeoutRef.current);
+      autoRestartTimeoutRef.current = null;
+    }
     
     try {
       const provider = createSpeechProvider({
@@ -70,10 +90,21 @@ export function useSpeechInput(
         setConfidence(result.confidence);
         
         if (result.isFinal) {
-          finalTranscriptRef.current += result.transcript + ' ';
-          setTranscript(finalTranscriptRef.current.trim());
+          const segment = result.transcript.trim();
+          
+          // Dedup: skip if same as last final segment
+          if (segment && segment !== lastFinalSegmentRef.current) {
+            lastFinalSegmentRef.current = segment;
+            
+            // Append only the new segment
+            const separator = finalTranscriptRef.current.length > 0 && !finalTranscriptRef.current.endsWith(' ') ? ' ' : '';
+            finalTranscriptRef.current += separator + segment;
+            
+            setTranscript(finalTranscriptRef.current.trim());
+            onTranscriptChange?.(finalTranscriptRef.current.trim());
+          }
+          
           setInterimTranscript('');
-          onTranscriptChange?.(finalTranscriptRef.current.trim());
         } else {
           setInterimTranscript(result.transcript);
         }
@@ -81,12 +112,30 @@ export function useSpeechInput(
       
       provider.onError((err) => {
         console.error('Speech recognition error:', err);
+        
+        // no-speech: Just clear interim, don't stop completely
+        if (err.message.includes('no-speech')) {
+          setInterimTranscript('');
+          return;
+        }
+        
         setError(err.message);
         setIsListening(false);
       });
       
       provider.onEnd(() => {
         setIsListening(false);
+        setInterimTranscript('');
+        
+        // Auto-restart if user didn't explicitly stop
+        if (!userStoppedRef.current && isSupported) {
+          autoRestartTimeoutRef.current = setTimeout(() => {
+            if (!userStoppedRef.current) {
+              console.log('[useSpeechInput] Auto-restarting after pause...');
+              startListening();
+            }
+          }, 400);
+        }
       });
       
       await provider.start();
@@ -95,9 +144,18 @@ export function useSpeechInput(
       setError(err instanceof Error ? err.message : 'Spracherkennung fehlgeschlagen');
       setIsListening(false);
     }
-  }, [isSupported, onTranscriptChange]);
+  }, [isSupported, isListening, onTranscriptChange]);
   
   const stopListening = useCallback(() => {
+    // Mark that user explicitly stopped
+    userStoppedRef.current = true;
+    
+    // Clear any pending auto-restart
+    if (autoRestartTimeoutRef.current) {
+      clearTimeout(autoRestartTimeoutRef.current);
+      autoRestartTimeoutRef.current = null;
+    }
+    
     if (providerRef.current) {
       providerRef.current.stop();
       providerRef.current = null;
@@ -110,6 +168,7 @@ export function useSpeechInput(
     setTranscript('');
     setInterimTranscript('');
     finalTranscriptRef.current = '';
+    lastFinalSegmentRef.current = '';
     setConfidence(0);
     setError(null);
   }, []);
