@@ -63,6 +63,12 @@ import { checkNoiseGuard, getNoiseMessage } from '@/lib/voice/noiseGuard';
 import { getIntentLabel, extractEntitiesForPreview, formatEntitiesPreview } from '@/lib/voice/intentLabels';
 import { buildUserMedLexicon, applyLexiconCorrections } from '@/lib/voice/userMedLexicon';
 import { loadLastContext, needsContextConfirmation, type LastRelevantContext } from '@/lib/voice/lastContext';
+import { 
+  isWebSpeechLikelyUnstable, 
+  getRecommendedVoiceMode, 
+  getSafariWarningMessage,
+  SAFARI_SAFE_CONFIG 
+} from '@/lib/voice/safariSupport';
 import { useNavigate } from 'react-router-dom';
 
 // ============================================
@@ -152,6 +158,15 @@ export function VoiceAssistantOverlay({
   const lastHeardAtRef = useRef(Date.now());
   const autoRestartTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
+  // Safari Safe Mode refs
+  const restartTimestampsRef = useRef<number[]>([]);
+  const pauseCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Safari detection
+  const isSafariUnstable = isWebSpeechLikelyUnstable();
+  const recommendedMode = getRecommendedVoiceMode();
+  const safariWarning = getSafariWarningMessage();
+  
   // State
   const [committedText, setCommittedText] = useState('');
   const [interimText, setInterimText] = useState('');
@@ -165,6 +180,8 @@ export function VoiceAssistantOverlay({
   const [noiseMessage, setNoiseMessage] = useState<string>('');
   const [lastContext, setLastContext] = useState<LastRelevantContext | null>(null);
   const [isHoldToTalk, setIsHoldToTalk] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [safariModeActive, setSafariModeActive] = useState(false);
   const [lastCreatedId, setLastCreatedId] = useState<{ type: string; id: string | number } | null>(null);
   
   // Hooks
@@ -190,8 +207,28 @@ export function VoiceAssistantOverlay({
     }
   }, [open, userId]);
 
-  const shouldShowDictationFallback = !isSttSupported;
-  const inputSource: InputSource = shouldShowDictationFallback ? 'dictation_fallback' : 'stt';
+  // Determine if we should use dictation fallback
+  // Safari Safe Mode: switch to dictation if too many restarts
+  const shouldShowDictationFallback = !isSttSupported || safariModeActive;
+  const inputSource: InputSource = shouldShowDictationFallback ? 'dictation_fallback' : (isSafariUnstable ? 'dictation_fallback' : 'stt');
+  
+  // Initialize Safari-specific settings when overlay opens
+  useEffect(() => {
+    if (open) {
+      // For Safari/iOS: default to hold-to-talk mode
+      if (recommendedMode === 'hold_to_talk') {
+        setIsHoldToTalk(true);
+      }
+      // For dictation-only mode, go straight to fallback
+      if (recommendedMode === 'dictation_only') {
+        setSafariModeActive(true);
+        setOverlayState('dictation_fallback');
+      }
+      // Reset restart tracking
+      restartTimestampsRef.current = [];
+      setSafariModeActive(false);
+    }
+  }, [open, recommendedMode]);
 
   // ============================================
   // Text Insertion
@@ -260,29 +297,97 @@ export function VoiceAssistantOverlay({
   }, [committedText, interimText, updateLivePreview]);
 
   // ============================================
-  // Speech Recognition (Pause-Resilient)
+  // Speech Recognition (Pause-Resilient + Safari Safe Mode)
   // ============================================
 
-  // Clear auto-restart timeout on unmount or close
+  // Clear timeouts on unmount
   useEffect(() => {
     return () => {
       if (autoRestartTimeoutRef.current) {
         clearTimeout(autoRestartTimeoutRef.current);
         autoRestartTimeoutRef.current = null;
       }
+      if (pauseCheckIntervalRef.current) {
+        clearInterval(pauseCheckIntervalRef.current);
+        pauseCheckIntervalRef.current = null;
+      }
     };
   }, []);
 
-  // Also clear when overlay closes
+  // Clear when overlay closes
   useEffect(() => {
-    if (!open && autoRestartTimeoutRef.current) {
-      clearTimeout(autoRestartTimeoutRef.current);
-      autoRestartTimeoutRef.current = null;
+    if (!open) {
+      if (autoRestartTimeoutRef.current) {
+        clearTimeout(autoRestartTimeoutRef.current);
+        autoRestartTimeoutRef.current = null;
+      }
+      if (pauseCheckIntervalRef.current) {
+        clearInterval(pauseCheckIntervalRef.current);
+        pauseCheckIntervalRef.current = null;
+      }
+      setIsPaused(false);
     }
   }, [open]);
 
+  // Pause detection interval
+  useEffect(() => {
+    if (isRecording && !isHoldToTalk) {
+      pauseCheckIntervalRef.current = setInterval(() => {
+        const elapsed = Date.now() - lastHeardAtRef.current;
+        if (elapsed > SAFARI_SAFE_CONFIG.PAUSE_THRESHOLD_MS) {
+          setIsPaused(true);
+        } else {
+          setIsPaused(false);
+        }
+      }, SAFARI_SAFE_CONFIG.PAUSE_CHECK_INTERVAL_MS);
+    } else {
+      if (pauseCheckIntervalRef.current) {
+        clearInterval(pauseCheckIntervalRef.current);
+        pauseCheckIntervalRef.current = null;
+      }
+      setIsPaused(false);
+    }
+    
+    return () => {
+      if (pauseCheckIntervalRef.current) {
+        clearInterval(pauseCheckIntervalRef.current);
+        pauseCheckIntervalRef.current = null;
+      }
+    };
+  }, [isRecording, isHoldToTalk]);
+
+  // Check restart limit and switch to Safari Safe Mode if exceeded
+  const checkRestartLimit = useCallback((): boolean => {
+    const now = Date.now();
+    // Filter to only restarts within the time window
+    restartTimestampsRef.current = restartTimestampsRef.current.filter(
+      ts => now - ts < SAFARI_SAFE_CONFIG.RESTART_WINDOW_MS
+    );
+    
+    if (restartTimestampsRef.current.length >= SAFARI_SAFE_CONFIG.MAX_RESTARTS) {
+      console.log('[Voice] Restart limit reached, switching to Safari Safe Mode');
+      setSafariModeActive(true);
+      setOverlayState('dictation_fallback');
+      toast.info('Safari Safe Mode aktiviert', {
+        description: 'Bitte nutze den Diktier-Modus für stabilere Eingabe.',
+        duration: 5000
+      });
+      return true; // Limit exceeded
+    }
+    
+    // Record this restart
+    restartTimestampsRef.current.push(now);
+    return false; // OK to restart
+  }, []);
+
+  const switchToDictationMode = useCallback(() => {
+    stopRecording();
+    setSafariModeActive(true);
+    setOverlayState('dictation_fallback');
+  }, []);
+
   const startRecording = useCallback(() => {
-    if (!isSttSupported) return;
+    if (!isSttSupported || safariModeActive) return;
     
     // If already recording, don't restart
     if (isRecording && recognitionRef.current) return;
@@ -306,10 +411,12 @@ export function VoiceAssistantOverlay({
       lastHeardAtRef.current = Date.now();
       setIsRecording(true);
       setInterimText('');
+      setIsPaused(false);
     };
 
     recognition.onresult = (event: any) => {
       lastHeardAtRef.current = Date.now();
+      setIsPaused(false);
       let interim = '';
 
       // Process only new results from resultIndex
@@ -368,18 +475,31 @@ export function VoiceAssistantOverlay({
     recognition.onend = () => {
       setIsRecording(false);
       setInterimText('');
+      setIsPaused(false);
+      
+      // Safari/Hold-to-talk: No auto-restart
+      if (isHoldToTalk || isSafariUnstable) {
+        return;
+      }
       
       // Auto-restart if:
       // - Overlay is still open
       // - User didn't explicitly stop
       // - STT is supported
-      if (open && !userStoppedRef.current && isSttSupported) {
+      // - Not in Safari Safe Mode
+      if (open && !userStoppedRef.current && isSttSupported && !safariModeActive) {
+        // Check restart limit before auto-restarting
+        const limitExceeded = checkRestartLimit();
+        if (limitExceeded) {
+          return;
+        }
+        
         autoRestartTimeoutRef.current = setTimeout(() => {
-          if (open && !userStoppedRef.current) {
+          if (open && !userStoppedRef.current && !safariModeActive) {
             console.log('[Voice] Auto-restarting after pause...');
             startRecording();
           }
-        }, 400);
+        }, SAFARI_SAFE_CONFIG.RESTART_DELAY_MS);
       }
     };
 
@@ -390,7 +510,7 @@ export function VoiceAssistantOverlay({
       console.error('Failed to start recording:', e);
       setIsRecording(false);
     }
-  }, [isSttSupported, isRecording, insertAtCursor, userMedLexicon, open]);
+  }, [isSttSupported, isRecording, insertAtCursor, userMedLexicon, open, safariModeActive, isHoldToTalk, isSafariUnstable, checkRestartLimit]);
 
   const stopRecording = useCallback(() => {
     // Mark that user explicitly stopped
@@ -413,6 +533,7 @@ export function VoiceAssistantOverlay({
     }
     setIsRecording(false);
     setInterimText('');
+    setIsPaused(false);
   }, []);
 
   // Reset refs when overlay opens
@@ -1261,6 +1382,22 @@ export function VoiceAssistantOverlay({
                 Fertig
               </Button>
             </div>
+            
+            {/* Back to Speech Input (if STT is available and not due to restart limit) */}
+            {isSttSupported && !isSafariUnstable && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full text-xs text-muted-foreground"
+                onClick={() => {
+                  setSafariModeActive(false);
+                  restartTimestampsRef.current = [];
+                  setOverlayState('input');
+                }}
+              >
+                ← Zurück zur Spracheingabe
+              </Button>
+            )}
           </div>
         )}
 
@@ -1289,6 +1426,28 @@ export function VoiceAssistantOverlay({
                 </p>
               )}
 
+              {/* Pause Indicator */}
+              {isPaused && isRecording && (
+                <div className="flex items-center gap-2 text-xs bg-voice/10 text-voice px-2 py-1.5 rounded animate-pulse">
+                  <span>⏸️ Pause erkannt – sprich weiter…</span>
+                </div>
+              )}
+
+              {/* Safari Warning */}
+              {safariWarning && !safariModeActive && overlayState === 'input' && (
+                <div className="flex items-center justify-between gap-2 text-xs bg-warning/10 text-warning-foreground/80 px-2 py-1.5 rounded">
+                  <span>⚠️ {safariWarning}</span>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-6 text-xs px-2"
+                    onClick={switchToDictationMode}
+                  >
+                    Diktier-Modus
+                  </Button>
+                </div>
+              )}
+
               {/* Live Intent Preview - Enhanced */}
               {livePreview && hasText && overlayState === 'input' && (
                 <div className="flex items-center gap-2 text-xs bg-muted/30 px-2 py-1.5 rounded">
@@ -1305,6 +1464,21 @@ export function VoiceAssistantOverlay({
               )}
             </div>
 
+            {/* Hold-to-Talk Toggle for Safari */}
+            {isSafariUnstable && !safariModeActive && (
+              <div className="flex items-center justify-between text-xs text-muted-foreground bg-muted/30 px-2 py-1.5 rounded">
+                <span>Gedrückt halten zum Sprechen</span>
+                <Button
+                  variant={isHoldToTalk ? "default" : "outline"}
+                  size="sm"
+                  className="h-6 text-xs px-2"
+                  onClick={() => setIsHoldToTalk(!isHoldToTalk)}
+                >
+                  {isHoldToTalk ? 'An' : 'Aus'}
+                </Button>
+              </div>
+            )}
+
             {/* Recording toggle button with hold-to-talk support */}
             <Button
               type="button"
@@ -1320,7 +1494,7 @@ export function VoiceAssistantOverlay({
               onPointerDown={handleMicPointerDown}
               onPointerUp={handleMicPointerUp}
               onPointerLeave={isHoldToTalk && isRecording ? handleMicPointerUp : undefined}
-              disabled={!isSttSupported || isProcessing}
+              disabled={!isSttSupported || isProcessing || safariModeActive}
             >
               {isRecording ? (
                 <>
@@ -1334,6 +1508,18 @@ export function VoiceAssistantOverlay({
                 </>
               )}
             </Button>
+
+            {/* Switch to Dictation Mode Button */}
+            {isSttSupported && !safariModeActive && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full text-xs text-muted-foreground"
+                onClick={switchToDictationMode}
+              >
+                Zum Diktier-Modus wechseln
+              </Button>
+            )}
             
             {!isSttSupported && (
               <p className="text-xs text-muted-foreground text-center bg-muted/50 p-2 rounded">
