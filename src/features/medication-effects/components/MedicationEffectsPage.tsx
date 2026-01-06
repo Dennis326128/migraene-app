@@ -131,13 +131,13 @@ export function MedicationEffectsPage() {
       
       if (remainingOpenEffects.length === 0) {
         toast({
-          title: '✅ Alle Bewertungen erledigt',
+          title: 'Alle Bewertungen erledigt',
           description: 'Du bist wieder auf der Startseite.'
         });
         navigate('/');
       } else {
         toast({
-          title: '✅ Bewertung gespeichert',
+          title: 'Bewertung gespeichert',
           description: `${medName} wurde bewertet.`
         });
       }
