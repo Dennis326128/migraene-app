@@ -11,6 +11,7 @@ import { useSymptomCatalog, useEntrySymptoms } from "@/features/symptoms/hooks/u
 import { useEntryIntakes } from "@/features/medication-intakes/hooks/useMedicationIntakes";
 import { formatDoseFromQuarters, DEFAULT_DOSE_QUARTERS } from "@/lib/utils/doseFormatter";
 import { EmptyState } from "@/components/ui/empty-state";
+import { DeleteConfirmation } from "@/components/ui/delete-confirmation";
 import { 
   Thermometer, 
   Droplets, 
@@ -32,8 +33,10 @@ export const EntriesList = ({
 }) => {
   const [limit, setLimit] = useState(50);
   const { data: entries = [], isLoading, isError } = useEntries({ limit });
-  const { mutate: deleteMutate } = useDeleteEntry();
+  const { mutate: deleteMutate, isPending: isDeleting } = useDeleteEntry();
   const [selectedEntry, setSelectedEntry] = useState<MigraineEntry | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [entryToDelete, setEntryToDelete] = useState<string | null>(null);
 
   const { data: symptomCatalog = [] } = useSymptomCatalog();
   const entryIdNum = selectedEntry?.id ? Number(selectedEntry.id) : null;
@@ -81,10 +84,18 @@ export const EntriesList = ({
     return `${phase}`;
   };
 
-  const handleDelete = (id: string) => {
-    if (!confirm("Diesen Eintrag wirklich löschen?")) return;
-    deleteMutate(id);
-    setSelectedEntry(null);
+  const handleDeleteClick = (id: string) => {
+    setEntryToDelete(id);
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleDeleteConfirm = () => {
+    if (entryToDelete) {
+      deleteMutate(entryToDelete);
+      setSelectedEntry(null);
+      setDeleteConfirmOpen(false);
+      setEntryToDelete(null);
+    }
   };
 
   if (isLoading) return (<div className="p-4">Lade Einträge...</div>);
@@ -294,7 +305,7 @@ export const EntriesList = ({
                 <Button variant="secondary" onClick={() => { onEdit(selectedEntry); setSelectedEntry(null); }}>
                   ✏️ Bearbeiten
                 </Button>
-                <Button variant="destructive" onClick={() => handleDelete(selectedEntry.id)}>
+                <Button variant="destructive" onClick={() => handleDeleteClick(selectedEntry.id)}>
                   🗑️ Löschen
                 </Button>
               </>
@@ -303,6 +314,15 @@ export const EntriesList = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      
+      <DeleteConfirmation
+        open={deleteConfirmOpen}
+        onOpenChange={setDeleteConfirmOpen}
+        onConfirm={handleDeleteConfirm}
+        title="Eintrag löschen"
+        description="Möchtest du diesen Migräne-Eintrag wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden."
+        isDeleting={isDeleting}
+      />
       
       {sorted.length >= limit && (
         <div 

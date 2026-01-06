@@ -9,6 +9,7 @@ import { de } from 'date-fns/locale';
 import { toZonedTime } from 'date-fns-tz';
 import { VoiceNoteEditModal } from './VoiceNoteEditModal';
 import { EmptyState } from '@/components/ui/empty-state';
+import { DeleteConfirmation } from '@/components/ui/delete-confirmation';
 
 interface VoiceNote {
   id: string;
@@ -28,6 +29,9 @@ export function VoiceNotesList({ onNavigate }: VoiceNotesListProps = {}) {
   const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const [editingNote, setEditingNote] = useState<VoiceNote | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [noteToDelete, setNoteToDelete] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Lade Notizen
   useEffect(() => {
@@ -74,6 +78,7 @@ export function VoiceNotesList({ onNavigate }: VoiceNotesListProps = {}) {
 
   // Soft-Delete
   async function deleteNote(id: string) {
+    setIsDeleting(true);
     const { error } = await supabase
       .from('voice_notes')
       .update({ deleted_at: new Date().toISOString() })
@@ -82,7 +87,21 @@ export function VoiceNotesList({ onNavigate }: VoiceNotesListProps = {}) {
     if (!error) {
       setNotes(notes.filter(n => n.id !== id));
     }
+    setIsDeleting(false);
+    setDeleteConfirmOpen(false);
+    setNoteToDelete(null);
   }
+  
+  const handleDeleteClick = (id: string) => {
+    setNoteToDelete(id);
+    setDeleteConfirmOpen(true);
+  };
+  
+  const handleDeleteConfirm = () => {
+    if (noteToDelete) {
+      deleteNote(noteToDelete);
+    }
+  };
 
   // Gruppierung nach Tag
   const groupedNotes = notes.reduce((acc, note) => {
@@ -200,11 +219,7 @@ export function VoiceNotesList({ onNavigate }: VoiceNotesListProps = {}) {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => {
-                            if (confirm('Notiz wirklich löschen?')) {
-                              deleteNote(note.id);
-                            }
-                          }}
+                          onClick={() => handleDeleteClick(note.id)}
                           title="Löschen"
                         >
                           <Trash2 className="h-4 w-4 text-destructive" />
@@ -228,6 +243,15 @@ export function VoiceNotesList({ onNavigate }: VoiceNotesListProps = {}) {
           loadNotes();
           setEditingNote(null);
         }}
+      />
+      
+      <DeleteConfirmation
+        open={deleteConfirmOpen}
+        onOpenChange={setDeleteConfirmOpen}
+        onConfirm={handleDeleteConfirm}
+        title="Notiz löschen"
+        description="Möchtest du diese Notiz wirklich löschen?"
+        isDeleting={isDeleting}
       />
     </div>
   );
