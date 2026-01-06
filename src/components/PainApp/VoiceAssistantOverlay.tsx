@@ -6,8 +6,10 @@
  * - Disambiguation view for close scores
  * - Safety policy for auto-execute decisions
  * - Noise guard for fragments
- * - Hold-to-talk support
+ * - Hold-to-talk support (persistent preference)
  * - Context-aware defaults
+ * - Query repair: suggestions instead of hard errors
+ * - Fuzzy medication matching
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
@@ -36,7 +38,8 @@ import {
   MessageCircle,
   RefreshCw,
   Undo2,
-  Edit
+  Edit,
+  HelpCircle
 } from 'lucide-react';
 import { isBrowserSttSupported } from '@/lib/voice/sttConfig';
 import { cn } from '@/lib/utils';
@@ -69,6 +72,8 @@ import {
   getSafariWarningMessage,
   SAFARI_SAFE_CONFIG 
 } from '@/lib/voice/safariSupport';
+import { repairQuery, getQueryHelpMessage } from '@/lib/voice/queryRepair';
+import { getHoldToTalkPreference, setHoldToTalkPreference } from '@/lib/voice/voicePreferences';
 import { useNavigate } from 'react-router-dom';
 
 // ============================================
@@ -76,7 +81,13 @@ import { useNavigate } from 'react-router-dom';
 // ============================================
 
 type ActionType = 'pain_entry' | 'quick_entry' | 'medication' | 'add_medication' | 'reminder' | 'diary' | 'note' | 'question';
-type OverlayState = 'input' | 'processing' | 'confirmation' | 'action_picker' | 'qa_answer' | 'dictation_fallback' | 'slot_filling' | 'disambiguation' | 'noise_retry';
+type OverlayState = 'input' | 'processing' | 'confirmation' | 'action_picker' | 'qa_answer' | 'dictation_fallback' | 'slot_filling' | 'disambiguation' | 'noise_retry' | 'query_repair';
+
+interface QueryRepairData {
+  original: string;
+  suggestedQuery: string;
+  corrections: Array<{ original: string; corrected: string }>;
+}
 
 interface VoiceAssistantOverlayProps {
   open: boolean;
@@ -179,10 +190,11 @@ export function VoiceAssistantOverlay({
   const [disambiguationOptions, setDisambiguationOptions] = useState<[DisambiguationOption, DisambiguationOption] | null>(null);
   const [noiseMessage, setNoiseMessage] = useState<string>('');
   const [lastContext, setLastContext] = useState<LastRelevantContext | null>(null);
-  const [isHoldToTalk, setIsHoldToTalk] = useState(false);
+  const [isHoldToTalk, setIsHoldToTalk] = useState(() => getHoldToTalkPreference());
   const [isPaused, setIsPaused] = useState(false);
   const [safariModeActive, setSafariModeActive] = useState(false);
   const [lastCreatedId, setLastCreatedId] = useState<{ type: string; id: string | number } | null>(null);
+  const [queryRepairData, setQueryRepairData] = useState<QueryRepairData | null>(null);
   
   // Hooks
   const isSttSupported = isBrowserSttSupported();
@@ -215,10 +227,17 @@ export function VoiceAssistantOverlay({
   // Initialize Safari-specific settings when overlay opens
   useEffect(() => {
     if (open) {
-      // For Safari/iOS: default to hold-to-talk mode
-      if (recommendedMode === 'hold_to_talk') {
+      // Load persisted hold-to-talk preference
+      const savedHoldToTalk = getHoldToTalkPreference();
+      
+      // For Safari/iOS: default to hold-to-talk mode if not explicitly set
+      if (recommendedMode === 'hold_to_talk' && !savedHoldToTalk) {
         setIsHoldToTalk(true);
+        setHoldToTalkPreference(true);
+      } else {
+        setIsHoldToTalk(savedHoldToTalk);
       }
+      
       // For dictation-only mode, go straight to fallback
       if (recommendedMode === 'dictation_only') {
         setSafariModeActive(true);
@@ -229,6 +248,13 @@ export function VoiceAssistantOverlay({
       setSafariModeActive(false);
     }
   }, [open, recommendedMode]);
+  
+  // Persist hold-to-talk preference when it changes
+  const handleHoldToTalkToggle = useCallback(() => {
+    const newValue = !isHoldToTalk;
+    setIsHoldToTalk(newValue);
+    setHoldToTalkPreference(newValue);
+  }, [isHoldToTalk]);
 
   // ============================================
   // Text Insertion
@@ -1082,13 +1108,17 @@ export function VoiceAssistantOverlay({
     if (action === 'question' && userId && committedText.trim()) {
       setOverlayState('processing');
       try {
+        // Apply query repair first
+        const repair = repairQuery(committedText);
+        const queryText = repair.isRepaired ? repair.repaired : committedText;
+        
         const userContext = { userMeds, timezone: 'Europe/Berlin', language: 'de-DE' };
-        const result = routeVoiceCommand(committedText, userContext);
+        const result = routeVoiceCommand(queryText, userContext);
         
         if (result.type === 'analytics_query') {
           const voiceQuery = result.payload as VoiceAnalyticsQuery | undefined;
           if (voiceQuery && voiceQuery.queryType !== 'unknown') {
-            const answer = await processQuestion(committedText, voiceQuery);
+            const answer = await processQuestion(queryText, voiceQuery);
             if (answer) {
               setQaAnswer(answer);
               setOverlayState('qa_answer');
@@ -1097,8 +1127,19 @@ export function VoiceAssistantOverlay({
           }
         }
         
+        // Query repair: show suggestion instead of hard error
+        if (repair.suggestedQuery) {
+          setQueryRepairData({
+            original: committedText,
+            suggestedQuery: repair.suggestedQuery,
+            corrections: repair.corrections
+          });
+          setOverlayState('query_repair');
+          return;
+        }
+        
         toast.error('Frage nicht verstanden', {
-          description: 'Versuche z.B. "Wie viele schmerzfreie Tage in den letzten 30 Tagen?"'
+          description: getQueryHelpMessage()
         });
         setOverlayState('input');
         return;
@@ -1236,6 +1277,7 @@ export function VoiceAssistantOverlay({
       setDisambiguationOptions(null);
       setNoiseMessage('');
       setSlotFillingState(null);
+      setQueryRepairData(null);
     }
   }, [open, isSttSupported, startRecording, stopRecording, shouldShowDictationFallback]);
 
@@ -1339,6 +1381,83 @@ export function VoiceAssistantOverlay({
             onBack={handleBackToInput}
             onShowAll={() => setOverlayState('action_picker')}
           />
+        )}
+
+        {/* Query Repair View - "Meintest du...?" */}
+        {overlayState === 'query_repair' && queryRepairData && (
+          <div className="space-y-4">
+            <div className="bg-primary/10 border border-primary/20 rounded-lg p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <HelpCircle className="w-5 h-5 text-primary" />
+                <span className="font-medium text-foreground">Meintest du:</span>
+              </div>
+              <p className="text-sm text-foreground bg-background/50 p-3 rounded-md border border-border/50">
+                "{queryRepairData.suggestedQuery}"
+              </p>
+              {queryRepairData.corrections.length > 0 && (
+                <div className="text-xs text-muted-foreground">
+                  <span>Korrigiert: </span>
+                  {queryRepairData.corrections.map((c, i) => (
+                    <span key={i}>
+                      <span className="line-through text-destructive/70">{c.original}</span>
+                      {' → '}
+                      <span className="text-success font-medium">{c.corrected}</span>
+                      {i < queryRepairData.corrections.length - 1 && ', '}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                className="flex-1" 
+                onClick={() => {
+                  setQueryRepairData(null);
+                  setOverlayState('input');
+                }}
+              >
+                <Edit className="w-4 h-4 mr-2" />
+                Bearbeiten
+              </Button>
+              <Button 
+                variant="default" 
+                className="flex-1 bg-success hover:bg-success/90 text-success-foreground" 
+                onClick={async () => {
+                  if (!queryRepairData?.suggestedQuery || !userId) return;
+                  setOverlayState('processing');
+                  
+                  try {
+                    const userContext = { userMeds, timezone: 'Europe/Berlin', language: 'de-DE' };
+                    const result = routeVoiceCommand(queryRepairData.suggestedQuery, userContext);
+                    
+                    if (result.type === 'analytics_query') {
+                      const voiceQuery = result.payload as VoiceAnalyticsQuery | undefined;
+                      if (voiceQuery && voiceQuery.queryType !== 'unknown') {
+                        const answer = await processQuestion(queryRepairData.suggestedQuery, voiceQuery);
+                        if (answer) {
+                          setQaAnswer(answer);
+                          setQueryRepairData(null);
+                          setOverlayState('qa_answer');
+                          return;
+                        }
+                      }
+                    }
+                    
+                    toast.error('Konnte Frage nicht auswerten');
+                    setOverlayState('input');
+                  } catch (error) {
+                    console.error('Query repair execution error:', error);
+                    toast.error('Fehler bei der Auswertung');
+                    setOverlayState('input');
+                  }
+                }}
+              >
+                <Check className="w-4 h-4 mr-2" />
+                Auswerten
+              </Button>
+            </div>
+          </div>
         )}
 
         {/* Confirmation View */}
@@ -1538,31 +1657,34 @@ export function VoiceAssistantOverlay({
               )}
             </div>
 
-            {/* Hold-to-Talk Toggle for Safari */}
-            {isSafariUnstable && !safariModeActive && (
-              <div className="flex items-center justify-between text-xs text-muted-foreground bg-muted/30 px-2 py-1.5 rounded">
-                <span>Gedrückt halten zum Sprechen</span>
+            {/* Hold-to-Talk Toggle - Always visible when STT available */}
+            {isSttSupported && !safariModeActive && (
+              <div className="flex items-center justify-between text-xs text-muted-foreground bg-muted/30 px-3 py-2 rounded-lg">
+                <span className="font-medium">Gedrückt halten zum Sprechen</span>
                 <Button
                   variant={isHoldToTalk ? "default" : "outline"}
                   size="sm"
-                  className="h-6 text-xs px-2"
-                  onClick={() => setIsHoldToTalk(!isHoldToTalk)}
+                  className={cn(
+                    "h-7 text-xs px-3",
+                    isHoldToTalk && "bg-voice hover:bg-voice/90 text-white"
+                  )}
+                  onClick={handleHoldToTalkToggle}
                 >
                   {isHoldToTalk ? 'An' : 'Aus'}
                 </Button>
               </div>
             )}
 
-            {/* Recording toggle button with hold-to-talk support */}
+            {/* DOMINANT Recording Button - Primary CTA */}
             <Button
               type="button"
-              variant="outline"
-              size="sm"
+              variant={isRecording ? "default" : "outline"}
+              size="lg"
               className={cn(
-                "w-full",
+                "w-full h-14 text-base font-medium transition-all",
                 isRecording 
-                  ? "border-voice/50 text-voice hover:bg-voice/10" 
-                  : "border-muted text-muted-foreground hover:bg-muted/30"
+                  ? "bg-voice hover:bg-voice/90 text-white border-voice shadow-lg shadow-voice/25" 
+                  : "border-2 border-voice/40 text-voice hover:bg-voice/10 hover:border-voice"
               )}
               onClick={isHoldToTalk ? undefined : (isRecording ? stopRecording : startRecording)}
               onPointerDown={handleMicPointerDown}
@@ -1572,13 +1694,18 @@ export function VoiceAssistantOverlay({
             >
               {isRecording ? (
                 <>
-                  <MicOff className="w-4 h-4 mr-2" />
-                  {isHoldToTalk ? 'Loslassen zum Beenden' : 'Aufnahme pausieren'}
+                  <div className="relative mr-3">
+                    <MicOff className="w-5 h-5" />
+                    <div className="absolute -top-1 -right-1 w-2 h-2 bg-white rounded-full animate-pulse" />
+                  </div>
+                  {isHoldToTalk ? 'Loslassen zum Beenden' : 'Aufnahme stoppen'}
                 </>
               ) : (
                 <>
-                  <Mic className="w-4 h-4 mr-2" />
-                  {hasText ? 'Weiter aufnehmen' : (isHoldToTalk ? 'Gedrückt halten' : 'Aufnahme starten')}
+                  <Mic className="w-5 h-5 mr-3" />
+                  {hasText 
+                    ? 'Weiter aufnehmen' 
+                    : (isHoldToTalk ? 'Zum Sprechen gedrückt halten' : 'Tippen zum Sprechen')}
                 </>
               )}
             </Button>
@@ -1604,7 +1731,7 @@ export function VoiceAssistantOverlay({
         )}
 
         {/* Bottom Actions */}
-        {overlayState !== 'qa_answer' && overlayState !== 'action_picker' && overlayState !== 'confirmation' && overlayState !== 'disambiguation' && overlayState !== 'noise_retry' && overlayState !== 'dictation_fallback' && overlayState !== 'slot_filling' && (
+        {overlayState !== 'qa_answer' && overlayState !== 'action_picker' && overlayState !== 'confirmation' && overlayState !== 'disambiguation' && overlayState !== 'noise_retry' && overlayState !== 'dictation_fallback' && overlayState !== 'slot_filling' && overlayState !== 'query_repair' && (
           <div className="flex gap-2 pt-2 border-t border-border">
             <Button variant="ghost" className="flex-1" onClick={handleCancel} disabled={isProcessing}>
               <X className="w-4 h-4 mr-2" />
