@@ -209,7 +209,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             <StartPageCard 
               variant="warning" 
               touchFeedback 
-              onClick={() => window.location.href = '/medication-effects'}
+              onClick={() => navigate('/medication-effects')}
               className="relative"
             >
               <StartPageCardHeader
@@ -437,7 +437,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               // TODO: Pass prefillData to MedicationManagement for pre-filling the add form
               break;
             case 'medication':
-              window.location.href = '/medication-effects';
+              navigate('/medication-effects');
               break;
             case 'reminder':
               onNavigate?.('reminders');

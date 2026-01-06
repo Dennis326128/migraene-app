@@ -12,6 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 import type { MigraineEntry } from '@/types/painApp';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { EmptyState } from '@/components/ui/empty-state';
+import { DeleteConfirmation } from '@/components/ui/delete-confirmation';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
@@ -73,6 +74,11 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
   const [expandedEntries, setExpandedEntries] = useState<Set<string>>(new Set());
   const [pageSize] = useState(50);
   const [currentPage, setCurrentPage] = useState(0);
+  
+  // Delete confirmation state
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; type: 'entry' | 'note' } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const toggleExpanded = (id: string) => {
     setExpandedEntries(prev => {
@@ -87,34 +93,44 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
   };
   
   // Delete mutation
-  const { mutate: deleteMutate } = useDeleteEntry();
+  const { mutate: deleteMutate, isPending: isEntryDeleting } = useDeleteEntry();
   
-  const handleDelete = (id: string) => {
-    if (!confirm("Diesen Eintrag wirklich löschen?")) return;
-    deleteMutate(id);
+  const handleDeleteClick = (id: string, type: 'entry' | 'note') => {
+    setDeleteTarget({ id, type });
+    setDeleteConfirmOpen(true);
   };
 
-  const handleDeleteNote = async (id: string) => {
-    if (!id) {
-      showErrorToast("Fehler", "Keine gültige Notiz-ID");
-      return;
-    }
-    if (!confirm("Diese Notiz wirklich löschen?")) return;
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
     
-    try {
-      const { error } = await supabase
-        .from('voice_notes')
-        .update({ deleted_at: new Date().toISOString() })
-        .eq('id', id);
+    setIsDeleting(true);
+    
+    if (deleteTarget.type === 'entry') {
+      deleteMutate(deleteTarget.id);
+      setDeleteConfirmOpen(false);
+      setDeleteTarget(null);
+      setIsDeleting(false);
+    } else {
+      // Delete note
+      try {
+        const { error } = await supabase
+          .from('voice_notes')
+          .update({ deleted_at: new Date().toISOString() })
+          .eq('id', deleteTarget.id);
+          
+        if (error) throw error;
         
-      if (error) throw error;
-      
-      showSuccessToast("Gelöscht", "Notiz wurde gelöscht");
-      queryClient.invalidateQueries({ queryKey: ['voice-notes-timeline'] });
-      queryClient.invalidateQueries({ queryKey: ['voice-notes-count'] });
-    } catch (error) {
-      console.error('Delete error:', error);
-      showErrorToast("Fehler", error instanceof Error ? error.message : "Löschen fehlgeschlagen");
+        showSuccessToast("Gelöscht", "Notiz wurde gelöscht");
+        queryClient.invalidateQueries({ queryKey: ['voice-notes-timeline'] });
+        queryClient.invalidateQueries({ queryKey: ['voice-notes-count'] });
+      } catch (error) {
+        console.error('Delete error:', error);
+        showErrorToast("Fehler", error instanceof Error ? error.message : "Löschen fehlgeschlagen");
+      } finally {
+        setDeleteConfirmOpen(false);
+        setDeleteTarget(null);
+        setIsDeleting(false);
+      }
     }
   };
 
@@ -614,9 +630,9 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  onClick={(e) => {
+                                onClick={(e) => {
                                     e.stopPropagation();
-                                    handleDelete(item.data.id);
+                                    handleDeleteClick(item.data.id, 'entry');
                                   }}
                                   className="flex-1 text-destructive hover:text-destructive"
                                 >
@@ -698,7 +714,7 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
                                 size="sm"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleDeleteNote(item.data.id);
+                                  handleDeleteClick(item.data.id, 'note');
                                 }}
                                 className="flex-1 text-destructive hover:text-destructive"
                               >
@@ -762,6 +778,18 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
           queryClient.invalidateQueries({ queryKey: ['voice-notes-timeline'] });
           setEditingTageszustand(null);
         }}
+      />
+      
+      <DeleteConfirmation
+        open={deleteConfirmOpen}
+        onOpenChange={setDeleteConfirmOpen}
+        onConfirm={handleDeleteConfirm}
+        title={deleteTarget?.type === 'entry' ? 'Eintrag löschen' : 'Notiz löschen'}
+        description={deleteTarget?.type === 'entry' 
+          ? 'Möchtest du diesen Migräne-Eintrag wirklich löschen?'
+          : 'Möchtest du diese Notiz wirklich löschen?'
+        }
+        isDeleting={isDeleting || isEntryDeleting}
       />
     </div>
   );
