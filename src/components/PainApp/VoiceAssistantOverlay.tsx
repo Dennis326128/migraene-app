@@ -146,6 +146,12 @@ export function VoiceAssistantOverlay({
   const autoStartedRef = useRef(false);
   const navigate = useNavigate();
   
+  // Pause-resilient refs
+  const userStoppedRef = useRef(false);
+  const lastFinalSegmentRef = useRef('');
+  const lastHeardAtRef = useRef(Date.now());
+  const autoRestartTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
   // State
   const [committedText, setCommittedText] = useState('');
   const [interimText, setInterimText] = useState('');
@@ -254,14 +260,41 @@ export function VoiceAssistantOverlay({
   }, [committedText, interimText, updateLivePreview]);
 
   // ============================================
-  // Speech Recognition
+  // Speech Recognition (Pause-Resilient)
   // ============================================
 
+  // Clear auto-restart timeout on unmount or close
+  useEffect(() => {
+    return () => {
+      if (autoRestartTimeoutRef.current) {
+        clearTimeout(autoRestartTimeoutRef.current);
+        autoRestartTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
+  // Also clear when overlay closes
+  useEffect(() => {
+    if (!open && autoRestartTimeoutRef.current) {
+      clearTimeout(autoRestartTimeoutRef.current);
+      autoRestartTimeoutRef.current = null;
+    }
+  }, [open]);
+
   const startRecording = useCallback(() => {
-    if (!isSttSupported || isRecording) return;
+    if (!isSttSupported) return;
+    
+    // If already recording, don't restart
+    if (isRecording && recognitionRef.current) return;
 
     const SpeechRecognitionAPI = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognitionAPI) return;
+
+    // Clear any pending auto-restart
+    if (autoRestartTimeoutRef.current) {
+      clearTimeout(autoRestartTimeoutRef.current);
+      autoRestartTimeoutRef.current = null;
+    }
 
     const recognition = new SpeechRecognitionAPI();
     recognition.lang = 'de-DE';
@@ -269,44 +302,85 @@ export function VoiceAssistantOverlay({
     recognition.interimResults = true;
 
     recognition.onstart = () => {
+      userStoppedRef.current = false;
+      lastHeardAtRef.current = Date.now();
       setIsRecording(true);
       setInterimText('');
     };
 
     recognition.onresult = (event: any) => {
+      lastHeardAtRef.current = Date.now();
       let interim = '';
-      let final = '';
 
+      // Process only new results from resultIndex
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i];
+        const transcript = result[0]?.transcript || '';
+        
         if (result.isFinal) {
-          final += result[0].transcript;
+          // Get only the new segment
+          const segment = transcript.trim();
+          
+          // Dedup: skip if same as last final segment
+          if (segment && segment !== lastFinalSegmentRef.current) {
+            lastFinalSegmentRef.current = segment;
+            
+            // Apply lexicon corrections and insert ONLY this segment
+            const { corrected } = applyLexiconCorrections(segment, userMedLexicon);
+            insertAtCursor(corrected);
+          }
+          
+          // Clear interim after final
+          setInterimText('');
         } else {
-          interim += result[0].transcript;
+          // Collect interim text for preview
+          interim += transcript;
         }
       }
 
-      if (final) {
-        // Apply lexicon corrections on final text
-        const { corrected } = applyLexiconCorrections(final.trim(), userMedLexicon);
-        insertAtCursor(corrected);
-        setInterimText('');
-      } else {
+      // Only update interim if we have new interim content
+      if (interim) {
         setInterimText(interim);
       }
     };
 
     recognition.onerror = (event: any) => {
       console.error('Voice recording error:', event.error);
-      if (event.error !== 'no-speech' && event.error !== 'aborted') {
-        setIsRecording(false);
+      
+      // no-speech: Just clear interim, don't stop completely
+      if (event.error === 'no-speech') {
         setInterimText('');
+        // Don't set isRecording to false - let onend handle restart
+        return;
       }
+      
+      // aborted: Usually user-initiated or browser, don't error out
+      if (event.error === 'aborted') {
+        setInterimText('');
+        return;
+      }
+      
+      // Other errors: Stop recording
+      setIsRecording(false);
+      setInterimText('');
     };
 
     recognition.onend = () => {
       setIsRecording(false);
       setInterimText('');
+      
+      // Auto-restart if:
+      // - Overlay is still open
+      // - User didn't explicitly stop
+      // - STT is supported
+      if (open && !userStoppedRef.current && isSttSupported) {
+        autoRestartTimeoutRef.current = setTimeout(() => {
+          if (open && !userStoppedRef.current) {
+            console.log('[Voice] Auto-restarting after pause...');
+            startRecording();
+          }
+        }, 400);
+      }
     };
 
     recognitionRef.current = recognition;
@@ -314,18 +388,41 @@ export function VoiceAssistantOverlay({
       recognition.start();
     } catch (e) {
       console.error('Failed to start recording:', e);
+      setIsRecording(false);
     }
-  }, [isSttSupported, isRecording, insertAtCursor, userMedLexicon]);
+  }, [isSttSupported, isRecording, insertAtCursor, userMedLexicon, open]);
 
   const stopRecording = useCallback(() => {
+    // Mark that user explicitly stopped
+    userStoppedRef.current = true;
+    
+    // Clear any pending auto-restart
+    if (autoRestartTimeoutRef.current) {
+      clearTimeout(autoRestartTimeoutRef.current);
+      autoRestartTimeoutRef.current = null;
+    }
+    
     if (recognitionRef.current) {
       const recognition = recognitionRef.current;
       recognitionRef.current = null;
-      recognition.stop();
+      try {
+        recognition.stop();
+      } catch (e) {
+        console.error('Error stopping recognition:', e);
+      }
     }
     setIsRecording(false);
     setInterimText('');
   }, []);
+
+  // Reset refs when overlay opens
+  useEffect(() => {
+    if (open) {
+      userStoppedRef.current = false;
+      lastFinalSegmentRef.current = '';
+      lastHeardAtRef.current = Date.now();
+    }
+  }, [open]);
 
   // ============================================
   // Success Toast with Undo + Edit
