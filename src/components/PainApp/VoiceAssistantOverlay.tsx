@@ -57,6 +57,9 @@ import {
 import type { VoiceAnalyticsQuery, VoiceAddMedication } from '@/types/voice.types';
 import { saveVoiceNote } from '@/lib/voice/saveNote';
 import { toast } from 'sonner';
+import { voiceLogStart, voiceLogTranscript, voiceLogRouterResult, voiceLogComplete, voiceLogGetDebugJson } from '@/lib/voice/voiceLogger';
+import { SlotFillingView, type SimpleSlotFillingPlan } from './VoicePlannerUI/SlotFillingView';
+import { initSlotFilling, getNextSlotToFill, fillSlot, slotsToPayload, type SlotFillingState, type SlotName } from '@/lib/voice/slotFilling';
 
 // ============================================
 // Constants - Confidence Thresholds
@@ -70,7 +73,7 @@ const CONFIRM_THRESHOLD = 0.60;
 // ============================================
 
 type ActionType = 'pain_entry' | 'quick_entry' | 'medication' | 'add_medication' | 'reminder' | 'diary' | 'note' | 'question';
-type OverlayState = 'input' | 'processing' | 'confirmation' | 'action_picker' | 'qa_answer';
+type OverlayState = 'input' | 'processing' | 'confirmation' | 'action_picker' | 'qa_answer' | 'dictation_fallback' | 'slot_filling';
 
 interface VoiceAssistantOverlayProps {
   open: boolean;
@@ -204,6 +207,7 @@ export function VoiceAssistantOverlay({
   const [recognizedIntent, setRecognizedIntent] = useState<RecognizedIntent | null>(null);
   const [qaAnswer, setQaAnswer] = useState<QAAnswer | null>(null);
   const [liveIntentPreview, setLiveIntentPreview] = useState<{ type: string; confidence: number } | null>(null);
+  const [slotFillingState, setSlotFillingState] = useState<SlotFillingState | null>(null);
   
   // Hooks
   const isSttSupported = isBrowserSttSupported();
@@ -217,6 +221,9 @@ export function VoiceAssistantOverlay({
       setUserId(data.user?.id || null);
     });
   }, []);
+
+  // Check if we should show dictation fallback
+  const shouldShowDictationFallback = !isSttSupported;
 
   // ============================================
   // Text Insertion
@@ -477,6 +484,10 @@ export function VoiceAssistantOverlay({
     setOverlayState('processing');
     setQaAnswer(null);
     
+    // Start voice logging
+    voiceLogStart(shouldShowDictationFallback ? 'dictation_fallback' : 'stt');
+    voiceLogTranscript(committedText);
+    
     try {
       const userContext = {
         userMeds,
@@ -487,6 +498,9 @@ export function VoiceAssistantOverlay({
       const result = routeVoiceCommand(committedText, userContext);
       console.log('🎯 Intent Result:', result);
       
+      // Log router result
+      voiceLogRouterResult(result);
+      
       const intent: RecognizedIntent = {
         type: result.type,
         confidence: result.confidence,
@@ -494,6 +508,25 @@ export function VoiceAssistantOverlay({
       };
       
       setRecognizedIntent(intent);
+      
+      // Check for slot-filling needed for add_medication without name
+      if (result.type === 'add_medication') {
+        const addMedData = result.payload as VoiceAddMedication | undefined;
+        if (!addMedData || !addMedData.name || addMedData.name.length < 2) {
+          // Need to ask for medication name - slot filling
+          const slotState = initSlotFilling('add_medication', {
+            medication_strength: addMedData?.strengthValue,
+            medication_unit: addMedData?.strengthUnit,
+          });
+          
+          if (!slotState.isComplete) {
+            setSlotFillingState(slotState);
+            setOverlayState('slot_filling');
+            voiceLogComplete('pending');
+            return;
+          }
+        }
+      }
       
       // Handle based on confidence level
       const isHighConfidence = result.confidence >= AUTO_ACTION_THRESHOLD;
@@ -600,12 +633,60 @@ export function VoiceAssistantOverlay({
       
       // === LOW CONFIDENCE / UNKNOWN: Show action picker ===
       setOverlayState('action_picker');
+      voiceLogComplete('pending');
       
     } catch (error) {
       console.error('Intent processing error:', error);
+      voiceLogComplete('error', String(error));
       setOverlayState('action_picker');
     }
-  }, [committedText, userMeds, userId, stopRecording, processQuestion, saveNoteDirectly, turboCreateMedication, onSelectAction, onOpenChange]);
+  }, [committedText, userMeds, userId, stopRecording, processQuestion, saveNoteDirectly, turboCreateMedication, onSelectAction, onOpenChange, shouldShowDictationFallback]);
+
+  // ============================================
+  // Slot Filling Handlers
+  // ============================================
+
+  const handleSlotSelect = useCallback((value: string) => {
+    if (!slotFillingState) return;
+    
+    const currentSlot = getNextSlotToFill(slotFillingState);
+    if (!currentSlot) return;
+    
+    const newState = fillSlot(slotFillingState, currentSlot.name, value);
+    setSlotFillingState(newState);
+    
+    if (newState.isComplete) {
+      // All slots filled - execute action
+      const payload = slotsToPayload(newState);
+      const medPayload: VoiceAddMedication = {
+        name: String(payload.name || ''),
+        displayName: String(payload.displayName || ''),
+        strengthValue: payload.strengthValue as number | undefined,
+        strengthUnit: payload.strengthUnit as 'mg' | 'ml' | 'µg' | 'mcg' | 'g' | undefined,
+        formFactor: payload.formFactor as 'tablette' | 'kapsel' | 'spray' | 'tropfen' | 'injektion' | 'pflaster' | 'spritze' | undefined,
+        confidence: 0.9,
+      };
+      turboCreateMedication(medPayload).then(success => {
+        if (success) {
+          voiceLogComplete('success');
+          onOpenChange(false);
+        } else {
+          // Fallback to manual form
+          onSelectAction('add_medication', committedText, medPayload);
+          onOpenChange(false);
+        }
+      });
+    }
+  }, [slotFillingState, turboCreateMedication, onOpenChange, onSelectAction, committedText]);
+
+  const handleSlotCustomInput = useCallback((value: string) => {
+    handleSlotSelect(value);
+  }, [handleSlotSelect]);
+
+  const handleSlotBack = useCallback(() => {
+    setSlotFillingState(null);
+    setOverlayState('input');
+  }, []);
 
   // ============================================
   // Action Handlers
@@ -932,6 +1013,101 @@ export function VoiceAssistantOverlay({
             >
               ← Zurück zur Eingabe
             </Button>
+          </div>
+        )}
+
+        {/* Slot Filling View */}
+        {overlayState === 'slot_filling' && slotFillingState && (
+          (() => {
+            const nextSlot = getNextSlotToFill(slotFillingState);
+            if (!nextSlot) return null;
+            
+            const plan: SimpleSlotFillingPlan = {
+              missingSlot: nextSlot.name,
+              prompt: nextSlot.prompt,
+              suggestions: nextSlot.suggestions,
+            };
+            
+            return (
+              <SlotFillingView
+                plan={plan}
+                onSelect={handleSlotSelect}
+                onBack={handleSlotBack}
+                onCustomInput={handleSlotCustomInput}
+              />
+            );
+          })()
+        )}
+
+        {/* Dictation Fallback View - shown when STT not supported */}
+        {overlayState === 'dictation_fallback' && (
+          <div className="space-y-4">
+            <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Mic className="w-5 h-5" />
+                <span className="font-medium">Diktier-Modus</span>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Tippe ins Textfeld und nutze die iOS-Diktierfunktion 
+                (🎤 Mikrofon-Symbol auf der Tastatur).
+              </p>
+            </div>
+            
+            <Textarea
+              ref={textareaRef}
+              value={committedText}
+              onChange={(e) => setCommittedText(e.target.value)}
+              placeholder="Hier diktieren oder tippen..."
+              className="min-h-[100px] resize-none"
+              autoFocus
+            />
+            
+            {/* Quick action chips */}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-full text-xs"
+                onClick={() => setCommittedText('Tagebuch öffnen')}
+              >
+                📖 Tagebuch
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-full text-xs"
+                onClick={() => setCommittedText('Neuer Eintrag Stärke 5')}
+              >
+                ⚡ Schnell-Eintrag
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-full text-xs"
+                onClick={() => setCommittedText('Wie viele schmerzfreie Tage in den letzten 30 Tagen?')}
+              >
+                📊 Auswertung
+              </Button>
+            </div>
+            
+            <div className="flex gap-2">
+              <Button
+                variant="ghost"
+                className="flex-1"
+                onClick={handleCancel}
+              >
+                Abbrechen
+              </Button>
+              <Button
+                variant="default"
+                className="flex-1 bg-success hover:bg-success/90 text-success-foreground"
+                onClick={handleFinish}
+                disabled={!hasText}
+              >
+                <Check className="w-4 h-4 mr-2" />
+                Fertig
+              </Button>
+            </div>
           </div>
         )}
 

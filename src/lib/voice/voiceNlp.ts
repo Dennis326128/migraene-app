@@ -1,6 +1,8 @@
 /**
  * Voice NLP - Natural Language Processing für Voice-Eingaben
  * Analysiert Transkripte und extrahiert strukturierte Daten
+ * 
+ * v2: Uses centralized scoring system for better intent classification
  */
 
 import type { 
@@ -19,6 +21,8 @@ import type {
 import { parseGermanVoiceEntry, levenshteinDistance, isAddMedicationTrigger, parseAddMedicationCommand } from './germanParser';
 import { parseGermanReminderEntry, isReminderTrigger } from './reminderParser';
 import { parseOccurredAt } from './timeOnly';
+import { scoreIntents, getTopIntents, type ScoringResult } from './intentScoring';
+import { voiceLogIntent, voiceLogEvent } from './voiceLogger';
 
 // Medication update patterns
 const MEDICATION_UPDATE_PATTERNS = {
@@ -90,7 +94,7 @@ export function analyzeVoiceTranscript(
 ): VoiceAnalysisResult {
   console.log('🧠 NLP: Analyzing transcript:', transcript.substring(0, 100) + '...');
 
-  // 1. Intent-Klassifikation
+  // 1. Intent-Klassifikation mit neuem Scoring-System
   const { intent, intentConfidence } = classifyIntent(transcript, userContext);
   console.log(`🎯 Intent: ${intent} (confidence: ${intentConfidence})`);
 
@@ -143,6 +147,7 @@ export function analyzeVoiceTranscript(
 
 /**
  * Klassifiziert den Intent des Transkripts
+ * Verwendet neues Scoring-System für robustere Erkennung
  */
 function classifyIntent(
   transcript: string,
@@ -155,99 +160,80 @@ function classifyIntent(
   
   console.log('[VOICE-NLP] classifyIntent input:', transcript.substring(0, 80));
 
-  // 0. Check: Analytics Query? (Fragen zu Statistiken)
-  if (isAnalyticsQuestion(lower)) {
-    console.log('[VOICE-NLP] → analytics_query');
-    return { intent: 'analytics_query', intentConfidence: 0.9 };
-  }
-
-  // 1. PRIORITY CHECK: Add Medication Trigger? 
-  // If user explicitly says "füge...hinzu", "anlegen", "neues medikament" → ADD_MEDICATION
-  // This has HIGHEST priority for add-verbs - only pain words like "schmerz/migräne" should override it
-  const isAddMedTrigger = isAddMedicationTrigger(transcript);
-  console.log('[VOICE-NLP] isAddMedTrigger:', isAddMedTrigger, 'for:', transcript.substring(0, 50));
+  // Use new scoring system
+  const scoringResult = scoreIntents(transcript, userContext.userMeds);
+  const topIntents = getTopIntents(scoringResult.scores);
   
-  const hasPainKeyword = /\b(schmerz|kopfschmerz|migräne|migraene|attacke|anfall)\b/i.test(lower);
-  const hasPainLevelContext = /\b(stärke|staerke|level|intensität|intensitaet)\s*\d/i.test(lower);
+  // Log for analytics
+  voiceLogIntent(scoringResult.intent, topIntents, scoringResult.features);
+  voiceLogEvent('intent_scored', {
+    intent: scoringResult.intent,
+    confidence: scoringResult.confidence,
+    features: scoringResult.features,
+  });
+
+  console.log('[VOICE-NLP] Scoring result:', {
+    intent: scoringResult.intent,
+    confidence: scoringResult.confidence,
+    topIntents: topIntents.slice(0, 3),
+    features: scoringResult.features,
+  });
+
+  // Map scored intent to voice intent
+  const intentMap: Record<string, VoiceIntent> = {
+    add_medication: 'add_medication',
+    pain_entry: 'pain_entry',
+    medication_update: 'medication_update',
+    medication_effect: 'medication_effect',
+    reminder: 'reminder',
+    analytics_query: 'analytics_query',
+    note: 'note',
+    navigation: 'unknown', // Navigation handled separately by router
+    unknown: 'unknown',
+  };
+
+  const mappedIntent = intentMap[scoringResult.intent] || 'unknown';
   
-  // If ADD trigger matches AND no pain context → ALWAYS return add_medication
-  // Even if no medication name is extracted, the form will open for manual entry
-  if (isAddMedTrigger && !hasPainKeyword && !hasPainLevelContext) {
-    const parsed = parseAddMedicationCommand(transcript);
-    console.log('[VOICE-NLP] parseAddMedicationCommand result:', parsed);
-    
-    // Return ADD_MEDICATION even if no name was extracted - form will be empty for user to fill
-    const hasValidName = parsed && parsed.name.length >= 2;
-    const confidence = hasValidName ? parsed.confidence : 0.75; // Lower confidence if no name
-    
-    console.log('[VOICE-NLP] → add_medication (trigger matched, name:', parsed?.name || '(none)', ', confidence:', confidence, ')');
-    return { intent: 'add_medication', intentConfidence: confidence };
-  }
-
-  // 2. Check: Medication Update Trigger? (abgesetzt, unverträglich, etc.)
-  const medUpdateMatch = detectMedicationUpdateIntent(lower, userContext);
-  if (medUpdateMatch.confidence > 0.7) {
-    console.log('[VOICE-NLP] → medication_update');
-    return { intent: 'medication_update', intentConfidence: medUpdateMatch.confidence };
-  }
-
-  // 2.5. Check: Medication Effect Rating? (Bewertung der Wirksamkeit)
-  if (isMedicationEffectRating(lower)) {
-    console.log('[VOICE-NLP] → medication_effect');
+  // Special case: Check for medication effect rating
+  if (mappedIntent === 'pain_entry' && isMedicationEffectRating(lower)) {
+    console.log('[VOICE-NLP] → medication_effect (override from effect patterns)');
     return { intent: 'medication_effect', intentConfidence: 0.85 };
   }
-
-  // 3. Check: Reminder-Trigger?
-  if (isReminderTrigger(transcript)) {
-    console.log('[VOICE-NLP] → reminder');
+  
+  // Special case: Check reminder trigger for better matching
+  if (mappedIntent !== 'reminder' && isReminderTrigger(transcript)) {
+    console.log('[VOICE-NLP] → reminder (override from trigger)');
     return { intent: 'reminder', intentConfidence: 0.9 };
   }
 
-  // 4. Check: Pain Entry Indikatoren
-  // IMPORTANT: Numbers alone don't indicate pain - need context!
-  // Numbers with "mg" suffix are medication strength, not pain level
-  const textWithoutMg = lower.replace(/\d+\s*(?:mg|milligramm|mcg|ml)\b/gi, '');
-  
-  const painIndicators = [
-    'schmerz', 'kopfschmerz', 'migräne', 'migraene',
-    'stärke', 'staerke', 'level', 'intensität', 'intensitaet',
-    'leicht', 'mittel', 'stark',
-    'attacke', 'anfall',
-    'genommen', 'eingenommen', // medication intake context = pain entry
-  ];
-  
-  // Check for pain level numbers (0-10) ONLY if not in mg context
-  const hasPainNumber = /\b([0-9]|10)\b/.test(textWithoutMg) && 
-    (hasPainKeyword || /\b(von\s*10|\/10|stärke|level)\b/i.test(lower));
-
-  const hasPainIndicator = painIndicators.some(indicator => lower.includes(indicator));
-
-  if (hasPainIndicator || hasPainNumber) {
-    console.log('[VOICE-NLP] → pain_entry');
-    return { intent: 'pain_entry', intentConfidence: 0.85 };
+  // For add_medication, ensure we have good extraction
+  if (mappedIntent === 'add_medication') {
+    const isAddTrigger = isAddMedicationTrigger(transcript);
+    const parsed = isAddTrigger ? parseAddMedicationCommand(transcript) : null;
+    
+    // If trigger matched but no name extracted, still proceed (form will be empty)
+    if (isAddTrigger) {
+      const confidence = parsed?.name ? Math.max(scoringResult.confidence, 0.85) : 0.75;
+      console.log('[VOICE-NLP] → add_medication (trigger + name:', parsed?.name || '(none)', ')');
+      return { intent: 'add_medication', intentConfidence: confidence };
+    }
   }
 
-  // 5. Fallback: Note
-  if (transcript.trim().length > 5) {
-    console.log('[VOICE-NLP] → note');
-    return { intent: 'note', intentConfidence: 0.7 };
-  }
-
-  console.log('[VOICE-NLP] → unknown');
-  return { intent: 'unknown', intentConfidence: 0.3 };
+  console.log(`[VOICE-NLP] → ${mappedIntent} (from scoring)`);
+  return { intent: mappedIntent, intentConfidence: scoringResult.confidence };
 }
 
 /**
  * Erkennt Analytics-Fragen / Q&A Intent
- * Verbessert: Erkennt W-Fragen, Fragezeichen, und typische Frage-Phrasen
+ * v2: Robustere Erkennung mit mehr Patterns
  */
 function isAnalyticsQuestion(lower: string): boolean {
   // 1. Check for question mark
   if (lower.includes('?')) {
-    // If question mark present and health/data topic mentioned, it's likely a question
     const healthTopics = [
-      'migräne', 'kopfschmerz', 'schmerz', 'medikament', 'triptan', 
-      'tag', 'tage', 'woche', 'monat', 'einnahme', 'anfall', 'attacke'
+      'migräne', 'migraene', 'kopfschmerz', 'schmerz', 'medikament', 'triptan', 
+      'tag', 'tage', 'woche', 'monat', 'einnahme', 'anfall', 'attacke',
+      'schmerzfrei', 'ohne schmerz'
     ];
     if (healthTopics.some(t => lower.includes(t))) {
       return true;
@@ -260,7 +246,23 @@ function isAnalyticsQuestion(lower: string): boolean {
     return true;
   }
   
-  // 3. W-Fragen irgendwo mit Health Context
+  // 3. "schmerzfreie Tage" patterns - PRIORITY
+  if (/schmerzfrei\w*\s+tag/.test(lower) || /tag\w*\s+ohne\s+(kopf)?schmerz/.test(lower)) {
+    return true;
+  }
+  
+  // 4. "in den letzten X Tagen/Wochen/Monaten" pattern
+  if (/in\s+den\s+letzt\w*\s+\d+\s+(tag|woche|monat)/.test(lower)) {
+    return true;
+  }
+  if (/letzt\w*\s+\d+\s+tag/.test(lower) && /wie\s*(viel|oft)/.test(lower)) {
+    return true;
+  }
+  if (/letzten?\s+(monat|woche)\b/.test(lower) && /wie\s*(viel|oft)/.test(lower)) {
+    return true;
+  }
+  
+  // 5. W-Fragen irgendwo mit Health Context
   const wQuestionPatterns = [
     /wie\s*(?:viele?|oft|lang|stark)/,
     /wieviele?/,
@@ -272,28 +274,33 @@ function isAnalyticsQuestion(lower: string): boolean {
     return true;
   }
   
-  // 4. Analytik-Keywords
+  // 6. Analytik-Keywords
   const analyticsTriggers = [
     /zähl/,
     /durchschnitt/,
     /statistik/,
     /auswertung/,
-    /analyse/,
+    /analyse\b/,
     /übersicht/,
+    /uebersicht/,  // normalized
+    /häufig\w*\s+medikament/,
+    /haeufig\w*\s+medikament/, // normalized
   ];
   if (analyticsTriggers.some(p => p.test(lower))) {
     return true;
   }
   
-  // 5. Typische Frage-Phrasen
+  // 7. Typische Frage-Phrasen
   const questionPhrases = [
     'kannst du',
     'könntest du',
+    'koenntest du', // normalized
     'zeige mir',
     'zeig mir',
     'analysiere',
     'analysier',
     'erklär',
+    'erklaer', // normalized
     'erkläre',
     'sag mir',
     'hilf mir',
@@ -305,14 +312,13 @@ function isAnalyticsQuestion(lower: string): boolean {
     'stimmt es',
   ];
   if (questionPhrases.some(phrase => lower.includes(phrase))) {
-    // Also needs health context
-    const healthTopics = ['migräne', 'kopfschmerz', 'schmerz', 'medikament', 'triptan', 'tag', 'einnahme'];
+    const healthTopics = ['migräne', 'migraene', 'kopfschmerz', 'schmerz', 'medikament', 'triptan', 'tag', 'einnahme'];
     if (healthTopics.some(t => lower.includes(t))) {
       return true;
     }
   }
   
-  // 6. Legacy pattern: Question pattern + topic (original logic)
+  // 8. Legacy pattern: Question pattern + topic
   const legacyPatterns = [
     /wie\s*(?:viele?|oft)/,
     /wieviele?/,
@@ -322,7 +328,7 @@ function isAnalyticsQuestion(lower: string): boolean {
     const topics = [
       'triptan', 'sumatriptan', 'rizatriptan', 'zolmitriptan',
       'schmerzmittel', 'ibuprofen', 'paracetamol',
-      'migräne', 'kopfschmerz',
+      'migräne', 'migraene', 'kopfschmerz',
       'tag', 'tage', 'woche', 'monat'
     ];
     if (topics.some(t => lower.includes(t))) {
