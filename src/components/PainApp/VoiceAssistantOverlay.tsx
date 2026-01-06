@@ -329,6 +329,50 @@ export function VoiceAssistantOverlay({
     }
   }, [open]);
 
+  // Safari Lifecycle: Stop recording when tab/app goes to background
+  useEffect(() => {
+    if (!open) return;
+    
+    const handleVisibilityChange = () => {
+      if (document.hidden && isRecording) {
+        console.log('[Voice] Tab hidden - stopping recording');
+        userStoppedRef.current = true; // Prevent auto-restart
+        if (recognitionRef.current) {
+          try {
+            recognitionRef.current.stop();
+          } catch (e) {
+            console.error('Error stopping on visibility change:', e);
+          }
+        }
+        setIsRecording(false);
+        setIsPaused(false);
+      }
+    };
+    
+    const handlePageHide = () => {
+      if (isRecording) {
+        console.log('[Voice] Page hiding - stopping recording');
+        userStoppedRef.current = true;
+        if (recognitionRef.current) {
+          try {
+            recognitionRef.current.stop();
+          } catch (e) {
+            console.error('Error stopping on pagehide:', e);
+          }
+        }
+        setIsRecording(false);
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pagehide', handlePageHide);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pagehide', handlePageHide);
+    };
+  }, [open, isRecording]);
+
   // Pause detection interval
   useEffect(() => {
     if (isRecording && !isHoldToTalk) {
@@ -452,7 +496,7 @@ export function VoiceAssistantOverlay({
     };
 
     recognition.onerror = (event: any) => {
-      console.error('Voice recording error:', event.error);
+      console.error('[Voice] Recording error:', event.error);
       
       // no-speech: Just clear interim, don't stop completely
       if (event.error === 'no-speech') {
@@ -464,6 +508,36 @@ export function VoiceAssistantOverlay({
       // aborted: Usually user-initiated or browser, don't error out
       if (event.error === 'aborted') {
         setInterimText('');
+        return;
+      }
+      
+      // Permission denied: Stop completely, show message, prevent restart loops
+      if (event.error === 'not-allowed') {
+        console.log('[Voice] Permission denied - switching to dictation');
+        userStoppedRef.current = true; // Prevent auto-restart
+        setIsRecording(false);
+        setInterimText('');
+        setSafariModeActive(true);
+        setOverlayState('dictation_fallback');
+        toast.error('Mikrofon-Zugriff verweigert', {
+          description: 'Bitte erlaube den Zugriff in den Browser-Einstellungen oder nutze den Diktier-Modus.',
+          duration: 6000
+        });
+        return;
+      }
+      
+      // audio-capture: Microphone not available
+      if (event.error === 'audio-capture') {
+        console.log('[Voice] Audio capture error - switching to dictation');
+        userStoppedRef.current = true;
+        setIsRecording(false);
+        setInterimText('');
+        setSafariModeActive(true);
+        setOverlayState('dictation_fallback');
+        toast.error('Mikrofon nicht verfügbar', {
+          description: 'Bitte prüfe, ob ein Mikrofon angeschlossen ist.',
+          duration: 5000
+        });
         return;
       }
       
@@ -592,7 +666,7 @@ export function VoiceAssistantOverlay({
       setLastCreatedId({ type: 'note', id: noteId });
       
       showSuccessToastWithUndoEdit(
-        '✅ Notiz gespeichert',
+        'Notiz gespeichert',
         text.length > 50 ? text.substring(0, 50) + '...' : text,
         async () => {
           await supabase
@@ -639,7 +713,7 @@ export function VoiceAssistantOverlay({
         : addMedData.displayName;
       
       showSuccessToastWithUndoEdit(
-        `✅ ${displayStr} hinzugefügt`,
+        `${displayStr} hinzugefügt`,
         'Bei Bedarf (PRN) als Standard',
         async () => {
           await deleteMedById.mutateAsync(newMed.id);

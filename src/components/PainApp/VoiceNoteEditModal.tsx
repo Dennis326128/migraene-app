@@ -79,7 +79,7 @@ export function VoiceNoteEditModal({ note, open, onClose, onSaved }: Props) {
       if (error) throw error;
 
       toast({ 
-        title: '✅ Gespeichert', 
+        title: 'Gespeichert', 
         description: 'Voice-Notiz wurde aktualisiert' 
       });
       onSaved();
@@ -155,7 +155,7 @@ export function VoiceNoteEditModal({ note, open, onClose, onSaved }: Props) {
             Abbrechen
           </Button>
           <Button onClick={handleSave} disabled={isSaving}>
-            {isSaving ? 'Speichere...' : '✅ Speichern'}
+            {isSaving ? 'Speichere...' : 'Speichern'}
           </Button>
         </DialogFooter>
       </DialogContent>
