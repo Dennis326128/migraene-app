@@ -83,7 +83,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         sttConfidence: 0.95,
         source: 'voice'
       });
-      toast.success('✅ Voice-Notiz gespeichert');
+      toast.success('Voice-Notiz gespeichert');
       setShowVoiceNoteReview(false);
       setPendingVoiceNote('');
       window.dispatchEvent(new Event('voice-note-saved'));
@@ -101,7 +101,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         await createReminder.mutateAsync(data);
       }
       
-      toast.success('✅ Erinnerung erstellt', {
+      toast.success('Erinnerung erstellt', {
         description: 'Die Erinnerung wurde erfolgreich gespeichert'
       });
       
