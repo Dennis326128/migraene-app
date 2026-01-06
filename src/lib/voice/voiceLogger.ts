@@ -26,7 +26,7 @@ export interface VoiceLogEntry {
   chosenIntent: string;
   topIntents: Array<{ intent: string; score: number }>;
   finalActionType: 'navigate' | 'analytics' | 'mutation' | 'note' | 'unknown';
-  outcome: 'success' | 'error' | 'canceled' | 'undo' | 'pending';
+  outcome: 'success' | 'error' | 'canceled' | 'undo' | 'pending' | 'noise_filtered' | 'disambiguation' | 'slot_filling' | 'action_picker' | 'confirmation' | 'fallback_form' | 'disambiguation_number';
   latencyMs: number;
   features: string[];
   error?: string;
