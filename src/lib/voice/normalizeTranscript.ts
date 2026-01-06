@@ -5,6 +5,9 @@
  * Applied BEFORE any intent classification or entity extraction
  */
 
+// Filler words to strip from sentence start (Bug #5)
+const FILLER_WORDS_AT_START = /^(nein|also|ähm?|hm+|okay|ok|ja|nun|äh|aha|oh|na|gut|so|hey|hi)\s*[,.]?\s*/gi;
+
 // ASR-specific replacements to handle common transcription errors
 const ASR_REPLACEMENTS: Array<[RegExp, string]> = [
   // German contractions
@@ -31,6 +34,9 @@ const ASR_REPLACEMENTS: Array<[RegExp, string]> = [
   [/\bzomatriptan\b/gi, 'sumatriptan'],
   [/\brisatriptan\b/gi, 'rizatriptan'],
   [/\biboprofen\b/gi, 'ibuprofen'],
+  // Triptan fuzzy corrections (Bug #3)
+  [/\btriplan\b/gi, 'triptan'],
+  [/\btrip?tane?\b/gi, 'triptan'],
 ];
 
 export interface NormalizedResult {
@@ -51,18 +57,21 @@ export function normalizeTranscript(text: string): NormalizedResult {
   // 1. Trim and lowercase
   let normalized = text.toLowerCase().trim();
   
-  // 2. Apply ASR replacements
+  // 2. Strip filler words at the start (Bug #5: "Nein, wann habe ich...")
+  normalized = normalized.replace(FILLER_WORDS_AT_START, '');
+  
+  // 3. Apply ASR replacements
   for (const [pattern, replacement] of ASR_REPLACEMENTS) {
     normalized = normalized.replace(pattern, replacement);
   }
   
-  // 3. Normalize umlauts for consistent matching
+  // 4. Normalize umlauts for consistent matching
   normalized = normalizeUmlauts(normalized);
   
-  // 4. Remove multiple spaces
+  // 5. Remove multiple spaces
   normalized = normalized.replace(/\s+/g, ' ').trim();
   
-  // 5. Tokenize
+  // 6. Tokenize
   const tokens = normalized.split(/\s+/).filter(t => t.length > 0);
   
   return {

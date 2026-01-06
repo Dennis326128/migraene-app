@@ -367,22 +367,33 @@ function extractAnalyticsQuery(transcript: string): VoiceAnalyticsQuery {
   // =============================================
   // NEW: "Wann zuletzt X genommen?" → last_intake_med
   // Must be checked BEFORE other medication queries
+  // Enhanced patterns for better recognition (Bug #2)
   // =============================================
   const lastIntakePatterns = [
-    /wann\s+(?:habe?\s+ich\s+)?(?:das\s+)?(?:letzte?\s*(?:mal\s+)?)?(\w+)\s+(?:genommen|eingenommen)/i,
+    // Primary patterns - high priority
+    /wann\s+(?:habe?\s+ich\s+)?(?:das\s+)?letzte?\s*mal\s+(\w+)\s+(?:genommen|eingenommen)/i,
     /wann\s+(?:habe?\s+ich\s+)?zuletzt\s+(\w+)\s+(?:genommen|eingenommen|nehme)/i,
     /wann\s+zuletzt\s+(\w+)/i,
     /letzte?\s+einnahme\s+(?:von\s+)?(\w+)/i,
     /wann\s+(?:hab\s+ich|habe\s+ich)\s+(\w+)\s+zuletzt/i,
     /(\w+)\s+zuletzt\s+(?:genommen|eingenommen)/i,
+    // More flexible patterns - "wann ... genommen"
+    /wann\s+(?:habe?\s+ich\s+)?(?:ein(?:en?)?\s+)?(\w+)\s+(?:das\s+)?letzte?\s*mal\s+(?:genommen|eingenommen)/i,
+    // Pattern for "letzte mal" anywhere with medication
+    /letzte?\s*mal\s+(\w+)\s+(?:genommen|eingenommen)/i,
+    // "wann hab ich X genommen" (without "zuletzt" but implies last time)
+    /wann\s+hab(?:e)?\s+ich\s+(?:ein(?:en?)?\s+)?(\w+)\s+genommen/i,
   ];
+  
+  // Skip list for common false positives
+  const skipWords = new Set(['das', 'mal', 'ich', 'ein', 'eine', 'einen', 'den', 'die', 'wann', 'habe', 'hab', 'zuletzt', 'letzte', 'letztes']);
   
   for (const pattern of lastIntakePatterns) {
     const match = transcript.match(pattern);
     if (match && match[1]) {
       const medName = match[1].trim();
       // Skip common false positives
-      if (['das', 'mal', 'ich', 'ein', 'eine', 'den', 'die', 'wann'].includes(medName.toLowerCase())) {
+      if (skipWords.has(medName.toLowerCase())) {
         continue;
       }
       return {

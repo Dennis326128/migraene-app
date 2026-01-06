@@ -86,6 +86,7 @@ export function parseTimeRangeFromText(text: string): TimeRange {
 /**
  * Zählt TAGE mit Medikament einer bestimmten Kategorie
  * Hauptfunktion für "Wie viele Triptantage"
+ * Returns both unique days AND total intakes for clarity (Bug #4)
  */
 export async function countMedDaysByCategory(
   userId: string,
@@ -109,7 +110,8 @@ export async function countMedDaysByCategory(
     
     // Sammle unique Tage mit Medikament der Kategorie
     const daysWithCategory = new Set<string>();
-    const matchedMeds = new Map<string, number>(); // Medikamentenname -> Anzahl Tage
+    const matchedMeds = new Map<string, number>(); // Medikamentenname -> Anzahl
+    let totalIntakes = 0; // Total number of intakes (Bug #4)
     
     for (const entry of entries || []) {
       const meds = entry.medications as string[] | null;
@@ -121,28 +123,34 @@ export async function countMedDaysByCategory(
           if (entry.selected_date) {
             daysWithCategory.add(entry.selected_date);
             matchedMeds.set(medName, (matchedMeds.get(medName) || 0) + 1);
+            totalIntakes++;
           }
         }
       }
     }
     
-    const count = daysWithCategory.size;
+    const uniqueDays = daysWithCategory.size;
     
-    // Details: welche Medikamente gefunden
+    // Details: clear distinction between days and intakes (Bug #4)
     let details = '';
     if (matchedMeds.size > 0) {
       const medList = Array.from(matchedMeds.entries())
         .sort((a, b) => b[1] - a[1])
         .slice(0, 3)
-        .map(([name, days]) => `${name} (${days}×)`)
+        .map(([name, count]) => `${capitalizeFirst(name)} (${count}×)`)
         .join(', ');
-      details = `Gefunden: ${medList}`;
+      // Show both unique days AND total intakes for clarity
+      if (totalIntakes !== uniqueDays) {
+        details = `${uniqueDays} Tage (${totalIntakes} Einnahmen gesamt) • ${medList}`;
+      } else {
+        details = `Gefunden: ${medList}`;
+      }
     }
     
     return {
       success: true,
       queryType: 'count_med_days_by_category',
-      value: count,
+      value: uniqueDays,
       unit: 'Tage',
       details
     };
@@ -230,6 +238,7 @@ function levenshteinDistance(a: string, b: string): number {
 
 /**
  * Zählt TAGE mit einem bestimmten Medikament (robustes Fuzzy-Match)
+ * Returns both unique days AND total intakes for clarity (Bug #4)
  */
 export async function countMedDaysByName(
   userId: string,
@@ -252,6 +261,7 @@ export async function countMedDaysByName(
     
     const daysWithMed = new Set<string>();
     const matchedMeds = new Map<string, number>();
+    let totalIntakes = 0; // Bug #4: track total intakes
     
     for (const entry of entries || []) {
       const meds = entry.medications as string[] | null;
@@ -262,22 +272,33 @@ export async function countMedDaysByName(
           if (entry.selected_date) {
             daysWithMed.add(entry.selected_date);
             matchedMeds.set(med, (matchedMeds.get(med) || 0) + 1);
+            totalIntakes++;
           }
         }
       }
     }
     
-    // Details: welche Varianten gefunden
-    let details = `Suche: "${medName}"`;
+    const uniqueDays = daysWithMed.size;
+    
+    // Details: clear distinction between days and intakes (Bug #4)
+    let details = `Suche: "${capitalizeFirst(medName)}"`;
     if (matchedMeds.size > 0) {
-      const variants = Array.from(matchedMeds.keys()).slice(0, 3).join(', ');
-      details += ` (gefunden: ${variants})`;
+      const variants = Array.from(matchedMeds.keys())
+        .slice(0, 3)
+        .map(n => capitalizeFirst(n))
+        .join(', ');
+      // Show both unique days AND total intakes when they differ
+      if (totalIntakes !== uniqueDays) {
+        details = `${uniqueDays} Tage (${totalIntakes} Einnahmen) • ${variants}`;
+      } else {
+        details += ` (gefunden: ${variants})`;
+      }
     }
     
     return {
       success: true,
       queryType: 'count_med_days_by_name',
-      value: daysWithMed.size,
+      value: uniqueDays,
       unit: 'Tage',
       details
     };
@@ -562,20 +583,30 @@ export function parseAnalyticsQuery(text: string): ParsedAnalyticsQuery {
   
   // =============================================
   // NEW: "Wann zuletzt X genommen?" → last_intake_med
-  // Must be checked FIRST
+  // Must be checked FIRST - Enhanced patterns (Bug #2)
   // =============================================
   const lastIntakePatterns = [
-    /wann\s+(?:habe?\s+ich\s+)?(?:das\s+)?(?:letzte?\s*(?:mal\s+)?)?(\w+)\s+(?:genommen|eingenommen)/i,
-    /wann\s+(?:habe?\s+ich\s+)?zuletzt\s+(\w+)/i,
-    /letzte?\s+einnahme\s+(?:von\s+)?(\w+)/i,
+    // Primary patterns - high priority
+    /wann\s+(?:habe?\s+ich\s+)?(?:das\s+)?letzte?\s*mal\s+(\w+)\s+(?:genommen|eingenommen)/i,
+    /wann\s+(?:habe?\s+ich\s+)?zuletzt\s+(\w+)\s+(?:genommen|eingenommen|nehme)/i,
     /wann\s+zuletzt\s+(\w+)/i,
+    /letzte?\s+einnahme\s+(?:von\s+)?(\w+)/i,
+    /wann\s+(?:hab\s+ich|habe\s+ich)\s+(\w+)\s+zuletzt/i,
+    /(\w+)\s+zuletzt\s+(?:genommen|eingenommen)/i,
+    // More flexible patterns
+    /wann\s+(?:habe?\s+ich\s+)?(?:ein(?:en?)?\s+)?(\w+)\s+(?:das\s+)?letzte?\s*mal\s+(?:genommen|eingenommen)/i,
+    /letzte?\s*mal\s+(\w+)\s+(?:genommen|eingenommen)/i,
+    /wann\s+hab(?:e)?\s+ich\s+(?:ein(?:en?)?\s+)?(\w+)\s+genommen/i,
   ];
+  
+  // Skip list for common false positives
+  const skipWords = new Set(['das', 'mal', 'ich', 'ein', 'eine', 'einen', 'den', 'die', 'wann', 'habe', 'hab', 'zuletzt', 'letzte', 'letztes']);
   
   for (const pattern of lastIntakePatterns) {
     const match = text.match(pattern);
     if (match && match[1]) {
       const medName = match[1].trim();
-      if (!['das', 'mal', 'ich', 'ein', 'eine', 'den', 'die', 'wann'].includes(medName.toLowerCase())) {
+      if (!skipWords.has(medName.toLowerCase())) {
         return {
           queryType: 'last_intake_med',
           medName,
