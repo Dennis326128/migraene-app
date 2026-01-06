@@ -6,53 +6,10 @@
  * - Fuzzy medication matching (Triplan → Triptan)
  * - Auto-complete partial questions
  * - Suggests normalized query for confirmation
+ * - Integrates with user medication list
  */
 
-// Common medication categories with fuzzy variants
-const MEDICATION_CATEGORIES: Record<string, { canonical: string; variants: string[] }> = {
-  triptan: {
-    canonical: 'Triptan',
-    variants: [
-      'triptan', 'triptane', 'triptans', 'triplan', 'tryptan', 
-      'tripptan', 'tripten', 'triptain', 'triptam'
-    ]
-  },
-  sumatriptan: {
-    canonical: 'Sumatriptan',
-    variants: [
-      'sumatriptan', 'sumatripten', 'somatriptan', 'suma triptan',
-      'zuma triptan', 'sumatryptan', 'sumitriptan', 'sumatripton'
-    ]
-  },
-  rizatriptan: {
-    canonical: 'Rizatriptan',
-    variants: [
-      'rizatriptan', 'risatriptan', 'rizatryptan', 'riza triptan',
-      'risatryptan', 'rizatripton', 'maxalt'
-    ]
-  },
-  ibuprofen: {
-    canonical: 'Ibuprofen',
-    variants: [
-      'ibuprofen', 'iboprofen', 'ibuproffen', 'ibu profen',
-      'ibuprophen', 'ibu', 'ibobrofen'
-    ]
-  },
-  paracetamol: {
-    canonical: 'Paracetamol',
-    variants: [
-      'paracetamol', 'parazitamol', 'paracetamoll', 'para cetamol',
-      'parazetamol', 'para'
-    ]
-  },
-  schmerzmittel: {
-    canonical: 'Schmerzmittel',
-    variants: [
-      'schmerzmittel', 'schmerz mittel', 'schmerzmitteln',
-      'schmerzmedikament', 'schmerzmedikamente', 'schmerztablette'
-    ]
-  }
-};
+import { matchMedication, formatMedicationName, type UserMedication } from './medicationMatcher';
 
 // Query templates for auto-completion
 const QUERY_TEMPLATES: Record<string, { pattern: RegExp; template: string }> = {
@@ -60,8 +17,12 @@ const QUERY_TEMPLATES: Record<string, { pattern: RegExp; template: string }> = {
     pattern: /wie\s*(?:viele?)?\s*(?:triptane?|triptan)/i,
     template: 'Wie viele Triptane habe ich in den letzten 30 Tagen eingenommen?'
   },
+  last_intake: {
+    pattern: /wann\s*(?:habe?\s*ich\s*)?\s*(?:zuletzt|letzte?)\s*(\w+)/i,
+    template: 'Wann habe ich das letzte Mal {med} genommen?'
+  },
   med_days: {
-    pattern: /wie\s*(?:viele?)?\s*(?:tage)?\s*(sumatriptan|rizatriptan|ibuprofen|paracetamol)/i,
+    pattern: /wie\s*(?:viele?)?\s*(?:tage)?\s*(sumatriptan|rizatriptan|ibuprofen|paracetamol|triptan)/i,
     template: 'Wie oft habe ich {med} in den letzten 30 Tagen eingenommen?'
   },
   pain_free_days: {
@@ -78,65 +39,24 @@ const QUERY_TEMPLATES: Record<string, { pattern: RegExp; template: string }> = {
   }
 };
 
-// Levenshtein distance for fuzzy matching
-function levenshteinDistance(a: string, b: string): number {
-  const matrix: number[][] = [];
-  
-  for (let i = 0; i <= b.length; i++) {
-    matrix[i] = [i];
-  }
-  for (let j = 0; j <= a.length; j++) {
-    matrix[0][j] = j;
-  }
-  
-  for (let i = 1; i <= b.length; i++) {
-    for (let j = 1; j <= a.length; j++) {
-      if (b.charAt(i - 1) === a.charAt(j - 1)) {
-        matrix[i][j] = matrix[i - 1][j - 1];
-      } else {
-        matrix[i][j] = Math.min(
-          matrix[i - 1][j - 1] + 1,
-          matrix[i][j - 1] + 1,
-          matrix[i - 1][j] + 1
-        );
-      }
-    }
-  }
-  
-  return matrix[b.length][a.length];
-}
-
 /**
  * Find the best medication match for a potentially misspelled word
+ * Uses the new medicationMatcher module
  */
-export function findMedicationMatch(word: string): { match: string; original: string; confidence: number } | null {
-  const lower = word.toLowerCase().trim();
-  if (lower.length < 3) return null;
+export function findMedicationMatch(
+  word: string, 
+  userMeds: UserMedication[] = []
+): { match: string; original: string; confidence: number } | null {
+  if (word.length < 3) return null;
   
-  let bestMatch: { match: string; original: string; distance: number } | null = null;
+  const result = matchMedication(word, userMeds);
   
-  for (const [, category] of Object.entries(MEDICATION_CATEGORIES)) {
-    for (const variant of category.variants) {
-      // Exact match
-      if (lower === variant) {
-        return { match: category.canonical, original: word, confidence: 1.0 };
-      }
-      
-      // Fuzzy match
-      const distance = levenshteinDistance(lower, variant);
-      const maxDistance = Math.floor(variant.length * 0.3); // 30% tolerance
-      
-      if (distance <= maxDistance) {
-        if (!bestMatch || distance < bestMatch.distance) {
-          bestMatch = { match: category.canonical, original: word, distance };
-        }
-      }
-    }
-  }
-  
-  if (bestMatch) {
-    const confidence = 1 - (bestMatch.distance / word.length);
-    return { match: bestMatch.match, original: bestMatch.original, confidence: Math.max(0.7, confidence) };
+  if (result.matched && result.canonicalName.toLowerCase() !== word.toLowerCase()) {
+    return {
+      match: result.canonicalName,
+      original: word,
+      confidence: result.confidence
+    };
   }
   
   return null;
@@ -145,7 +65,10 @@ export function findMedicationMatch(word: string): { match: string; original: st
 /**
  * Repair a query by fixing misspellings and suggesting completions
  */
-export function repairQuery(transcript: string): {
+export function repairQuery(
+  transcript: string,
+  userMeds: UserMedication[] = []
+): {
   isRepaired: boolean;
   original: string;
   repaired: string;
@@ -160,7 +83,7 @@ export function repairQuery(transcript: string): {
   
   // Step 1: Fix medication misspellings
   for (const word of words) {
-    const match = findMedicationMatch(word);
+    const match = findMedicationMatch(word, userMeds);
     if (match && match.original.toLowerCase() !== match.match.toLowerCase()) {
       corrections.push({ original: match.original, corrected: match.match });
       repairedWords.push(match.match);
@@ -174,29 +97,46 @@ export function repairQuery(transcript: string): {
   
   // Step 2: Find matching template for auto-completion
   let suggestedQuery: string | null = null;
-  for (const [, template] of Object.entries(QUERY_TEMPLATES)) {
-    if (template.pattern.test(repaired)) {
-      // Extract medication if present
-      const medMatch = repaired.match(/(sumatriptan|rizatriptan|ibuprofen|paracetamol|triptan)/i);
-      if (medMatch) {
-        suggestedQuery = template.template.replace('{med}', medMatch[1]);
-      } else {
-        suggestedQuery = template.template;
+  
+  // Check for "last intake" pattern first
+  const lastIntakeMatch = repaired.match(/wann\s*(?:habe?\s*ich\s*)?\s*(?:zuletzt|letzte?(?:\s*mal)?)\s*(\w+)/i);
+  if (lastIntakeMatch && lastIntakeMatch[1]) {
+    const medMatch = matchMedication(lastIntakeMatch[1], userMeds);
+    suggestedQuery = `Wann habe ich das letzte Mal ${medMatch.canonicalName} genommen?`;
+  }
+  
+  // Check other templates
+  if (!suggestedQuery) {
+    for (const [, template] of Object.entries(QUERY_TEMPLATES)) {
+      if (template.pattern.test(repaired)) {
+        // Extract medication if present
+        const medMatch = repaired.match(/(sumatriptan|rizatriptan|ibuprofen|paracetamol|triptan|aspirin|naproxen|diclofenac)/i);
+        if (medMatch) {
+          const formatted = formatMedicationName(medMatch[1]);
+          suggestedQuery = template.template.replace('{med}', formatted);
+        } else {
+          suggestedQuery = template.template.replace('{med}', 'Medikament');
+        }
+        break;
       }
-      break;
     }
   }
   
-  // Step 3: If no template matches but we have time context, add default template
+  // Step 3: If we have corrections but no template, create a suggestion
   if (!suggestedQuery && corrections.length > 0) {
-    const hasMed = corrections.some(c => 
-      ['triptan', 'sumatriptan', 'rizatriptan', 'ibuprofen', 'paracetamol'].some(
-        m => c.corrected.toLowerCase().includes(m)
-      )
-    );
+    const hasMed = corrections.some(c => {
+      const lower = c.corrected.toLowerCase();
+      return lower.includes('triptan') || lower.includes('ibuprofen') || 
+             lower.includes('paracetamol') || lower.includes('aspirin');
+    });
     if (hasMed) {
       const medName = corrections[0].corrected;
-      suggestedQuery = `Wie oft habe ich ${medName} in den letzten 30 Tagen eingenommen?`;
+      // Check if this looks like a "last intake" question
+      if (/zuletzt|letzte|wann/i.test(repaired)) {
+        suggestedQuery = `Wann habe ich das letzte Mal ${medName} genommen?`;
+      } else {
+        suggestedQuery = `Wie oft habe ich ${medName} in den letzten 30 Tagen eingenommen?`;
+      }
     }
   }
   
@@ -238,5 +178,5 @@ export function isIncompleteQuery(transcript: string): boolean {
  * Generate a helpful error message with examples
  */
 export function getQueryHelpMessage(): string {
-  return 'Versuche z.B.:\n• "Wie viele schmerzfreie Tage in den letzten 30 Tagen?"\n• "Wie oft Triptan letzten Monat?"\n• "Zeig mir meine Statistik"';
+  return 'Versuche z.B.:\n• "Wann habe ich zuletzt Triptan genommen?"\n• "Wie viele schmerzfreie Tage in den letzten 30 Tagen?"\n• "Wie oft Ibuprofen letzten Monat?"';
 }

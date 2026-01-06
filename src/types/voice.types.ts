@@ -46,7 +46,7 @@ export interface VoiceReminder {
 }
 
 export interface VoiceAnalyticsQuery {
-  queryType: 'triptan_days' | 'med_days' | 'migraine_days' | 'headache_days' | 'pain_free_days' | 'entries_count' | 'avg_pain' | 'unknown';
+  queryType: 'triptan_days' | 'med_days' | 'migraine_days' | 'headache_days' | 'pain_free_days' | 'entries_count' | 'avg_pain' | 'last_intake_med' | 'unknown';
   medName?: string;
   medCategory?: string;
   timeRangeDays: number;
