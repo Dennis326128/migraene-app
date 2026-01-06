@@ -6,6 +6,7 @@
  */
 
 import { normalizeTranscript, hasAddMedicationVerb, hasPainKeywords, hasAnalyticsKeywords, hasDosagePattern, extractMedNameNearDosage } from './normalizeTranscript';
+import type { UserMedLexicon } from './userMedLexicon';
 
 // Known medication aliases for higher confidence scoring
 const KNOWN_MED_ALIASES = new Set([
@@ -255,6 +256,7 @@ export function scoreIntents(transcript: string, userMeds: Array<{ name: string 
  */
 export function getTopIntents(scores: IntentScores, n: number = 3): Array<{ intent: ScoredIntent; score: number }> {
   return Object.entries(scores)
+    .filter(([, score]) => score > 0)
     .sort(([, a], [, b]) => b - a)
     .slice(0, n)
     .map(([intent, score]) => ({ intent: intent as ScoredIntent, score }));
