@@ -147,7 +147,7 @@ export function RatedEffectCard({ entry, effect }: RatedEffectCardProps) {
           notes: notes.trim()
         }
       });
-      toast.success('Wirkung gespeichert');
+      toast('Wirkung gespeichert', { duration: 2000 });
       setDetailsOpen(false);
     } catch (error) {
       console.error('Failed to update effect:', error);

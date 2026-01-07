@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useToast } from '@/hooks/use-toast';
 import { toast as sonnerToast } from 'sonner';
 import { 
   useUnratedMedicationEntries, 
@@ -24,7 +23,7 @@ const UNDO_TIMEOUT_MS = 8000;
 
 export function MedicationEffectsPage() {
   const navigate = useNavigate();
-  const { toast } = useToast();
+  
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'open' | 'history'>('open');
   const [historyPage, setHistoryPage] = useState(0);
@@ -130,22 +129,21 @@ export function MedicationEffectsPage() {
       );
       
       if (remainingOpenEffects.length === 0) {
-        toast({
-          title: 'Alle Bewertungen erledigt',
-          description: 'Du bist wieder auf der Startseite.'
+        sonnerToast('Alle Bewertungen erledigt', {
+          description: 'Du bist wieder auf der Startseite.',
+          duration: 2000
         });
         navigate('/');
       } else {
-        toast({
-          title: 'Bewertung gespeichert',
-          description: `${medName} wurde bewertet.`
+        sonnerToast('Bewertung gespeichert', {
+          description: `${medName} wurde bewertet.`,
+          duration: 2000
         });
       }
     } catch (error) {
-      toast({
-        title: 'Fehler beim Speichern',
+      sonnerToast.error('Fehler beim Speichern', {
         description: 'Die Bewertung konnte nicht gespeichert werden.',
-        variant: 'destructive'
+        duration: 4000
       });
       throw error;
     }
@@ -177,10 +175,9 @@ export function MedicationEffectsPage() {
         setTimeout(() => navigate('/'), 500);
       }
     } catch (error) {
-      toast({
-        title: 'Fehler beim Löschen',
+      sonnerToast.error('Fehler beim Löschen', {
         description: 'Die Einnahme konnte nicht gelöscht werden.',
-        variant: 'destructive'
+        duration: 4000
       });
     } finally {
       setDeletingItem(null);
@@ -190,15 +187,14 @@ export function MedicationEffectsPage() {
   const handleUndoDelete = async (entryId: number, medName: string) => {
     try {
       await restoreEntry.mutateAsync({ entryId, medName });
-      toast({
-        title: 'Rückgängig gemacht',
-        description: `${medName} wurde wiederhergestellt.`
+      sonnerToast('Rückgängig gemacht', {
+        description: `${medName} wurde wiederhergestellt.`,
+        duration: 2000
       });
     } catch (error) {
-      toast({
-        title: 'Fehler',
+      sonnerToast.error('Fehler', {
         description: 'Konnte nicht rückgängig gemacht werden.',
-        variant: 'destructive'
+        duration: 4000
       });
     }
   };
