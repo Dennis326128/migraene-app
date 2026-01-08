@@ -348,7 +348,7 @@ export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProp
           console.log('⏰ Future entry - weather data will be added later');
           weatherId = null;
           toast({
-            title: "ℹ️ Hinweis",
+            title: "Hinweis",
             description: "Wetterdaten werden automatisch zum Ereigniszeitpunkt nachgetragen.",
             variant: "default"
           });
@@ -366,7 +366,7 @@ export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProp
       } catch (weatherError) {
         console.warn('Weather data fetch failed, continuing without weather data:', weatherError);
         toast({ 
-          title: "⚠️ Wetterdaten nicht verfügbar", 
+          title: "Wetterdaten nicht verfügbar", 
           description: dateTimeChanged 
             ? "Neue Wetterdaten konnten nicht abgerufen werden. Alte Wetterdaten bleiben erhalten."
             : "Eintrag wird ohne Wetterdaten gespeichert.",
@@ -579,19 +579,19 @@ export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProp
       toast({ 
         title: entry ? "Eintrag aktualisiert" : "Migräne-Eintrag gespeichert", 
         description: dateTimeChanged && weatherFetched 
-          ? "✅ Wetterdaten für neuen Zeitpunkt abgerufen"
-          : "Erfolgreich gespeichert. Ihre Daten sind sicher gespeichert." 
+          ? "Wetterdaten für neuen Zeitpunkt abgerufen"
+          : "Erfolgreich gespeichert." 
       });
       
-      // Success animation delay
+      // Reduced delay for faster UX (was 1000ms)
       setTimeout(() => {
         onSave?.();
         onBack();
-      }, 1000);
+      }, 300);
     } catch (error) {
       console.error("Save error:", error);
       toast({ 
-        title: "❌ Fehler beim Speichern", 
+        title: "Fehler beim Speichern", 
         description: "Bitte versuchen Sie es erneut.", 
         variant: "destructive" 
       });
