@@ -104,7 +104,7 @@ export function MedicationEffectModal({
     onClose();
     
     toast({
-      title: "✅ Wirkung gespeichert",
+      title: "Wirkung gespeichert",
       description: `Bewertung für ${selectedMed} wurde erfasst.`
     });
   };

@@ -150,7 +150,7 @@ export function MedicationEffectRatingModal({
       await createEffects.mutateAsync(payloads);
       onClose();
       toast({
-        title: "✅ Bewertungen gespeichert",
+        title: "Bewertungen gespeichert",
         description: `${validRatings.length} Medikamenten-Bewertung${validRatings.length > 1 ? 'en' : ''} wurden erfasst.`
       });
     } catch (error) {

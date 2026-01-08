@@ -12,6 +12,7 @@
  */
 
 import { toast as sonnerToast } from 'sonner';
+import { sanitizeToastText } from '@/lib/toast/sanitizeToastText';
 
 interface ToastOptions {
   title?: string;
@@ -29,19 +30,23 @@ interface ToastReturn {
 function toast(options: ToastOptions): ToastReturn {
   const { title, description, variant, duration } = options;
   
+  // Sanitize text to remove leading status emojis (prevents double-icon)
+  const cleanTitle = sanitizeToastText(title);
+  const cleanDescription = sanitizeToastText(description);
+  
   // Determine toast type based on variant
   let id: string | number;
   
   if (variant === 'destructive') {
-    id = sonnerToast.error(title || 'Fehler', {
-      description,
+    id = sonnerToast.error(cleanTitle || 'Fehler', {
+      description: cleanDescription,
       duration: duration || 5000,
       closeButton: false,
     });
   } else {
     // Default/success - use info for neutral messages
-    id = sonnerToast.success(title || '', {
-      description,
+    id = sonnerToast.success(cleanTitle || '', {
+      description: cleanDescription,
       duration: duration || 2000,
       closeButton: false,
     });
