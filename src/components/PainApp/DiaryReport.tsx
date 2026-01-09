@@ -180,6 +180,15 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
             setSelectedMedIds(settings.selected_medications);
           }
           
+          // Notes settings - cast to any since columns may not be in types yet
+          const s = settings as any;
+          if (s.include_entry_notes !== undefined && s.include_entry_notes !== null) {
+            setIncludeEntryNotes(s.include_entry_notes);
+          }
+          if (s.include_context_notes !== undefined && s.include_context_notes !== null) {
+            setIncludeContextNotes(s.include_context_notes);
+          }
+          
           // Doctor IDs
           const lastDoctorIds = (settings as any).last_doctor_export_ids;
           if (Array.isArray(lastDoctorIds) && lastDoctorIds.length > 0) {
@@ -279,7 +288,9 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
             selected_medications: selectedMedIds,
             last_include_doctors_flag: includeDoctorData,
             last_doctor_export_ids: selectedDoctorIds,
-          }, { onConflict: "user_id" });
+            include_entry_notes: includeEntryNotes,
+            include_context_notes: includeContextNotes,
+          } as any, { onConflict: "user_id" });
       } catch (error) {
         console.error("Error saving report settings:", error);
       }
@@ -290,7 +301,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [settingsLoaded, preset, includeStats, includeAnalysis, includeEntriesList, includeTherapies, includeDoctorData, allMedications, selectedMedIds, selectedDoctorIds]);
+  }, [settingsLoaded, preset, includeStats, includeAnalysis, includeEntriesList, includeTherapies, includeDoctorData, allMedications, selectedMedIds, selectedDoctorIds, includeEntryNotes, includeContextNotes]);
 
   // Load medication options
   useEffect(() => {
