@@ -638,6 +638,36 @@ export type Database = {
           },
         ]
       }
+      resend_confirmation_logs: {
+        Row: {
+          allowed: boolean
+          created_at: string
+          email_hash: string
+          id: string
+          ip_hash: string
+          reason: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          allowed?: boolean
+          created_at?: string
+          email_hash: string
+          id?: string
+          ip_hash: string
+          reason?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          allowed?: boolean
+          created_at?: string
+          email_hash?: string
+          id?: string
+          ip_hash?: string
+          reason?: string | null
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       symptom_catalog: {
         Row: {
           id: string

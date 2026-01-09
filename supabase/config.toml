@@ -83,3 +83,6 @@ verify_jwt = false
 
 [functions.export-user-data]
 verify_jwt = true
+
+[functions.resend-confirmation]
+verify_jwt = false
