@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { PainEntry } from "@/types/painApp";
@@ -85,6 +85,7 @@ const DEFAULT_SETTINGS: Omit<ReportSettingsState, 'customStart' | 'customEnd'> =
 
 export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void; onNavigate?: (target: string) => void }) {
   const today = useMemo(() => new Date(), []);
+  const queryClient = useQueryClient();
   
   // Core state
   const [preset, setPreset] = useState<Preset>("3m");
@@ -125,6 +126,12 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Frische Daten bei jedem Öffnen der Komponente laden
+  useEffect(() => {
+    queryClient.invalidateQueries({ queryKey: ["patient_data"] });
+    queryClient.invalidateQueries({ queryKey: ["doctors"] });
+  }, [queryClient]);
   
   const { data: patientData } = usePatientData();
   const { data: doctors = [] } = useDoctors();
@@ -354,8 +361,12 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
 
   const selectedDoctorsForExport = useMemo(() => {
     if (!includeDoctorData) return [];
-    if (doctors.length === 1) return doctors;
-    return doctors.filter(d => d.id && selectedDoctorIds.includes(d.id));
+    // Bei mehreren Ärzten: nur die ausgewählten zurückgeben
+    if (selectedDoctorIds.length > 0) {
+      return doctors.filter(d => d.id && selectedDoctorIds.includes(d.id));
+    }
+    // Fallback: alle Ärzte wenn keine spezifische Auswahl
+    return doctors;
   }, [doctors, selectedDoctorIds, includeDoctorData]);
 
   // Check if all medications are selected
@@ -372,11 +383,27 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     }
   };
 
-  // PDF Generation - ALWAYS fetches fresh data
+  // PDF Generation - ALWAYS fetches fresh data (including patient/doctor data)
   const actuallyGenerateDiaryPDF = async (selectedDoctors: Doctor[]) => {
     setIsGeneratingReport(true);
     
     try {
+      // FRISCHE Patientendaten laden
+      const { data: { user } } = await supabase.auth.getUser();
+      let freshPatientData = patientData;
+      
+      if (user) {
+        const { data: patientResult } = await supabase
+          .from('patient_data')
+          .select('*')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        
+        if (patientResult) {
+          freshPatientData = patientResult;
+        }
+      }
+      
       // KRITISCH: Lade ALLE Einträge frisch aus der DB - NICHT aus dem UI-Cache!
       console.log(`[PDF Export] Lade frische Daten für Zeitraum ${from} bis ${to}...`);
       const freshEntries = await fetchAllEntriesForExport(from, to);
@@ -503,16 +530,16 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
           baseline_impairment_level: c.baseline_impairment_level || undefined,
           note_for_physician: c.note_for_physician || undefined,
         })) : undefined,
-        patientData: patientData ? {
-          firstName: patientData.first_name || "",
-          lastName: patientData.last_name || "",
-          street: patientData.street || "",
-          postalCode: patientData.postal_code || "",
-          city: patientData.city || "",
-          phone: patientData.phone || "",
-          fax: patientData.fax || "",
+        patientData: freshPatientData ? {
+          firstName: freshPatientData.first_name || "",
+          lastName: freshPatientData.last_name || "",
+          street: freshPatientData.street || "",
+          postalCode: freshPatientData.postal_code || "",
+          city: freshPatientData.city || "",
+          phone: freshPatientData.phone || "",
+          fax: freshPatientData.fax || "",
           email: userEmail || "",
-          dateOfBirth: patientData.date_of_birth || ""
+          dateOfBirth: freshPatientData.date_of_birth || ""
         } : undefined,
         doctors: selectedDoctors.length > 0 ? selectedDoctors.map(d => ({
           firstName: d.first_name || "",
