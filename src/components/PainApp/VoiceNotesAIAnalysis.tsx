@@ -7,12 +7,13 @@ import { Label } from '@/components/ui/label';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Brain, Loader2, Calendar as CalendarIcon, RefreshCw, ChevronDown, ChevronRight, Activity, Cloud, Pill, Database, Clock, Tag, Info } from 'lucide-react';
+import { Brain, Loader2, Calendar as CalendarIcon, RefreshCw, ChevronDown, ChevronRight, Activity, Cloud, Pill, Database, Clock, Tag, Info, FileText, TrendingUp, Sparkles } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { format, subMonths } from 'date-fns';
+import { subMonths } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { logError } from '@/lib/utils/errorMessages';
+import { formatDateRangeDE, formatDateDE, formatNumberSmart, formatLastUpdated } from '@/lib/formatters';
 
 // Structured analysis types
 interface StructuredAnalysis {
@@ -217,50 +218,99 @@ function TagsDisplay({ tags }: { tags: StructuredAnalysis['tagsFromNotes'] }) {
       {tags.map((t, idx) => (
         <Badge key={idx} variant="secondary" className="text-xs">
           <Tag className="h-3 w-3 mr-1" />
-          {t.tag} ({t.count}x)
+          {t.tag} ({formatNumberSmart(t.count)}×)
         </Badge>
       ))}
     </div>
   );
 }
 
-// Structured Results Display
-function StructuredResultsDisplay({ data }: { data: StructuredAnalysis }) {
+// Structured Results Display with sections
+function StructuredResultsDisplay({ 
+  data, 
+  dateRange,
+  lastUpdated 
+}: { 
+  data: StructuredAnalysis;
+  dateRange: { from: Date; to: Date };
+  lastUpdated: Date;
+}) {
+  const formattedDateRange = formatDateRangeDE(dateRange.from, dateRange.to);
+  const totalEntries = data.dataCoverage.entries + data.dataCoverage.notes;
+  
   return (
     <div className="space-y-6">
+      {/* Header with date range and last updated */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <CalendarIcon className="h-4 w-4" />
+          <span>Zeitraum: {formattedDateRange}</span>
+        </div>
+        <div className="text-xs text-muted-foreground">
+          Zuletzt aktualisiert: {formatLastUpdated(lastUpdated)}
+        </div>
+      </div>
+
       {/* Overview Card */}
       <Card className="bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
         <CardContent className="p-4">
           <h3 className="font-semibold mb-2">{data.overview.headline}</h3>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
             <div className="text-center">
-              <div className="text-2xl font-bold">{data.dataCoverage.entries}</div>
+              <div className="text-2xl font-bold">{formatNumberSmart(data.dataCoverage.entries)}</div>
               <div className="text-xs text-muted-foreground">Einträge</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold">{data.dataCoverage.notes}</div>
+              <div className="text-2xl font-bold">{formatNumberSmart(data.dataCoverage.notes)}</div>
               <div className="text-xs text-muted-foreground">Notizen</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold">{data.dataCoverage.weatherDays}</div>
+              <div className="text-2xl font-bold">{formatNumberSmart(data.dataCoverage.weatherDays)}</div>
               <div className="text-xs text-muted-foreground">Wetter-Tage</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold">{data.dataCoverage.prophylaxisCourses}</div>
+              <div className="text-2xl font-bold">{formatNumberSmart(data.dataCoverage.prophylaxisCourses)}</div>
               <div className="text-xs text-muted-foreground">Prophylaxen</div>
             </div>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Zeitraum: {data.timeRange.from} bis {data.timeRange.to}
+          <p className="text-xs text-muted-foreground flex items-center gap-1">
+            <Info className="h-3 w-3" />
+            Hinweis: {data.overview.disclaimer}
           </p>
-          <p className="text-xs text-muted-foreground mt-1">{data.overview.disclaimer}</p>
         </CardContent>
       </Card>
 
-      {/* Key Findings */}
+      {/* Data sufficiency check */}
+      {totalEntries < 10 && (
+        <Card className="border-muted bg-muted/20">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                <FileText className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <div>
+                <h4 className="font-medium text-sm mb-1">Noch wenige Daten vorhanden</h4>
+                <p className="text-sm text-muted-foreground">
+                  Noch zu wenige Einträge für eine verlässliche Musteranalyse. 
+                  Sobald du mehr dokumentierst, wird die Auswertung aussagekräftiger.
+                </p>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Basierend auf {formatNumberSmart(totalEntries)} Einträgen im gewählten Zeitraum.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Section 1: Key Findings / Wichtigste Muster */}
       {data.keyFindings && data.keyFindings.length > 0 && (
-        <div>
-          <h3 className="font-semibold mb-3 text-sm">Wichtigste Erkenntnisse</h3>
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-primary" />
+            <h3 className="font-semibold text-sm">Wichtigste Muster</h3>
+            <Badge variant="outline" className="text-xs ml-auto">Hinweis</Badge>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {data.keyFindings.map((finding, idx) => (
               <KeyFindingCard key={idx} finding={finding} />
@@ -269,22 +319,42 @@ function StructuredResultsDisplay({ data }: { data: StructuredAnalysis }) {
         </div>
       )}
 
-      {/* Sections */}
+      {/* Section 2: Trends */}
       {data.sections && data.sections.length > 0 && (
-        <div className="space-y-2">
-          <h3 className="font-semibold text-sm">Detailanalyse</h3>
-          {data.sections.map((section, idx) => (
-            <AnalysisSection key={idx} section={section} />
-          ))}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-primary" />
+            <h3 className="font-semibold text-sm">Trends & Details</h3>
+            <Badge variant="outline" className="text-xs ml-auto">Hinweis</Badge>
+          </div>
+          <div className="space-y-2">
+            {data.sections.map((section, idx) => (
+              <AnalysisSection key={idx} section={section} />
+            ))}
+          </div>
         </div>
       )}
 
-      {/* Tags from Notes */}
+      {/* Section 3: Tags from Notes / Mögliche Zusammenhänge */}
       {data.tagsFromNotes && data.tagsFromNotes.length > 0 && (
-        <div>
-          <h3 className="font-semibold mb-3 text-sm">Erkannte Kontext-Faktoren</h3>
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Tag className="h-4 w-4 text-primary" />
+            <h3 className="font-semibold text-sm">Mögliche Zusammenhänge</h3>
+            <Badge variant="outline" className="text-xs ml-auto">Hinweis</Badge>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Erkannte Kontext-Faktoren aus deinen Notizen:
+          </p>
           <TagsDisplay tags={data.tagsFromNotes} />
         </div>
+      )}
+
+      {/* Basis info */}
+      {totalEntries >= 10 && (
+        <p className="text-xs text-muted-foreground text-center pt-2 border-t">
+          Basierend auf {formatNumberSmart(totalEntries)} Einträgen im Zeitraum {formattedDateRange}
+        </p>
       )}
     </div>
   );
@@ -299,6 +369,7 @@ export function VoiceNotesAIAnalysis() {
     to: new Date()
   });
   const [isLoadingFirstEntry, setIsLoadingFirstEntry] = useState(false);
+  const [lastAnalysisTime, setLastAnalysisTime] = useState<Date | null>(null);
 
   const loadFirstEntryDate = async () => {
     setIsLoadingFirstEntry(true);
@@ -417,6 +488,7 @@ export function VoiceNotesAIAnalysis() {
       // Success! Clear any error state and show results
       setAnalysisError(null);
       setAnalysisResult(data);
+      setLastAnalysisTime(new Date());
       
     } catch (error) {
       // Catch-all for unexpected errors (network timeout, JSON parse, etc.)
@@ -429,6 +501,9 @@ export function VoiceNotesAIAnalysis() {
   const handleRetry = () => {
     runAnalysis();
   };
+
+  // Format the currently selected date range for display
+  const formattedCurrentRange = formatDateRangeDE(dateRange.from, dateRange.to);
 
   return (
     <div className="space-y-4">
@@ -450,7 +525,10 @@ export function VoiceNotesAIAnalysis() {
         <CardContent className="space-y-4">
           {/* Date Range Selection */}
           <div className="space-y-3">
-            <Label>Zeitraum</Label>
+            <div className="flex items-center justify-between">
+              <Label>Zeitraum</Label>
+              <span className="text-sm text-muted-foreground">{formattedCurrentRange}</span>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label className="text-xs text-muted-foreground">Von</Label>
@@ -458,7 +536,7 @@ export function VoiceNotesAIAnalysis() {
                   <PopoverTrigger asChild>
                     <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !dateRange.from && "text-muted-foreground")}>
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {format(dateRange.from, 'dd.MM.yyyy', { locale: de })}
+                      {formatDateDE(dateRange.from)}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
@@ -481,7 +559,7 @@ export function VoiceNotesAIAnalysis() {
                   <PopoverTrigger asChild>
                     <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !dateRange.to && "text-muted-foreground")}>
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {format(dateRange.to, 'dd.MM.yyyy', { locale: de })}
+                      {formatDateDE(dateRange.to)}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
@@ -530,8 +608,8 @@ export function VoiceNotesAIAnalysis() {
                       KI-Analyse aktuell nicht verfügbar
                     </h3>
                     <p className="text-sm text-muted-foreground max-w-sm">
-                      Die KI-Musteranalyse konnte im Moment leider nicht durchgeführt werden.
-                      Bitte versuche es später noch einmal.
+                      Die Analyse konnte im Moment leider nicht durchgeführt werden.
+                      Bitte versuche es später erneut.
                     </p>
                     <p className="text-xs text-muted-foreground/70">
                       Deine Daten sind sicher gespeichert.
@@ -546,7 +624,7 @@ export function VoiceNotesAIAnalysis() {
                       disabled={isAnalyzing}
                     >
                       {isAnalyzing ? (
-                        <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Wird geladen...</>
+                        <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Analyse läuft …</>
                       ) : (
                         <><RefreshCw className="h-4 w-4 mr-2" /> Erneut versuchen</>
                       )}
@@ -586,8 +664,12 @@ export function VoiceNotesAIAnalysis() {
           )}
 
           {/* Results Display */}
-          {analysisResult?.structured && (
-            <StructuredResultsDisplay data={analysisResult.structured} />
+          {analysisResult?.structured && lastAnalysisTime && (
+            <StructuredResultsDisplay 
+              data={analysisResult.structured} 
+              dateRange={dateRange}
+              lastUpdated={lastAnalysisTime}
+            />
           )}
 
           {/* Legacy fallback for old string responses */}
@@ -603,7 +685,7 @@ export function VoiceNotesAIAnalysis() {
           {!analysisResult && !isAnalyzing && !analysisError && (
             <div className="text-center py-12 text-muted-foreground">
               <Brain className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>Klicken Sie auf "Analyse starten" für eine Musterauswertung</p>
+              <p>Klicke auf „Analyse starten" für eine Musterauswertung</p>
               <p className="text-sm mt-2">Die Analyse erkennt Muster, Trigger und Zusammenhänge.</p>
             </div>
           )}
