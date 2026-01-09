@@ -211,8 +211,8 @@ export const EntriesList = ({
                 <p><strong>✨ Aura:</strong> {formatAuraType((selectedEntry as any).aura_type)}</p>
               )}
               
-              {(selectedEntry as any).pain_location && (
-                <p><strong>📍 Lokalisation:</strong> {formatPainLocation((selectedEntry as any).pain_location)}</p>
+              {(selectedEntry as any).pain_locations && (selectedEntry as any).pain_locations.length > 0 && (
+                <p><strong>📍 Lokalisation:</strong> {(selectedEntry as any).pain_locations.map(formatPainLocation).join(', ')}</p>
               )}
 
               <p>

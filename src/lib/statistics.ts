@@ -166,13 +166,15 @@ export function computeStatistics(
     },
   };
 
-  // 2. Schmerzlokalisation
+  // 2. Schmerzlokalisation (now supports multiple locations per entry)
   const locationCounts = new Map<string, number>();
   filteredEntries.forEach(entry => {
-    const location = entry.pain_location;
-    if (location && location !== 'keine') {
-      locationCounts.set(location, (locationCounts.get(location) || 0) + 1);
-    }
+    const locations = entry.pain_locations || [];
+    locations.forEach(location => {
+      if (location && location !== 'keine') {
+        locationCounts.set(location, (locationCounts.get(location) || 0) + 1);
+      }
+    });
   });
 
   const totalWithLocation = Array.from(locationCounts.values()).reduce((sum, count) => sum + count, 0);

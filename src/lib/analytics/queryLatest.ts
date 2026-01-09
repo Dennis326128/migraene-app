@@ -24,7 +24,7 @@ export interface LatestEntryResult {
     occurredAt: Date;
     occurredAtFormatted: string;
     painLevel: string;
-    painLocation: string | null;
+    painLocations: string[];
     medications: string[];
     notes: string | null;
     auraType: string;
@@ -191,7 +191,7 @@ export async function getLatestEntry(
   try {
     let query = supabase
       .from('pain_entries')
-      .select('id, timestamp_created, selected_date, selected_time, pain_level, pain_location, medications, notes, aura_type')
+      .select('id, timestamp_created, selected_date, selected_time, pain_level, pain_locations, medications, notes, aura_type')
       .eq('user_id', userId)
       .order('timestamp_created', { ascending: false })
       .limit(50); // Mehr laden für Filter
@@ -241,7 +241,7 @@ export async function getLatestEntry(
         occurredAt,
         occurredAtFormatted: formatOccurredAt(occurredAt),
         painLevel: targetEntry.pain_level,
-        painLocation: targetEntry.pain_location,
+        painLocations: (targetEntry as any).pain_locations || [],
         medications: (targetEntry.medications as string[]) || [],
         notes: targetEntry.notes,
         auraType: targetEntry.aura_type || 'keine',
@@ -269,7 +269,7 @@ export async function getLatestEntryWithMedication(
     
     const { data: entries, error } = await supabase
       .from('pain_entries')
-      .select('id, timestamp_created, selected_date, selected_time, pain_level, pain_location, medications, notes, aura_type')
+      .select('id, timestamp_created, selected_date, selected_time, pain_level, pain_locations, medications, notes, aura_type')
       .eq('user_id', userId)
       .not('medications', 'is', null)
       .order('timestamp_created', { ascending: false })
@@ -302,7 +302,7 @@ export async function getLatestEntryWithMedication(
             occurredAt,
             occurredAtFormatted: formatOccurredAt(occurredAt),
             painLevel: entry.pain_level,
-            painLocation: entry.pain_location,
+            painLocations: (entry as any).pain_locations || [],
             medications: meds,
             notes: entry.notes,
             auraType: entry.aura_type || 'keine',
@@ -433,7 +433,7 @@ export async function getEntriesWithMedication(
     
     const { data: entries, error } = await supabase
       .from('pain_entries')
-      .select('id, timestamp_created, selected_date, selected_time, pain_level, pain_location, medications, notes, aura_type')
+      .select('id, timestamp_created, selected_date, selected_time, pain_level, pain_locations, medications, notes, aura_type')
       .eq('user_id', userId)
       .not('medications', 'is', null)
       .order('timestamp_created', { ascending: false })
@@ -463,7 +463,7 @@ export async function getEntriesWithMedication(
           occurredAt,
           occurredAtFormatted: formatOccurredAt(occurredAt),
           painLevel: entry.pain_level,
-          painLocation: entry.pain_location,
+          painLocations: (entry as any).pain_locations || [],
           medications: meds,
           notes: entry.notes,
           auraType: entry.aura_type || 'keine',

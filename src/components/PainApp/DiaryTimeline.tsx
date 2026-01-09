@@ -497,9 +497,9 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
                   <Badge className={getPainLevelDisplay(item.data.pain_level).color}>
                     {getPainLevelDisplay(item.data.pain_level).label} ({getPainLevelDisplay(item.data.pain_level).numeric})
                   </Badge>
-                  {item.data.pain_location && (
+                  {item.data.pain_locations && item.data.pain_locations.length > 0 && (
                     <Badge variant="outline" className="text-xs">
-                      📍 {item.data.pain_location}
+                      📍 {item.data.pain_locations.join(', ')}
                     </Badge>
                   )}
                 </div>

@@ -296,12 +296,12 @@ export const DaySheet: React.FC<DaySheetProps> = ({
                   );
                 })()}
                 
-                {/* Pain Location */}
-                {(entryData as any).pain_location && (
+                {/* Pain Locations */}
+                {(entryData as any).pain_locations && (entryData as any).pain_locations.length > 0 && (
                   <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
                     <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                     <p className="text-sm text-foreground">
-                      {painLocationLabels[(entryData as any).pain_location] || (entryData as any).pain_location}
+                      {(entryData as any).pain_locations.map((loc: string) => painLocationLabels[loc] || loc).join(', ')}
                     </p>
                   </div>
                 )}

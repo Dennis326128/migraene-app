@@ -16,7 +16,7 @@ export const EntryPayloadSchema = z.object({
     MigraineLevelEnum.refine(v => v !== "-", { message: "Bitte Migräne-Intensität auswählen" })
   ]),
   aura_type: AuraTypeEnum.optional().default("keine"),
-  pain_location: PainLocationEnum.nullable().optional(),
+  pain_locations: z.array(PainLocationEnum).default([]),
   medications: z.array(z.string().min(1)).max(20).default([]),
   notes: z.string().max(2000).nullable().optional(),
   weather_id: z.number().int().nullable().optional(),

@@ -55,6 +55,11 @@ export function formatPainLocation(location: string): string {
   return locationLabels[location] || location;
 }
 
+export function formatPainLocations(locations: string[]): string {
+  if (!locations || locations.length === 0) return '';
+  return locations.map(formatPainLocation).join(', ');
+}
+
 export function convertNumericPainToCategory(level: string): "leicht" | "mittel" | "stark" | "sehr_stark" {
   // If already a category, return as-is
   if (['leicht', 'mittel', 'stark', 'sehr_stark'].includes(level)) {

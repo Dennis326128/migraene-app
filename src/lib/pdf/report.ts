@@ -991,8 +991,9 @@ function generateSpecialNotesText(entry: PainEntry): string {
   }
   
   // Schmerzlokalisation
-  if (entry.pain_location && entry.pain_location !== 'keine' && entry.pain_location !== '-') {
-    parts.push(formatPainLocation(entry.pain_location));
+  if (entry.pain_locations && entry.pain_locations.length > 0) {
+    const formattedLocations = entry.pain_locations.map(formatPainLocation).join(', ');
+    parts.push(formattedLocations);
   }
   
   // Kurze Notizen hinzufügen (max 50 Zeichen für Tabelle)

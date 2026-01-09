@@ -137,7 +137,7 @@ export function DraftComposerPage() {
         selected_date: draft.attack?.date.value || new Date().toISOString().slice(0, 10),
         selected_time: draft.attack?.time.value || new Date().toTimeString().slice(0, 5),
         pain_level: draft.attack?.painLevel.value || 5,
-        pain_location: draft.attack?.painLocation?.value as any || null,
+        pain_locations: draft.attack?.painLocation?.value ? [draft.attack.painLocation.value] : [],
         medications: draft.medications.map(m => m.medicationName.value).filter(Boolean) as string[],
         notes: draft.notes.value || null,
         aura_type: 'keine' as const,
