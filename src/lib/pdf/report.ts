@@ -125,6 +125,8 @@ type BuildReportParams = {
     fax?: string;
     email?: string;
     dateOfBirth?: string;
+    healthInsurance?: string;
+    insuranceNumber?: string;
   };
   doctors?: Array<{
     firstName?: string;
@@ -1213,6 +1215,14 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     
     if (patientData.email) {
       yPos = drawKeyValue(page, "E-Mail", patientData.email, yPos, font, fontBold);
+    }
+    
+    if (patientData.healthInsurance) {
+      yPos = drawKeyValue(page, "Krankenkasse", patientData.healthInsurance, yPos, font, fontBold);
+    }
+    
+    if (patientData.insuranceNumber) {
+      yPos = drawKeyValue(page, "Versicherungsnr.", patientData.insuranceNumber, yPos, font, fontBold);
     }
     
     yPos -= LAYOUT.sectionGap;
