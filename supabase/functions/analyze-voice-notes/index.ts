@@ -297,7 +297,7 @@ serve(async (req) => {
         selected_time,
         pain_level,
         aura_type,
-        pain_location,
+        pain_locations,
         medications,
         notes,
         weather:weather_logs!pain_entries_weather_id_fkey (
@@ -336,12 +336,18 @@ serve(async (req) => {
       const date = entry.selected_date || entry.timestamp_created.split('T')[0];
       const time = entry.selected_time || entry.timestamp_created.split('T')[1].substring(0, 5);
       
+      // Handle pain_locations as array, join for display
+      const painLocations = entry.pain_locations;
+      const painLocationDisplay = Array.isArray(painLocations) && painLocations.length > 0 
+        ? painLocations.join(', ') 
+        : 'nicht angegeben';
+      
       return {
         date,
         time,
         pain_level: entry.pain_level,
         aura_type: entry.aura_type,
-        pain_location: entry.pain_location || 'nicht angegeben',
+        pain_location: painLocationDisplay,
         medications: entry.medications?.join(', ') || 'keine',
         notes: entry.notes || '',
         weather: weather ? {
