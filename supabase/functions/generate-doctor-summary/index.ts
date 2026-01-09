@@ -76,7 +76,7 @@ Deno.serve(async (req) => {
         selected_time,
         pain_level,
         aura_type,
-        pain_location,
+        pain_locations,
         medications,
         notes,
         weather:weather_logs!pain_entries_weather_id_fkey (
@@ -241,6 +241,7 @@ ${entries.map(e => {
   const time = e.selected_time || '';
   const pain = e.pain_level || 'unbekannt';
   const meds = e.medications?.join(', ') || 'keine';
+  const locations = (e.pain_locations || []).join(', ') || 'keine Angabe';
   const weather = Array.isArray(e.weather) ? e.weather[0] : e.weather;
   const pressure = weather?.pressure_mb ? `${weather.pressure_mb}hPa` : '';
   const pressureChange = weather?.pressure_change_24h ? `(${weather.pressure_change_24h > 0 ? '+' : ''}${weather.pressure_change_24h}hPa/24h)` : '';
@@ -251,7 +252,7 @@ ${entries.map(e => {
     ? entryEffects.map(eff => `${eff.med_name}:${eff.effect_rating}`).join(', ')
     : 'keine Bewertung';
   
-  return `${date} ${time}: Schmerz ${pain}, Aura ${e.aura_type || 'keine'}, Meds ${meds}, Wirkung ${effectsText}${pressure ? `, Druck ${pressure}${pressureChange}` : ''}`;
+  return `${date} ${time}: Schmerz ${pain}, Aura ${e.aura_type || 'keine'}, Ort ${locations}, Meds ${meds}, Wirkung ${effectsText}${pressure ? `, Druck ${pressure}${pressureChange}` : ''}`;
 }).join('\n')}
 
 Gib NUR den fertig formatierten Text zurück, KEIN Markdown.`;
