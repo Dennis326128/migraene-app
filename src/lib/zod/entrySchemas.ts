@@ -60,8 +60,8 @@ export const medicationsArraySchema = z.array(medicationNameSchema)
   .optional()
   .default([]);
 
-// Location validation
-export const locationSchema = z.enum([
+// Location validation (single location enum)
+export const locationEnumSchema = z.enum([
   "einseitig_links",
   "einseitig_rechts", 
   "beidseitig",
@@ -71,7 +71,10 @@ export const locationSchema = z.enum([
   "top_of_head_burning"
 ], {
   errorMap: () => ({ message: "Ungültige Schmerzlokalisation" })
-}).optional().nullable();
+});
+
+// Locations array validation (0-n locations)
+export const locationsArraySchema = z.array(locationEnumSchema).default([]);
 
 // Aura type validation
 export const auraTypeSchema = z.enum([
@@ -95,7 +98,7 @@ export const entryFormSchema = z.object({
   pain_level: painLevelSchema,
   selected_date: dateSchema,
   selected_time: timeSchema,
-  pain_location: locationSchema,
+  pain_locations: locationsArraySchema,
   aura_type: auraTypeSchema,
   medications: medicationsArraySchema,
   notes: notesSchema,

@@ -24,7 +24,7 @@ export interface MigraineEntry {
   selected_time?: string;
   pain_level: string;
   aura_type?: string;
-  pain_location?: string;
+  pain_locations?: string[];
   medications: string[];
   medication_intakes?: MedicationIntakeInfo[];
   notes?: string | null;

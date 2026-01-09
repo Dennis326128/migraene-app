@@ -399,7 +399,7 @@ export type Database = {
           medications: string[] | null
           notes: string | null
           pain_level: string
-          pain_location: string | null
+          pain_locations: string[] | null
           selected_date: string | null
           selected_time: string | null
           timestamp_created: string | null
@@ -416,7 +416,7 @@ export type Database = {
           medications?: string[] | null
           notes?: string | null
           pain_level: string
-          pain_location?: string | null
+          pain_locations?: string[] | null
           selected_date?: string | null
           selected_time?: string | null
           timestamp_created?: string | null
@@ -433,7 +433,7 @@ export type Database = {
           medications?: string[] | null
           notes?: string | null
           pain_level?: string
-          pain_location?: string | null
+          pain_locations?: string[] | null
           selected_date?: string | null
           selected_time?: string | null
           timestamp_created?: string | null
@@ -1409,7 +1409,7 @@ export type Database = {
           medications: string[] | null
           notes: string | null
           pain_level: string
-          pain_location: string | null
+          pain_locations: string[] | null
           selected_date: string | null
           selected_time: string | null
           timestamp_created: string | null

@@ -91,7 +91,7 @@ export async function saveDraft(params: SaveDraftParams): Promise<SaveDraftResul
       pain_level: draft.attack?.painLevel?.value !== null 
         ? mapPainLevelToText(draft.attack.painLevel.value)
         : 'mittel',
-      pain_location: draft.attack?.painLocation?.value || null,
+      pain_locations: draft.attack?.painLocation?.value ? [draft.attack.painLocation.value] : [],
       aura_type: 'keine',
       medications: medicationNames.length > 0 ? medicationNames : null,
       medication_ids: medicationIds.length > 0 ? medicationIds : null,

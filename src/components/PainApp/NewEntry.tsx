@@ -60,7 +60,7 @@ interface MedicationWithEffectiveness {
   notes: string;
 }
 
-const painLocations = [
+const painLocationsOptions = [
   { value: "einseitig_links", label: "Einseitig links" },
   { value: "einseitig_rechts", label: "Einseitig rechts" },
   { value: "beidseitig", label: "Beidseitig" },
@@ -85,7 +85,7 @@ export const NewEntry = ({
   const painLevelSectionRef = useRef<HTMLDivElement>(null);
 
   const [painLevel, setPainLevel] = useState<number>(7);
-  const [painLocation, setPainLocation] = useState<string>("");
+  const [painLocations, setPainLocations] = useState<string[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedTime, setSelectedTime] = useState<string>("");
   // Medication state: Map<name, {doseQuarters, medicationId}>
@@ -153,7 +153,8 @@ export const NewEntry = ({
     if (!entry && userDefaults) {
       // Only apply defaults for new entries, not when editing existing ones
       if (userDefaults.default_pain_location) {
-        setPainLocation(userDefaults.default_pain_location);
+        // Convert legacy single location to array
+        setPainLocations([userDefaults.default_pain_location]);
       }
       if (userDefaults.default_symptoms?.length > 0) {
         setSelectedSymptoms(userDefaults.default_symptoms);
@@ -165,7 +166,7 @@ export const NewEntry = ({
     if (entry) {
       // Editing existing entry
       setPainLevel(normalizePainLevel(entry.pain_level || 7));
-      setPainLocation((entry as any).pain_location || "");
+      setPainLocations((entry as any).pain_locations || []);
       setSelectedDate(entry.selected_date || new Date().toISOString().slice(0, 10));
       setSelectedTime(entry.selected_time?.substring(0, 5) || new Date().toTimeString().slice(0, 5));
       setNotes(entry.notes || "");
@@ -430,7 +431,7 @@ export const NewEntry = ({
         selected_time: selectedTime.substring(0, 5),
         pain_level: painLevel,
         aura_type: "keine" as const,
-        pain_location: (painLocation || null) as "einseitig_links" | "einseitig_rechts" | "beidseitig" | "stirn" | "nacken" | "schlaefe" | "top_of_head_burning" | null,
+        pain_locations: painLocations,
         medications: medicationsArray,
         notes: combinedNotes || null,
         weather_id: weatherId,
@@ -565,7 +566,7 @@ export const NewEntry = ({
       // Save current selections as new user defaults
       try {
         const newDefaults = {
-          default_pain_location: painLocation || null,
+          default_pain_location: painLocations.length > 0 ? painLocations[0] : null,
           default_symptoms: selectedSymptoms,
         };
         await upsertDefaults.mutateAsync(newDefaults);
@@ -723,35 +724,56 @@ export const NewEntry = ({
         </div>
       </Card>
 
-      {/* Schmerzlokalisation - Collapsible */}
+      {/* Schmerzlokalisation - Collapsible Multi-Select */}
       <Collapsible open={painLocationOpen} onOpenChange={setPainLocationOpen}>
         <Card className="p-6 mb-4">
           <TouchSafeCollapsibleTrigger className="w-full flex items-center justify-between hover:opacity-80 transition-opacity">
             <Label className="text-base font-medium cursor-pointer">
-              Schmerzlokalisation
+              Schmerzlokalisation {painLocations.length > 0 && `(${painLocations.length})`}
             </Label>
             <ChevronDown className={`h-5 w-5 transition-transform duration-200 ${painLocationOpen ? 'rotate-180' : ''}`} />
           </TouchSafeCollapsibleTrigger>
           
           <CollapsibleContent className="mt-3">
-            <div className="grid gap-2">
-              <Button
-                type="button"
-                variant={painLocation === "" ? "default" : "outline"}
-                className="justify-start"
-                onClick={() => setPainLocation("")}
-                aria-pressed={painLocation === ""}
-              >
-                Nicht spezifiziert
-              </Button>
-              {painLocations.map((location) => (
+            <p className="text-sm text-muted-foreground mb-3">
+              Mehrfachauswahl möglich
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {painLocations.length > 0 && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground"
+                  onClick={() => setPainLocations([])}
+                >
+                  <X className="h-3 w-3 mr-1" />
+                  Alle entfernen
+                </Button>
+              )}
+              {painLocations.map((loc) => (
+                <Button
+                  key={loc}
+                  type="button"
+                  variant="default"
+                  size="sm"
+                  onClick={() => setPainLocations((prev) => prev.filter((l) => l !== loc))}
+                  aria-pressed={true}
+                >
+                  {loc.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                  <X className="h-3 w-3 ml-1" />
+                </Button>
+              ))}
+            </div>
+            <div className="grid gap-2 mt-3">
+              {painLocationsOptions.filter(loc => !painLocations.includes(loc.value)).map((location) => (
                 <Button
                   key={location.value}
                   type="button"
-                  variant={painLocation === location.value ? "default" : "outline"}
+                  variant="outline"
                   className="justify-start"
-                  onClick={() => setPainLocation(location.value)}
-                  aria-pressed={painLocation === location.value}
+                  onClick={() => setPainLocations((prev) => [...prev, location.value])}
+                  aria-pressed={false}
                 >
                   {location.label}
                 </Button>
