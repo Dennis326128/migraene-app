@@ -1474,12 +1474,18 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       medEntries.map(e => e.selected_date || e.timestamp_created?.split('T')[0])
     ).size;
     
-    // KPI-Boxen
-    const boxWidth = (LAYOUT.pageWidth - 2 * LAYOUT.margin - 30) / 4;
+    // Berechne Gesamttage im Zeitraum
+    const fromParsed = new Date(from);
+    const toParsed = new Date(to);
+    const daysCount = Math.max(1, Math.round((toParsed.getTime() - fromParsed.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+    
+    // KPI-Boxen - jetzt 5 Boxen
+    const boxWidth = (LAYOUT.pageWidth - 2 * LAYOUT.margin - 40) / 5;
     const boxHeight = 70;
     const boxY = yPos - 10;
     
     const kpis = [
+      { label: "Zeitraum gesamt", value: `${daysCount} Tage` },
       { label: "Attacken im Zeitraum", value: totalEntries.toString() },
       { label: "Ø Schmerzintensitat (0-10)", value: avgIntensity > 0 ? formatGermanDecimal(avgIntensity, 1) : "N/A" },
       { label: "Tage mit Schmerzen", value: daysWithPain.toString() },
@@ -1500,17 +1506,17 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       });
       
       // Wert (groß)
-      const valueWidth = fontBold.widthOfTextAtSize(kpi.value, 18);
+      const valueWidth = fontBold.widthOfTextAtSize(kpi.value, 16);
       page.drawText(kpi.value, {
         x: x + boxWidth / 2 - valueWidth / 2,
         y: boxY - 30,
-        size: 18,
+        size: 16,
         font: fontBold,
         color: COLORS.primaryLight,
       });
       
       // Label (klein, zentriert)
-      const labelLines = wrapText(kpi.label, boxWidth - 10, 7, font);
+      const labelLines = wrapText(kpi.label, boxWidth - 8, 7, font);
       labelLines.forEach((line, li) => {
         const labelWidth = font.widthOfTextAtSize(line, 7);
         page.drawText(line, {
