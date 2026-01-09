@@ -1,10 +1,8 @@
 import { Card } from "@/components/ui/card";
-import { ChevronRight, Pill, Shield, HelpCircle, User, Stethoscope, LogOut, CloudSun, MessageSquare, Smartphone } from "lucide-react";
+import { ChevronRight, Pill, Shield, HelpCircle, User, Stethoscope, LogOut, MessageSquare, Smartphone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
-import { toast } from "sonner";
 import { FeedbackSheet } from "@/components/Feedback";
 import { usePWAInstall } from "@/hooks/usePWAInstall";
 
@@ -14,33 +12,8 @@ interface SettingsOverviewProps {
 
 export const SettingsOverview = ({ onNavigate }: SettingsOverviewProps) => {
   const isMobile = useIsMobile();
-  const [loading, setLoading] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   const { canShowInstallPrompt, isStandalone } = usePWAInstall();
-
-  const handleWeatherBackfill = async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('backfill-missing-weather', {
-        headers: {
-          Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
-        }
-      });
-      
-      if (error) throw error;
-      
-      toast.success("Wetterdaten nachgetragen", {
-        description: `${data.success_count} von ${data.processed} Einträgen aktualisiert`
-      });
-    } catch (error) {
-      console.error('Weather backfill error:', error);
-      toast.error("Fehler", {
-        description: "Wetterdaten konnten nicht nachgetragen werden"
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Build sections dynamically based on PWA install state
   const sections = [
@@ -113,50 +86,6 @@ export const SettingsOverview = ({ onNavigate }: SettingsOverviewProps) => {
 
   return (
     <div className="space-y-3">
-      {/* Weather Backfill Action Card */}
-      <Card
-        className={cn(
-          "p-5 cursor-pointer transition-all hover:shadow-lg active:scale-[0.98]",
-          "bg-gradient-to-br from-orange-500/10 to-orange-500/5",
-          isMobile && "p-4",
-          loading && "opacity-50 pointer-events-none"
-        )}
-        onClick={handleWeatherBackfill}
-      >
-        <div className="flex items-center gap-4">
-          <div className={cn(
-            "shrink-0 rounded-full bg-background p-3",
-            isMobile && "p-2"
-          )}>
-            <CloudSun className={cn(
-              "text-orange-500",
-              isMobile ? "h-5 w-5" : "h-6 w-6"
-            )} />
-          </div>
-          
-          <div className="flex-1 min-w-0">
-            <h3 className={cn(
-              "font-semibold text-foreground mb-1",
-              isMobile ? "text-base" : "text-lg"
-            )}>
-              Wetterdaten nachtragen
-            </h3>
-            <p className={cn(
-              "text-muted-foreground",
-              isMobile ? "text-xs" : "text-sm"
-            )}>
-              Fehlende Wetterdaten für vergangene Einträge automatisch ergänzen
-            </p>
-          </div>
-
-          <ChevronRight className={cn(
-            "shrink-0 text-muted-foreground",
-            isMobile ? "h-5 w-5" : "h-6 w-6"
-          )} />
-        </div>
-      </Card>
-
-      {/* Regular Settings Sections */}
       {sections.map((section) => {
         const Icon = section.icon;
         return (
