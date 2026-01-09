@@ -1,6 +1,6 @@
 # Supabase E-Mail Templates – Migräne-App
 
-Moderne, deutsche E-Mail-Templates im Dark Design passend zur App.
+Moderne, deutsche E-Mail-Templates mit hellem, professionellem Design für eine vertrauenswürdige Gesundheits-App.
 
 ## Wichtig: Prefetch-Schutz
 
@@ -38,11 +38,11 @@ http://localhost:5173/auth/callback
 
 ---
 
-## Template 1: Confirm Signup (E-Mail bestätigen)
+## Template 1: Confirm Signup (Registrierung bestätigen)
 
 ### Subject
 ```
-Willkommen bei der Migräne-App – bitte bestätige deine E-Mail-Adresse
+Bitte bestätige deine Registrierung
 ```
 
 ### HTML Template
@@ -53,7 +53,7 @@ Willkommen bei der Migräne-App – bitte bestätige deine E-Mail-Adresse
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <title>E-Mail bestätigen – Migräne-App</title>
+  <title>Registrierung bestätigen</title>
   <!--[if mso]>
   <noscript>
     <xml>
@@ -64,91 +64,62 @@ Willkommen bei der Migräne-App – bitte bestätige deine E-Mail-Adresse
   </noscript>
   <![endif]-->
 </head>
-<body style="margin: 0; padding: 0; background-color: #0a0a0b; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;">
+<body style="margin: 0; padding: 0; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;">
   
   <!-- Preheader (hidden preview text) -->
   <div style="display: none; max-height: 0; overflow: hidden; mso-hide: all;">
-    Bestätige deine E-Mail-Adresse, um dein Konto zu aktivieren.
+    Bestätige deine E-Mail-Adresse, um deine Registrierung abzuschließen.
   </div>
   
   <!-- Email wrapper -->
-  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #0a0a0b;">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #f8fafc;">
     <tr>
-      <td align="center" style="padding: 40px 20px;">
+      <td align="center" style="padding: 48px 24px;">
         
         <!-- Main container -->
-        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width: 520px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width: 480px;">
           
-          <!-- Header -->
+          <!-- Header / Logo -->
           <tr>
-            <td align="center" style="padding-bottom: 32px;">
+            <td align="center" style="padding-bottom: 40px;">
               <table role="presentation" cellpadding="0" cellspacing="0" border="0">
                 <tr>
-                  <td style="padding-right: 12px; vertical-align: middle;">
-                    <!-- Green dot as brand indicator -->
-                    <div style="width: 12px; height: 12px; background-color: #16a34a; border-radius: 50%;"></div>
+                  <td style="padding-right: 10px; vertical-align: middle;">
+                    <div style="width: 10px; height: 10px; background-color: #16a34a; border-radius: 50%;"></div>
                   </td>
                   <td style="vertical-align: middle;">
-                    <span style="font-size: 20px; font-weight: 600; color: #f8fafc; letter-spacing: -0.02em;">Migräne-App</span>
+                    <span style="font-size: 18px; font-weight: 600; color: #1e293b; letter-spacing: -0.01em;">Migräne-App</span>
                   </td>
                 </tr>
               </table>
-              <p style="margin: 8px 0 0 0; font-size: 13px; color: #6b7280; letter-spacing: 0.02em;">
-                Dokumentiere deine Migräne. Erkenne Muster.
-              </p>
             </td>
           </tr>
           
           <!-- Content Card -->
           <tr>
             <td>
-              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #1b1f27; border-radius: 16px; border: 1px solid #282d38;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #ffffff; border-radius: 16px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);">
                 <tr>
-                  <td style="padding: 40px 36px;">
+                  <td style="padding: 48px 40px;">
                     
-                    <!-- Welcome Icon -->
-                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
-                      <tr>
-                        <td align="center" style="padding-bottom: 24px;">
-                          <div style="width: 56px; height: 56px; background-color: rgba(22, 163, 74, 0.15); border-radius: 14px; line-height: 56px; text-align: center;">
-                            <span style="font-size: 28px;">✨</span>
-                          </div>
-                        </td>
-                      </tr>
-                    </table>
-                    
-                    <!-- Greeting -->
-                    <h1 style="margin: 0 0 16px 0; font-size: 24px; font-weight: 600; color: #f8fafc; text-align: center; letter-spacing: -0.02em;">
-                      Willkommen!
+                    <!-- Headline -->
+                    <h1 style="margin: 0 0 24px 0; font-size: 22px; font-weight: 600; color: #1e293b; text-align: center; letter-spacing: -0.02em;">
+                      Registrierung bestätigen
                     </h1>
                     
-                    <p style="margin: 0 0 28px 0; font-size: 15px; line-height: 1.6; color: #a1a1aa; text-align: center;">
-                      Du hast dich erfolgreich für die Migräne-App registriert. Bitte bestätige deine E-Mail-Adresse, um dein Konto zu aktivieren.
+                    <!-- Greeting Text -->
+                    <p style="margin: 0 0 32px 0; font-size: 15px; line-height: 1.7; color: #475569; text-align: center;">
+                      Schön, dass du da bist 👋<br><br>
+                      Bitte bestätige deine E-Mail-Adresse, um deine Registrierung abzuschließen.
                     </p>
                     
                     <!-- CTA Button -->
                     <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
                       <tr>
-                        <td align="center" style="padding: 0 0 28px 0;">
-                          <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next={{ .RedirectTo }}" target="_blank" style="display: inline-block; background-color: #16a34a; color: #ffffff; font-size: 15px; font-weight: 600; text-decoration: none; padding: 14px 32px; border-radius: 10px; letter-spacing: -0.01em;">
+                        <td align="center" style="padding: 0 0 32px 0;">
+                          <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next={{ .RedirectTo }}" target="_blank" style="display: inline-block; background-color: #16a34a; color: #ffffff; font-size: 15px; font-weight: 600; text-decoration: none; padding: 14px 36px; border-radius: 10px; letter-spacing: -0.01em;">
                             E-Mail-Adresse bestätigen
                           </a>
-                        </td>
-                      </tr>
-                    </table>
-                    
-                    <!-- Alternative: OTP Code -->
-                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
-                      <tr>
-                        <td align="center" style="padding-bottom: 28px;">
-                          <div style="background-color: #14171f; border: 1px solid #282d38; border-radius: 10px; padding: 16px 24px; display: inline-block;">
-                            <p style="margin: 0 0 6px 0; font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">
-                              Alternativ: Einmal-Code
-                            </p>
-                            <p style="margin: 0; font-size: 26px; font-weight: 700; letter-spacing: 6px; color: #f8fafc; font-family: 'SF Mono', Monaco, Consolas, monospace;">
-                              {{ .Token }}
-                            </p>
-                          </div>
                         </td>
                       </tr>
                     </table>
@@ -157,14 +128,19 @@ Willkommen bei der Migräne-App – bitte bestätige deine E-Mail-Adresse
                     <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
                       <tr>
                         <td style="padding: 0 0 24px 0;">
-                          <div style="height: 1px; background-color: #282d38;"></div>
+                          <div style="height: 1px; background-color: #e2e8f0;"></div>
                         </td>
                       </tr>
                     </table>
                     
-                    <!-- Security notice -->
-                    <p style="margin: 0; font-size: 13px; line-height: 1.6; color: #6b7280; text-align: center;">
-                      Falls du dich nicht selbst registriert hast, kannst du diese E-Mail ignorieren. Dein Konto bleibt dann inaktiv.
+                    <!-- Hint Text -->
+                    <p style="margin: 0 0 8px 0; font-size: 13px; line-height: 1.6; color: #94a3b8; text-align: center;">
+                      Falls du dich nicht registriert hast, kannst du diese E-Mail ignorieren.
+                    </p>
+                    
+                    <!-- Trust Text -->
+                    <p style="margin: 0; font-size: 13px; line-height: 1.6; color: #94a3b8; text-align: center;">
+                      Deine Daten werden vertraulich behandelt.
                     </p>
                     
                   </td>
@@ -175,14 +151,14 @@ Willkommen bei der Migräne-App – bitte bestätige deine E-Mail-Adresse
           
           <!-- Footer -->
           <tr>
-            <td style="padding-top: 32px;">
+            <td style="padding-top: 40px;">
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
                 <tr>
                   <td align="center">
-                    <p style="margin: 0 0 12px 0; font-size: 12px; line-height: 1.6; color: #52525b;">
-                      Diese App dient der Dokumentation und Analyse deiner Angaben und ersetzt keine medizinische Beratung.
+                    <p style="margin: 0 0 8px 0; font-size: 12px; line-height: 1.6; color: #94a3b8;">
+                      Diese App dient der Dokumentation und ersetzt keine ärztliche Beratung.
                     </p>
-                    <p style="margin: 0; font-size: 12px; color: #52525b;">
+                    <p style="margin: 0; font-size: 12px; color: #94a3b8;">
                       Fragen? <a href="mailto:support@migraene-app.de" style="color: #16a34a; text-decoration: none;">support@migraene-app.de</a>
                     </p>
                   </td>
