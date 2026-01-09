@@ -31,6 +31,12 @@ interface NewEntryProps {
   onSave?: () => void;
   entry?: MigraineEntry | null;
   onLimitWarning?: (checks: any[]) => void;
+  // Voice prefill props
+  initialPainLevel?: number;
+  initialSelectedDate?: string;
+  initialSelectedTime?: string;
+  initialMedicationStates?: Record<string, { doseQuarters: number; medicationId?: string }>;
+  initialNotes?: string;
 }
 
 const painLevels = [
@@ -64,7 +70,17 @@ const painLocations = [
   { value: "top_of_head_burning", label: "Kopfoberseite (brennen)" },
 ];
 
-export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProps) => {
+export const NewEntry = ({ 
+  onBack, 
+  onSave, 
+  entry, 
+  onLimitWarning,
+  initialPainLevel,
+  initialSelectedDate,
+  initialSelectedTime,
+  initialMedicationStates,
+  initialNotes,
+}: NewEntryProps) => {
   const { toast } = useToast();
   const painLevelSectionRef = useRef<HTMLDivElement>(null);
 
@@ -147,19 +163,42 @@ export const NewEntry = ({ onBack, onSave, entry, onLimitWarning }: NewEntryProp
 
   useEffect(() => {
     if (entry) {
+      // Editing existing entry
       setPainLevel(normalizePainLevel(entry.pain_level || 7));
       setPainLocation((entry as any).pain_location || "");
       setSelectedDate(entry.selected_date || new Date().toISOString().slice(0, 10));
       setSelectedTime(entry.selected_time?.substring(0, 5) || new Date().toTimeString().slice(0, 5));
       setNotes(entry.notes || "");
-      
     } else {
+      // New entry - apply voice prefill or defaults
       const now = new Date();
-      setSelectedDate(now.toISOString().slice(0, 10));
-      setSelectedTime(now.toTimeString().slice(0, 5));
-      setSelectedMedications(new Map());
+      
+      // Pain level: use prefill or default
+      if (initialPainLevel !== undefined && initialPainLevel >= 1 && initialPainLevel <= 10) {
+        setPainLevel(initialPainLevel);
+      }
+      
+      // Date/Time: use prefill or current time
+      setSelectedDate(initialSelectedDate || now.toISOString().slice(0, 10));
+      setSelectedTime(initialSelectedTime || now.toTimeString().slice(0, 5));
+      
+      // Medications: use prefill or empty
+      if (initialMedicationStates && Object.keys(initialMedicationStates).length > 0) {
+        const medMap = new Map<string, { doseQuarters: number; medicationId?: string }>();
+        Object.entries(initialMedicationStates).forEach(([name, data]) => {
+          medMap.set(name, data);
+        });
+        setSelectedMedications(medMap);
+      } else {
+        setSelectedMedications(new Map());
+      }
+      
+      // Notes: use prefill or empty
+      if (initialNotes) {
+        setNotes(initialNotes);
+      }
     }
-  }, [entry]);
+  }, [entry, initialPainLevel, initialSelectedDate, initialSelectedTime, initialMedicationStates, initialNotes]);
   
   // Load existing intakes when editing (separate effect to wait for data)
   useEffect(() => {

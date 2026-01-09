@@ -42,9 +42,13 @@ type DiaryReportOrigin = 'home' | 'diary-timeline' | null;
 // Track origin for doctors page navigation
 type DoctorsOrigin = { origin?: 'export_migraine_diary'; editDoctorId?: string } | null;
 
+// Import VoicePrefillData type from MainMenu
+import type { VoicePrefillData } from "./MainMenu";
+
 export const PainApp: React.FC = () => {
   const [view, setView] = useState<View>("menu");
   const [editing, setEditing] = useState<PainEntry | null>(null);
+  const [voicePrefillData, setVoicePrefillData] = useState<VoicePrefillData | null>(null);
   const [diaryReportOrigin, setDiaryReportOrigin] = useState<DiaryReportOrigin>(null);
   const [doctorsOrigin, setDoctorsOrigin] = useState<DoctorsOrigin>(null);
   const { needsOnboarding, isLoading, completeOnboarding } = useOnboarding();
@@ -77,7 +81,7 @@ export const PainApp: React.FC = () => {
     }
   }, [isLoading, needsOnboarding, tutorialLoading, tutorialCompleted, setShowTutorial]);
 
-  const goHome = () => { setEditing(null); setView("menu"); };
+  const goHome = () => { setEditing(null); setVoicePrefillData(null); setView("menu"); };
   
   // Callback for child components to trigger limit warnings
   const handleLimitWarning = (checks: any[]) => {
@@ -115,7 +119,11 @@ export const PainApp: React.FC = () => {
       
       {view === "menu" && (
         <MainMenu
-          onNewEntry={() => { setEditing(null); setView("new"); }}
+          onNewEntry={(prefillData) => { 
+            setEditing(null); 
+            setVoicePrefillData(prefillData || null);
+            setView("new"); 
+          }}
           onViewEntries={() => setView("list")}
           onViewAnalysis={() => setView("analysis")}
           onViewSettings={() => setView("settings")}
@@ -161,6 +169,12 @@ export const PainApp: React.FC = () => {
           onBack={goHome}
           onSave={goHome}
           onLimitWarning={handleLimitWarning}
+          // Voice prefill props
+          initialPainLevel={voicePrefillData?.initialPainLevel}
+          initialSelectedDate={voicePrefillData?.initialSelectedDate}
+          initialSelectedTime={voicePrefillData?.initialSelectedTime}
+          initialMedicationStates={voicePrefillData?.initialMedicationStates}
+          initialNotes={voicePrefillData?.initialNotes}
         />
       )}
 
