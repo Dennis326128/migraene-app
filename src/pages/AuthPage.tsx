@@ -1,17 +1,18 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, CheckCircle, Mail } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { ensureUserProfile } from "@/utils/ensureUserProfile";
 import { LegalLinks } from "@/components/ui/legal-links";
 import { signupSchema, loginSchema } from "@/lib/zod/authSchemas";
+import { ResendConfirmationButton } from "@/components/auth/ResendConfirmationButton";
 
 // Google Icon SVG
 const GoogleIcon = () => (
@@ -40,6 +41,8 @@ export default function AuthPage() {
   const navigate = useNavigate();
   const [isLogin, setIsLogin] = useState(true);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [showConfirmationPending, setShowConfirmationPending] = useState(false);
+  const [pendingEmail, setPendingEmail] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -153,14 +156,6 @@ export default function AuthPage() {
         
         toast({ title: "Fehler", description: errorMsg, variant: "destructive" });
       } else {
-        // Bei Registrierung Toast anzeigen (E-Mail-Bestätigung nötig)
-        if (!isLogin) {
-          toast({
-            title: "Registrierung erfolgreich",
-            description: "Bitte bestätigen Sie Ihre E-Mail.",
-          });
-        }
-        
         if (isLogin) {
           await ensureUserProfile();
           navigate("/");
@@ -170,6 +165,10 @@ export default function AuthPage() {
             termsAccepted: acceptedTerms,
             privacyAccepted: acceptedPrivacy
           });
+          
+          // Zeige Bestätigungs-Pending Screen
+          setPendingEmail(email);
+          setShowConfirmationPending(true);
         }
       }
     } catch (error) {
@@ -244,6 +243,73 @@ export default function AuthPage() {
       }
     }
   };
+
+  // Confirmation Pending Screen nach Registrierung
+  if (showConfirmationPending) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <div className="w-full max-w-md space-y-6">
+          {/* App-Branding Header */}
+          <div className="text-center space-y-2 mb-4">
+            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-primary via-primary/80 to-primary/60 bg-clip-text text-transparent pb-2 leading-tight relative z-10">
+              Migräne-App
+            </h1>
+          </div>
+
+          <Card className="w-full">
+            <CardHeader className="text-center">
+              <div className="mx-auto mb-4 w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
+                <Mail className="h-7 w-7 text-primary" />
+              </div>
+              <CardTitle className="text-xl">Bestätige deine E-Mail</CardTitle>
+              <CardDescription className="text-base">
+                Wir haben dir eine E-Mail an{" "}
+                <span className="font-medium text-foreground">{pendingEmail}</span>{" "}
+                gesendet.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Alert className="border-primary/30 bg-primary/5">
+                <CheckCircle className="h-4 w-4 text-primary" />
+                <AlertDescription>
+                  Bitte klicke auf den Bestätigungslink in der E-Mail, um dein Konto zu aktivieren.
+                </AlertDescription>
+              </Alert>
+
+              <div className="pt-2 space-y-3">
+                <p className="text-sm text-muted-foreground text-center">
+                  Keine E-Mail erhalten? Prüfe deinen Spam-Ordner oder:
+                </p>
+                
+                <ResendConfirmationButton
+                  email={pendingEmail}
+                  variant="outline"
+                  className="w-full"
+                />
+              </div>
+
+              <div className="pt-4 border-t">
+                <button
+                  onClick={() => {
+                    setShowConfirmationPending(false);
+                    setPendingEmail("");
+                    setEmail("");
+                    setPassword("");
+                    setIsLogin(true);
+                  }}
+                  className="text-sm text-muted-foreground hover:text-foreground w-full text-center"
+                >
+                  ← Zurück zur Anmeldung
+                </button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <LegalLinks variant="inline" className="pt-2" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
