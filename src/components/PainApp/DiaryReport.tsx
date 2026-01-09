@@ -550,7 +550,9 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
           phone: freshPatientData.phone || "",
           fax: freshPatientData.fax || "",
           email: userEmail || "",
-          dateOfBirth: freshPatientData.date_of_birth || ""
+          dateOfBirth: freshPatientData.date_of_birth || "",
+          healthInsurance: freshPatientData.health_insurance || "",
+          insuranceNumber: freshPatientData.insurance_number || ""
         } : undefined,
         doctors: selectedDoctors.length > 0 ? selectedDoctors.map(d => ({
           firstName: d.first_name || "",
