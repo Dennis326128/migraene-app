@@ -27,8 +27,17 @@ import { Button } from "@/components/ui/button";
 import { FeedbackButton } from "@/components/Feedback";
 
 
+// Prefill data type for voice-initiated entries
+export interface VoicePrefillData {
+  initialPainLevel?: number;
+  initialSelectedDate?: string;
+  initialSelectedTime?: string;
+  initialMedicationStates?: Record<string, { doseQuarters: number; medicationId?: string }>;
+  initialNotes?: string;
+}
+
 interface MainMenuProps {
-  onNewEntry: () => void;
+  onNewEntry: (prefillData?: VoicePrefillData) => void;
   onViewEntries: () => void;
   onViewAnalysis: () => void;
   onViewSettings: () => void;
@@ -161,7 +170,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             <StartPageCard 
               variant="success" 
               touchFeedback 
-              onClick={onNewEntry}
+              onClick={() => onNewEntry()}
             >
               <StartPageCardHeader
                 icon="➕"
@@ -423,7 +432,8 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           
           switch (action) {
             case 'pain_entry':
-              onNewEntry();
+              // Pass prefillData to NewEntry for voice-initiated entries
+              onNewEntry(prefillData);
               break;
             case 'quick_entry':
               // Use prefillData from voice recognition if available
