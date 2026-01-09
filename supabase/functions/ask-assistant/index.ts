@@ -21,7 +21,7 @@ interface PainEntry {
   selected_date: string;
   pain_level: string;
   aura_type: string;
-  pain_location: string;
+  pain_locations: string[] | null;
   medications: string[] | null;
   notes: string | null;
 }
@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
     // Fetch pain entries
     const { data: entries, error: entriesError } = await supabaseClient
       .from('pain_entries')
-      .select('selected_date, pain_level, aura_type, pain_location, medications, notes')
+      .select('selected_date, pain_level, aura_type, pain_locations, medications, notes')
       .eq('user_id', user.id)
       .gte('selected_date', fromDate)
       .order('selected_date', { ascending: false })
@@ -269,11 +269,13 @@ function buildDataSummary(
   const auraTypes = entries.map(e => e.aura_type).filter(a => a && a !== 'keine');
   const uniqueAuras = [...new Set(auraTypes)];
 
-  // Pain locations
-  const locations = entries.map(e => e.pain_location).filter(Boolean);
+  // Pain locations (array format)
   const locationCounts: Record<string, number> = {};
-  locations.forEach(l => {
-    if (l) locationCounts[l] = (locationCounts[l] || 0) + 1;
+  entries.forEach(e => {
+    const locs = e.pain_locations || [];
+    locs.forEach(l => {
+      if (l) locationCounts[l] = (locationCounts[l] || 0) + 1;
+    });
   });
   const topLocations = Object.entries(locationCounts)
     .sort((a, b) => b[1] - a[1])
