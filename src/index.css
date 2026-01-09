@@ -339,6 +339,24 @@ All colors MUST be HSL.
   user-select: none;
   -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
+  caret-color: transparent;
+}
+
+/* ================================================
+   Global Caret (Cursor) Control
+   Prevent blinking cursor on non-editable elements
+   ================================================ */
+
+/* Hide caret on all elements by default */
+*:not(input):not(textarea):not([contenteditable="true"]) {
+  caret-color: transparent;
+}
+
+/* Restore caret for actual input fields */
+input,
+textarea,
+[contenteditable="true"] {
+  caret-color: auto;
 }
 
 .touch-interactive {
