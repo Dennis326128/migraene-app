@@ -7,12 +7,12 @@ import { Label } from '@/components/ui/label';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Brain, Loader2, Calendar as CalendarIcon, AlertTriangle, ChevronDown, ChevronRight, Activity, Cloud, Pill, Database, Clock, Tag } from 'lucide-react';
+import { Brain, Loader2, Calendar as CalendarIcon, RefreshCw, ChevronDown, ChevronRight, Activity, Cloud, Pill, Database, Clock, Tag, Info } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from '@/hooks/use-toast';
 import { format, subMonths } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { logError } from '@/lib/utils/errorMessages';
 
 // Structured analysis types
 interface StructuredAnalysis {
@@ -74,10 +74,12 @@ interface AnalysisResult {
   };
 }
 
-interface AnalysisError {
-  requestId?: string;
-  error: string;
-  details?: string[];
+// Simplified error state - no technical details exposed to UI
+interface AnalysisErrorState {
+  hasError: boolean;
+  // Internal only for logging
+  _internalRequestId?: string;
+  _internalError?: string;
 }
 
 // Icon mapping for sections
@@ -291,7 +293,7 @@ function StructuredResultsDisplay({ data }: { data: StructuredAnalysis }) {
 export function VoiceNotesAIAnalysis() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
-  const [analysisError, setAnalysisError] = useState<AnalysisError | null>(null);
+  const [analysisError, setAnalysisError] = useState<AnalysisErrorState | null>(null);
   const [dateRange, setDateRange] = useState<{from: Date, to: Date}>({
     from: subMonths(new Date(), 3),
     to: new Date()
@@ -329,33 +331,56 @@ export function VoiceNotesAIAnalysis() {
 
       setDateRange({ from: earliestDate, to: new Date() });
     } catch (error) {
-      console.error('Error loading first entry date:', error);
-      toast({
-        title: 'Hinweis',
-        description: 'Konnte erstes Eintragsdatum nicht laden',
-        variant: 'destructive'
-      });
+      logError('VoiceNotesAIAnalysis.loadFirstEntryDate', error);
+      // Silently fail - user can still manually select dates
     } finally {
       setIsLoadingFirstEntry(false);
     }
   };
 
+  /**
+   * Handles all error scenarios and sets user-friendly error state.
+   * Technical details are logged but never shown to users.
+   */
+  const handleAnalysisError = (error: unknown, requestId?: string) => {
+    // Log technical details internally for debugging
+    logError('VoiceNotesAIAnalysis.runAnalysis', error);
+    
+    // Extract request ID if available for internal tracking
+    let internalRequestId = requestId;
+    let internalError = 'Unknown error';
+    
+    if (error instanceof Error) {
+      internalError = error.message;
+    }
+    
+    // Set simple error state - NO technical details exposed
+    setAnalysisError({
+      hasError: true,
+      _internalRequestId: internalRequestId,
+      _internalError: internalError,
+    });
+  };
+
   const runAnalysis = async () => {
+    // Clear previous error and results when starting new analysis
     setAnalysisError(null);
     
     const daysDiff = Math.ceil((dateRange.to.getTime() - dateRange.from.getTime()) / (1000 * 60 * 60 * 24));
     
+    // User input validation - these are user errors, not system errors
     if (daysDiff > 730) {
-      toast({ title: 'Zeitraum zu groß', description: 'Maximal 2 Jahre (730 Tage)', variant: 'destructive' });
+      setAnalysisError({ hasError: true, _internalError: 'Time range too large' });
       return;
     }
 
     if (dateRange.from > new Date()) {
-      toast({ title: 'Ungültiges Datum', description: 'Start-Datum darf nicht in der Zukunft liegen', variant: 'destructive' });
+      setAnalysisError({ hasError: true, _internalError: 'Start date in future' });
       return;
     }
 
     setIsAnalyzing(true);
+    
     try {
       const { data, error } = await supabase.functions.invoke('analyze-voice-notes', {
         body: {
@@ -364,44 +389,45 @@ export function VoiceNotesAIAnalysis() {
         }
       });
 
+      // Handle Supabase function invocation errors (network, 500, etc.)
       if (error) {
-        let errorData: AnalysisError = { error: error.message || 'Unbekannter Fehler' };
+        let requestId: string | undefined;
+        
+        // Try to extract request ID for internal logging only
         if (error.context?.body) {
           try {
             const bodyText = await error.context.body.text();
             const parsed = JSON.parse(bodyText);
-            errorData = { requestId: parsed.requestId, error: parsed.error || error.message, details: parsed.details };
-          } catch { /* ignore */ }
+            requestId = parsed.requestId;
+          } catch { 
+            // Ignore parse errors - just for logging
+          }
         }
-        setAnalysisError(errorData);
-        toast({ title: 'Analyse fehlgeschlagen', description: errorData.error, variant: 'destructive' });
+        
+        handleAnalysisError(error, requestId);
         return;
       }
 
-      if (data.error) {
-        setAnalysisError({ requestId: data.requestId, error: data.error, details: data.details });
-        toast({ title: 'Analyse fehlgeschlagen', description: data.error, variant: 'destructive' });
+      // Handle API-level errors returned in response body
+      if (data?.error) {
+        handleAnalysisError(new Error(data.error), data.requestId);
         return;
       }
 
+      // Success! Clear any error state and show results
+      setAnalysisError(null);
       setAnalysisResult(data);
       
-      const parts = [];
-      if (data.analyzed_entries > 0) parts.push(`${data.analyzed_entries} Einträge`);
-      if (data.voice_notes_count > 0) parts.push(`${data.voice_notes_count} Notizen`);
-      
-      toast({
-        title: 'Analyse abgeschlossen',
-        description: `${parts.join(' + ')} analysiert${data.ai_available === false ? ' (ohne KI)' : ''}`
-      });
     } catch (error) {
-      console.error('AI Analysis Error:', error);
-      const errorMsg = error instanceof Error ? error.message : 'Analyse fehlgeschlagen';
-      setAnalysisError({ error: errorMsg });
-      toast({ title: 'Fehler', description: errorMsg, variant: 'destructive' });
+      // Catch-all for unexpected errors (network timeout, JSON parse, etc.)
+      handleAnalysisError(error);
     } finally {
       setIsAnalyzing(false);
     }
+  };
+
+  const handleRetry = () => {
+    runAnalysis();
   };
 
   return (
@@ -490,41 +516,69 @@ export function VoiceNotesAIAnalysis() {
             </div>
           </div>
 
-          {/* Error Display */}
-          {analysisError && (
-            <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription>
-                <div className="space-y-1">
-                  <p className="font-medium">{analysisError.error}</p>
-                  {analysisError.details && (
-                    <ul className="text-xs list-disc ml-4">
-                      {analysisError.details.map((d, i) => <li key={i}>{d}</li>)}
-                    </ul>
-                  )}
-                  {analysisError.requestId && (
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Request-ID: <code className="bg-muted px-1 rounded">{analysisError.requestId}</code>
+          {/* User-friendly Error Display */}
+          {analysisError?.hasError && (
+            <Card className="border-muted bg-muted/30">
+              <CardContent className="p-6">
+                <div className="flex flex-col items-center text-center space-y-4">
+                  <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
+                    <Info className="h-6 w-6 text-muted-foreground" />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <h3 className="font-medium text-foreground">
+                      KI-Analyse aktuell nicht verfügbar
+                    </h3>
+                    <p className="text-sm text-muted-foreground max-w-sm">
+                      Die KI-Musteranalyse konnte im Moment leider nicht durchgeführt werden.
+                      Bitte versuche es später noch einmal.
                     </p>
-                  )}
+                    <p className="text-xs text-muted-foreground/70">
+                      Deine Daten sind sicher gespeichert.
+                    </p>
+                  </div>
+                  
+                  <div className="flex gap-3 pt-2">
+                    <Button 
+                      onClick={handleRetry} 
+                      variant="default"
+                      size="sm"
+                      disabled={isAnalyzing}
+                    >
+                      {isAnalyzing ? (
+                        <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Wird geladen...</>
+                      ) : (
+                        <><RefreshCw className="h-4 w-4 mr-2" /> Erneut versuchen</>
+                      )}
+                    </Button>
+                    <Button 
+                      onClick={() => setAnalysisError(null)} 
+                      variant="ghost"
+                      size="sm"
+                    >
+                      Schließen
+                    </Button>
+                  </div>
                 </div>
-              </AlertDescription>
-            </Alert>
+              </CardContent>
+            </Card>
           )}
 
-          {/* Analysis Button */}
-          <Button onClick={runAnalysis} disabled={isAnalyzing} className="w-full" size="lg">
-            {isAnalyzing ? (
-              <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Analysiere...</>
-            ) : (
-              <><Brain className="h-4 w-4 mr-2" /> Analyse starten</>
-            )}
-          </Button>
+          {/* Analysis Button - only show if no error is displayed */}
+          {!analysisError?.hasError && (
+            <Button onClick={runAnalysis} disabled={isAnalyzing} className="w-full" size="lg">
+              {isAnalyzing ? (
+                <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Analyse läuft …</>
+              ) : (
+                <><Brain className="h-4 w-4 mr-2" /> Analyse starten</>
+              )}
+            </Button>
+          )}
 
           {/* AI availability hint */}
           {analysisResult?.ai_available === false && (
             <Alert>
-              <AlertTriangle className="h-4 w-4" />
+              <Info className="h-4 w-4" />
               <AlertDescription className="text-sm">
                 KI-Text war nicht verfügbar. Ergebnisse basieren auf statistischer Auswertung.
               </AlertDescription>
