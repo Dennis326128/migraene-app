@@ -1070,8 +1070,10 @@ export type Database = {
           include_ai_analysis: boolean | null
           include_all_medications: boolean | null
           include_chart: boolean | null
+          include_context_notes: boolean | null
           include_doctor_data: boolean | null
           include_entries_list: boolean | null
+          include_entry_notes: boolean | null
           include_medication_summary: boolean | null
           include_patient_data: boolean | null
           include_statistics: boolean | null
@@ -1091,8 +1093,10 @@ export type Database = {
           include_ai_analysis?: boolean | null
           include_all_medications?: boolean | null
           include_chart?: boolean | null
+          include_context_notes?: boolean | null
           include_doctor_data?: boolean | null
           include_entries_list?: boolean | null
+          include_entry_notes?: boolean | null
           include_medication_summary?: boolean | null
           include_patient_data?: boolean | null
           include_statistics?: boolean | null
@@ -1112,8 +1116,10 @@ export type Database = {
           include_ai_analysis?: boolean | null
           include_all_medications?: boolean | null
           include_chart?: boolean | null
+          include_context_notes?: boolean | null
           include_doctor_data?: boolean | null
           include_entries_list?: boolean | null
+          include_entry_notes?: boolean | null
           include_medication_summary?: boolean | null
           include_patient_data?: boolean | null
           include_statistics?: boolean | null
