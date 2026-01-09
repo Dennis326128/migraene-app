@@ -727,31 +727,25 @@ export const NewEntry = ({
       {/* Schmerzlokalisation - Collapsible Multi-Select */}
       <Collapsible open={painLocationOpen} onOpenChange={setPainLocationOpen}>
         <Card className="p-6 mb-4">
-          <TouchSafeCollapsibleTrigger className="w-full flex items-center justify-between hover:opacity-80 transition-opacity">
-            <Label className="text-base font-medium cursor-pointer">
-              Schmerzlokalisation {painLocations.length > 0 && `(${painLocations.length})`}
-            </Label>
-            <ChevronDown className={`h-5 w-5 transition-transform duration-200 ${painLocationOpen ? 'rotate-180' : ''}`} />
-          </TouchSafeCollapsibleTrigger>
+          <div className="flex items-center justify-between">
+            <TouchSafeCollapsibleTrigger className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+              <Label className="text-base font-medium cursor-pointer">
+                Schmerzlokalisation {painLocations.length > 0 && `(${painLocations.length})`}
+              </Label>
+              <ChevronDown className={`h-5 w-5 transition-transform duration-200 ${painLocationOpen ? 'rotate-180' : ''}`} />
+            </TouchSafeCollapsibleTrigger>
+            {painLocations.length >= 2 && (
+              <button
+                type="button"
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => setPainLocations([])}
+              >
+                Alle entfernen
+              </button>
+            )}
+          </div>
           
           <CollapsibleContent className="mt-3">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-sm text-muted-foreground">
-                Mehrfachauswahl möglich
-              </p>
-              {painLocations.length > 0 && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="text-muted-foreground h-auto py-1 px-2"
-                  onClick={() => setPainLocations([])}
-                >
-                  <X className="h-3 w-3 mr-1" />
-                  Alle entfernen
-                </Button>
-              )}
-            </div>
             <div className="flex flex-wrap gap-2">
               {painLocationsOptions.map((location) => {
                 const active = painLocations.includes(location.value);
@@ -782,10 +776,23 @@ export const NewEntry = ({
       {/* Symptome - Collapsible */}
       <Collapsible open={symptomsOpen} onOpenChange={setSymptomsOpen}>
         <Card className="p-6 mb-4">
-          <TouchSafeCollapsibleTrigger className="w-full flex items-center justify-between hover:opacity-80 transition-opacity">
-            <Label className="text-base font-medium cursor-pointer">Begleitsymptome</Label>
-            <ChevronDown className={`h-5 w-5 transition-transform duration-200 ${symptomsOpen ? 'rotate-180' : ''}`} />
-          </TouchSafeCollapsibleTrigger>
+          <div className="flex items-center justify-between">
+            <TouchSafeCollapsibleTrigger className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+              <Label className="text-base font-medium cursor-pointer">
+                Begleitsymptome {selectedSymptoms.length > 0 && `(${selectedSymptoms.length})`}
+              </Label>
+              <ChevronDown className={`h-5 w-5 transition-transform duration-200 ${symptomsOpen ? 'rotate-180' : ''}`} />
+            </TouchSafeCollapsibleTrigger>
+            {selectedSymptoms.length >= 2 && (
+              <button
+                type="button"
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => setSelectedSymptoms([])}
+              >
+                Alle entfernen
+              </button>
+            )}
+          </div>
           
           <CollapsibleContent>
             {loadingSymptoms && entry ? (
