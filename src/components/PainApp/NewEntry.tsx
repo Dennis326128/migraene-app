@@ -735,49 +735,45 @@ export const NewEntry = ({
           </TouchSafeCollapsibleTrigger>
           
           <CollapsibleContent className="mt-3">
-            <p className="text-sm text-muted-foreground mb-3">
-              Mehrfachauswahl möglich
-            </p>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm text-muted-foreground">
+                Mehrfachauswahl möglich
+              </p>
               {painLocations.length > 0 && (
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="text-muted-foreground"
+                  className="text-muted-foreground h-auto py-1 px-2"
                   onClick={() => setPainLocations([])}
                 >
                   <X className="h-3 w-3 mr-1" />
                   Alle entfernen
                 </Button>
               )}
-              {painLocations.map((loc) => (
-                <Button
-                  key={loc}
-                  type="button"
-                  variant="default"
-                  size="sm"
-                  onClick={() => setPainLocations((prev) => prev.filter((l) => l !== loc))}
-                  aria-pressed={true}
-                >
-                  {loc.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-                  <X className="h-3 w-3 ml-1" />
-                </Button>
-              ))}
             </div>
-            <div className="grid gap-2 mt-3">
-              {painLocationsOptions.filter(loc => !painLocations.includes(loc.value)).map((location) => (
-                <Button
-                  key={location.value}
-                  type="button"
-                  variant="outline"
-                  className="justify-start"
-                  onClick={() => setPainLocations((prev) => [...prev, location.value])}
-                  aria-pressed={false}
-                >
-                  {location.label}
-                </Button>
-              ))}
+            <div className="flex flex-wrap gap-2">
+              {painLocationsOptions.map((location) => {
+                const active = painLocations.includes(location.value);
+                return (
+                  <Button
+                    key={location.value}
+                    type="button"
+                    variant={active ? "default" : "outline"}
+                    size="sm"
+                    onClick={() =>
+                      setPainLocations((prev) =>
+                        prev.includes(location.value)
+                          ? prev.filter((l) => l !== location.value)
+                          : [...prev, location.value]
+                      )
+                    }
+                    aria-pressed={active}
+                  >
+                    {location.label}
+                  </Button>
+                );
+              })}
             </div>
           </CollapsibleContent>
         </Card>
