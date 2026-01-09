@@ -1,6 +1,6 @@
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Activity, MapPin, Brain, Pill, Info, AlertTriangle } from "lucide-react";
+import { Activity, MapPin, Brain, Pill, Info, AlertTriangle, Calendar } from "lucide-react";
 import { formatPainLocation, formatAuraType } from "@/lib/utils/pain";
 import { getEffectLabel } from "@/lib/utils/medicationEffects";
 import type { PatternStatistics, MedicationLimitInfo, MedicationEffectStats } from "@/lib/statistics";
@@ -24,6 +24,7 @@ interface PatternCardsProps {
   statistics: PatternStatistics;
   isLoading?: boolean;
   overuseInfo?: OveruseInfo;
+  daysInRange?: number;
 }
 
 // Helper component for Info icon with tooltip
@@ -114,13 +115,13 @@ function MedicationEffectDisplay({ med, showLimit = false }: { med: MedicationEf
   );
 }
 
-export function PatternCards({ statistics, isLoading = false, overuseInfo }: PatternCardsProps) {
+export function PatternCards({ statistics, isLoading = false, overuseInfo, daysInRange }: PatternCardsProps) {
   if (isLoading) {
     return (
       <div className="space-y-4 mb-6">
         <h3 className="text-lg font-semibold">Deine Muster in diesem Zeitraum</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {[...Array(4)].map((_, i) => (
+          {[...Array(5)].map((_, i) => (
             <Card key={i} className="animate-pulse">
               <CardContent className="p-6">
                 <div className="h-4 bg-muted rounded w-3/4 mb-2"></div>
@@ -156,6 +157,34 @@ export function PatternCards({ statistics, isLoading = false, overuseInfo }: Pat
   return (
     <div className="space-y-4 mb-6">
       <h3 className="text-lg font-semibold">Deine Muster in diesem Zeitraum</h3>
+      
+      {/* Übersichtskarte: Zeitraum & Episoden */}
+      {daysInRange !== undefined && (
+        <Card className="bg-primary/5 border-primary/20">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-6 flex-wrap">
+              <div className="flex items-center gap-3">
+                <Calendar className="h-5 w-5 text-primary" />
+                <div>
+                  <span className="text-2xl font-bold text-primary">{daysInRange}</span>
+                  <span className="text-sm text-muted-foreground ml-1">Tage gesamt</span>
+                </div>
+              </div>
+              <div className="h-8 w-px bg-border hidden sm:block" />
+              <div>
+                <span className="text-2xl font-bold">{painProfile.totalEpisodes}</span>
+                <span className="text-sm text-muted-foreground ml-1">Episoden</span>
+              </div>
+              <div className="h-8 w-px bg-border hidden sm:block" />
+              <div>
+                <span className="text-2xl font-bold">{painProfile.average.toFixed(1)}</span>
+                <span className="text-sm text-muted-foreground ml-1">Ø Intensität</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Schmerzprofil */}
         <Card>

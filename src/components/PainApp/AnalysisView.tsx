@@ -198,6 +198,16 @@ export function AnalysisView({ onBack, onNavigateToLimits }: AnalysisViewProps) 
     );
   }, [filteredEntries, medicationEffectsData, entrySymptoms, medicationLimits, entries]);
 
+  // Berechne Gesamttage im Zeitraum
+  const daysInRange = useMemo(() => {
+    if (!from || !to) return undefined;
+    const fromDate = new Date(from);
+    const toDate = new Date(to);
+    const diffTime = toDate.getTime() - fromDate.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    return Math.max(1, diffDays);
+  }, [from, to]);
+
   // TEIL D: Check if any medication has warning/reached/exceeded status
   const hasOveruseWarning = useMemo(() => {
     return patternStats.medicationAndEffect.topMedications.some(med => {
@@ -313,6 +323,7 @@ export function AnalysisView({ onBack, onNavigateToLimits }: AnalysisViewProps) 
                 <PatternCards 
                   statistics={patternStats} 
                   isLoading={entriesLoading}
+                  daysInRange={daysInRange}
                   overuseInfo={{
                     hasWarning: hasOveruseWarning,
                     medicationsWithWarning,
