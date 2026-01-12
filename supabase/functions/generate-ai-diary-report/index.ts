@@ -12,10 +12,10 @@ const FREE_DIARY_REPORT_MONTHLY = 5;
 const COOLDOWN_SECONDS = 60;
 const FEATURE_NAME = 'diary_report';
 
-// Validation schema
+// Validation schema - accepts ISO dates with or without timezone (local datetime ok)
 const RequestSchema = z.object({
-  fromDate: z.string().datetime({ message: 'fromDate muss ISO 8601 Format haben' }),
-  toDate: z.string().datetime({ message: 'toDate muss ISO 8601 Format haben' }),
+  fromDate: z.string().refine(val => !isNaN(Date.parse(val)), { message: 'fromDate muss gültiges Datum sein' }),
+  toDate: z.string().refine(val => !isNaN(Date.parse(val)), { message: 'toDate muss gültiges Datum sein' }),
   includeStats: z.boolean().optional().default(true),
   includeTherapies: z.boolean().optional().default(true),
   includeEntryNotes: z.boolean().optional().default(true),
@@ -511,7 +511,7 @@ Antworte NUR mit dem JSON-Objekt.`;
         .from('ai_reports')
         .update({
           title: reportTitle,
-          response_json: result,
+          response_json: { structured: result },
           input_summary: {
             entries: structuredEntries.length,
             notes: voiceNotes?.length || 0,
@@ -541,7 +541,7 @@ Antworte NUR mit dem JSON-Objekt.`;
             notes: voiceNotes?.length || 0,
             toggles: requestBody,
           },
-          response_json: result,
+          response_json: { structured: result },
           model: 'google/gemini-2.5-flash',
           dedupe_key: dedupeKey,
         })
