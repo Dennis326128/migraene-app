@@ -38,36 +38,60 @@ const RequestSchema = z.object({
 
 // Helper: Get Europe/Berlin UTC offset for a given UTC instant (handles DST)
 // Returns offset in minutes (e.g., +60 for CET, +120 for CEST)
+// Robust parsing handles: "GMT+1", "GMT+01:00", "UTC+2", "GMT-5", etc.
 function getBerlinOffsetMinutes(utcDate: Date): number {
-  // Use Intl to get the actual offset for Berlin at this UTC instant
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Europe/Berlin',
-    timeZoneName: 'shortOffset'
-  });
-  const parts = formatter.formatToParts(utcDate);
-  const tzPart = parts.find(p => p.type === 'timeZoneName');
-  if (!tzPart) return 60; // Default to CET
-  
-  // Parse offset like "GMT+1" or "GMT+2"
-  const match = tzPart.value.match(/GMT([+-])(\d+)/);
-  if (match) {
-    const sign = match[1] === '+' ? 1 : -1;
-    const hours = parseInt(match[2], 10);
-    return sign * hours * 60;
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Europe/Berlin',
+      timeZoneName: 'shortOffset'
+    });
+    const parts = formatter.formatToParts(utcDate);
+    const tzPart = parts.find(p => p.type === 'timeZoneName');
+    
+    if (!tzPart) {
+      console.warn('[getBerlinOffsetMinutes] No timeZoneName part found, defaulting to CET (+60)');
+      return 60;
+    }
+    
+    // Robust regex: handles GMT+1, GMT+01:00, UTC+2, GMT-05:00, etc.
+    const match = tzPart.value.match(/(?:GMT|UTC)([+-])(\d{1,2})(?::?(\d{2}))?/);
+    if (match) {
+      const sign = match[1] === '+' ? 1 : -1;
+      const hours = parseInt(match[2], 10);
+      const mins = match[3] ? parseInt(match[3], 10) : 0;
+      return sign * (hours * 60 + mins);
+    }
+    
+    console.warn(`[getBerlinOffsetMinutes] Failed to parse offset from "${tzPart.value}", defaulting to CET (+60)`);
+    return 60;
+  } catch (err) {
+    console.warn('[getBerlinOffsetMinutes] Exception during offset calculation:', err);
+    return 60;
   }
-  return 60; // Default to CET
+}
+
+// Helper: Format a UTC Date to Berlin local time and extract HH:MM
+function getBerlinTimeHHMM(utcDate: Date): string {
+  const formatter = new Intl.DateTimeFormat('de-DE', {
+    timeZone: 'Europe/Berlin',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  });
+  return formatter.format(utcDate);
 }
 
 /**
  * Convert a date string (YYYY-MM-DD) to the UTC ISO timestamp that represents
  * exactly 00:00:00 in Europe/Berlin timezone on that date.
  * 
- * Uses 2-pass approach to handle DST transitions correctly:
+ * Uses multi-pass approach to handle DST transitions correctly:
  * 1. Start with probe at UTC midnight
  * 2. Get Berlin offset at that probe time
  * 3. Compute first approximation of actual UTC
  * 4. Re-check Berlin offset at the approximation (may differ due to DST)
- * 5. Final adjustment with correct offset
+ * 5. If still not 00:00 in Berlin, do a third pass
+ * 6. Validate final result is actually Berlin midnight
  * 
  * Example: 2026-01-12 in Berlin (CET, UTC+1)
  * - Berlin 00:00:00+01:00 = 2026-01-11T23:00:00Z
@@ -85,19 +109,40 @@ function berlinMidnightToUtcISO(dateStr: string): string {
   const offset1 = getBerlinOffsetMinutes(probeUtc);
   
   // Step 3: First approximation - subtract offset to get Berlin midnight in UTC
-  // If Berlin is UTC+1, then Berlin 00:00 = UTC 23:00 previous day
   const utc1 = new Date(probeUtc.getTime() - offset1 * 60 * 1000);
   
-  // Step 4: Re-check offset at the approximated time (handles DST edge cases)
+  // Step 4: Re-check offset at the approximated time
   const offset2 = getBerlinOffsetMinutes(utc1);
+  let candidate = utc1;
   
   // Step 5: If offset changed (DST transition), recalculate
   if (offset1 !== offset2) {
-    const utc2 = new Date(probeUtc.getTime() - offset2 * 60 * 1000);
-    return utc2.toISOString();
+    candidate = new Date(probeUtc.getTime() - offset2 * 60 * 1000);
+    
+    // Step 5b: Third pass - verify and adjust if still not midnight
+    const offset3 = getBerlinOffsetMinutes(candidate);
+    if (offset2 !== offset3) {
+      candidate = new Date(probeUtc.getTime() - offset3 * 60 * 1000);
+    }
   }
   
-  return utc1.toISOString();
+  // Step 6: Validate - ensure result is actually 00:00 in Berlin
+  const berlinTime = getBerlinTimeHHMM(candidate);
+  if (berlinTime !== '00:00') {
+    // Final correction attempt
+    const finalOffset = getBerlinOffsetMinutes(candidate);
+    const corrected = new Date(probeUtc.getTime() - finalOffset * 60 * 1000);
+    const correctedTime = getBerlinTimeHHMM(corrected);
+    
+    if (correctedTime === '00:00') {
+      return corrected.toISOString();
+    }
+    
+    // Log warning but return best effort
+    console.warn(`[berlinMidnightToUtcISO] Could not achieve exact midnight for ${dateStr}. Got ${berlinTime}, using candidate anyway.`);
+  }
+  
+  return candidate.toISOString();
 }
 
 /**
