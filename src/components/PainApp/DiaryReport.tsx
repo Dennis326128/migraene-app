@@ -16,16 +16,6 @@ import { Loader2, ArrowLeft, FileText, Table, Pill, ChevronDown, ChevronRight, B
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { TimeRangeButtons, type TimeRangePreset } from "./TimeRangeButtons";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { DoctorSelectionDialog, type Doctor } from "./DoctorSelectionDialog";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -34,6 +24,7 @@ import { buildReportData, type ReportData, getEntryDate } from "@/lib/pdf/report
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { PremiumBadge } from "@/components/ui/premium-badge";
 import { useUserAISettings } from "@/features/draft-composer/hooks/useUserAISettings";
+import { useDiaryPreflight, PreflightWizardModal } from "@/features/diary/preflight";
 
 // Premium AI Report Response Type
 interface PremiumAIReportResult {
@@ -148,8 +139,10 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [isGeneratingMedPlan, setIsGeneratingMedPlan] = useState(false);
   const [isGeneratingAIReport, setIsGeneratingAIReport] = useState(false);
-  const [showMissingDataDialog, setShowMissingDataDialog] = useState(false);
   const [showDoctorSelection, setShowDoctorSelection] = useState(false);
+  
+  // Navigation target after preflight wizard navigates to settings
+  const [pendingNavigationTarget, setPendingNavigationTarget] = useState<'personal' | 'doctors' | null>(null);
   const [pendingPdfType, setPendingPdfType] = useState<"diary" | "medplan" | null>(null);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   
@@ -166,8 +159,8 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     queryClient.invalidateQueries({ queryKey: ["doctors"] });
   }, [queryClient]);
   
-  const { data: patientData } = usePatientData();
-  const { data: doctors = [] } = useDoctors();
+  const { data: patientData, refetch: refetchPatientData } = usePatientData();
+  const { data: doctors = [], refetch: refetchDoctors } = useDoctors();
   const { data: medicationCourses = [] } = useMedicationCourses();
 
   // Load user email
@@ -405,13 +398,43 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
 
   const selectedDoctorsForExport = useMemo(() => {
     if (!includeDoctorData) return [];
-    // Bei mehreren Ärzten: nur die ausgewählten zurückgeben
     if (selectedDoctorIds.length > 0) {
       return doctors.filter(d => d.id && selectedDoctorIds.includes(d.id));
     }
-    // Fallback: alle Ärzte wenn keine spezifische Auswahl
     return doctors;
   }, [doctors, selectedDoctorIds, includeDoctorData]);
+
+  // Preflight wizard for diary creation - must be after selectedDoctorsForExport
+  const proceedWithPdfGenerationRef = useRef<() => Promise<void>>();
+  
+  const preflight = useDiaryPreflight(useCallback(() => {
+    proceedWithPdfGenerationRef.current?.();
+  }, []));
+  
+  // Update the ref when dependencies change - using eslint disable for intentional pattern
+  useEffect(() => {
+    proceedWithPdfGenerationRef.current = async () => {
+      if (includeDoctorData && doctors.length > 1) {
+        setPendingPdfType("diary");
+        setShowDoctorSelection(true);
+        return;
+      }
+      await actuallyGenerateDiaryPDF(selectedDoctorsForExport);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [includeDoctorData, doctors.length, selectedDoctorsForExport]);
+  
+  const handlePreflightNavigate = useCallback((target: 'personal' | 'doctors') => {
+    preflight.closeWizard();
+    setPendingNavigationTarget(target);
+    if (onNavigate) {
+      if (target === 'personal') {
+        onNavigate('settings-account');
+      } else {
+        onNavigate('settings-doctors');
+      }
+    }
+  }, [onNavigate, preflight]);
 
   // Check if all medications are selected
   const allMedsSelected = useMemo(() => {
@@ -715,25 +738,14 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     }
   };
 
+  // Entry point: Check for missing data before PDF generation
   const generatePDF = async () => {
     if (!filteredEntries.length) {
       toast.error("Keine Einträge im ausgewählten Zeitraum");
       return;
     }
-
-    // Patient data is always included, so check if it exists
-    if (!patientData?.first_name && !patientData?.last_name) {
-      setShowMissingDataDialog(true);
-      return;
-    }
-
-    if (includeDoctorData && doctors.length > 1) {
-      setPendingPdfType("diary");
-      setShowDoctorSelection(true);
-      return;
-    }
-
-    await actuallyGenerateDiaryPDF(selectedDoctorsForExport);
+    // Run preflight check - this will either show wizard or proceed directly
+    preflight.runPreflight();
   };
 
   const handleDoctorSelectionConfirm = async (selectedDoctors: Doctor[]) => {
@@ -1191,31 +1203,24 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         </div>
       </div>
 
-      {/* Missing Data Dialog */}
-      <AlertDialog open={showMissingDataDialog} onOpenChange={setShowMissingDataDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Daten nicht vorhanden</AlertDialogTitle>
-            <AlertDialogDescription>
-              Sie haben noch keine persönlichen Daten hinterlegt. 
-              Möchten Sie diese jetzt in den Kontoeinstellungen eingeben?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                setShowMissingDataDialog(false);
-                if (onNavigate) {
-                  onNavigate('settings-account');
-                }
-              }}
-            >
-              Zu Kontoeinstellungen
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Preflight Wizard Modal */}
+      <PreflightWizardModal
+        open={preflight.showWizard}
+        currentItem={preflight.currentItem}
+        currentIndex={preflight.currentIndex}
+        totalItems={preflight.totalItems}
+        patientData={patientData ?? null}
+        onLater={preflight.handleLater}
+        onNeverAsk={preflight.handleNeverAsk}
+        onDataSaved={() => {
+          // Refetch data and proceed
+          refetchPatientData();
+          refetchDoctors();
+          preflight.handleDataSaved();
+        }}
+        onNavigateToSettings={handlePreflightNavigate}
+        onCancel={preflight.handleCancel}
+      />
 
       {/* Doctor Selection Dialog */}
       <DoctorSelectionDialog
