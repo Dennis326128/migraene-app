@@ -139,6 +139,29 @@ type BuildReportParams = {
     fax?: string;
     email?: string;
   }>;
+  // Premium KI-Analysebericht (optional)
+  premiumAIReport?: {
+    schemaVersion?: number;
+    timeRange?: { from: string; to: string };
+    dataCoverage?: {
+      entries: number;
+      notes: number;
+      weatherDays: number;
+      medDays: number;
+    };
+    headline: string;
+    disclaimer: string;
+    keyFindings: Array<{
+      title: string;
+      finding: string;
+      evidence: string;
+    }>;
+    sections: Array<{
+      title: string;
+      bullets: string[];
+    }>;
+    createdAt: string;
+  };
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1148,6 +1171,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     medicationCourses = [],
     patientData,
     doctors = [],
+    premiumAIReport,
   } = params;
 
   const pdfDoc = await PDFDocument.create();
@@ -1456,6 +1480,118 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     }
     
     yPos -= disclaimerBoxHeight + 15;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PREMIUM KI-ANALYSEBERICHT (optional)
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  if (premiumAIReport && premiumAIReport.keyFindings && premiumAIReport.keyFindings.length > 0) {
+    const spaceCheck = ensureSpace(pdfDoc, page, yPos, 200);
+    page = spaceCheck.page;
+    yPos = spaceCheck.yPos;
+    
+    yPos = drawSectionHeader(page, "KI-ANALYSEBERICHT (PREMIUM)", yPos, fontBold, 12);
+    
+    // Headline
+    if (premiumAIReport.headline) {
+      page.drawText(sanitizeForPDF(premiumAIReport.headline), {
+        x: LAYOUT.margin,
+        y: yPos,
+        size: 10,
+        font: fontBold,
+        color: COLORS.text,
+      });
+      yPos -= 16;
+    }
+    
+    // Erstellt am
+    if (premiumAIReport.createdAt) {
+      const createdDate = new Date(premiumAIReport.createdAt);
+      page.drawText(`Erstellt am: ${formatDateGerman(createdDate.toISOString())}`, {
+        x: LAYOUT.margin,
+        y: yPos,
+        size: 8,
+        font,
+        color: COLORS.textLight,
+      });
+      yPos -= 18;
+    }
+    
+    // Key Findings
+    page.drawText("Wichtigste Erkenntnisse:", {
+      x: LAYOUT.margin,
+      y: yPos,
+      size: 9,
+      font: fontBold,
+      color: COLORS.primaryLight,
+    });
+    yPos -= 14;
+    
+    for (const finding of premiumAIReport.keyFindings.slice(0, 5)) {
+      const bulletText = `- ${finding.title}: ${finding.finding}`;
+      const lines = wrapText(bulletText, LAYOUT.pageWidth - 2 * LAYOUT.margin - 10, 8, font);
+      for (const line of lines) {
+        if (yPos < LAYOUT.margin + 50) {
+          page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
+          yPos = LAYOUT.pageHeight - LAYOUT.margin;
+        }
+        page.drawText(sanitizeForPDF(line), {
+          x: LAYOUT.margin + 5,
+          y: yPos,
+          size: 8,
+          font,
+          color: COLORS.text,
+        });
+        yPos -= 11;
+      }
+      yPos -= 3;
+    }
+    
+    // Sections
+    if (premiumAIReport.sections && premiumAIReport.sections.length > 0) {
+      yPos -= 8;
+      for (const section of premiumAIReport.sections.slice(0, 4)) {
+        if (yPos < LAYOUT.margin + 80) {
+          page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
+          yPos = LAYOUT.pageHeight - LAYOUT.margin;
+        }
+        
+        page.drawText(sanitizeForPDF(section.title + ":"), {
+          x: LAYOUT.margin,
+          y: yPos,
+          size: 9,
+          font: fontBold,
+          color: COLORS.text,
+        });
+        yPos -= 12;
+        
+        for (const bullet of (section.bullets || []).slice(0, 4)) {
+          const lines = wrapText(`- ${bullet}`, LAYOUT.pageWidth - 2 * LAYOUT.margin - 15, 8, font);
+          for (const line of lines) {
+            page.drawText(sanitizeForPDF(line), {
+              x: LAYOUT.margin + 8,
+              y: yPos,
+              size: 8,
+              font,
+              color: COLORS.text,
+            });
+            yPos -= 10;
+          }
+        }
+        yPos -= 6;
+      }
+    }
+    
+    // Disclaimer
+    page.drawText(sanitizeForPDF(premiumAIReport.disclaimer || "Keine medizinische Beratung."), {
+      x: LAYOUT.margin,
+      y: yPos,
+      size: 7,
+      font,
+      color: COLORS.textLight,
+    });
+    yPos -= LAYOUT.sectionGap;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
