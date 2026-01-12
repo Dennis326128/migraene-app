@@ -749,7 +749,8 @@ Antworte NUR mit dem JSON-Objekt, kein Markdown-Wrapper.`;
     if (!isUnlimited) {
       const now = new Date().toISOString();
       
-      // Upsert usage record
+      // Upsert usage record - IMPORTANT: onConflict must match the DB unique constraint
+      // DB has: UNIQUE (user_id, feature, period_start) for monthly quota tracking
       const { error: usageError } = await supabaseAdmin
         .from('user_ai_usage')
         .upsert({
@@ -760,7 +761,7 @@ Antworte NUR mit dem JSON-Objekt, kein Markdown-Wrapper.`;
           last_used_at: now,
           updated_at: now
         }, {
-          onConflict: 'user_id,feature',
+          onConflict: 'user_id,feature,period_start',
           ignoreDuplicates: false
         });
 
