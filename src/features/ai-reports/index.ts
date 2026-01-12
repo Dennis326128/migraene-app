@@ -4,3 +4,4 @@
 
 export * from "./api/aiReports.api";
 export * from "./hooks/useAIReports";
+export * from "./components";

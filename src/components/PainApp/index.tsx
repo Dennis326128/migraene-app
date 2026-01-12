@@ -31,10 +31,13 @@ import {
   LazySettingsDoctorsPage,
   LazyDiaryReport,
   LazyHit6Screen,
+  LazyAIReportsList,
+  LazyAIReportDetail,
   prefetchCommonViews,
 } from "@/lib/performance/lazyImports";
+import type { AIReport } from "@/features/ai-reports";
 
-type View = "menu" | "new" | "list" | "analysis" | "settings" | "settings-doctors" | "medication-overview" | "medication-management" | "voice-notes" | "reminders" | "diary-timeline" | "context-tags" | "diary-report" | "medication-limits" | "hit6";
+type View = "menu" | "new" | "list" | "analysis" | "settings" | "settings-doctors" | "medication-overview" | "medication-management" | "voice-notes" | "reminders" | "diary-timeline" | "context-tags" | "diary-report" | "medication-limits" | "hit6" | "ai-reports" | "ai-report-detail";
 
 // Track where the user navigated from for proper back navigation
 type DiaryReportOrigin = 'home' | 'diary-timeline' | null;
@@ -51,6 +54,7 @@ export const PainApp: React.FC = () => {
   const [voicePrefillData, setVoicePrefillData] = useState<VoicePrefillData | null>(null);
   const [diaryReportOrigin, setDiaryReportOrigin] = useState<DiaryReportOrigin>(null);
   const [doctorsOrigin, setDoctorsOrigin] = useState<DoctorsOrigin>(null);
+  const [selectedAIReport, setSelectedAIReport] = useState<AIReport | null>(null);
   const { needsOnboarding, isLoading, completeOnboarding } = useOnboarding();
   const { 
     showTutorial, 
@@ -157,6 +161,8 @@ export const PainApp: React.FC = () => {
             } else if (target === 'analysis-limits') {
               // Removed: now navigates to medication-limits instead
               setView('medication-limits');
+            } else if (target === 'ai-reports') {
+              setView('ai-reports');
             }
           }}
           onLimitWarning={handleLimitWarning}
@@ -325,6 +331,30 @@ export const PainApp: React.FC = () => {
           onNavigateToMedications={handleNavigateToMedications}
         />,
         "Limits laden..."
+      )}
+
+      {/* KI-Berichte List */}
+      {view === "ai-reports" && withSuspense(
+        <LazyAIReportsList 
+          onBack={goHome}
+          onViewReport={(report) => {
+            setSelectedAIReport(report);
+            setView('ai-report-detail');
+          }}
+        />,
+        "KI-Berichte laden..."
+      )}
+
+      {/* KI-Bericht Detail */}
+      {view === "ai-report-detail" && selectedAIReport && withSuspense(
+        <LazyAIReportDetail 
+          report={selectedAIReport}
+          onBack={() => {
+            setSelectedAIReport(null);
+            setView('ai-reports');
+          }}
+        />,
+        "Bericht laden..."
       )}
 
       {/* Onboarding Modal */}

@@ -817,6 +817,48 @@ Antworte NUR mit dem JSON-Objekt, kein Markdown-Wrapper.`;
       console.log(`[${requestId}] Result cached`);
     }
 
+    // ============== PERSIST TO AI_REPORTS (only for real LLM calls) ==============
+    if (aiAvailable) {
+      // Generate dedupe_key: hash of user_id + report_type + from_date + to_date + latest_source_updated_at
+      const dedupeKey = `${user.id}:pattern_analysis:${fromDateStr}:${toDateStr}:${latestSourceUpdatedAt.toISOString()}`;
+      
+      // Format title
+      const fromFormatted = new Date(fromDate).toLocaleDateString('de-DE', { day: 'numeric', month: 'short' });
+      const toFormatted = new Date(toDate).toLocaleDateString('de-DE', { day: 'numeric', month: 'short', year: 'numeric' });
+      const reportTitle = `KI-Analysebericht: ${fromFormatted} – ${toFormatted}`;
+      
+      // Upsert into ai_reports
+      const { error: reportError } = await supabaseAdmin
+        .from('ai_reports')
+        .upsert({
+          user_id: user.id,
+          report_type: 'pattern_analysis',
+          title: reportTitle,
+          from_date: fromDateStr,
+          to_date: toDateStr,
+          source: 'analysis_view',
+          input_summary: {
+            entries_count: painEntries?.length || 0,
+            notes_count: voiceNotes?.length || 0,
+            weather_days: weatherDays,
+            med_days: medDays,
+            prophylaxis_courses: prophylaxeCourses.length
+          },
+          response_json: responsePayload,
+          model: 'google/gemini-2.5-flash',
+          dedupe_key: dedupeKey,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'user_id,dedupe_key'
+        });
+
+      if (reportError) {
+        console.error(`[${requestId}] AI Report save failed (non-fatal):`, reportError);
+      } else {
+        console.log(`[${requestId}] AI Report saved/updated with dedupe_key`);
+      }
+    }
+
     // Audit log (non-blocking)
     try {
       await supabaseAdmin.from('audit_logs').insert({
@@ -833,7 +875,8 @@ Antworte NUR mit dem JSON-Objekt, kein Markdown-Wrapper.`;
           has_weather_data: hasWeatherData,
           quota_used: quotaInfo.used,
           quota_limit: quotaInfo.limit,
-          is_unlimited: isUnlimited
+          is_unlimited: isUnlimited,
+          report_saved: aiAvailable
         }
       });
     } catch (auditError) {
