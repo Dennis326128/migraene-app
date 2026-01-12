@@ -36,27 +36,51 @@ const RequestSchema = z.object({
   message: 'Datumsbereich ungültig: max. 730 Tage (2 Jahre)'
 });
 
-// Helper: Build Europe/Berlin datetime range for queries
-// Returns { start: ISO string, endExclusive: ISO string }
-function buildBerlinDateRange(fromDate: string, toDate: string): { start: string; endExclusive: string } {
-  // Europe/Berlin offset: +01:00 (winter) or +02:00 (summer)
-  // For simplicity, we use a fixed approach: treat dates as local Berlin dates
-  // and build ISO strings with explicit offset calculation
+// Helper: Get Europe/Berlin UTC offset for a given date (handles DST)
+// Returns offset in minutes (e.g., +60 for CET, +120 for CEST)
+function getBerlinOffsetMinutes(date: Date): number {
+  // Use Intl to get the actual offset for Berlin on this date
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Europe/Berlin',
+    timeZoneName: 'shortOffset'
+  });
+  const parts = formatter.formatToParts(date);
+  const tzPart = parts.find(p => p.type === 'timeZoneName');
+  if (!tzPart) return 60; // Default to CET
   
+  // Parse offset like "GMT+1" or "GMT+2"
+  const match = tzPart.value.match(/GMT([+-])(\d+)/);
+  if (match) {
+    const sign = match[1] === '+' ? 1 : -1;
+    const hours = parseInt(match[2], 10);
+    return sign * hours * 60;
+  }
+  return 60; // Default to CET
+}
+
+// Helper: Build UTC ISO strings for Europe/Berlin date range
+// For timestamptz queries (voice_notes.occurred_at)
+function buildBerlinUtcRange(fromDate: string, toDate: string): { startUtc: string; endExclusiveUtc: string } {
   // Parse date parts
   const [fromYear, fromMonth, fromDay] = fromDate.split('-').map(Number);
   const [toYear, toMonth, toDay] = toDate.split('-').map(Number);
   
-  // Build start: fromDate at 00:00:00 Berlin time
-  // Build endExclusive: toDate + 1 day at 00:00:00 Berlin time
-  const startLocal = new Date(fromYear, fromMonth - 1, fromDay, 0, 0, 0);
-  const endLocal = new Date(toYear, toMonth - 1, toDay + 1, 0, 0, 0);
+  // Create dates at midnight Berlin time
+  const startBerlin = new Date(Date.UTC(fromYear, fromMonth - 1, fromDay, 0, 0, 0));
+  const endBerlin = new Date(Date.UTC(toYear, toMonth - 1, toDay + 1, 0, 0, 0));
   
-  // Convert to ISO (uses UTC, but we want "local" interpretation in Berlin)
-  // For DB queries, we'll use the date strings directly with time bounds
+  // Get Berlin offset for each date (handles DST correctly)
+  const startOffset = getBerlinOffsetMinutes(startBerlin);
+  const endOffset = getBerlinOffsetMinutes(endBerlin);
+  
+  // Subtract Berlin offset to get UTC
+  // Berlin 00:00:00+01:00 = UTC 23:00:00 previous day
+  const startUtc = new Date(startBerlin.getTime() - startOffset * 60 * 1000);
+  const endUtc = new Date(endBerlin.getTime() - endOffset * 60 * 1000);
+  
   return {
-    start: `${fromDate}T00:00:00`,
-    endExclusive: endLocal.toISOString().split('T')[0] + 'T00:00:00'
+    startUtc: startUtc.toISOString(),
+    endExclusiveUtc: endUtc.toISOString()
   };
 }
 
@@ -251,12 +275,14 @@ serve(async (req) => {
     }
 
     // ============== DATA FETCHING ==============
-    // Build date range using Europe/Berlin interpretation
-    const dateRange = buildBerlinDateRange(fromDate, toDate);
-    console.log(`[${requestId}] Query range: ${dateRange.start} to ${dateRange.endExclusive} (exclusive)`);
+    // VARIANTE 1: Use selected_date (date type) for pain_entries - timezone-safe
+    // For voice_notes (timestamptz), use proper UTC range with DST awareness
+    const utcRange = buildBerlinUtcRange(fromDate, toDate);
+    console.log(`[${requestId}] Date range: ${fromDate} to ${toDate}`);
+    console.log(`[${requestId}] UTC range for timestamptz: ${utcRange.startUtc} to ${utcRange.endExclusiveUtc}`);
 
-    // Fetch pain_entries using date-only comparison for selected_date
-    // or timestamp_created if selected_date is null
+    // Fetch pain_entries using selected_date (date type) - timezone-safe!
+    // Falls back to timestamp_created comparison if selected_date is null (handled in filter)
     const { data: painEntries } = await supabase
       .from('pain_entries')
       .select(`
@@ -278,18 +304,18 @@ serve(async (req) => {
         )
       `)
       .eq('user_id', user.id)
-      .gte('timestamp_created', dateRange.start)
-      .lt('timestamp_created', dateRange.endExclusive)
-      .order('timestamp_created', { ascending: true })
+      .gte('selected_date', fromDate)
+      .lte('selected_date', toDate)
+      .order('selected_date', { ascending: true })
       .limit(200);
 
-    // Fetch voice_notes with captured_at for dedupe calculation
+    // Fetch voice_notes using UTC range (occurred_at is timestamptz)
     const { data: voiceNotes } = await supabase
       .from('voice_notes')
       .select('occurred_at, captured_at, text')
       .eq('user_id', user.id)
-      .gte('occurred_at', dateRange.start)
-      .lt('occurred_at', dateRange.endExclusive)
+      .gte('occurred_at', utcRange.startUtc)
+      .lt('occurred_at', utcRange.endExclusiveUtc)
       .order('occurred_at', { ascending: true })
       .limit(100);
 
@@ -319,7 +345,9 @@ serve(async (req) => {
           temp: weather.temperature_c,
           pressure: weather.pressure_mb,
           humidity: weather.humidity,
-        } : null
+        } : null,
+        // Keep weather created_at for dedupe calculation
+        _weatherCreatedAt: weather?.created_at
       };
     });
 
