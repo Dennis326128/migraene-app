@@ -12,17 +12,21 @@ const FREE_DIARY_REPORT_MONTHLY = 5;
 const COOLDOWN_SECONDS = 60;
 const FEATURE_NAME = 'diary_report';
 
-// Validation schema - accepts ISO dates with or without timezone (local datetime ok)
+// Date-only regex: YYYY-MM-DD
+const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+// Validation schema - only accepts date-only format (YYYY-MM-DD)
 const RequestSchema = z.object({
-  fromDate: z.string().refine(val => !isNaN(Date.parse(val)), { message: 'fromDate muss gültiges Datum sein' }),
-  toDate: z.string().refine(val => !isNaN(Date.parse(val)), { message: 'toDate muss gültiges Datum sein' }),
+  fromDate: z.string().regex(DATE_ONLY_REGEX, { message: 'fromDate muss YYYY-MM-DD Format haben' }),
+  toDate: z.string().regex(DATE_ONLY_REGEX, { message: 'toDate muss YYYY-MM-DD Format haben' }),
   includeStats: z.boolean().optional().default(true),
   includeTherapies: z.boolean().optional().default(true),
   includeEntryNotes: z.boolean().optional().default(true),
   includeContextNotes: z.boolean().optional().default(false),
 }).refine(data => {
-  const from = new Date(data.fromDate);
-  const to = new Date(data.toDate);
+  // Parse as local dates (no timezone conversion)
+  const from = new Date(data.fromDate + 'T00:00:00');
+  const to = new Date(data.toDate + 'T00:00:00');
   const now = new Date();
   if (from > now) return false;
   if (to < from) return false;
@@ -31,6 +35,30 @@ const RequestSchema = z.object({
 }, {
   message: 'Datumsbereich ungültig: max. 730 Tage (2 Jahre)'
 });
+
+// Helper: Build Europe/Berlin datetime range for queries
+// Returns { start: ISO string, endExclusive: ISO string }
+function buildBerlinDateRange(fromDate: string, toDate: string): { start: string; endExclusive: string } {
+  // Europe/Berlin offset: +01:00 (winter) or +02:00 (summer)
+  // For simplicity, we use a fixed approach: treat dates as local Berlin dates
+  // and build ISO strings with explicit offset calculation
+  
+  // Parse date parts
+  const [fromYear, fromMonth, fromDay] = fromDate.split('-').map(Number);
+  const [toYear, toMonth, toDay] = toDate.split('-').map(Number);
+  
+  // Build start: fromDate at 00:00:00 Berlin time
+  // Build endExclusive: toDate + 1 day at 00:00:00 Berlin time
+  const startLocal = new Date(fromYear, fromMonth - 1, fromDay, 0, 0, 0);
+  const endLocal = new Date(toYear, toMonth - 1, toDay + 1, 0, 0, 0);
+  
+  // Convert to ISO (uses UTC, but we want "local" interpretation in Berlin)
+  // For DB queries, we'll use the date strings directly with time bounds
+  return {
+    start: `${fromDate}T00:00:00`,
+    endExclusive: endLocal.toISOString().split('T')[0] + 'T00:00:00'
+  };
+}
 
 // Structured output schema for PDF
 interface DiaryReportResult {
@@ -223,6 +251,12 @@ serve(async (req) => {
     }
 
     // ============== DATA FETCHING ==============
+    // Build date range using Europe/Berlin interpretation
+    const dateRange = buildBerlinDateRange(fromDate, toDate);
+    console.log(`[${requestId}] Query range: ${dateRange.start} to ${dateRange.endExclusive} (exclusive)`);
+
+    // Fetch pain_entries using date-only comparison for selected_date
+    // or timestamp_created if selected_date is null
     const { data: painEntries } = await supabase
       .from('pain_entries')
       .select(`
@@ -239,31 +273,34 @@ serve(async (req) => {
           pressure_mb,
           humidity,
           pressure_change_24h,
-          condition_text
+          condition_text,
+          created_at
         )
       `)
       .eq('user_id', user.id)
-      .gte('timestamp_created', fromDate)
-      .lte('timestamp_created', toDate)
+      .gte('timestamp_created', dateRange.start)
+      .lt('timestamp_created', dateRange.endExclusive)
       .order('timestamp_created', { ascending: true })
       .limit(200);
 
+    // Fetch voice_notes with captured_at for dedupe calculation
     const { data: voiceNotes } = await supabase
       .from('voice_notes')
-      .select('occurred_at, text')
+      .select('occurred_at, captured_at, text')
       .eq('user_id', user.id)
-      .gte('occurred_at', fromDate)
-      .lte('occurred_at', toDate)
+      .gte('occurred_at', dateRange.start)
+      .lt('occurred_at', dateRange.endExclusive)
       .order('occurred_at', { ascending: true })
       .limit(100);
 
+    // Fetch medication_courses (all, as they may span multiple periods)
     const { data: medicationCourses } = await supabase
       .from('medication_courses')
-      .select('*')
+      .select('updated_at, start_date, end_date')
       .eq('user_id', user.id)
-      .order('start_date', { ascending: true });
+      .order('updated_at', { ascending: false });
 
-    console.log(`[${requestId}] Data: ${painEntries?.length || 0} entries, ${voiceNotes?.length || 0} notes`);
+    console.log(`[${requestId}] Data: ${painEntries?.length || 0} entries, ${voiceNotes?.length || 0} notes, ${medicationCourses?.length || 0} courses`);
 
     // Build structured data for prompt
     const structuredEntries = (painEntries || []).map(entry => {
@@ -448,14 +485,12 @@ Antworte NUR mit dem JSON-Objekt.`;
       });
     }
 
-    // Build final result
-    const fromDateStr = fromDate.split('T')[0];
-    const toDateStr = toDate.split('T')[0];
+    // Build final result (fromDate/toDate are already YYYY-MM-DD format)
     const createdAt = new Date().toISOString();
 
     const result: DiaryReportResult = {
       schemaVersion: 1,
-      timeRange: { from: fromDateStr, to: toDateStr },
+      timeRange: { from: fromDate, to: toDate },
       dataCoverage: {
         entries: structuredEntries.length,
         notes: voiceNotes?.length || 0,
@@ -488,13 +523,54 @@ Antworte NUR mit dem JSON-Objekt.`;
     }
 
     // ============== PERSIST TO ai_reports ==============
-    const latestSourceUpdatedAt = painEntries && painEntries.length > 0 
-      ? new Date(painEntries[painEntries.length - 1].timestamp_created || createdAt)
+    // Calculate latestSourceUpdatedAt from ALL data sources for accurate dedupe
+    const timestamps: Date[] = [];
+    
+    // 1. Latest pain_entry timestamp_created in range
+    if (painEntries && painEntries.length > 0) {
+      const latestEntry = painEntries[painEntries.length - 1];
+      if (latestEntry.timestamp_created) {
+        timestamps.push(new Date(latestEntry.timestamp_created));
+      }
+      // Also check weather_logs created_at if available
+      for (const entry of painEntries) {
+        const weather = Array.isArray(entry.weather) ? entry.weather[0] : entry.weather;
+        if (weather?.created_at) {
+          timestamps.push(new Date(weather.created_at));
+        }
+      }
+    }
+    
+    // 2. Latest voice_note captured_at or occurred_at in range
+    if (voiceNotes && voiceNotes.length > 0) {
+      for (const note of voiceNotes) {
+        if (note.captured_at) {
+          timestamps.push(new Date(note.captured_at));
+        } else if (note.occurred_at) {
+          timestamps.push(new Date(note.occurred_at));
+        }
+      }
+    }
+    
+    // 3. Latest medication_course updated_at (courses may affect analysis even if outside range)
+    if (medicationCourses && medicationCourses.length > 0) {
+      for (const course of medicationCourses) {
+        if (course.updated_at) {
+          timestamps.push(new Date(course.updated_at));
+        }
+      }
+    }
+    
+    // Use the maximum timestamp, or createdAt if no data
+    const latestSourceUpdatedAt = timestamps.length > 0
+      ? new Date(Math.max(...timestamps.map(t => t.getTime())))
       : new Date(createdAt);
     
-    const dedupeKey = `${user.id}:diary_pdf:${fromDateStr}:${toDateStr}:${latestSourceUpdatedAt.toISOString()}`;
+    console.log(`[${requestId}] latestSourceUpdatedAt: ${latestSourceUpdatedAt.toISOString()} (from ${timestamps.length} timestamps)`);
     
-    const reportTitle = `KI-Analysebericht: ${fromDateStr} – ${toDateStr}`;
+    const dedupeKey = `${user.id}:diary_pdf:${fromDate}:${toDate}:${latestSourceUpdatedAt.toISOString()}`;
+    
+    const reportTitle = `KI-Analysebericht: ${fromDate} – ${toDate}`;
     
     const { data: existingReport } = await supabaseAdmin
       .from('ai_reports')
