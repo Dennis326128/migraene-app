@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_analysis_cache: {
+        Row: {
+          cache_key: string
+          created_at: string
+          feature: string
+          from_date: string
+          id: string
+          latest_source_updated_at: string
+          response_json: Json
+          to_date: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cache_key: string
+          created_at?: string
+          feature?: string
+          from_date: string
+          id?: string
+          latest_source_updated_at: string
+          response_json: Json
+          to_date: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cache_key?: string
+          created_at?: string
+          feature?: string
+          from_date?: string
+          id?: string
+          latest_source_updated_at?: string
+          response_json?: Json
+          to_date?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       audit_logs: {
         Row: {
           action: string
@@ -691,6 +730,7 @@ export type Database = {
           created_at: string | null
           feature: string
           id: string
+          last_used_at: string | null
           period_start: string | null
           request_count: number | null
           updated_at: string | null
@@ -700,6 +740,7 @@ export type Database = {
           created_at?: string | null
           feature: string
           id?: string
+          last_used_at?: string | null
           period_start?: string | null
           request_count?: number | null
           updated_at?: string | null
@@ -709,6 +750,7 @@ export type Database = {
           created_at?: string | null
           feature?: string
           id?: string
+          last_used_at?: string | null
           period_start?: string | null
           request_count?: number | null
           updated_at?: string | null
@@ -999,6 +1041,7 @@ export type Database = {
           account_status: string
           ai_draft_engine: string | null
           ai_enabled: boolean
+          ai_unlimited: boolean
           custom_medication_reasons: string[] | null
           deactivated_at: string | null
           default_pain_location: string | null
@@ -1021,6 +1064,7 @@ export type Database = {
           account_status?: string
           ai_draft_engine?: string | null
           ai_enabled?: boolean
+          ai_unlimited?: boolean
           custom_medication_reasons?: string[] | null
           deactivated_at?: string | null
           default_pain_location?: string | null
@@ -1043,6 +1087,7 @@ export type Database = {
           account_status?: string
           ai_draft_engine?: string | null
           ai_enabled?: boolean
+          ai_unlimited?: boolean
           custom_medication_reasons?: string[] | null
           deactivated_at?: string | null
           default_pain_location?: string | null
@@ -1374,6 +1419,14 @@ export type Database = {
       deactivate_user_account: { Args: never; Returns: undefined }
       delete_user_account: { Args: never; Returns: undefined }
       get_account_status: { Args: never; Returns: Json }
+      get_pattern_analysis_usage: {
+        Args: { p_user_id: string }
+        Returns: {
+          last_used_at: string
+          period_start: string
+          request_count: number
+        }[]
+      }
       get_recent_medications: {
         Args: { p_limit?: number; p_user_id: string }
         Returns: {
