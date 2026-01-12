@@ -10,9 +10,10 @@ import { cn } from "@/lib/utils";
 interface PremiumBadgeProps {
   className?: string;
   size?: "sm" | "md";
+  label?: string;
 }
 
-export function PremiumBadge({ className, size = "sm" }: PremiumBadgeProps) {
+export function PremiumBadge({ className, size = "sm", label = "Premium" }: PremiumBadgeProps) {
   return (
     <span
       className={cn(
@@ -22,7 +23,7 @@ export function PremiumBadge({ className, size = "sm" }: PremiumBadgeProps) {
       )}
     >
       <Sparkles className={cn(size === "sm" ? "h-3 w-3" : "h-4 w-4")} />
-      Premium
+      {label}
     </span>
   );
 }
