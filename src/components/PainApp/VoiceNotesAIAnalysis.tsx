@@ -380,14 +380,18 @@ function StructuredResultsDisplay({
 }
 
 // Saved Reports List Component (inline)
+// Only shows pattern_analysis reports, not diary_pdf reports
 function SavedReportsList({ 
   onViewReport 
 }: { 
   onViewReport: (report: AIReport) => void;
 }) {
-  const { data: reports = [], isLoading } = useAIReports();
+  const { data: allReports = [], isLoading } = useAIReports();
   const deleteReport = useDeleteAIReport();
   const [deleteTarget, setDeleteTarget] = useState<AIReport | null>(null);
+
+  // Filter to only show pattern_analysis reports in this tab
+  const reports = allReports.filter(r => r.report_type === 'pattern_analysis');
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -665,18 +669,19 @@ export function VoiceNotesAIAnalysis({ onViewReport }: VoiceNotesAIAnalysisProps
   // Format the currently selected date range for display
   const formattedCurrentRange = formatDateRangeDE(dateRange.from, dateRange.to);
 
+  // Check if quota is exhausted
+  const isQuotaExhausted = quotaInfo && !quotaInfo.isUnlimited && quotaInfo.remaining <= 0;
+
   return (
     <div className="space-y-6">
-      {/* INFO BLOCK */}
+      {/* INFO BLOCK - short and concise */}
       <Alert className="border-primary/20 bg-primary/5">
         <Brain className="h-4 w-4" />
         <AlertDescription>
-          <p className="font-medium mb-1">KI-Analysebericht</p>
           <p className="text-sm text-muted-foreground">
-            Der KI-Analysebericht wertet deine Kopfschmerz-Einträge, Notizen, Wetter- und Medikamentendaten aus.
-            Die Berichte werden gespeichert und sind später wieder abrufbar.
+            Erstellt einen gespeicherten Bericht aus deinen Einträgen, Notizen, Wetter- und Medikamentendaten.
           </p>
-          <p className="mt-2 text-xs text-muted-foreground">Private Auswertung · keine medizinische Beratung</p>
+          <p className="mt-1 text-xs text-muted-foreground">Private Auswertung · keine medizinische Beratung</p>
         </AlertDescription>
       </Alert>
 
@@ -688,7 +693,7 @@ export function VoiceNotesAIAnalysis({ onViewReport }: VoiceNotesAIAnalysisProps
               <Brain className="h-5 w-5" />
               <span>Analyse starten</span>
             </div>
-            <PremiumBadge />
+            <PremiumBadge label="Premium · Testphase" />
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -822,39 +827,49 @@ export function VoiceNotesAIAnalysis({ onViewReport }: VoiceNotesAIAnalysisProps
             </Card>
           )}
 
-          {/* Quota Display */}
-          {quotaInfo && !quotaInfo.isUnlimited && !analysisError?.hasError && (
+          {/* Quota Display - robust: only show numbers if quotaInfo is available */}
+          {!analysisError?.hasError && (
             <div className="flex items-center justify-between text-sm text-muted-foreground bg-muted/30 rounded-lg px-3 py-2">
-              <span>Analysen diesen Monat:</span>
-              <Badge variant={quotaInfo.remaining <= 1 ? "destructive" : "secondary"}>
-                {quotaInfo.used}/{quotaInfo.limit}
-              </Badge>
+              {quotaInfo && !quotaInfo.isUnlimited ? (
+                <>
+                  <span>Nutzung:</span>
+                  <Badge variant={quotaInfo.remaining <= 1 ? "destructive" : "secondary"}>
+                    {quotaInfo.used}/{quotaInfo.limit}
+                  </Badge>
+                </>
+              ) : quotaInfo?.isUnlimited ? (
+                <span className="w-full text-center">Unbegrenzt verfügbar</span>
+              ) : (
+                <span className="w-full text-center text-xs">Testphase: bis zu 10 Berichte pro Monat.</span>
+              )}
             </div>
-          )}
-
-          {/* Limit Info Text */}
-          {!quotaInfo && !analysisError?.hasError && (
-            <p className="text-xs text-muted-foreground text-center">
-              In der Testphase sind bis zu 10 KI-Analyseberichte pro Monat enthalten.
-            </p>
           )}
 
           {/* Analysis Button - only show if no error is displayed */}
           {!analysisError?.hasError && (
-            <Button 
-              onClick={runAnalysis} 
-              disabled={isAnalyzing || buttonCooldown > 0} 
-              className="w-full" 
-              size="lg"
-            >
-              {isAnalyzing ? (
-                <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Analyse läuft …</>
-              ) : buttonCooldown > 0 ? (
-                <><Clock className="h-4 w-4 mr-2" /> Warte {buttonCooldown}s …</>
-              ) : (
-                <><Brain className="h-4 w-4 mr-2" /> Analyse starten</>
+            <div className="space-y-2">
+              <Button 
+                onClick={runAnalysis} 
+                disabled={isAnalyzing || buttonCooldown > 0 || isQuotaExhausted} 
+                className="w-full" 
+                size="lg"
+              >
+                {isAnalyzing ? (
+                  <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Analyse läuft …</>
+                ) : buttonCooldown > 0 ? (
+                  <><Clock className="h-4 w-4 mr-2" /> Warte {buttonCooldown}s …</>
+                ) : isQuotaExhausted ? (
+                  <>Limit erreicht</>
+                ) : (
+                  <><Brain className="h-4 w-4 mr-2" /> Analyse starten</>
+                )}
+              </Button>
+              {isQuotaExhausted && (
+                <p className="text-xs text-muted-foreground text-center">
+                  Limit erreicht – verfügbar ab nächstem Monat.
+                </p>
               )}
-            </Button>
+            </div>
           )}
 
           {/* AI availability hint */}
