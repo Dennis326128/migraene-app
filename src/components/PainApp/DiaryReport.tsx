@@ -35,6 +35,30 @@ import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { PremiumBadge } from "@/components/ui/premium-badge";
 import { useUserAISettings } from "@/features/draft-composer/hooks/useUserAISettings";
 
+// Premium AI Report Response Type
+interface PremiumAIReportResult {
+  schemaVersion: number;
+  timeRange: { from: string; to: string };
+  dataCoverage: {
+    entries: number;
+    notes: number;
+    weatherDays: number;
+    medDays: number;
+  };
+  headline: string;
+  disclaimer: string;
+  keyFindings: Array<{
+    title: string;
+    finding: string;
+    evidence: string;
+  }>;
+  sections: Array<{
+    title: string;
+    bullets: string[];
+  }>;
+  createdAt: string;
+}
+
 type Preset = TimeRangePreset;
 
 function addMonths(d: Date, m: number) {
@@ -123,10 +147,16 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
   const [analysisReport, setAnalysisReport] = useState<string>("");
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [isGeneratingMedPlan, setIsGeneratingMedPlan] = useState(false);
+  const [isGeneratingAIReport, setIsGeneratingAIReport] = useState(false);
   const [showMissingDataDialog, setShowMissingDataDialog] = useState(false);
   const [showDoctorSelection, setShowDoctorSelection] = useState(false);
   const [pendingPdfType, setPendingPdfType] = useState<"diary" | "medplan" | null>(null);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
+  
+  // Premium KI-Analysebericht State
+  const [includePremiumAI, setIncludePremiumAI] = useState(false);
+  const [premiumAIReport, setPremiumAIReport] = useState<any>(null);
+  const [premiumAIError, setPremiumAIError] = useState<string | null>(null);
   
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
@@ -397,6 +427,79 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     }
   };
 
+  // ============== PREMIUM KI-ANALYSEBERICHT ==============
+  const generatePremiumAIReport = async (): Promise<PremiumAIReportResult | null> => {
+    if (!includePremiumAI) return null;
+    
+    setIsGeneratingAIReport(true);
+    setPremiumAIError(null);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-ai-diary-report', {
+        body: {
+          fromDate: `${from}T00:00:00Z`,
+          toDate: `${to}T23:59:59Z`,
+          includeStats,
+          includeTherapies,
+          includeEntryNotes,
+          includeContextNotes,
+        }
+      });
+      
+      if (error) {
+        console.error("Premium AI Report Error:", error);
+        setPremiumAIError("KI-Bericht konnte nicht erstellt werden.");
+        return null;
+      }
+      
+      if (data?.errorCode) {
+        const errorMessages: Record<string, string> = {
+          'QUOTA_EXCEEDED': `Monatliches Limit erreicht (${data.quota?.used || 0}/${data.quota?.limit || 5}). Deine Berichte findest du unter KI-Berichte.`,
+          'COOLDOWN': `Bitte warte noch ${data.cooldownRemaining || 60} Sekunden.`,
+          'AI_DISABLED': 'KI ist in deinen Einstellungen deaktiviert.',
+          'NO_DATA': 'Keine Daten im gewählten Zeitraum.',
+          'RATE_LIMIT': 'Zu viele Anfragen. Bitte später erneut versuchen.',
+          'PAYMENT_REQUIRED': 'Guthaben aufgebraucht.',
+        };
+        
+        const message = errorMessages[data.errorCode] || data.error || 'Fehler beim Erstellen des KI-Berichts.';
+        setPremiumAIError(message);
+        
+        if (data.errorCode === 'QUOTA_EXCEEDED') {
+          toast.error(message, {
+            action: onNavigate ? {
+              label: "KI-Berichte",
+              onClick: () => onNavigate('ai-reports')
+            } : undefined
+          });
+        } else if (data.errorCode === 'COOLDOWN') {
+          toast.warning(message);
+        } else {
+          toast.error(message);
+        }
+        
+        return null;
+      }
+      
+      if (data?.success && data?.report) {
+        setPremiumAIReport(data.report);
+        toast.success("KI-Analysebericht erstellt und gespeichert.", {
+          description: "Du findest ihn auch unter KI-Berichte."
+        });
+        return data.report as PremiumAIReportResult;
+      }
+      
+      return null;
+    } catch (err) {
+      console.error("Premium AI Report Exception:", err);
+      setPremiumAIError("Netzwerkfehler beim KI-Bericht.");
+      toast.error("KI-Bericht konnte nicht erstellt werden.");
+      return null;
+    } finally {
+      setIsGeneratingAIReport(false);
+    }
+  };
+
   // PDF Generation - ALWAYS fetches fresh data (including patient/doctor data)
   const actuallyGenerateDiaryPDF = async (selectedDoctors: Doctor[]) => {
     setIsGeneratingReport(true);
@@ -493,6 +596,17 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         }
       }
 
+      // ============== PREMIUM KI-ANALYSEBERICHT ==============
+      let premiumAIReportData: PremiumAIReportResult | null = null;
+      
+      if (includePremiumAI) {
+        premiumAIReportData = await generatePremiumAIReport();
+        // Falls KI-Bericht fehlschlägt: PDF wird trotzdem erstellt
+        if (!premiumAIReportData) {
+          devWarn('Premium-KI-Bericht fehlgeschlagen, PDF wird ohne KI-Teil erstellt', { context: 'DiaryReport' });
+        }
+      }
+
       // Determine freeTextExportMode based on toggle
       const freeTextMode = includeContextNotes ? 'notes_and_context' : (includeEntryNotes ? 'short_notes' : 'none');
 
@@ -567,7 +681,9 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
           phone: d.phone || "",
           fax: d.fax || "",
           email: d.email || ""
-        })) : undefined
+        })) : undefined,
+        // Premium KI-Analysebericht (neu)
+        premiumAIReport: premiumAIReportData || undefined,
       });
 
       // Neuer Blob mit Timestamp für "always fresh"
@@ -994,17 +1110,18 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
                 />
               </div>
               <Switch 
-                checked={false} 
-                onCheckedChange={() => {
-                  toast.info("Premium-Feature: KI-Analysebericht ist in Kürze verfügbar.", {
-                    description: "Die erweiterte KI-Analyse wird als speicherbarer Bericht hinzugefügt."
-                  });
-                }}
+                checked={includePremiumAI} 
+                onCheckedChange={setIncludePremiumAI}
+                disabled={isGeneratingAIReport}
                 className="ml-3 shrink-0"
               />
             </div>
             <p className="text-xs text-muted-foreground mt-1 pl-6">
-              Wird beim Erstellen als zusätzlicher Bericht eingefügt und gespeichert.
+              {isGeneratingAIReport 
+                ? "KI-Bericht wird erstellt…" 
+                : premiumAIError 
+                  ? premiumAIError 
+                  : "Wird beim Erstellen als zusätzlicher Bericht eingefügt und gespeichert."}
             </p>
           </div>
         </Card>

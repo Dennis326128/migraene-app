@@ -86,3 +86,6 @@ verify_jwt = true
 
 [functions.resend-confirmation]
 verify_jwt = false
+
+[functions.generate-ai-diary-report]
+verify_jwt = true
