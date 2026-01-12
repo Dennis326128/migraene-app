@@ -42,7 +42,7 @@ interface MainMenuProps {
   onViewAnalysis: () => void;
   onViewSettings: () => void;
   onQuickEntry?: () => void;
-  onNavigate?: (view: 'medication-overview' | 'medication-management' | 'voice-notes' | 'reminders' | 'diary-timeline' | 'context-tags' | 'analysis' | 'analysis-grafik' | 'analysis-ki' | 'analysis-limits' | 'diary-report' | 'diary-report-home' | 'medication-limits') => void;
+  onNavigate?: (view: 'medication-overview' | 'medication-management' | 'voice-notes' | 'reminders' | 'diary-timeline' | 'context-tags' | 'analysis' | 'analysis-grafik' | 'analysis-ki' | 'analysis-limits' | 'diary-report' | 'diary-report-home' | 'medication-limits' | 'ai-reports') => void;
   onLimitWarning?: (checks: any[]) => void;
 }
 
@@ -292,18 +292,33 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               </StartPageCard>
             </StartPageButtonGrid>
 
-            {/* CTA: Kopfschmerztagebuch erstellen */}
-            <StartPageCard 
-              variant="neutral" 
-              touchFeedback 
-              onClick={() => onNavigate?.('diary-report-home')}
-            >
-              <StartPageCardHeader
-                icon="📝"
-                iconBgClassName="bg-muted"
-                title="Kopfschmerztagebuch erstellen"
-              />
-            </StartPageCard>
+            <StartPageButtonGrid columns={2} gap="md">
+              {/* CTA: Kopfschmerztagebuch erstellen */}
+              <StartPageCard 
+                variant="neutral" 
+                touchFeedback 
+                onClick={() => onNavigate?.('diary-report-home')}
+              >
+                <StartPageCardHeader
+                  icon="📝"
+                  iconBgClassName="bg-muted"
+                  title="Kopfschmerztagebuch"
+                />
+              </StartPageCard>
+
+              {/* KI-Berichte */}
+              <StartPageCard 
+                variant="neutral" 
+                touchFeedback 
+                onClick={() => onNavigate?.('ai-reports')}
+              >
+                <StartPageCardHeader
+                  icon="🧠"
+                  iconBgClassName="bg-gradient-to-br from-amber-500/20 to-orange-500/20"
+                  title="KI-Berichte"
+                />
+              </StartPageCard>
+            </StartPageButtonGrid>
           </div>
 
           {/* ORGANISATION - ganz unten, kleiner */}

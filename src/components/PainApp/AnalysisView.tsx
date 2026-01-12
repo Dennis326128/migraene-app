@@ -64,7 +64,7 @@ export function AnalysisView({ onBack, onNavigateToLimits }: AnalysisViewProps) 
   const [firstEntryDate, setFirstEntryDate] = useState<string | null>(null);
   
   // View mode for tabs
-  const [viewMode, setViewMode] = useState<"statistik" | "ki-muster">("statistik");
+  const [viewMode, setViewMode] = useState<"statistik" | "ki-analyse">("statistik");
   
   // Fullscreen modals
   const [timeDistributionFullscreen, setTimeDistributionFullscreen] = useState(false);
@@ -241,15 +241,15 @@ export function AnalysisView({ onBack, onNavigateToLimits }: AnalysisViewProps) 
         </div>
 
         {/* Tabs */}
-        <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "statistik" | "ki-muster")} className="mb-6">
+        <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "statistik" | "ki-analyse")} className="mb-6">
           <TabsList className="grid w-full grid-cols-2 h-14">
             <TabsTrigger value="statistik" className="flex items-center gap-2 text-base px-6 py-3">
               <BarChart3 className="h-5 w-5" />
               Statistik
             </TabsTrigger>
-            <TabsTrigger value="ki-muster" className="flex items-center gap-2 text-base px-6 py-3">
+            <TabsTrigger value="ki-analyse" className="flex items-center gap-2 text-base px-6 py-3">
               <Brain className="h-5 w-5" />
-              KI-Muster
+              KI-Analyse
             </TabsTrigger>
           </TabsList>
 
@@ -370,7 +370,7 @@ export function AnalysisView({ onBack, onNavigateToLimits }: AnalysisViewProps) 
                         <Button 
                           variant="outline" 
                           size="sm"
-                          onClick={() => setViewMode("ki-muster")}
+                          onClick={() => setViewMode("ki-analyse")}
                         >
                           <Brain className="h-4 w-4 mr-2" />
                           Zur KI-Analyse
@@ -383,7 +383,7 @@ export function AnalysisView({ onBack, onNavigateToLimits }: AnalysisViewProps) 
             )}
           </TabsContent>
 
-          <TabsContent value="ki-muster" className="mt-6">
+          <TabsContent value="ki-analyse" className="mt-6">
             <VoiceNotesAIAnalysis />
           </TabsContent>
         </Tabs>

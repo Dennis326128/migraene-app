@@ -541,7 +541,7 @@ export function VoiceNotesAIAnalysis() {
       <Alert>
         <Brain className="h-4 w-4" />
         <AlertDescription>
-          Die KI-Musteranalyse wertet alle Tracker-Daten aus: Kopfschmerz-Einträge, Notizen, Wetter, Medikamente und Prophylaxe-Verläufe.
+          Der KI-Analysebericht wertet alle Tracker-Daten aus: Kopfschmerz-Einträge, Notizen, Wetter, Medikamente und Prophylaxe-Verläufe.
           <p className="mt-2 text-xs text-muted-foreground">Private Auswertung. Keine medizinische Beratung.</p>
         </AlertDescription>
       </Alert>
@@ -550,7 +550,8 @@ export function VoiceNotesAIAnalysis() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Brain className="h-5 w-5" />
-            KI-Musteranalyse
+            KI-Analysebericht
+            <Badge variant="secondary" className="text-xs">Premium</Badge>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -744,8 +745,8 @@ export function VoiceNotesAIAnalysis() {
           {!analysisResult && !isAnalyzing && !analysisError && (
             <div className="text-center py-12 text-muted-foreground">
               <Brain className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>Klicke auf „Analyse starten" für eine Musterauswertung</p>
-              <p className="text-sm mt-2">Die Analyse erkennt Muster, Trigger und Zusammenhänge.</p>
+              <p>Klicke auf „Analyse starten" für einen KI-Analysebericht</p>
+              <p className="text-sm mt-2">Der Bericht erkennt Muster, Trigger und Zusammenhänge und wird gespeichert.</p>
             </div>
           )}
         </CardContent>

@@ -93,6 +93,17 @@ export const LazyHit6Screen = lazy(() =>
   import("@/components/PainApp/Hit6Screen").then(m => ({ default: m.default }))
 );
 
+/**
+ * AIReportsList - KI-Berichte list and detail views
+ */
+export const LazyAIReportsList = lazy(() => 
+  import("@/features/ai-reports/components/AIReportsList").then(m => ({ default: m.AIReportsList }))
+);
+
+export const LazyAIReportDetail = lazy(() => 
+  import("@/features/ai-reports/components/AIReportDetail").then(m => ({ default: m.AIReportDetail }))
+);
+
 // ═══════════════════════════════════════════════════════════════════════════
 // PDF GENERATION - Only load when needed
 // ═══════════════════════════════════════════════════════════════════════════
