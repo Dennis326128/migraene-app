@@ -48,12 +48,15 @@ function getInitialCustomDates(): { start: string; end: string } {
   }
 }
 
+import type { AIReport } from "@/features/ai-reports";
+
 interface AnalysisViewProps {
   onBack: () => void;
   onNavigateToLimits?: () => void;
+  onViewAIReport?: (report: AIReport) => void;
 }
 
-export function AnalysisView({ onBack, onNavigateToLimits }: AnalysisViewProps) {
+export function AnalysisView({ onBack, onNavigateToLimits, onViewAIReport }: AnalysisViewProps) {
   const isMobile = useIsMobile();
   
   // Initialize from sessionStorage
@@ -252,6 +255,13 @@ export function AnalysisView({ onBack, onNavigateToLimits }: AnalysisViewProps) 
               KI-Analyse
             </TabsTrigger>
           </TabsList>
+          
+          {/* Statistik Tab Subtitle */}
+          {viewMode === "statistik" && (
+            <p className="text-xs text-muted-foreground text-center mt-3">
+              Automatische Auswertung deiner Einträge in Echtzeit
+            </p>
+          )}
 
           <TabsContent value="statistik" className="mt-6">
             {/* TEIL A: Simplified Time Range Selection */}
@@ -363,9 +373,9 @@ export function AnalysisView({ onBack, onNavigateToLimits }: AnalysisViewProps) 
                     <div className="flex items-start gap-3">
                       <Brain className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
                       <div className="flex-1">
-                        <h4 className="font-medium mb-1">Mehr Zusammenhänge?</h4>
+                        <h4 className="font-medium mb-1">Tiefere Analyse?</h4>
                         <p className="text-sm text-muted-foreground mb-3">
-                          Im Tab <strong>"KI-Muster"</strong> analysiert die KI deine Daten nach möglichen Triggern.
+                          Im Tab <strong>„KI-Analyse"</strong> erstellt die KI einen detaillierten Bericht über mögliche Muster und Trigger.
                         </p>
                         <Button 
                           variant="outline" 
@@ -373,7 +383,7 @@ export function AnalysisView({ onBack, onNavigateToLimits }: AnalysisViewProps) 
                           onClick={() => setViewMode("ki-analyse")}
                         >
                           <Brain className="h-4 w-4 mr-2" />
-                          Zur KI-Analyse
+                          KI-Analysebericht
                         </Button>
                       </div>
                     </div>
@@ -384,7 +394,7 @@ export function AnalysisView({ onBack, onNavigateToLimits }: AnalysisViewProps) 
           </TabsContent>
 
           <TabsContent value="ki-analyse" className="mt-6">
-            <VoiceNotesAIAnalysis />
+            <VoiceNotesAIAnalysis onViewReport={onViewAIReport} />
           </TabsContent>
         </Tabs>
       </div>

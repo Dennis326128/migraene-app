@@ -196,6 +196,10 @@ export const PainApp: React.FC = () => {
         <LazyAnalysisView 
           onBack={goHome}
           onNavigateToLimits={handleNavigateToLimits}
+          onViewAIReport={(report) => {
+            setSelectedAIReport(report);
+            setView('ai-report-detail');
+          }}
         />,
         "Auswertung laden..."
       )}
@@ -351,7 +355,7 @@ export const PainApp: React.FC = () => {
           report={selectedAIReport}
           onBack={() => {
             setSelectedAIReport(null);
-            setView('ai-reports');
+            setView('analysis');
           }}
         />,
         "Bericht laden..."

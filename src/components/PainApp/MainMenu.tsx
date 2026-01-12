@@ -292,33 +292,19 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               </StartPageCard>
             </StartPageButtonGrid>
 
-            <StartPageButtonGrid columns={2} gap="md">
-              {/* CTA: Kopfschmerztagebuch erstellen */}
-              <StartPageCard 
-                variant="neutral" 
-                touchFeedback 
-                onClick={() => onNavigate?.('diary-report-home')}
-              >
-                <StartPageCardHeader
-                  icon="📝"
-                  iconBgClassName="bg-muted"
-                  title="Kopfschmerztagebuch"
-                />
-              </StartPageCard>
-
-              {/* KI-Berichte */}
-              <StartPageCard 
-                variant="neutral" 
-                touchFeedback 
-                onClick={() => onNavigate?.('ai-reports')}
-              >
-                <StartPageCardHeader
-                  icon="🧠"
-                  iconBgClassName="bg-gradient-to-br from-amber-500/20 to-orange-500/20"
-                  title="KI-Berichte"
-                />
-              </StartPageCard>
-            </StartPageButtonGrid>
+            {/* CTA: Kopfschmerztagebuch erstellen */}
+            <StartPageCard 
+              variant="neutral" 
+              touchFeedback 
+              onClick={() => onNavigate?.('diary-report-home')}
+            >
+              <StartPageCardHeader
+                icon="📝"
+                iconBgClassName="bg-muted"
+                title="Kopfschmerztagebuch"
+                subtitle="PDF für Arztbesuch"
+              />
+            </StartPageCard>
           </div>
 
           {/* ORGANISATION - ganz unten, kleiner */}
