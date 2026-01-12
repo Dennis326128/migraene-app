@@ -36,6 +36,9 @@ const RequestSchema = z.object({
   message: 'Datumsbereich ungültig: max. 730 Tage (2 Jahre)'
 });
 
+// Debug flag for timezone warnings (set DEBUG_TZ=1 to enable verbose logging)
+const DEBUG_TZ = Deno.env.get('DEBUG_TZ') === '1';
+
 // Helper: Get Europe/Berlin UTC offset for a given UTC instant (handles DST)
 // Returns offset in minutes (e.g., +60 for CET, +120 for CEST)
 // Robust parsing handles: "GMT+1", "GMT+01:00", "UTC+2", "GMT-5", etc.
@@ -49,7 +52,7 @@ function getBerlinOffsetMinutes(utcDate: Date): number {
     const tzPart = parts.find(p => p.type === 'timeZoneName');
     
     if (!tzPart) {
-      console.warn('[getBerlinOffsetMinutes] No timeZoneName part found, defaulting to CET (+60)');
+      if (DEBUG_TZ) console.warn('[getBerlinOffsetMinutes] No timeZoneName part found, defaulting to CET (+60)');
       return 60;
     }
     
@@ -62,23 +65,28 @@ function getBerlinOffsetMinutes(utcDate: Date): number {
       return sign * (hours * 60 + mins);
     }
     
-    console.warn(`[getBerlinOffsetMinutes] Failed to parse offset from "${tzPart.value}", defaulting to CET (+60)`);
+    if (DEBUG_TZ) console.warn(`[getBerlinOffsetMinutes] Failed to parse offset from "${tzPart.value}", defaulting to CET (+60)`);
     return 60;
   } catch (err) {
-    console.warn('[getBerlinOffsetMinutes] Exception during offset calculation:', err);
+    if (DEBUG_TZ) console.warn('[getBerlinOffsetMinutes] Exception during offset calculation:', err);
     return 60;
   }
 }
 
-// Helper: Format a UTC Date to Berlin local time and extract HH:MM
+// Helper: Format a UTC Date to Berlin local time and extract HH:MM deterministically
+// Uses formatToParts with en-GB locale to ensure consistent "00" padding
 function getBerlinTimeHHMM(utcDate: Date): string {
-  const formatter = new Intl.DateTimeFormat('de-DE', {
+  const formatter = new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Europe/Berlin',
     hour: '2-digit',
     minute: '2-digit',
     hour12: false
   });
-  return formatter.format(utcDate);
+  const parts = formatter.formatToParts(utcDate);
+  const hour = parts.find(p => p.type === 'hour')?.value ?? '00';
+  const minute = parts.find(p => p.type === 'minute')?.value ?? '00';
+  // Ensure zero-padding (should already be 2-digit, but be defensive)
+  return `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`;
 }
 
 /**
@@ -138,8 +146,8 @@ function berlinMidnightToUtcISO(dateStr: string): string {
       return corrected.toISOString();
     }
     
-    // Log warning but return best effort
-    console.warn(`[berlinMidnightToUtcISO] Could not achieve exact midnight for ${dateStr}. Got ${berlinTime}, using candidate anyway.`);
+    // Log warning but return best effort (only if DEBUG_TZ enabled)
+    if (DEBUG_TZ) console.warn(`[berlinMidnightToUtcISO] Could not achieve exact midnight for ${dateStr}. Got ${berlinTime}, using candidate anyway.`);
   }
   
   return candidate.toISOString();
