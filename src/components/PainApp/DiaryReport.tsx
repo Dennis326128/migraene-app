@@ -12,7 +12,7 @@ import { mapTextLevelToScore } from "@/lib/utils/pain";
 import { useMedicationEffectsForEntries } from "@/features/medication-effects/hooks/useMedicationEffects";
 import { usePatientData, useDoctors } from "@/features/account/hooks/useAccount";
 import { useMedicationCourses } from "@/features/medication-courses/hooks/useMedicationCourses";
-import { Loader2, ArrowLeft, FileText, Table, Pill, ChevronDown, ChevronRight } from "lucide-react";
+import { Loader2, ArrowLeft, FileText, Table, Pill, ChevronDown, ChevronRight, Brain } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { TimeRangeButtons, type TimeRangePreset } from "./TimeRangeButtons";
@@ -31,6 +31,9 @@ import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { devLog, devWarn } from "@/lib/utils/devLogger";
 import { buildReportData, type ReportData, getEntryDate } from "@/lib/pdf/reportData";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { PremiumBadge } from "@/components/ui/premium-badge";
+import { useUserAISettings } from "@/features/draft-composer/hooks/useUserAISettings";
 
 type Preset = TimeRangePreset;
 
@@ -932,11 +935,25 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
                 checked={includeStats}
                 onCheckedChange={setIncludeStats}
               />
-              <ToggleRow
-                label="KI-Analyse"
-                checked={includeAnalysis}
-                onCheckedChange={setIncludeAnalysis}
-              />
+              {/* Renamed: "KI-Analyse" -> "Automatische Auswertung" */}
+              <div className="flex items-center justify-between py-2.5">
+                <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                  <span className="text-sm">Automatische Auswertung</span>
+                  <InfoTooltip 
+                    content={
+                      <div className="space-y-1">
+                        <p>Erstellt Übersichten, Diagramme und eine Zusammenfassung aus deinen erfassten Daten.</p>
+                        <p className="text-xs text-muted-foreground italic">Keine medizinische Beratung.</p>
+                      </div>
+                    }
+                  />
+                </div>
+                <Switch 
+                  checked={includeAnalysis} 
+                  onCheckedChange={setIncludeAnalysis}
+                  className="ml-3 shrink-0"
+                />
+              </div>
               <ToggleRow
                 label="Therapien (Prophylaxe & Akut)"
                 checked={includeTherapies}
@@ -954,11 +971,42 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
                   label="Alle Kontextnotizen einbinden"
                   checked={includeContextNotes}
                   onCheckedChange={setIncludeContextNotes}
-                  subtext="Zusätzliche Kontext-/Systemnotizen (kann PDF verlängern und beeinflusst KI-Analyse)"
+                  subtext="Zusätzliche Kontext-/Systemnotizen (kann PDF verlängern)"
                 />
               </div>
             </CollapsibleContent>
           </Collapsible>
+
+          {/* Premium Section: KI-Analysebericht */}
+          <div className="p-4 border-t border-border/50 bg-gradient-to-r from-amber-500/5 to-orange-500/5">
+            <div className="flex items-center justify-between py-1">
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <Brain className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                <span className="text-sm font-medium">KI-Analysebericht</span>
+                <PremiumBadge />
+                <InfoTooltip 
+                  content={
+                    <div className="space-y-1">
+                      <p>Erstellt eine erweiterte Interpretation deiner Daten als gespeicherten Bericht.</p>
+                      <p className="text-xs text-muted-foreground italic">Keine medizinische Beratung.</p>
+                    </div>
+                  }
+                />
+              </div>
+              <Switch 
+                checked={false} 
+                onCheckedChange={() => {
+                  toast.info("Premium-Feature: KI-Analysebericht ist in Kürze verfügbar.", {
+                    description: "Die erweiterte KI-Analyse wird als speicherbarer Bericht hinzugefügt."
+                  });
+                }}
+                className="ml-3 shrink-0"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground mt-1 pl-6">
+              Wird beim Erstellen als zusätzlicher Bericht eingefügt und gespeichert.
+            </p>
+          </div>
         </Card>
       </div>
 
