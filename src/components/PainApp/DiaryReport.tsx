@@ -435,10 +435,12 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     setPremiumAIError(null);
     
     try {
+      // Send dates in local timezone format (no Z suffix) to avoid date shift issues for German users
+      // The edge function will interpret these as start/end of day in the user's perspective
       const { data, error } = await supabase.functions.invoke('generate-ai-diary-report', {
         body: {
-          fromDate: `${from}T00:00:00Z`,
-          toDate: `${to}T23:59:59Z`,
+          fromDate: `${from}T00:00:00`,
+          toDate: `${to}T23:59:59`,
           includeStats,
           includeTherapies,
           includeEntryNotes,

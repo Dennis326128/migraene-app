@@ -61,9 +61,20 @@ function SectionCard({ title, icon: Icon, children }: { title: string; icon: Rea
 }
 
 export function AIReportDetail({ report, onBack }: AIReportDetailProps) {
-  const structured = report.response_json?.structured as any;
+  // Fallback: if response_json.structured exists use it, otherwise use response_json directly
+  // This handles both old diary_pdf reports (no structured wrapper) and pattern_analysis reports
+  const responseData = report.response_json as any;
+  const structured = responseData?.structured ?? responseData;
   
-  if (!structured) {
+  // Check if we have valid data (either structured format or diary format with keyFindings/headline)
+  const hasValidData = structured && (
+    structured.keyFindings?.length > 0 || 
+    structured.sections?.length > 0 || 
+    structured.headline ||
+    structured.overview
+  );
+  
+  if (!hasValidData) {
     return (
       <div className="min-h-screen bg-background">
         <div className="sticky top-0 z-10 bg-background border-b border-border px-4 py-3 flex items-center gap-3">
