@@ -36,15 +36,15 @@ const RequestSchema = z.object({
   message: 'Datumsbereich ungültig: max. 730 Tage (2 Jahre)'
 });
 
-// Helper: Get Europe/Berlin UTC offset for a given date (handles DST)
+// Helper: Get Europe/Berlin UTC offset for a given UTC instant (handles DST)
 // Returns offset in minutes (e.g., +60 for CET, +120 for CEST)
-function getBerlinOffsetMinutes(date: Date): number {
-  // Use Intl to get the actual offset for Berlin on this date
+function getBerlinOffsetMinutes(utcDate: Date): number {
+  // Use Intl to get the actual offset for Berlin at this UTC instant
   const formatter = new Intl.DateTimeFormat('en-US', {
     timeZone: 'Europe/Berlin',
     timeZoneName: 'shortOffset'
   });
-  const parts = formatter.formatToParts(date);
+  const parts = formatter.formatToParts(utcDate);
   const tzPart = parts.find(p => p.type === 'timeZoneName');
   if (!tzPart) return 60; // Default to CET
   
@@ -58,29 +58,71 @@ function getBerlinOffsetMinutes(date: Date): number {
   return 60; // Default to CET
 }
 
-// Helper: Build UTC ISO strings for Europe/Berlin date range
-// For timestamptz queries (voice_notes.occurred_at)
+/**
+ * Convert a date string (YYYY-MM-DD) to the UTC ISO timestamp that represents
+ * exactly 00:00:00 in Europe/Berlin timezone on that date.
+ * 
+ * Uses 2-pass approach to handle DST transitions correctly:
+ * 1. Start with probe at UTC midnight
+ * 2. Get Berlin offset at that probe time
+ * 3. Compute first approximation of actual UTC
+ * 4. Re-check Berlin offset at the approximation (may differ due to DST)
+ * 5. Final adjustment with correct offset
+ * 
+ * Example: 2026-01-12 in Berlin (CET, UTC+1)
+ * - Berlin 00:00:00+01:00 = 2026-01-11T23:00:00Z
+ * 
+ * Example: 2026-07-12 in Berlin (CEST, UTC+2)
+ * - Berlin 00:00:00+02:00 = 2026-07-11T22:00:00Z
+ */
+function berlinMidnightToUtcISO(dateStr: string): string {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  
+  // Step 1: Create probe at UTC midnight for this date
+  const probeUtc = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
+  
+  // Step 2: Get Berlin offset at probe time
+  const offset1 = getBerlinOffsetMinutes(probeUtc);
+  
+  // Step 3: First approximation - subtract offset to get Berlin midnight in UTC
+  // If Berlin is UTC+1, then Berlin 00:00 = UTC 23:00 previous day
+  const utc1 = new Date(probeUtc.getTime() - offset1 * 60 * 1000);
+  
+  // Step 4: Re-check offset at the approximated time (handles DST edge cases)
+  const offset2 = getBerlinOffsetMinutes(utc1);
+  
+  // Step 5: If offset changed (DST transition), recalculate
+  if (offset1 !== offset2) {
+    const utc2 = new Date(probeUtc.getTime() - offset2 * 60 * 1000);
+    return utc2.toISOString();
+  }
+  
+  return utc1.toISOString();
+}
+
+/**
+ * Get the next day's date string (YYYY-MM-DD)
+ */
+function nextDay(dateStr: string): string {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const d = new Date(Date.UTC(year, month - 1, day + 1));
+  return d.toISOString().split('T')[0];
+}
+
+/**
+ * Build UTC ISO range for Europe/Berlin date range.
+ * For querying timestamptz columns (e.g., voice_notes.occurred_at).
+ * 
+ * Returns UTC timestamps such that:
+ * - startUtc = Berlin midnight on fromDate
+ * - endExclusiveUtc = Berlin midnight on (toDate + 1 day)
+ * 
+ * Query pattern: >= startUtc AND < endExclusiveUtc
+ */
 function buildBerlinUtcRange(fromDate: string, toDate: string): { startUtc: string; endExclusiveUtc: string } {
-  // Parse date parts
-  const [fromYear, fromMonth, fromDay] = fromDate.split('-').map(Number);
-  const [toYear, toMonth, toDay] = toDate.split('-').map(Number);
-  
-  // Create dates at midnight Berlin time
-  const startBerlin = new Date(Date.UTC(fromYear, fromMonth - 1, fromDay, 0, 0, 0));
-  const endBerlin = new Date(Date.UTC(toYear, toMonth - 1, toDay + 1, 0, 0, 0));
-  
-  // Get Berlin offset for each date (handles DST correctly)
-  const startOffset = getBerlinOffsetMinutes(startBerlin);
-  const endOffset = getBerlinOffsetMinutes(endBerlin);
-  
-  // Subtract Berlin offset to get UTC
-  // Berlin 00:00:00+01:00 = UTC 23:00:00 previous day
-  const startUtc = new Date(startBerlin.getTime() - startOffset * 60 * 1000);
-  const endUtc = new Date(endBerlin.getTime() - endOffset * 60 * 1000);
-  
   return {
-    startUtc: startUtc.toISOString(),
-    endExclusiveUtc: endUtc.toISOString()
+    startUtc: berlinMidnightToUtcISO(fromDate),
+    endExclusiveUtc: berlinMidnightToUtcISO(nextDay(toDate))
   };
 }
 
@@ -275,15 +317,17 @@ serve(async (req) => {
     }
 
     // ============== DATA FETCHING ==============
-    // VARIANTE 1: Use selected_date (date type) for pain_entries - timezone-safe
-    // For voice_notes (timestamptz), use proper UTC range with DST awareness
+    // Strategy:
+    // - pain_entries: Use selected_date (date type) for timezone-safe filtering
+    //   Supabase doesn't support OR in .gte/.lte, so we fetch entries with selected_date in range.
+    //   Entries with NULL selected_date are rare (legacy) - we do a separate fallback query.
+    // - voice_notes: Use UTC range for timestamptz (occurred_at) with DST awareness
     const utcRange = buildBerlinUtcRange(fromDate, toDate);
     console.log(`[${requestId}] Date range: ${fromDate} to ${toDate}`);
     console.log(`[${requestId}] UTC range for timestamptz: ${utcRange.startUtc} to ${utcRange.endExclusiveUtc}`);
 
-    // Fetch pain_entries using selected_date (date type) - timezone-safe!
-    // Falls back to timestamp_created comparison if selected_date is null (handled in filter)
-    const { data: painEntries } = await supabase
+    // Primary query: pain_entries with selected_date (timezone-safe date comparison)
+    const { data: entriesWithDate } = await supabase
       .from('pain_entries')
       .select(`
         timestamp_created,
@@ -304,10 +348,50 @@ serve(async (req) => {
         )
       `)
       .eq('user_id', user.id)
+      .not('selected_date', 'is', null)
       .gte('selected_date', fromDate)
       .lte('selected_date', toDate)
       .order('selected_date', { ascending: true })
       .limit(200);
+
+    // Fallback query: entries with NULL selected_date, use timestamp_created UTC range
+    // This handles legacy entries that may not have selected_date set
+    const { data: entriesWithoutDate } = await supabase
+      .from('pain_entries')
+      .select(`
+        timestamp_created,
+        selected_date,
+        selected_time,
+        pain_level,
+        aura_type,
+        pain_locations,
+        medications,
+        notes,
+        weather:weather_logs!pain_entries_weather_id_fkey (
+          temperature_c,
+          pressure_mb,
+          humidity,
+          pressure_change_24h,
+          condition_text,
+          created_at
+        )
+      `)
+      .eq('user_id', user.id)
+      .is('selected_date', null)
+      .gte('timestamp_created', utcRange.startUtc)
+      .lt('timestamp_created', utcRange.endExclusiveUtc)
+      .order('timestamp_created', { ascending: true })
+      .limit(50);
+
+    // Merge and deduplicate (shouldn't have duplicates, but be safe)
+    const painEntries = [...(entriesWithDate || []), ...(entriesWithoutDate || [])];
+    
+    // Sort merged results by effective date
+    painEntries.sort((a, b) => {
+      const dateA = a.selected_date || a.timestamp_created?.split('T')[0] || '';
+      const dateB = b.selected_date || b.timestamp_created?.split('T')[0] || '';
+      return dateA.localeCompare(dateB);
+    });
 
     // Fetch voice_notes using UTC range (occurred_at is timestamptz)
     const { data: voiceNotes } = await supabase
@@ -319,14 +403,14 @@ serve(async (req) => {
       .order('occurred_at', { ascending: true })
       .limit(100);
 
-    // Fetch medication_courses (all, as they may span multiple periods)
+    // Fetch medication_courses (all, as they may affect analysis context)
     const { data: medicationCourses } = await supabase
       .from('medication_courses')
       .select('updated_at, start_date, end_date')
       .eq('user_id', user.id)
       .order('updated_at', { ascending: false });
 
-    console.log(`[${requestId}] Data: ${painEntries?.length || 0} entries, ${voiceNotes?.length || 0} notes, ${medicationCourses?.length || 0} courses`);
+    console.log(`[${requestId}] Data: ${painEntries.length} entries (${entriesWithDate?.length || 0} with date, ${entriesWithoutDate?.length || 0} fallback), ${voiceNotes?.length || 0} notes, ${medicationCourses?.length || 0} courses`);
 
     // Build structured data for prompt
     const structuredEntries = (painEntries || []).map(entry => {
