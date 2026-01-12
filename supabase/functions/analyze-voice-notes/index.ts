@@ -7,6 +7,11 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// ============== QUOTA CONFIGURATION ==============
+const FREE_PATTERN_ANALYSIS_MONTHLY = 5;
+const PREMIUM_PATTERN_ANALYSIS_MONTHLY = 30; // For future use
+const COOLDOWN_SECONDS = 60;
+
 // Validation schema for date range requests
 const AnalysisRequestSchema = z.object({
   fromDate: z.string()
@@ -132,6 +137,21 @@ interface StructuredAnalysis {
   tagsFromNotes: Array<{ tag: string; count: number }>;
 }
 
+// User profile with quota fields
+interface UserProfile {
+  ai_enabled: boolean;
+  ai_unlimited: boolean;
+}
+
+// Quota usage info
+interface QuotaInfo {
+  used: number;
+  limit: number;
+  remaining: number;
+  isUnlimited: boolean;
+  cooldownRemaining: number;
+}
+
 serve(async (req) => {
   const requestId = crypto.randomUUID();
   const startTime = Date.now();
@@ -190,8 +210,9 @@ serve(async (req) => {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY');
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     
-    if (!supabaseUrl || !supabaseKey) {
+    if (!supabaseUrl || !supabaseKey || !serviceRoleKey) {
       console.error(`[${requestId}] Missing Supabase env vars`);
       return new Response(JSON.stringify({ 
         requestId,
@@ -202,9 +223,13 @@ serve(async (req) => {
       });
     }
     
+    // User client for auth-scoped reads
     const supabase = createClient(supabaseUrl, supabaseKey, {
       global: { headers: { Authorization: authHeader } }
     });
+
+    // Service role client for cache writes and quota updates
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
@@ -220,10 +245,10 @@ serve(async (req) => {
 
     console.log(`[${requestId}] User authenticated: ${user.id}`);
 
-    // Check if AI is enabled for user
+    // ============== PROFILE + QUOTA CHECK ==============
     const { data: profile } = await supabase
       .from('user_profiles')
-      .select('ai_enabled')
+      .select('ai_enabled, ai_unlimited')
       .eq('user_id', user.id)
       .single();
 
@@ -238,6 +263,135 @@ serve(async (req) => {
       });
     }
 
+    const isUnlimited = profile.ai_unlimited === true;
+    console.log(`[${requestId}] User quota status: unlimited=${isUnlimited}`);
+
+    // Get current period (calendar month)
+    const currentPeriod = new Date().toISOString().slice(0, 7) + '-01'; // YYYY-MM-01
+
+    // Fetch usage for pattern_analysis in current period
+    const { data: usageData } = await supabaseAdmin
+      .from('user_ai_usage')
+      .select('request_count, last_used_at')
+      .eq('user_id', user.id)
+      .eq('feature', 'pattern_analysis')
+      .gte('period_start', currentPeriod)
+      .order('period_start', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const currentUsage = usageData?.request_count ?? 0;
+    const lastUsedAt = usageData?.last_used_at ? new Date(usageData.last_used_at) : null;
+    const quotaLimit = FREE_PATTERN_ANALYSIS_MONTHLY;
+
+    // Calculate cooldown remaining
+    let cooldownRemaining = 0;
+    if (lastUsedAt && !isUnlimited) {
+      const secondsSinceLastUse = (Date.now() - lastUsedAt.getTime()) / 1000;
+      cooldownRemaining = Math.max(0, COOLDOWN_SECONDS - secondsSinceLastUse);
+    }
+
+    // Build quota info for response
+    const quotaInfo: QuotaInfo = {
+      used: currentUsage,
+      limit: quotaLimit,
+      remaining: isUnlimited ? 999 : Math.max(0, quotaLimit - currentUsage),
+      isUnlimited,
+      cooldownRemaining: Math.ceil(cooldownRemaining)
+    };
+
+    // ============== COOLDOWN CHECK (only for non-unlimited) ==============
+    if (!isUnlimited && cooldownRemaining > 0) {
+      console.log(`[${requestId}] Cooldown active: ${cooldownRemaining}s remaining`);
+      return new Response(JSON.stringify({ 
+        requestId,
+        error: 'Bitte warte kurz, bevor du erneut analysierst.',
+        errorCode: 'COOLDOWN',
+        cooldownRemaining: Math.ceil(cooldownRemaining),
+        quota: quotaInfo
+      }), { 
+        status: 429, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
+    }
+
+    // ============== QUOTA CHECK (only for non-unlimited) ==============
+    if (!isUnlimited && currentUsage >= quotaLimit) {
+      console.log(`[${requestId}] Quota exhausted: ${currentUsage}/${quotaLimit}`);
+      return new Response(JSON.stringify({ 
+        requestId,
+        error: 'Monatliches Analyselimit erreicht. Nächsten Monat stehen dir wieder Analysen zur Verfügung.',
+        errorCode: 'QUOTA_EXCEEDED',
+        quota: quotaInfo
+      }), { 
+        status: 429, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
+    }
+
+    // ============== CACHE CHECK ==============
+    // Get latest updated_at from relevant source tables
+    const { data: latestPainEntry } = await supabase
+      .from('pain_entries')
+      .select('timestamp_created')
+      .eq('user_id', user.id)
+      .gte('timestamp_created', fromDate)
+      .lte('timestamp_created', toDate)
+      .order('timestamp_created', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const { data: latestVoiceNote } = await supabase
+      .from('voice_notes')
+      .select('captured_at')
+      .eq('user_id', user.id)
+      .gte('occurred_at', fromDate)
+      .lte('occurred_at', toDate)
+      .order('captured_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    // Determine latest source update
+    const painTs = latestPainEntry?.timestamp_created ? new Date(latestPainEntry.timestamp_created).getTime() : 0;
+    const voiceTs = latestVoiceNote?.captured_at ? new Date(latestVoiceNote.captured_at).getTime() : 0;
+    const latestSourceUpdatedAt = new Date(Math.max(painTs, voiceTs, 1));
+
+    // Build cache key
+    const fromDateStr = fromDate.split('T')[0];
+    const toDateStr = toDate.split('T')[0];
+    const cacheKey = `${user.id}:${fromDateStr}:${toDateStr}:${latestSourceUpdatedAt.toISOString()}`;
+
+    console.log(`[${requestId}] Cache key: ${cacheKey}`);
+
+    // Check for cached result
+    const { data: cachedResult } = await supabase
+      .from('ai_analysis_cache')
+      .select('response_json, created_at')
+      .eq('user_id', user.id)
+      .eq('cache_key', cacheKey)
+      .maybeSingle();
+
+    if (cachedResult) {
+      console.log(`[${requestId}] Cache HIT - returning cached result from ${cachedResult.created_at}`);
+      
+      // Return cached result without consuming quota
+      const duration = Date.now() - startTime;
+      console.log(`[${requestId}] Request completed (cached) in ${duration}ms`);
+
+      return new Response(JSON.stringify({
+        ...cachedResult.response_json,
+        requestId,
+        cached: true,
+        cachedAt: cachedResult.created_at,
+        quota: quotaInfo
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    console.log(`[${requestId}] Cache MISS - proceeding with analysis`);
+
+    // ============== DATA FETCHING ==============
     // Fetch voice notes
     const { data: voiceNotes, error: voiceError } = await supabase
       .from('voice_notes')
@@ -336,7 +490,6 @@ serve(async (req) => {
       const date = entry.selected_date || entry.timestamp_created.split('T')[0];
       const time = entry.selected_time || entry.timestamp_created.split('T')[1].substring(0, 5);
       
-      // Handle pain_locations as array, join for display
       const painLocations = entry.pain_locations;
       const painLocationDisplay = Array.isArray(painLocations) && painLocations.length > 0 
         ? painLocations.join(', ') 
@@ -396,7 +549,8 @@ serve(async (req) => {
         voice_notes_count: 0,
         total_analyzed: 0,
         has_weather_data: false,
-        date_range: { from: fromDate.split('T')[0], to: toDate.split('T')[0] }
+        date_range: { from: fromDate.split('T')[0], to: toDate.split('T')[0] },
+        quota: quotaInfo
       }), { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       });
@@ -448,25 +602,15 @@ serve(async (req) => {
       medDays
     );
     
-    if (!LOVABLE_API_KEY) {
-      console.log(`[${requestId}] No LOVABLE_API_KEY, returning deterministic analysis`);
-      return new Response(JSON.stringify({
-        requestId,
-        structured: deterministicResult,
-        analyzed_entries: painEntries?.length || 0,
-        voice_notes_count: voiceNotes?.length || 0,
-        total_analyzed: allData.length,
-        has_weather_data: hasWeatherData,
-        date_range: { from: fromDate.split('T')[0], to: toDate.split('T')[0] },
-        ai_available: false,
-        tags: { total_tags: allTags.length, unique_tags: topTags.length, top_tags: topTags, top_hashtags: topHashtags }
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    let finalResult: StructuredAnalysis;
+    let aiAvailable = false;
 
-    // JSON schema for AI
-    const jsonSchema = `{
+    if (!LOVABLE_API_KEY) {
+      console.log(`[${requestId}] No LOVABLE_API_KEY, using deterministic analysis`);
+      finalResult = deterministicResult;
+    } else {
+      // ============== AI ANALYSIS ==============
+      const jsonSchema = `{
   "schemaVersion": 1,
   "timeRange": { "from": "YYYY-MM-DD", "to": "YYYY-MM-DD" },
   "dataCoverage": { "entries": number, "notes": number, "weatherDays": number, "medDays": number, "prophylaxisCourses": number },
@@ -481,7 +625,7 @@ serve(async (req) => {
   "tagsFromNotes": [{ "tag": "Label", "count": number }]
 }`;
 
-    const systemMessage = `Du bist ein Kopfschmerz-Musteranalyse-System. Antworte NUR mit validem JSON im exakten Schema.
+      const systemMessage = `Du bist ein Kopfschmerz-Musteranalyse-System. Antworte NUR mit validem JSON im exakten Schema.
 
 REGELN:
 - Keine Emojis
@@ -495,7 +639,7 @@ REGELN:
 JSON-SCHEMA:
 ${jsonSchema}`;
 
-    const prompt = `Analysiere diese Kopfschmerz-Daten (${allData.length} Einträge, ${fromDate.split('T')[0]} bis ${toDate.split('T')[0]}).
+      const prompt = `Analysiere diese Kopfschmerz-Daten (${allData.length} Einträge, ${fromDate.split('T')[0]} bis ${toDate.split('T')[0]}).
 
 DATENSATZ:
 ${dataText}${tagsSummary}${coursesSummary}
@@ -515,100 +659,166 @@ tagsFromNotes: Die erkannten Kontext-Tags mit Anzahl
 
 Antworte NUR mit dem JSON-Objekt, kein Markdown-Wrapper.`;
 
-    console.log(`[${requestId}] Calling AI Gateway`);
+      console.log(`[${requestId}] Calling AI Gateway`);
 
-    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          { role: 'system', content: systemMessage },
-          { role: 'user', content: prompt }
-        ],
-      }),
-    });
-
-    if (!aiResponse.ok) {
-      const errorText = await aiResponse.text();
-      console.error(`[${requestId}] AI Gateway Error: ${aiResponse.status}`, errorText);
-      
-      if (aiResponse.status === 429) {
-        return new Response(JSON.stringify({ requestId, error: 'Rate Limit erreicht. Bitte später erneut versuchen.' }), {
-          status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-      if (aiResponse.status === 402) {
-        return new Response(JSON.stringify({ requestId, error: 'Guthaben aufgebraucht. Bitte Credits hinzufügen.' }), {
-          status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-      
-      // Fallback to deterministic
-      console.log(`[${requestId}] AI failed, falling back to deterministic`);
-      return new Response(JSON.stringify({
-        requestId,
-        structured: deterministicResult,
-        analyzed_entries: painEntries?.length || 0,
-        voice_notes_count: voiceNotes?.length || 0,
-        total_analyzed: allData.length,
-        has_weather_data: hasWeatherData,
-        date_range: { from: fromDate.split('T')[0], to: toDate.split('T')[0] },
-        ai_available: false,
-        tags: { total_tags: allTags.length, unique_tags: topTags.length, top_tags: topTags, top_hashtags: topHashtags }
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'google/gemini-2.5-flash',
+          messages: [
+            { role: 'system', content: systemMessage },
+            { role: 'user', content: prompt }
+          ],
+        }),
       });
+
+      if (!aiResponse.ok) {
+        const errorText = await aiResponse.text();
+        console.error(`[${requestId}] AI Gateway Error: ${aiResponse.status}`, errorText);
+        
+        if (aiResponse.status === 429) {
+          return new Response(JSON.stringify({ 
+            requestId, 
+            error: 'Rate Limit erreicht. Bitte später erneut versuchen.',
+            quota: quotaInfo
+          }), {
+            status: 429, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        if (aiResponse.status === 402) {
+          return new Response(JSON.stringify({ 
+            requestId, 
+            error: 'Guthaben aufgebraucht. Bitte Credits hinzufügen.',
+            quota: quotaInfo
+          }), {
+            status: 402, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        
+        // Fallback to deterministic
+        console.log(`[${requestId}] AI failed, falling back to deterministic`);
+        finalResult = deterministicResult;
+      } else {
+        const aiData = await aiResponse.json();
+        let aiContent = aiData.choices[0].message.content;
+        
+        console.log(`[${requestId}] AI response received, tokens: ${aiData.usage?.total_tokens || 'unknown'}`);
+
+        // Parse JSON from AI response
+        try {
+          aiContent = aiContent.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
+          finalResult = JSON.parse(aiContent);
+          
+          finalResult.schemaVersion = 1;
+          finalResult.timeRange = { from: fromDate.split('T')[0], to: toDate.split('T')[0] };
+          finalResult.dataCoverage = {
+            entries: painEntries?.length || 0,
+            notes: voiceNotes?.length || 0,
+            weatherDays,
+            medDays,
+            prophylaxisCourses: prophylaxeCourses.length
+          };
+          
+          if (!finalResult.tagsFromNotes || finalResult.tagsFromNotes.length === 0) {
+            finalResult.tagsFromNotes = topTags.map(t => ({ tag: t.label, count: t.count }));
+          }
+          
+          aiAvailable = true;
+        } catch (parseError) {
+          console.error(`[${requestId}] Failed to parse AI JSON:`, parseError);
+          console.error(`[${requestId}] Raw AI content:`, aiContent.substring(0, 500));
+          
+          finalResult = {
+            ...deterministicResult,
+            overview: {
+              ...deterministicResult.overview,
+              headline: 'Musteranalyse (Fallback)'
+            }
+          };
+        }
+      }
     }
 
-    const aiData = await aiResponse.json();
-    let aiContent = aiData.choices[0].message.content;
-    
-    console.log(`[${requestId}] AI response received, tokens: ${aiData.usage?.total_tokens || 'unknown'}`);
+    // ============== UPDATE QUOTA (only if not from cache and not unlimited) ==============
+    if (!isUnlimited) {
+      const now = new Date().toISOString();
+      
+      // Upsert usage record
+      const { error: usageError } = await supabaseAdmin
+        .from('user_ai_usage')
+        .upsert({
+          user_id: user.id,
+          feature: 'pattern_analysis',
+          period_start: currentPeriod,
+          request_count: currentUsage + 1,
+          last_used_at: now,
+          updated_at: now
+        }, {
+          onConflict: 'user_id,feature',
+          ignoreDuplicates: false
+        });
 
-    // Parse JSON from AI response
-    let structuredResult: StructuredAnalysis;
-    try {
-      // Remove markdown code blocks if present
-      aiContent = aiContent.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
-      structuredResult = JSON.parse(aiContent);
-      
-      // Ensure schema version
-      structuredResult.schemaVersion = 1;
-      structuredResult.timeRange = { from: fromDate.split('T')[0], to: toDate.split('T')[0] };
-      structuredResult.dataCoverage = {
-        entries: painEntries?.length || 0,
-        notes: voiceNotes?.length || 0,
-        weatherDays,
-        medDays,
-        prophylaxisCourses: prophylaxeCourses.length
-      };
-      
-      // Merge tags from deterministic extraction if AI didn't include them
-      if (!structuredResult.tagsFromNotes || structuredResult.tagsFromNotes.length === 0) {
-        structuredResult.tagsFromNotes = topTags.map(t => ({ tag: t.label, count: t.count }));
+      if (usageError) {
+        console.error(`[${requestId}] Failed to update usage:`, usageError);
+        // Non-fatal - continue anyway
+      } else {
+        console.log(`[${requestId}] Usage updated: ${currentUsage + 1}/${quotaLimit}`);
       }
-      
-    } catch (parseError) {
-      console.error(`[${requestId}] Failed to parse AI JSON:`, parseError);
-      console.error(`[${requestId}] Raw AI content:`, aiContent.substring(0, 500));
-      
-      // Fall back to deterministic with AI text as additional info
-      structuredResult = {
-        ...deterministicResult,
-        overview: {
-          ...deterministicResult.overview,
-          headline: 'Musteranalyse (Fallback)'
-        }
-      };
+
+      // Update quota info for response
+      quotaInfo.used = currentUsage + 1;
+      quotaInfo.remaining = Math.max(0, quotaLimit - (currentUsage + 1));
+    }
+
+    // ============== CACHE RESULT ==============
+    const responsePayload = {
+      requestId,
+      structured: finalResult,
+      analyzed_entries: painEntries?.length || 0,
+      voice_notes_count: voiceNotes?.length || 0,
+      total_analyzed: allData.length,
+      has_weather_data: hasWeatherData,
+      date_range: { from: fromDate.split('T')[0], to: toDate.split('T')[0] },
+      ai_available: aiAvailable,
+      tags: {
+        total_tags: allTags.length,
+        unique_tags: topTags.length,
+        top_tags: topTags,
+        top_hashtags: topHashtags
+      }
+    };
+
+    // Store in cache (using service role)
+    const { error: cacheError } = await supabaseAdmin
+      .from('ai_analysis_cache')
+      .upsert({
+        user_id: user.id,
+        cache_key: cacheKey,
+        feature: 'pattern_analysis',
+        from_date: fromDateStr,
+        to_date: toDateStr,
+        latest_source_updated_at: latestSourceUpdatedAt.toISOString(),
+        response_json: responsePayload,
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'user_id,cache_key'
+      });
+
+    if (cacheError) {
+      console.error(`[${requestId}] Cache write failed (non-fatal):`, cacheError);
+    } else {
+      console.log(`[${requestId}] Result cached`);
     }
 
     // Audit log (non-blocking)
     try {
-      await supabase.from('audit_logs').insert({
+      await supabaseAdmin.from('audit_logs').insert({
         user_id: user.id,
         action: 'AI_PATTERN_ANALYSIS',
         table_name: 'pain_entries',
@@ -620,7 +830,9 @@ Antworte NUR mit dem JSON-Objekt, kein Markdown-Wrapper.`;
           pain_entries_count: painEntries?.length || 0,
           total_analyzed: allData.length,
           has_weather_data: hasWeatherData,
-          tokens: aiData.usage?.total_tokens || 0
+          quota_used: quotaInfo.used,
+          quota_limit: quotaInfo.limit,
+          is_unlimited: isUnlimited
         }
       });
     } catch (auditError) {
@@ -631,20 +843,8 @@ Antworte NUR mit dem JSON-Objekt, kein Markdown-Wrapper.`;
     console.log(`[${requestId}] Request completed in ${duration}ms`);
 
     return new Response(JSON.stringify({
-      requestId,
-      structured: structuredResult,
-      analyzed_entries: painEntries?.length || 0,
-      voice_notes_count: voiceNotes?.length || 0,
-      total_analyzed: allData.length,
-      has_weather_data: hasWeatherData,
-      date_range: { from: fromDate.split('T')[0], to: toDate.split('T')[0] },
-      ai_available: true,
-      tags: {
-        total_tags: allTags.length,
-        unique_tags: topTags.length,
-        top_tags: topTags,
-        top_hashtags: topHashtags
-      }
+      ...responsePayload,
+      quota: quotaInfo
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

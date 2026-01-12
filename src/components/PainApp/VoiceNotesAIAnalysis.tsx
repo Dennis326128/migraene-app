@@ -57,6 +57,15 @@ interface StructuredAnalysis {
   tagsFromNotes: Array<{ tag: string; count: number }>;
 }
 
+// Quota info from backend
+interface QuotaInfo {
+  used: number;
+  limit: number;
+  remaining: number;
+  isUnlimited: boolean;
+  cooldownRemaining: number;
+}
+
 interface AnalysisResult {
   requestId?: string;
   structured?: StructuredAnalysis;
@@ -67,6 +76,9 @@ interface AnalysisResult {
   has_weather_data: boolean;
   ai_available?: boolean;
   date_range: { from: string; to: string };
+  cached?: boolean;
+  cachedAt?: string;
+  quota?: QuotaInfo;
   tags?: {
     total_tags: number;
     unique_tags: number;
@@ -78,6 +90,9 @@ interface AnalysisResult {
 // Simplified error state - no technical details exposed to UI
 interface AnalysisErrorState {
   hasError: boolean;
+  errorCode?: 'COOLDOWN' | 'QUOTA_EXCEEDED' | 'GENERIC';
+  cooldownRemaining?: number;
+  quota?: QuotaInfo;
   // Internal only for logging
   _internalRequestId?: string;
   _internalError?: string;
@@ -370,6 +385,18 @@ export function VoiceNotesAIAnalysis() {
   });
   const [isLoadingFirstEntry, setIsLoadingFirstEntry] = useState(false);
   const [lastAnalysisTime, setLastAnalysisTime] = useState<Date | null>(null);
+  const [buttonCooldown, setButtonCooldown] = useState(0);
+
+  // Client-side button cooldown timer
+  React.useEffect(() => {
+    if (buttonCooldown > 0) {
+      const timer = setTimeout(() => setButtonCooldown(prev => Math.max(0, prev - 1)), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [buttonCooldown]);
+
+  // Get quota display info
+  const quotaInfo = analysisResult?.quota || analysisError?.quota;
 
   const loadFirstEntryDate = async () => {
     setIsLoadingFirstEntry(true);
@@ -413,11 +440,10 @@ export function VoiceNotesAIAnalysis() {
    * Handles all error scenarios and sets user-friendly error state.
    * Technical details are logged but never shown to users.
    */
-  const handleAnalysisError = (error: unknown, requestId?: string) => {
+  const handleAnalysisError = (error: unknown, requestId?: string, errorData?: any) => {
     // Log technical details internally for debugging
     logError('VoiceNotesAIAnalysis.runAnalysis', error);
     
-    // Extract request ID if available for internal tracking
     let internalRequestId = requestId;
     let internalError = 'Unknown error';
     
@@ -425,9 +451,12 @@ export function VoiceNotesAIAnalysis() {
       internalError = error.message;
     }
     
-    // Set simple error state - NO technical details exposed
+    // Set error state with quota/cooldown info if available
     setAnalysisError({
       hasError: true,
+      errorCode: errorData?.errorCode || 'GENERIC',
+      cooldownRemaining: errorData?.cooldownRemaining,
+      quota: errorData?.quota,
       _internalRequestId: internalRequestId,
       _internalError: internalError,
     });
@@ -481,7 +510,7 @@ export function VoiceNotesAIAnalysis() {
 
       // Handle API-level errors returned in response body
       if (data?.error) {
-        handleAnalysisError(new Error(data.error), data.requestId);
+        handleAnalysisError(new Error(data.error), data.requestId, data);
         return;
       }
 
@@ -489,6 +518,8 @@ export function VoiceNotesAIAnalysis() {
       setAnalysisError(null);
       setAnalysisResult(data);
       setLastAnalysisTime(new Date());
+      // Set client-side button cooldown (5 seconds after success)
+      setButtonCooldown(5);
       
     } catch (error) {
       // Catch-all for unexpected errors (network timeout, JSON parse, etc.)
@@ -605,30 +636,41 @@ export function VoiceNotesAIAnalysis() {
                   
                   <div className="space-y-2">
                     <h3 className="font-medium text-foreground">
-                      KI-Analyse aktuell nicht verfügbar
+                      {analysisError.errorCode === 'COOLDOWN' 
+                        ? 'Bitte kurz warten'
+                        : analysisError.errorCode === 'QUOTA_EXCEEDED'
+                        ? 'Monatliches Limit erreicht'
+                        : 'KI-Analyse aktuell nicht verfügbar'}
                     </h3>
                     <p className="text-sm text-muted-foreground max-w-sm">
-                      Die Analyse konnte im Moment leider nicht durchgeführt werden.
-                      Bitte versuche es später erneut.
+                      {analysisError.errorCode === 'COOLDOWN' 
+                        ? `Bitte warte noch ${analysisError.cooldownRemaining || 60} Sekunden, bevor du erneut analysierst.`
+                        : analysisError.errorCode === 'QUOTA_EXCEEDED'
+                        ? 'Du hast dein monatliches Analyselimit erreicht. Nächsten Monat stehen dir wieder Analysen zur Verfügung.'
+                        : 'Die Analyse konnte im Moment leider nicht durchgeführt werden. Bitte versuche es später erneut.'}
                     </p>
-                    <p className="text-xs text-muted-foreground/70">
-                      Deine Daten sind sicher gespeichert.
-                    </p>
+                    {analysisError.quota && !analysisError.quota.isUnlimited && (
+                      <p className="text-xs text-muted-foreground/70">
+                        Nutzung: {analysisError.quota.used}/{analysisError.quota.limit} Analysen diesen Monat
+                      </p>
+                    )}
                   </div>
                   
                   <div className="flex gap-3 pt-2">
-                    <Button 
-                      onClick={handleRetry} 
-                      variant="default"
-                      size="sm"
-                      disabled={isAnalyzing}
-                    >
-                      {isAnalyzing ? (
-                        <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Analyse läuft …</>
-                      ) : (
-                        <><RefreshCw className="h-4 w-4 mr-2" /> Erneut versuchen</>
-                      )}
-                    </Button>
+                    {analysisError.errorCode !== 'QUOTA_EXCEEDED' && (
+                      <Button 
+                        onClick={handleRetry} 
+                        variant="default"
+                        size="sm"
+                        disabled={isAnalyzing || (analysisError.errorCode === 'COOLDOWN' && (analysisError.cooldownRemaining || 0) > 0)}
+                      >
+                        {isAnalyzing ? (
+                          <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Analyse läuft …</>
+                        ) : (
+                          <><RefreshCw className="h-4 w-4 mr-2" /> Erneut versuchen</>
+                        )}
+                      </Button>
+                    )}
                     <Button 
                       onClick={() => setAnalysisError(null)} 
                       variant="ghost"
@@ -642,11 +684,28 @@ export function VoiceNotesAIAnalysis() {
             </Card>
           )}
 
+          {/* Quota Display */}
+          {quotaInfo && !quotaInfo.isUnlimited && !analysisError?.hasError && (
+            <div className="flex items-center justify-between text-sm text-muted-foreground bg-muted/30 rounded-lg px-3 py-2">
+              <span>Analysen diesen Monat:</span>
+              <Badge variant={quotaInfo.remaining <= 1 ? "destructive" : "secondary"}>
+                {quotaInfo.used}/{quotaInfo.limit}
+              </Badge>
+            </div>
+          )}
+
           {/* Analysis Button - only show if no error is displayed */}
           {!analysisError?.hasError && (
-            <Button onClick={runAnalysis} disabled={isAnalyzing} className="w-full" size="lg">
+            <Button 
+              onClick={runAnalysis} 
+              disabled={isAnalyzing || buttonCooldown > 0} 
+              className="w-full" 
+              size="lg"
+            >
               {isAnalyzing ? (
                 <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Analyse läuft …</>
+              ) : buttonCooldown > 0 ? (
+                <><Clock className="h-4 w-4 mr-2" /> Warte {buttonCooldown}s …</>
               ) : (
                 <><Brain className="h-4 w-4 mr-2" /> Analyse starten</>
               )}
