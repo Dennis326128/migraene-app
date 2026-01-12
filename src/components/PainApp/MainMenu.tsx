@@ -162,7 +162,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 icon={<Mic className="w-5 h-5 text-voice" />}
                 iconBgClassName="bg-voice-light/30"
                 title="Spracheingabe"
-                subtitle="Per Sprache oder Text"
+                subtitle="Sag alles, was gerade passiert"
               />
             </StartPageCard>
 
