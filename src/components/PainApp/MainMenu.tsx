@@ -301,8 +301,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               <StartPageCardHeader
                 icon="📝"
                 iconBgClassName="bg-muted"
-                title="Kopfschmerztagebuch"
-                subtitle="PDF für Arztbesuch"
+                title="Kopfschmerztagebuch erstellen"
               />
             </StartPageCard>
           </div>
