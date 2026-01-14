@@ -441,10 +441,12 @@ export function SimpleVoiceOverlay({
         <Mic className="w-14 h-14 text-primary" />
       </button>
       
-      {/* Hint - shows "Tippe zum Sprechen" after auto-start failed, otherwise "Sprechen" */}
-      <p className="mt-10 text-sm text-muted-foreground/50">
-        {showIdleHint ? 'Tippe zum Sprechen' : 'Sprechen'}
-      </p>
+      {/* Hint - only shown after auto-start failed (no speech detected) */}
+      {showIdleHint && (
+        <p className="mt-10 text-sm text-muted-foreground/50">
+          Tippe zum Sprechen
+        </p>
+      )}
     </div>
   );
   
