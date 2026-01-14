@@ -7,7 +7,7 @@
  * - Keine erklärenden Texte
  * - Keine Modus-Auswahl sichtbar
  * - Ruhige, dunkle Darstellung
- * - Auto-Stopp nach 2 Sekunden Pause
+ * - Adaptive Auto-Stop mit Satzende-Erkennung
  */
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
@@ -24,6 +24,11 @@ import {
 } from '@/lib/voice/simpleVoiceParser';
 import { buildUserMedicationLexicon, correctMedicationsInTranscript } from '@/lib/voice/medicationFuzzyMatch';
 import { isBrowserSttSupported } from '@/lib/voice/sttConfig';
+import { 
+  VOICE_MIGRAINE_PROFILE, 
+  getAdaptiveSilenceThreshold, 
+  canAutoStop 
+} from '@/lib/voice/voiceTimingConfig';
 
 // ============================================
 // Types
@@ -44,9 +49,6 @@ interface SimpleVoiceOverlayProps {
   onSaveContextNote: (text: string, timestamp?: string) => void;
 }
 
-// Auto-stop delay after speech pause (2 seconds)
-const AUTO_STOP_DELAY_MS = 2000;
-
 // ============================================
 // Component
 // ============================================
@@ -66,8 +68,11 @@ export function SimpleVoiceOverlay({
   const recognitionRef = useRef<any>(null);
   const committedTextRef = useRef('');
   const autoStopTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const hardTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const hasSpokenRef = useRef(false);
   const stateRef = useRef<OverlayState>('idle');
+  const recordingStartRef = useRef<number>(0);
+  const lastSpeechRef = useRef<number>(0);
   
   // Keep stateRef in sync
   useEffect(() => {
@@ -91,13 +96,17 @@ export function SimpleVoiceOverlay({
   const effectiveType = overriddenType ?? parsedResult?.entry_type ?? 'context_entry';
   
   // ============================================
-  // Auto-Stop Timer
+  // Auto-Stop Timer (Adaptive, Migraine-Friendly)
   // ============================================
   
-  const clearAutoStopTimer = useCallback(() => {
+  const clearAllTimers = useCallback(() => {
     if (autoStopTimerRef.current) {
       clearTimeout(autoStopTimerRef.current);
       autoStopTimerRef.current = null;
+    }
+    if (hardTimeoutRef.current) {
+      clearTimeout(hardTimeoutRef.current);
+      hardTimeoutRef.current = null;
     }
   }, []);
   
@@ -106,7 +115,7 @@ export function SimpleVoiceOverlay({
   // ============================================
   
   const finishRecording = useCallback(() => {
-    clearAutoStopTimer();
+    clearAllTimers();
     
     if (recognitionRef.current) {
       try {
@@ -136,17 +145,55 @@ export function SimpleVoiceOverlay({
       setParsedResult(result);
       setState('review');
     }, 400);
-  }, [clearAutoStopTimer, userMeds, onOpenChange]);
+  }, [clearAllTimers, userMeds, onOpenChange]);
   
+  /**
+   * Adaptive Auto-Stop Timer
+   * Uses migraine-friendly thresholds that adapt to speech patterns
+   */
   const startAutoStopTimer = useCallback(() => {
-    clearAutoStopTimer();
+    clearAllTimers();
+    
+    const text = committedTextRef.current.trim();
+    const recordingDuration = Date.now() - recordingStartRef.current;
+    
+    // Check if we CAN auto-stop (minimum requirements)
+    if (!canAutoStop(text, recordingDuration)) {
+      // Schedule a recheck in 500ms
+      autoStopTimerRef.current = setTimeout(() => {
+        if (hasSpokenRef.current && committedTextRef.current.trim()) {
+          startAutoStopTimer();
+        }
+      }, 500);
+      return;
+    }
+    
+    // Get adaptive silence threshold based on speech patterns
+    const silenceThreshold = getAdaptiveSilenceThreshold(text, recordingDuration);
+    
     autoStopTimerRef.current = setTimeout(() => {
-      // Only auto-stop if user has spoken something
+      // Double-check we still want to auto-stop
       if (hasSpokenRef.current && committedTextRef.current.trim()) {
         finishRecording();
       }
-    }, AUTO_STOP_DELAY_MS);
-  }, [clearAutoStopTimer, finishRecording]);
+    }, silenceThreshold);
+  }, [clearAllTimers, finishRecording]);
+  
+  /**
+   * Start hard timeout (safety limit)
+   */
+  const startHardTimeout = useCallback(() => {
+    if (hardTimeoutRef.current) {
+      clearTimeout(hardTimeoutRef.current);
+    }
+    
+    hardTimeoutRef.current = setTimeout(() => {
+      // Gently finish after max duration - no error message
+      if (stateRef.current === 'recording') {
+        finishRecording();
+      }
+    }, VOICE_MIGRAINE_PROFILE.hardTimeoutMs);
+  }, [finishRecording]);
   
   // ============================================
   // Speech Recognition
@@ -166,6 +213,8 @@ export function SimpleVoiceOverlay({
     
     committedTextRef.current = '';
     hasSpokenRef.current = false;
+    recordingStartRef.current = Date.now();
+    lastSpeechRef.current = Date.now();
     setOverriddenType(null);
     setParsedResult(null);
     
@@ -176,10 +225,17 @@ export function SimpleVoiceOverlay({
     
     recognition.onstart = () => {
       setState('recording');
+      startHardTimeout();
     };
     
     recognition.onresult = (event: any) => {
-      clearAutoStopTimer();
+      // Reset auto-stop timer on each speech result
+      if (autoStopTimerRef.current) {
+        clearTimeout(autoStopTimerRef.current);
+        autoStopTimerRef.current = null;
+      }
+      
+      lastSpeechRef.current = Date.now();
       
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i];
@@ -190,7 +246,7 @@ export function SimpleVoiceOverlay({
           committedTextRef.current += (committedTextRef.current ? ' ' : '') + corrected;
           hasSpokenRef.current = true;
           
-          // Start auto-stop timer after each speech segment
+          // Start adaptive auto-stop timer after each speech segment
           startAutoStopTimer();
         }
       }
@@ -199,9 +255,11 @@ export function SimpleVoiceOverlay({
     recognition.onerror = (event: any) => {
       console.error('[SimpleVoice] Error:', event.error);
       if (event.error === 'not-allowed' || event.error === 'audio-capture') {
+        clearAllTimers();
         onOpenChange(false);
         return;
       }
+      // For other errors (no-speech, network), just continue listening
     };
     
     recognition.onend = () => {
@@ -218,10 +276,10 @@ export function SimpleVoiceOverlay({
       console.error('[SimpleVoice] Start failed:', e);
       onOpenChange(false);
     }
-  }, [isSttSupported, lexicon, clearAutoStopTimer, startAutoStopTimer, finishRecording, onOpenChange]);
+  }, [isSttSupported, lexicon, clearAllTimers, startAutoStopTimer, startHardTimeout, finishRecording, onOpenChange]);
   
   const stopRecording = useCallback(() => {
-    clearAutoStopTimer();
+    clearAllTimers();
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
@@ -230,7 +288,7 @@ export function SimpleVoiceOverlay({
       }
       recognitionRef.current = null;
     }
-  }, [clearAutoStopTimer]);
+  }, [clearAllTimers]);
   
   // ============================================
   // Lifecycle
