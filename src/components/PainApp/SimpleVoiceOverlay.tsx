@@ -4,14 +4,14 @@
  * Migraine-friendly design principles:
  * - No live transcript during recording
  * - Big central microphone with calm animation
- * - Very long pause tolerance (60-90 seconds)
+ * - Very long pause tolerance (90 seconds)
  * - No auto-stop, only manual "Fertig" button
  * - Summary shown AFTER recording stops
  * - 1 tap to save
  * 
- * Only 2 outcomes:
- * 1. PAIN_ENTRY (structured)
- * 2. CONTEXT_NOTE (free text)
+ * Entry Types:
+ * 1. NEW_ENTRY (Neuer Eintrag) - structured pain entry
+ * 2. CONTEXT_ENTRY (Kontexteintrag) - free text note/trigger
  */
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
@@ -24,7 +24,8 @@ import {
   AlertCircle,
   Clock,
   Activity,
-  Pill
+  Pill,
+  ChevronDown
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
@@ -33,10 +34,10 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useMeds } from '@/features/meds/hooks/useMeds';
 import { 
-  parseSimpleVoiceEntry, 
+  parseVoiceEntry,
   formatDoseQuarters, 
   formatTimeDisplay,
-  type SimpleVoiceResult 
+  type VoiceParseResult 
 } from '@/lib/voice/simpleVoiceParser';
 import { buildUserMedicationLexicon, correctMedicationsInTranscript } from '@/lib/voice/medicationFuzzyMatch';
 import { isBrowserSttSupported } from '@/lib/voice/sttConfig';
@@ -45,7 +46,7 @@ import { isBrowserSttSupported } from '@/lib/voice/sttConfig';
 // Types
 // ============================================
 
-type OverlayState = 'recording' | 'summary' | 'dictation_fallback';
+type OverlayState = 'recording' | 'processing' | 'summary' | 'dictation_fallback';
 
 interface SimpleVoiceOverlayProps {
   open: boolean;
@@ -57,15 +58,8 @@ interface SimpleVoiceOverlayProps {
     medications?: Array<{ name: string; medicationId?: string; doseQuarters: number }>;
     notes?: string;
   }) => void;
-  onSaveContextNote: (text: string) => void;
+  onSaveContextNote: (text: string, timestamp?: string) => void;
 }
-
-// ============================================
-// Recording Timer Constants
-// ============================================
-
-const MAX_RECORDING_MS = 3 * 60 * 1000; // 3 minutes max
-const PAUSE_TOLERANCE_MS = 90 * 1000;   // 90 seconds silence allowed
 
 // ============================================
 // Component
@@ -81,7 +75,8 @@ export function SimpleVoiceOverlay({
   const [state, setState] = useState<OverlayState>('recording');
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState('');
-  const [parsedResult, setParsedResult] = useState<SimpleVoiceResult | null>(null);
+  const [parsedResult, setParsedResult] = useState<VoiceParseResult | null>(null);
+  const [overriddenType, setOverriddenType] = useState<'new_entry' | 'context_entry' | null>(null);
   
   // Refs
   const recognitionRef = useRef<any>(null);
@@ -99,6 +94,9 @@ export function SimpleVoiceOverlay({
       wirkstoff: m.wirkstoff 
     })));
   }, [userMeds]);
+
+  // Get effective entry type (with override support)
+  const effectiveType = overriddenType ?? parsedResult?.entry_type ?? 'context_entry';
   
   // ============================================
   // Speech Recognition
@@ -118,11 +116,12 @@ export function SimpleVoiceOverlay({
     
     committedTextRef.current = '';
     setTranscript('');
+    setOverriddenType(null);
     
     const recognition = new SpeechRecognitionAPI();
     recognition.lang = 'de-DE';
     recognition.continuous = true;
-    recognition.interimResults = false; // Only final results for simplicity
+    recognition.interimResults = false; // Only final results
     
     recognition.onstart = () => {
       setIsRecording(true);
@@ -147,11 +146,10 @@ export function SimpleVoiceOverlay({
         setState('dictation_fallback');
         return;
       }
-      // For other errors (no-speech, aborted), keep listening
     };
     
     recognition.onend = () => {
-      // Auto-restart if still supposed to be recording
+      // Auto-restart if still in recording state
       if (isRecording && state === 'recording') {
         try {
           recognition.start();
@@ -191,6 +189,7 @@ export function SimpleVoiceOverlay({
       setState('recording');
       setTranscript('');
       setParsedResult(null);
+      setOverriddenType(null);
       committedTextRef.current = '';
       
       // Auto-start recording after short delay
@@ -224,48 +223,52 @@ export function SimpleVoiceOverlay({
     
     const finalText = committedTextRef.current.trim();
     if (!finalText) {
-      // Nothing recorded, close
       onOpenChange(false);
       return;
     }
     
-    // Parse the transcript
-    const result = parseSimpleVoiceEntry(finalText, userMeds.map(m => ({
-      id: m.id,
-      name: m.name,
-      wirkstoff: m.wirkstoff
-    })));
+    setState('processing');
     
-    setParsedResult(result);
-    setState('summary');
+    // Parse the transcript
+    setTimeout(() => {
+      const result = parseVoiceEntry(finalText, userMeds.map(m => ({
+        id: m.id,
+        name: m.name,
+        wirkstoff: m.wirkstoff
+      })));
+      
+      setParsedResult(result);
+      setState('summary');
+    }, 300);
   }, [stopRecording, userMeds, onOpenChange]);
   
   const handleSave = useCallback(() => {
     if (!parsedResult) return;
     
-    if (parsedResult.type === 'pain_entry') {
+    if (effectiveType === 'new_entry') {
       onSavePainEntry({
-        painLevel: parsedResult.painLevel?.value,
-        date: parsedResult.time?.date,
-        time: parsedResult.time?.time,
-        medications: parsedResult.medications?.map(m => ({
+        painLevel: parsedResult.pain_intensity.value ?? undefined,
+        date: parsedResult.time.date,
+        time: parsedResult.time.time,
+        medications: parsedResult.medications.map(m => ({
           name: m.name,
           medicationId: m.medicationId,
           doseQuarters: m.doseQuarters
         })),
-        notes: parsedResult.cleanedNotes || undefined
+        notes: parsedResult.note || undefined
       });
     } else {
-      onSaveContextNote(parsedResult.rawTranscript);
+      onSaveContextNote(parsedResult.raw_text, parsedResult.time.iso ?? undefined);
     }
     
     onOpenChange(false);
-  }, [parsedResult, onSavePainEntry, onSaveContextNote, onOpenChange]);
+  }, [parsedResult, effectiveType, onSavePainEntry, onSaveContextNote, onOpenChange]);
   
   const handleRetry = useCallback(() => {
     committedTextRef.current = '';
     setTranscript('');
     setParsedResult(null);
+    setOverriddenType(null);
     setState('recording');
     startRecording();
   }, [startRecording]);
@@ -284,6 +287,11 @@ export function SimpleVoiceOverlay({
     committedTextRef.current = transcript;
     handleFinish();
   }, [transcript, handleFinish, onOpenChange]);
+
+  const toggleEntryType = useCallback(() => {
+    const newType = effectiveType === 'new_entry' ? 'context_entry' : 'new_entry';
+    setOverriddenType(newType);
+  }, [effectiveType]);
   
   // ============================================
   // Render Recording State
@@ -353,6 +361,17 @@ export function SimpleVoiceOverlay({
       </button>
     </div>
   );
+
+  // ============================================
+  // Render Processing State
+  // ============================================
+
+  const renderProcessingState = () => (
+    <div className="flex flex-col items-center justify-center h-full px-6">
+      <div className="w-16 h-16 border-4 border-primary/30 border-t-primary rounded-full animate-spin mb-6" />
+      <p className="text-muted-foreground">Verarbeite…</p>
+    </div>
+  );
   
   // ============================================
   // Render Summary State
@@ -361,77 +380,88 @@ export function SimpleVoiceOverlay({
   const renderSummaryState = () => {
     if (!parsedResult) return null;
     
-    const isPainEntry = parsedResult.type === 'pain_entry';
+    const isNewEntry = effectiveType === 'new_entry';
+    const showTypeToggle = parsedResult.typeCanBeToggled;
     
     return (
-      <div className="flex flex-col h-full px-6 py-4">
-        {/* Header */}
-        <div className="text-center mb-6">
-          <h2 className="text-lg font-semibold text-foreground">
-            Zusammenfassung
-          </h2>
+      <div className="flex flex-col h-full px-4 py-4 overflow-hidden">
+        {/* Header with Type Chip */}
+        <div className="flex items-center justify-center gap-2 mb-4">
+          <Badge 
+            variant={isNewEntry ? "default" : "secondary"}
+            className={cn(
+              "text-sm px-3 py-1 cursor-pointer transition-all",
+              showTypeToggle && "hover:opacity-80"
+            )}
+            onClick={showTypeToggle ? toggleEntryType : undefined}
+          >
+            {isNewEntry ? 'Neuer Eintrag' : 'Kontexteintrag'}
+            {showTypeToggle && (
+              <ChevronDown className="w-3 h-3 ml-1 opacity-60" />
+            )}
+          </Badge>
         </div>
         
         {/* Content Card */}
-        <Card className="flex-1 p-4 space-y-4 overflow-auto">
-          {isPainEntry ? (
+        <Card className="flex-1 p-4 space-y-4 overflow-auto min-h-0">
+          {isNewEntry ? (
             <>
               {/* Time */}
-              {parsedResult.time && (
+              {parsedResult.time && !parsedResult.time.isNow && (
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                     <Clock className="w-4 h-4 text-primary" />
                   </div>
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <p className="text-xs text-muted-foreground">Beginn</p>
-                    <p className="font-medium">
+                    <p className="font-medium truncate">
                       {formatTimeDisplay(parsedResult.time)}
                     </p>
                   </div>
                   {parsedResult.time.confidence !== 'high' && (
-                    <Badge variant="outline" className="ml-auto text-warning border-warning/50">
-                      Bitte prüfen
+                    <Badge variant="outline" className="text-warning border-warning/50 flex-shrink-0 text-xs">
+                      Prüfen
                     </Badge>
                   )}
                 </div>
               )}
               
               {/* Pain Level */}
-              {parsedResult.painLevel && (
+              {parsedResult.pain_intensity.value !== null && (
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-destructive/10 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-full bg-destructive/10 flex items-center justify-center flex-shrink-0">
                     <Activity className="w-4 h-4 text-destructive" />
                   </div>
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <p className="text-xs text-muted-foreground">Schmerzstärke</p>
                     <p className="font-medium text-lg">
-                      {parsedResult.painLevel.value} / 10
+                      {parsedResult.pain_intensity.value} / 10
                     </p>
                   </div>
-                  {parsedResult.painLevel.needsReview && (
-                    <Badge variant="outline" className="ml-auto text-warning border-warning/50">
-                      Bitte prüfen
+                  {parsedResult.pain_intensity.needsReview && (
+                    <Badge variant="outline" className="text-warning border-warning/50 flex-shrink-0 text-xs">
+                      Prüfen
                     </Badge>
                   )}
                 </div>
               )}
               
               {/* Medications */}
-              {parsedResult.medications && parsedResult.medications.length > 0 && (
+              {parsedResult.medications.length > 0 && (
                 <div className="space-y-2">
                   {parsedResult.medications.map((med, idx) => (
                     <div key={idx} className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-success/10 flex items-center justify-center">
+                      <div className="w-8 h-8 rounded-full bg-success/10 flex items-center justify-center flex-shrink-0">
                         <Pill className="w-4 h-4 text-success" />
                       </div>
-                      <div className="flex-1">
+                      <div className="min-w-0 flex-1">
                         <p className="text-xs text-muted-foreground">Medikament</p>
-                        <p className="font-medium">
+                        <p className="font-medium truncate">
                           {formatDoseQuarters(med.doseQuarters)} {med.name}
                         </p>
                       </div>
                       {med.needsReview && (
-                        <Badge variant="outline" className="text-warning border-warning/50">
+                        <Badge variant="outline" className="text-warning border-warning/50 flex-shrink-0 text-xs">
                           <AlertCircle className="w-3 h-3 mr-1" />
                           Prüfen
                         </Badge>
@@ -440,26 +470,39 @@ export function SimpleVoiceOverlay({
                   ))}
                 </div>
               )}
+
+              {/* No structured data detected */}
+              {parsedResult.pain_intensity.value === null && 
+               parsedResult.medications.length === 0 && 
+               parsedResult.time.isNow && (
+                <div className="text-center py-4 text-muted-foreground">
+                  <AlertCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">Keine strukturierten Daten erkannt</p>
+                  <p className="text-xs mt-1">
+                    Tippe auf „Kontexteintrag" um als Notiz zu speichern
+                  </p>
+                </div>
+              )}
               
               {/* Notes */}
-              {parsedResult.cleanedNotes && (
+              {parsedResult.note && (
                 <div className="pt-2 border-t border-border/50">
                   <p className="text-xs text-muted-foreground mb-1">Notizen</p>
                   <p className="text-sm text-foreground/80">
-                    {parsedResult.cleanedNotes}
+                    {parsedResult.note}
                   </p>
                 </div>
               )}
             </>
           ) : (
-            /* Context Note */
+            /* Context Entry */
             <div>
               <p className="text-xs text-muted-foreground mb-2">Kontext-Notiz</p>
-              <p className="text-foreground">
-                {parsedResult.rawTranscript}
+              <p className="text-foreground whitespace-pre-wrap">
+                {parsedResult.raw_text}
               </p>
               {parsedResult.time && !parsedResult.time.isNow && (
-                <p className="text-xs text-muted-foreground mt-2">
+                <p className="text-xs text-muted-foreground mt-3">
                   Zeit: {formatTimeDisplay(parsedResult.time)}
                 </p>
               )}
@@ -468,7 +511,7 @@ export function SimpleVoiceOverlay({
         </Card>
         
         {/* Action Buttons */}
-        <div className="mt-6 space-y-3">
+        <div className="mt-4 space-y-3 flex-shrink-0">
           {/* Primary: Save */}
           <Button
             size="lg"
@@ -479,13 +522,13 @@ export function SimpleVoiceOverlay({
             Speichern
           </Button>
           
-          {/* Secondary: Edit - would navigate to full form */}
+          {/* Secondary actions */}
           <div className="flex gap-3">
             <Button
               variant="outline"
-              className="flex-1 h-12"
+              className="flex-1 h-11"
               onClick={() => {
-                // For now, just save - edit would open NewEntry form
+                // TODO: Navigate to full edit form with prefilled data
                 handleSave();
               }}
             >
@@ -495,7 +538,7 @@ export function SimpleVoiceOverlay({
             
             <Button
               variant="ghost"
-              className="flex-1 h-12"
+              className="flex-1 h-11"
               onClick={handleRetry}
             >
               <RefreshCw className="w-4 h-4 mr-2" />
@@ -565,7 +608,7 @@ export function SimpleVoiceOverlay({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent 
         side="bottom" 
-        className="h-[85vh] rounded-t-3xl p-0"
+        className="h-[70vh] rounded-t-3xl p-0"
       >
         {/* Close button */}
         <button
@@ -578,6 +621,7 @@ export function SimpleVoiceOverlay({
         
         {/* Content based on state */}
         {state === 'recording' && renderRecordingState()}
+        {state === 'processing' && renderProcessingState()}
         {state === 'summary' && renderSummaryState()}
         {state === 'dictation_fallback' && renderDictationFallback()}
       </SheetContent>
