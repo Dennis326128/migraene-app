@@ -19,7 +19,7 @@ import { saveVoiceNote } from '@/lib/voice/saveNote';
 import { setVoiceDraft } from '@/lib/voice/voiceDraftStorage';
 import { QuickContextNoteModal } from "./QuickContextNoteModal";
 import { VoiceHelpOverlay } from "./VoiceHelpOverlay";
-import { VoiceAssistantOverlay } from "./VoiceAssistantOverlay";
+import { SimpleVoiceOverlay } from "./SimpleVoiceOverlay";
 import { UpcomingWarningBanner } from "@/components/Reminders/UpcomingWarningBanner";
 import { CriticalMedicationPopup } from "@/components/Reminders/CriticalMedicationPopup";
 import { devError } from "@/lib/utils/devLogger";
@@ -422,48 +422,44 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         onOpenChange={setShowVoiceHelp}
       />
 
-      <VoiceAssistantOverlay
+      <SimpleVoiceOverlay
         open={showVoiceAssistant}
         onOpenChange={setShowVoiceAssistant}
-        onSelectAction={(action, draftText, prefillData) => {
-          if (draftText && draftText.trim()) {
-            setVoiceDraft(draftText.trim());
-          }
-          
-          switch (action) {
-            case 'pain_entry':
-              // Pass prefillData to NewEntry for voice-initiated entries
-              onNewEntry(prefillData);
-              break;
-            case 'quick_entry':
-              // Use prefillData from voice recognition if available
-              setVoiceData(prefillData || { initialNotes: draftText });
-              setShowQuickEntry(true);
-              break;
-            case 'add_medication':
-              // Navigate to medication management screen
-              // prefillData contains the parsed medication info (name, strength, etc.)
-              onNavigate?.('medication-management');
-              // TODO: Pass prefillData to MedicationManagement for pre-filling the add form
-              break;
-            case 'medication':
-              navigate('/medication-effects');
-              break;
-            case 'reminder':
-              onNavigate?.('reminders');
-              break;
-            case 'diary':
-              onNavigate?.('diary-timeline');
-              break;
-            case 'note':
-              // Notes are now saved directly in VoiceAssistantOverlay with undo
-              // This is fallback for manual selection
-              setPendingVoiceNote(draftText);
-              setShowVoiceNoteReview(true);
-              break;
-            case 'question':
-              // Questions are handled directly in VoiceAssistantOverlay
-              break;
+        onSavePainEntry={(data) => {
+          // Map voice data to VoicePrefillData format
+          const prefillData: VoicePrefillData = {
+            initialPainLevel: data.painLevel,
+            initialSelectedDate: data.date,
+            initialSelectedTime: data.time,
+            initialMedicationStates: data.medications?.reduce((acc, med) => {
+              acc[med.name] = { 
+                doseQuarters: med.doseQuarters, 
+                medicationId: med.medicationId 
+              };
+              return acc;
+            }, {} as Record<string, { doseQuarters: number; medicationId?: string }>),
+            initialNotes: data.notes
+          };
+          onNewEntry(prefillData);
+        }}
+        onSaveContextNote={async (text, _timestamp) => {
+          try {
+            await saveVoiceNote({
+              rawText: text,
+              sttConfidence: 0.95,
+              source: 'voice'
+            });
+            toast.success('Notiz gespeichert', {
+              action: {
+                label: 'Rückgängig',
+                onClick: () => {
+                  // TODO: Implement undo
+                }
+              }
+            });
+          } catch (error) {
+            devError('Error saving context note:', error, { context: 'MainMenu' });
+            toast.error('Fehler beim Speichern');
           }
         }}
       />

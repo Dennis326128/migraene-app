@@ -67,6 +67,12 @@ export function SimpleVoiceOverlay({
   const committedTextRef = useRef('');
   const autoStopTimerRef = useRef<NodeJS.Timeout | null>(null);
   const hasSpokenRef = useRef(false);
+  const stateRef = useRef<OverlayState>('idle');
+  
+  // Keep stateRef in sync
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
   
   // Hooks
   const { data: userMeds = [] } = useMeds();
@@ -94,16 +100,6 @@ export function SimpleVoiceOverlay({
       autoStopTimerRef.current = null;
     }
   }, []);
-  
-  const startAutoStopTimer = useCallback(() => {
-    clearAutoStopTimer();
-    autoStopTimerRef.current = setTimeout(() => {
-      // Only auto-stop if user has spoken something
-      if (hasSpokenRef.current && committedTextRef.current.trim()) {
-        finishRecording();
-      }
-    }, AUTO_STOP_DELAY_MS);
-  }, [clearAutoStopTimer]);
   
   // ============================================
   // Finish Recording & Parse
@@ -139,8 +135,18 @@ export function SimpleVoiceOverlay({
       
       setParsedResult(result);
       setState('review');
-    }, 300);
+    }, 400);
   }, [clearAutoStopTimer, userMeds, onOpenChange]);
+  
+  const startAutoStopTimer = useCallback(() => {
+    clearAutoStopTimer();
+    autoStopTimerRef.current = setTimeout(() => {
+      // Only auto-stop if user has spoken something
+      if (hasSpokenRef.current && committedTextRef.current.trim()) {
+        finishRecording();
+      }
+    }, AUTO_STOP_DELAY_MS);
+  }, [clearAutoStopTimer, finishRecording]);
   
   // ============================================
   // Speech Recognition
@@ -148,7 +154,6 @@ export function SimpleVoiceOverlay({
   
   const startRecording = useCallback(() => {
     if (!isSttSupported) {
-      // Fallback: just close, user can use keyboard
       onOpenChange(false);
       return;
     }
@@ -167,7 +172,7 @@ export function SimpleVoiceOverlay({
     const recognition = new SpeechRecognitionAPI();
     recognition.lang = 'de-DE';
     recognition.continuous = true;
-    recognition.interimResults = false; // Only final results
+    recognition.interimResults = false;
     
     recognition.onstart = () => {
       setState('recording');
@@ -197,12 +202,11 @@ export function SimpleVoiceOverlay({
         onOpenChange(false);
         return;
       }
-      // For other errors, try to continue
     };
     
     recognition.onend = () => {
       // If still recording and has content, finish
-      if (state === 'recording' && hasSpokenRef.current && committedTextRef.current.trim()) {
+      if (stateRef.current === 'recording' && hasSpokenRef.current && committedTextRef.current.trim()) {
         finishRecording();
       }
     };
@@ -214,7 +218,7 @@ export function SimpleVoiceOverlay({
       console.error('[SimpleVoice] Start failed:', e);
       onOpenChange(false);
     }
-  }, [isSttSupported, lexicon, clearAutoStopTimer, startAutoStopTimer, finishRecording, onOpenChange, state]);
+  }, [isSttSupported, lexicon, clearAutoStopTimer, startAutoStopTimer, finishRecording, onOpenChange]);
   
   const stopRecording = useCallback(() => {
     clearAutoStopTimer();
@@ -297,6 +301,11 @@ export function SimpleVoiceOverlay({
     const newType = effectiveType === 'new_entry' ? 'context_entry' : 'new_entry';
     setOverriddenType(newType);
   }, [effectiveType]);
+
+  const handleClose = useCallback(() => {
+    stopRecording();
+    onOpenChange(false);
+  }, [stopRecording, onOpenChange]);
   
   // ============================================
   // Don't render if not open
@@ -305,46 +314,58 @@ export function SimpleVoiceOverlay({
   if (!open) return null;
   
   // ============================================
-  // Render Idle State
+  // Render Idle State - ONLY big mic
   // ============================================
   
   const renderIdleState = () => (
-    <div className="flex flex-col items-center justify-center h-full">
+    <div 
+      className="flex flex-col items-center justify-center h-full"
+      onClick={(e) => e.stopPropagation()}
+    >
       {/* Big Microphone - tap to start */}
       <button
         onClick={handleMicTap}
-        className="w-28 h-28 rounded-full bg-primary/10 border-2 border-primary/30 flex items-center justify-center transition-all hover:bg-primary/20 hover:scale-105 active:scale-95"
+        className="w-32 h-32 rounded-full bg-primary/10 border-2 border-primary/30 flex items-center justify-center transition-all hover:bg-primary/20 hover:scale-105 active:scale-95 focus:outline-none"
         aria-label="Aufnahme starten"
       >
-        <Mic className="w-12 h-12 text-primary" />
+        <Mic className="w-14 h-14 text-primary" />
       </button>
       
-      {/* Minimal hint */}
-      <p className="mt-8 text-sm text-muted-foreground/60">
-        Einfach sprechen
+      {/* Single minimal hint */}
+      <p className="mt-10 text-sm text-muted-foreground/50">
+        Sprechen
       </p>
     </div>
   );
   
   // ============================================
-  // Render Recording State
+  // Render Recording State - ONLY pulsing mic
   // ============================================
   
   const renderRecordingState = () => (
-    <div className="flex flex-col items-center justify-center h-full">
+    <div 
+      className="flex flex-col items-center justify-center h-full"
+      onClick={(e) => e.stopPropagation()}
+    >
       {/* Pulsing Microphone */}
       <button
         onClick={handleMicTap}
-        className="relative w-28 h-28"
+        className="relative w-32 h-32 focus:outline-none"
         aria-label="Aufnahme beenden"
       >
-        {/* Pulse rings */}
-        <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping" style={{ animationDuration: '2s' }} />
-        <div className="absolute inset-0 rounded-full bg-primary/10 animate-pulse" style={{ animationDuration: '1.5s' }} />
+        {/* Calm pulse rings */}
+        <div 
+          className="absolute inset-0 rounded-full bg-primary/15 animate-ping" 
+          style={{ animationDuration: '2.5s' }} 
+        />
+        <div 
+          className="absolute inset-0 rounded-full bg-primary/10 animate-pulse" 
+          style={{ animationDuration: '2s' }} 
+        />
         
         {/* Mic circle */}
         <div className="relative w-full h-full rounded-full bg-primary/20 border-2 border-primary/40 flex items-center justify-center">
-          <Mic className="w-12 h-12 text-primary" />
+          <Mic className="w-14 h-14 text-primary" />
         </div>
       </button>
     </div>
@@ -356,13 +377,13 @@ export function SimpleVoiceOverlay({
 
   const renderProcessingState = () => (
     <div className="flex flex-col items-center justify-center h-full">
-      <div className="w-12 h-12 border-3 border-primary/30 border-t-primary rounded-full animate-spin" />
-      <p className="mt-4 text-sm text-muted-foreground/80">Verarbeite…</p>
+      <div className="w-10 h-10 border-3 border-primary/30 border-t-primary rounded-full animate-spin" />
+      <p className="mt-5 text-sm text-muted-foreground/60">Verarbeite…</p>
     </div>
   );
   
   // ============================================
-  // Render Review State (Bottom Sheet Style)
+  // Render Review State - Minimal Bottom Sheet
   // ============================================
   
   const renderReviewState = () => {
@@ -376,14 +397,24 @@ export function SimpleVoiceOverlay({
     const hasStructuredData = hasTime || hasPain || hasMeds;
     
     return (
-      <div className="absolute bottom-0 left-0 right-0 bg-card rounded-t-3xl border-t border-border/50 shadow-2xl animate-in slide-in-from-bottom duration-300">
-        <div className="p-5 max-h-[65vh] overflow-auto">
+      <div 
+        className="absolute bottom-0 left-0 right-0 bg-card rounded-t-3xl border-t border-border/30 shadow-2xl"
+        style={{ animation: 'slideUp 0.3s ease-out' }}
+      >
+        <style>{`
+          @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+          }
+        `}</style>
+        
+        <div className="p-5 max-h-[60vh] overflow-auto">
           {/* Type Chip - dezent, nur bei Unsicherheit antippbar */}
-          <div className="flex justify-center mb-4">
+          <div className="flex justify-center mb-5">
             <Badge 
               variant={isNewEntry ? "default" : "secondary"}
               className={cn(
-                "text-xs px-3 py-1 transition-all",
+                "text-xs px-3 py-1.5 transition-all",
                 showTypeToggle && "cursor-pointer hover:opacity-80"
               )}
               onClick={showTypeToggle ? toggleEntryType : undefined}
@@ -392,12 +423,12 @@ export function SimpleVoiceOverlay({
             </Badge>
           </div>
           
-          {/* Content */}
+          {/* Content - structured data only, NO raw transcript */}
           {isNewEntry && hasStructuredData ? (
-            <div className="space-y-3 mb-5">
+            <div className="space-y-3 mb-6">
               {/* Time */}
               {hasTime && (
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/30">
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/40">
                   <Clock className="w-5 h-5 text-primary flex-shrink-0" />
                   <span className="text-sm font-medium">
                     {formatTimeDisplay(parsedResult.time)}
@@ -407,7 +438,7 @@ export function SimpleVoiceOverlay({
               
               {/* Pain Level */}
               {hasPain && (
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/30">
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/40">
                   <Activity className="w-5 h-5 text-destructive flex-shrink-0" />
                   <span className="text-sm font-medium">
                     Stärke {parsedResult.pain_intensity.value}
@@ -417,7 +448,7 @@ export function SimpleVoiceOverlay({
               
               {/* Medications */}
               {hasMeds && parsedResult.medications.map((med, idx) => (
-                <div key={idx} className="flex items-center gap-3 p-3 rounded-xl bg-muted/30">
+                <div key={idx} className="flex items-center gap-3 p-3 rounded-xl bg-muted/40">
                   <Pill className="w-5 h-5 text-success flex-shrink-0" />
                   <span className="text-sm font-medium">
                     {formatDoseQuarters(med.doseQuarters)} {med.name}
@@ -426,23 +457,23 @@ export function SimpleVoiceOverlay({
               ))}
             </div>
           ) : isNewEntry && !hasStructuredData ? (
-            // New entry but nothing recognized
-            <div className="text-center py-3 mb-4">
-              <p className="text-sm text-muted-foreground">
+            // New entry but nothing recognized - suggest context
+            <div className="text-center py-4 mb-4">
+              <p className="text-sm text-muted-foreground/80">
                 Als Notiz speichern?
               </p>
             </div>
           ) : (
-            // Context entry - show condensed note
-            <div className="p-3 rounded-xl bg-muted/30 mb-5">
-              <p className="text-sm text-foreground/80 line-clamp-3">
-                {parsedResult.raw_text}
+            // Context entry - just show "Notiz" indicator, NO transcript
+            <div className="text-center py-4 mb-4">
+              <p className="text-sm text-muted-foreground/80">
+                Notiz erkannt
               </p>
             </div>
           )}
           
-          {/* Actions */}
-          <div className="space-y-2">
+          {/* Actions - exactly 2 */}
+          <div className="space-y-3">
             {/* Primary: Save */}
             <Button
               size="lg"
@@ -453,10 +484,10 @@ export function SimpleVoiceOverlay({
               Speichern
             </Button>
             
-            {/* Secondary: Retry */}
+            {/* Secondary: Retry - text link style */}
             <button
               onClick={handleRetry}
-              className="w-full py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              className="w-full py-2 text-sm text-muted-foreground/70 hover:text-foreground transition-colors"
             >
               Erneut sprechen
             </button>
@@ -467,16 +498,16 @@ export function SimpleVoiceOverlay({
   };
   
   // ============================================
-  // Main Render
+  // Main Render - Fullscreen dark overlay
   // ============================================
   
   return (
-    <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm">
-      {/* Close on background tap (only in idle/recording) */}
+    <div className="fixed inset-0 z-50 bg-background">
+      {/* Backdrop tap to close (only in idle/recording, NOT in review) */}
       {(state === 'idle' || state === 'recording') && (
         <button
-          onClick={() => onOpenChange(false)}
-          className="absolute inset-0 w-full h-full"
+          onClick={handleClose}
+          className="absolute inset-0 w-full h-full cursor-default focus:outline-none"
           aria-label="Schließen"
         />
       )}
