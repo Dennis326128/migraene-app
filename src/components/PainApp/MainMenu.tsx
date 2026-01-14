@@ -25,6 +25,8 @@ import { CriticalMedicationPopup } from "@/components/Reminders/CriticalMedicati
 import { devError } from "@/lib/utils/devLogger";
 import { Button } from "@/components/ui/button";
 import { FeedbackButton } from "@/components/Feedback";
+import { useCreateEntry } from "@/features/entries/hooks/useEntryMutations";
+import { format } from "date-fns";
 
 
 // Prefill data type for voice-initiated entries
@@ -69,6 +71,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   
   const createReminder = useCreateReminder();
   const createMultipleReminders = useCreateMultipleReminders();
+  const createEntryMut = useCreateEntry();
   const { count: reminderBadgeCount } = useReminderBadgeCount();
   const { reminders: upcomingWarnings } = useUpcoming24hWarnings();
   
@@ -425,22 +428,37 @@ export const MainMenu: React.FC<MainMenuProps> = ({
       <SimpleVoiceOverlay
         open={showVoiceAssistant}
         onOpenChange={setShowVoiceAssistant}
-        onSavePainEntry={(data) => {
-          // Map voice data to VoicePrefillData format
-          const prefillData: VoicePrefillData = {
-            initialPainLevel: data.painLevel,
-            initialSelectedDate: data.date,
-            initialSelectedTime: data.time,
-            initialMedicationStates: data.medications?.reduce((acc, med) => {
-              acc[med.name] = { 
-                doseQuarters: med.doseQuarters, 
-                medicationId: med.medicationId 
-              };
-              return acc;
-            }, {} as Record<string, { doseQuarters: number; medicationId?: string }>),
-            initialNotes: data.notes
+        onSavePainEntry={async (data) => {
+          // DIRECT SAVE - no form opening (Schnelleintrag)
+          const now = new Date();
+          const payload: {
+            selected_date: string;
+            selected_time: string;
+            pain_level: number;
+            medications: string[];
+            notes: string;
+          } = {
+            selected_date: data.date || format(now, 'yyyy-MM-dd'),
+            selected_time: data.time || format(now, 'HH:mm'),
+            pain_level: data.painLevel ?? 5, // Numeric 0-10 scale
+            medications: data.medications?.map(m => m.name) || [],
+            notes: data.notes || ''
           };
-          onNewEntry(prefillData);
+          
+          try {
+            await createEntryMut.mutateAsync(payload);
+            toast.success('Eintrag gespeichert', {
+              action: {
+                label: 'Bearbeiten',
+                onClick: () => {
+                  onNavigate?.('diary-timeline');
+                }
+              }
+            });
+          } catch (error) {
+            devError('Error saving voice entry:', error, { context: 'MainMenu' });
+            toast.error('Fehler beim Speichern');
+          }
         }}
         onSaveContextNote={async (text, _timestamp) => {
           try {
@@ -451,9 +469,9 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             });
             toast.success('Notiz gespeichert', {
               action: {
-                label: 'Rückgängig',
+                label: 'Ansehen',
                 onClick: () => {
-                  // TODO: Implement undo
+                  onNavigate?.('voice-notes');
                 }
               }
             });
