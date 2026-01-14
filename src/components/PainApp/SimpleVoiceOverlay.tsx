@@ -63,16 +63,20 @@ export function SimpleVoiceOverlay({
   const [state, setState] = useState<OverlayState>('idle');
   const [parsedResult, setParsedResult] = useState<VoiceParseResult | null>(null);
   const [overriddenType, setOverriddenType] = useState<'new_entry' | 'context_entry' | null>(null);
+  const [showIdleHint, setShowIdleHint] = useState(false); // Show "Tippe zum Sprechen" after auto-start failed
   
   // Refs
   const recognitionRef = useRef<any>(null);
   const committedTextRef = useRef('');
   const autoStopTimerRef = useRef<NodeJS.Timeout | null>(null);
   const hardTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const noSpeechTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const autoStartTimerRef = useRef<NodeJS.Timeout | null>(null);
   const hasSpokenRef = useRef(false);
   const stateRef = useRef<OverlayState>('idle');
   const recordingStartRef = useRef<number>(0);
   const lastSpeechRef = useRef<number>(0);
+  const isAutoStartRef = useRef(false); // Track if current recording was auto-started
   
   // Keep stateRef in sync
   useEffect(() => {
@@ -107,6 +111,14 @@ export function SimpleVoiceOverlay({
     if (hardTimeoutRef.current) {
       clearTimeout(hardTimeoutRef.current);
       hardTimeoutRef.current = null;
+    }
+    if (noSpeechTimeoutRef.current) {
+      clearTimeout(noSpeechTimeoutRef.current);
+      noSpeechTimeoutRef.current = null;
+    }
+    if (autoStartTimerRef.current) {
+      clearTimeout(autoStartTimerRef.current);
+      autoStartTimerRef.current = null;
     }
   }, []);
   
@@ -226,9 +238,35 @@ export function SimpleVoiceOverlay({
     recognition.onstart = () => {
       setState('recording');
       startHardTimeout();
+      
+      // Start "no speech" timeout for auto-started recordings
+      // If no speech detected within 3.5s, stop and go back to idle
+      if (isAutoStartRef.current) {
+        noSpeechTimeoutRef.current = setTimeout(() => {
+          if (stateRef.current === 'recording' && !hasSpokenRef.current) {
+            // No speech detected - stop recording silently and show hint
+            clearAllTimers();
+            if (recognitionRef.current) {
+              try {
+                recognitionRef.current.stop();
+              } catch (e) { /* ignore */ }
+              recognitionRef.current = null;
+            }
+            setState('idle');
+            setShowIdleHint(true);
+            isAutoStartRef.current = false;
+          }
+        }, 3500);
+      }
     };
     
     recognition.onresult = (event: any) => {
+      // Cancel no-speech timeout on first result
+      if (noSpeechTimeoutRef.current) {
+        clearTimeout(noSpeechTimeoutRef.current);
+        noSpeechTimeoutRef.current = null;
+      }
+      
       // Reset auto-stop timer on each speech result
       if (autoStopTimerRef.current) {
         clearTimeout(autoStopTimerRef.current);
@@ -294,17 +332,29 @@ export function SimpleVoiceOverlay({
   // Lifecycle
   // ============================================
   
+  // Auto-start recording when overlay opens
   useEffect(() => {
     if (open) {
       setState('idle');
       setParsedResult(null);
       setOverriddenType(null);
+      setShowIdleHint(false);
       committedTextRef.current = '';
       hasSpokenRef.current = false;
+      isAutoStartRef.current = false;
+      
+      // Auto-start after short delay (300-500ms)
+      autoStartTimerRef.current = setTimeout(() => {
+        if (stateRef.current === 'idle' && isSttSupported) {
+          isAutoStartRef.current = true;
+          startRecording();
+        }
+      }, 400);
     } else {
+      clearAllTimers();
       stopRecording();
     }
-  }, [open, stopRecording]);
+  }, [open, stopRecording, startRecording, isSttSupported, clearAllTimers]);
   
   // Cleanup on unmount
   useEffect(() => {
@@ -319,6 +369,8 @@ export function SimpleVoiceOverlay({
   
   const handleMicTap = useCallback(() => {
     if (state === 'idle') {
+      setShowIdleHint(false);
+      isAutoStartRef.current = false; // Manual tap - not auto-start
       startRecording();
     } else if (state === 'recording') {
       finishRecording();
@@ -389,9 +441,9 @@ export function SimpleVoiceOverlay({
         <Mic className="w-14 h-14 text-primary" />
       </button>
       
-      {/* Single minimal hint */}
+      {/* Hint - shows "Tippe zum Sprechen" after auto-start failed, otherwise "Sprechen" */}
       <p className="mt-10 text-sm text-muted-foreground/50">
-        Sprechen
+        {showIdleHint ? 'Tippe zum Sprechen' : 'Sprechen'}
       </p>
     </div>
   );
