@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useDoctors, useCreateDoctor, useUpdateDoctor, useDeleteDoctor } from "@/features/account/hooks/useAccount";
 import { toast } from "sonner";
-import { Trash2, Plus, Edit } from "lucide-react";
+import { Trash2, Plus, Edit, ExternalLink } from "lucide-react";
 
 interface SettingsDoctorsWithOriginProps {
   origin?: 'export_migraine_diary';
@@ -43,6 +43,7 @@ export const SettingsDoctorsWithOrigin = ({
     phone: "",
     email: "",
     fax: "",
+    website: "",
   });
   
   const [editDoctor, setEditDoctor] = useState({
@@ -57,6 +58,7 @@ export const SettingsDoctorsWithOrigin = ({
     phone: "",
     email: "",
     fax: "",
+    website: "",
   });
 
   // Auto-open edit mode for specified doctor on mount
@@ -92,6 +94,7 @@ export const SettingsDoctorsWithOrigin = ({
         phone: "",
         email: "",
         fax: "",
+        website: "",
       });
       setShowAddDoctor(false);
       toast.success("Arzt hinzugefügt");
@@ -119,6 +122,7 @@ export const SettingsDoctorsWithOrigin = ({
       phone: doctor.phone || "",
       email: doctor.email || "",
       fax: doctor.fax || "",
+      website: doctor.website || "",
     });
   };
 
@@ -303,6 +307,15 @@ export const SettingsDoctorsWithOrigin = ({
                   placeholder="Optional"
                 />
               </div>
+              <div className="md:col-span-2">
+                <Label className="text-xs text-muted-foreground">Website (optional)</Label>
+                <Input
+                  type="url"
+                  value={newDoctor.website}
+                  onChange={(e) => setNewDoctor({ ...newDoctor, website: e.target.value })}
+                  placeholder="https://..."
+                />
+              </div>
             </div>
             <div className="flex gap-2 mt-3">
               <SaveButton
@@ -430,6 +443,15 @@ export const SettingsDoctorsWithOrigin = ({
                         onChange={(e) => setEditDoctor({ ...editDoctor, fax: e.target.value })}
                       />
                     </div>
+                    <div className="md:col-span-2">
+                      <Label className="text-xs text-muted-foreground">Website (optional)</Label>
+                      <Input
+                        type="url"
+                        value={editDoctor.website}
+                        onChange={(e) => setEditDoctor({ ...editDoctor, website: e.target.value })}
+                        placeholder="https://..."
+                      />
+                    </div>
                   </div>
                   <div className="flex gap-2">
                     <SaveButton
@@ -483,6 +505,17 @@ export const SettingsDoctorsWithOrigin = ({
                     {doctor.phone && <p>Tel: {doctor.phone}</p>}
                     {doctor.email && <p>E-Mail: {doctor.email}</p>}
                     {doctor.fax && <p>Fax: {doctor.fax}</p>}
+                    {(doctor as any).website && (
+                      <a 
+                        href={(doctor as any).website.startsWith('http') ? (doctor as any).website : `https://${(doctor as any).website}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        <span>Website</span>
+                      </a>
+                    )}
                   </div>
                 </>
               )}
