@@ -1,0 +1,316 @@
+{
+  "common": {
+    "save": "Speichern",
+    "saving": "Speichern...",
+    "cancel": "Abbrechen",
+    "delete": "Löschen",
+    "deleting": "Löschen...",
+    "edit": "Bearbeiten",
+    "back": "Zurück",
+    "next": "Weiter",
+    "close": "Schließen",
+    "confirm": "Bestätigen",
+    "done": "Fertig",
+    "add": "Hinzufügen",
+    "remove": "Entfernen",
+    "search": "Suchen",
+    "loading": "Laden...",
+    "tryAgain": "Erneut versuchen",
+    "yes": "Ja",
+    "no": "Nein",
+    "ok": "OK",
+    "optional": "optional",
+    "required": "erforderlich"
+  },
+  
+  "app": {
+    "name": "Migräne-App",
+    "loading": "Migräne-App wird geladen...",
+    "tagline": "Dein Migräne-Tagebuch"
+  },
+  
+  "auth": {
+    "login": "Anmelden",
+    "logout": "Abmelden",
+    "register": "Registrieren",
+    "email": "E-Mail-Adresse",
+    "password": "Passwort",
+    "confirmPassword": "Passwort bestätigen",
+    "forgotPassword": "Passwort vergessen?",
+    "resetPassword": "Passwort zurücksetzen",
+    "newPassword": "Neues Passwort",
+    "loggedOut": "Abgemeldet",
+    "loggedOutDesc": "Du wurdest erfolgreich abgemeldet.",
+    "logoutError": "Fehler beim Abmelden",
+    "loginError": "Anmeldung fehlgeschlagen",
+    "registerError": "Registrierung fehlgeschlagen",
+    "emailSent": "E-Mail gesendet",
+    "checkInbox": "Bitte prüfe dein E-Mail-Postfach."
+  },
+  
+  "nav": {
+    "home": "Start",
+    "entries": "Einträge",
+    "analysis": "Auswertung",
+    "settings": "Einstellungen",
+    "reminders": "Erinnerungen"
+  },
+  
+  "sections": {
+    "quickEntry": "Schnelleintrag",
+    "medications": "Medikamente",
+    "diary": "Tagebuch & Auswertungen",
+    "organization": "Organisation"
+  },
+  
+  "entry": {
+    "new": "Neuer Eintrag",
+    "edit": "Eintrag bearbeiten",
+    "delete": "Eintrag löschen",
+    "deleteConfirm": "Möchtest du diesen Migräne-Eintrag wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
+    "saved": "Eintrag gespeichert",
+    "deleted": "Eintrag gelöscht",
+    "saveError": "Eintrag konnte nicht gespeichert werden",
+    "deleteError": "Eintrag konnte nicht gelöscht werden",
+    "noEntries": "Noch keine Einträge",
+    "noEntriesHint": "Erstelle deinen ersten Eintrag",
+    "entriesAndHistory": "Einträge & Verlauf",
+    "viewAll": "Alle Einträge ansehen, bearbeiten oder löschen."
+  },
+  
+  "pain": {
+    "level": "Schmerzstärke",
+    "selectLevel": "Wie stark sind die Schmerzen?",
+    "location": "Schmerzort",
+    "selectLocation": "Wo tut es weh?",
+    "locations": {
+      "leftSide": "Einseitig links",
+      "rightSide": "Einseitig rechts",
+      "bothSides": "Beidseitig",
+      "forehead": "Stirnbereich",
+      "neck": "Nackenbereich",
+      "temple": "Schläfenbereich",
+      "topBurning": "Kopfoberseite (brennen)"
+    },
+    "levels": {
+      "none": "Keine Schmerzen",
+      "light": "Leichte Migräne (2/10)",
+      "lightDesc": "Beeinträchtigt Alltag wenig",
+      "medium": "Mittlere Migräne (5/10)",
+      "mediumDesc": "Erschwert Aktivitäten",
+      "strong": "Starke Migräne (7/10)",
+      "strongDesc": "Normale Aktivitäten unmöglich",
+      "veryStrong": "Sehr starke Migräne (9/10)",
+      "veryStrongDesc": "Bettlägerig, unerträglich"
+    }
+  },
+  
+  "aura": {
+    "title": "Aura",
+    "none": "Keine Aura",
+    "visual": "Visuell",
+    "sensory": "Sensorisch",
+    "speech": "Sprache",
+    "motor": "Motorisch"
+  },
+  
+  "medication": {
+    "title": "Medikament",
+    "medications": "Medikamente",
+    "add": "Medikament hinzufügen",
+    "edit": "Medikament bearbeiten",
+    "delete": "Medikament löschen",
+    "name": "Name",
+    "dose": "Dosis",
+    "effect": "Wirkung",
+    "effectRating": "Medikamenten-Wirkung",
+    "rateEffect": "Wirksamkeit bewerten",
+    "saved": "Medikament gespeichert",
+    "deleted": "Medikament gelöscht",
+    "saveError": "Medikament konnte nicht gespeichert werden",
+    "noMedications": "Keine Medikamente",
+    "addFirst": "Füge dein erstes Medikament hinzu",
+    "management": "Medikamente verwalten",
+    "overuse": "Übergebrauch",
+    "limits": "Grenzen",
+    "course": "Medikamentenkur",
+    "courses": "Medikamentenkuren"
+  },
+  
+  "reminder": {
+    "title": "Erinnerung",
+    "reminders": "Erinnerungen",
+    "add": "Erinnerung hinzufügen",
+    "edit": "Erinnerung bearbeiten",
+    "delete": "Erinnerung löschen",
+    "created": "Erinnerung erstellt",
+    "createdDesc": "Die Erinnerung wurde erfolgreich gespeichert",
+    "deleted": "Erinnerung gelöscht",
+    "time": "Uhrzeit",
+    "repeat": "Wiederholen",
+    "daily": "Täglich",
+    "weekly": "Wöchentlich",
+    "monthly": "Monatlich",
+    "never": "Nie"
+  },
+  
+  "doctor": {
+    "title": "Arzt",
+    "doctors": "Behandelnde Ärzte",
+    "add": "Arzt hinzufügen",
+    "edit": "Arzt bearbeiten",
+    "delete": "Arzt löschen",
+    "saved": "Arzt gespeichert",
+    "deleted": "Arzt gelöscht",
+    "name": "Name",
+    "firstName": "Vorname",
+    "lastName": "Nachname",
+    "specialty": "Fachgebiet",
+    "phone": "Telefon",
+    "email": "E-Mail",
+    "fax": "Fax",
+    "address": "Adresse",
+    "street": "Straße",
+    "city": "Stadt",
+    "postalCode": "PLZ",
+    "website": "Website",
+    "websiteOptional": "Website (optional)",
+    "noDoctors": "Keine Ärzte",
+    "addFirst": "Füge deinen ersten Arzt hinzu"
+  },
+  
+  "analysis": {
+    "title": "Auswertung",
+    "statistics": "Statistiken",
+    "patterns": "Muster",
+    "triggers": "Auslöser",
+    "chart": "Verlauf",
+    "timeRange": "Zeitraum",
+    "last7Days": "Letzte 7 Tage",
+    "last30Days": "Letzte 30 Tage",
+    "last90Days": "Letzte 90 Tage",
+    "allTime": "Gesamter Zeitraum",
+    "noData": "Nicht genug Daten",
+    "noDataHint": "Erstelle mehr Einträge für Auswertungen"
+  },
+  
+  "weather": {
+    "title": "Wetter",
+    "pressure": "Luftdruck",
+    "pressureWarning": "Starke Luftdruckänderung kann Migräne auslösen",
+    "temperature": "Temperatur",
+    "humidity": "Luftfeuchtigkeit"
+  },
+  
+  "voice": {
+    "title": "Sprachnotiz",
+    "tapToSpeak": "Tippe zum Sprechen",
+    "listening": "Höre zu...",
+    "processing": "Verarbeite...",
+    "sayAnything": "Sag alles, was gerade passiert",
+    "notRecognized": "Nicht erkannt",
+    "tryAgain": "Versuche es erneut",
+    "voiceCommands": "Sprachbefehle",
+    "examples": "Beispiele, was du sagen kannst",
+    "note": "Notiz",
+    "notes": "Notizen",
+    "saveNote": "Notiz speichern"
+  },
+  
+  "settings": {
+    "title": "Einstellungen",
+    "account": "Konto",
+    "profile": "Profil",
+    "language": "Sprache",
+    "languageHint": "Du kannst die Sprache jederzeit ändern.",
+    "useDeviceLanguage": "Gerätesprache verwenden",
+    "notifications": "Benachrichtigungen",
+    "privacy": "Datenschutz",
+    "help": "Hilfe",
+    "about": "Über die App",
+    "version": "Version",
+    "developer": "Entwickler",
+    "stringInventory": "String-Inventar"
+  },
+  
+  "privacy": {
+    "title": "Datenschutz",
+    "dataExport": "Daten exportieren",
+    "dataExportSuccess": "Datenexport erfolgreich",
+    "dataExportDesc": "{{count}} Datensätze aus {{tables}} Tabellen exportiert.",
+    "dataExportError": "Export fehlgeschlagen",
+    "deleteAccount": "Konto löschen",
+    "deleteAccountConfirm": "Bist du sicher, dass du dein Konto löschen möchtest? Diese Aktion kann nicht rückgängig gemacht werden."
+  },
+  
+  "report": {
+    "title": "Bericht",
+    "diaryReport": "Kopfschmerztagebuch erstellen",
+    "generate": "Bericht erstellen",
+    "download": "Herunterladen",
+    "share": "Teilen"
+  },
+  
+  "hit6": {
+    "title": "HIT-6 Test",
+    "description": "Kopfschmerz-Einfluss-Test"
+  },
+  
+  "time": {
+    "today": "Heute",
+    "yesterday": "Gestern",
+    "daysAgo": "vor {{count}} Tagen",
+    "justNow": "Gerade eben",
+    "minutesAgo": "vor {{count}} Min.",
+    "hoursAgo": "vor {{count}} Std.",
+    "morning": "Morgens",
+    "noon": "Mittags",
+    "evening": "Abends",
+    "night": "Nachts",
+    "date": "Datum",
+    "time": "Uhrzeit"
+  },
+  
+  "validation": {
+    "required": "Dieses Feld ist erforderlich",
+    "invalidEmail": "Ungültige E-Mail-Adresse",
+    "passwordTooShort": "Passwort muss mindestens 6 Zeichen haben",
+    "passwordsDontMatch": "Passwörter stimmen nicht überein"
+  },
+  
+  "error": {
+    "general": "Etwas ist schiefgelaufen",
+    "tryAgain": "Bitte versuche es erneut",
+    "noConnection": "Keine Verbindung. Prüfe deine Internetverbindung.",
+    "saveFailed": "Speichern fehlgeschlagen",
+    "loadFailed": "Laden fehlgeschlagen",
+    "deleteFailed": "Löschen fehlgeschlagen",
+    "sessionExpired": "Sitzung abgelaufen. Bitte melde dich erneut an."
+  },
+  
+  "success": {
+    "saved": "Gespeichert",
+    "deleted": "Gelöscht",
+    "updated": "Aktualisiert",
+    "created": "Erstellt"
+  },
+  
+  "confirm": {
+    "delete": "Löschen bestätigen",
+    "deleteDefault": "Möchtest du diesen Eintrag wirklich löschen?",
+    "unsavedChanges": "Nicht gespeicherte Änderungen",
+    "unsavedChangesDesc": "Du hast ungespeicherte Änderungen. Möchtest du speichern oder verwerfen?",
+    "discard": "Verwerfen"
+  },
+  
+  "empty": {
+    "noResults": "Keine Ergebnisse",
+    "noData": "Keine Daten vorhanden"
+  },
+  
+  "consent": {
+    "healthData": "Gesundheitsdaten",
+    "healthDataConsent": "Ich stimme der Verarbeitung meiner Gesundheitsdaten zu",
+    "medicalDisclaimer": "Diese App ersetzt keine ärztliche Beratung"
+  }
+}

@@ -1,0 +1,316 @@
+{
+  "common": {
+    "save": "Save",
+    "saving": "Saving...",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "deleting": "Deleting...",
+    "edit": "Edit",
+    "back": "Back",
+    "next": "Next",
+    "close": "Close",
+    "confirm": "Confirm",
+    "done": "Done",
+    "add": "Add",
+    "remove": "Remove",
+    "search": "Search",
+    "loading": "Loading...",
+    "tryAgain": "Try again",
+    "yes": "Yes",
+    "no": "No",
+    "ok": "OK",
+    "optional": "optional",
+    "required": "required"
+  },
+  
+  "app": {
+    "name": "Migraine App",
+    "loading": "Loading...",
+    "tagline": "Your migraine diary"
+  },
+  
+  "auth": {
+    "login": "Log in",
+    "logout": "Log out",
+    "register": "Sign up",
+    "email": "Email",
+    "password": "Password",
+    "confirmPassword": "Confirm password",
+    "forgotPassword": "Forgot password?",
+    "resetPassword": "Reset password",
+    "newPassword": "New password",
+    "loggedOut": "Logged out",
+    "loggedOutDesc": "You've been logged out.",
+    "logoutError": "Couldn't log out",
+    "loginError": "Couldn't log in",
+    "registerError": "Couldn't sign up",
+    "emailSent": "Email sent",
+    "checkInbox": "Check your inbox."
+  },
+  
+  "nav": {
+    "home": "Home",
+    "entries": "Entries",
+    "analysis": "Analysis",
+    "settings": "Settings",
+    "reminders": "Reminders"
+  },
+  
+  "sections": {
+    "quickEntry": "Quick entry",
+    "medications": "Medicines",
+    "diary": "Diary & Analysis",
+    "organization": "Organization"
+  },
+  
+  "entry": {
+    "new": "New entry",
+    "edit": "Edit entry",
+    "delete": "Delete entry",
+    "deleteConfirm": "Delete this entry? This can't be undone.",
+    "saved": "Entry saved",
+    "deleted": "Entry deleted",
+    "saveError": "Couldn't save entry",
+    "deleteError": "Couldn't delete entry",
+    "noEntries": "No entries yet",
+    "noEntriesHint": "Create your first entry",
+    "entriesAndHistory": "Entries & History",
+    "viewAll": "View, edit, or delete all entries."
+  },
+  
+  "pain": {
+    "level": "Pain level",
+    "selectLevel": "How bad is the pain?",
+    "location": "Pain location",
+    "selectLocation": "Where does it hurt?",
+    "locations": {
+      "leftSide": "Left side",
+      "rightSide": "Right side",
+      "bothSides": "Both sides",
+      "forehead": "Forehead",
+      "neck": "Neck",
+      "temple": "Temple",
+      "topBurning": "Top of head (burning)"
+    },
+    "levels": {
+      "none": "No pain",
+      "light": "Mild migraine (2/10)",
+      "lightDesc": "Minor impact on daily life",
+      "medium": "Moderate migraine (5/10)",
+      "mediumDesc": "Makes activities harder",
+      "strong": "Severe migraine (7/10)",
+      "strongDesc": "Can't do normal activities",
+      "veryStrong": "Very severe migraine (9/10)",
+      "veryStrongDesc": "Bedridden, unbearable"
+    }
+  },
+  
+  "aura": {
+    "title": "Aura",
+    "none": "No aura",
+    "visual": "Visual",
+    "sensory": "Sensory",
+    "speech": "Speech",
+    "motor": "Motor"
+  },
+  
+  "medication": {
+    "title": "Medicine",
+    "medications": "Medicines",
+    "add": "Add medicine",
+    "edit": "Edit medicine",
+    "delete": "Delete medicine",
+    "name": "Name",
+    "dose": "Dose",
+    "effect": "Effect",
+    "effectRating": "Medicine effect",
+    "rateEffect": "Rate effectiveness",
+    "saved": "Medicine saved",
+    "deleted": "Medicine deleted",
+    "saveError": "Couldn't save medicine",
+    "noMedications": "No medicines",
+    "addFirst": "Add your first medicine",
+    "management": "Manage medicines",
+    "overuse": "Overuse",
+    "limits": "Limits",
+    "course": "Treatment course",
+    "courses": "Treatment courses"
+  },
+  
+  "reminder": {
+    "title": "Reminder",
+    "reminders": "Reminders",
+    "add": "Add reminder",
+    "edit": "Edit reminder",
+    "delete": "Delete reminder",
+    "created": "Reminder created",
+    "createdDesc": "Reminder saved",
+    "deleted": "Reminder deleted",
+    "time": "Time",
+    "repeat": "Repeat",
+    "daily": "Daily",
+    "weekly": "Weekly",
+    "monthly": "Monthly",
+    "never": "Never"
+  },
+  
+  "doctor": {
+    "title": "Doctor",
+    "doctors": "Doctors",
+    "add": "Add doctor",
+    "edit": "Edit doctor",
+    "delete": "Delete doctor",
+    "saved": "Doctor saved",
+    "deleted": "Doctor deleted",
+    "name": "Name",
+    "firstName": "First name",
+    "lastName": "Last name",
+    "specialty": "Specialty",
+    "phone": "Phone",
+    "email": "Email",
+    "fax": "Fax",
+    "address": "Address",
+    "street": "Street",
+    "city": "City",
+    "postalCode": "Postal code",
+    "website": "Website",
+    "websiteOptional": "Website (optional)",
+    "noDoctors": "No doctors",
+    "addFirst": "Add your first doctor"
+  },
+  
+  "analysis": {
+    "title": "Analysis",
+    "statistics": "Statistics",
+    "patterns": "Patterns",
+    "triggers": "Triggers",
+    "chart": "Chart",
+    "timeRange": "Time range",
+    "last7Days": "Last 7 days",
+    "last30Days": "Last 30 days",
+    "last90Days": "Last 90 days",
+    "allTime": "All time",
+    "noData": "Not enough data",
+    "noDataHint": "Create more entries for analysis"
+  },
+  
+  "weather": {
+    "title": "Weather",
+    "pressure": "Air pressure",
+    "pressureWarning": "Large pressure change may trigger migraine",
+    "temperature": "Temperature",
+    "humidity": "Humidity"
+  },
+  
+  "voice": {
+    "title": "Voice note",
+    "tapToSpeak": "Tap to speak",
+    "listening": "Listening...",
+    "processing": "Processing...",
+    "sayAnything": "Say what's happening",
+    "notRecognized": "Not recognized",
+    "tryAgain": "Try again",
+    "voiceCommands": "Voice commands",
+    "examples": "Examples of what you can say",
+    "note": "Note",
+    "notes": "Notes",
+    "saveNote": "Save note"
+  },
+  
+  "settings": {
+    "title": "Settings",
+    "account": "Account",
+    "profile": "Profile",
+    "language": "Language",
+    "languageHint": "You can change this anytime.",
+    "useDeviceLanguage": "Use device language",
+    "notifications": "Notifications",
+    "privacy": "Privacy",
+    "help": "Help",
+    "about": "About",
+    "version": "Version",
+    "developer": "Developer",
+    "stringInventory": "String Inventory"
+  },
+  
+  "privacy": {
+    "title": "Privacy",
+    "dataExport": "Export data",
+    "dataExportSuccess": "Data exported",
+    "dataExportDesc": "{{count}} records from {{tables}} tables exported.",
+    "dataExportError": "Export failed",
+    "deleteAccount": "Delete account",
+    "deleteAccountConfirm": "Delete your account? This can't be undone."
+  },
+  
+  "report": {
+    "title": "Report",
+    "diaryReport": "Create headache diary",
+    "generate": "Create report",
+    "download": "Download",
+    "share": "Share"
+  },
+  
+  "hit6": {
+    "title": "HIT-6 Test",
+    "description": "Headache Impact Test"
+  },
+  
+  "time": {
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "daysAgo": "{{count}} days ago",
+    "justNow": "Just now",
+    "minutesAgo": "{{count}} min ago",
+    "hoursAgo": "{{count}}h ago",
+    "morning": "Morning",
+    "noon": "Noon",
+    "evening": "Evening",
+    "night": "Night",
+    "date": "Date",
+    "time": "Time"
+  },
+  
+  "validation": {
+    "required": "This field is required",
+    "invalidEmail": "Invalid email",
+    "passwordTooShort": "Password must be at least 6 characters",
+    "passwordsDontMatch": "Passwords don't match"
+  },
+  
+  "error": {
+    "general": "Something went wrong",
+    "tryAgain": "Try again",
+    "noConnection": "No connection. Check your internet.",
+    "saveFailed": "Couldn't save",
+    "loadFailed": "Couldn't load",
+    "deleteFailed": "Couldn't delete",
+    "sessionExpired": "Session expired. Log in again."
+  },
+  
+  "success": {
+    "saved": "Saved",
+    "deleted": "Deleted",
+    "updated": "Updated",
+    "created": "Created"
+  },
+  
+  "confirm": {
+    "delete": "Confirm delete",
+    "deleteDefault": "Delete this item?",
+    "unsavedChanges": "Unsaved changes",
+    "unsavedChangesDesc": "You have unsaved changes. Save or discard?",
+    "discard": "Discard"
+  },
+  
+  "empty": {
+    "noResults": "No results",
+    "noData": "No data"
+  },
+  
+  "consent": {
+    "healthData": "Health data",
+    "healthDataConsent": "I agree to the processing of my health data",
+    "medicalDisclaimer": "This app does not replace medical advice"
+  }
+}
