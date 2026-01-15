@@ -17,8 +17,8 @@ import {
   Droplets, 
   Gauge, 
   TrendingUp, 
-  TrendingDown, 
-  ArrowRight, 
+  TrendingDown,
+  ArrowRight,
   MapPin,
   CloudSun,
   AlertCircle
@@ -128,69 +128,55 @@ export const EntriesList = ({
           />
         </div>
       ) : (
-        <div className="space-y-3">
-          {sorted.map((entry) => (
-            <div
-              key={entry.id}
-              className="p-4 border-border/30 border rounded-lg bg-card hover:bg-accent/50 cursor-pointer transition-colors"
-              onClick={() => setSelectedEntry(entry)}
-            >
-              <div className="space-y-2">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <div className="flex items-center gap-3 mb-2">
-                      <span className="font-medium">
+        <div className="space-y-2">
+          {sorted.map((entry) => {
+            // Calculate numeric pain level for display
+            const painLevel = entry.pain_level;
+            const isNumeric = !isNaN(Number(painLevel));
+            const numericPain = isNumeric ? Number(painLevel) : 
+              painLevel === "sehr_stark" ? 9 :
+              painLevel === "stark" ? 7 :
+              painLevel === "mittel" ? 5 : 2;
+            
+            return (
+              <div
+                key={entry.id}
+                className="p-3 border-border/30 border rounded-lg bg-card hover:bg-accent/50 cursor-pointer transition-colors"
+                onClick={() => setSelectedEntry(entry)}
+              >
+                <div className="flex items-center gap-3">
+                  {/* Pain indicator dot */}
+                  <div 
+                    className="w-3 h-3 rounded-full flex-shrink-0"
+                    style={{ 
+                      backgroundColor: numericPain >= 8 ? '#ef4444' : 
+                                       numericPain >= 6 ? '#fb923c' :
+                                       numericPain >= 4 ? '#fbbf24' : 
+                                       'hsl(var(--muted-foreground) / 0.4)'
+                    }}
+                  />
+                  
+                  {/* Main content */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-baseline gap-2">
+                      <span className="font-medium text-sm">
                         {formatDate(entry.selected_date || entry.timestamp_created)}
                       </span>
-                      <span className="text-sm text-muted-foreground">
+                      <span className="text-xs text-muted-foreground">
                         {entry.selected_time ?? new Date(entry.timestamp_created).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}
                       </span>
                     </div>
-                    <p className="text-sm">
-                      <strong>Intensität:</strong> {formatPainLevel(entry.pain_level)}
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {formatPainLevel(painLevel)} ({numericPain}/10)
+                      {entry.medications?.length > 0 && (
+                        <span className="ml-2">· 💊 {entry.medications.join(", ")}</span>
+                      )}
                     </p>
-                    {entry.medications?.length > 0 && (
-                      <p className="text-xs text-muted-foreground mt-1 truncate">
-                        💊 {entry.medications.join(", ")}
-                      </p>
-                    )}
-                  </div>
-                  <div className="text-lg">
-                    {entry.pain_level === "sehr_stark" ? "🔴" : 
-                     entry.pain_level === "stark" ? "🟠" :
-                     entry.pain_level === "mittel" ? "💛" : "💚"}
                   </div>
                 </div>
-                
-                {/* Kompakte Wetter-Vorschau */}
-                {entry.weather && (
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground pt-2 border-t border-border/30">
-                    {entry.weather.temperature_c != null && (
-                      <span className="flex items-center gap-1">
-                        <Thermometer className="h-3 w-3" />
-                        {entry.weather.temperature_c}°C
-                      </span>
-                    )}
-                    {entry.weather.humidity != null && (
-                      <span className="flex items-center gap-1">
-                        <Droplets className="h-3 w-3" />
-                        {entry.weather.humidity}%
-                      </span>
-                    )}
-                    {entry.weather.pressure_mb != null && (
-                      <span className="flex items-center gap-1">
-                        <Gauge className="h-3 w-3" />
-                        {entry.weather.pressure_mb} hPa
-                      </span>
-                    )}
-                    {entry.weather.pressure_change_24h != null && Math.abs(entry.weather.pressure_change_24h) > 3 && (
-                      <span className="text-orange-600">⚠️</span>
-                    )}
-                  </div>
-                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
