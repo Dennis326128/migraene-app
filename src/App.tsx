@@ -25,8 +25,9 @@ import { MedicationEffectsPage } from "./features/medication-effects/components/
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { getAccountStatus, AccountStatus } from "@/features/account/api/accountStatus.api";
 
-// Lazy load QA page (DEV only)
+// Lazy load DEV-only pages
 const QAPage = React.lazy(() => import("./pages/QAPage"));
+const StringInventoryPage = React.lazy(() => import("./pages/StringInventoryPage"));
 
 // Create QueryClient with error recovery
 const queryClient = new QueryClient({
@@ -202,6 +203,16 @@ function App() {
                 element={
                   <React.Suspense fallback={<div className="p-8 text-center">Loading QA...</div>}>
                     <QAPage />
+                  </React.Suspense>
+                }
+              />
+
+              {/* DEV: String Inventory */}
+              <Route
+                path="/dev/strings"
+                element={
+                  <React.Suspense fallback={<div className="p-8 text-center">Loading...</div>}>
+                    <StringInventoryPage />
                   </React.Suspense>
                 }
               />
