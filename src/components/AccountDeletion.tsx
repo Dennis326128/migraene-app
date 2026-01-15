@@ -37,87 +37,25 @@ export function AccountDeletion() {
 
   const handleExportData = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast({
+          title: "Nicht angemeldet",
+          description: "Bitte melden Sie sich erneut an.",
+          variant: "destructive"
+        });
+        return;
+      }
 
-      // Fetch ALL user tables in parallel for complete data portability
-      const [
-        profile,
-        painEntries,
-        medications,
-        medicationCourses,
-        medicationLimits,
-        medicationEffects,
-        reminders,
-        doctors,
-        patientData,
-        voiceNotes,
-        voiceNoteSegments,
-        weatherLogs,
-        reportSettings,
-        entrySymptoms,
-        userConsents,
-        userFeedback
-      ] = await Promise.all([
-        supabase.from('user_profiles').select('*').eq('user_id', user.id).single(),
-        supabase.from('pain_entries').select('*').eq('user_id', user.id),
-        supabase.from('user_medications').select('*').eq('user_id', user.id),
-        supabase.from('medication_courses').select('*').eq('user_id', user.id),
-        supabase.from('user_medication_limits').select('*').eq('user_id', user.id),
-        supabase.from('medication_effects').select('*'),
-        supabase.from('reminders').select('*').eq('user_id', user.id),
-        supabase.from('doctors').select('*').eq('user_id', user.id),
-        supabase.from('patient_data').select('*').eq('user_id', user.id).single(),
-        supabase.from('voice_notes').select('*').eq('user_id', user.id),
-        supabase.from('voice_note_segments').select('*'),
-        supabase.from('weather_logs').select('*').eq('user_id', user.id),
-        supabase.from('user_report_settings').select('*').eq('user_id', user.id).single(),
-        supabase.from('entry_symptoms').select('*'),
-        supabase.from('user_consents').select('*').eq('user_id', user.id),
-        supabase.from('user_feedback').select('*').eq('user_id', user.id)
-      ]);
+      // Call the centralized export Edge Function
+      const { data, error } = await supabase.functions.invoke('export-user-data');
+      
+      if (error) {
+        throw new Error(error.message || 'Export fehlgeschlagen');
+      }
 
-      // Filter medication_effects to only include user's entries
-      const userEntryIds = (painEntries.data || []).map(e => e.id);
-      const userMedicationEffects = (medicationEffects.data || []).filter(
-        me => userEntryIds.includes(me.entry_id)
-      );
-
-      // Filter voice_note_segments to only include user's voice notes
-      const userVoiceNoteIds = (voiceNotes.data || []).map(v => v.id);
-      const userVoiceNoteSegments = (voiceNoteSegments.data || []).filter(
-        s => userVoiceNoteIds.includes(s.voice_note_id)
-      );
-
-      // Filter entry_symptoms to only include user's entries
-      const userEntrySymptoms = (entrySymptoms.data || []).filter(
-        es => userEntryIds.includes(es.entry_id)
-      );
-
-      const exportData = {
-        exportDate: new Date().toISOString(),
-        gdprArticle: 'Art. 20 DSGVO - Recht auf Datenübertragbarkeit',
-        userId: user.id,
-        email: user.email,
-        profile: profile.data,
-        patientData: patientData.data,
-        painEntries: painEntries.data || [],
-        entrySymptoms: userEntrySymptoms,
-        medications: medications.data || [],
-        medicationCourses: medicationCourses.data || [],
-        medicationLimits: medicationLimits.data || [],
-        medicationEffects: userMedicationEffects,
-        reminders: reminders.data || [],
-        doctors: doctors.data || [],
-        voiceNotes: voiceNotes.data || [],
-        voiceNoteSegments: userVoiceNoteSegments,
-        weatherLogs: weatherLogs.data || [],
-        reportSettings: reportSettings.data,
-        consents: userConsents.data || [],
-        feedback: userFeedback.data || []
-      };
-
-      const blob = new Blob([JSON.stringify(exportData, null, 2)], { 
+      // Download as JSON file
+      const blob = new Blob([JSON.stringify(data, null, 2)], { 
         type: 'application/json' 
       });
       const url = URL.createObjectURL(blob);
@@ -132,7 +70,7 @@ export function AccountDeletion() {
       setDownloadedData(true);
       toast({
         title: "Datenexport erfolgreich",
-        description: "Alle Ihre Daten wurden DSGVO-konform exportiert."
+        description: `${data.export_info?.total_records || 0} Datensätze aus ${data.export_info?.tables_exported || 0} Tabellen exportiert.`
       });
     } catch (error) {
       console.error('Export error:', error);
