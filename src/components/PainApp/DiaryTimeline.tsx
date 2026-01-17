@@ -2,8 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Filter, FileText, Calendar as CalendarIcon, Activity, Edit, Trash2, ChevronDown, ChevronUp, ArrowDown, Heart, MessageSquare, List, LayoutGrid } from 'lucide-react';
-import { format } from 'date-fns';
+import { ArrowLeft, Filter, Calendar as CalendarIcon, Edit, Trash2, ChevronDown, ChevronUp, ArrowDown, Heart, MessageSquare, List, LayoutGrid, Pill, Activity } from 'lucide-react';
+import { format, subDays } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { toZonedTime } from 'date-fns-tz';
 import { useEntries } from '@/features/entries/hooks/useEntries';
@@ -21,6 +21,7 @@ import { QuickContextNoteModal, EditingContextNote } from './QuickContextNoteMod
 import { showSuccessToast, showErrorToast } from '@/lib/toastHelpers';
 import type { ContextMetadata } from '@/lib/voice/saveNote';
 import { CalendarView } from '@/features/diary/calendar';
+import { normalizePainLevel } from '@/lib/utils/pain';
 
 // Helper: Filtert technische/ungültige Wetterbedingungen
 const isValidWeatherCondition = (text: string | null | undefined): boolean => {
@@ -36,6 +37,76 @@ const isValidWeatherCondition = (text: string | null | undefined): boolean => {
   
   return !invalidPatterns.some(pattern => pattern.test(text));
 };
+
+// Compact KPI Summary for Verlauf page
+function CompactKPISummary({ entries }: { entries: any[] }) {
+  const last30Days = useMemo(() => {
+    const thirtyDaysAgo = subDays(new Date(), 30);
+    return entries.filter(entry => {
+      const dateStr = entry.selected_date || entry.timestamp_created?.split('T')[0];
+      if (!dateStr) return false;
+      return new Date(dateStr) >= thirtyDaysAgo;
+    });
+  }, [entries]);
+  
+  const stats = useMemo(() => {
+    // Distinct pain days
+    const painDaysSet = new Set<string>();
+    let triptanCount = 0;
+    const painLevels: number[] = [];
+    
+    last30Days.forEach(entry => {
+      const dateKey = entry.selected_date || entry.timestamp_created?.split('T')[0];
+      if (dateKey) painDaysSet.add(dateKey);
+      
+      const level = normalizePainLevel(entry.pain_level);
+      if (level !== null && level > 0) painLevels.push(level);
+      
+      entry.medications?.forEach((med: string) => {
+        if (med.toLowerCase().includes('triptan')) triptanCount++;
+      });
+    });
+    
+    const avgIntensity = painLevels.length > 0 
+      ? (painLevels.reduce((a, b) => a + b, 0) / painLevels.length).toFixed(1)
+      : '–';
+    
+    return {
+      painDays: painDaysSet.size,
+      triptanCount,
+      avgIntensity
+    };
+  }, [last30Days]);
+  
+  return (
+    <div className="flex items-center justify-between gap-2 p-3 rounded-lg bg-muted/40 border border-border/50">
+      <div className="flex items-center gap-2 flex-1">
+        <CalendarIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+        <div className="text-sm">
+          <span className="font-semibold">{stats.painDays}</span>
+          <span className="text-muted-foreground"> Schmerztage</span>
+        </div>
+      </div>
+      <div className="w-px h-6 bg-border" />
+      <div className="flex items-center gap-2 flex-1">
+        <Pill className="h-4 w-4 text-muted-foreground shrink-0" />
+        <div className="text-sm">
+          <span className="font-semibold">{stats.triptanCount}</span>
+          <span className="text-muted-foreground"> Triptane</span>
+        </div>
+      </div>
+      <div className="w-px h-6 bg-border" />
+      <div className="flex items-center gap-2 flex-1">
+        <Activity className="h-4 w-4 text-muted-foreground shrink-0" />
+        <div className="text-sm">
+          <span className="font-semibold">Ø {stats.avgIntensity}</span>
+          <span className="text-muted-foreground">/10</span>
+        </div>
+      </div>
+      <span className="text-xs text-muted-foreground/60 shrink-0">30d</span>
+    </div>
+  );
+}
 
 interface DiaryTimelineProps {
   onBack: () => void;
@@ -385,23 +456,9 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
         </div>
       </div>
 
-      {/* PDF Report Button */}
+      {/* Compact KPI Summary */}
       <div className="max-w-4xl mx-auto px-4 pt-4">
-        <Button
-          onClick={() => onNavigate?.('diary-report')}
-          variant="default"
-          size="lg"
-          className="w-full justify-start gap-4 h-auto py-4 bg-success hover:bg-success/90 shadow-sm"
-        >
-          <FileText className="h-6 w-6" />
-          <div className="text-left flex-1">
-            <div className="font-semibold text-base">Kopfschmerztagebuch erstellen</div>
-            <div className="text-xs opacity-90">PDF für Arztbesuche</div>
-          </div>
-          <Badge variant="secondary" className="ml-auto">
-            Neu
-          </Badge>
-        </Button>
+        <CompactKPISummary entries={painEntries} />
       </div>
 
       <div className={cn("max-w-4xl mx-auto p-4 space-y-4", isMobile && "px-3")}>

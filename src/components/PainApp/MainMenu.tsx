@@ -45,7 +45,7 @@ interface MainMenuProps {
   onViewAnalysis: () => void;
   onViewSettings: () => void;
   onQuickEntry?: () => void;
-  onNavigate?: (view: 'medication-overview' | 'medication-management' | 'voice-notes' | 'reminders' | 'diary-timeline' | 'context-tags' | 'analysis' | 'analysis-grafik' | 'analysis-ki' | 'analysis-limits' | 'diary-report' | 'diary-report-home' | 'medication-limits' | 'ai-reports' | 'therapy-medication') => void;
+  onNavigate?: (view: 'medication-overview' | 'medication-management' | 'voice-notes' | 'reminders' | 'diary-timeline' | 'context-tags' | 'analysis' | 'analysis-grafik' | 'analysis-ki' | 'analysis-limits' | 'diary-report' | 'diary-report-home' | 'medication-limits' | 'ai-reports' | 'therapy-medication' | 'hit6') => void;
   onLimitWarning?: (checks: any[]) => void;
 }
 
@@ -215,25 +215,44 @@ export const MainMenu: React.FC<MainMenuProps> = ({
 
           </div>
 
-          {/* THERAPIE & MEDIKATION - Unified Section */}
-          <SectionHeader title="Therapie & Medikation" />
+          {/* VERLAUF - Zentraler Alltagsbereich */}
+          <SectionHeader title="Verlauf" />
           
           <div className="space-y-3">
-            {/* Hauptkarte: Therapie & Medikation (unified view) */}
+            {/* Hauptkarte: Verlauf (Liste & Kalender) */}
             <StartPageCard 
               variant="neutral" 
               touchFeedback 
-              onClick={() => onNavigate?.('therapy-medication')}
+              onClick={() => onNavigate?.('diary-timeline')}
             >
               <StartPageCardHeader
-                icon="💊"
+                icon="📖"
                 iconBgClassName="bg-primary/20"
-                title="Übersicht & Verlauf"
-                subtitle="Kennzahlen · Medikamente · Einträge"
+                title="Verlauf"
+                subtitle="Liste & Kalender"
+              />
+            </StartPageCard>
+          </div>
+
+          {/* AUSWERTUNG - Tiefe Analyse */}
+          <SectionHeader title="Auswertung" />
+          
+          <div className="space-y-3">
+            {/* Hauptkarte: Auswertung */}
+            <StartPageCard 
+              variant="neutral" 
+              touchFeedback 
+              onClick={() => onNavigate?.('analysis')}
+            >
+              <StartPageCardHeader
+                icon="📊"
+                iconBgClassName="bg-muted"
+                title="Statistiken & Muster"
+                subtitle="Diagramme · KI-Analyse"
               />
             </StartPageCard>
 
-            {/* Grid: Wirkung & Limits */}
+            {/* Grid: Wirkung & Medikamente */}
             <StartPageButtonGrid columns={2} gap="md">
               <StartPageCard 
                 variant="warning" 
@@ -243,7 +262,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 className="relative"
               >
                 <StartPageCardHeader
-                  icon="📊"
+                  icon="💊"
                   iconBgClassName="bg-warning/30"
                   title="Wirkung bewerten"
                 />
@@ -269,48 +288,37 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             </StartPageButtonGrid>
           </div>
 
-          {/* TAGEBUCH & AUSWERTUNGEN */}
-          <SectionHeader title={t('sections.diary')} />
+          {/* ARZT & BERICHTE */}
+          <SectionHeader title="Arzt & Berichte" />
           
           <div className="space-y-3">
             <StartPageButtonGrid columns={2} gap="md">
               <StartPageCard 
                 variant="neutral" 
                 touchFeedback 
-                onClick={() => onNavigate?.('diary-timeline')}
+                onClick={() => onNavigate?.('diary-report-home')}
               >
                 <StartPageCardHeader
-                  icon="📖"
+                  icon="📝"
                   iconBgClassName="bg-muted"
-                  title={t('entry.entriesAndHistory')}
+                  title="Kopfschmerztagebuch"
+                  subtitle="PDF erstellen"
                 />
               </StartPageCard>
 
               <StartPageCard 
                 variant="neutral" 
                 touchFeedback 
-                onClick={() => onNavigate?.('analysis')}
+                onClick={() => onNavigate?.('hit6')}
               >
                 <StartPageCardHeader
-                  icon="📊"
+                  icon="📋"
                   iconBgClassName="bg-muted"
-                  title={t('analysis.title')}
+                  title="HIT-6"
+                  subtitle="PDF erstellen"
                 />
               </StartPageCard>
             </StartPageButtonGrid>
-
-            {/* CTA: Kopfschmerztagebuch erstellen */}
-            <StartPageCard 
-              variant="neutral" 
-              touchFeedback 
-              onClick={() => onNavigate?.('diary-report-home')}
-            >
-              <StartPageCardHeader
-                icon="📝"
-                iconBgClassName="bg-muted"
-                title={t('report.diaryReport')}
-              />
-            </StartPageCard>
           </div>
 
           {/* ORGANISATION */}
