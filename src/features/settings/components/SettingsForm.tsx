@@ -24,7 +24,6 @@ export default function SettingsForm() {
   const [preset, setPreset] = useState<Preset>("3m");
   const [includeNoMeds, setIncludeNoMeds] = useState<boolean>(true);
   const [hoursStr, setHoursStr] = useState<string>("6,12,18");
-  const [backfillDays, setBackfillDays] = useState<number>(30);
   const [voiceNotesEnabled, setVoiceNotesEnabled] = useState<boolean>(true);
   const [aiEnabled, setAiEnabled] = useState<boolean>(true);
 
@@ -33,7 +32,6 @@ export default function SettingsForm() {
     setPreset(settings.default_report_preset || "3m");
     setIncludeNoMeds(!!settings.include_no_meds);
     setHoursStr((settings.snapshot_hours?.length ? settings.snapshot_hours : [6,12,18]).join(","));
-    setBackfillDays(settings.backfill_days ?? 30);
   }, [settings]);
 
   useEffect(() => {
@@ -49,14 +47,7 @@ export default function SettingsForm() {
     return "";
   }, [hoursStr]);
 
-  const daysError = useMemo(() => {
-    if (!Number.isFinite(backfillDays) || backfillDays < 1 || backfillDays > 90) {
-      return "Gültiger Bereich: 1–90 Tage.";
-    }
-    return "";
-  }, [backfillDays]);
-
-  const hasError = !!hoursError || !!daysError;
+  const hasError = !!hoursError;
 
   const handleSave = async () => {
     if (hasError) return;
@@ -65,14 +56,12 @@ export default function SettingsForm() {
         default_report_preset: preset,
         include_no_meds: includeNoMeds,
         snapshot_hours: normalizeHours(hoursStr),
-        backfill_days: backfillDays,
       }),
       upsertDefaults.mutateAsync({
         voice_notes_enabled: voiceNotesEnabled,
         ai_enabled: aiEnabled,
       }),
     ]);
-    // optional: leichte Rückmeldung
     alert("Einstellungen gespeichert.");
   };
 
@@ -80,7 +69,6 @@ export default function SettingsForm() {
     setPreset("3m");
     setIncludeNoMeds(true);
     setHoursStr("6,12,18");
-    setBackfillDays(30);
     setVoiceNotesEnabled(true);
     setAiEnabled(true);
   };
@@ -141,19 +129,6 @@ export default function SettingsForm() {
               Kommagetrennte Stunden (0–23). Empfohlen: 6,12,18.
             </p>
           )}
-        </div>
-
-        <div>
-          <Label className="block mb-1">Wetter rückwirkend nachtragen (Tage)</Label>
-          <Input
-            type="number"
-            min={1}
-            max={90}
-            value={backfillDays}
-            onChange={(e) => setBackfillDays(Number(e.target.value))}
-          />
-          {daysError && <p className="text-sm text-destructive mt-1">{daysError}</p>}
-          {!daysError && <p className="text-sm text-muted-foreground mt-1">Empfohlen: 30</p>}
         </div>
 
         <div className="flex gap-2">
