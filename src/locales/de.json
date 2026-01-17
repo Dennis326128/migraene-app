@@ -176,6 +176,8 @@
     "delete": "Arzt löschen",
     "saved": "Arzt gespeichert",
     "deleted": "Arzt gelöscht",
+    "added": "Arzt hinzugefügt",
+    "updated": "Arztdaten aktualisiert",
     "name": "Name",
     "firstName": "Vorname",
     "lastName": "Nachname",
@@ -191,7 +193,13 @@
     "websiteOptional": "Website (optional)",
     "noDoctors": "Keine Ärzte",
     "addFirst": "Füge deinen ersten Arzt hinzu",
-    "salutation": "Anrede"
+    "salutation": "Anrede",
+    "status": "Status",
+    "active": "Aktiv",
+    "archived": "Archiviert",
+    "archivedHint": "Archivierte Ärzte werden nicht mehr für Berichte verwendet.",
+    "noActiveDoctor": "Kein aktiver Arzt ausgewählt.",
+    "manageInfo": "Verwalte die Kontaktdaten deiner behandelnden Ärzte"
   },
   
   "analysis": {

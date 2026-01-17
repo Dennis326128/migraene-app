@@ -139,6 +139,7 @@ export type Database = {
           fax: string | null
           first_name: string | null
           id: string
+          is_active: boolean
           last_name: string | null
           phone: string | null
           postal_code: string | null
@@ -157,6 +158,7 @@ export type Database = {
           fax?: string | null
           first_name?: string | null
           id?: string
+          is_active?: boolean
           last_name?: string | null
           phone?: string | null
           postal_code?: string | null
@@ -175,6 +177,7 @@ export type Database = {
           fax?: string | null
           first_name?: string | null
           id?: string
+          is_active?: boolean
           last_name?: string | null
           phone?: string | null
           postal_code?: string | null

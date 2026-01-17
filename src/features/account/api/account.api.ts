@@ -31,6 +31,8 @@ export type Doctor = {
   phone?: string;
   email?: string;
   fax?: string;
+  website?: string;
+  is_active?: boolean;
   created_at?: string;
   updated_at?: string;
 };

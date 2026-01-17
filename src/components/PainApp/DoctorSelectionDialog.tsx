@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 
 export type Doctor = {
   id?: string;
@@ -22,6 +23,7 @@ export type Doctor = {
   phone?: string | null;
   fax?: string | null;
   email?: string | null;
+  is_active?: boolean;
 };
 
 interface DoctorSelectionDialogProps {
@@ -39,24 +41,28 @@ export const DoctorSelectionDialog: React.FC<DoctorSelectionDialogProps> = ({
   onClose,
   doctors,
   onConfirm,
-  title = "Arzt auswählen",
+  title,
   preSelectedIds,
 }) => {
+  const { t } = useTranslation();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  // Pre-select doctors when dialog opens - use preSelectedIds if provided, otherwise all
+  // Filter to only show active doctors
+  const activeDoctors = doctors.filter(d => d.is_active !== false);
+
+  // Pre-select doctors when dialog opens - use preSelectedIds if provided, otherwise all active
   useEffect(() => {
     if (open) {
       if (preSelectedIds && preSelectedIds.length > 0) {
         const validIds = preSelectedIds.filter(id => 
-          doctors.some(d => d.id === id)
+          activeDoctors.some(d => d.id === id)
         );
-        setSelectedIds(new Set(validIds.length > 0 ? validIds : doctors.map(d => d.id || `doctor-${doctors.indexOf(d)}`)));
+        setSelectedIds(new Set(validIds.length > 0 ? validIds : activeDoctors.map(d => d.id || `doctor-${activeDoctors.indexOf(d)}`)));
       } else {
-        setSelectedIds(new Set(doctors.map(d => d.id || `doctor-${doctors.indexOf(d)}`)));
+        setSelectedIds(new Set(activeDoctors.map(d => d.id || `doctor-${activeDoctors.indexOf(d)}`)));
       }
     }
-  }, [open, doctors, preSelectedIds]);
+  }, [open, activeDoctors, preSelectedIds]);
 
   const getDoctorKey = (doctor: Doctor, index: number) => doctor.id || `doctor-${index}`;
 
@@ -73,12 +79,12 @@ export const DoctorSelectionDialog: React.FC<DoctorSelectionDialogProps> = ({
   };
 
   const handleConfirm = () => {
-    const selectedDoctors = doctors.filter((d, i) => selectedIds.has(getDoctorKey(d, i)));
+    const selectedDoctors = activeDoctors.filter((d, i) => selectedIds.has(getDoctorKey(d, i)));
     onConfirm(selectedDoctors);
   };
 
   const handleSelectAll = () => {
-    setSelectedIds(new Set(doctors.map((d, i) => getDoctorKey(d, i))));
+    setSelectedIds(new Set(activeDoctors.map((d, i) => getDoctorKey(d, i))));
   };
 
   const handleSelectNone = () => {
@@ -87,18 +93,43 @@ export const DoctorSelectionDialog: React.FC<DoctorSelectionDialogProps> = ({
 
   const formatDoctorName = (doctor: Doctor): string => {
     const parts = [doctor.title, doctor.first_name, doctor.last_name].filter(Boolean);
-    return parts.join(" ") || "Unbekannt";
+    return parts.join(" ") || t('common.unknown');
   };
+
+  // Show message if no active doctors
+  if (activeDoctors.length === 0) {
+    return (
+      <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
+        <DialogContent className="sm:max-w-md p-0 gap-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-6 pb-4">
+            <DialogTitle className="text-lg font-semibold">
+              {title || t('doctor.title')}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="px-6 pb-6">
+            <p className="text-sm text-muted-foreground">
+              {t('doctor.noActiveDoctor')}
+            </p>
+          </div>
+          <DialogFooter className="px-6 py-4 bg-secondary/20 border-t border-border/50">
+            <Button onClick={onClose}>
+              {t('common.close')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent className="sm:max-w-md p-0 gap-0 overflow-hidden">
         <DialogHeader className="px-6 pt-6 pb-4">
           <DialogTitle className="text-lg font-semibold">
-            {title}
+            {title || t('doctor.title')}
           </DialogTitle>
           <p className="text-sm text-muted-foreground mt-1">
-            Dieser Arzt erscheint im PDF.
+            {t('pdfReport.includeDoctorData')}
           </p>
         </DialogHeader>
 
@@ -111,7 +142,7 @@ export const DoctorSelectionDialog: React.FC<DoctorSelectionDialogProps> = ({
                 onClick={handleSelectAll}
                 className="hover:text-foreground transition-colors underline-offset-2 hover:underline"
               >
-                Alle
+                {t('diary.all')}
               </button>
               <span className="text-border">·</span>
               <button
@@ -119,19 +150,19 @@ export const DoctorSelectionDialog: React.FC<DoctorSelectionDialogProps> = ({
                 onClick={handleSelectNone}
                 className="hover:text-foreground transition-colors underline-offset-2 hover:underline"
               >
-                Keine
+                {t('common.none')}
               </button>
             </div>
-            {doctors.length > 1 && (
+            {activeDoctors.length > 1 && (
               <span className="text-xs text-muted-foreground/70">
-                {selectedIds.size}/{doctors.length}
+                {selectedIds.size}/{activeDoctors.length}
               </span>
             )}
           </div>
 
           {/* Doctor selection cards */}
           <div className="space-y-2 max-h-[280px] overflow-y-auto modern-scrollbar -mx-1 px-1">
-            {doctors.map((doctor, index) => {
+            {activeDoctors.map((doctor, index) => {
               const key = getDoctorKey(doctor, index);
               const isSelected = selectedIds.has(key);
               
@@ -185,7 +216,7 @@ export const DoctorSelectionDialog: React.FC<DoctorSelectionDialogProps> = ({
           {/* Status text - only show when none selected */}
           {selectedIds.size === 0 && (
             <p className="text-xs text-muted-foreground/70 mt-3 text-center">
-              PDF wird ohne Arztdaten erstellt
+              {t('doctor.noActiveDoctor')}
             </p>
           )}
         </div>
@@ -197,13 +228,13 @@ export const DoctorSelectionDialog: React.FC<DoctorSelectionDialogProps> = ({
               onClick={onClose}
               className="flex-1 sm:flex-none"
             >
-              Abbrechen
+              {t('common.cancel')}
             </Button>
             <Button 
               onClick={handleConfirm}
               className="flex-1 sm:flex-none min-w-[120px]"
             >
-              PDF erstellen
+              {t('pdfReport.createPdf')}
             </Button>
           </div>
         </DialogFooter>

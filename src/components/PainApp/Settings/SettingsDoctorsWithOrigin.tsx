@@ -5,9 +5,12 @@ import { SaveButton } from "@/components/ui/navigation-buttons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useDoctors, useCreateDoctor, useUpdateDoctor, useDeleteDoctor } from "@/features/account/hooks/useAccount";
 import { toast } from "sonner";
-import { Trash2, Plus, Edit, ExternalLink } from "lucide-react";
+import { Plus, Edit, ExternalLink } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { cn } from "@/lib/utils";
 
 interface SettingsDoctorsWithOriginProps {
   origin?: 'export_migraine_diary';
@@ -22,10 +25,10 @@ export const SettingsDoctorsWithOrigin = ({
   onSaveSuccess,
   onBack,
 }: SettingsDoctorsWithOriginProps) => {
+  const { t } = useTranslation();
   const { data: doctors = [] } = useDoctors();
   const createDoctor = useCreateDoctor();
   const updateDoctor = useUpdateDoctor();
-  const deleteDoctor = useDeleteDoctor();
   
   const [editingDoctorId, setEditingDoctorId] = useState<string | null>(null);
   const [showAddDoctor, setShowAddDoctor] = useState(false);
@@ -44,6 +47,7 @@ export const SettingsDoctorsWithOrigin = ({
     email: "",
     fax: "",
     website: "",
+    is_active: true,
   });
   
   const [editDoctor, setEditDoctor] = useState({
@@ -59,6 +63,7 @@ export const SettingsDoctorsWithOrigin = ({
     email: "",
     fax: "",
     website: "",
+    is_active: true,
   });
 
   // Auto-open edit mode for specified doctor on mount
@@ -95,16 +100,17 @@ export const SettingsDoctorsWithOrigin = ({
         email: "",
         fax: "",
         website: "",
+        is_active: true,
       });
       setShowAddDoctor(false);
-      toast.success("Arzt hinzugefügt");
+      toast.success(t('doctor.added'));
       
       // If coming from export, navigate back
       if (origin === 'export_migraine_diary' && onSaveSuccess) {
         onSaveSuccess();
       }
     } catch (error) {
-      toast.error("Fehler beim Hinzufügen des Arztes");
+      toast.error(t('error.saveFailed'));
     }
   };
 
@@ -123,6 +129,7 @@ export const SettingsDoctorsWithOrigin = ({
       email: doctor.email || "",
       fax: doctor.fax || "",
       website: doctor.website || "",
+      is_active: doctor.is_active !== false,
     });
   };
 
@@ -130,23 +137,25 @@ export const SettingsDoctorsWithOrigin = ({
     try {
       await updateDoctor.mutateAsync({ id: doctorId, updates: editDoctor });
       setEditingDoctorId(null);
-      toast.success("Arztdaten aktualisiert");
+      toast.success(t('doctor.updated'));
       
       // If coming from export, navigate back
       if (origin === 'export_migraine_diary' && onSaveSuccess) {
         onSaveSuccess();
       }
     } catch (error) {
-      toast.error("Fehler beim Aktualisieren der Arztdaten");
+      toast.error(t('error.saveFailed'));
     }
   };
 
-  const handleDeleteDoctor = async (doctorId: string) => {
+  const handleToggleArchive = async (doctorId: string, currentlyActive: boolean) => {
     try {
-      await deleteDoctor.mutateAsync(doctorId);
-      toast.success("Arzt entfernt");
+      await updateDoctor.mutateAsync({ 
+        id: doctorId, 
+        updates: { is_active: !currentlyActive } 
+      });
     } catch (error) {
-      toast.error("Fehler beim Entfernen des Arztes");
+      toast.error(t('error.saveFailed'));
     }
   };
 
@@ -339,12 +348,17 @@ export const SettingsDoctorsWithOrigin = ({
         )}
 
         <div className="space-y-3">
-          {doctors.map((doctor) => (
-            <Card key={doctor.id} className="p-4">
+          {doctors.map((doctor) => {
+            const isActive = doctor.is_active !== false;
+            return (
+            <Card 
+              key={doctor.id} 
+              className={cn("p-4 transition-opacity", !isActive && "opacity-60")}
+            >
               {editingDoctorId === doctor.id ? (
                 // Edit Mode
                 <div className="space-y-3">
-                  <h4 className="font-medium mb-3">Arzt bearbeiten</h4>
+                  <h4 className="font-medium mb-3">{t('doctor.edit')}</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
                       <Label className="text-xs">Anrede</Label>
@@ -444,13 +458,34 @@ export const SettingsDoctorsWithOrigin = ({
                       />
                     </div>
                     <div className="md:col-span-2">
-                      <Label className="text-xs text-muted-foreground">Website (optional)</Label>
+                      <Label className="text-xs text-muted-foreground">{t('doctor.websiteOptional')}</Label>
                       <Input
                         type="url"
                         value={editDoctor.website}
                         onChange={(e) => setEditDoctor({ ...editDoctor, website: e.target.value })}
                         placeholder="https://..."
                       />
+                    </div>
+                    
+                    {/* Status Toggle */}
+                    <div className="md:col-span-2 pt-2 border-t border-border/50">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label className="text-sm font-medium">{t('doctor.status')}</Label>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {t('doctor.archivedHint')}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={cn("text-xs", !editDoctor.is_active && "text-muted-foreground")}>
+                            {editDoctor.is_active ? t('doctor.active') : t('doctor.archived')}
+                          </span>
+                          <Switch
+                            checked={editDoctor.is_active}
+                            onCheckedChange={(checked) => setEditDoctor({ ...editDoctor, is_active: checked })}
+                          />
+                        </div>
+                      </div>
                     </div>
                   </div>
                   <div className="flex gap-2">
@@ -459,7 +494,7 @@ export const SettingsDoctorsWithOrigin = ({
                       size="sm"
                     />
                     <Button size="sm" variant="outline" onClick={handleCancelEdit}>
-                      Abbrechen
+                      {t('common.cancel')}
                     </Button>
                   </div>
                 </div>
@@ -477,7 +512,7 @@ export const SettingsDoctorsWithOrigin = ({
                         <p className="text-sm text-muted-foreground">{doctor.specialty}</p>
                       )}
                     </div>
-                    <div className="flex gap-1">
+                    <div className="flex items-center gap-2">
                       <Button
                         variant="ghost"
                         size="sm"
@@ -485,14 +520,11 @@ export const SettingsDoctorsWithOrigin = ({
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteDoctor(doctor.id!)}
-                        className="text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {/* Archive Toggle */}
+                      <Switch
+                        checked={isActive}
+                        onCheckedChange={() => handleToggleArchive(doctor.id!, isActive)}
+                      />
                     </div>
                   </div>
                   <div className="text-sm space-y-1">
@@ -502,25 +534,32 @@ export const SettingsDoctorsWithOrigin = ({
                         {doctor.postal_code} {doctor.city}
                       </p>
                     )}
-                    {doctor.phone && <p>Tel: {doctor.phone}</p>}
-                    {doctor.email && <p>E-Mail: {doctor.email}</p>}
-                    {doctor.fax && <p>Fax: {doctor.fax}</p>}
-                    {(doctor as any).website && (
+                    {doctor.phone && <p>{t('doctor.phone')}: {doctor.phone}</p>}
+                    {doctor.email && <p>{t('doctor.email')}: {doctor.email}</p>}
+                    {doctor.fax && <p>{t('doctor.fax')}: {doctor.fax}</p>}
+                    {doctor.website && (
                       <a 
-                        href={(doctor as any).website.startsWith('http') ? (doctor as any).website : `https://${(doctor as any).website}`}
+                        href={doctor.website.startsWith('http') ? doctor.website : `https://${doctor.website}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors"
                       >
                         <ExternalLink className="h-3.5 w-3.5" />
-                        <span>Website</span>
+                        <span>{t('doctor.website')}</span>
                       </a>
+                    )}
+                    {/* Status indicator for archived */}
+                    {!isActive && (
+                      <p className="text-xs text-muted-foreground/70 mt-2">
+                        {t('doctor.archived')}
+                      </p>
                     )}
                   </div>
                 </>
               )}
             </Card>
-          ))}
+            );
+          })}
         </div>
       </Card>
     </div>

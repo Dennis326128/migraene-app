@@ -176,6 +176,8 @@
     "delete": "Delete doctor",
     "saved": "Doctor saved",
     "deleted": "Doctor deleted",
+    "added": "Doctor added",
+    "updated": "Doctor updated",
     "name": "Name",
     "firstName": "First name",
     "lastName": "Last name",
@@ -191,7 +193,13 @@
     "websiteOptional": "Website (optional)",
     "noDoctors": "No doctors",
     "addFirst": "Add your first doctor",
-    "salutation": "Title"
+    "salutation": "Title",
+    "status": "Status",
+    "active": "Active",
+    "archived": "Archived",
+    "archivedHint": "Archived doctors are not included in reports.",
+    "noActiveDoctor": "No active doctor selected.",
+    "manageInfo": "Manage your doctors' contact information"
   },
   
   "analysis": {
