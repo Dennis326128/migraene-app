@@ -38,6 +38,13 @@ export const LazyMedicationOverviewPage = lazy(() =>
 );
 
 /**
+ * TherapyMedicationPage - Unified therapy & medication view
+ */
+export const LazyTherapyMedicationPage = lazy(() => 
+  import("@/pages/TherapyMedicationPage").then(m => ({ default: m.TherapyMedicationPage }))
+);
+
+/**
  * DiaryTimeline - Calendar/timeline view
  */
 export const LazyDiaryTimeline = lazy(() => 

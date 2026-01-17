@@ -45,7 +45,7 @@ interface MainMenuProps {
   onViewAnalysis: () => void;
   onViewSettings: () => void;
   onQuickEntry?: () => void;
-  onNavigate?: (view: 'medication-overview' | 'medication-management' | 'voice-notes' | 'reminders' | 'diary-timeline' | 'context-tags' | 'analysis' | 'analysis-grafik' | 'analysis-ki' | 'analysis-limits' | 'diary-report' | 'diary-report-home' | 'medication-limits' | 'ai-reports') => void;
+  onNavigate?: (view: 'medication-overview' | 'medication-management' | 'voice-notes' | 'reminders' | 'diary-timeline' | 'context-tags' | 'analysis' | 'analysis-grafik' | 'analysis-ki' | 'analysis-limits' | 'diary-report' | 'diary-report-home' | 'medication-limits' | 'ai-reports' | 'therapy-medication') => void;
   onLimitWarning?: (checks: any[]) => void;
 }
 
@@ -215,53 +215,55 @@ export const MainMenu: React.FC<MainMenuProps> = ({
 
           </div>
 
-          {/* MEDIKAMENTE */}
-          <SectionHeader title={t('sections.medications')} />
+          {/* THERAPIE & MEDIKATION - Unified Section */}
+          <SectionHeader title="Therapie & Medikation" />
           
           <div className="space-y-3">
-            {/* Hauptkarte: Medikamenten-Wirkung */}
+            {/* Hauptkarte: Therapie & Medikation (unified view) */}
             <StartPageCard 
-              variant="warning" 
+              variant="neutral" 
               touchFeedback 
-              onClick={() => navigate('/medication-effects')}
-              className="relative"
+              onClick={() => onNavigate?.('therapy-medication')}
             >
               <StartPageCardHeader
                 icon="💊"
-                iconBgClassName="bg-warning/30"
-                title={t('medication.effectRating')}
-                subtitle={t('medication.rateEffect')}
+                iconBgClassName="bg-primary/20"
+                title="Übersicht & Verlauf"
+                subtitle="Kennzahlen · Medikamente · Einträge"
               />
-              {unratedMedsCount > 0 && (
-                <span className="absolute top-2 right-2 min-w-[20px] h-5 px-1.5 flex items-center justify-center text-xs font-semibold bg-destructive text-destructive-foreground rounded-full">
-                  {unratedMedsCount > 99 ? '99+' : unratedMedsCount}
-                </span>
-              )}
             </StartPageCard>
 
-            {/* Grid: Medikamente & Übergebrauch */}
+            {/* Grid: Wirkung & Limits */}
             <StartPageButtonGrid columns={2} gap="md">
               <StartPageCard 
-                variant="neutral" 
+                variant="warning" 
+                size="small"
+                touchFeedback 
+                onClick={() => navigate('/medication-effects')}
+                className="relative"
+              >
+                <StartPageCardHeader
+                  icon="📊"
+                  iconBgClassName="bg-warning/30"
+                  title="Wirkung bewerten"
+                />
+                {unratedMedsCount > 0 && (
+                  <span className="absolute top-2 right-2 min-w-[20px] h-5 px-1.5 flex items-center justify-center text-xs font-semibold bg-destructive text-destructive-foreground rounded-full">
+                    {unratedMedsCount > 99 ? '99+' : unratedMedsCount}
+                  </span>
+                )}
+              </StartPageCard>
+
+              <StartPageCard 
+                variant="muted" 
+                size="small"
                 touchFeedback 
                 onClick={() => onNavigate?.('medication-management')}
               >
                 <StartPageCardHeader
                   icon="📋"
                   iconBgClassName="bg-muted"
-                  title={t('medication.medications')}
-                />
-              </StartPageCard>
-
-              <StartPageCard 
-                variant="neutral" 
-                touchFeedback 
-                onClick={() => onNavigate?.('medication-limits')}
-              >
-                <StartPageCardHeader
-                  icon="⚠️"
-                  iconBgClassName="bg-muted"
-                  title={t('medication.overuse')}
+                  title="Medikamente"
                 />
               </StartPageCard>
             </StartPageButtonGrid>
