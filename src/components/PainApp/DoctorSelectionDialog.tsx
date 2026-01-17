@@ -2,15 +2,13 @@ import React, { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import { FileText, User } from "lucide-react";
+import { Check } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export type Doctor = {
   id?: string;
@@ -33,7 +31,7 @@ interface DoctorSelectionDialogProps {
   onConfirm: (selectedDoctors: Doctor[]) => void;
   title?: string;
   description?: string;
-  preSelectedIds?: string[]; // Pre-select specific doctor IDs
+  preSelectedIds?: string[];
 }
 
 export const DoctorSelectionDialog: React.FC<DoctorSelectionDialogProps> = ({
@@ -42,7 +40,6 @@ export const DoctorSelectionDialog: React.FC<DoctorSelectionDialogProps> = ({
   doctors,
   onConfirm,
   title = "Arzt auswählen",
-  description = "Wählen Sie die Ärzte aus, deren Daten im PDF erscheinen sollen.",
   preSelectedIds,
 }) => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -51,7 +48,6 @@ export const DoctorSelectionDialog: React.FC<DoctorSelectionDialogProps> = ({
   useEffect(() => {
     if (open) {
       if (preSelectedIds && preSelectedIds.length > 0) {
-        // Filter to only include IDs that exist in current doctors
         const validIds = preSelectedIds.filter(id => 
           doctors.some(d => d.id === id)
         );
@@ -96,90 +92,120 @@ export const DoctorSelectionDialog: React.FC<DoctorSelectionDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-primary" />
+      <DialogContent className="sm:max-w-md p-0 gap-0 overflow-hidden">
+        <DialogHeader className="px-6 pt-6 pb-4">
+          <DialogTitle className="text-lg font-semibold">
             {title}
           </DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
+          <p className="text-sm text-muted-foreground mt-1">
+            Dieser Arzt erscheint im PDF.
+          </p>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
-          {/* Quick actions */}
-          <div className="flex gap-2 text-sm">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSelectAll}
-              className="text-xs"
-            >
-              Alle auswählen
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSelectNone}
-              className="text-xs"
-            >
-              Keine auswählen
-            </Button>
+        <div className="px-6 pb-4">
+          {/* Subtle quick actions */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex gap-3 text-xs text-muted-foreground">
+              <button
+                type="button"
+                onClick={handleSelectAll}
+                className="hover:text-foreground transition-colors underline-offset-2 hover:underline"
+              >
+                Alle
+              </button>
+              <span className="text-border">·</span>
+              <button
+                type="button"
+                onClick={handleSelectNone}
+                className="hover:text-foreground transition-colors underline-offset-2 hover:underline"
+              >
+                Keine
+              </button>
+            </div>
+            {doctors.length > 1 && (
+              <span className="text-xs text-muted-foreground/70">
+                {selectedIds.size}/{doctors.length}
+              </span>
+            )}
           </div>
 
-          {/* Doctor list */}
-          <div className="space-y-3 max-h-[300px] overflow-y-auto modern-scrollbar pr-2">
+          {/* Doctor selection cards */}
+          <div className="space-y-2 max-h-[280px] overflow-y-auto modern-scrollbar -mx-1 px-1">
             {doctors.map((doctor, index) => {
               const key = getDoctorKey(doctor, index);
+              const isSelected = selectedIds.has(key);
+              
               return (
-              <div
-                key={key}
-                className="flex items-start gap-3 p-3 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-colors cursor-pointer"
-                onClick={() => handleToggle(key)}
-              >
-                <Checkbox
-                  id={`doctor-${key}`}
-                  checked={selectedIds.has(key)}
-                  onCheckedChange={() => handleToggle(key)}
-                  className="mt-0.5"
-                />
-                <div className="flex-1 min-w-0">
-                  <Label
-                    htmlFor={`doctor-${doctor.id}`}
-                    className="font-medium text-sm cursor-pointer"
-                  >
-                    {formatDoctorName(doctor)}
-                  </Label>
-                  {doctor.specialty && (
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {doctor.specialty}
-                    </p>
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => handleToggle(key)}
+                  className={cn(
+                    "w-full text-left p-4 rounded-xl transition-all duration-200",
+                    "border-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+                    isSelected
+                      ? "border-primary bg-primary/10"
+                      : "border-border/50 bg-secondary/20 hover:bg-secondary/40 hover:border-border"
                   )}
-                  {(doctor.street || doctor.city) && (
-                    <p className="text-xs text-muted-foreground">
-                      {[doctor.street, [doctor.postal_code, doctor.city].filter(Boolean).join(" ")].filter(Boolean).join(", ")}
-                    </p>
-                  )}
-                </div>
-                <User className="h-4 w-4 text-muted-foreground shrink-0" />
-              </div>
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-foreground">
+                        {formatDoctorName(doctor)}
+                      </p>
+                      {doctor.specialty && (
+                        <p className="text-sm text-muted-foreground mt-0.5">
+                          {doctor.specialty}
+                        </p>
+                      )}
+                      {doctor.city && (
+                        <p className="text-xs text-muted-foreground/70 mt-1">
+                          {doctor.city}
+                        </p>
+                      )}
+                    </div>
+                    
+                    {/* Selection indicator */}
+                    <div
+                      className={cn(
+                        "w-6 h-6 rounded-full flex items-center justify-center shrink-0 transition-all duration-200",
+                        isSelected
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-secondary/50 text-transparent"
+                      )}
+                    >
+                      <Check className="w-4 h-4" />
+                    </div>
+                  </div>
+                </button>
               );
             })}
           </div>
 
-          <p className="text-xs text-muted-foreground">
-            {selectedIds.size === 0
-              ? "Kein Arzt ausgewählt - das PDF wird ohne Arztdaten erstellt."
-              : `${selectedIds.size} von ${doctors.length} Ärzten ausgewählt.`}
-          </p>
+          {/* Status text - only show when none selected */}
+          {selectedIds.size === 0 && (
+            <p className="text-xs text-muted-foreground/70 mt-3 text-center">
+              PDF wird ohne Arztdaten erstellt
+            </p>
+          )}
         </div>
 
-        <DialogFooter className="flex gap-2 sm:gap-0">
-          <Button variant="outline" onClick={onClose}>
-            Abbrechen
-          </Button>
-          <Button onClick={handleConfirm}>
-            PDF erstellen
-          </Button>
+        <DialogFooter className="px-6 py-4 bg-secondary/20 border-t border-border/50">
+          <div className="flex gap-3 w-full sm:w-auto">
+            <Button 
+              variant="ghost" 
+              onClick={onClose}
+              className="flex-1 sm:flex-none"
+            >
+              Abbrechen
+            </Button>
+            <Button 
+              onClick={handleConfirm}
+              className="flex-1 sm:flex-none min-w-[120px]"
+            >
+              PDF erstellen
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
