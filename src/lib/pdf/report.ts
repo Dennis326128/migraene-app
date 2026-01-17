@@ -1350,7 +1350,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     yPos = drawSectionHeader(page, "ARZTLICHE KERNUBERSICHT", yPos, fontBold, 13);
     
     // Hinweis auf Berechnungsgrundlage
-    page.drawText(`Berechnet aus ${daysCount} Tagen, normiert auf 30 Tage/Monat`, {
+    page.drawText(`Berechnet aus ${daysCount} dokumentierten Tagen, normiert auf 30 Tage/Monat`, {
       x: LAYOUT.margin,
       y: yPos,
       size: 8,
@@ -1388,7 +1388,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       y: kpiY - 25,
       size: 22,
       font: fontBold,
-      color: painDaysPerMonth >= 15 ? rgb(0.8, 0.2, 0.2) : COLORS.primary,
+      color: COLORS.primary,
     });
     page.drawText(`(${painDays} Tage in ${daysCount} Tagen)`, {
       x: LAYOUT.margin + boxPadding,
@@ -1398,7 +1398,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       color: COLORS.textLight,
     });
     
-    // KPI 2: Triptan-Einnahmen pro Monat
+    // KPI 2: Triptan-EINNAHMEN pro Monat (nicht Tage!)
     page.drawText("Ø Triptane / Monat", {
       x: LAYOUT.margin + boxPadding + colWidth,
       y: kpiY,
@@ -1411,7 +1411,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       y: kpiY - 25,
       size: 22,
       font: fontBold,
-      color: triptanPerMonth >= 10 ? rgb(0.8, 0.2, 0.2) : COLORS.primary,
+      color: COLORS.primary,
     });
     page.drawText(`(${triptanIntakesCount.total} Einnahmen gesamt)`, {
       x: LAYOUT.margin + boxPadding + colWidth,
@@ -1446,37 +1446,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     
     yPos -= kpiBoxHeight + LAYOUT.sectionGap;
     
-    // Warnhinweise bei Überschreitung
-    const warnings: string[] = [];
-    if (triptanPerMonth >= 10) {
-      warnings.push(`Triptantage >10/Monat (${formatGermanDecimal(triptanPerMonth, 1)}) - Hinweis auf mogliches Ubergebrauchsrisiko`);
-    }
-    if (painDaysPerMonth >= 15) {
-      warnings.push(`>15 Kopfschmerztage/Monat - entspricht Kriterien fur chronische Migrane`);
-    }
-    
-    if (warnings.length > 0) {
-      page.drawText("Auffälligkeiten:", {
-        x: LAYOUT.margin,
-        y: yPos,
-        size: 9,
-        font: fontBold,
-        color: rgb(0.7, 0.3, 0.1),
-      });
-      yPos -= 12;
-      
-      for (const warning of warnings) {
-        page.drawText(`• ${sanitizeForPDF(warning)}`, {
-          x: LAYOUT.margin + 5,
-          y: yPos,
-          size: 9,
-          font,
-          color: COLORS.text,
-        });
-        yPos -= 12;
-      }
-      yPos -= 8;
-    }
+    // KEINE Warnhinweise mehr - Ärzte erkennen Auffälligkeiten selbst
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
