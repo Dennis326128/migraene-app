@@ -488,7 +488,7 @@ function drawCombinedWeatherPainChart(
 
   const sortedDates = Array.from(dataByDate.keys()).sort();
   if (sortedDates.length === 0) {
-    page.drawText("Keine Daten verfugbar", {
+    page.drawText("Keine Daten verfügbar", {
       x: x + width / 2 - 50,
       y: y - height / 2,
       size: 10,
@@ -508,7 +508,7 @@ function drawCombinedWeatherPainChart(
   // Legende oben zeichnen
   const legendY = y - 15;
   page.drawCircle({ x: chartX, y: legendY, size: 4, color: COLORS.chartPain });
-  page.drawText("Schmerzintensitat (0-10)", { x: chartX + 10, y: legendY - 3, size: 8, font, color: COLORS.chartPain });
+  page.drawText("Schmerzintensität (0-10)", { x: chartX + 10, y: legendY - 3, size: 8, font, color: COLORS.chartPain });
   
   page.drawCircle({ x: chartX + 150, y: legendY, size: 4, color: COLORS.chartTemp });
   page.drawText("Temperatur (°C)", { x: chartX + 160, y: legendY - 3, size: 8, font, color: COLORS.chartTemp });
@@ -976,7 +976,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   // ═══════════════════════════════════════════════════════════════════════════
   
   if (includeDoctorData && doctors && doctors.length > 0) {
-    const doctorLabel = doctors.length === 1 ? "BEHANDELNDER ARZT" : "BEHANDELNDE ARZTE";
+    const doctorLabel = doctors.length === 1 ? "BEHANDELNDER ARZT" : "BEHANDELNDE ÄRZTE";
     yPos = drawSectionHeader(page, doctorLabel, yPos, fontBold, 12);
     
     for (const doctor of doctors) {
@@ -1047,7 +1047,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       ? Math.round(validPainLevels.reduce((a, b) => a + b, 0) / validPainLevels.length * 10) / 10
       : 0;
     
-    yPos = drawSectionHeader(page, "ARZTLICHE KERNUBERSICHT", yPos, fontBold, 13);
+    yPos = drawSectionHeader(page, "ÄRZTLICHE KERNÜBERSICHT", yPos, fontBold, 13);
     
     page.drawText(`Berechnet aus ${daysCount} dokumentierten Tagen, normiert auf 30 Tage/Monat`, {
       x: LAYOUT.margin,
@@ -1120,7 +1120,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     });
     
     // KPI 3: Durchschnittliche Intensität
-    page.drawText("Ø Schmerzintensitat", {
+    page.drawText("Ø Schmerzintensität", {
       x: LAYOUT.margin + boxPadding + 2 * colWidth,
       y: kpiY,
       size: 9,
@@ -1269,7 +1269,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   
   if (hasPremiumAI) {
     // ─────────────────────────────────────────────────────────────────────────
-    // 4B) PREMIUM-KI: "Medizinische Gesamtanalyse (KI-gestützt)"
+    // 4B) PREMIUM-KI: "Ärztlicher Analysebericht (KI-gestützt)"
     // Dieser Block ersetzt ALLE anderen Analysen vollständig!
     // ─────────────────────────────────────────────────────────────────────────
     
@@ -1277,9 +1277,19 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     page = spaceCheck.page;
     yPos = spaceCheck.yPos;
     
-    yPos = drawSectionHeader(page, "MEDIZINISCHE GESAMTANALYSE (KI-GESTUTZT)", yPos, fontBold, 12);
+    yPos = drawSectionHeader(page, "ÄRZTLICHER ANALYSEBERICHT (KI-GESTÜTZT)", yPos, fontBold, 12);
     
-    // Headline
+    // Unterzeile
+    page.drawText("Zusammenfassung und Mustererkennung auf Basis der dokumentierten Daten", {
+      x: LAYOUT.margin,
+      y: yPos,
+      size: 8,
+      font,
+      color: COLORS.textLight,
+    });
+    yPos -= 18;
+    
+    // Headline als Einleitungstext (kein Kasten!)
     if (premiumAIReport!.headline) {
       const headlineLines = wrapText(premiumAIReport!.headline, LAYOUT.pageWidth - 2 * LAYOUT.margin, 10, fontBold);
       for (const line of headlineLines) {
@@ -1292,64 +1302,29 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
         });
         yPos -= 14;
       }
-      yPos -= 4;
+      yPos -= 10;
     }
     
-    // Erstellt am
-    if (premiumAIReport!.createdAt) {
-      const createdDate = new Date(premiumAIReport!.createdAt);
-      page.drawText(`Erstellt am: ${formatDateGerman(createdDate.toISOString())}`, {
+    // Key Findings - strukturiert ohne Kasten
+    if (premiumAIReport!.keyFindings.length > 0) {
+      // Teilüberschrift: Wichtigste Erkenntnisse
+      page.drawText("Wichtigste Erkenntnisse", {
         x: LAYOUT.margin,
         y: yPos,
-        size: 8,
-        font,
-        color: COLORS.textLight,
+        size: 10,
+        font: fontBold,
+        color: COLORS.primary,
       });
       yPos -= 16;
-    }
-    
-    // Key Findings
-    if (premiumAIReport!.keyFindings.length > 0) {
-      page.drawText("Wichtigste Erkenntnisse:", {
-        x: LAYOUT.margin,
-        y: yPos,
-        size: 9,
-        font: fontBold,
-        color: COLORS.primaryLight,
-      });
-      yPos -= 14;
       
       for (const finding of premiumAIReport!.keyFindings.slice(0, 5)) {
-        const bulletText = `- ${finding.title}: ${finding.finding}`;
-        const lines = wrapText(bulletText, LAYOUT.pageWidth - 2 * LAYOUT.margin - 10, 8, font);
-        for (const line of lines) {
-          if (yPos < LAYOUT.margin + 50) {
-            page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
-            yPos = LAYOUT.pageHeight - LAYOUT.margin;
-          }
-          page.drawText(sanitizeForPDF(line), {
-            x: LAYOUT.margin + 5,
-            y: yPos,
-            size: 8,
-            font,
-            color: COLORS.text,
-          });
-          yPos -= 11;
-        }
-        yPos -= 3;
-      }
-    }
-    
-    // Sections
-    if (premiumAIReport!.sections && premiumAIReport!.sections.length > 0) {
-      yPos -= 8;
-      for (const section of premiumAIReport!.sections.slice(0, 4)) {
-        if (yPos < LAYOUT.margin + 80) {
+        if (yPos < LAYOUT.margin + 60) {
           page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
           yPos = LAYOUT.pageHeight - LAYOUT.margin;
         }
         
-        page.drawText(sanitizeForPDF(section.title + ":"), {
+        // Titel der Erkenntnis
+        page.drawText(sanitizeForPDF(`• ${finding.title}`), {
           x: LAYOUT.margin,
           y: yPos,
           size: 9,
@@ -1358,25 +1333,77 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
         });
         yPos -= 12;
         
-        for (const bullet of (section.bullets || []).slice(0, 4)) {
-          const lines = wrapText(`- ${bullet}`, LAYOUT.pageWidth - 2 * LAYOUT.margin - 15, 8, font);
-          for (const line of lines) {
-            page.drawText(sanitizeForPDF(line), {
-              x: LAYOUT.margin + 8,
-              y: yPos,
-              size: 8,
-              font,
-              color: COLORS.text,
-            });
-            yPos -= 10;
-          }
+        // Erkenntnis-Text
+        const findingLines = wrapText(finding.finding, LAYOUT.pageWidth - 2 * LAYOUT.margin - 15, 9, font);
+        for (const line of findingLines) {
+          page.drawText(sanitizeForPDF(line), {
+            x: LAYOUT.margin + 10,
+            y: yPos,
+            size: 9,
+            font,
+            color: COLORS.text,
+          });
+          yPos -= 12;
         }
         yPos -= 6;
       }
     }
     
-    // Disclaimer
-    page.drawText(sanitizeForPDF(premiumAIReport!.disclaimer || "Keine medizinische Beratung."), {
+    // Sections - strukturierte Unterabschnitte ohne Rahmen
+    if (premiumAIReport!.sections && premiumAIReport!.sections.length > 0) {
+      yPos -= 10;
+      for (const section of premiumAIReport!.sections.slice(0, 4)) {
+        if (yPos < LAYOUT.margin + 80) {
+          page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
+          yPos = LAYOUT.pageHeight - LAYOUT.margin;
+        }
+        
+        // Teilüberschrift (gleicher Stil wie "Wichtigste Erkenntnisse")
+        page.drawText(sanitizeForPDF(section.title), {
+          x: LAYOUT.margin,
+          y: yPos,
+          size: 10,
+          font: fontBold,
+          color: COLORS.primary,
+        });
+        yPos -= 14;
+        
+        for (const bullet of (section.bullets || []).slice(0, 5)) {
+          const lines = wrapText(`• ${bullet}`, LAYOUT.pageWidth - 2 * LAYOUT.margin - 10, 9, font);
+          for (const line of lines) {
+            if (yPos < LAYOUT.margin + 40) {
+              page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
+              yPos = LAYOUT.pageHeight - LAYOUT.margin;
+            }
+            page.drawText(sanitizeForPDF(line), {
+              x: LAYOUT.margin + 5,
+              y: yPos,
+              size: 9,
+              font,
+              color: COLORS.text,
+            });
+            yPos -= 12;
+          }
+        }
+        yPos -= 10;
+      }
+    }
+    
+    // Erstellt am & Disclaimer kombiniert
+    yPos -= 5;
+    if (premiumAIReport!.createdAt) {
+      const createdDate = new Date(premiumAIReport!.createdAt);
+      page.drawText(`Erstellt am: ${formatDateGerman(createdDate.toISOString())}`, {
+        x: LAYOUT.margin,
+        y: yPos,
+        size: 7,
+        font,
+        color: COLORS.textLight,
+      });
+      yPos -= 10;
+    }
+    
+    page.drawText(sanitizeForPDF(premiumAIReport!.disclaimer || "Diese Analyse ersetzt keine ärztliche Beratung."), {
       x: LAYOUT.margin,
       y: yPos,
       size: 7,
@@ -1387,15 +1414,17 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     
   } else if (includeAnalysis && analysisReport) {
     // ─────────────────────────────────────────────────────────────────────────
-    // 4A) STATISCH: "Sachliche Auswertung der dokumentierten Daten"
+    // 4A) STATISCH: "Ärztliche Auswertung der dokumentierten Daten"
+    // Modernes Layout OHNE Rahmenkasten
     // ─────────────────────────────────────────────────────────────────────────
     
     const spaceCheck = ensureSpace(pdfDoc, page, yPos, 180);
     page = spaceCheck.page;
     yPos = spaceCheck.yPos;
     
-    yPos = drawSectionHeader(page, "SACHLICHE AUSWERTUNG DER DOKUMENTIERTEN DATEN", yPos, fontBold, 12);
+    yPos = drawSectionHeader(page, "ÄRZTLICHE AUSWERTUNG DER DOKUMENTIERTEN DATEN", yPos, fontBold, 12);
     
+    // Unterzeile
     page.drawText("Faktenbasierte Zusammenfassung ohne KI-Analyse", {
       x: LAYOUT.margin,
       y: yPos,
@@ -1403,78 +1432,65 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       font,
       color: COLORS.textLight,
     });
-    yPos -= 12;
+    yPos -= 14;
     
     const periodText = `Auswertungszeitraum: ${formatDateGerman(from)} - ${formatDateGerman(to)} (${daysCount} Tage)`;
     page.drawText(periodText, {
       x: LAYOUT.margin,
       y: yPos,
       size: 9,
-      font: fontBold,
-      color: COLORS.text,
+      font,
+      color: COLORS.textLight,
     });
-    yPos -= 18;
+    yPos -= 20;
     
-    const estimatedLines = analysisReport.split('\n').length * 2;
-    const boxHeight = Math.max(100, estimatedLines * 12 + 40);
-    
-    page.drawRectangle({
-      x: LAYOUT.margin,
-      y: yPos - boxHeight,
-      width: LAYOUT.pageWidth - 2 * LAYOUT.margin,
-      height: boxHeight,
-      borderColor: COLORS.border,
-      borderWidth: 1,
-      color: rgb(0.98, 0.99, 1.0),
-    });
-    
-    const boxPadding = 10;
-    const maxWidth = LAYOUT.pageWidth - 2 * LAYOUT.margin - 2 * boxPadding;
-    const boxY = yPos - boxPadding - 4;
+    // Strukturierter Text OHNE Rahmenkasten
+    const maxWidth = LAYOUT.pageWidth - 2 * LAYOUT.margin;
     
     const result = drawStructuredText(
       page,
       analysisReport,
-      boxY,
-      yPos - boxHeight + boxPadding,
+      yPos,
+      LAYOUT.margin + 60,
       font,
       fontBold,
       maxWidth,
-      boxPadding,
+      0, // Kein Padding da kein Kasten
       pdfDoc
     );
     page = result.page;
-    yPos = result.yPos - 10;
+    yPos = result.yPos - 15;
     
-    // Hinweis-Box
-    const disclaimerContent = "Alle Auswertungen basieren ausschliesslich auf den dokumentierten Daten. Sie stellen keine medizinische Diagnose dar.";
-    const disclaimerLines = wrapText(disclaimerContent, LAYOUT.pageWidth - 2 * LAYOUT.margin - 20, 8, font);
-    const disclaimerBoxHeight = disclaimerLines.length * 11 + 20;
+    // Disclaimer-Hinweis (dezent, ohne Kasten)
+    const disclaimerContent = "Alle Auswertungen basieren ausschließlich auf den dokumentierten Daten und stellen keine medizinische Diagnose dar.";
+    const disclaimerLines = wrapText(disclaimerContent, LAYOUT.pageWidth - 2 * LAYOUT.margin, 7, font);
     
-    if (yPos - disclaimerBoxHeight < LAYOUT.margin + 50) {
+    if (yPos - (disclaimerLines.length * 10 + 10) < LAYOUT.margin + 30) {
       page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
       yPos = LAYOUT.pageHeight - LAYOUT.margin;
     }
     
-    page.drawRectangle({
-      x: LAYOUT.margin,
-      y: yPos - disclaimerBoxHeight,
-      width: LAYOUT.pageWidth - 2 * LAYOUT.margin,
-      height: disclaimerBoxHeight,
-      color: rgb(0.97, 0.97, 0.95),
-      borderColor: COLORS.border,
-      borderWidth: 0.5,
+    // Trennlinie vor Disclaimer
+    page.drawLine({
+      start: { x: LAYOUT.margin, y: yPos },
+      end: { x: LAYOUT.margin + 100, y: yPos },
+      thickness: 0.5,
+      color: COLORS.border,
     });
+    yPos -= 10;
     
-    let discY = yPos - 10;
-    page.drawText("Hinweis:", { x: LAYOUT.margin + 10, y: discY, size: 8, font: fontBold, color: COLORS.textLight });
-    discY -= 11;
     for (const line of disclaimerLines) {
-      page.drawText(sanitizeForPDF(line), { x: LAYOUT.margin + 10, y: discY, size: 8, font, color: COLORS.textLight });
-      discY -= 11;
+      page.drawText(sanitizeForPDF(line), {
+        x: LAYOUT.margin,
+        y: yPos,
+        size: 7,
+        font,
+        color: COLORS.textLight,
+      });
+      yPos -= 10;
     }
     
-    yPos -= disclaimerBoxHeight + 15;
+    yPos -= LAYOUT.sectionGap;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1530,6 +1546,9 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     page = spaceCheck.page;
     yPos = spaceCheck.yPos;
     
+    // Mehr Abstand vor dem Abschnitt für klare Trennung
+    yPos -= 10;
+    
     yPos = drawSectionHeader(page, "PROPHYLAXE & THERAPIEVERLAUF", yPos, fontBold, 12);
     
     const prophylaxe = medicationCourses.filter(c => c.type === 'prophylaxe');
@@ -1539,86 +1558,142 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     const drawCourseGroup = (courses: MedicationCourseForPdf[], label: string) => {
       if (courses.length === 0) return;
       
+      // Gruppenüberschrift mit klarem Abstand
       page.drawText(label, {
         x: LAYOUT.margin,
         y: yPos,
         size: 10,
         font: fontBold,
-        color: COLORS.primaryLight,
+        color: COLORS.primary,
       });
-      yPos -= 16;
+      yPos -= 18;
       
       for (const course of courses) {
-        if (yPos < LAYOUT.margin + 100) {
+        if (yPos < LAYOUT.margin + 120) {
           page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
           yPos = LAYOUT.pageHeight - LAYOUT.margin;
         }
         
+        // Dezente Trennlinie oben für jede Medikation
+        page.drawLine({
+          start: { x: LAYOUT.margin, y: yPos + 5 },
+          end: { x: LAYOUT.pageWidth - LAYOUT.margin, y: yPos + 5 },
+          thickness: 0.3,
+          color: COLORS.border,
+        });
+        yPos -= 5;
+        
         const status = course.is_active ? "(laufend)" : "(abgeschlossen)";
         const statusColor = course.is_active ? rgb(0.2, 0.6, 0.2) : COLORS.textLight;
         
+        // Medikamentenname + Status auf einer Zeile
         page.drawText(sanitizeForPDF(course.medication_name), {
           x: LAYOUT.margin,
           y: yPos,
-          size: 10,
+          size: 11,
           font: fontBold,
           color: COLORS.text,
         });
         
-        const nameWidth = fontBold.widthOfTextAtSize(sanitizeForPDF(course.medication_name), 10);
+        const nameWidth = fontBold.widthOfTextAtSize(sanitizeForPDF(course.medication_name), 11);
         page.drawText(` ${status}`, {
-          x: LAYOUT.margin + nameWidth + 5,
+          x: LAYOUT.margin + nameWidth + 8,
           y: yPos,
           size: 9,
           font,
           color: statusColor,
         });
-        yPos -= 14;
+        yPos -= 18;
         
+        // Details mit gutem Einzug und Spacing
         if (course.dose_text) {
-          page.drawText(`Dosierung: ${sanitizeForPDF(course.dose_text)}`, {
-            x: LAYOUT.margin + 10,
+          page.drawText("Dosierung:", {
+            x: LAYOUT.margin + 15,
+            y: yPos,
+            size: 9,
+            font: fontBold,
+            color: COLORS.textLight,
+          });
+          page.drawText(sanitizeForPDF(course.dose_text), {
+            x: LAYOUT.margin + 80,
             y: yPos,
             size: 9,
             font,
             color: COLORS.text,
           });
-          yPos -= 12;
+          yPos -= 14;
         }
         
         const startStr = formatDateGerman(course.start_date);
         const endStr = course.end_date ? formatDateGerman(course.end_date) : "laufend";
-        page.drawText(`Zeitraum: ${startStr} - ${endStr}`, {
-          x: LAYOUT.margin + 10,
+        page.drawText("Zeitraum:", {
+          x: LAYOUT.margin + 15,
+          y: yPos,
+          size: 9,
+          font: fontBold,
+          color: COLORS.textLight,
+        });
+        page.drawText(`${startStr} - ${endStr}`, {
+          x: LAYOUT.margin + 80,
           y: yPos,
           size: 9,
           font,
           color: COLORS.text,
         });
-        yPos -= 12;
+        yPos -= 14;
         
         if (course.subjective_effectiveness !== undefined && course.subjective_effectiveness !== null) {
-          page.drawText(`Subjektive Wirksamkeit: ${course.subjective_effectiveness}/10`, {
-            x: LAYOUT.margin + 10,
+          page.drawText("Wirksamkeit:", {
+            x: LAYOUT.margin + 15,
+            y: yPos,
+            size: 9,
+            font: fontBold,
+            color: COLORS.textLight,
+          });
+          page.drawText(`${course.subjective_effectiveness}/10`, {
+            x: LAYOUT.margin + 80,
             y: yPos,
             size: 9,
             font,
             color: COLORS.text,
           });
-          yPos -= 12;
+          yPos -= 14;
         }
         
-        yPos -= 8;
+        // Notiz für Arzt (falls vorhanden)
+        if (course.note_for_physician) {
+          page.drawText("Notiz:", {
+            x: LAYOUT.margin + 15,
+            y: yPos,
+            size: 9,
+            font: fontBold,
+            color: COLORS.textLight,
+          });
+          const noteLines = wrapText(course.note_for_physician, LAYOUT.pageWidth - LAYOUT.margin - 100, 9, font);
+          for (let i = 0; i < Math.min(noteLines.length, 2); i++) {
+            page.drawText(sanitizeForPDF(noteLines[i]), {
+              x: LAYOUT.margin + 80,
+              y: yPos - (i * 12),
+              size: 9,
+              font,
+              color: COLORS.text,
+            });
+          }
+          yPos -= Math.min(noteLines.length, 2) * 12 + 2;
+        }
+        
+        // Mehr Abstand zwischen Medikamenten
+        yPos -= 12;
       }
       
-      yPos -= 5;
+      yPos -= 8;
     };
     
-    drawCourseGroup(prophylaxe, "Prophylaktische Behandlungen:");
-    drawCourseGroup(akut, "Akutbehandlungen:");
-    drawCourseGroup(andere, "Sonstige Behandlungen:");
+    drawCourseGroup(prophylaxe, "Prophylaktische Behandlungen");
+    drawCourseGroup(akut, "Akutbehandlungen");
+    drawCourseGroup(andere, "Sonstige Behandlungen");
     
-    yPos -= LAYOUT.sectionGap - 10;
+    yPos -= LAYOUT.sectionGap;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1632,7 +1707,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     
     yPos = drawSectionHeader(page, "SCHMERZ- & WETTERVERLAUF", yPos, fontBold, 13);
     
-    page.drawText(`Kombiniertes Verlaufsdiagramm fur den Berichtszeitraum ${formatDateGerman(from)} - ${formatDateGerman(to)}`, {
+    page.drawText(`Kombiniertes Verlaufsdiagramm für den Berichtszeitraum ${formatDateGerman(from)} - ${formatDateGerman(to)}`, {
       x: LAYOUT.margin,
       y: yPos,
       size: 8,
@@ -1656,9 +1731,9 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     page = spaceCheck.page;
     yPos = spaceCheck.yPos;
     
-    yPos = drawSectionHeader(page, "DETAILLIERTE KOPFSCHMERZ-EINTRAGE", yPos, fontBold, 12);
+    yPos = drawSectionHeader(page, "DETAILLIERTE KOPFSCHMERZ-EINTRÄGE", yPos, fontBold, 12);
     
-    page.drawText(`${entries.length} Eintrage im Zeitraum`, {
+    page.drawText(`${entries.length} Einträge im Zeitraum`, {
       x: LAYOUT.margin,
       y: yPos,
       size: 8,
