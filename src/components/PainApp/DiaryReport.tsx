@@ -25,6 +25,8 @@ import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { PremiumBadge } from "@/components/ui/premium-badge";
 import { useUserAISettings } from "@/features/draft-composer/hooks/useUserAISettings";
 import { useDiaryPreflight, PreflightWizardModal } from "@/features/diary/preflight";
+import { useDiaryReportQuota } from "@/features/ai-reports/hooks/useDiaryReportQuota";
+import { Badge } from "@/components/ui/badge";
 
 // Premium AI Report Response Type
 interface PremiumAIReportResult {
@@ -162,6 +164,11 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
   const { data: patientData, refetch: refetchPatientData } = usePatientData();
   const { data: doctors = [], refetch: refetchDoctors } = useDoctors();
   const { data: medicationCourses = [] } = useMedicationCourses();
+  
+  // Quota for Premium AI
+  const { data: quotaData, refetch: refetchQuota } = useDiaryReportQuota();
+  const isQuotaExhausted = quotaData && !quotaData.isUnlimited && quotaData.remaining <= 0;
+  const isAIDisabled = quotaData && !quotaData.aiEnabled;
 
   // Load user email
   useEffect(() => {
@@ -495,6 +502,8 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         setPremiumAIError(message);
         
         if (data.errorCode === 'QUOTA_EXCEEDED') {
+          // Refresh quota to update UI
+          refetchQuota();
           toast.error(message, {
             action: onNavigate ? {
               label: "KI-Berichte",
@@ -512,6 +521,8 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
       
       if (data?.success && data?.report) {
         setPremiumAIReport(data.report);
+        // Refresh quota after successful generation
+        refetchQuota();
         toast.success("KI-Analysebericht erstellt und gespeichert.", {
           description: "Du findest ihn auch unter KI-Berichte."
         });
@@ -1145,18 +1156,48 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
                 />
               </div>
               <Switch 
-                checked={includePremiumAI} 
-                onCheckedChange={setIncludePremiumAI}
-                disabled={isGeneratingAIReport}
+                checked={includePremiumAI && !isQuotaExhausted && !isAIDisabled} 
+                onCheckedChange={(checked) => {
+                  if (!isQuotaExhausted && !isAIDisabled) {
+                    setIncludePremiumAI(checked);
+                  }
+                }}
+                disabled={isGeneratingAIReport || isQuotaExhausted || isAIDisabled}
                 className="ml-3 shrink-0"
               />
             </div>
+            
+            {/* Quota Display */}
+            {quotaData && !quotaData.isUnlimited && (
+              <div className="flex items-center gap-2 mt-2 pl-6">
+                <span className="text-xs text-muted-foreground">Nutzung:</span>
+                <Badge 
+                  variant={quotaData.remaining <= 1 ? "destructive" : "secondary"}
+                  className="text-xs"
+                >
+                  {quotaData.used}/{quotaData.limit}
+                </Badge>
+                {isQuotaExhausted && (
+                  <span className="text-xs text-destructive">Limit erreicht</span>
+                )}
+              </div>
+            )}
+            {quotaData?.isUnlimited && (
+              <div className="mt-2 pl-6">
+                <span className="text-xs text-muted-foreground">Unbegrenzt verfügbar</span>
+              </div>
+            )}
+            
             <p className="text-xs text-muted-foreground mt-1 pl-6">
               {isGeneratingAIReport 
                 ? "KI-Bericht wird erstellt…" 
-                : premiumAIError 
-                  ? premiumAIError 
-                  : "Wird beim Erstellen als zusätzlicher Bericht eingefügt und gespeichert."}
+                : isAIDisabled
+                  ? "KI ist in den Einstellungen deaktiviert."
+                  : isQuotaExhausted
+                    ? "Limit erreicht – verfügbar ab nächstem Monat."
+                    : premiumAIError 
+                      ? premiumAIError 
+                      : "Wird beim Erstellen als zusätzlicher Bericht eingefügt und gespeichert."}
             </p>
           </div>
         </Card>
