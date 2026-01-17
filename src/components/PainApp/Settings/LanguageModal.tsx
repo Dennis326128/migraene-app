@@ -3,11 +3,11 @@
  * 
  * Centered language selector dialog.
  * One tap → select → done.
+ * Active language shown via styling only (no checkmark).
  */
 
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useLanguage, type SupportedLanguage } from '@/hooks/useLanguage';
 import {
@@ -40,9 +40,9 @@ export function LanguageModal({ open, onOpenChange }: LanguageModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[320px] p-0 gap-0 rounded-2xl border-border/50 bg-card">
+      <DialogContent className="sm:max-w-[320px] p-0 gap-0 rounded-2xl border-border/50 bg-card shadow-2xl">
         <DialogHeader className="p-5 pb-3">
-          <DialogTitle className="text-center text-lg">
+          <DialogTitle className="text-center text-lg font-medium">
             {t('settings.language')}
           </DialogTitle>
         </DialogHeader>
@@ -55,22 +55,16 @@ export function LanguageModal({ open, onOpenChange }: LanguageModalProps) {
                 key={option.value}
                 onClick={() => handleSelect(option.value)}
                 className={cn(
-                  "w-full flex items-center justify-between p-4 rounded-xl transition-all",
+                  "w-full h-14 flex items-center justify-center rounded-xl transition-all",
                   "active:scale-[0.98] touch-manipulation",
                   isActive
-                    ? "bg-primary/15 ring-2 ring-primary"
-                    : "bg-muted/30 hover:bg-muted/50"
+                    ? "bg-primary/15 ring-2 ring-primary/80 text-primary font-medium"
+                    : "bg-muted/30 hover:bg-muted/50 text-foreground/80"
                 )}
               >
-                <span className={cn(
-                  "text-lg",
-                  isActive && "font-medium text-primary"
-                )}>
+                <span className="text-lg">
                   {option.label}
                 </span>
-                {isActive && (
-                  <Check className="h-5 w-5 text-primary" />
-                )}
               </button>
             );
           })}
