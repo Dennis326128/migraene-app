@@ -22,6 +22,7 @@ import {
   LazyAnalysisView,
   LazyMedicationManagement,
   LazyMedicationOverviewPage,
+  LazyTherapyMedicationPage,
   LazyDiaryTimeline,
   LazySettingsPage,
   LazyVoiceNotesList,
@@ -37,7 +38,7 @@ import {
 } from "@/lib/performance/lazyImports";
 import type { AIReport } from "@/features/ai-reports";
 
-type View = "menu" | "new" | "list" | "analysis" | "settings" | "settings-doctors" | "medication-overview" | "medication-management" | "voice-notes" | "reminders" | "diary-timeline" | "context-tags" | "diary-report" | "medication-limits" | "hit6" | "ai-reports" | "ai-report-detail";
+type View = "menu" | "new" | "list" | "analysis" | "settings" | "settings-doctors" | "medication-overview" | "medication-management" | "voice-notes" | "reminders" | "diary-timeline" | "context-tags" | "diary-report" | "medication-limits" | "hit6" | "ai-reports" | "ai-report-detail" | "therapy-medication";
 
 // Track where the user navigated from for proper back navigation
 type DiaryReportOrigin = 'home' | 'diary-timeline' | null;
@@ -163,6 +164,8 @@ export const PainApp: React.FC = () => {
               setView('medication-limits');
             } else if (target === 'ai-reports') {
               setView('ai-reports');
+            } else if (target === 'therapy-medication') {
+              setView('therapy-medication');
             }
           }}
           onLimitWarning={handleLimitWarning}
@@ -220,6 +223,17 @@ export const PainApp: React.FC = () => {
           onNavigateToLimits={handleNavigateToLimits}
         />,
         "Medikamente laden..."
+      )}
+
+      {view === "therapy-medication" && withSuspense(
+        <LazyTherapyMedicationPage 
+          onBack={goHome}
+          onEditEntry={(entry) => {
+            setEditing(entry);
+            setView("new");
+          }}
+        />,
+        "Therapie & Medikation laden..."
       )}
 
       {view === "voice-notes" && withSuspense(
