@@ -213,6 +213,26 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               />
             </StartPageCard>
 
+            {/* 5) Wirkung bewerten - volle Breite, Alltagsfunktion */}
+            <StartPageCard 
+              variant="warning" 
+              touchFeedback 
+              onClick={() => navigate('/medication-effects')}
+              className="relative"
+            >
+              <StartPageCardHeader
+                icon="💊"
+                iconBgClassName="bg-warning/30"
+                title="Wirkung bewerten"
+                subtitle="Wie hat das Medikament gewirkt?"
+              />
+              {unratedMedsCount > 0 && (
+                <span className="absolute top-2 right-2 min-w-[20px] h-5 px-1.5 flex items-center justify-center text-xs font-semibold bg-destructive text-destructive-foreground rounded-full">
+                  {unratedMedsCount > 99 ? '99+' : unratedMedsCount}
+                </span>
+              )}
+            </StartPageCard>
+
           </div>
 
           {/* VERLAUF - Zentraler Alltagsbereich */}
@@ -238,7 +258,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           <SectionHeader title="Auswertung" />
           
           <div className="space-y-3">
-            {/* Hauptkarte: Auswertung */}
+            {/* Hauptkarte: Statistiken & Muster */}
             <StartPageCard 
               variant="neutral" 
               touchFeedback 
@@ -248,77 +268,42 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 icon="📊"
                 iconBgClassName="bg-muted"
                 title="Statistiken & Muster"
-                subtitle="Diagramme · KI-Analyse"
+                subtitle="Kennzahlen · Diagramme · KI-Analyse"
               />
             </StartPageCard>
 
-            {/* Grid: Wirkung & Medikamente */}
-            <StartPageButtonGrid columns={2} gap="md">
-              <StartPageCard 
-                variant="warning" 
-                size="small"
-                touchFeedback 
-                onClick={() => navigate('/medication-effects')}
-                className="relative"
-              >
-                <StartPageCardHeader
-                  icon="💊"
-                  iconBgClassName="bg-warning/30"
-                  title="Wirkung bewerten"
-                />
-                {unratedMedsCount > 0 && (
-                  <span className="absolute top-2 right-2 min-w-[20px] h-5 px-1.5 flex items-center justify-center text-xs font-semibold bg-destructive text-destructive-foreground rounded-full">
-                    {unratedMedsCount > 99 ? '99+' : unratedMedsCount}
-                  </span>
-                )}
-              </StartPageCard>
-
-              <StartPageCard 
-                variant="muted" 
-                size="small"
-                touchFeedback 
-                onClick={() => onNavigate?.('medication-management')}
-              >
-                <StartPageCardHeader
-                  icon="📋"
-                  iconBgClassName="bg-muted"
-                  title="Medikamente"
-                />
-              </StartPageCard>
-            </StartPageButtonGrid>
+            {/* Medikamente-Verwaltung als sekundäre Karte */}
+            <StartPageCard 
+              variant="muted" 
+              size="small"
+              touchFeedback 
+              onClick={() => onNavigate?.('medication-management')}
+            >
+              <StartPageCardHeader
+                icon="📋"
+                iconBgClassName="bg-muted"
+                title="Medikamente verwalten"
+              />
+            </StartPageCard>
           </div>
 
-          {/* ARZT & BERICHTE */}
-          <SectionHeader title="Arzt & Berichte" />
+          {/* BERICHT ERSTELLEN */}
+          <SectionHeader title="Bericht erstellen" />
           
           <div className="space-y-3">
-            <StartPageButtonGrid columns={2} gap="md">
-              <StartPageCard 
-                variant="neutral" 
-                touchFeedback 
-                onClick={() => onNavigate?.('diary-report-home')}
-              >
-                <StartPageCardHeader
-                  icon="📝"
-                  iconBgClassName="bg-muted"
-                  title="Kopfschmerztagebuch"
-                  subtitle="PDF erstellen"
-                />
-              </StartPageCard>
-
-              <StartPageCard 
-                variant="neutral" 
-                touchFeedback 
-                onClick={() => onNavigate?.('hit6')}
-              >
-                <StartPageCardHeader
-                  icon="📋"
-                  iconBgClassName="bg-muted"
-                  title="HIT-6"
-                  subtitle="PDF erstellen"
-                />
-              </StartPageCard>
-            </StartPageButtonGrid>
+            {/* Hauptkarte: Bericht erstellen navigiert zur Berichts-Übersicht */}
+            <StartPageCard 
+              variant="neutral" 
+              touchFeedback 
+              onClick={() => onNavigate?.('diary-report-home')}
+            >
+              <StartPageCardHeader
+                icon="📄"
+                iconBgClassName="bg-muted"
+                title="Bericht erstellen"
+                subtitle="Kopfschmerztagebuch · HIT-6 · PDF"
+              />
+            </StartPageCard>
           </div>
 
           {/* ORGANISATION */}
