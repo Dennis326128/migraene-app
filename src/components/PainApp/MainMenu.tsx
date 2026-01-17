@@ -196,7 +196,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                   icon="⚡"
                   iconBgClassName="bg-destructive/25"
                   title={t('mainMenu.quickEntry')}
-                  subtitle={t('mainMenu.quickSubtitle')}
                 />
               </StartPageCard>
 
@@ -209,7 +208,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                   icon="✨"
                   iconBgClassName="bg-muted"
                   title={t('mainMenu.contextEntry')}
-                  subtitle={t('mainMenu.contextSubtitle')}
                 />
               </StartPageCard>
             </StartPageButtonGrid>
@@ -235,10 +233,11 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             </StartPageCard>
           </div>
 
-          {/* BERICHT ERSTELLEN */}
-          <SectionHeader title="Bericht erstellen" />
+          {/* AUSWERTUNG - Tiefe Analyse */}
+          <SectionHeader title="Auswertung" />
           
           <div className="space-y-3">
+            {/* Bericht erstellen - jetzt Teil von Auswertung */}
             <StartPageCard 
               variant="neutral" 
               touchFeedback 
@@ -251,12 +250,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 subtitle="Kopfschmerztagebuch · HIT-6 · PDF"
               />
             </StartPageCard>
-          </div>
 
-          {/* AUSWERTUNG - Tiefe Analyse */}
-          <SectionHeader title="Auswertung" />
-          
-          <div className="space-y-3">
             <StartPageCard 
               variant="neutral" 
               touchFeedback 
