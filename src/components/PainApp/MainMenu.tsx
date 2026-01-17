@@ -167,7 +167,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 icon={<Mic className="w-5 h-5 text-voice" />}
                 iconBgClassName="bg-voice-light/30"
                 title={t('mainMenu.voiceInput')}
-                subtitle={t('mainMenu.voiceSubtitle')}
               />
             </StartPageCard>
 
@@ -181,7 +180,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 icon="➕"
                 iconBgClassName="bg-success/25"
                 title={t('mainMenu.detailEntry')}
-                subtitle={t('mainMenu.detailSubtitle')}
               />
             </StartPageCard>
 
@@ -223,7 +221,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 icon="💊"
                 iconBgClassName="bg-warning/30"
                 title="Wirkung bewerten"
-                subtitle="Wie hat das Medikament gewirkt?"
               />
               {unratedMedsCount > 0 && (
                 <span className="absolute top-2 right-2 min-w-[20px] h-5 px-1.5 flex items-center justify-center text-xs font-semibold bg-destructive text-destructive-foreground rounded-full">
@@ -247,7 +244,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 icon="📄"
                 iconBgClassName="bg-muted"
                 title="Bericht erstellen"
-                subtitle="Kopfschmerztagebuch · HIT-6 · PDF"
               />
             </StartPageCard>
 
@@ -260,7 +256,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 icon="📊"
                 iconBgClassName="bg-muted"
                 title="Statistiken & Muster"
-                subtitle="Kennzahlen · Diagramme · KI-Analyse"
               />
             </StartPageCard>
 
@@ -291,7 +286,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 icon="📖"
                 iconBgClassName="bg-primary/20"
                 title="Verlauf"
-                subtitle="Liste & Kalender"
               />
             </StartPageCard>
           </div>
