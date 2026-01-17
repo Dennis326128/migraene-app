@@ -11,6 +11,7 @@
  */
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Mic } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -29,6 +30,7 @@ import {
   getAdaptiveSilenceThreshold, 
   canAutoStop 
 } from '@/lib/voice/voiceTimingConfig';
+import { useLanguage } from '@/hooks/useLanguage';
 
 // ============================================
 // Types
@@ -59,11 +61,14 @@ export function SimpleVoiceOverlay({
   onSavePainEntry,
   onSaveContextNote
 }: SimpleVoiceOverlayProps) {
+  const { t } = useTranslation();
+  const { currentLanguage } = useLanguage();
+  
   // State
   const [state, setState] = useState<OverlayState>('idle');
   const [parsedResult, setParsedResult] = useState<VoiceParseResult | null>(null);
   const [overriddenType, setOverriddenType] = useState<'new_entry' | 'context_entry' | null>(null);
-  const [showIdleHint, setShowIdleHint] = useState(false); // Show "Tippe zum Sprechen" after auto-start failed
+  const [showIdleHint, setShowIdleHint] = useState(false);
   
   // Refs
   const recognitionRef = useRef<any>(null);
@@ -76,7 +81,7 @@ export function SimpleVoiceOverlay({
   const stateRef = useRef<OverlayState>('idle');
   const recordingStartRef = useRef<number>(0);
   const lastSpeechRef = useRef<number>(0);
-  const isAutoStartRef = useRef(false); // Track if current recording was auto-started
+  const isAutoStartRef = useRef(false);
   
   // Keep stateRef in sync
   useEffect(() => {
@@ -161,7 +166,6 @@ export function SimpleVoiceOverlay({
   
   /**
    * Adaptive Auto-Stop Timer
-   * Uses migraine-friendly thresholds that adapt to speech patterns
    */
   const startAutoStopTimer = useCallback(() => {
     clearAllTimers();
@@ -169,9 +173,7 @@ export function SimpleVoiceOverlay({
     const text = committedTextRef.current.trim();
     const recordingDuration = Date.now() - recordingStartRef.current;
     
-    // Check if we CAN auto-stop (minimum requirements)
     if (!canAutoStop(text, recordingDuration)) {
-      // Schedule a recheck in 500ms
       autoStopTimerRef.current = setTimeout(() => {
         if (hasSpokenRef.current && committedTextRef.current.trim()) {
           startAutoStopTimer();
@@ -180,11 +182,9 @@ export function SimpleVoiceOverlay({
       return;
     }
     
-    // Get adaptive silence threshold based on speech patterns
     const silenceThreshold = getAdaptiveSilenceThreshold(text, recordingDuration);
     
     autoStopTimerRef.current = setTimeout(() => {
-      // Double-check we still want to auto-stop
       if (hasSpokenRef.current && committedTextRef.current.trim()) {
         finishRecording();
       }
@@ -200,7 +200,6 @@ export function SimpleVoiceOverlay({
     }
     
     hardTimeoutRef.current = setTimeout(() => {
-      // Gently finish after max duration - no error message
       if (stateRef.current === 'recording') {
         finishRecording();
       }
@@ -231,7 +230,7 @@ export function SimpleVoiceOverlay({
     setParsedResult(null);
     
     const recognition = new SpeechRecognitionAPI();
-    recognition.lang = 'de-DE';
+    recognition.lang = currentLanguage === 'en' ? 'en-US' : 'de-DE';
     recognition.continuous = true;
     recognition.interimResults = false;
     
@@ -239,12 +238,9 @@ export function SimpleVoiceOverlay({
       setState('recording');
       startHardTimeout();
       
-      // Start "no speech" timeout for auto-started recordings
-      // If no speech detected within 3.5s, stop and go back to idle
       if (isAutoStartRef.current) {
         noSpeechTimeoutRef.current = setTimeout(() => {
           if (stateRef.current === 'recording' && !hasSpokenRef.current) {
-            // No speech detected - stop recording silently and show hint
             clearAllTimers();
             if (recognitionRef.current) {
               try {
@@ -261,13 +257,11 @@ export function SimpleVoiceOverlay({
     };
     
     recognition.onresult = (event: any) => {
-      // Cancel no-speech timeout on first result
       if (noSpeechTimeoutRef.current) {
         clearTimeout(noSpeechTimeoutRef.current);
         noSpeechTimeoutRef.current = null;
       }
       
-      // Reset auto-stop timer on each speech result
       if (autoStopTimerRef.current) {
         clearTimeout(autoStopTimerRef.current);
         autoStopTimerRef.current = null;
@@ -284,7 +278,6 @@ export function SimpleVoiceOverlay({
           committedTextRef.current += (committedTextRef.current ? ' ' : '') + corrected;
           hasSpokenRef.current = true;
           
-          // Start adaptive auto-stop timer after each speech segment
           startAutoStopTimer();
         }
       }
@@ -297,11 +290,9 @@ export function SimpleVoiceOverlay({
         onOpenChange(false);
         return;
       }
-      // For other errors (no-speech, network), just continue listening
     };
     
     recognition.onend = () => {
-      // If still recording and has content, finish
       if (stateRef.current === 'recording' && hasSpokenRef.current && committedTextRef.current.trim()) {
         finishRecording();
       }
@@ -314,7 +305,7 @@ export function SimpleVoiceOverlay({
       console.error('[SimpleVoice] Start failed:', e);
       onOpenChange(false);
     }
-  }, [isSttSupported, lexicon, clearAllTimers, startAutoStopTimer, startHardTimeout, finishRecording, onOpenChange]);
+  }, [isSttSupported, lexicon, currentLanguage, clearAllTimers, startAutoStopTimer, startHardTimeout, finishRecording, onOpenChange]);
   
   const stopRecording = useCallback(() => {
     clearAllTimers();
@@ -332,7 +323,6 @@ export function SimpleVoiceOverlay({
   // Lifecycle
   // ============================================
   
-  // Auto-start recording when overlay opens
   useEffect(() => {
     if (open) {
       setState('idle');
@@ -343,7 +333,6 @@ export function SimpleVoiceOverlay({
       hasSpokenRef.current = false;
       isAutoStartRef.current = false;
       
-      // Auto-start after short delay (300-500ms)
       autoStartTimerRef.current = setTimeout(() => {
         if (stateRef.current === 'idle' && isSttSupported) {
           isAutoStartRef.current = true;
@@ -356,7 +345,6 @@ export function SimpleVoiceOverlay({
     }
   }, [open, stopRecording, startRecording, isSttSupported, clearAllTimers]);
   
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       stopRecording();
@@ -370,7 +358,7 @@ export function SimpleVoiceOverlay({
   const handleMicTap = useCallback(() => {
     if (state === 'idle') {
       setShowIdleHint(false);
-      isAutoStartRef.current = false; // Manual tap - not auto-start
+      isAutoStartRef.current = false;
       startRecording();
     } else if (state === 'recording') {
       finishRecording();
@@ -424,7 +412,7 @@ export function SimpleVoiceOverlay({
   if (!open) return null;
   
   // ============================================
-  // Render Idle State - ONLY big mic
+  // Render Idle State
   // ============================================
   
   const renderIdleState = () => (
@@ -432,26 +420,24 @@ export function SimpleVoiceOverlay({
       className="flex flex-col items-center justify-center h-full"
       onClick={(e) => e.stopPropagation()}
     >
-      {/* Big Microphone - tap to start */}
       <button
         onClick={handleMicTap}
         className="w-32 h-32 rounded-full bg-primary/10 border-2 border-primary/30 flex items-center justify-center transition-all hover:bg-primary/20 hover:scale-105 active:scale-95 focus:outline-none"
-        aria-label="Aufnahme starten"
+        aria-label={t('voice.tapToSpeak')}
       >
         <Mic className="w-14 h-14 text-primary" />
       </button>
       
-      {/* Hint - only shown after auto-start failed (no speech detected) */}
       {showIdleHint && (
         <p className="mt-10 text-sm text-muted-foreground/50">
-          Tippe zum Sprechen
+          {t('voice.tapToSpeak')}
         </p>
       )}
     </div>
   );
   
   // ============================================
-  // Render Recording State - ONLY pulsing mic
+  // Render Recording State
   // ============================================
   
   const renderRecordingState = () => (
@@ -459,13 +445,11 @@ export function SimpleVoiceOverlay({
       className="flex flex-col items-center justify-center h-full"
       onClick={(e) => e.stopPropagation()}
     >
-      {/* Pulsing Microphone */}
       <button
         onClick={handleMicTap}
         className="relative w-32 h-32 focus:outline-none"
-        aria-label="Aufnahme beenden"
+        aria-label={t('common.done')}
       >
-        {/* Calm pulse rings */}
         <div 
           className="absolute inset-0 rounded-full bg-primary/15 animate-ping" 
           style={{ animationDuration: '2.5s' }} 
@@ -475,7 +459,6 @@ export function SimpleVoiceOverlay({
           style={{ animationDuration: '2s' }} 
         />
         
-        {/* Mic circle */}
         <div className="relative w-full h-full rounded-full bg-primary/20 border-2 border-primary/40 flex items-center justify-center">
           <Mic className="w-14 h-14 text-primary" />
         </div>
@@ -484,13 +467,13 @@ export function SimpleVoiceOverlay({
   );
 
   // ============================================
-  // Render Processing State - with "Verstanden" transition
+  // Render Processing State
   // ============================================
 
   const renderProcessingState = () => (
     <div className="flex flex-col items-center justify-center h-full">
       <div className="w-10 h-10 border-3 border-primary/30 border-t-primary rounded-full animate-spin" />
-      <p className="mt-5 text-sm text-muted-foreground/60">Verstanden</p>
+      <p className="mt-5 text-sm text-muted-foreground/60">{t('voice.understood')}</p>
     </div>
   );
   
@@ -499,8 +482,10 @@ export function SimpleVoiceOverlay({
   // ============================================
   
   const generateSummaryText = (result: VoiceParseResult, isNewEntry: boolean): string => {
+    const isEnglish = currentLanguage === 'en';
+    
     if (!isNewEntry) {
-      return 'Notiz wurde erfasst.';
+      return isEnglish ? 'Note captured.' : 'Notiz wurde erfasst.';
     }
     
     const parts: string[] = [];
@@ -516,10 +501,15 @@ export function SimpleVoiceOverlay({
     // Pain component
     if (result.pain_intensity.value !== null) {
       const painLevel = result.pain_intensity.value;
-      const painDesc = painLevel >= 7 ? 'starke' : painLevel >= 4 ? 'mäßige' : 'leichte';
-      parts.push(`${painDesc} Kopfschmerzen (Stärke ${painLevel})`);
+      if (isEnglish) {
+        const painDesc = painLevel >= 7 ? 'severe' : painLevel >= 4 ? 'moderate' : 'mild';
+        parts.push(`${painDesc} headache (level ${painLevel})`);
+      } else {
+        const painDesc = painLevel >= 7 ? 'starke' : painLevel >= 4 ? 'mäßige' : 'leichte';
+        parts.push(`${painDesc} Kopfschmerzen (Stärke ${painLevel})`);
+      }
     } else {
-      parts.push('Kopfschmerzen');
+      parts.push(isEnglish ? 'Headache' : 'Kopfschmerzen');
     }
     
     // Medication component
@@ -529,34 +519,40 @@ export function SimpleVoiceOverlay({
         return doseText ? `${doseText} ${m.name}` : m.name;
       });
       
-      if (medTexts.length === 1) {
-        parts.push(`${medTexts[0]} eingenommen`);
+      if (isEnglish) {
+        if (medTexts.length === 1) {
+          parts.push(`took ${medTexts[0]}`);
+        } else {
+          const lastMed = medTexts.pop();
+          parts.push(`took ${medTexts.join(', ')} and ${lastMed}`);
+        }
       } else {
-        const lastMed = medTexts.pop();
-        parts.push(`${medTexts.join(', ')} und ${lastMed} eingenommen`);
+        if (medTexts.length === 1) {
+          parts.push(`${medTexts[0]} eingenommen`);
+        } else {
+          const lastMed = medTexts.pop();
+          parts.push(`${medTexts.join(', ')} und ${lastMed} eingenommen`);
+        }
       }
     }
     
     // Build natural sentence
     if (parts.length === 0) {
-      return 'Eintrag erkannt.';
+      return isEnglish ? 'Entry recognized.' : 'Eintrag erkannt.';
     }
     
-    // Combine into natural text
     let text = parts[0];
     for (let i = 1; i < parts.length; i++) {
-      // Capitalize if it follows a period
       const part = parts[i];
-      if (i === 1 && parts[0].includes('Stärke')) {
+      if (i === 1 && (parts[0].includes('Stärke') || parts[0].includes('level'))) {
         text += '. ' + part.charAt(0).toUpperCase() + part.slice(1);
-      } else if (part.includes('eingenommen')) {
+      } else if (part.includes('eingenommen') || part.includes('took')) {
         text += '. ' + part.charAt(0).toUpperCase() + part.slice(1);
       } else {
         text += ' ' + part;
       }
     }
     
-    // Ensure ending period
     if (!text.endsWith('.')) {
       text += '.';
     }
@@ -565,7 +561,7 @@ export function SimpleVoiceOverlay({
   };
   
   // ============================================
-  // Render Review State - Natural Language Summary
+  // Render Review State
   // ============================================
   
   const renderReviewState = () => {
@@ -577,15 +573,13 @@ export function SimpleVoiceOverlay({
     const hasMeds = parsedResult.medications.length > 0;
     const hasStructuredData = hasPain || hasMeds;
     
-    // Generate natural summary
     const summaryText = generateSummaryText(parsedResult, isNewEntry);
-    
-    // Minimal fallback for truly empty results
     const showMinimalFallback = isNewEntry && !hasStructuredData;
+    
+    const isEnglish = currentLanguage === 'en';
     
     return (
       <>
-        {/* Fade overlay for mic background */}
         <div 
           className="absolute inset-0 bg-background/80"
           style={{ 
@@ -593,7 +587,6 @@ export function SimpleVoiceOverlay({
           }}
         />
         
-        {/* Bottom Sheet with slide-up */}
         <div 
           className="absolute bottom-0 left-0 right-0 bg-card rounded-t-3xl border-t border-border/20 shadow-2xl"
           style={{ 
@@ -617,13 +610,11 @@ export function SimpleVoiceOverlay({
             }
           `}</style>
           
-          {/* Handle bar */}
           <div className="flex justify-center pt-3 pb-1">
             <div className="w-10 h-1 rounded-full bg-muted-foreground/20" />
           </div>
           
           <div className="px-6 pb-8 pt-4">
-            {/* Type Chip - small, neutral, only tappable if toggleable */}
             <div className="flex justify-center mb-6">
               <Badge 
                 variant="outline"
@@ -633,43 +624,40 @@ export function SimpleVoiceOverlay({
                 )}
                 onClick={showTypeToggle ? toggleEntryType : undefined}
               >
-                {isNewEntry ? 'Neuer Eintrag' : 'Kontexteintrag'}
+                {isNewEntry 
+                  ? (isEnglish ? 'New entry' : 'Neuer Eintrag')
+                  : (isEnglish ? 'Context note' : 'Kontexteintrag')
+                }
               </Badge>
             </div>
             
-            {/* Central Summary Card */}
             <div className="bg-muted/30 rounded-2xl p-5 mb-8">
               {showMinimalFallback ? (
-                // Minimal fallback - no warnings, just neutral
                 <p className="text-center text-base text-foreground/80 leading-relaxed">
-                  Eintrag erkannt. Möchtest du ihn speichern?
+                  {isEnglish ? 'Entry recognized. Save it?' : 'Eintrag erkannt. Möchtest du ihn speichern?'}
                 </p>
               ) : (
-                // Natural language summary
                 <p className="text-center text-base text-foreground leading-relaxed">
                   {summaryText}
                 </p>
               )}
             </div>
             
-            {/* Actions - exactly 2, calm design */}
             <div className="space-y-4">
-              {/* Primary: Save - softer green, not aggressive */}
               <Button
                 size="lg"
                 className="w-full h-12 text-base font-medium bg-primary/90 hover:bg-primary"
                 onClick={handleSave}
               >
-                Speichern
+                {t('common.save')}
               </Button>
               
-              {/* Secondary: Retry - text link, centered, generous spacing */}
               <div className="flex justify-center pt-2">
                 <button
                   onClick={handleRetry}
                   className="text-sm text-muted-foreground/60 hover:text-muted-foreground transition-colors py-2 px-4"
                 >
-                  Erneut sprechen
+                  {t('voice.speakAgain')}
                 </button>
               </div>
             </div>
@@ -680,21 +668,19 @@ export function SimpleVoiceOverlay({
   };
   
   // ============================================
-  // Main Render - Fullscreen dark overlay
+  // Main Render
   // ============================================
   
   return (
     <div className="fixed inset-0 z-50 bg-background">
-      {/* Backdrop tap to close (only in idle/recording, NOT in review) */}
       {(state === 'idle' || state === 'recording') && (
         <button
           onClick={handleClose}
           className="absolute inset-0 w-full h-full cursor-default focus:outline-none"
-          aria-label="Schließen"
+          aria-label={t('common.close')}
         />
       )}
       
-      {/* Content */}
       <div className="relative h-full flex flex-col">
         {state === 'idle' && renderIdleState()}
         {state === 'recording' && renderRecordingState()}
