@@ -1166,7 +1166,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
                 <p className="text-xs text-muted-foreground">KI ist in den Einstellungen deaktiviert.</p>
               ) : isQuotaExhausted ? (
                 <>
-                  <p className="text-xs text-muted-foreground">Diesen Monat bereits genutzt</p>
+                  <p className="text-xs text-muted-foreground">Monatliches Kontingent aktuell ausgeschöpft</p>
                   <p className="text-xs text-muted-foreground/70">
                     Nächste Analyse verfügbar ab{" "}
                     <span className="text-foreground/80">
