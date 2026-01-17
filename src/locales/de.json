@@ -63,7 +63,9 @@
     "quickEntry": "Schnell erfassen",
     "medications": "Medikamente",
     "diary": "Tagebuch & Auswertungen",
-    "organization": "Organisation"
+    "organization": "Organisation",
+    "analysis": "Auswertung",
+    "history": "Verlauf"
   },
   
   "entry": {
@@ -366,7 +368,59 @@
     "quickEntry": "Schnell-Eintrag",
     "quickSubtitle": "Schmerz jetzt festhalten",
     "contextEntry": "Alltag & Auslöser",
-    "contextSubtitle": "Schlaf, Stress, Stimmung & mehr"
+    "contextSubtitle": "Schlaf, Stress, Stimmung & mehr",
+    "rateEffect": "Wirkung bewerten",
+    "createReport": "Bericht erstellen",
+    "statsAndPatterns": "Statistiken & Muster",
+    "manageMedications": "Medikamente verwalten",
+    "historyAndCalendar": "Verlauf & Kalender"
+  },
+
+  "sections": {
+    "quickEntry": "Schnell erfassen",
+    "medications": "Medikamente",
+    "diary": "Tagebuch & Auswertungen",
+    "organization": "Organisation",
+    "analysis": "Auswertung",
+    "history": "Verlauf"
+  },
+
+  "diary": {
+    "painDays": "Schmerztage",
+    "triptans": "Triptane",
+    "avgIntensity": "Ø Intensität",
+    "list": "Liste",
+    "calendar": "Kalender",
+    "show": "Anzeigen",
+    "all": "Alle",
+    "pain": "Schmerz",
+    "context": "Kontext"
+  },
+
+  "pdfReport": {
+    "title": "Kopfschmerztagebuch (PDF)",
+    "medicationsInPdf": "Medikamente im PDF",
+    "includeDoctorData": "Arztdaten einbinden",
+    "entries": "Einträge",
+    "moreOptions": "Weitere Optionen",
+    "statsAndCharts": "Statistiken & Diagramme",
+    "analysis": "Auswertung",
+    "therapies": "Therapien",
+    "entryNotes": "Notizen aus Schmerzeinträgen",
+    "contextNotes": "Kontextnotizen",
+    "aiReport": "KI-Analysebericht (Premium)",
+    "aiReportGenerating": "Wird erstellt…",
+    "aiDisabled": "KI deaktiviert",
+    "aiQuotaExhausted": "Monatliches Kontingent aktuell ausgeschöpft",
+    "aiAvailableFrom": "Verfügbar ab",
+    "aiAnalysisAvailable": "Analyse verfügbar",
+    "aiMonthlyAnalysis": "Monatliche KI-Analyse",
+    "aiError": "KI-Bericht konnte nicht erstellt werden",
+    "aiErrorGeneric": "Fehler beim Erstellen des KI-Berichts",
+    "createPdf": "PDF erstellen",
+    "exportCsv": "CSV exportieren",
+    "medicationPlan": "Medikationsplan",
+    "hit6Pdf": "HIT-6 (PDF)"
   },
   
   "symptoms": {

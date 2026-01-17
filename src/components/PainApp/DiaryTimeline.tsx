@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -40,6 +41,7 @@ const isValidWeatherCondition = (text: string | null | undefined): boolean => {
 
 // Compact KPI Summary for Verlauf page
 function CompactKPISummary({ entries }: { entries: any[] }) {
+  const { t } = useTranslation();
   const last30Days = useMemo(() => {
     const thirtyDaysAgo = subDays(new Date(), 30);
     return entries.filter(entry => {
@@ -84,7 +86,7 @@ function CompactKPISummary({ entries }: { entries: any[] }) {
         <CalendarIcon className="h-4 w-4 text-muted-foreground shrink-0" />
         <div className="text-sm">
           <span className="font-semibold">{stats.painDays}</span>
-          <span className="text-muted-foreground"> Schmerztage</span>
+          <span className="text-muted-foreground"> {t('diary.painDays')}</span>
         </div>
       </div>
       <div className="w-px h-6 bg-border" />
@@ -92,7 +94,7 @@ function CompactKPISummary({ entries }: { entries: any[] }) {
         <Pill className="h-4 w-4 text-muted-foreground shrink-0" />
         <div className="text-sm">
           <span className="font-semibold">{stats.triptanCount}</span>
-          <span className="text-muted-foreground"> Triptane</span>
+          <span className="text-muted-foreground"> {t('diary.triptans')}</span>
         </div>
       </div>
       <div className="w-px h-6 bg-border" />
@@ -126,6 +128,7 @@ type TimelineItemType = {
 const DIARY_VIEW_MODE_KEY = 'diaryViewMode';
 
 export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate, onEdit }) => {
+  const { t } = useTranslation();
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
   const [filterType, setFilterType] = useState<'all' | 'pain_entry' | 'context_note'>('all');
@@ -424,7 +427,7 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <h1 className="text-xl font-semibold flex-1">Verlauf & Kalender</h1>
+          <h1 className="text-xl font-semibold flex-1">{t('mainMenu.historyAndCalendar')}</h1>
           <Badge variant="outline" className="text-xs">
             {filteredItems.length}
           </Badge>
@@ -443,14 +446,14 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
               className="rounded-lg py-2.5 text-sm font-medium data-[state=on]:bg-background data-[state=on]:shadow-md data-[state=on]:text-foreground data-[state=off]:text-muted-foreground transition-all"
             >
               <List className="h-4 w-4 mr-2" />
-              Liste
+              {t('diary.list')}
             </ToggleGroupItem>
             <ToggleGroupItem 
               value="calendar" 
               className="rounded-lg py-2.5 text-sm font-medium data-[state=on]:bg-background data-[state=on]:shadow-md data-[state=on]:text-foreground data-[state=off]:text-muted-foreground transition-all"
             >
               <CalendarIcon className="h-4 w-4 mr-2" />
-              Kalender
+              {t('diary.calendar')}
             </ToggleGroupItem>
           </ToggleGroup>
         </div>
@@ -469,7 +472,7 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
             <CardContent className="pt-6">
               <div className="flex items-center gap-2 mb-3">
                 <Filter className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium">Anzeigen</span>
+                <span className="text-sm font-medium">{t('diary.show')}</span>
               </div>
               <ToggleGroup 
                 type="single" 
@@ -478,13 +481,13 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
                 className="justify-start"
               >
                 <ToggleGroupItem value="all" className="flex-1">
-                  Alle ({timelineItems.length})
+                  {t('diary.all')} ({timelineItems.length})
                 </ToggleGroupItem>
                 <ToggleGroupItem value="pain_entry" className="flex-1">
-                  Schmerz ({painEntries.length})
+                  {t('diary.pain')} ({painEntries.length})
                 </ToggleGroupItem>
                 <ToggleGroupItem value="context_note" className="flex-1">
-                  Kontext ({contextNotes.length})
+                  {t('diary.context')} ({contextNotes.length})
                 </ToggleGroupItem>
               </ToggleGroup>
             </CardContent>
