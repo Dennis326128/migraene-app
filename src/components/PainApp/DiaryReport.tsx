@@ -26,7 +26,6 @@ import { PremiumBadge } from "@/components/ui/premium-badge";
 import { useUserAISettings } from "@/features/draft-composer/hooks/useUserAISettings";
 import { useDiaryPreflight, PreflightWizardModal } from "@/features/diary/preflight";
 import { useDiaryReportQuota } from "@/features/ai-reports/hooks/useDiaryReportQuota";
-import { Badge } from "@/components/ui/badge";
 
 // Premium AI Report Response Type
 interface PremiumAIReportResult {
@@ -1139,21 +1138,13 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
             </CollapsibleContent>
           </Collapsible>
 
-          {/* Premium Section: KI-Analysebericht */}
-          <div className="p-4 border-t border-border/50 bg-gradient-to-r from-amber-500/5 to-orange-500/5">
+          {/* Premium Section: KI-Analysebericht - Ruhig & migränefreundlich */}
+          <div className="p-4 border-t border-border/30 bg-gradient-to-r from-amber-500/5 to-amber-600/5">
             <div className="flex items-center justify-between py-1">
               <div className="flex items-center gap-2 flex-1 min-w-0">
-                <Brain className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                <Brain className="h-4 w-4 text-amber-500/80" />
                 <span className="text-sm font-medium">KI-Analysebericht</span>
                 <PremiumBadge />
-                <InfoTooltip 
-                  content={
-                    <div className="space-y-1">
-                      <p>Erstellt eine erweiterte Interpretation deiner Daten als gespeicherten Bericht.</p>
-                      <p className="text-xs text-muted-foreground italic">Keine medizinische Beratung.</p>
-                    </div>
-                  }
-                />
               </div>
               <Switch 
                 checked={includePremiumAI && !isQuotaExhausted && !isAIDisabled} 
@@ -1167,38 +1158,39 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
               />
             </div>
             
-            {/* Quota Display */}
-            {quotaData && !quotaData.isUnlimited && (
-              <div className="flex items-center gap-2 mt-2 pl-6">
-                <span className="text-xs text-muted-foreground">Nutzung:</span>
-                <Badge 
-                  variant={quotaData.remaining <= 1 ? "destructive" : "secondary"}
-                  className="text-xs"
-                >
-                  {quotaData.used}/{quotaData.limit}
-                </Badge>
-                {isQuotaExhausted && (
-                  <span className="text-xs text-destructive">Limit erreicht</span>
-                )}
-              </div>
-            )}
-            {quotaData?.isUnlimited && (
-              <div className="mt-2 pl-6">
-                <span className="text-xs text-muted-foreground">Unbegrenzt verfügbar</span>
-              </div>
-            )}
-            
-            <p className="text-xs text-muted-foreground mt-1 pl-6">
-              {isGeneratingAIReport 
-                ? "KI-Bericht wird erstellt…" 
-                : isAIDisabled
-                  ? "KI ist in den Einstellungen deaktiviert."
-                  : isQuotaExhausted
-                    ? "Limit erreicht – verfügbar ab nächstem Monat."
-                    : premiumAIError 
-                      ? premiumAIError 
-                      : "Wird beim Erstellen als zusätzlicher Bericht eingefügt und gespeichert."}
-            </p>
+            {/* Status Display - Calm & Clear */}
+            <div className="mt-2 pl-6 space-y-1">
+              {isGeneratingAIReport ? (
+                <p className="text-xs text-muted-foreground">KI-Bericht wird erstellt…</p>
+              ) : isAIDisabled ? (
+                <p className="text-xs text-muted-foreground">KI ist in den Einstellungen deaktiviert.</p>
+              ) : isQuotaExhausted ? (
+                <>
+                  <p className="text-xs text-muted-foreground">Diesen Monat bereits genutzt</p>
+                  <p className="text-xs text-muted-foreground/70">
+                    Nächste Analyse verfügbar ab{" "}
+                    <span className="text-foreground/80">
+                      {(() => {
+                        const now = new Date();
+                        const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+                        return nextMonth.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                      })()}
+                    </span>
+                  </p>
+                </>
+              ) : quotaData?.isUnlimited ? (
+                <p className="text-xs text-muted-foreground">Analyse verfügbar</p>
+              ) : (
+                <>
+                  <p className="text-xs text-muted-foreground">Analyse verfügbar</p>
+                  <p className="text-xs text-muted-foreground/60">Monatliche KI-Analyse</p>
+                </>
+              )}
+              
+              {premiumAIError && !isQuotaExhausted && !isAIDisabled && (
+                <p className="text-xs text-muted-foreground">{premiumAIError}</p>
+              )}
+            </div>
           </div>
         </Card>
       </div>
