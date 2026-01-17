@@ -215,6 +215,11 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
             setIncludeContextNotes(s.include_context_notes);
           }
           
+          // Premium AI setting
+          if (settings.include_ai_analysis !== undefined && settings.include_ai_analysis !== null) {
+            setIncludePremiumAI(settings.include_ai_analysis);
+          }
+          
           // Doctor IDs
           const lastDoctorIds = (settings as any).last_doctor_export_ids;
           if (Array.isArray(lastDoctorIds) && lastDoctorIds.length > 0) {
@@ -305,7 +310,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
             default_report_preset: preset,
             include_statistics: includeStats,
             include_chart: includeStats,
-            include_ai_analysis: includeAnalysis,
+            include_ai_analysis: includePremiumAI, // Now saves Premium AI toggle state
             include_entries_list: includeEntriesList,
             include_medication_summary: includeTherapies,
             include_patient_data: true, // Always included
@@ -327,7 +332,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [settingsLoaded, preset, includeStats, includeAnalysis, includeEntriesList, includeTherapies, includeDoctorData, allMedications, selectedMedIds, selectedDoctorIds, includeEntryNotes, includeContextNotes]);
+  }, [settingsLoaded, preset, includeStats, includePremiumAI, includeEntriesList, includeTherapies, includeDoctorData, allMedications, selectedMedIds, selectedDoctorIds, includeEntryNotes, includeContextNotes]);
 
   // Load medication options
   useEffect(() => {
