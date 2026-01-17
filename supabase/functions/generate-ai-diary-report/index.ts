@@ -774,8 +774,8 @@ Antworte NUR mit dem JSON-Objekt.`;
           user_id: user.id,
           report_type: 'diary_pdf',
           title: reportTitle,
-          from_date: fromDateStr,
-          to_date: toDateStr,
+          from_date: fromDate,
+          to_date: toDate,
           source: 'pdf_flow',
           input_summary: {
             entries: structuredEntries.length,
