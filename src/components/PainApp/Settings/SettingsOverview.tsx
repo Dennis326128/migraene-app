@@ -26,57 +26,57 @@ export const SettingsOverview = ({ onNavigate }: SettingsOverviewProps) => {
     {
       id: 'account' as const,
       icon: User,
-      title: 'Persönliche Daten',
+      titleKey: 'settings.account',
       gradient: 'from-blue-500/10 to-blue-500/5',
     },
     {
       id: 'doctors' as const,
       icon: Stethoscope,
-      title: 'Behandelnde Ärzte',
+      titleKey: 'doctor.doctors',
       gradient: 'from-green-500/10 to-green-500/5',
     },
     {
       id: 'medications' as const,
       icon: Pill,
-      title: 'Medikamente',
+      titleKey: 'medication.medications',
       gradient: 'from-primary/10 to-primary/5',
     },
     {
       id: 'privacy' as const,
       icon: Shield,
-      title: 'Datenschutz & Sicherheit',
+      titleKey: 'settings.privacy',
       gradient: 'from-secondary/10 to-secondary/5',
     },
     {
       id: 'help' as const,
       icon: HelpCircle,
-      title: 'Hilfe & Tutorial',
+      titleKey: 'settings.help',
       gradient: 'from-accent/10 to-accent/5',
     },
-    // PWA Install - nur anzeigen wenn iOS Safari und nicht bereits installiert
+    // PWA Install - only show if iOS Safari and not already installed
     ...(canShowInstallPrompt ? [{
       id: 'install' as const,
       icon: Smartphone,
-      title: 'Zum Home-Bildschirm',
+      titleKey: 'settings.install',
       gradient: 'from-cyan-500/10 to-cyan-500/5',
     }] : []),
-    // Zeige "Bereits installiert" wenn Standalone
+    // Show "Already installed" if Standalone
     ...(isStandalone ? [{
       id: 'install' as const,
       icon: Smartphone,
-      title: 'App installiert',
+      titleKey: 'settings.installed',
       gradient: 'from-primary/10 to-primary/5',
     }] : []),
     {
       id: 'feedback' as const,
       icon: MessageSquare,
-      title: 'Feedback',
+      titleKey: 'settings.feedback',
       gradient: 'from-violet-500/10 to-violet-500/5',
     },
     {
       id: 'logout' as const,
       icon: LogOut,
-      title: 'Abmelden',
+      titleKey: 'auth.logout',
       gradient: 'from-destructive/10 to-destructive/5',
     },
   ];
@@ -118,7 +118,7 @@ export const SettingsOverview = ({ onNavigate }: SettingsOverviewProps) => {
                   "font-semibold text-foreground",
                   isMobile ? "text-base" : "text-lg"
                 )}>
-                  {section.title}
+                  {t(section.titleKey)}
                 </h3>
               </div>
 
@@ -131,7 +131,7 @@ export const SettingsOverview = ({ onNavigate }: SettingsOverviewProps) => {
         );
       })}
 
-      {/* Language Row - Special handling with bottom sheet */}
+      {/* Language Row - Special handling with modal */}
       <Card
         className={cn(
           "p-5 cursor-pointer transition-all hover:shadow-lg active:scale-[0.98]",
