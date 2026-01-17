@@ -628,11 +628,24 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
       // ============== PREMIUM KI-ANALYSEBERICHT ==============
       let premiumAIReportData: PremiumAIReportResult | null = null;
       
+      console.log('[PDF Export] Premium-KI Status:', { 
+        includePremiumAI, 
+        willGenerateAI: includePremiumAI 
+      });
+      
       if (includePremiumAI) {
+        console.log('[PDF Export] Starte Premium-KI-Generierung...');
         premiumAIReportData = await generatePremiumAIReport();
-        // Falls KI-Bericht fehlschlägt: PDF wird trotzdem erstellt
-        if (!premiumAIReportData) {
-          devWarn('Premium-KI-Bericht fehlgeschlagen, PDF wird ohne KI-Teil erstellt', { context: 'DiaryReport' });
+        
+        if (premiumAIReportData) {
+          console.log('[PDF Export] Premium-KI erfolgreich:', {
+            keyFindingsCount: premiumAIReportData.keyFindings?.length || 0,
+            sectionsCount: premiumAIReportData.sections?.length || 0
+          });
+        } else {
+          // PDF wird mit Fallback-Hinweis erstellt (NICHT mit statischer Analyse!)
+          console.warn('[PDF Export] Premium-KI fehlgeschlagen - PDF erhält Fallback-Hinweis');
+          devWarn('Premium-KI-Bericht fehlgeschlagen, PDF erhält Fallback-Hinweis', { context: 'DiaryReport' });
         }
       }
 
@@ -660,13 +673,17 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         
         includeStats,
         includeChart: includeStats,
-        includeAnalysis: includeAnalysis && !!aiAnalysis,
+        // KRITISCH: Statische Analyse nur wenn NICHT Premium gewählt
+        includeAnalysis: !includePremiumAI && includeAnalysis && !!aiAnalysis,
         includeEntriesList,
         includePatientData: true, // Always include
         includeDoctorData: includeDoctorData && selectedDoctors.length > 0,
         includeMedicationCourses: includeTherapies,
         includePatientNotes: false,
         freeTextExportMode: freeTextMode as any,
+        
+        // KRITISCH: Explizites Flag ob User Premium-KI ausgewählt hat
+        isPremiumAIRequested: includePremiumAI,
         
         analysisReport: aiAnalysis,
         patientNotes: "",
@@ -711,7 +728,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
           fax: d.fax || "",
           email: d.email || ""
         })) : undefined,
-        // Premium KI-Analysebericht (neu)
+        // Premium KI-Analysebericht Daten (wenn vorhanden)
         premiumAIReport: premiumAIReportData || undefined,
       });
 
