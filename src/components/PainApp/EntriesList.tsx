@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { formatPainLevel, formatAuraType, formatPainLocation } from "@/lib/utils/pain";
+import { formatPainLevel as formatPainLevelUtil, formatAuraType, formatPainLocation } from "@/lib/utils/pain";
 import { PainEntry, MigraineEntry } from "@/types/painApp";
 import { useEntries } from "@/features/entries/hooks/useEntries";
 import { useDeleteEntry } from "@/features/entries/hooks/useEntryMutations";
@@ -23,6 +24,7 @@ import {
   CloudSun,
   AlertCircle
 } from "lucide-react";
+import { useLanguage } from "@/hooks/useLanguage";
 
 export const EntriesList = ({
   onBack,
@@ -31,6 +33,8 @@ export const EntriesList = ({
   onBack: () => void;
   onEdit: (entry: MigraineEntry) => void;
 }) => {
+  const { t } = useTranslation();
+  const { currentLanguage } = useLanguage();
   const [limit, setLimit] = useState(50);
   const { data: entries = [], isLoading, isError } = useEntries({ limit });
   const { mutate: deleteMutate, isPending: isDeleting } = useDeleteEntry();
@@ -47,14 +51,13 @@ export const EntriesList = ({
   
   // Build medication display with doses
   const formatMedicationsWithDose = (entry: MigraineEntry, intakes: typeof entryIntakes) => {
-    if (!entry.medications?.length) return "Keine";
+    if (!entry.medications?.length) return t('common.none');
     
     const intakeMap = new Map(intakes.map(i => [i.medication_name, i.dose_quarters]));
     
     return entry.medications.map(med => {
       const quarters = intakeMap.get(med) ?? DEFAULT_DOSE_QUARTERS;
       const doseStr = formatDoseFromQuarters(quarters);
-      // Only show dose if not "1" (default)
       return quarters !== DEFAULT_DOSE_QUARTERS ? `${med} · ${doseStr}` : med;
     }).join(", ");
   };
@@ -66,21 +69,23 @@ export const EntriesList = ({
     [entries]
   );
 
+  const dateLocale = currentLanguage === 'de' ? 'de-DE' : 'en-US';
+
   const formatDate = (dateString: string) =>
-    new Date(dateString).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" });
+    new Date(dateString).toLocaleDateString(dateLocale, { day: "2-digit", month: "2-digit", year: "2-digit" });
 
   const formatPainLevel = (level: string) =>
     level.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
 
   const formatMoonPhase = (phase: number) => {
-    if (phase === 0 || phase === 1) return "🌑 Neumond";
-    if (phase === 0.25) return "🌓 Erstes Viertel";
-    if (phase === 0.5) return "🌕 Vollmond";
-    if (phase === 0.75) return "🌗 Letztes Viertel";
-    if (phase > 0 && phase < 0.25) return "🌒 Zunehmender Sichelmond";
-    if (phase > 0.25 && phase < 0.5) return "🌔 Zunehmender Mond";
-    if (phase > 0.5 && phase < 0.75) return "🌖 Abnehmender Mond";
-    if (phase > 0.75 && phase < 1) return "🌘 Abnehmender Sichelmond";
+    if (phase === 0 || phase === 1) return `🌑 ${t('moon.newMoon')}`;
+    if (phase === 0.25) return `🌓 ${t('moon.firstQuarter')}`;
+    if (phase === 0.5) return `🌕 ${t('moon.fullMoon')}`;
+    if (phase === 0.75) return `🌗 ${t('moon.lastQuarter')}`;
+    if (phase > 0 && phase < 0.25) return `🌒 ${t('moon.waxingCrescent')}`;
+    if (phase > 0.25 && phase < 0.5) return `🌔 ${t('moon.waxingGibbous')}`;
+    if (phase > 0.5 && phase < 0.75) return `🌖 ${t('moon.waningGibbous')}`;
+    if (phase > 0.75 && phase < 1) return `🌘 ${t('moon.waningCrescent')}`;
     return `${phase}`;
   };
 
@@ -98,30 +103,30 @@ export const EntriesList = ({
     }
   };
 
-  if (isLoading) return (<div className="p-4">Lade Einträge...</div>);
-  if (isError)   return (<div className="p-4 text-destructive">Fehler beim Laden der Einträge.</div>);
+  if (isLoading) return (<div className="p-4">{t('entry.loading')}</div>);
+  if (isError) return (<div className="p-4 text-destructive">{t('entry.loadError')}</div>);
 
   return (
     <div className="p-4 bg-gradient-to-br from-background to-secondary/20 min-h-screen">
       <div className="flex items-center justify-between mb-2">
         <Button onClick={onBack} variant="ghost" className="p-2 hover:bg-secondary/80">
-          ← Zurück
+          ← {t('common.back')}
         </Button>
-        <h1 className="text-xl font-semibold">📊 Einträge & Verlauf</h1>
+        <h1 className="text-xl font-semibold">📊 {t('entry.entriesAndHistory')}</h1>
         <div className="w-16"></div>
       </div>
       <p className="text-center text-sm text-muted-foreground mb-6">
-        Alle Einträge ansehen, bearbeiten oder löschen.
+        {t('entry.viewAll')}
       </p>
 
       {sorted.length === 0 ? (
         <div className="flex justify-center py-8">
           <EmptyState
             icon="📋"
-            title="Noch keine Einträge"
-            description="Ihre Migräne-Einträge werden hier angezeigt. Erstellen Sie Ihren ersten Eintrag, um zu beginnen."
+            title={t('entry.noEntries')}
+            description={t('entry.noEntriesDesc')}
             action={{
-              label: "Ersten Eintrag erstellen",
+              label: t('entry.createFirst'),
               onClick: onBack,
               variant: "default"
             }}
@@ -130,7 +135,6 @@ export const EntriesList = ({
       ) : (
         <div className="space-y-2">
           {sorted.map((entry) => {
-            // Calculate numeric pain level for display
             const painLevel = entry.pain_level;
             const isNumeric = !isNaN(Number(painLevel));
             const numericPain = isNumeric ? Number(painLevel) : 
@@ -145,7 +149,6 @@ export const EntriesList = ({
                 onClick={() => setSelectedEntry(entry)}
               >
                 <div className="flex items-center gap-3">
-                  {/* Pain indicator dot */}
                   <div 
                     className="w-3 h-3 rounded-full flex-shrink-0"
                     style={{ 
@@ -156,14 +159,13 @@ export const EntriesList = ({
                     }}
                   />
                   
-                  {/* Main content */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-baseline gap-2">
                       <span className="font-medium text-sm">
                         {formatDate(entry.selected_date || entry.timestamp_created)}
                       </span>
                       <span className="text-xs text-muted-foreground">
-                        {entry.selected_time ?? new Date(entry.timestamp_created).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}
+                        {entry.selected_time ?? new Date(entry.timestamp_created).toLocaleTimeString(dateLocale, { hour: "2-digit", minute: "2-digit" })}
                       </span>
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5">
@@ -183,62 +185,62 @@ export const EntriesList = ({
       <Dialog open={!!selectedEntry} onOpenChange={() => setSelectedEntry(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-lg">🩺 Migräne-Eintrag Details</DialogTitle>
+            <DialogTitle className="text-lg">🩺 {t('entry.details')}</DialogTitle>
           </DialogHeader>
 
           {selectedEntry && (
             <div className="space-y-3 text-sm">
-              <p><strong>📅 Datum:</strong> {formatDate(selectedEntry.selected_date || selectedEntry.timestamp_created)}</p>
-              <p><strong>⏰ Uhrzeit:</strong> {selectedEntry.selected_time ?? new Date(selectedEntry.timestamp_created).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}</p>
+              <p><strong>📅 {t('time.date')}:</strong> {formatDate(selectedEntry.selected_date || selectedEntry.timestamp_created)}</p>
+              <p><strong>⏰ {t('time.time')}:</strong> {selectedEntry.selected_time ?? new Date(selectedEntry.timestamp_created).toLocaleTimeString(dateLocale, { hour: "2-digit", minute: "2-digit" })}</p>
               
-              <p><strong>🩺 Migräne-Intensität:</strong> {formatPainLevel(selectedEntry.pain_level)}</p>
+              <p><strong>🩺 {t('pain.intensity')}:</strong> {formatPainLevel(selectedEntry.pain_level)}</p>
               
               {(selectedEntry as any).aura_type && (selectedEntry as any).aura_type !== "keine" && (
-                <p><strong>✨ Aura:</strong> {formatAuraType((selectedEntry as any).aura_type)}</p>
+                <p><strong>✨ {t('aura.title')}:</strong> {formatAuraType((selectedEntry as any).aura_type)}</p>
               )}
               
               {(selectedEntry as any).pain_locations && (selectedEntry as any).pain_locations.length > 0 && (
-                <p><strong>📍 Lokalisation:</strong> {(selectedEntry as any).pain_locations.map(formatPainLocation).join(', ')}</p>
+                <p><strong>📍 {t('pain.localisation')}:</strong> {(selectedEntry as any).pain_locations.map(formatPainLocation).join(', ')}</p>
               )}
 
               <p>
-                <strong>💊 Medikamente:</strong>{" "}
+                <strong>💊 {t('medication.medications')}:</strong>{" "}
                 {formatMedicationsWithDose(selectedEntry, entryIntakes)}
               </p>
 
-              <p><strong>🧩 Symptome:</strong> {symptomNames.length ? symptomNames.join(", ") : "Keine"}</p>
+              <p><strong>🧩 {t('symptoms.title')}:</strong> {symptomNames.length ? symptomNames.join(", ") : t('common.none')}</p>
 
               {selectedEntry.notes && (
-                <p><strong>📝 Auslöser / Notiz:</strong> {selectedEntry.notes}</p>
+                <p><strong>📝 {t('analysis.triggers')} / {t('voice.note')}:</strong> {selectedEntry.notes}</p>
               )}
 
               {selectedEntry.weather?.moon_phase != null && (
-                <p><strong>🌙 Mondphase:</strong> {formatMoonPhase(selectedEntry.weather.moon_phase)}</p>
+                <p><strong>🌙 {t('moon.phase')}:</strong> {formatMoonPhase(selectedEntry.weather.moon_phase)}</p>
               )}
 
               {selectedEntry.weather && (
                 <div className="mt-4 pt-3 border-t">
                   <p className="font-medium mb-3 flex items-center gap-2">
                     <CloudSun className="h-5 w-5 text-primary" />
-                    Wetterdaten
+                    {t('weather.data')}
                   </p>
                   
                   <div className="space-y-2 text-sm">
                     <div className="flex items-center gap-2">
                       <Thermometer className="h-4 w-4 text-orange-500 shrink-0" />
-                      <span className="text-muted-foreground min-w-[140px]">Temperatur:</span>
+                      <span className="text-muted-foreground min-w-[140px]">{t('weather.temperature')}:</span>
                       <span className="font-medium">{selectedEntry.weather.temperature_c ?? "-"}°C</span>
                     </div>
                     
                     <div className="flex items-center gap-2">
                       <Droplets className="h-4 w-4 text-blue-500 shrink-0" />
-                      <span className="text-muted-foreground min-w-[140px]">Luftfeuchtigkeit:</span>
+                      <span className="text-muted-foreground min-w-[140px]">{t('weather.humidity')}:</span>
                       <span className="font-medium">{selectedEntry.weather.humidity ?? "-"}%</span>
                     </div>
                     
                     <div className="flex items-center gap-2">
                       <Gauge className="h-4 w-4 text-purple-500 shrink-0" />
-                      <span className="text-muted-foreground min-w-[140px]">Luftdruck:</span>
+                      <span className="text-muted-foreground min-w-[140px]">{t('weather.pressure')}:</span>
                       <span className="font-medium">{selectedEntry.weather.pressure_mb ?? "-"} hPa</span>
                     </div>
                     
@@ -250,14 +252,14 @@ export const EntriesList = ({
                       ) : (
                         <ArrowRight className="h-4 w-4 text-gray-500 shrink-0" />
                       )}
-                      <span className="text-muted-foreground min-w-[140px]">Luftdrucktrend:</span>
+                      <span className="text-muted-foreground min-w-[140px]">{t('weather.pressureTrend')}:</span>
                       <span className="font-medium">
                         {selectedEntry.weather.pressure_change_24h != null ? (
                           <>
                             {selectedEntry.weather.pressure_change_24h > 0 ? "+" : ""}
                             {selectedEntry.weather.pressure_change_24h.toFixed(1)} hPa
                             {Math.abs(selectedEntry.weather.pressure_change_24h) > 3 && (
-                              <span className="ml-2 text-orange-600">⚠️ Stark</span>
+                              <span className="ml-2 text-orange-600">⚠️ {t('common.strong')}</span>
                             )}
                           </>
                         ) : "-"}
@@ -266,17 +268,16 @@ export const EntriesList = ({
                     
                     <div className="flex items-center gap-2">
                       <MapPin className="h-4 w-4 text-green-500 shrink-0" />
-                      <span className="text-muted-foreground min-w-[140px]">Ort:</span>
-                      <span className="font-medium truncate">{selectedEntry.weather.location || "Unbekannt"}</span>
+                      <span className="text-muted-foreground min-w-[140px]">{t('weather.location')}:</span>
+                      <span className="font-medium truncate">{selectedEntry.weather.location || t('common.unknown')}</span>
                     </div>
                   </div>
                   
-                  {/* Migräne-Trigger-Warnung */}
                   {selectedEntry.weather.pressure_change_24h != null && Math.abs(selectedEntry.weather.pressure_change_24h) > 3 && (
                     <div className="mt-3 p-2 bg-orange-500/10 border border-orange-500/30 rounded-md flex items-start gap-2">
                       <AlertCircle className="h-4 w-4 text-orange-500 shrink-0 mt-0.5" />
                       <p className="text-xs text-orange-600">
-                        Starke Luftdruckänderung kann Migräne auslösen
+                        {t('weather.pressureWarning')}
                       </p>
                     </div>
                   )}
@@ -289,14 +290,14 @@ export const EntriesList = ({
             {selectedEntry && (
               <>
                 <Button variant="secondary" onClick={() => { onEdit(selectedEntry); setSelectedEntry(null); }}>
-                  ✏️ Bearbeiten
+                  ✏️ {t('common.edit')}
                 </Button>
                 <Button variant="destructive" onClick={() => handleDeleteClick(selectedEntry.id)}>
-                  🗑️ Löschen
+                  🗑️ {t('common.delete')}
                 </Button>
               </>
             )}
-            <Button onClick={() => setSelectedEntry(null)}>Schließen</Button>
+            <Button onClick={() => setSelectedEntry(null)}>{t('common.close')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -305,8 +306,8 @@ export const EntriesList = ({
         open={deleteConfirmOpen}
         onOpenChange={setDeleteConfirmOpen}
         onConfirm={handleDeleteConfirm}
-        title="Eintrag löschen"
-        description="Möchtest du diesen Migräne-Eintrag wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden."
+        title={t('entry.delete')}
+        description={t('entry.deleteConfirm')}
         isDeleting={isDeleting}
       />
       
@@ -318,7 +319,7 @@ export const EntriesList = ({
           onClick={() => setLimit(prev => prev + 50)}
         >
           {isLoading ? (
-            <span className="animate-pulse">Lädt...</span>
+            <span className="animate-pulse">{t('common.loading')}</span>
           ) : (
             <span className="tracking-widest">···</span>
           )}

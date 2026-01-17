@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { WelcomeModal } from "./WelcomeModal";
 import { QuickEntryModal } from "./QuickEntryModal";
 import { StartPageCard, StartPageCardHeader, StartPageButtonGrid, SectionHeader, CardBadge } from "@/components/ui/start-page-card";
@@ -57,6 +58,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   onNavigate,
   onLimitWarning,
 }) => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { needsOnboarding, completeOnboarding, isLoading: onboardingLoading } = useOnboarding();
   const [showQuickEntry, setShowQuickEntry] = useState(false);
@@ -95,7 +97,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         sttConfidence: 0.95,
         source: 'voice'
       });
-      toast.success('Voice-Notiz gespeichert');
+      toast.success(t('voice.voiceNoteSaved'));
       setShowVoiceNoteReview(false);
       setPendingVoiceNote('');
       window.dispatchEvent(new Event('voice-note-saved'));
@@ -113,16 +115,16 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         await createReminder.mutateAsync(data);
       }
       
-      toast.success('Erinnerung erstellt', {
-        description: 'Die Erinnerung wurde erfolgreich gespeichert'
+      toast.success(t('reminder.created'), {
+        description: t('reminder.createdDesc')
       });
       
       setShowReminderForm(false);
       setPrefilledReminderData(null);
     } catch (error) {
       devError('Error creating reminder:', error, { context: 'MainMenu' });
-      toast.error('Fehler', {
-        description: 'Erinnerung konnte nicht erstellt werden'
+      toast.error(t('error.general'), {
+        description: t('reminder.createError')
       });
     }
   };
@@ -133,13 +135,13 @@ export const MainMenu: React.FC<MainMenuProps> = ({
     <div className="min-h-screen bg-background px-4 pb-6 sm:px-6 sm:pb-8 flex flex-col relative">
       <div className="flex-1 flex flex-col justify-start max-w-md mx-auto w-full">
         
-        {/* HEADER - ruhiger, mehr Abstand */}
+        {/* HEADER */}
         <header className="text-center pt-6 pb-8 sm:pt-8 sm:pb-10">
           <h1 className="text-2xl sm:text-3xl font-light text-foreground tracking-tight">
-            Migräne-App
+            {t('app.name')}
           </h1>
           <p className="text-muted-foreground text-sm mt-2 max-w-[260px] mx-auto">
-            Dokumentiere deine Migräne und erkenne Muster.
+            {t('app.tagline')}
           </p>
         </header>
 
@@ -151,8 +153,8 @@ export const MainMenu: React.FC<MainMenuProps> = ({
 
         <div className="space-y-2 w-full">
           
-          {/* SCHNELL ERFASSEN - Hauptbereich */}
-          <SectionHeader title="Schnell erfassen" className="mt-0" />
+          {/* SCHNELL ERFASSEN */}
+          <SectionHeader title={t('sections.quickEntry')} className="mt-0" />
           
           <div className="space-y-3">
             {/* 1) SPRACHEINGABE - Hero Card */}
@@ -164,8 +166,8 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               <StartPageCardHeader
                 icon={<Mic className="w-5 h-5 text-voice" />}
                 iconBgClassName="bg-voice-light/30"
-                title="Spracheingabe"
-                subtitle="Sag alles, was gerade passiert"
+                title={t('mainMenu.voiceInput')}
+                subtitle={t('mainMenu.voiceSubtitle')}
               />
             </StartPageCard>
 
@@ -178,8 +180,8 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               <StartPageCardHeader
                 icon="➕"
                 iconBgClassName="bg-success/25"
-                title="Migräne-Eintrag (Detail)"
-                subtitle="Ausführliche Dokumentation"
+                title={t('mainMenu.detailEntry')}
+                subtitle={t('mainMenu.detailSubtitle')}
               />
             </StartPageCard>
 
@@ -192,8 +194,8 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               <StartPageCardHeader
                 icon="⚡"
                 iconBgClassName="bg-destructive/25"
-                title="Schnell-Eintrag (kurz)"
-                subtitle="Schmerz jetzt festhalten"
+                title={t('mainMenu.quickEntry')}
+                subtitle={t('mainMenu.quickSubtitle')}
               />
             </StartPageCard>
 
@@ -206,15 +208,15 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               <StartPageCardHeader
                 icon="✨"
                 iconBgClassName="bg-muted"
-                title="Alltag & Auslöser"
-                subtitle="Schlaf, Stress, Stimmung & mehr"
+                title={t('mainMenu.contextEntry')}
+                subtitle={t('mainMenu.contextSubtitle')}
               />
             </StartPageCard>
 
           </div>
 
           {/* MEDIKAMENTE */}
-          <SectionHeader title="Medikamente" />
+          <SectionHeader title={t('sections.medications')} />
           
           <div className="space-y-3">
             {/* Hauptkarte: Medikamenten-Wirkung */}
@@ -227,8 +229,8 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               <StartPageCardHeader
                 icon="💊"
                 iconBgClassName="bg-warning/30"
-                title="Medikamenten-Wirkung"
-                subtitle="Wirksamkeit bewerten"
+                title={t('medication.effectRating')}
+                subtitle={t('medication.rateEffect')}
               />
               {unratedMedsCount > 0 && (
                 <span className="absolute top-2 right-2 min-w-[20px] h-5 px-1.5 flex items-center justify-center text-xs font-semibold bg-destructive text-destructive-foreground rounded-full">
@@ -247,7 +249,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 <StartPageCardHeader
                   icon="📋"
                   iconBgClassName="bg-muted"
-                  title="Medikamente"
+                  title={t('medication.medications')}
                 />
               </StartPageCard>
 
@@ -259,14 +261,14 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 <StartPageCardHeader
                   icon="⚠️"
                   iconBgClassName="bg-muted"
-                  title="Übergebrauch"
+                  title={t('medication.overuse')}
                 />
               </StartPageCard>
             </StartPageButtonGrid>
           </div>
 
           {/* TAGEBUCH & AUSWERTUNGEN */}
-          <SectionHeader title="Tagebuch & Auswertungen" />
+          <SectionHeader title={t('sections.diary')} />
           
           <div className="space-y-3">
             <StartPageButtonGrid columns={2} gap="md">
@@ -278,7 +280,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 <StartPageCardHeader
                   icon="📖"
                   iconBgClassName="bg-muted"
-                  title="Einträge & Verlauf"
+                  title={t('entry.entriesAndHistory')}
                 />
               </StartPageCard>
 
@@ -290,7 +292,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 <StartPageCardHeader
                   icon="📊"
                   iconBgClassName="bg-muted"
-                  title="Auswertung"
+                  title={t('analysis.title')}
                 />
               </StartPageCard>
             </StartPageButtonGrid>
@@ -304,13 +306,13 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               <StartPageCardHeader
                 icon="📝"
                 iconBgClassName="bg-muted"
-                title="Kopfschmerztagebuch erstellen"
+                title={t('report.diaryReport')}
               />
             </StartPageCard>
           </div>
 
-          {/* ORGANISATION - ganz unten, kleiner */}
-          <SectionHeader title="Organisation" />
+          {/* ORGANISATION */}
+          <SectionHeader title={t('sections.organization')} />
           
           <StartPageButtonGrid columns={2} gap="md">
             <StartPageCard 
@@ -323,7 +325,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               <StartPageCardHeader
                 icon="⏰"
                 iconBgClassName="bg-background/50"
-                title="Erinnerungen"
+                title={t('reminder.reminders')}
               />
               {reminderBadgeCount > 0 && (
                 <span className="absolute top-2 right-2 min-w-[20px] h-5 px-1.5 flex items-center justify-center text-xs font-semibold bg-destructive text-destructive-foreground rounded-full">
@@ -341,7 +343,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               <StartPageCardHeader
                 icon="⚙️"
                 iconBgClassName="bg-background/50"
-                title="Einstellungen"
+                title={t('settings.title')}
               />
             </StartPageCard>
           </StartPageButtonGrid>
@@ -386,7 +388,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {prefilledReminderData?.type === 'medication' ? '💊' : '📅'} Erinnerung erstellen
+              {prefilledReminderData?.type === 'medication' ? '💊' : '📅'} {t('reminder.create')}
             </DialogTitle>
           </DialogHeader>
           
@@ -429,7 +431,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         open={showVoiceAssistant}
         onOpenChange={setShowVoiceAssistant}
         onSavePainEntry={async (data) => {
-          // DIRECT SAVE - no form opening (Schnelleintrag)
           const now = new Date();
           const payload: {
             selected_date: string;
@@ -440,16 +441,16 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           } = {
             selected_date: data.date || format(now, 'yyyy-MM-dd'),
             selected_time: data.time || format(now, 'HH:mm'),
-            pain_level: data.painLevel ?? 5, // Numeric 0-10 scale
+            pain_level: data.painLevel ?? 5,
             medications: data.medications?.map(m => m.name) || [],
             notes: data.notes || ''
           };
           
           try {
             await createEntryMut.mutateAsync(payload);
-            toast.success('Eintrag gespeichert', {
+            toast.success(t('entry.saved'), {
               action: {
-                label: 'Bearbeiten',
+                label: t('common.edit'),
                 onClick: () => {
                   onNavigate?.('diary-timeline');
                 }
@@ -457,7 +458,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             });
           } catch (error) {
             devError('Error saving voice entry:', error, { context: 'MainMenu' });
-            toast.error('Fehler beim Speichern');
+            toast.error(t('error.saveFailed'));
           }
         }}
         onSaveContextNote={async (text, _timestamp) => {
@@ -467,9 +468,9 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               sttConfidence: 0.95,
               source: 'voice'
             });
-            toast.success('Notiz gespeichert', {
+            toast.success(t('voice.noteSaved'), {
               action: {
-                label: 'Ansehen',
+                label: t('voice.view'),
                 onClick: () => {
                   onNavigate?.('voice-notes');
                 }
@@ -477,7 +478,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             });
           } catch (error) {
             devError('Error saving context note:', error, { context: 'MainMenu' });
-            toast.error('Fehler beim Speichern');
+            toast.error(t('error.saveFailed'));
           }
         }}
       />
