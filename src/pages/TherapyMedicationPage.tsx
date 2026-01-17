@@ -271,9 +271,17 @@ export function TherapyMedicationPage({ onBack, onEditEntry }: TherapyMedication
     });
   }, [allEntries, from, to]);
   
-  // Calculate KPIs
+  // Calculate KPIs - KRITISCH: Distinct Schmerztage, nicht Einträge!
   const kpis = useMemo(() => {
-    const painDays = filteredEntries.length;
+    // SCHMERZTAGE = distinct Kalendertage mit mindestens einem Eintrag
+    const painDaysSet = new Set<string>();
+    filteredEntries.forEach(entry => {
+      const dateKey = entry.selected_date || entry.timestamp_created?.split('T')[0];
+      if (dateKey) painDaysSet.add(dateKey);
+    });
+    const painDays = painDaysSet.size;
+    
+    // Normiert auf 30 Tage
     const painDaysPerMonth = days >= 30 
       ? formatNumberSmart((painDays / days) * 30) 
       : painDays;
@@ -281,48 +289,50 @@ export function TherapyMedicationPage({ onBack, onEditEntry }: TherapyMedication
     // Average pain intensity
     const painLevels = filteredEntries
       .map(e => normalizePainLevel(e.pain_level))
-      .filter((l): l is number => l !== null);
+      .filter((l): l is number => l !== null && l > 0);
     const avgIntensity = painLevels.length > 0
       ? painLevels.reduce((a, b) => a + b, 0) / painLevels.length
       : 0;
     
-    // Triptan usage
-    let triptanDays = 0;
-    let acuteMedDays = 0;
-    const triptanSet = new Set<string>();
-    const acuteSet = new Set<string>();
+    // TRIPTAN-EINNAHMEN = Anzahl Medikamente die "triptan" im Namen haben
+    let triptanIntakes = 0;
+    let acuteMedIntakes = 0;
+    const triptanDaysSet = new Set<string>();
+    const acuteDaysSet = new Set<string>();
     
     filteredEntries.forEach(entry => {
       const dateKey = entry.selected_date || entry.timestamp_created?.split('T')[0];
-      let hasTriptan = false;
-      let hasAcute = false;
       
       entry.medications?.forEach(med => {
+        // Triptan-Erkennung: Prüfe ob "triptan" im Namen enthalten ist
         if (isTriptanMedication(med)) {
-          hasTriptan = true;
-          triptanSet.add(dateKey);
+          triptanIntakes++;
+          if (dateKey) triptanDaysSet.add(dateKey);
         }
-        hasAcute = true;
-        acuteSet.add(dateKey);
+        acuteMedIntakes++;
+        if (dateKey) acuteDaysSet.add(dateKey);
       });
     });
     
-    triptanDays = triptanSet.size;
-    acuteMedDays = acuteSet.size;
+    const triptanDays = triptanDaysSet.size;
+    const acuteMedDays = acuteDaysSet.size;
     
+    // Normiert auf 30 Tage
     const triptanPerMonth = days >= 30 
-      ? formatNumberSmart((triptanDays / days) * 30) 
-      : triptanDays;
+      ? formatNumberSmart((triptanIntakes / days) * 30) 
+      : triptanIntakes;
     const acutePerMonth = days >= 30 
-      ? formatNumberSmart((acuteMedDays / days) * 30) 
-      : acuteMedDays;
+      ? formatNumberSmart((acuteMedIntakes / days) * 30) 
+      : acuteMedIntakes;
     
     return {
       painDays,
       painDaysPerMonth,
       avgIntensity: formatNumberSmart(avgIntensity),
+      triptanIntakes,
       triptanDays,
       triptanPerMonth,
+      acuteMedIntakes,
       acuteMedDays,
       acutePerMonth,
       days
@@ -414,27 +424,29 @@ export function TherapyMedicationPage({ onBack, onEditEntry }: TherapyMedication
           
           <div className="grid grid-cols-2 gap-3">
             <KPICard
-              label="Schmerztage"
-              value={`${kpis.painDays} / ${kpis.days}`}
-              subValue={`Ø ${kpis.painDaysPerMonth} pro Monat`}
+              label="Ø Schmerztage / Monat"
+              value={kpis.painDaysPerMonth}
+              subValue={`${kpis.painDays} von ${kpis.days} Tagen`}
               icon={Calendar}
+              highlight={Number(kpis.painDaysPerMonth) >= 15}
             />
             <KPICard
-              label="Ø Intensität"
-              value={`${kpis.avgIntensity} / 10`}
-              icon={Activity}
-            />
-            <KPICard
-              label="Triptantage"
-              value={kpis.triptanDays}
-              subValue={`Ø ${kpis.triptanPerMonth} pro Monat`}
+              label="Ø Triptane / Monat"
+              value={kpis.triptanPerMonth}
+              subValue={`${kpis.triptanIntakes} Einnahmen gesamt`}
               icon={Pill}
               highlight={Number(kpis.triptanPerMonth) >= 10}
             />
             <KPICard
+              label="Ø Intensität"
+              value={`${kpis.avgIntensity} / 10`}
+              subValue="NRS-Skala"
+              icon={Activity}
+            />
+            <KPICard
               label="Akutmedikation"
-              value={kpis.acuteMedDays}
-              subValue={`Ø ${kpis.acutePerMonth} pro Monat`}
+              value={kpis.acutePerMonth}
+              subValue={`${kpis.acuteMedIntakes} Einnahmen`}
               icon={TrendingUp}
               highlight={Number(kpis.acutePerMonth) >= 15}
             />
