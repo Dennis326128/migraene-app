@@ -285,7 +285,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               <StartPageCardHeader
                 icon="📖"
                 iconBgClassName="bg-primary/20"
-                title="Verlauf"
+                title="Verlauf & Kalender"
               />
             </StartPageCard>
           </div>
