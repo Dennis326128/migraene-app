@@ -1290,7 +1290,195 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // ANMERKUNGEN DES PATIENTEN (optional)
+  // ÄRZTLICHE KERNÜBERSICHT (höchste Priorität - IMMER ganz oben)
+  // Die zwei kritischen Kennzahlen für jeden Arzt:
+  // 1. Ø Kopfschmerztage / 30 Tage
+  // 2. Ø Triptan-Einnahmen / 30 Tage
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  {
+    // Berechne Schmerztage (distinct Tage mit mindestens einem Eintrag)
+    const painDaysSet = new Set<string>();
+    const triptanIntakesCount = { total: 0 };
+    const acuteIntakesCount = { total: 0 };
+    
+    // Triptan-Erkennung: Prüft ob "triptan" im Namen enthalten ist
+    const isTriptan = (name: string): boolean => {
+      const lower = name.toLowerCase();
+      if (lower.includes('triptan')) return true;
+      // Bekannte Handelsnamen
+      const triptanBrands = ['imigran', 'maxalt', 'ascotop', 'naramig', 'almogran', 'relpax', 'allegro'];
+      return triptanBrands.some(brand => lower.includes(brand));
+    };
+    
+    entries.forEach(entry => {
+      // Schmerztag zählen
+      const date = entry.selected_date || entry.timestamp_created?.split('T')[0] || '';
+      if (date) {
+        painDaysSet.add(date);
+      }
+      
+      // Medikamenten-Einnahmen zählen
+      if (entry.medications && entry.medications.length > 0) {
+        entry.medications.forEach(med => {
+          if (isTriptan(med)) {
+            triptanIntakesCount.total++;
+          }
+          acuteIntakesCount.total++;
+        });
+      }
+    });
+    
+    const painDays = painDaysSet.size;
+    
+    // Normierung auf 30 Tage
+    const painDaysPerMonth = daysCount > 0 
+      ? Math.round((painDays / daysCount) * 30 * 10) / 10
+      : 0;
+    const triptanPerMonth = daysCount > 0 
+      ? Math.round((triptanIntakesCount.total / daysCount) * 30 * 10) / 10
+      : 0;
+    
+    // Durchschnittliche Schmerzintensität
+    const validPainLevels = entries
+      .map(e => painLevelToNumericValue(e.pain_level))
+      .filter(l => l > 0);
+    const avgIntensity = validPainLevels.length > 0
+      ? Math.round(validPainLevels.reduce((a, b) => a + b, 0) / validPainLevels.length * 10) / 10
+      : 0;
+    
+    yPos = drawSectionHeader(page, "ARZTLICHE KERNUBERSICHT", yPos, fontBold, 13);
+    
+    // Hinweis auf Berechnungsgrundlage
+    page.drawText(`Berechnet aus ${daysCount} Tagen, normiert auf 30 Tage/Monat`, {
+      x: LAYOUT.margin,
+      y: yPos,
+      size: 8,
+      font,
+      color: COLORS.textLight,
+    });
+    yPos -= 18;
+    
+    // Große Kennzahlen-Box
+    const kpiBoxHeight = 70;
+    page.drawRectangle({
+      x: LAYOUT.margin,
+      y: yPos - kpiBoxHeight,
+      width: LAYOUT.pageWidth - 2 * LAYOUT.margin,
+      height: kpiBoxHeight,
+      color: rgb(0.96, 0.98, 1.0),
+      borderColor: COLORS.primary,
+      borderWidth: 1.5,
+    });
+    
+    const boxPadding = 15;
+    const kpiY = yPos - boxPadding;
+    const colWidth = (LAYOUT.pageWidth - 2 * LAYOUT.margin - 2 * boxPadding) / 3;
+    
+    // KPI 1: Schmerztage pro Monat
+    page.drawText("Ø Schmerztage / Monat", {
+      x: LAYOUT.margin + boxPadding,
+      y: kpiY,
+      size: 9,
+      font: fontBold,
+      color: COLORS.text,
+    });
+    page.drawText(formatGermanDecimal(painDaysPerMonth, 1), {
+      x: LAYOUT.margin + boxPadding,
+      y: kpiY - 25,
+      size: 22,
+      font: fontBold,
+      color: painDaysPerMonth >= 15 ? rgb(0.8, 0.2, 0.2) : COLORS.primary,
+    });
+    page.drawText(`(${painDays} Tage in ${daysCount} Tagen)`, {
+      x: LAYOUT.margin + boxPadding,
+      y: kpiY - 42,
+      size: 8,
+      font,
+      color: COLORS.textLight,
+    });
+    
+    // KPI 2: Triptan-Einnahmen pro Monat
+    page.drawText("Ø Triptane / Monat", {
+      x: LAYOUT.margin + boxPadding + colWidth,
+      y: kpiY,
+      size: 9,
+      font: fontBold,
+      color: COLORS.text,
+    });
+    page.drawText(formatGermanDecimal(triptanPerMonth, 1), {
+      x: LAYOUT.margin + boxPadding + colWidth,
+      y: kpiY - 25,
+      size: 22,
+      font: fontBold,
+      color: triptanPerMonth >= 10 ? rgb(0.8, 0.2, 0.2) : COLORS.primary,
+    });
+    page.drawText(`(${triptanIntakesCount.total} Einnahmen gesamt)`, {
+      x: LAYOUT.margin + boxPadding + colWidth,
+      y: kpiY - 42,
+      size: 8,
+      font,
+      color: COLORS.textLight,
+    });
+    
+    // KPI 3: Durchschnittliche Intensität
+    page.drawText("Ø Schmerzintensitat", {
+      x: LAYOUT.margin + boxPadding + 2 * colWidth,
+      y: kpiY,
+      size: 9,
+      font: fontBold,
+      color: COLORS.text,
+    });
+    page.drawText(`${formatGermanDecimal(avgIntensity, 1)} / 10`, {
+      x: LAYOUT.margin + boxPadding + 2 * colWidth,
+      y: kpiY - 25,
+      size: 22,
+      font: fontBold,
+      color: COLORS.primary,
+    });
+    page.drawText("(NRS-Skala)", {
+      x: LAYOUT.margin + boxPadding + 2 * colWidth,
+      y: kpiY - 42,
+      size: 8,
+      font,
+      color: COLORS.textLight,
+    });
+    
+    yPos -= kpiBoxHeight + LAYOUT.sectionGap;
+    
+    // Warnhinweise bei Überschreitung
+    const warnings: string[] = [];
+    if (triptanPerMonth >= 10) {
+      warnings.push(`Triptantage >10/Monat (${formatGermanDecimal(triptanPerMonth, 1)}) - Hinweis auf mogliches Ubergebrauchsrisiko`);
+    }
+    if (painDaysPerMonth >= 15) {
+      warnings.push(`>15 Kopfschmerztage/Monat - entspricht Kriterien fur chronische Migrane`);
+    }
+    
+    if (warnings.length > 0) {
+      page.drawText("Auffälligkeiten:", {
+        x: LAYOUT.margin,
+        y: yPos,
+        size: 9,
+        font: fontBold,
+        color: rgb(0.7, 0.3, 0.1),
+      });
+      yPos -= 12;
+      
+      for (const warning of warnings) {
+        page.drawText(`• ${sanitizeForPDF(warning)}`, {
+          x: LAYOUT.margin + 5,
+          y: yPos,
+          size: 9,
+          font,
+          color: COLORS.text,
+        });
+        yPos -= 12;
+      }
+      yPos -= 8;
+    }
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   
   const trimmedPatientNotes = (patientNotes || "").trim();
@@ -2051,102 +2239,16 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // KONTEXT-ANHANG (nur wenn freeTextExportMode === 'notes_and_context')
+  // HINWEIS: Separate Kontextnotizen-Seite ENTFERNT
+  // Notizen werden jetzt INLINE in der Eintragstabelle angezeigt
+  // Dies entspricht der Anforderung: "Freitext existiert NUR als Teil eines Eintrags"
   // ═══════════════════════════════════════════════════════════════════════════
   
-  if (freeTextExportMode === 'notes_and_context' && entries.length > 0) {
-    // Finde Einträge mit langem Kontext (über 100 Zeichen = wahrscheinlich ausführlicher Kontext)
-    const entriesWithContext = entries.filter(e => {
-      return e.notes && e.notes.length > 100;
-    });
-    
-    if (entriesWithContext.length > 0) {
-      // Neue Seite für Kontext-Anhang
-      page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
-      yPos = LAYOUT.pageHeight - LAYOUT.margin;
-      
-      yPos = drawSectionHeader(page, "AUSFUHRLICHE KONTEXTNOTIZEN", yPos, fontBold, 13);
-      
-      page.drawText("Detaillierte Freitext-Notizen zu den Eintragen", {
-        x: LAYOUT.margin,
-        y: yPos,
-        size: 9,
-        font,
-        color: COLORS.textLight,
-      });
-      yPos -= 20;
-      
-      const sortedContextEntries = [...entriesWithContext].sort((a, b) => {
-        const dateA = new Date(a.selected_date || a.timestamp_created || '');
-        const dateB = new Date(b.selected_date || b.timestamp_created || '');
-        return dateB.getTime() - dateA.getTime();
-      });
-      
-      for (const entry of sortedContextEntries) {
-        // Platzcheck
-        if (yPos < LAYOUT.margin + 120) {
-          page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
-          yPos = LAYOUT.pageHeight - LAYOUT.margin;
-        }
-        
-        // Datum + Schmerzlevel
-        const dateTime = entry.selected_date && entry.selected_time
-          ? formatDateTimeGerman(entry.selected_date, entry.selected_time)
-          : formatDateTimeGerman(entry.timestamp_created || '');
-        const painText = formatPainLevel(entry.pain_level);
-        const medsText = formatMedicationsWithDose(entry.medications, entry.medication_intakes);
-        
-        // Überschrift für diesen Eintrag
-        page.drawText(`${dateTime} - Intensitat: ${painText}`, {
-          x: LAYOUT.margin,
-          y: yPos,
-          size: 10,
-          font: fontBold,
-          color: COLORS.primary,
-        });
-        yPos -= 14;
-        
-        // Medikamente
-        page.drawText(`Medikamente: ${sanitizeForPDF(medsText)}`, {
-          x: LAYOUT.margin,
-          y: yPos,
-          size: 9,
-          font,
-          color: COLORS.text,
-        });
-        yPos -= 16;
-        
-        // Kontext-Text
-        if (entry.notes) {
-          const contextLines = wrapText(entry.notes, LAYOUT.pageWidth - 2 * LAYOUT.margin - 10, 9, font);
-          for (const line of contextLines) {
-            if (yPos < LAYOUT.margin + 30) {
-              page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
-              yPos = LAYOUT.pageHeight - LAYOUT.margin;
-            }
-            page.drawText(sanitizeForPDF(line), {
-              x: LAYOUT.margin + 5,
-              y: yPos,
-              size: 9,
-              font,
-              color: COLORS.text,
-            });
-            yPos -= 12;
-          }
-        }
-        
-        // Trennlinie
-        yPos -= 5;
-        page.drawLine({
-          start: { x: LAYOUT.margin, y: yPos },
-          end: { x: LAYOUT.pageWidth - LAYOUT.margin, y: yPos },
-          thickness: 0.5,
-          color: COLORS.border,
-        });
-        yPos -= 15;
-      }
-    }
-  }
+  // Die freeTextExportMode === 'notes_and_context' Logik wurde entfernt.
+  // Stattdessen werden Notizen jetzt in drawTableRow() inline mit dem Eintrag angezeigt
+  // wenn freeTextExportMode nicht 'none' ist (siehe includeNotesInTable Flag oben).
+  
+  // (Alte separate Kontextnotizen-Seite wurde hier entfernt)
 
   // ═══════════════════════════════════════════════════════════════════════════
   // DIAGRAMME (Tageszeit-Verteilung & Schmerz-/Wetterverlauf)
