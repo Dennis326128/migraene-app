@@ -12,7 +12,7 @@
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Mic, X } from 'lucide-react';
+import { Mic } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -437,10 +437,7 @@ export function SimpleVoiceOverlay({
   // ============================================
   
   const renderIdleState = () => (
-    <div 
-      className="flex flex-col items-center justify-center h-full"
-      onClick={(e) => e.stopPropagation()}
-    >
+    <div className="flex flex-col items-center justify-center flex-1 pb-24">
       <button
         onClick={handleMicTap}
         className="w-32 h-32 rounded-full bg-primary/10 border-2 border-primary/30 flex items-center justify-center transition-all hover:bg-primary/20 hover:scale-105 active:scale-95 focus:outline-none"
@@ -462,10 +459,7 @@ export function SimpleVoiceOverlay({
   // ============================================
   
   const renderRecordingState = () => (
-    <div 
-      className="flex flex-col items-center justify-center h-full"
-      onClick={(e) => e.stopPropagation()}
-    >
+    <div className="flex flex-col items-center justify-center flex-1 pb-24">
       <button
         onClick={handleMicTap}
         className="relative w-32 h-32 focus:outline-none"
@@ -492,7 +486,7 @@ export function SimpleVoiceOverlay({
   // ============================================
 
   const renderProcessingState = () => (
-    <div className="flex flex-col items-center justify-center h-full">
+    <div className="flex flex-col items-center justify-center flex-1 pb-24">
       <div className="w-10 h-10 border-3 border-primary/30 border-t-primary rounded-full animate-spin" />
       <p className="mt-5 text-sm text-muted-foreground/60">{t('voice.understood')}</p>
     </div>
@@ -692,37 +686,30 @@ export function SimpleVoiceOverlay({
   // Main Render
   // ============================================
   
+  // Show cancel button in idle, recording, and processing states
+  const showCancelButton = state === 'idle' || state === 'recording' || state === 'processing';
+  
   return (
-    <div className="fixed inset-0 z-50 bg-background">
-      {/* Backdrop for closing on click outside */}
-      {(state === 'idle' || state === 'recording') && (
-        <button
-          onClick={handleClose}
-          className="absolute inset-0 w-full h-full cursor-default focus:outline-none"
-          aria-label={t('common.close')}
-        />
-      )}
-      
-      {/* Close button - always visible */}
-      <button
-        onClick={handleClose}
-        className="absolute top-4 right-4 z-10 w-12 h-12 rounded-full bg-muted/50 hover:bg-muted flex items-center justify-center transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30"
-        aria-label={t('common.close')}
-      >
-        <X className="w-6 h-6 text-muted-foreground" />
-      </button>
-      
-      {/* ESC hint for desktop - subtle */}
-      <div className="hidden md:block absolute top-6 left-1/2 -translate-x-1/2 text-xs text-muted-foreground/40">
-        ESC
-      </div>
-      
-      <div className="relative h-full flex flex-col">
+    <div className="fixed inset-0 z-50 bg-background flex flex-col">
+      {/* Main content area */}
+      <div className="flex-1 flex flex-col">
         {state === 'idle' && renderIdleState()}
         {state === 'recording' && renderRecordingState()}
         {state === 'processing' && renderProcessingState()}
         {state === 'review' && renderReviewState()}
       </div>
+      
+      {/* Bottom cancel button - large, clearly labeled, always visible */}
+      {showCancelButton && (
+        <div className="pb-safe px-6 pb-8">
+          <button
+            onClick={handleClose}
+            className="w-full h-14 rounded-xl bg-muted/50 hover:bg-muted text-muted-foreground text-base font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30"
+          >
+            {t('common.cancel')}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
