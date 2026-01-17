@@ -233,10 +233,11 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           {/* AUSWERTUNG - Tiefe Analyse */}
           <SectionHeader title={t('sections.analysis')} />
           
-          <div className="space-y-3">
-            {/* Bericht erstellen - jetzt Teil von Auswertung */}
+          <div className="space-y-2">
+            {/* Bericht erstellen */}
             <StartPageCard 
               variant="neutral" 
+              size="small"
               touchFeedback 
               onClick={() => onNavigate?.('diary-report-home')}
             >
@@ -247,8 +248,10 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               />
             </StartPageCard>
 
+            {/* Statistiken & Muster */}
             <StartPageCard 
               variant="neutral" 
+              size="small"
               touchFeedback 
               onClick={() => onNavigate?.('analysis')}
             >
@@ -259,6 +262,21 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               />
             </StartPageCard>
 
+            {/* Verlauf & Kalender */}
+            <StartPageCard 
+              variant="neutral" 
+              size="small"
+              touchFeedback 
+              onClick={() => onNavigate?.('diary-timeline')}
+            >
+              <StartPageCardHeader
+                icon="📖"
+                iconBgClassName="bg-primary/20"
+                title={t('mainMenu.historyAndCalendar')}
+              />
+            </StartPageCard>
+
+            {/* Medikamente verwalten */}
             <StartPageCard 
               variant="muted" 
               size="small"
@@ -269,23 +287,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 icon="📋"
                 iconBgClassName="bg-muted"
                 title={t('mainMenu.manageMedications')}
-              />
-            </StartPageCard>
-          </div>
-
-          {/* VERLAUF */}
-          <SectionHeader title={t('sections.history')} />
-          
-          <div className="space-y-3">
-            <StartPageCard 
-              variant="neutral" 
-              touchFeedback 
-              onClick={() => onNavigate?.('diary-timeline')}
-            >
-              <StartPageCardHeader
-                icon="📖"
-                iconBgClassName="bg-primary/20"
-                title={t('mainMenu.historyAndCalendar')}
               />
             </StartPageCard>
           </div>
