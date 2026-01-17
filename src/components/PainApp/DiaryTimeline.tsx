@@ -424,7 +424,7 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <h1 className="text-xl font-semibold flex-1">Kopfschmerztagebuch</h1>
+          <h1 className="text-xl font-semibold flex-1">Verlauf & Kalender</h1>
           <Badge variant="outline" className="text-xs">
             {filteredItems.length}
           </Badge>
