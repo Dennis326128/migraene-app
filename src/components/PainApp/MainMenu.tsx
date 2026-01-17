@@ -157,7 +157,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           <SectionHeader title={t('sections.quickEntry')} className="mt-0" />
           
           <div className="space-y-3">
-            {/* 1) SPRACHEINGABE - Hero Card */}
+            {/* 1) SPRACHEINGABE - volle Breite, Hero Card */}
             <StartPageCard 
               variant="voiceHighlight" 
               touchFeedback
@@ -171,7 +171,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               />
             </StartPageCard>
 
-            {/* 2) Migräne-Eintrag (Detail) */}
+            {/* 2) Migräne-Eintrag (Detail) - volle Breite */}
             <StartPageCard 
               variant="success" 
               touchFeedback 
@@ -185,35 +185,36 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               />
             </StartPageCard>
 
-            {/* 3) Schnell-Eintrag (kurz) */}
-            <StartPageCard 
-              variant="quick" 
-              touchFeedback 
-              onClick={() => setShowQuickEntry(true)}
-            >
-              <StartPageCardHeader
-                icon="⚡"
-                iconBgClassName="bg-destructive/25"
-                title={t('mainMenu.quickEntry')}
-                subtitle={t('mainMenu.quickSubtitle')}
-              />
-            </StartPageCard>
+            {/* 3+4) Zweispaltig: Schnell-Eintrag (akut, rot) + Alltag & Auslöser (ruhig) */}
+            <StartPageButtonGrid columns={2} gap="md">
+              <StartPageCard 
+                variant="quick" 
+                touchFeedback 
+                onClick={() => setShowQuickEntry(true)}
+              >
+                <StartPageCardHeader
+                  icon="⚡"
+                  iconBgClassName="bg-destructive/25"
+                  title={t('mainMenu.quickEntry')}
+                  subtitle={t('mainMenu.quickSubtitle')}
+                />
+              </StartPageCard>
 
-            {/* 4) Alltag & Auslöser */}
-            <StartPageCard 
-              variant="muted" 
-              touchFeedback 
-              onClick={() => setShowQuickContextNote(true)}
-            >
-              <StartPageCardHeader
-                icon="✨"
-                iconBgClassName="bg-muted"
-                title={t('mainMenu.contextEntry')}
-                subtitle={t('mainMenu.contextSubtitle')}
-              />
-            </StartPageCard>
+              <StartPageCard 
+                variant="muted" 
+                touchFeedback 
+                onClick={() => setShowQuickContextNote(true)}
+              >
+                <StartPageCardHeader
+                  icon="✨"
+                  iconBgClassName="bg-muted"
+                  title={t('mainMenu.contextEntry')}
+                  subtitle={t('mainMenu.contextSubtitle')}
+                />
+              </StartPageCard>
+            </StartPageButtonGrid>
 
-            {/* 5) Wirkung bewerten - volle Breite, Alltagsfunktion */}
+            {/* 5) Wirkung bewerten - volle Breite */}
             <StartPageCard 
               variant="warning" 
               touchFeedback 
@@ -232,24 +233,22 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 </span>
               )}
             </StartPageCard>
-
           </div>
 
-          {/* VERLAUF - Zentraler Alltagsbereich */}
-          <SectionHeader title="Verlauf" />
+          {/* BERICHT ERSTELLEN */}
+          <SectionHeader title="Bericht erstellen" />
           
           <div className="space-y-3">
-            {/* Hauptkarte: Verlauf (Liste & Kalender) */}
             <StartPageCard 
               variant="neutral" 
               touchFeedback 
-              onClick={() => onNavigate?.('diary-timeline')}
+              onClick={() => onNavigate?.('diary-report-home')}
             >
               <StartPageCardHeader
-                icon="📖"
-                iconBgClassName="bg-primary/20"
-                title="Verlauf"
-                subtitle="Liste & Kalender"
+                icon="📄"
+                iconBgClassName="bg-muted"
+                title="Bericht erstellen"
+                subtitle="Kopfschmerztagebuch · HIT-6 · PDF"
               />
             </StartPageCard>
           </div>
@@ -258,7 +257,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           <SectionHeader title="Auswertung" />
           
           <div className="space-y-3">
-            {/* Hauptkarte: Statistiken & Muster */}
             <StartPageCard 
               variant="neutral" 
               touchFeedback 
@@ -272,7 +270,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               />
             </StartPageCard>
 
-            {/* Medikamente-Verwaltung als sekundäre Karte */}
             <StartPageCard 
               variant="muted" 
               size="small"
@@ -287,21 +284,20 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             </StartPageCard>
           </div>
 
-          {/* BERICHT ERSTELLEN */}
-          <SectionHeader title="Bericht erstellen" />
+          {/* VERLAUF */}
+          <SectionHeader title="Verlauf" />
           
           <div className="space-y-3">
-            {/* Hauptkarte: Bericht erstellen navigiert zur Berichts-Übersicht */}
             <StartPageCard 
               variant="neutral" 
               touchFeedback 
-              onClick={() => onNavigate?.('diary-report-home')}
+              onClick={() => onNavigate?.('diary-timeline')}
             >
               <StartPageCardHeader
-                icon="📄"
-                iconBgClassName="bg-muted"
-                title="Bericht erstellen"
-                subtitle="Kopfschmerztagebuch · HIT-6 · PDF"
+                icon="📖"
+                iconBgClassName="bg-primary/20"
+                title="Verlauf"
+                subtitle="Liste & Kalender"
               />
             </StartPageCard>
           </div>
