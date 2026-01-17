@@ -7,9 +7,10 @@ import { SettingsHelp } from "./Settings/SettingsHelp";
 import { SettingsAccount } from "./Settings/SettingsAccount";
 import { SettingsDoctorsWithOrigin } from "./Settings/SettingsDoctorsWithOrigin";
 import { SettingsLogout } from "./Settings/SettingsLogout";
+import { SettingsLanguage } from "./Settings/SettingsLanguage";
 import { PWAInstallGuide } from "@/components/PWA";
 
-type SettingsSection = 'overview' | 'medications' | 'privacy' | 'help' | 'account' | 'doctors' | 'logout' | 'install';
+type SettingsSection = 'overview' | 'medications' | 'privacy' | 'help' | 'account' | 'doctors' | 'logout' | 'install' | 'language';
 
 const SettingsPage = ({ onBack }: { onBack: () => void }) => {
   const [section, setSection] = useState<SettingsSection>('overview');
@@ -31,13 +32,15 @@ const SettingsPage = ({ onBack }: { onBack: () => void }) => {
       case 'help':
         return 'Hilfe & Tutorial';
       case 'account':
-        return 'Kontoeinstellungen';
+        return 'Persönliche Daten';
       case 'doctors':
         return 'Behandelnde Ärzte';
       case 'logout':
         return 'Abmelden';
       case 'install':
         return 'App installieren';
+      case 'language':
+        return 'Sprache';
       default:
         return 'Einstellungen';
     }
@@ -59,6 +62,7 @@ const SettingsPage = ({ onBack }: { onBack: () => void }) => {
       )}
       {section === 'logout' && <SettingsLogout />}
       {section === 'install' && <PWAInstallGuide />}
+      {section === 'language' && <SettingsLanguage />}
     </SettingsLayout>
   );
 };
