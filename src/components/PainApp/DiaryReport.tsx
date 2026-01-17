@@ -21,7 +21,7 @@ import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { devLog, devWarn } from "@/lib/utils/devLogger";
 import { buildReportData, type ReportData, getEntryDate } from "@/lib/pdf/reportData";
-import { InfoTooltip } from "@/components/ui/info-tooltip";
+
 import { PremiumBadge } from "@/components/ui/premium-badge";
 import { useUserAISettings } from "@/features/draft-composer/hooks/useUserAISettings";
 import { useDiaryPreflight, PreflightWizardModal } from "@/features/diary/preflight";
@@ -1006,7 +1006,6 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
               label="Medikamente im PDF"
               checked={allMedications}
               onCheckedChange={setAllMedications}
-              subtext={allMedications ? "Alle Medikamente werden einbezogen" : "Auswahl treffen"}
             />
             
             {!allMedications && medOptions.length > 0 && (
@@ -1057,14 +1056,13 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
               label="Arztdaten einbinden"
               checked={includeDoctorData}
               onCheckedChange={setIncludeDoctorData}
-              subtext="Name, Adresse, Kontaktdaten des Arztes"
             />
           </div>
 
-          {/* Section 3: Einträge (Tabelle) */}
+          {/* Section 3: Einträge */}
           <div className="p-4">
             <ToggleRow
-              label="Einträge (Tabelle)"
+              label="Einträge"
               checked={includeEntriesList}
               onCheckedChange={setIncludeEntriesList}
             />
@@ -1073,21 +1071,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
           {/* Section: Weitere Optionen (Accordion) - standardmäßig eingeklappt */}
           <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
             <CollapsibleTrigger className="flex items-center justify-between w-full p-4 text-sm text-muted-foreground hover:text-foreground transition-colors">
-              <div className="flex items-center gap-2">
-                <span>Weitere Optionen</span>
-                {/* Badge wenn Optionen von Default abweichen */}
-                {(() => {
-                  const hasChanges = 
-                    !includeStats || 
-                    !includeAnalysis || 
-                    !includeTherapies || 
-                    !includeEntryNotes || 
-                    includeContextNotes;
-                  return hasChanges ? (
-                    <span className="text-xs text-primary">• geändert</span>
-                  ) : null;
-                })()}
-              </div>
+              <span>Weitere Optionen</span>
               {advancedOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
             </CollapsibleTrigger>
             <CollapsibleContent className="px-4 pb-4 space-y-0.5">
@@ -1096,31 +1080,16 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
                 checked={includeStats}
                 onCheckedChange={setIncludeStats}
               />
-              {/* Renamed: "KI-Analyse" -> "Automatische Auswertung" */}
-              <div className="flex items-center justify-between py-2.5">
-                <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                  <span className="text-sm">Automatische Auswertung</span>
-                  <InfoTooltip 
-                    content={
-                      <div className="space-y-1">
-                        <p>Erstellt Übersichten, Diagramme und eine Zusammenfassung aus deinen erfassten Daten.</p>
-                        <p className="text-xs text-muted-foreground italic">Keine medizinische Beratung.</p>
-                      </div>
-                    }
-                  />
-                </div>
-                <Switch 
-                  checked={includeAnalysis} 
-                  onCheckedChange={setIncludeAnalysis}
-                  className="ml-3 shrink-0"
-                />
-              </div>
               <ToggleRow
-                label="Therapien (Prophylaxe & Akut)"
+                label="Auswertung"
+                checked={includeAnalysis}
+                onCheckedChange={setIncludeAnalysis}
+              />
+              <ToggleRow
+                label="Therapien"
                 checked={includeTherapies}
                 onCheckedChange={setIncludeTherapies}
                 disabled={medicationCourses.length === 0}
-                subtext={medicationCourses.length === 0 ? "Keine Therapien vorhanden" : undefined}
               />
               <ToggleRow
                 label="Notizen aus Schmerzeinträgen"
@@ -1129,10 +1098,9 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
               />
               <div className="border-t border-border/30 pt-2 mt-2">
                 <ToggleRow
-                  label="Alle Kontextnotizen einbinden"
+                  label="Kontextnotizen"
                   checked={includeContextNotes}
                   onCheckedChange={setIncludeContextNotes}
-                  subtext="Zusätzliche Kontext-/Systemnotizen (kann PDF verlängern)"
                 />
               </div>
             </CollapsibleContent>
@@ -1158,42 +1126,27 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
               />
             </div>
             
-            {/* Status Display - Calm & Clear */}
-            <div className="mt-2 pl-6 space-y-1">
-              {isGeneratingAIReport ? (
-                <p className="text-xs text-muted-foreground">KI-Bericht wird erstellt…</p>
-              ) : isAIDisabled ? (
-                <p className="text-xs text-muted-foreground">KI ist in den Einstellungen deaktiviert.</p>
-              ) : isQuotaExhausted ? (
-                <>
-                  <p className="text-xs text-muted-foreground">Monatliches Kontingent aktuell ausgeschöpft</p>
-                  <p className="text-xs text-muted-foreground/70">
-                    Nächste Analyse verfügbar ab{" "}
-                    <span className="text-foreground/80">
-                      {(() => {
-                        const now = new Date();
-                        const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-                        return nextMonth.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
-                      })()}
-                    </span>
+            {/* Status Display - Minimal */}
+            {(isGeneratingAIReport || isAIDisabled || isQuotaExhausted || premiumAIError) && (
+              <div className="mt-2 pl-6">
+                {isGeneratingAIReport ? (
+                  <p className="text-xs text-muted-foreground">Wird erstellt…</p>
+                ) : isAIDisabled ? (
+                  <p className="text-xs text-muted-foreground">KI deaktiviert</p>
+                ) : isQuotaExhausted ? (
+                  <p className="text-xs text-muted-foreground">
+                    Verfügbar ab{" "}
+                    {(() => {
+                      const now = new Date();
+                      const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+                      return nextMonth.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                    })()}
                   </p>
-                </>
-              ) : quotaData?.isUnlimited ? (
-                <>
-                  <p className="text-xs text-muted-foreground">Analyse verfügbar</p>
-                  <p className="text-xs text-amber-500/70 font-medium">✦ Unbegrenzt</p>
-                </>
-              ) : (
-                <>
-                  <p className="text-xs text-muted-foreground">Analyse verfügbar</p>
-                  <p className="text-xs text-muted-foreground/60">Monatliche KI-Analyse</p>
-                </>
-              )}
-              
-              {premiumAIError && !isQuotaExhausted && !isAIDisabled && (
-                <p className="text-xs text-muted-foreground">{premiumAIError}</p>
-              )}
-            </div>
+                ) : premiumAIError ? (
+                  <p className="text-xs text-muted-foreground">{premiumAIError}</p>
+                ) : null}
+              </div>
+            )}
           </div>
         </Card>
       </div>
