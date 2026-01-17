@@ -63,7 +63,9 @@
     "quickEntry": "Quick entry",
     "medications": "Medicines",
     "diary": "Diary & Analysis",
-    "organization": "Organization"
+    "organization": "Organization",
+    "analysis": "Analysis",
+    "history": "History"
   },
   
   "entry": {
@@ -366,7 +368,59 @@
     "quickEntry": "Quick entry",
     "quickSubtitle": "Record pain now",
     "contextEntry": "Daily life & Triggers",
-    "contextSubtitle": "Sleep, stress, mood & more"
+    "contextSubtitle": "Sleep, stress, mood & more",
+    "rateEffect": "Rate effect",
+    "createReport": "Create report",
+    "statsAndPatterns": "Statistics & Patterns",
+    "manageMedications": "Manage medicines",
+    "historyAndCalendar": "History & Calendar"
+  },
+
+  "sections": {
+    "quickEntry": "Quick entry",
+    "medications": "Medicines",
+    "diary": "Diary & Analysis",
+    "organization": "Organization",
+    "analysis": "Analysis",
+    "history": "History"
+  },
+
+  "diary": {
+    "painDays": "Pain days",
+    "triptans": "Triptans",
+    "avgIntensity": "Avg. intensity",
+    "list": "List",
+    "calendar": "Calendar",
+    "show": "Show",
+    "all": "All",
+    "pain": "Pain",
+    "context": "Context"
+  },
+
+  "pdfReport": {
+    "title": "Headache Diary (PDF)",
+    "medicationsInPdf": "Medications in PDF",
+    "includeDoctorData": "Include doctor data",
+    "entries": "Entries",
+    "moreOptions": "More options",
+    "statsAndCharts": "Statistics & Charts",
+    "analysis": "Analysis",
+    "therapies": "Therapies",
+    "entryNotes": "Notes from pain entries",
+    "contextNotes": "Context notes",
+    "aiReport": "AI Analysis Report (Premium)",
+    "aiReportGenerating": "Generating…",
+    "aiDisabled": "AI disabled",
+    "aiQuotaExhausted": "Monthly quota currently exhausted",
+    "aiAvailableFrom": "Available from",
+    "aiAnalysisAvailable": "Analysis available",
+    "aiMonthlyAnalysis": "Monthly AI analysis",
+    "aiError": "AI report could not be created",
+    "aiErrorGeneric": "Error creating AI report",
+    "createPdf": "Create PDF",
+    "exportCsv": "Export CSV",
+    "medicationPlan": "Medication plan",
+    "hit6Pdf": "HIT-6 (PDF)"
   },
   
   "symptoms": {

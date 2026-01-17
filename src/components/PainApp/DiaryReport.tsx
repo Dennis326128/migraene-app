@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/lib/supabaseClient";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -103,6 +104,7 @@ const DEFAULT_SETTINGS: Omit<ReportSettingsState, 'customStart' | 'customEnd'> =
 };
 
 export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void; onNavigate?: (target: string) => void }) {
+  const { t } = useTranslation();
   const today = useMemo(() => new Date(), []);
   const queryClient = useQueryClient();
   

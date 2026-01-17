@@ -220,7 +220,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               <StartPageCardHeader
                 icon="💊"
                 iconBgClassName="bg-warning/30"
-                title="Wirkung bewerten"
+                title={t('mainMenu.rateEffect')}
               />
               {unratedMedsCount > 0 && (
                 <span className="absolute top-2 right-2 min-w-[20px] h-5 px-1.5 flex items-center justify-center text-xs font-semibold bg-destructive text-destructive-foreground rounded-full">
@@ -231,7 +231,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           </div>
 
           {/* AUSWERTUNG - Tiefe Analyse */}
-          <SectionHeader title="Auswertung" />
+          <SectionHeader title={t('sections.analysis')} />
           
           <div className="space-y-3">
             {/* Bericht erstellen - jetzt Teil von Auswertung */}
@@ -243,7 +243,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               <StartPageCardHeader
                 icon="📄"
                 iconBgClassName="bg-muted"
-                title="Bericht erstellen"
+                title={t('mainMenu.createReport')}
               />
             </StartPageCard>
 
@@ -255,7 +255,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               <StartPageCardHeader
                 icon="📊"
                 iconBgClassName="bg-muted"
-                title="Statistiken & Muster"
+                title={t('mainMenu.statsAndPatterns')}
               />
             </StartPageCard>
 
@@ -268,13 +268,13 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               <StartPageCardHeader
                 icon="📋"
                 iconBgClassName="bg-muted"
-                title="Medikamente verwalten"
+                title={t('mainMenu.manageMedications')}
               />
             </StartPageCard>
           </div>
 
           {/* VERLAUF */}
-          <SectionHeader title="Verlauf" />
+          <SectionHeader title={t('sections.history')} />
           
           <div className="space-y-3">
             <StartPageCard 
@@ -285,7 +285,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               <StartPageCardHeader
                 icon="📖"
                 iconBgClassName="bg-primary/20"
-                title="Verlauf & Kalender"
+                title={t('mainMenu.historyAndCalendar')}
               />
             </StartPageCard>
           </div>
