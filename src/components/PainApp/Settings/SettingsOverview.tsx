@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next";
 import { FeedbackSheet } from "@/components/Feedback";
 import { usePWAInstall } from "@/hooks/usePWAInstall";
 import { useLanguage } from "@/hooks/useLanguage";
-import { LanguageBottomSheet } from "./LanguageBottomSheet";
+import { LanguageModal } from "./LanguageModal";
 
 interface SettingsOverviewProps {
   onNavigate: (section: 'medications' | 'privacy' | 'help' | 'account' | 'doctors' | 'logout' | 'install') => void;
@@ -173,8 +173,8 @@ export const SettingsOverview = ({ onNavigate }: SettingsOverviewProps) => {
       {/* Feedback Sheet */}
       <FeedbackSheet open={showFeedback} onOpenChange={setShowFeedback} />
       
-      {/* Language Bottom Sheet */}
-      <LanguageBottomSheet open={showLanguageSheet} onOpenChange={setShowLanguageSheet} />
+      {/* Language Modal */}
+      <LanguageModal open={showLanguageSheet} onOpenChange={setShowLanguageSheet} />
     </div>
   );
 };
