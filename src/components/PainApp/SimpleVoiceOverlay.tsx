@@ -12,7 +12,7 @@
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Mic } from 'lucide-react';
+import { Mic, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -401,9 +401,30 @@ export function SimpleVoiceOverlay({
   }, [effectiveType]);
 
   const handleClose = useCallback(() => {
+    clearAllTimers();
     stopRecording();
+    setState('idle');
+    setParsedResult(null);
+    setOverriddenType(null);
+    committedTextRef.current = '';
+    hasSpokenRef.current = false;
     onOpenChange(false);
-  }, [stopRecording, onOpenChange]);
+  }, [clearAllTimers, stopRecording, onOpenChange]);
+  
+  // ESC key support for desktop
+  useEffect(() => {
+    if (!open) return;
+    
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        handleClose();
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [open, handleClose]);
   
   // ============================================
   // Don't render if not open
@@ -673,6 +694,7 @@ export function SimpleVoiceOverlay({
   
   return (
     <div className="fixed inset-0 z-50 bg-background">
+      {/* Backdrop for closing on click outside */}
       {(state === 'idle' || state === 'recording') && (
         <button
           onClick={handleClose}
@@ -680,6 +702,20 @@ export function SimpleVoiceOverlay({
           aria-label={t('common.close')}
         />
       )}
+      
+      {/* Close button - always visible */}
+      <button
+        onClick={handleClose}
+        className="absolute top-4 right-4 z-10 w-12 h-12 rounded-full bg-muted/50 hover:bg-muted flex items-center justify-center transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30"
+        aria-label={t('common.close')}
+      >
+        <X className="w-6 h-6 text-muted-foreground" />
+      </button>
+      
+      {/* ESC hint for desktop - subtle */}
+      <div className="hidden md:block absolute top-6 left-1/2 -translate-x-1/2 text-xs text-muted-foreground/40">
+        ESC
+      </div>
       
       <div className="relative h-full flex flex-col">
         {state === 'idle' && renderIdleState()}
