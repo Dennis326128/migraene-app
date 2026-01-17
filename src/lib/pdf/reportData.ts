@@ -6,10 +6,16 @@
  * Dieses Modul stellt sicher, dass alle Bereiche des PDF-Reports 
  * (Auswertung, Zusammenfassung, Medikamenten-Statistik) dieselbe 
  * Datengrundlage verwenden.
+ * 
+ * STRUKTUR gemäß reportStructure.ts:
+ * - Ärztliche Kernkennzahlen (normiert auf 30 Tage)
+ * - Akutmedikation mit Triptan-Erkennung
+ * - Regelbasierte Auffälligkeiten
  */
 
 import type { PainEntry, MedicationIntakeInfo } from "@/types/painApp";
 import { parseISO, startOfDay, endOfDay, isWithinInterval, subDays, differenceInDays } from "date-fns";
+import { isTriptanMedication, MEDICATION_THRESHOLDS } from "./reportStructure";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -29,6 +35,19 @@ export interface AcuteMedicationStat {
   last30Units: number;             // Einnahmen in letzten 30 Tagen
   avgEffectiveness: number | null; // 0-10 Skala, null wenn keine Bewertungen
   ratedCount: number;              // Anzahl Bewertungen
+  isTriptan: boolean;              // Triptan-Erkennung für ärztliche Übersicht
+}
+
+/**
+ * Ärztliche Kernkennzahlen (normiert auf 30 Tage)
+ * Gemäß ZIELSTRUKTUR Abschnitt 2: "Ärztliche Kernübersicht"
+ */
+export interface CoreMedicalKPIs {
+  headacheDaysPerMonth: number;    // Ø Kopfschmerztage pro Monat (normiert)
+  triptanDaysPerMonth: number;     // Ø Triptantage pro Monat (normiert)
+  avgIntensity: number;            // Ø Schmerzintensität (NRS 0-10)
+  totalAttacks: number;            // Gesamtzahl Attacken im Zeitraum
+  daysWithMedication: number;      // Tage mit Medikation im Zeitraum
 }
 
 export interface ReportKPIs {
@@ -39,10 +58,21 @@ export interface ReportKPIs {
   daysInRange: number;             // Tage im Zeitraum
 }
 
+/**
+ * Regelbasierte Auffälligkeit für die statische Auswertung
+ */
+export interface RuleBasedInsight {
+  type: 'warning' | 'info' | 'pattern';
+  text: string;
+  severity: 'low' | 'medium' | 'high';
+}
+
 export interface ReportData {
   entries: PainEntry[];
   kpis: ReportKPIs;
+  coreKPIs: CoreMedicalKPIs;       // NEU: Ärztliche Kernkennzahlen
   acuteMedicationStats: AcuteMedicationStat[];
+  ruleBasedInsights: RuleBasedInsight[]; // NEU: Statische Auffälligkeiten
   fromDate: string;
   toDate: string;
   generatedAt: string;
@@ -150,15 +180,23 @@ export function buildReportData(params: BuildReportDataParams): ReportData {
   
   // Distinct Tage mit Akutmedikation
   const daysWithAcuteMedSet = new Set<string>();
+  // Distinct Tage mit Triptan
+  const daysWithTriptanSet = new Set<string>();
+  
   entries.forEach(entry => {
     if (entry.medications && entry.medications.length > 0) {
       const date = getEntryDate(entry);
       if (date) {
         daysWithAcuteMedSet.add(date);
+        // Prüfe auf Triptan
+        if (entry.medications.some(med => isTriptanMedication(med))) {
+          daysWithTriptanSet.add(date);
+        }
       }
     }
   });
   const daysWithAcuteMedication = daysWithAcuteMedSet.size;
+  const daysWithTriptan = daysWithTriptanSet.size;
   
   const kpis: ReportKPIs = {
     totalAttacks,
@@ -166,6 +204,21 @@ export function buildReportData(params: BuildReportDataParams): ReportData {
     daysWithPain,
     daysWithAcuteMedication,
     daysInRange
+  };
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ÄRZTLICHE KERNKENNZAHLEN (normiert auf 30 Tage)
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  const headacheDaysPerMonth = Math.round((daysWithPain / daysInRange) * 30 * 10) / 10;
+  const triptanDaysPerMonth = Math.round((daysWithTriptan / daysInRange) * 30 * 10) / 10;
+  
+  const coreKPIs: CoreMedicalKPIs = {
+    headacheDaysPerMonth,
+    triptanDaysPerMonth,
+    avgIntensity: kpis.avgIntensity,
+    totalAttacks,
+    daysWithMedication: daysWithAcuteMedication
   };
   
   // ═══════════════════════════════════════════════════════════════════════════
@@ -245,11 +298,77 @@ export function buildReportData(params: BuildReportDataParams): ReportData {
         avgPerMonth,
         last30Units: Math.round(data.last30Units * 10) / 10,
         avgEffectiveness,
-        ratedCount: data.effectScores.length
+        ratedCount: data.effectScores.length,
+        isTriptan: isTriptanMedication(name)
       };
     })
     .sort((a, b) => b.last30Units - a.last30Units || b.totalUnitsInRange - a.totalUnitsInRange)
     .slice(0, 5); // Top 5
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // REGELBASIERTE AUFFÄLLIGKEITEN
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  const ruleBasedInsights: RuleBasedInsight[] = [];
+  
+  // Triptan-Übergebrauch prüfen
+  if (triptanDaysPerMonth > MEDICATION_THRESHOLDS.triptanDaysPerMonth) {
+    ruleBasedInsights.push({
+      type: 'warning',
+      text: `Triptantage >10/Monat (${triptanDaysPerMonth.toFixed(1)}) - mogliches Ubergebrauchsrisiko`,
+      severity: 'high'
+    });
+  }
+  
+  // Akutmedikations-Übergebrauch prüfen
+  const acuteMedDaysPerMonth = Math.round((daysWithAcuteMedication / daysInRange) * 30 * 10) / 10;
+  if (acuteMedDaysPerMonth > MEDICATION_THRESHOLDS.acuteMedDaysPerMonth) {
+    ruleBasedInsights.push({
+      type: 'warning',
+      text: `Akutmedikationstage >15/Monat (${acuteMedDaysPerMonth.toFixed(1)}) - Hinweis auf moglichen Ubergebrauch`,
+      severity: 'high'
+    });
+  }
+  
+  // Chronische Migräne prüfen
+  if (headacheDaysPerMonth >= MEDICATION_THRESHOLDS.chronicMigraineThreshold) {
+    ruleBasedInsights.push({
+      type: 'info',
+      text: `>=${MEDICATION_THRESHOLDS.chronicMigraineThreshold} Kopfschmerztage/Monat - entspricht Kriterien fur chronische Migrane`,
+      severity: 'medium'
+    });
+  }
+  
+  // Tageszeit-Muster erkennen
+  const hourCounts = new Array(24).fill(0);
+  entries.forEach(entry => {
+    if (entry.selected_time) {
+      const hour = parseInt(entry.selected_time.split(':')[0], 10);
+      if (!isNaN(hour)) hourCounts[hour]++;
+    }
+  });
+  const morningCount = hourCounts.slice(5, 10).reduce((a, b) => a + b, 0);
+  const eveningCount = hourCounts.slice(17, 23).reduce((a, b) => a + b, 0);
+  const totalWithTime = hourCounts.reduce((a, b) => a + b, 0);
+  
+  if (totalWithTime > 5) {
+    if (morningCount / totalWithTime > 0.5) {
+      ruleBasedInsights.push({
+        type: 'pattern',
+        text: `Haufung von Attacken morgens zwischen 5-10 Uhr (${Math.round(morningCount / totalWithTime * 100)}%)`,
+        severity: 'low'
+      });
+    } else if (eveningCount / totalWithTime > 0.5) {
+      ruleBasedInsights.push({
+        type: 'pattern',
+        text: `Haufung von Attacken abends zwischen 17-23 Uhr (${Math.round(eveningCount / totalWithTime * 100)}%)`,
+        severity: 'low'
+      });
+    }
+  }
+  
+  // Max 5 Insights
+  const limitedInsights = ruleBasedInsights.slice(0, 5);
   
   // ═══════════════════════════════════════════════════════════════════════════
   // SANITY CHECKS (dev-only)
@@ -283,14 +402,18 @@ export function buildReportData(params: BuildReportDataParams): ReportData {
     console.log('[ReportData] Built successfully:', {
       totalAttacks: kpis.totalAttacks,
       daysInRange: kpis.daysInRange,
-      acuteMedsCount: acuteMedicationStats.length
+      acuteMedsCount: acuteMedicationStats.length,
+      coreKPIs,
+      insightsCount: limitedInsights.length
     });
   }
   
   return {
     entries,
     kpis,
+    coreKPIs,
     acuteMedicationStats,
+    ruleBasedInsights: limitedInsights,
     fromDate,
     toDate,
     generatedAt: new Date().toISOString()
