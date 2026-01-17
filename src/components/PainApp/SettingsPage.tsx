@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { SettingsLayout } from "./Settings/SettingsLayout";
 import { SettingsOverview } from "./Settings/SettingsOverview";
 import { SettingsMedications } from "./Settings/SettingsMedications";
@@ -9,10 +10,11 @@ import { SettingsDoctorsWithOrigin } from "./Settings/SettingsDoctorsWithOrigin"
 import { SettingsLogout } from "./Settings/SettingsLogout";
 import { PWAInstallGuide } from "@/components/PWA";
 
-// Language is now handled via bottom sheet, no full page needed
+// Language is now handled via modal, no full page needed
 type SettingsSection = 'overview' | 'medications' | 'privacy' | 'help' | 'account' | 'doctors' | 'logout' | 'install';
 
 const SettingsPage = ({ onBack }: { onBack: () => void }) => {
+  const { t } = useTranslation();
   const [section, setSection] = useState<SettingsSection>('overview');
 
   const handleBack = () => {
@@ -26,21 +28,21 @@ const SettingsPage = ({ onBack }: { onBack: () => void }) => {
   const getTitle = () => {
     switch (section) {
       case 'medications':
-        return 'Medikamente';
+        return t('medication.medications');
       case 'privacy':
-        return 'Datenschutz & Sicherheit';
+        return t('settings.privacy');
       case 'help':
-        return 'Hilfe & Tutorial';
+        return t('settings.help');
       case 'account':
-        return 'Persönliche Daten';
+        return t('settings.account');
       case 'doctors':
-        return 'Behandelnde Ärzte';
+        return t('doctor.doctors');
       case 'logout':
-        return 'Abmelden';
+        return t('auth.logout');
       case 'install':
-        return 'App installieren';
+        return t('settings.installApp');
       default:
-        return 'Einstellungen';
+        return t('settings.title');
     }
   };
 

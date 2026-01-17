@@ -20,13 +20,16 @@
     "no": "No",
     "ok": "OK",
     "optional": "optional",
-    "required": "required"
+    "required": "required",
+    "none": "None",
+    "unknown": "Unknown",
+    "strong": "Strong"
   },
   
   "app": {
     "name": "Migraine App",
     "loading": "Loading...",
-    "tagline": "Your migraine diary"
+    "tagline": "Track your migraines and discover patterns."
   },
   
   "auth": {
@@ -74,15 +77,22 @@
     "deleteError": "Couldn't delete entry",
     "noEntries": "No entries yet",
     "noEntriesHint": "Create your first entry",
+    "noEntriesDesc": "Your entries will appear here. Create your first entry to get started.",
     "entriesAndHistory": "Entries & History",
-    "viewAll": "View, edit, or delete all entries."
+    "viewAll": "View, edit, or delete all entries.",
+    "details": "Entry Details",
+    "createFirst": "Create first entry",
+    "loading": "Loading entries...",
+    "loadError": "Couldn't load entries."
   },
   
   "pain": {
     "level": "Pain level",
     "selectLevel": "How bad is the pain?",
     "location": "Pain location",
+    "localisation": "Location",
     "selectLocation": "Where does it hurt?",
+    "intensity": "Migraine intensity",
     "locations": {
       "leftSide": "Left side",
       "rightSide": "Right side",
@@ -143,9 +153,11 @@
     "add": "Add reminder",
     "edit": "Edit reminder",
     "delete": "Delete reminder",
+    "create": "Create reminder",
     "created": "Reminder created",
     "createdDesc": "Reminder saved",
     "deleted": "Reminder deleted",
+    "createError": "Couldn't create reminder",
     "time": "Time",
     "repeat": "Repeat",
     "daily": "Daily",
@@ -176,7 +188,8 @@
     "website": "Website",
     "websiteOptional": "Website (optional)",
     "noDoctors": "No doctors",
-    "addFirst": "Add your first doctor"
+    "addFirst": "Add your first doctor",
+    "salutation": "Title"
   },
   
   "analysis": {
@@ -196,31 +209,48 @@
   
   "weather": {
     "title": "Weather",
+    "data": "Weather data",
     "pressure": "Air pressure",
+    "pressureTrend": "Pressure trend",
     "pressureWarning": "Large pressure change may trigger migraine",
     "temperature": "Temperature",
-    "humidity": "Humidity"
+    "humidity": "Humidity",
+    "location": "Location"
   },
   
   "voice": {
     "title": "Voice note",
+    "input": "Voice input",
     "tapToSpeak": "Tap to speak",
+    "speakAgain": "Speak again",
     "listening": "Listening...",
     "processing": "Processing...",
+    "understood": "Understood",
     "sayAnything": "Say what's happening",
     "notRecognized": "Not recognized",
+    "notUnderstood": "Not quite understood",
+    "chooseAction": "Choose an action:",
     "tryAgain": "Try again",
     "voiceCommands": "Voice commands",
     "examples": "Examples of what you can say",
     "note": "Note",
     "notes": "Notes",
-    "saveNote": "Save note"
+    "saveNote": "Save note",
+    "noteSaved": "Note saved",
+    "voiceNoteSaved": "Voice note saved",
+    "recording": "Recording...",
+    "recordEffect": "Record effect",
+    "view": "View",
+    "questionNotUnderstood": "Question not understood",
+    "questionNotUnderstoodDesc": "I couldn't understand your question. Try being more specific."
   },
   
   "settings": {
     "title": "Settings",
-    "account": "Account",
+    "account": "Personal Data",
     "profile": "Profile",
+    "doctors": "Doctors",
+    "medications": "Medicines",
     "language": "Language",
     "languageHint": "You can change this anytime.",
     "languageAutoSet": "Set from your device",
@@ -228,12 +258,17 @@
     "languageChanged": "Language changed",
     "useDeviceLanguage": "Use device language",
     "notifications": "Notifications",
-    "privacy": "Privacy",
-    "help": "Help",
+    "privacy": "Privacy & Security",
+    "help": "Help & Tutorial",
     "about": "About",
     "version": "Version",
     "developer": "Developer",
-    "stringInventory": "String Inventory"
+    "stringInventory": "String Inventory",
+    "feedback": "Feedback",
+    "install": "Add to Home Screen",
+    "installed": "App installed",
+    "installApp": "Install app",
+    "helpText": "Have questions or issues? The app is continuously being improved. For technical issues, check Settings → Privacy & Security for support options."
   },
   
   "privacy": {
@@ -278,7 +313,10 @@
     "required": "This field is required",
     "invalidEmail": "Invalid email",
     "passwordTooShort": "Password must be at least 6 characters",
-    "passwordsDontMatch": "Passwords don't match"
+    "passwordsDontMatch": "Passwords don't match",
+    "passwordNeedsNumber": "Password must contain at least one number",
+    "termsRequired": "Terms must be accepted",
+    "privacyRequired": "Privacy policy must be accepted"
   },
   
   "error": {
@@ -314,6 +352,36 @@
   "consent": {
     "healthData": "Health data",
     "healthDataConsent": "I agree to the processing of my health data",
-    "medicalDisclaimer": "This app does not replace medical advice"
+    "medicalDisclaimer": "This app does not replace medical advice",
+    "disclaimerTitle": "IMPORTANT NOTICE",
+    "disclaimerText": "This app is for personal documentation only and does not replace medical advice, diagnosis, or treatment. Always consult a doctor for health concerns.",
+    "understood": "Understood"
+  },
+  
+  "mainMenu": {
+    "voiceInput": "Voice input",
+    "voiceSubtitle": "Say what's happening",
+    "detailEntry": "Migraine entry (detailed)",
+    "detailSubtitle": "Full documentation",
+    "quickEntry": "Quick entry",
+    "quickSubtitle": "Record pain now",
+    "contextEntry": "Daily life & Triggers",
+    "contextSubtitle": "Sleep, stress, mood & more"
+  },
+  
+  "symptoms": {
+    "title": "Symptoms"
+  },
+  
+  "moon": {
+    "phase": "Moon phase",
+    "newMoon": "New Moon",
+    "firstQuarter": "First Quarter",
+    "fullMoon": "Full Moon",
+    "lastQuarter": "Last Quarter",
+    "waxingCrescent": "Waxing Crescent",
+    "waxingGibbous": "Waxing Gibbous",
+    "waningGibbous": "Waning Gibbous",
+    "waningCrescent": "Waning Crescent"
   }
 }

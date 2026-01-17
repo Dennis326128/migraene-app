@@ -4,7 +4,7 @@
     "saving": "Speichern...",
     "cancel": "Abbrechen",
     "delete": "Löschen",
-    "deleting": "Löschen...",
+    "deleting": "Wird gelöscht...",
     "edit": "Bearbeiten",
     "back": "Zurück",
     "next": "Weiter",
@@ -20,13 +20,16 @@
     "no": "Nein",
     "ok": "OK",
     "optional": "optional",
-    "required": "erforderlich"
+    "required": "erforderlich",
+    "none": "Keine",
+    "unknown": "Unbekannt",
+    "strong": "Stark"
   },
   
   "app": {
     "name": "Migräne-App",
     "loading": "Migräne-App wird geladen...",
-    "tagline": "Dein Migräne-Tagebuch"
+    "tagline": "Dokumentiere deine Migräne und erkenne Muster."
   },
   
   "auth": {
@@ -57,7 +60,7 @@
   },
   
   "sections": {
-    "quickEntry": "Schnelleintrag",
+    "quickEntry": "Schnell erfassen",
     "medications": "Medikamente",
     "diary": "Tagebuch & Auswertungen",
     "organization": "Organisation"
@@ -74,15 +77,22 @@
     "deleteError": "Eintrag konnte nicht gelöscht werden",
     "noEntries": "Noch keine Einträge",
     "noEntriesHint": "Erstelle deinen ersten Eintrag",
+    "noEntriesDesc": "Deine Migräne-Einträge werden hier angezeigt. Erstelle deinen ersten Eintrag, um zu beginnen.",
     "entriesAndHistory": "Einträge & Verlauf",
-    "viewAll": "Alle Einträge ansehen, bearbeiten oder löschen."
+    "viewAll": "Alle Einträge ansehen, bearbeiten oder löschen.",
+    "details": "Migräne-Eintrag Details",
+    "createFirst": "Ersten Eintrag erstellen",
+    "loading": "Lade Einträge...",
+    "loadError": "Fehler beim Laden der Einträge."
   },
   
   "pain": {
     "level": "Schmerzstärke",
     "selectLevel": "Wie stark sind die Schmerzen?",
     "location": "Schmerzort",
+    "localisation": "Lokalisation",
     "selectLocation": "Wo tut es weh?",
+    "intensity": "Migräne-Intensität",
     "locations": {
       "leftSide": "Einseitig links",
       "rightSide": "Einseitig rechts",
@@ -143,9 +153,11 @@
     "add": "Erinnerung hinzufügen",
     "edit": "Erinnerung bearbeiten",
     "delete": "Erinnerung löschen",
+    "create": "Erinnerung erstellen",
     "created": "Erinnerung erstellt",
     "createdDesc": "Die Erinnerung wurde erfolgreich gespeichert",
     "deleted": "Erinnerung gelöscht",
+    "createError": "Erinnerung konnte nicht erstellt werden",
     "time": "Uhrzeit",
     "repeat": "Wiederholen",
     "daily": "Täglich",
@@ -176,7 +188,8 @@
     "website": "Website",
     "websiteOptional": "Website (optional)",
     "noDoctors": "Keine Ärzte",
-    "addFirst": "Füge deinen ersten Arzt hinzu"
+    "addFirst": "Füge deinen ersten Arzt hinzu",
+    "salutation": "Anrede"
   },
   
   "analysis": {
@@ -196,31 +209,48 @@
   
   "weather": {
     "title": "Wetter",
+    "data": "Wetterdaten",
     "pressure": "Luftdruck",
+    "pressureTrend": "Luftdrucktrend",
     "pressureWarning": "Starke Luftdruckänderung kann Migräne auslösen",
     "temperature": "Temperatur",
-    "humidity": "Luftfeuchtigkeit"
+    "humidity": "Luftfeuchtigkeit",
+    "location": "Ort"
   },
   
   "voice": {
     "title": "Sprachnotiz",
+    "input": "Spracheingabe",
     "tapToSpeak": "Tippe zum Sprechen",
+    "speakAgain": "Erneut sprechen",
     "listening": "Höre zu...",
     "processing": "Verarbeite...",
+    "understood": "Verstanden",
     "sayAnything": "Sag alles, was gerade passiert",
     "notRecognized": "Nicht erkannt",
+    "notUnderstood": "Nicht sicher verstanden",
+    "chooseAction": "Bitte wähle eine Aktion aus:",
     "tryAgain": "Versuche es erneut",
     "voiceCommands": "Sprachbefehle",
     "examples": "Beispiele, was du sagen kannst",
     "note": "Notiz",
     "notes": "Notizen",
-    "saveNote": "Notiz speichern"
+    "saveNote": "Notiz speichern",
+    "noteSaved": "Notiz gespeichert",
+    "voiceNoteSaved": "Voice-Notiz gespeichert",
+    "recording": "Aufnahme läuft...",
+    "recordEffect": "Wirkung einsprechen",
+    "view": "Ansehen",
+    "questionNotUnderstood": "Frage nicht verstanden",
+    "questionNotUnderstoodDesc": "Ich konnte deine Frage leider nicht zuordnen. Versuche es mit einer konkreteren Formulierung."
   },
   
   "settings": {
     "title": "Einstellungen",
-    "account": "Konto",
+    "account": "Persönliche Daten",
     "profile": "Profil",
+    "doctors": "Behandelnde Ärzte",
+    "medications": "Medikamente",
     "language": "Sprache",
     "languageHint": "Du kannst die Sprache jederzeit ändern.",
     "languageAutoSet": "Automatisch vom Gerät gesetzt",
@@ -228,12 +258,17 @@
     "languageChanged": "Sprache geändert",
     "useDeviceLanguage": "Gerätesprache verwenden",
     "notifications": "Benachrichtigungen",
-    "privacy": "Datenschutz",
-    "help": "Hilfe",
+    "privacy": "Datenschutz & Sicherheit",
+    "help": "Hilfe & Tutorial",
     "about": "Über die App",
     "version": "Version",
     "developer": "Entwickler",
-    "stringInventory": "String-Inventar"
+    "stringInventory": "String-Inventar",
+    "feedback": "Feedback",
+    "install": "Zum Home-Bildschirm",
+    "installed": "App installiert",
+    "installApp": "App installieren",
+    "helpText": "Hast du Fragen oder Probleme? Die App wird kontinuierlich weiterentwickelt. Bei technischen Problemen schaue bitte in die Einstellungen unter \"Datenschutz & Sicherheit\" für Support-Kontaktmöglichkeiten."
   },
   
   "privacy": {
@@ -278,7 +313,10 @@
     "required": "Dieses Feld ist erforderlich",
     "invalidEmail": "Ungültige E-Mail-Adresse",
     "passwordTooShort": "Passwort muss mindestens 6 Zeichen haben",
-    "passwordsDontMatch": "Passwörter stimmen nicht überein"
+    "passwordsDontMatch": "Passwörter stimmen nicht überein",
+    "passwordNeedsNumber": "Passwort muss mindestens eine Zahl enthalten",
+    "termsRequired": "AGB müssen akzeptiert werden",
+    "privacyRequired": "Datenschutzerklärung muss akzeptiert werden"
   },
   
   "error": {
@@ -314,6 +352,36 @@
   "consent": {
     "healthData": "Gesundheitsdaten",
     "healthDataConsent": "Ich stimme der Verarbeitung meiner Gesundheitsdaten zu",
-    "medicalDisclaimer": "Diese App ersetzt keine ärztliche Beratung"
+    "medicalDisclaimer": "Diese App ersetzt keine ärztliche Beratung",
+    "disclaimerTitle": "WICHTIGER HINWEIS",
+    "disclaimerText": "Diese App dient ausschließlich der persönlichen Dokumentation und ersetzt keine ärztliche Beratung, Diagnose oder Behandlung. Bei gesundheitlichen Beschwerden konsultieren Sie immer einen Arzt.",
+    "understood": "Verstanden"
+  },
+  
+  "mainMenu": {
+    "voiceInput": "Spracheingabe",
+    "voiceSubtitle": "Sag alles, was gerade passiert",
+    "detailEntry": "Migräne-Eintrag (Detail)",
+    "detailSubtitle": "Ausführliche Dokumentation",
+    "quickEntry": "Schnell-Eintrag (kurz)",
+    "quickSubtitle": "Schmerz jetzt festhalten",
+    "contextEntry": "Alltag & Auslöser",
+    "contextSubtitle": "Schlaf, Stress, Stimmung & mehr"
+  },
+  
+  "symptoms": {
+    "title": "Symptome"
+  },
+  
+  "moon": {
+    "phase": "Mondphase",
+    "newMoon": "Neumond",
+    "firstQuarter": "Erstes Viertel",
+    "fullMoon": "Vollmond",
+    "lastQuarter": "Letztes Viertel",
+    "waxingCrescent": "Zunehmender Sichelmond",
+    "waxingGibbous": "Zunehmender Mond",
+    "waningGibbous": "Abnehmender Mond",
+    "waningCrescent": "Abnehmender Sichelmond"
   }
 }
