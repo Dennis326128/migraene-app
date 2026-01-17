@@ -19,7 +19,7 @@ export const SettingsOverview = ({ onNavigate }: SettingsOverviewProps) => {
   const [showFeedback, setShowFeedback] = useState(false);
   const [showLanguageSheet, setShowLanguageSheet] = useState(false);
   const { canShowInstallPrompt, isStandalone } = usePWAInstall();
-  const { currentLanguage, isUserSet, languageNames } = useLanguage();
+  const { currentLanguage, languageNames } = useLanguage();
 
   // Build sections dynamically based on PWA install state
   const sections = [
@@ -158,12 +158,8 @@ export const SettingsOverview = ({ onNavigate }: SettingsOverviewProps) => {
             )}>
               {t('settings.language')}
             </h3>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              {!isUserSet ? t('settings.languageFromDevice') : t('settings.languageHint')}
-            </p>
           </div>
 
-          {/* Current language label */}
           <span className="text-sm text-muted-foreground mr-1">
             {languageNames[currentLanguage]}
           </span>

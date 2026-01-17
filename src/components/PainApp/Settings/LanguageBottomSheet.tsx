@@ -30,7 +30,7 @@ const LANGUAGE_OPTIONS: { value: SupportedLanguage; label: string; flag: string 
 
 export function LanguageBottomSheet({ open, onOpenChange }: LanguageBottomSheetProps) {
   const { t } = useTranslation();
-  const { currentLanguage, isUserSet, setLanguage } = useLanguage();
+  const { currentLanguage, setLanguage } = useLanguage();
 
   const handleSelect = (lang: SupportedLanguage) => {
     if (lang !== currentLanguage) {
@@ -47,12 +47,6 @@ export function LanguageBottomSheet({ open, onOpenChange }: LanguageBottomSheetP
       <DrawerContent className="pb-8">
         <DrawerHeader className="text-left pb-2">
           <DrawerTitle>{t('settings.language')}</DrawerTitle>
-          {/* Show hint if language was auto-detected from device */}
-          {!isUserSet && (
-            <p className="text-sm text-muted-foreground mt-1">
-              {t('settings.languageAutoSet')}
-            </p>
-          )}
         </DrawerHeader>
 
         <div className="px-4 space-y-2">
