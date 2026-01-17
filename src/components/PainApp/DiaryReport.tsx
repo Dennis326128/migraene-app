@@ -1179,7 +1179,10 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
                   </p>
                 </>
               ) : quotaData?.isUnlimited ? (
-                <p className="text-xs text-muted-foreground">Analyse verfügbar</p>
+                <>
+                  <p className="text-xs text-muted-foreground">Analyse verfügbar</p>
+                  <p className="text-xs text-amber-500/70 font-medium">✦ Unbegrenzt</p>
+                </>
               ) : (
                 <>
                   <p className="text-xs text-muted-foreground">Analyse verfügbar</p>
