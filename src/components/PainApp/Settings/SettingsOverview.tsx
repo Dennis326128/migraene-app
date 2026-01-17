@@ -3,17 +3,23 @@ import { ChevronRight, Pill, Shield, HelpCircle, User, Stethoscope, LogOut, Mess
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { FeedbackSheet } from "@/components/Feedback";
 import { usePWAInstall } from "@/hooks/usePWAInstall";
+import { useLanguage } from "@/hooks/useLanguage";
+import { LanguageBottomSheet } from "./LanguageBottomSheet";
 
 interface SettingsOverviewProps {
-  onNavigate: (section: 'medications' | 'privacy' | 'help' | 'account' | 'doctors' | 'logout' | 'install' | 'language') => void;
+  onNavigate: (section: 'medications' | 'privacy' | 'help' | 'account' | 'doctors' | 'logout' | 'install') => void;
 }
 
 export const SettingsOverview = ({ onNavigate }: SettingsOverviewProps) => {
+  const { t } = useTranslation();
   const isMobile = useIsMobile();
   const [showFeedback, setShowFeedback] = useState(false);
+  const [showLanguageSheet, setShowLanguageSheet] = useState(false);
   const { canShowInstallPrompt, isStandalone } = usePWAInstall();
+  const { currentLanguage, isUserSet, languageNames } = useLanguage();
 
   // Build sections dynamically based on PWA install state
   const sections = [
@@ -34,12 +40,6 @@ export const SettingsOverview = ({ onNavigate }: SettingsOverviewProps) => {
       icon: Pill,
       title: 'Medikamente',
       gradient: 'from-primary/10 to-primary/5',
-    },
-    {
-      id: 'language' as const,
-      icon: Globe,
-      title: 'Sprache',
-      gradient: 'from-indigo-500/10 to-indigo-500/5',
     },
     {
       id: 'privacy' as const,
@@ -130,9 +130,55 @@ export const SettingsOverview = ({ onNavigate }: SettingsOverviewProps) => {
           </Card>
         );
       })}
+
+      {/* Language Row - Special handling with bottom sheet */}
+      <Card
+        className={cn(
+          "p-5 cursor-pointer transition-all hover:shadow-lg active:scale-[0.98]",
+          "bg-gradient-to-br from-indigo-500/10 to-indigo-500/5",
+          isMobile && "p-4"
+        )}
+        onClick={() => setShowLanguageSheet(true)}
+      >
+        <div className="flex items-center gap-4">
+          <div className={cn(
+            "shrink-0 rounded-full bg-background p-3",
+            isMobile && "p-2"
+          )}>
+            <Globe className={cn(
+              "text-foreground",
+              isMobile ? "h-5 w-5" : "h-6 w-6"
+            )} />
+          </div>
+          
+          <div className="flex-1 min-w-0">
+            <h3 className={cn(
+              "font-semibold text-foreground",
+              isMobile ? "text-base" : "text-lg"
+            )}>
+              {t('settings.language')}
+            </h3>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              {!isUserSet ? t('settings.languageFromDevice') : t('settings.languageHint')}
+            </p>
+          </div>
+
+          {/* Current language label */}
+          <span className="text-sm text-muted-foreground mr-1">
+            {languageNames[currentLanguage]}
+          </span>
+          <ChevronRight className={cn(
+            "shrink-0 text-muted-foreground",
+            isMobile ? "h-5 w-5" : "h-6 w-6"
+          )} />
+        </div>
+      </Card>
       
       {/* Feedback Sheet */}
       <FeedbackSheet open={showFeedback} onOpenChange={setShowFeedback} />
+      
+      {/* Language Bottom Sheet */}
+      <LanguageBottomSheet open={showLanguageSheet} onOpenChange={setShowLanguageSheet} />
     </div>
   );
 };
