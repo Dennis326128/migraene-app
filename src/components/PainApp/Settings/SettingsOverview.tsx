@@ -1,5 +1,5 @@
 import { Card } from "@/components/ui/card";
-import { ChevronRight, Pill, Shield, HelpCircle, User, Stethoscope, LogOut, MessageSquare, Smartphone, Globe } from "lucide-react";
+import { ChevronRight, Shield, HelpCircle, User, Stethoscope, LogOut, MessageSquare, Smartphone, Globe } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useState } from "react";
@@ -10,7 +10,7 @@ import { useLanguage } from "@/hooks/useLanguage";
 import { LanguageModal } from "./LanguageModal";
 
 interface SettingsOverviewProps {
-  onNavigate: (section: 'medications' | 'privacy' | 'help' | 'account' | 'doctors' | 'logout' | 'install') => void;
+  onNavigate: (section: 'privacy' | 'help' | 'account' | 'doctors' | 'logout' | 'install') => void;
 }
 
 export const SettingsOverview = ({ onNavigate }: SettingsOverviewProps) => {
@@ -22,6 +22,7 @@ export const SettingsOverview = ({ onNavigate }: SettingsOverviewProps) => {
   const { currentLanguage, languageNames } = useLanguage();
 
   // Build sections dynamically based on PWA install state
+  // Note: Medications removed - now only accessible from main app area (Single Source of Truth)
   const sections = [
     {
       id: 'account' as const,
@@ -34,12 +35,6 @@ export const SettingsOverview = ({ onNavigate }: SettingsOverviewProps) => {
       icon: Stethoscope,
       titleKey: 'doctor.doctors',
       gradient: 'from-green-500/10 to-green-500/5',
-    },
-    {
-      id: 'medications' as const,
-      icon: Pill,
-      titleKey: 'medication.medications',
-      gradient: 'from-primary/10 to-primary/5',
     },
     {
       id: 'privacy' as const,
