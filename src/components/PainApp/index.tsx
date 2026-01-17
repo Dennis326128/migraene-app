@@ -166,6 +166,8 @@ export const PainApp: React.FC = () => {
               setView('ai-reports');
             } else if (target === 'therapy-medication') {
               setView('therapy-medication');
+            } else if (target === 'hit6') {
+              setView('hit6');
             }
           }}
           onLimitWarning={handleLimitWarning}
