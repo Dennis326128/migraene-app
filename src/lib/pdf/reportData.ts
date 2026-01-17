@@ -40,39 +40,42 @@ export interface AcuteMedicationStat {
 
 /**
  * Ärztliche Kernkennzahlen (normiert auf 30 Tage)
- * Gemäß ZIELSTRUKTUR Abschnitt 2: "Ärztliche Kernübersicht"
+ * KRITISCH: triptanIntakesPerMonth = EINNAHMEN, nicht Tage!
  */
 export interface CoreMedicalKPIs {
-  headacheDaysPerMonth: number;    // Ø Kopfschmerztage pro Monat (normiert)
-  triptanDaysPerMonth: number;     // Ø Triptantage pro Monat (normiert)
-  avgIntensity: number;            // Ø Schmerzintensität (NRS 0-10)
-  totalAttacks: number;            // Gesamtzahl Attacken im Zeitraum
-  daysWithMedication: number;      // Tage mit Medikation im Zeitraum
+  headacheDaysPerMonth: number;       // Ø Schmerztage pro Monat (normiert)
+  triptanIntakesPerMonth: number;     // Ø Triptan-EINNAHMEN pro Monat (normiert) - NICHT Tage!
+  avgIntensity: number;               // Ø Schmerzintensität (NRS 0-10)
+  totalAttacks: number;               // Gesamtzahl Einträge im Zeitraum
+  daysWithMedication: number;         // Tage mit Medikation im Zeitraum
+  totalTriptanIntakes: number;        // Absolute Triptan-Einnahmen im Zeitraum
+  documentedDays: number;             // Anzahl dokumentierter Tage (für Anzeige)
 }
 
 export interface ReportKPIs {
-  totalAttacks: number;            // Gesamtzahl Attacken im Zeitraum
+  totalAttacks: number;            // Gesamtzahl Einträge im Zeitraum
   avgIntensity: number;            // Ø Schmerzintensität (0-10)
   daysWithPain: number;            // Distinct Tage mit Schmerzen
   daysWithAcuteMedication: number; // Distinct Tage mit Akutmedikation
   daysInRange: number;             // Tage im Zeitraum
+  totalTriptanIntakes: number;     // Triptan-EINNAHMEN (nicht Tage!)
 }
 
 /**
- * Regelbasierte Auffälligkeit für die statische Auswertung
+ * Sachliche Auffälligkeit für die Auswertung
+ * KEINE Warnungen, KEINE Diagnosen - nur Fakten
  */
-export interface RuleBasedInsight {
-  type: 'warning' | 'info' | 'pattern';
+export interface ObservationFact {
+  type: 'frequency' | 'pattern' | 'timing';
   text: string;
-  severity: 'low' | 'medium' | 'high';
 }
 
 export interface ReportData {
   entries: PainEntry[];
   kpis: ReportKPIs;
-  coreKPIs: CoreMedicalKPIs;       // NEU: Ärztliche Kernkennzahlen
+  coreKPIs: CoreMedicalKPIs;
   acuteMedicationStats: AcuteMedicationStat[];
-  ruleBasedInsights: RuleBasedInsight[]; // NEU: Statische Auffälligkeiten
+  observationFacts: ObservationFact[];  // Sachliche Auffälligkeiten (ohne Warnungen)
   fromDate: string;
   toDate: string;
   generatedAt: string;
@@ -178,47 +181,52 @@ export function buildReportData(params: BuildReportDataParams): ReportData {
   const daysWithPainSet = new Set(entries.map(e => getEntryDate(e)).filter(Boolean));
   const daysWithPain = daysWithPainSet.size;
   
-  // Distinct Tage mit Akutmedikation
+  // Distinct Tage mit Akutmedikation + TRIPTAN-EINNAHMEN zählen (nicht Tage!)
   const daysWithAcuteMedSet = new Set<string>();
-  // Distinct Tage mit Triptan
-  const daysWithTriptanSet = new Set<string>();
+  let totalTriptanIntakes = 0; // KRITISCH: Zähle EINNAHMEN, nicht Tage!
   
   entries.forEach(entry => {
     if (entry.medications && entry.medications.length > 0) {
       const date = getEntryDate(entry);
       if (date) {
         daysWithAcuteMedSet.add(date);
-        // Prüfe auf Triptan
-        if (entry.medications.some(med => isTriptanMedication(med))) {
-          daysWithTriptanSet.add(date);
-        }
       }
+      
+      // Zähle ALLE Triptan-Einnahmen (nicht nur Tage)
+      entry.medications.forEach(med => {
+        if (isTriptanMedication(med)) {
+          totalTriptanIntakes++;
+        }
+      });
     }
   });
   const daysWithAcuteMedication = daysWithAcuteMedSet.size;
-  const daysWithTriptan = daysWithTriptanSet.size;
   
   const kpis: ReportKPIs = {
     totalAttacks,
     avgIntensity: Math.round(avgIntensity * 10) / 10,
     daysWithPain,
     daysWithAcuteMedication,
-    daysInRange
+    daysInRange,
+    totalTriptanIntakes
   };
   
   // ═══════════════════════════════════════════════════════════════════════════
   // ÄRZTLICHE KERNKENNZAHLEN (normiert auf 30 Tage)
+  // KRITISCH: triptanIntakesPerMonth = EINNAHMEN, nicht Tage!
   // ═══════════════════════════════════════════════════════════════════════════
   
   const headacheDaysPerMonth = Math.round((daysWithPain / daysInRange) * 30 * 10) / 10;
-  const triptanDaysPerMonth = Math.round((daysWithTriptan / daysInRange) * 30 * 10) / 10;
+  const triptanIntakesPerMonth = Math.round((totalTriptanIntakes / daysInRange) * 30 * 10) / 10;
   
   const coreKPIs: CoreMedicalKPIs = {
     headacheDaysPerMonth,
-    triptanDaysPerMonth,
+    triptanIntakesPerMonth,
     avgIntensity: kpis.avgIntensity,
     totalAttacks,
-    daysWithMedication: daysWithAcuteMedication
+    daysWithMedication: daysWithAcuteMedication,
+    totalTriptanIntakes,
+    documentedDays: daysInRange
   };
   
   // ═══════════════════════════════════════════════════════════════════════════
@@ -306,36 +314,25 @@ export function buildReportData(params: BuildReportDataParams): ReportData {
     .slice(0, 5); // Top 5
   
   // ═══════════════════════════════════════════════════════════════════════════
-  // REGELBASIERTE AUFFÄLLIGKEITEN
+  // SACHLICHE AUFFÄLLIGKEITEN (ohne Warnungen/Diagnosen)
+  // Nur Fakten, die ein Arzt selbst interpretieren kann
   // ═══════════════════════════════════════════════════════════════════════════
   
-  const ruleBasedInsights: RuleBasedInsight[] = [];
+  const observationFacts: ObservationFact[] = [];
   
-  // Triptan-Übergebrauch prüfen
-  if (triptanDaysPerMonth > MEDICATION_THRESHOLDS.triptanDaysPerMonth) {
-    ruleBasedInsights.push({
-      type: 'warning',
-      text: `Triptantage >10/Monat (${triptanDaysPerMonth.toFixed(1)}) - mogliches Ubergebrauchsrisiko`,
-      severity: 'high'
+  // Hohe Kopfschmerzhäufigkeit (Fakt, keine Diagnose)
+  if (headacheDaysPerMonth >= 15) {
+    observationFacts.push({
+      type: 'frequency',
+      text: `Hohe Kopfschmerzhäufigkeit: ${headacheDaysPerMonth.toFixed(1)} Tage/Monat`
     });
   }
   
-  // Akutmedikations-Übergebrauch prüfen
-  const acuteMedDaysPerMonth = Math.round((daysWithAcuteMedication / daysInRange) * 30 * 10) / 10;
-  if (acuteMedDaysPerMonth > MEDICATION_THRESHOLDS.acuteMedDaysPerMonth) {
-    ruleBasedInsights.push({
-      type: 'warning',
-      text: `Akutmedikationstage >15/Monat (${acuteMedDaysPerMonth.toFixed(1)}) - Hinweis auf moglichen Ubergebrauch`,
-      severity: 'high'
-    });
-  }
-  
-  // Chronische Migräne prüfen
-  if (headacheDaysPerMonth >= MEDICATION_THRESHOLDS.chronicMigraineThreshold) {
-    ruleBasedInsights.push({
-      type: 'info',
-      text: `>=${MEDICATION_THRESHOLDS.chronicMigraineThreshold} Kopfschmerztage/Monat - entspricht Kriterien fur chronische Migrane`,
-      severity: 'medium'
+  // Hohe Triptan-Nutzung (Fakt, keine Warnung)
+  if (triptanIntakesPerMonth >= 10) {
+    observationFacts.push({
+      type: 'frequency',
+      text: `Häufige Triptan-Einnahme: Ø ${triptanIntakesPerMonth.toFixed(1)} Einnahmen/Monat`
     });
   }
   
@@ -353,22 +350,20 @@ export function buildReportData(params: BuildReportDataParams): ReportData {
   
   if (totalWithTime > 5) {
     if (morningCount / totalWithTime > 0.5) {
-      ruleBasedInsights.push({
-        type: 'pattern',
-        text: `Haufung von Attacken morgens zwischen 5-10 Uhr (${Math.round(morningCount / totalWithTime * 100)}%)`,
-        severity: 'low'
+      observationFacts.push({
+        type: 'timing',
+        text: `Häufung morgens (5-10 Uhr): ${Math.round(morningCount / totalWithTime * 100)}% der Einträge`
       });
     } else if (eveningCount / totalWithTime > 0.5) {
-      ruleBasedInsights.push({
-        type: 'pattern',
-        text: `Haufung von Attacken abends zwischen 17-23 Uhr (${Math.round(eveningCount / totalWithTime * 100)}%)`,
-        severity: 'low'
+      observationFacts.push({
+        type: 'timing',
+        text: `Häufung abends (17-23 Uhr): ${Math.round(eveningCount / totalWithTime * 100)}% der Einträge`
       });
     }
   }
   
-  // Max 5 Insights
-  const limitedInsights = ruleBasedInsights.slice(0, 5);
+  // Max 4 sachliche Beobachtungen
+  const limitedFacts = observationFacts.slice(0, 4);
   
   // ═══════════════════════════════════════════════════════════════════════════
   // SANITY CHECKS (dev-only)
@@ -404,7 +399,7 @@ export function buildReportData(params: BuildReportDataParams): ReportData {
       daysInRange: kpis.daysInRange,
       acuteMedsCount: acuteMedicationStats.length,
       coreKPIs,
-      insightsCount: limitedInsights.length
+      observationsCount: limitedFacts.length
     });
   }
   
@@ -413,7 +408,7 @@ export function buildReportData(params: BuildReportDataParams): ReportData {
     kpis,
     coreKPIs,
     acuteMedicationStats,
-    ruleBasedInsights: limitedInsights,
+    observationFacts: limitedFacts,
     fromDate,
     toDate,
     generatedAt: new Date().toISOString()

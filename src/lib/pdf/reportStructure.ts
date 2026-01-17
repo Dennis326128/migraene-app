@@ -33,18 +33,19 @@ export const REPORT_SECTION_ORDER = [
   // ═══════════════════════════════════════════════════════════════════════════
   // 2. ÄRZTLICHE KERNÜBERSICHT (höchste Priorität)
   // ═══════════════════════════════════════════════════════════════════════════
-  'core_kpis',        // Die 3-5 wichtigsten Kennzahlen (groß, klar):
-                      // - Ø Kopfschmerztage pro Monat (normiert auf 30 Tage)
-                      // - Ø Triptantage pro Monat (normiert auf 30 Tage)
+  'core_kpis',        // Die 3 wichtigsten Kennzahlen (groß, klar):
+                      // - Ø Schmerztage pro Monat (normiert auf 30 Tage)
+                      // - Ø Triptan-EINNAHMEN pro Monat (normiert auf 30 Tage)
                       // - Ø Schmerzintensität (NRS 0–10)
-                      // Optional: Gesamtzahl Attacken, Tage mit Medikation
+                      // Berechnet aus X dokumentierten Tagen
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 3. STATISCHE AUSWERTUNG & AUFFÄLLIGKEITEN (kostenfrei, regelbasiert)
+  // 3. AUFFÄLLIGKEITEN & MUSTER (sachlich, ohne Warnungen)
   // ═══════════════════════════════════════════════════════════════════════════
-  'rule_based_insights', // Max. 3-5 prägnante Bulletpoints, ausschließlich datenbasiert
-                         // Überschrift: "Auffälligkeiten & mögliche Zusammenhänge"
-                         // Konservative Sprache: "auffällig", "Hinweis auf", "möglich"
+  'analysis_section',    // EIN konsolidierter Abschnitt:
+                         // - BEI PREMIUM-KI: "Medizinische Gesamtanalyse (KI-gestützt)"
+                         // - OHNE PREMIUM: "Sachliche Auswertung der dokumentierten Daten"
+                         // Keine doppelten Analysen, keine Warnhinweise
   
   // ═══════════════════════════════════════════════════════════════════════════
   // 4. AKUTMEDIKATION & WIRKUNG
@@ -136,16 +137,16 @@ export const REPORT_SECTIONS: Record<ReportSectionId, {
     pdfTitle: 'ARZTLICHE KERNUBERSICHT',
     isRequired: true,
     isPremium: false,
-    description: 'Die wichtigsten Kennzahlen für die ärztliche Entscheidungsfindung',
+    description: 'Ø Schmerztage, Ø Triptan-Einnahmen, Ø Schmerzintensität (normiert auf 30 Tage)',
   },
-  rule_based_insights: {
-    id: 'rule_based_insights',
-    labelDe: 'Auffälligkeiten & mögliche Zusammenhänge',
-    labelEn: 'Observations & Possible Patterns',
-    pdfTitle: 'AUFFALLIGKEITEN & MOGLICHE ZUSAMMENHANGE',
+  analysis_section: {
+    id: 'analysis_section',
+    labelDe: 'Auffälligkeiten & Muster',
+    labelEn: 'Observations & Patterns',
+    pdfTitle: 'AUFFALLIGKEITEN & MUSTER',
     isRequired: false,
     isPremium: false,
-    description: 'Regelbasierte, automatische Auswertung',
+    description: 'Sachliche Auswertung oder KI-Analyse (Premium)',
   },
   acute_medication: {
     id: 'acute_medication',
