@@ -181,7 +181,7 @@ export const SettingsDoctorsWithOrigin = ({
       {origin === 'export_migraine_diary' && (
         <Card className="p-4 bg-primary/5 border-primary/20">
           <p className="text-sm text-muted-foreground">
-            Bearbeite deine Arztdaten. Nach dem Speichern wirst du automatisch zum Kopfschmerztagebuch zurückgeleitet.
+            {t('doctor.manageInfo')}
           </p>
         </Card>
       )}
@@ -189,9 +189,9 @@ export const SettingsDoctorsWithOrigin = ({
       <Card className="p-6">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="text-lg font-semibold">Behandelnde Ärzte</h3>
+            <h3 className="text-lg font-semibold">{t('doctor.doctors')}</h3>
             <p className="text-sm text-muted-foreground">
-              Verwalten Sie die Kontaktdaten Ihrer behandelnden Ärzte
+              {t('doctor.manageInfo')}
             </p>
           </div>
           <Button
@@ -200,23 +200,23 @@ export const SettingsDoctorsWithOrigin = ({
             onClick={() => setShowAddDoctor(!showAddDoctor)}
           >
             <Plus className="h-4 w-4 mr-2" />
-            Arzt hinzufügen
+            {t('doctor.add')}
           </Button>
         </div>
 
         {/* Add Doctor Form */}
         {showAddDoctor && (
           <Card className="p-4 mb-4 bg-secondary/10">
-            <h4 className="font-medium mb-3">Neuen Arzt hinzufügen</h4>
+            <h4 className="font-medium mb-3">{t('doctor.add')}</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs">Anrede</Label>
+                <Label className="text-xs">{t('doctor.salutation')}</Label>
                 <Select
                   value={newDoctor.salutation}
                   onValueChange={(value) => setNewDoctor({ ...newDoctor, salutation: value })}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Bitte wählen" />
+                    <SelectValue placeholder={t('common.none')} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Herr">Herr</SelectItem>
@@ -226,13 +226,13 @@ export const SettingsDoctorsWithOrigin = ({
                 </Select>
               </div>
               <div>
-                <Label className="text-xs">Titel</Label>
+                <Label className="text-xs">{t('doctor.title')}</Label>
                 <Select
                   value={newDoctor.title}
                   onValueChange={(value) => setNewDoctor({ ...newDoctor, title: value })}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Kein Titel" />
+                    <SelectValue placeholder={t('common.none')} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Dr. med.">Dr. med.</SelectItem>
@@ -244,80 +244,80 @@ export const SettingsDoctorsWithOrigin = ({
                 </Select>
               </div>
               <div>
-                <Label className="text-xs">Vorname</Label>
+                <Label className="text-xs">{t('doctor.firstName')}</Label>
                 <Input
                   value={newDoctor.first_name}
                   onChange={(e) => setNewDoctor({ ...newDoctor, first_name: e.target.value })}
-                  placeholder="Optional"
+                  placeholder={t('common.optional')}
                 />
               </div>
               <div>
-                <Label className="text-xs">Nachname</Label>
+                <Label className="text-xs">{t('doctor.lastName')}</Label>
                 <Input
                   value={newDoctor.last_name}
                   onChange={(e) => setNewDoctor({ ...newDoctor, last_name: e.target.value })}
-                  placeholder="Optional"
+                  placeholder={t('common.optional')}
                 />
               </div>
               <div className="md:col-span-2">
-                <Label className="text-xs">Fachgebiet</Label>
+                <Label className="text-xs">{t('doctor.specialty')}</Label>
                 <Input
                   value={newDoctor.specialty}
                   onChange={(e) => setNewDoctor({ ...newDoctor, specialty: e.target.value })}
-                  placeholder="z.B. Neurologie (Optional)"
+                  placeholder={t('common.optional')}
                 />
               </div>
               <div className="md:col-span-2">
-                <Label className="text-xs">Straße & Hausnummer</Label>
+                <Label className="text-xs">{t('doctor.street')}</Label>
                 <Input
                   value={newDoctor.street}
                   onChange={(e) => setNewDoctor({ ...newDoctor, street: e.target.value })}
-                  placeholder="Optional"
+                  placeholder={t('common.optional')}
                 />
               </div>
               <div>
-                <Label className="text-xs">PLZ</Label>
+                <Label className="text-xs">{t('doctor.postalCode')}</Label>
                 <Input
                   value={newDoctor.postal_code}
                   onChange={(e) => setNewDoctor({ ...newDoctor, postal_code: e.target.value })}
-                  placeholder="Optional"
+                  placeholder={t('common.optional')}
                 />
               </div>
               <div>
-                <Label className="text-xs">Stadt</Label>
+                <Label className="text-xs">{t('doctor.city')}</Label>
                 <Input
                   value={newDoctor.city}
                   onChange={(e) => setNewDoctor({ ...newDoctor, city: e.target.value })}
-                  placeholder="Optional"
+                  placeholder={t('common.optional')}
                 />
               </div>
               <div>
-                <Label className="text-xs">Telefon</Label>
+                <Label className="text-xs">{t('doctor.phone')}</Label>
                 <Input
                   value={newDoctor.phone}
                   onChange={(e) => setNewDoctor({ ...newDoctor, phone: e.target.value })}
-                  placeholder="Optional"
+                  placeholder={t('common.optional')}
                 />
               </div>
               <div>
-                <Label className="text-xs">E-Mail</Label>
+                <Label className="text-xs">{t('doctor.email')}</Label>
                 <Input
                   type="email"
                   value={newDoctor.email}
                   onChange={(e) => setNewDoctor({ ...newDoctor, email: e.target.value })}
-                  placeholder="Optional"
+                  placeholder={t('common.optional')}
                 />
               </div>
               <div>
-                <Label className="text-xs">Fax</Label>
+                <Label className="text-xs">{t('doctor.fax')}</Label>
                 <Input
                   value={newDoctor.fax}
                   onChange={(e) => setNewDoctor({ ...newDoctor, fax: e.target.value })}
-                  placeholder="Optional"
+                  placeholder={t('common.optional')}
                 />
               </div>
               <div className="md:col-span-2">
-                <Label className="text-xs text-muted-foreground">Website (optional)</Label>
+                <Label className="text-xs text-muted-foreground">{t('doctor.websiteOptional')}</Label>
                 <Input
                   type="url"
                   value={newDoctor.website}
@@ -330,11 +330,11 @@ export const SettingsDoctorsWithOrigin = ({
               <SaveButton
                 onClick={handleAddDoctor}
                 isLoading={createDoctor.isPending}
-                text="Hinzufügen"
+                text={t('common.add')}
                 size="sm"
               />
               <Button size="sm" variant="outline" onClick={handleCancelAdd}>
-                Abbrechen
+                {t('common.cancel')}
               </Button>
             </div>
           </Card>
@@ -343,7 +343,7 @@ export const SettingsDoctorsWithOrigin = ({
         {/* Doctors List */}
         {doctors.length === 0 && !showAddDoctor && (
           <p className="text-sm text-muted-foreground">
-            Noch keine Ärzte hinzugefügt. Klicken Sie auf "Arzt hinzufügen", um loszulegen.
+            {t('doctor.noDoctors')}. {t('doctor.addFirst')}.
           </p>
         )}
 
@@ -361,13 +361,13 @@ export const SettingsDoctorsWithOrigin = ({
                   <h4 className="font-medium mb-3">{t('doctor.edit')}</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
-                      <Label className="text-xs">Anrede</Label>
+                      <Label className="text-xs">{t('doctor.salutation')}</Label>
                       <Select
                         value={editDoctor.salutation}
                         onValueChange={(value) => setEditDoctor({ ...editDoctor, salutation: value })}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Bitte wählen" />
+                          <SelectValue placeholder={t('common.none')} />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="Herr">Herr</SelectItem>
@@ -377,13 +377,13 @@ export const SettingsDoctorsWithOrigin = ({
                       </Select>
                     </div>
                     <div>
-                      <Label className="text-xs">Titel</Label>
+                      <Label className="text-xs">{t('doctor.title')}</Label>
                       <Select
                         value={editDoctor.title}
                         onValueChange={(value) => setEditDoctor({ ...editDoctor, title: value })}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Kein Titel" />
+                          <SelectValue placeholder={t('common.none')} />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="Dr. med.">Dr. med.</SelectItem>
@@ -395,63 +395,63 @@ export const SettingsDoctorsWithOrigin = ({
                       </Select>
                     </div>
                     <div>
-                      <Label className="text-xs">Vorname</Label>
+                      <Label className="text-xs">{t('doctor.firstName')}</Label>
                       <Input
                         value={editDoctor.first_name}
                         onChange={(e) => setEditDoctor({ ...editDoctor, first_name: e.target.value })}
                       />
                     </div>
                     <div>
-                      <Label className="text-xs">Nachname</Label>
+                      <Label className="text-xs">{t('doctor.lastName')}</Label>
                       <Input
                         value={editDoctor.last_name}
                         onChange={(e) => setEditDoctor({ ...editDoctor, last_name: e.target.value })}
                       />
                     </div>
                     <div className="md:col-span-2">
-                      <Label className="text-xs">Fachgebiet</Label>
+                      <Label className="text-xs">{t('doctor.specialty')}</Label>
                       <Input
                         value={editDoctor.specialty}
                         onChange={(e) => setEditDoctor({ ...editDoctor, specialty: e.target.value })}
                       />
                     </div>
                     <div className="md:col-span-2">
-                      <Label className="text-xs">Straße & Hausnummer</Label>
+                      <Label className="text-xs">{t('doctor.street')}</Label>
                       <Input
                         value={editDoctor.street}
                         onChange={(e) => setEditDoctor({ ...editDoctor, street: e.target.value })}
                       />
                     </div>
                     <div>
-                      <Label className="text-xs">PLZ</Label>
+                      <Label className="text-xs">{t('doctor.postalCode')}</Label>
                       <Input
                         value={editDoctor.postal_code}
                         onChange={(e) => setEditDoctor({ ...editDoctor, postal_code: e.target.value })}
                       />
                     </div>
                     <div>
-                      <Label className="text-xs">Stadt</Label>
+                      <Label className="text-xs">{t('doctor.city')}</Label>
                       <Input
                         value={editDoctor.city}
                         onChange={(e) => setEditDoctor({ ...editDoctor, city: e.target.value })}
                       />
                     </div>
                     <div>
-                      <Label className="text-xs">Telefon</Label>
+                      <Label className="text-xs">{t('doctor.phone')}</Label>
                       <Input
                         value={editDoctor.phone}
                         onChange={(e) => setEditDoctor({ ...editDoctor, phone: e.target.value })}
                       />
                     </div>
                     <div>
-                      <Label className="text-xs">E-Mail</Label>
+                      <Label className="text-xs">{t('doctor.email')}</Label>
                       <Input
                         value={editDoctor.email}
                         onChange={(e) => setEditDoctor({ ...editDoctor, email: e.target.value })}
                       />
                     </div>
                     <div>
-                      <Label className="text-xs">Fax</Label>
+                      <Label className="text-xs">{t('doctor.fax')}</Label>
                       <Input
                         value={editDoctor.fax}
                         onChange={(e) => setEditDoctor({ ...editDoctor, fax: e.target.value })}
@@ -467,8 +467,8 @@ export const SettingsDoctorsWithOrigin = ({
                       />
                     </div>
                     
-                    {/* Status Toggle */}
-                    <div className="md:col-span-2 pt-2 border-t border-border/50">
+                    {/* Status Toggle in Edit Mode */}
+                    <div className="md:col-span-2 pt-3 border-t border-border/50">
                       <div className="flex items-center justify-between">
                         <div>
                           <Label className="text-sm font-medium">{t('doctor.status')}</Label>
@@ -477,7 +477,10 @@ export const SettingsDoctorsWithOrigin = ({
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className={cn("text-xs", !editDoctor.is_active && "text-muted-foreground")}>
+                          <span className={cn(
+                            "text-xs font-medium",
+                            editDoctor.is_active ? "text-foreground" : "text-muted-foreground"
+                          )}>
                             {editDoctor.is_active ? t('doctor.active') : t('doctor.archived')}
                           </span>
                           <Switch
@@ -488,7 +491,7 @@ export const SettingsDoctorsWithOrigin = ({
                       </div>
                     </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 pt-2">
                     <SaveButton
                       onClick={() => handleUpdateDoctor(doctor.id!)}
                       size="sm"
@@ -501,33 +504,54 @@ export const SettingsDoctorsWithOrigin = ({
               ) : (
                 // View Mode
                 <>
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <h4 className="font-medium">
-                        {[doctor.salutation, doctor.title, doctor.first_name, doctor.last_name]
-                          .filter(Boolean)
-                          .join(' ')}
-                      </h4>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-medium truncate">
+                          {[doctor.salutation, doctor.title, doctor.first_name, doctor.last_name]
+                            .filter(Boolean)
+                            .join(' ')}
+                        </h4>
+                        {/* Archived badge */}
+                        {!isActive && (
+                          <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded shrink-0">
+                            {t('doctor.archived')}
+                          </span>
+                        )}
+                      </div>
                       {doctor.specialty && (
                         <p className="text-sm text-muted-foreground">{doctor.specialty}</p>
                       )}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 shrink-0">
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => handleStartEdit(doctor)}
+                        className="h-8 w-8 p-0"
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
-                      {/* Archive Toggle */}
-                      <Switch
-                        checked={isActive}
-                        onCheckedChange={() => handleToggleArchive(doctor.id!, isActive)}
-                      />
+                      {/* Archive Toggle with label */}
+                      <div 
+                        className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted/50 cursor-pointer transition-colors"
+                        onClick={() => handleToggleArchive(doctor.id!, isActive)}
+                      >
+                        <span className={cn(
+                          "text-xs font-medium select-none",
+                          isActive ? "text-foreground" : "text-muted-foreground"
+                        )}>
+                          {isActive ? t('doctor.active') : t('doctor.archived')}
+                        </span>
+                        <Switch
+                          checked={isActive}
+                          onCheckedChange={() => handleToggleArchive(doctor.id!, isActive)}
+                          className="pointer-events-none"
+                        />
+                      </div>
                     </div>
                   </div>
-                  <div className="text-sm space-y-1">
+                  <div className="text-sm space-y-1 mt-2">
                     {doctor.street && <p>{doctor.street}</p>}
                     {(doctor.postal_code || doctor.city) && (
                       <p>
@@ -547,12 +571,6 @@ export const SettingsDoctorsWithOrigin = ({
                         <ExternalLink className="h-3.5 w-3.5" />
                         <span>{t('doctor.website')}</span>
                       </a>
-                    )}
-                    {/* Status indicator for archived */}
-                    {!isActive && (
-                      <p className="text-xs text-muted-foreground/70 mt-2">
-                        {t('doctor.archived')}
-                      </p>
                     )}
                   </div>
                 </>
