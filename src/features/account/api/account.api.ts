@@ -72,7 +72,8 @@ export async function getDoctors(): Promise<Doctor[]> {
     .from("doctors")
     .select("*")
     .eq("user_id", user.id)
-    .order("created_at", { ascending: true });
+    .order("is_active", { ascending: false })
+    .order("last_name", { ascending: true });
   
   return (data as Doctor[]) || [];
 }

@@ -47,8 +47,10 @@ export const DoctorSelectionDialog: React.FC<DoctorSelectionDialogProps> = ({
   const { t } = useTranslation();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  // Filter to only show active doctors
-  const activeDoctors = doctors.filter(d => d.is_active !== false);
+  // Filter to only show active doctors, sorted alphabetically by last name
+  const activeDoctors = doctors
+    .filter(d => d.is_active !== false)
+    .sort((a, b) => (a.last_name || '').localeCompare(b.last_name || '', 'de'));
 
   // Pre-select doctors when dialog opens - use preSelectedIds if provided, otherwise all active
   useEffect(() => {
