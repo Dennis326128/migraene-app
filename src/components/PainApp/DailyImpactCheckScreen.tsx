@@ -5,16 +5,24 @@
  * WICHTIG: Rechtssichere Alternative zum HIT-6
  * - Eigene 7 Fragen
  * - Eigene Skala 0-4
- * - Optional: Externen HIT-6 Gesamtwert speichern
+ * - Optional: Externen HIT-6 Gesamtwert speichern (ohne Accordion, inline)
  */
 
-import React, { useState, useMemo, useCallback } from 'react';
-import { ArrowLeft, FileText, RotateCcw, Loader2, ChevronDown, ChevronUp, Info } from 'lucide-react';
+import React, { useState, useMemo, useCallback, useRef } from 'react';
+import { ArrowLeft, FileText, RotateCcw, Loader2, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import {
   DailyImpactAnswers,
@@ -42,11 +50,9 @@ export default function DailyImpactCheckScreen({ onBack }: DailyImpactCheckScree
   const [answers, setAnswers] = useState<DailyImpactAnswers>(EMPTY_DAILY_IMPACT_ANSWERS);
   const [isGenerating, setIsGenerating] = useState(false);
   const [externalHit6Score, setExternalHit6Score] = useState<string>('');
-  const [externalHit6Date, setExternalHit6Date] = useState<string>(
-    new Date().toISOString().slice(0, 10)
-  );
-  const [showExternalHit6, setShowExternalHit6] = useState(false);
+  const [showValidationModal, setShowValidationModal] = useState(false);
   
+  const hit6InputRef = useRef<HTMLInputElement>(null);
   const saveReport = useSaveGeneratedReport();
 
   const answeredCount = useMemo(
@@ -64,14 +70,28 @@ export default function DailyImpactCheckScreen({ onBack }: DailyImpactCheckScree
   const handleReset = useCallback(() => {
     setAnswers(EMPTY_DAILY_IMPACT_ANSWERS);
     setExternalHit6Score('');
-    setShowExternalHit6(false);
   }, []);
 
-  const parsedExternalHit6 = useMemo(() => {
-    const num = parseInt(externalHit6Score, 10);
-    if (isNaN(num) || num < 36 || num > 78) return null;
-    return num;
+  // Validierung nur beim Speichern - gibt null zurück wenn leer, Zahl wenn gültig, oder false wenn ungültig
+  const validateExternalHit6 = useCallback((): number | null | false => {
+    const trimmed = externalHit6Score.trim();
+    if (trimmed === '') return null; // Leer ist ok
+    
+    const num = parseInt(trimmed, 10);
+    if (isNaN(num) || num < 36 || num > 78) {
+      return false; // Ungültig
+    }
+    return num; // Gültig
   }, [externalHit6Score]);
+
+  const handleValidationModalClose = useCallback(() => {
+    setShowValidationModal(false);
+    // Fokus zurück zum HIT-6 Feld
+    setTimeout(() => {
+      hit6InputRef.current?.focus();
+      hit6InputRef.current?.select();
+    }, 100);
+  }, []);
 
   const handleGeneratePdf = useCallback(async () => {
     if (!isComplete || score === null) {
@@ -79,17 +99,28 @@ export default function DailyImpactCheckScreen({ onBack }: DailyImpactCheckScree
       return;
     }
 
+    // Validierung des externen HIT-6 Werts erst hier
+    const validatedHit6 = validateExternalHit6();
+    if (validatedHit6 === false) {
+      // Ungültiger Wert - Modal zeigen, KEINE Daten resetten
+      setShowValidationModal(true);
+      return;
+    }
+
     setIsGenerating(true);
     try {
       const completedDate = new Date();
-      const externalHit6DateParsed = externalHit6Date ? new Date(externalHit6Date) : null;
+      // Zeitraum: letzte 4 Wochen (28 Tage)
+      const periodEndDate = new Date();
+      const periodStartDate = new Date();
+      periodStartDate.setDate(periodStartDate.getDate() - 28);
       
       // Save assessment to database
       await createDailyImpactAssessment({
         answers,
         score,
-        external_hit6_score: parsedExternalHit6,
-        external_hit6_date: parsedExternalHit6 ? externalHit6Date : null,
+        external_hit6_score: validatedHit6,
+        external_hit6_date: validatedHit6 ? new Date().toISOString().slice(0, 10) : null,
       });
 
       // Generate PDF
@@ -97,8 +128,8 @@ export default function DailyImpactCheckScreen({ onBack }: DailyImpactCheckScree
         answers,
         score,
         completedDate,
-        externalHit6Score: parsedExternalHit6,
-        externalHit6Date: parsedExternalHit6 ? externalHit6DateParsed : null,
+        externalHit6Score: validatedHit6,
+        externalHit6Date: validatedHit6 ? completedDate : null,
       });
 
       // Save to report history
@@ -109,7 +140,7 @@ export default function DailyImpactCheckScreen({ onBack }: DailyImpactCheckScree
         metadata: {
           score,
           category: getImpactCategory(score),
-          external_hit6_score: parsedExternalHit6,
+          external_hit6_score: validatedHit6,
         },
       });
 
@@ -131,7 +162,7 @@ export default function DailyImpactCheckScreen({ onBack }: DailyImpactCheckScree
     } finally {
       setIsGenerating(false);
     }
-  }, [answers, score, isComplete, parsedExternalHit6, externalHit6Date, saveReport]);
+  }, [answers, score, isComplete, validateExternalHit6, saveReport]);
 
   return (
     <div className="min-h-screen bg-background pb-32">
@@ -159,7 +190,10 @@ export default function DailyImpactCheckScreen({ onBack }: DailyImpactCheckScree
             Alltagsbelastung durch Kopfschmerzen
           </h2>
           <p className="text-xs text-muted-foreground">
-            Selbsteinschätzung der letzten 4 Wochen – für Arztgespräch & Verlauf.
+            Bezugszeitraum: die letzten 4 Wochen
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Damit Veränderungen schnell sichtbar werden.
           </p>
           <p className="text-xs text-muted-foreground mt-2 flex items-start gap-1.5">
             <Info className="h-3 w-3 mt-0.5 shrink-0" />
@@ -194,64 +228,31 @@ export default function DailyImpactCheckScreen({ onBack }: DailyImpactCheckScree
           </Card>
         )}
 
-        {/* Optional External HIT-6 */}
-        <Collapsible open={showExternalHit6} onOpenChange={setShowExternalHit6}>
-          <Card className="p-4">
-            <CollapsibleTrigger asChild>
-              <button className="w-full flex items-center justify-between text-left">
-                <div>
-                  <p className="text-sm font-medium">Optional: externen HIT-6 Gesamtwert eintragen</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Wenn du den HIT-6 von deiner Praxis hast
-                  </p>
-                </div>
-                {showExternalHit6 ? (
-                  <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                ) : (
-                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                )}
-              </button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="pt-4 space-y-4">
-              <p className="text-xs text-muted-foreground">
-                Wenn du den HIT-6 von deiner Praxis auf Papier/als PDF ausgefüllt hast, 
-                kannst du hier die Gesamtpunktzahl übernehmen.
+        {/* Optional External HIT-6 - Simple Inline Row (NO Accordion) */}
+        <div className="pt-2 pb-4 space-y-2">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              <Label htmlFor="hit6-score" className="text-sm font-medium">
+                HIT-6 Gesamtwert (optional)
+              </Label>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Nur eintragen, wenn du ihn von deiner Praxis hast.
               </p>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="hit6-score" className="text-xs">
-                    Gesamtpunktzahl (36–78)
-                  </Label>
-                  <Input
-                    id="hit6-score"
-                    type="number"
-                    min={36}
-                    max={78}
-                    value={externalHit6Score}
-                    onChange={(e) => setExternalHit6Score(e.target.value)}
-                    placeholder="z.B. 56"
-                    className="h-9"
-                  />
-                  {externalHit6Score && !parsedExternalHit6 && (
-                    <p className="text-xs text-destructive">Wert muss zwischen 36 und 78 liegen</p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="hit6-date" className="text-xs">
-                    Datum der Erhebung
-                  </Label>
-                  <Input
-                    id="hit6-date"
-                    type="date"
-                    value={externalHit6Date}
-                    onChange={(e) => setExternalHit6Date(e.target.value)}
-                    className="h-9"
-                  />
-                </div>
-              </div>
-            </CollapsibleContent>
-          </Card>
-        </Collapsible>
+            </div>
+            <Input
+              ref={hit6InputRef}
+              id="hit6-score"
+              type="number"
+              inputMode="numeric"
+              min={36}
+              max={78}
+              value={externalHit6Score}
+              onChange={(e) => setExternalHit6Score(e.target.value)}
+              placeholder="z.B. 56"
+              className="w-24 h-10 text-center"
+            />
+          </div>
+        </div>
       </div>
 
       {/* Sticky CTA */}
@@ -275,6 +276,23 @@ export default function DailyImpactCheckScreen({ onBack }: DailyImpactCheckScree
           )}
         </Button>
       </div>
+
+      {/* Validation Modal for Invalid HIT-6 Value */}
+      <AlertDialog open={showValidationModal} onOpenChange={setShowValidationModal}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>HIT-6 Wert prüfen</AlertDialogTitle>
+            <AlertDialogDescription>
+              Der HIT-6 Gesamtwert liegt normalerweise zwischen 36 und 78. Bitte prüfe deine Eingabe.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={handleValidationModalClose}>
+              Verstanden
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
