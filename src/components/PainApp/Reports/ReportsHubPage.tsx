@@ -5,7 +5,7 @@ import { ArrowLeft, FileText, Pill, ClipboardList, History } from "lucide-react"
 
 interface ReportsHubPageProps {
   onBack: () => void;
-  onSelectReportType: (type: 'diary' | 'medication_plan' | 'hit6') => void;
+  onSelectReportType: (type: 'diary' | 'medication_plan' | 'daily_impact') => void;
   onViewHistory: () => void;
 }
 
@@ -74,18 +74,21 @@ export const ReportsHubPage: React.FC<ReportsHubPageProps> = ({
               </CardContent>
             </Card>
 
-            {/* HIT-6 Fragebogen */}
+            {/* Alltagsbelastung (Kurzcheck) - ERSETZT HIT-6 */}
             <Card 
               className="cursor-pointer hover:bg-muted/30 transition-colors border-border/50"
-              onClick={() => onSelectReportType('hit6')}
+              onClick={() => onSelectReportType('daily_impact')}
             >
-              <CardContent className="p-4 flex items-center gap-4">
-                <div className="p-3 rounded-lg bg-orange-500/10 shrink-0">
-                  <ClipboardList className="h-6 w-6 text-orange-500" />
+              <CardContent className="p-4 flex items-start gap-4">
+                <div className="p-3 rounded-lg bg-amber-500/10 shrink-0">
+                  <ClipboardList className="h-6 w-6 text-amber-500" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <span className="font-medium text-base block">
-                    HIT-6 Fragebogen (PDF)
+                    Alltagsbelastung (Kurzcheck)
+                  </span>
+                  <span className="text-xs text-muted-foreground mt-1 block">
+                    Selbsteinschätzung + optional HIT-6 Ergebnis speichern
                   </span>
                 </div>
               </CardContent>

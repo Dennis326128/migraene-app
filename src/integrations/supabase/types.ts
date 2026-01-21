@@ -131,6 +131,45 @@ export type Database = {
         }
         Relationships: []
       }
+      daily_impact_assessments: {
+        Row: {
+          answers: Json
+          created_at: string
+          external_hit6_date: string | null
+          external_hit6_score: number | null
+          id: string
+          pdf_last_generated_at: string | null
+          period_end_date: string
+          period_start_date: string
+          score: number
+          user_id: string
+        }
+        Insert: {
+          answers: Json
+          created_at?: string
+          external_hit6_date?: string | null
+          external_hit6_score?: number | null
+          id?: string
+          pdf_last_generated_at?: string | null
+          period_end_date?: string
+          period_start_date?: string
+          score: number
+          user_id: string
+        }
+        Update: {
+          answers?: Json
+          created_at?: string
+          external_hit6_date?: string | null
+          external_hit6_score?: number | null
+          id?: string
+          pdf_last_generated_at?: string | null
+          period_end_date?: string
+          period_start_date?: string
+          score?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       doctors: {
         Row: {
           city: string | null

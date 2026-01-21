@@ -32,6 +32,7 @@ import {
   LazySettingsDoctorsPage,
   LazyDiaryReport,
   LazyHit6Screen,
+  LazyDailyImpactCheckScreen,
   LazyAIReportsList,
   LazyAIReportDetail,
   LazyReportsHubPage,
@@ -40,7 +41,7 @@ import {
 } from "@/lib/performance/lazyImports";
 import type { AIReport } from "@/features/ai-reports";
 
-type View = "menu" | "new" | "list" | "analysis" | "settings" | "settings-doctors" | "medication-overview" | "medication-management" | "voice-notes" | "reminders" | "diary-timeline" | "context-tags" | "diary-report" | "medication-limits" | "hit6" | "ai-reports" | "ai-report-detail" | "therapy-medication" | "reports-hub" | "report-history";
+type View = "menu" | "new" | "list" | "analysis" | "settings" | "settings-doctors" | "medication-overview" | "medication-management" | "voice-notes" | "reminders" | "diary-timeline" | "context-tags" | "diary-report" | "medication-limits" | "hit6" | "daily-impact" | "ai-reports" | "ai-report-detail" | "therapy-medication" | "reports-hub" | "report-history";
 
 // Track where the user navigated from for proper back navigation
 type DiaryReportOrigin = 'home' | 'diary-timeline' | null;
@@ -316,12 +317,17 @@ export const PainApp: React.FC = () => {
 
       {view === "hit6" && withSuspense(
         <LazyHit6Screen 
-          onBack={() => {
-            // Navigate back to diary-report
-            setView('diary-report');
-          }}
+          onBack={() => setView('reports-hub')}
         />,
         "HIT-6 laden..."
+      )}
+
+      {/* Daily Impact Check - Ersetzt HIT-6 */}
+      {view === "daily-impact" && withSuspense(
+        <LazyDailyImpactCheckScreen 
+          onBack={() => setView('reports-hub')}
+        />,
+        "Kurzcheck laden..."
       )}
 
       {view === "settings-doctors" && withSuspense(
@@ -387,8 +393,8 @@ export const PainApp: React.FC = () => {
             if (type === 'diary') {
               setDiaryReportOrigin('home');
               setView('diary-report');
-            } else if (type === 'hit6') {
-              setView('hit6');
+            } else if (type === 'daily_impact') {
+              setView('daily-impact');
             } else if (type === 'medication_plan') {
               // TODO: Navigate to dedicated medication plan page
               setView('medication-management');
