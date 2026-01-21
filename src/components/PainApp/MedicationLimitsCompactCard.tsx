@@ -1,8 +1,7 @@
 import React, { useEffect, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Settings2, Info } from "lucide-react";
+import { Settings2, Info, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Tooltip,
@@ -23,8 +22,7 @@ interface MedicationLimitsCompactCardProps {
 
 /**
  * Compact card showing medication limits status.
- * Designed to be calm, informative (not alarming).
- * Max 2 text lines + 1 secondary action.
+ * Entire card is clickable. Calm, informative design.
  */
 export function MedicationLimitsCompactCard({ onManageLimits }: MedicationLimitsCompactCardProps) {
   const { data: limits = [], isLoading: limitsLoading } = useMedicationLimits();
@@ -111,14 +109,14 @@ export function MedicationLimitsCompactCard({ onManageLimits }: MedicationLimits
   if (limitsLoading || medsLoading) {
     return (
       <Card className="border-border/50 bg-card">
-        <CardContent className="p-4">
-          <div className="flex items-center gap-3">
-            <Skeleton className="h-8 w-8 rounded-md" />
+        <CardContent className="p-5">
+          <div className="flex items-center gap-4">
+            <Skeleton className="h-10 w-10 rounded-lg" />
             <div className="flex-1 space-y-2">
-              <Skeleton className="h-4 w-32" />
-              <Skeleton className="h-3 w-48" />
+              <Skeleton className="h-5 w-48" />
+              <Skeleton className="h-4 w-64" />
             </div>
-            <Skeleton className="h-8 w-24" />
+            <Skeleton className="h-5 w-5" />
           </div>
         </CardContent>
       </Card>
@@ -128,19 +126,22 @@ export function MedicationLimitsCompactCard({ onManageLimits }: MedicationLimits
   // No limits configured - show activation prompt
   if (!summary.hasLimits) {
     return (
-      <Card className="border-border/50 bg-card">
-        <CardContent className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-md bg-muted/50">
-              <Settings2 className="h-5 w-5 text-muted-foreground" />
+      <Card 
+        className="border-border/50 bg-card hover:bg-muted/30 transition-colors cursor-pointer group"
+        onClick={onManageLimits}
+      >
+        <CardContent className="p-5">
+          <div className="flex items-center gap-4">
+            <div className="p-2.5 rounded-lg bg-muted/50 group-hover:bg-muted transition-colors">
+              <Settings2 className="h-6 w-6 text-muted-foreground" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <span className="font-medium text-sm">Einnahme-Limits</span>
+                <span className="font-semibold text-base">Medikamentenlimits verwalten</span>
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                      <Info className="h-4 w-4 text-muted-foreground cursor-help" />
                     </TooltipTrigger>
                     <TooltipContent side="top" className="max-w-[220px]">
                       <p className="text-xs">
@@ -150,18 +151,11 @@ export function MedicationLimitsCompactCard({ onManageLimits }: MedicationLimits
                   </Tooltip>
                 </TooltipProvider>
               </div>
-              <p className="text-xs text-muted-foreground truncate">
+              <p className="text-sm text-muted-foreground mt-0.5">
                 Noch keine Limits eingerichtet
               </p>
             </div>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={onManageLimits}
-              className="shrink-0 text-muted-foreground hover:text-foreground"
-            >
-              Aktivieren
-            </Button>
+            <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
           </div>
         </CardContent>
       </Card>
@@ -171,29 +165,25 @@ export function MedicationLimitsCompactCard({ onManageLimits }: MedicationLimits
   // All limits deactivated
   if (summary.activeLimits === 0) {
     return (
-      <Card className="border-border/50 bg-card">
-        <CardContent className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-md bg-muted/50">
-              <Settings2 className="h-5 w-5 text-muted-foreground" />
+      <Card 
+        className="border-border/50 bg-card hover:bg-muted/30 transition-colors cursor-pointer group"
+        onClick={onManageLimits}
+      >
+        <CardContent className="p-5">
+          <div className="flex items-center gap-4">
+            <div className="p-2.5 rounded-lg bg-muted/50 group-hover:bg-muted transition-colors">
+              <Settings2 className="h-6 w-6 text-muted-foreground" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <span className="font-medium text-sm">Einnahme-Limits</span>
-                <span className="text-xs text-muted-foreground">(deaktiviert)</span>
+                <span className="font-semibold text-base">Medikamentenlimits verwalten</span>
+                <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">deaktiviert</span>
               </div>
-              <p className="text-xs text-muted-foreground truncate">
+              <p className="text-sm text-muted-foreground mt-0.5">
                 {summary.totalLimits} Limit{summary.totalLimits !== 1 ? 's' : ''} konfiguriert
               </p>
             </div>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={onManageLimits}
-              className="shrink-0 text-muted-foreground hover:text-foreground"
-            >
-              Aktivieren
-            </Button>
+            <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
           </div>
         </CardContent>
       </Card>
@@ -236,23 +226,26 @@ export function MedicationLimitsCompactCard({ onManageLimits }: MedicationLimits
   };
 
   return (
-    <Card className="border-border/50 bg-card">
-      <CardContent className="p-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-md bg-muted/50">
+    <Card 
+      className="border-border/50 bg-card hover:bg-muted/30 transition-colors cursor-pointer group"
+      onClick={onManageLimits}
+    >
+      <CardContent className="p-5">
+        <div className="flex items-center gap-4">
+          <div className="p-2.5 rounded-lg bg-muted/50 group-hover:bg-muted transition-colors">
             {checking ? (
-              <div className="h-5 w-5 animate-pulse bg-muted rounded" />
+              <div className="h-6 w-6 animate-pulse bg-muted rounded" />
             ) : (
-              <Settings2 className="h-5 w-5 text-muted-foreground" />
+              <Settings2 className="h-6 w-6 text-muted-foreground" />
             )}
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <span className="font-medium text-sm">Einnahme-Limits</span>
+              <span className="font-semibold text-base">Medikamentenlimits verwalten</span>
               <TooltipProvider>
                 <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                  <TooltipTrigger asChild onClick={(e) => e.stopPropagation()}>
+                    <Info className="h-4 w-4 text-muted-foreground cursor-help" />
                   </TooltipTrigger>
                   <TooltipContent side="top" className="max-w-[220px]">
                     <p className="text-xs">
@@ -262,9 +255,8 @@ export function MedicationLimitsCompactCard({ onManageLimits }: MedicationLimits
                 </Tooltip>
               </TooltipProvider>
             </div>
-            <div className="flex items-center gap-2 text-xs">
+            <div className="flex items-center gap-2 text-sm mt-0.5">
               <span className={cn(
-                "truncate",
                 (summary.status === 'reached' || summary.status === 'exceeded') 
                   ? 'text-foreground font-medium' 
                   : 'text-muted-foreground'
@@ -279,14 +271,7 @@ export function MedicationLimitsCompactCard({ onManageLimits }: MedicationLimits
               )}
             </div>
           </div>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={onManageLimits}
-            className="shrink-0 text-muted-foreground hover:text-foreground"
-          >
-            Limits bearbeiten
-          </Button>
+          <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
         </div>
       </CardContent>
     </Card>
