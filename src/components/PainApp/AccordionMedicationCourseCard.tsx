@@ -13,10 +13,11 @@ interface AccordionMedicationCourseCardProps {
   course: MedicationCourse;
   reminderStatus?: MedicationReminderStatus;
   isExpanded: boolean;
+  isTogglingReminder?: boolean;
   onToggle: () => void;
   onEdit: (course: MedicationCourse) => void;
   onDelete: (course: MedicationCourse) => void;
-  onReminder?: (course: MedicationCourse) => void;
+  onToggleReminder?: (course: MedicationCourse) => void;
 }
 
 const DISCONTINUATION_LABELS: Record<string, string> = {
@@ -47,11 +48,13 @@ export const AccordionMedicationCourseCard: React.FC<AccordionMedicationCourseCa
   course,
   reminderStatus,
   isExpanded,
+  isTogglingReminder = false,
   onToggle,
   onEdit,
   onDelete,
-  onReminder,
+  onToggleReminder,
 }) => {
+  const hasReminder = reminderStatus?.hasReminder ?? false;
   const hasActiveReminder = reminderStatus?.isActive ?? false;
   
   // Get next date for collapsed view
@@ -150,25 +153,46 @@ export const AccordionMedicationCourseCard: React.FC<AccordionMedicationCourseCa
               </div>
             )}
 
-            {/* Reminder status (only for active courses) */}
-            {course.is_active && onReminder && (
-              <div className="flex items-center gap-2 text-sm">
+            {/* Reminder status - clickable toggle (only for active courses with existing reminders) */}
+            {course.is_active && hasReminder && onToggleReminder && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onToggleReminder(course); }}
+                disabled={isTogglingReminder}
+                className={cn(
+                  "flex items-center gap-2 text-sm w-full rounded-md p-2 -mx-2",
+                  "transition-colors cursor-pointer",
+                  hasActiveReminder 
+                    ? "hover:bg-primary/5" 
+                    : "hover:bg-muted/50",
+                  isTogglingReminder && "opacity-50 cursor-wait"
+                )}
+              >
                 {hasActiveReminder ? (
                   <>
-                    <Bell className="h-4 w-4 text-primary" />
-                    <span className="text-muted-foreground text-xs">Erinnerung:</span>
-                    <span>
-                      Nächste am {reminderStatus?.nextTriggerDate 
-                        ? format(reminderStatus.nextTriggerDate, "dd. MMM yyyy", { locale: de })
-                        : "–"}
+                    <Bell className="h-4 w-4 text-green-600 dark:text-green-500" />
+                    <span className="text-green-700 dark:text-green-500 font-medium">
+                      Erinnerung: Aktiv
                     </span>
+                    {reminderStatus?.nextTriggerDate && (
+                      <span className="text-muted-foreground text-xs ml-auto">
+                        {format(reminderStatus.nextTriggerDate, "dd. MMM", { locale: de })}
+                      </span>
+                    )}
                   </>
                 ) : (
                   <>
                     <BellOff className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-muted-foreground">Keine Erinnerung</span>
+                    <span className="text-muted-foreground">Erinnerung: Pausiert</span>
                   </>
                 )}
+              </button>
+            )}
+
+            {/* No reminder hint for active courses without reminders */}
+            {course.is_active && !hasReminder && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <BellOff className="h-4 w-4" />
+                <span>Keine Erinnerung eingerichtet</span>
               </div>
             )}
 
@@ -179,26 +203,8 @@ export const AccordionMedicationCourseCard: React.FC<AccordionMedicationCourseCa
               </p>
             )}
 
-            {/* Actions Row */}
+            {/* Actions Row - simplified, no reminder button */}
             <div className="flex items-center gap-2 pt-2 border-t border-border/30">
-              {course.is_active && onReminder && (
-                <Button
-                  variant={hasActiveReminder ? "secondary" : "ghost"}
-                  size="sm"
-                  onClick={(e) => { e.stopPropagation(); onReminder(course); }}
-                  className={cn(
-                    "gap-1.5 text-xs",
-                    hasActiveReminder && "bg-primary/10 hover:bg-primary/20"
-                  )}
-                >
-                  {hasActiveReminder ? (
-                    <Bell className="h-3.5 w-3.5 text-primary" />
-                  ) : (
-                    <BellOff className="h-3.5 w-3.5" />
-                  )}
-                  Erinnerung
-                </Button>
-              )}
               <Button
                 variant="ghost"
                 size="sm"

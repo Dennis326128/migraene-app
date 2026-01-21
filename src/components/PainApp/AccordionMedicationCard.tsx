@@ -13,10 +13,11 @@ interface AccordionMedicationCardProps {
   med: Med;
   reminderStatus?: MedicationReminderStatus;
   isExpanded: boolean;
+  isTogglingReminder?: boolean;
   onToggle: () => void;
   onEdit: () => void;
   onDelete: () => void;
-  onReminder: () => void;
+  onToggleReminder: () => void;
 }
 
 /**
@@ -53,12 +54,14 @@ export const AccordionMedicationCard: React.FC<AccordionMedicationCardProps> = (
   med,
   reminderStatus,
   isExpanded,
+  isTogglingReminder = false,
   onToggle,
   onEdit,
   onDelete,
-  onReminder,
+  onToggleReminder,
 }) => {
   const isInactive = med.is_active === false || !!med.discontinued_at || med.intolerance_flag;
+  const hasReminder = reminderStatus?.hasReminder ?? false;
   const hasActiveReminder = reminderStatus?.isActive ?? false;
   const isIntervalMed = reminderStatus?.isIntervalMed ?? false;
   
@@ -179,29 +182,51 @@ export const AccordionMedicationCard: React.FC<AccordionMedicationCardProps> = (
               </div>
             )}
 
-            {/* Reminder status */}
-            {!isInactive && (
-              <div className="flex items-center gap-2 text-sm">
+            {/* Reminder status - clickable toggle (only for active meds with existing reminders) */}
+            {!isInactive && hasReminder && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onToggleReminder(); }}
+                disabled={isTogglingReminder}
+                className={cn(
+                  "flex items-center gap-2 text-sm w-full rounded-md p-2 -mx-2",
+                  "transition-colors cursor-pointer",
+                  hasActiveReminder 
+                    ? "hover:bg-primary/5" 
+                    : "hover:bg-muted/50",
+                  isTogglingReminder && "opacity-50 cursor-wait"
+                )}
+              >
                 {hasActiveReminder ? (
                   <>
-                    <Bell className="h-4 w-4 text-primary" />
-                    <span className="text-muted-foreground text-xs">Erinnerung:</span>
-                    {isIntervalMed ? (
-                      <span>
-                        Nächste am {reminderStatus?.nextTriggerDate 
-                          ? format(reminderStatus.nextTriggerDate, "dd. MMM yyyy", { locale: de })
-                          : "–"}
+                    <Bell className="h-4 w-4 text-green-600 dark:text-green-500" />
+                    <span className="text-green-700 dark:text-green-500 font-medium">
+                      Erinnerung: Aktiv
+                    </span>
+                    {isIntervalMed && reminderStatus?.nextTriggerDate && (
+                      <span className="text-muted-foreground text-xs ml-auto">
+                        {format(reminderStatus.nextTriggerDate, "dd. MMM", { locale: de })}
                       </span>
-                    ) : (
-                      <span>{formatReminderTimes()} täglich</span>
+                    )}
+                    {!isIntervalMed && formatReminderTimes() && (
+                      <span className="text-muted-foreground text-xs ml-auto">
+                        {formatReminderTimes()}
+                      </span>
                     )}
                   </>
                 ) : (
                   <>
                     <BellOff className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-muted-foreground">Keine Erinnerung</span>
+                    <span className="text-muted-foreground">Erinnerung: Pausiert</span>
                   </>
                 )}
+              </button>
+            )}
+            
+            {/* No reminder hint for active meds without reminders */}
+            {!isInactive && !hasReminder && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <BellOff className="h-4 w-4" />
+                <span>Keine Erinnerung eingerichtet</span>
               </div>
             )}
 
@@ -210,26 +235,8 @@ export const AccordionMedicationCard: React.FC<AccordionMedicationCardProps> = (
               <p className="text-xs text-destructive">⚠️ {med.intolerance_notes}</p>
             )}
 
-            {/* Actions Row */}
+            {/* Actions Row - simplified, no reminder button */}
             <div className="flex items-center gap-2 pt-2 border-t border-border/30">
-              {!isInactive && (
-                <Button
-                  variant={hasActiveReminder ? "secondary" : "ghost"}
-                  size="sm"
-                  onClick={(e) => { e.stopPropagation(); onReminder(); }}
-                  className={cn(
-                    "gap-1.5 text-xs",
-                    hasActiveReminder && "bg-primary/10 hover:bg-primary/20"
-                  )}
-                >
-                  {hasActiveReminder ? (
-                    <Bell className="h-3.5 w-3.5 text-primary" />
-                  ) : (
-                    <BellOff className="h-3.5 w-3.5" />
-                  )}
-                  Erinnerung
-                </Button>
-              )}
               <Button
                 variant="ghost"
                 size="sm"

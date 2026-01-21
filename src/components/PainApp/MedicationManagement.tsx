@@ -8,6 +8,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useMeds, useAddMed, useDeleteMed, type Med, type CreateMedInput } from "@/features/meds/hooks/useMeds";
 import { useCreateReminder, useCreateMultipleReminders } from "@/features/reminders/hooks/useReminders";
 import { useMedicationsReminderMap, useCoursesReminderMap, type MedicationReminderStatus } from "@/features/reminders/hooks/useMedicationReminders";
+import { useToggleMedicationReminders } from "@/features/reminders/hooks/useToggleMedicationReminder";
 import { parseMedicationInput, parsedToMedInput } from "@/lib/utils/parseMedicationInput";
 import { isPrnMedication } from "@/lib/utils/medicationReminderHeuristic";
 import { Pill, Plus, Pencil, Trash2, Bell, BellOff, ArrowLeft, Clock, AlertTriangle, Download, Loader2, Ban, History, ChevronDown, Mic, MicOff } from "lucide-react";
@@ -58,8 +59,12 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
   const deleteMed = useDeleteMed();
   const createReminder = useCreateReminder();
   const createMultipleReminders = useCreateMultipleReminders();
+  const toggleMedReminders = useToggleMedicationReminders();
   const updateCourse = useUpdateMedicationCourse();
   const deleteCourse = useDeleteMedicationCourse();
+  
+  // Track which medication is currently toggling reminders
+  const [togglingReminderId, setTogglingReminderId] = useState<string | null>(null);
   
   // Get reminder status for all medications and courses
   const reminderStatusMap = useMedicationsReminderMap(medications || []);
@@ -448,6 +453,37 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
     setShowCourseReminderModal(true);
   };
 
+  // Direct toggle handlers for medication reminders (no modal)
+  const handleToggleMedReminder = async (med: Med) => {
+    const status = reminderStatusMap.get(med.id);
+    if (!status || status.reminders.length === 0) return;
+    
+    setTogglingReminderId(med.id);
+    try {
+      await toggleMedReminders.mutateAsync({
+        reminders: status.reminders,
+        currentlyActive: status.isActive,
+      });
+    } finally {
+      setTogglingReminderId(null);
+    }
+  };
+
+  const handleToggleCourseReminder = async (course: MedicationCourse) => {
+    const status = courseReminderMap.get(course.id);
+    if (!status || status.reminders.length === 0) return;
+    
+    setTogglingReminderId(course.id);
+    try {
+      await toggleMedReminders.mutateAsync({
+        reminders: status.reminders,
+        currentlyActive: status.isActive,
+      });
+    } finally {
+      setTogglingReminderId(null);
+    }
+  };
+
   // Course edit/delete handlers
   const openCourseEditWizard = (course: MedicationCourse) => {
     setEditingCourse(course);
@@ -618,10 +654,11 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
                     med={med}
                     reminderStatus={reminderStatusMap.get(med.id)}
                     isExpanded={expandedItem?.type === 'med' && expandedItem?.id === med.id}
+                    isTogglingReminder={togglingReminderId === med.id}
                     onToggle={() => handleToggleExpand('med', med.id)}
                     onEdit={() => openEditModal(med)}
                     onDelete={() => openDeleteDialog(med)}
-                    onReminder={() => {}}
+                    onToggleReminder={() => handleToggleMedReminder(med)}
                   />
                 ))}
               </CollapsibleContent>
@@ -641,10 +678,11 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
                   course={course}
                   reminderStatus={courseReminderMap.get(course.id)}
                   isExpanded={expandedItem?.type === 'course' && expandedItem?.id === course.id}
+                  isTogglingReminder={togglingReminderId === course.id}
                   onToggle={() => handleToggleExpand('course', course.id)}
                   onEdit={openCourseEditWizard}
                   onDelete={openCourseDeleteDialog}
-                  onReminder={openCourseReminderDialog}
+                  onToggleReminder={handleToggleCourseReminder}
                 />
               ))}
               {/* Reguläre Medikamente aus user_medications */}
@@ -654,10 +692,11 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
                   med={med}
                   reminderStatus={reminderStatusMap.get(med.id)}
                   isExpanded={expandedItem?.type === 'med' && expandedItem?.id === med.id}
+                  isTogglingReminder={togglingReminderId === med.id}
                   onToggle={() => handleToggleExpand('med', med.id)}
                   onEdit={() => openEditModal(med)}
                   onDelete={() => openDeleteDialog(med)}
-                  onReminder={() => openReminderDialog(med)}
+                  onToggleReminder={() => handleToggleMedReminder(med)}
                 />
               ))}
             </div>
@@ -675,10 +714,11 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
                   med={med}
                   reminderStatus={reminderStatusMap.get(med.id)}
                   isExpanded={expandedItem?.type === 'med' && expandedItem?.id === med.id}
+                  isTogglingReminder={togglingReminderId === med.id}
                   onToggle={() => handleToggleExpand('med', med.id)}
                   onEdit={() => openEditModal(med)}
                   onDelete={() => openDeleteDialog(med)}
-                  onReminder={() => openReminderDialog(med)}
+                  onToggleReminder={() => handleToggleMedReminder(med)}
                 />
               ))}
             </div>
@@ -736,10 +776,11 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
                       med={med}
                       reminderStatus={reminderStatusMap.get(med.id)}
                       isExpanded={expandedItem?.type === 'med' && expandedItem?.id === med.id}
+                      isTogglingReminder={togglingReminderId === med.id}
                       onToggle={() => handleToggleExpand('med', med.id)}
                       onEdit={() => openEditModal(med)}
                       onDelete={() => openDeleteDialog(med)}
-                      onReminder={() => {}}
+                      onToggleReminder={() => handleToggleMedReminder(med)}
                     />
                   ))}
                 </div>
