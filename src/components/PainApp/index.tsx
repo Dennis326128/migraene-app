@@ -34,11 +34,13 @@ import {
   LazyHit6Screen,
   LazyAIReportsList,
   LazyAIReportDetail,
+  LazyReportsHubPage,
+  LazyReportHistoryPage,
   prefetchCommonViews,
 } from "@/lib/performance/lazyImports";
 import type { AIReport } from "@/features/ai-reports";
 
-type View = "menu" | "new" | "list" | "analysis" | "settings" | "settings-doctors" | "medication-overview" | "medication-management" | "voice-notes" | "reminders" | "diary-timeline" | "context-tags" | "diary-report" | "medication-limits" | "hit6" | "ai-reports" | "ai-report-detail" | "therapy-medication";
+type View = "menu" | "new" | "list" | "analysis" | "settings" | "settings-doctors" | "medication-overview" | "medication-management" | "voice-notes" | "reminders" | "diary-timeline" | "context-tags" | "diary-report" | "medication-limits" | "hit6" | "ai-reports" | "ai-report-detail" | "therapy-medication" | "reports-hub" | "report-history";
 
 // Track where the user navigated from for proper back navigation
 type DiaryReportOrigin = 'home' | 'diary-timeline' | null;
@@ -150,8 +152,8 @@ export const PainApp: React.FC = () => {
               setDiaryReportOrigin('diary-timeline');
               setView('diary-report');
             } else if (target === 'diary-report-home') {
-              setDiaryReportOrigin('home');
-              setView('diary-report');
+              // NEW: Navigate to Reports Hub instead of directly to DiaryReport
+              setView('reports-hub');
             } else if (target === 'medication-limits') {
               setView('medication-limits');
             } else if (target === 'analysis-grafik' || target === 'analysis-ki') {
@@ -375,6 +377,35 @@ export const PainApp: React.FC = () => {
           }}
         />,
         "Bericht laden..."
+      )}
+
+      {/* Reports Hub - Neue Auswahlseite */}
+      {view === "reports-hub" && withSuspense(
+        <LazyReportsHubPage 
+          onBack={goHome}
+          onSelectReportType={(type) => {
+            if (type === 'diary') {
+              setDiaryReportOrigin('home');
+              setView('diary-report');
+            } else if (type === 'hit6') {
+              setView('hit6');
+            } else if (type === 'medication_plan') {
+              // TODO: Navigate to dedicated medication plan page
+              setView('medication-management');
+            }
+          }}
+          onViewHistory={() => setView('report-history')}
+        />,
+        "Berichte laden..."
+      )}
+
+      {/* Report History */}
+      {view === "report-history" && withSuspense(
+        <LazyReportHistoryPage 
+          onBack={() => setView('reports-hub')}
+          onCreateReport={() => setView('reports-hub')}
+        />,
+        "Verlauf laden..."
       )}
 
       {/* Onboarding Modal */}
