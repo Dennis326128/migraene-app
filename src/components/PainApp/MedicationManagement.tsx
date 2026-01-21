@@ -35,6 +35,8 @@ import { DoctorSelectionDialog, type Doctor } from "./DoctorSelectionDialog";
 import { cn } from "@/lib/utils";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { isBrowserSttSupported } from "@/lib/voice/sttConfig";
+import { MedicationLimitsCompactCard } from "./MedicationLimitsCompactCard";
+import { MedicationLimitsSheet } from "./MedicationLimitsSheet";
 
 interface MedicationManagementProps {
   onBack: () => void;
@@ -199,6 +201,7 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
   const [showReminderModal, setShowReminderModal] = useState(false);
   const [showCourseReminderModal, setShowCourseReminderModal] = useState(false);
   const [showDoctorSelection, setShowDoctorSelection] = useState(false);
+  const [showLimitsSheet, setShowLimitsSheet] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [showCourseWizard, setShowCourseWizard] = useState(false);
   const [editingCourse, setEditingCourse] = useState<MedicationCourse | null>(null);
@@ -715,6 +718,9 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
         </CardContent>
       </Card>
 
+      {/* LIMITS COMPACT BLOCK - Always visible, 1-tap to manage */}
+      <MedicationLimitsCompactCard onManageLimits={() => setShowLimitsSheet(true)} />
+
       {/* Add Button */}
       <Button 
         onClick={() => setShowAddDialog(true)}
@@ -1170,6 +1176,12 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Medication Limits Bottom Sheet */}
+      <MedicationLimitsSheet 
+        open={showLimitsSheet} 
+        onOpenChange={setShowLimitsSheet}
+      />
     </div>
   );
 };
