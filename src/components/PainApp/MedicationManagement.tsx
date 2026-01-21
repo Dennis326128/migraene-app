@@ -22,7 +22,7 @@ import { MedicationReminderSheet } from "@/components/Reminders/MedicationRemind
 import { ReminderTimePresets, getTimesForPresets, DEFAULT_TIME_PRESETS } from "@/components/Reminders/ReminderTimePresets";
 import { MedicationEditModal } from "./MedicationEditModal";
 
-import { MedicationCoursesList, MedicationCourseCard, MedicationCourseWizard } from "./MedicationCourses";
+import { MedicationCoursesList, MedicationCourseWizard } from "./MedicationCourses";
 import type { MedicationCourse, CreateMedicationCourseInput } from "@/features/medication-courses";
 import { useUpdateMedicationCourse, useDeleteMedicationCourse } from "@/features/medication-courses";
 import { format } from "date-fns";
@@ -37,146 +37,16 @@ import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { isBrowserSttSupported } from "@/lib/voice/sttConfig";
 import { MedicationLimitsCompactCard } from "./MedicationLimitsCompactCard";
 import { MedicationLimitsSheet } from "./MedicationLimitsSheet";
+import { AccordionMedicationCard } from "./AccordionMedicationCard";
+import { AccordionMedicationCourseCard } from "./AccordionMedicationCourseCard";
 
 interface MedicationManagementProps {
   onBack: () => void;
   onNavigateToLimits?: () => void;
 }
 
-// Helper: Get badge for medication type - only show when explicitly set
-const getMedicationBadge = (med: Med) => {
-  if (med.intolerance_flag) {
-    return <Badge variant="destructive" className="text-xs">Unverträglich</Badge>;
-  }
-  if (med.is_active === false || med.discontinued_at) {
-    return <Badge variant="secondary" className="text-xs">Abgesetzt</Badge>;
-  }
-  if (med.art === "prophylaxe" || med.art === "regelmaessig") {
-    return <Badge variant="default" className="text-xs bg-primary/80">Regelmäßig</Badge>;
-  }
-  // "Bei Bedarf" wird nicht als Badge angezeigt - Gruppierung zeigt die Kategorie bereits
-  if (med.art === "akut") {
-    return <Badge variant="outline" className="text-xs">Akut</Badge>;
-  }
-  if (med.art === "notfall") {
-    return <Badge variant="destructive" className="text-xs">Notfall</Badge>;
-  }
-  // Kein Badge wenn keine art gesetzt
-  return null;
-};
-
-// Medication Card Component
-const MedicationCard: React.FC<{
-  med: Med;
-  reminderStatus?: MedicationReminderStatus;
-  onEdit: () => void;
-  onDelete: () => void;
-  onReminder: () => void;
-}> = ({ med, reminderStatus, onEdit, onDelete, onReminder }) => {
-  const isInactive = med.is_active === false || !!med.discontinued_at || med.intolerance_flag;
-  const hasActiveReminder = reminderStatus?.isActive ?? false;
-  const isIntervalMed = reminderStatus?.isIntervalMed ?? false;
-  const reminderCount = reminderStatus?.reminderCount ?? 0;
-  
-  // Format reminder times for display
-  const formatReminderTimes = () => {
-    if (!reminderStatus?.reminders || reminderStatus.reminders.length === 0) return null;
-    
-    const times = reminderStatus.reminders
-      .map(r => format(new Date(r.date_time), 'HH:mm'))
-      .sort()
-      .filter((t, i, arr) => arr.indexOf(t) === i); // Unique times
-    
-    if (times.length === 0) return null;
-    if (times.length === 1) return times[0];
-    return times.join(', ');
-  };
-  
-  // Format next trigger date for interval meds
-  const formatNextDate = () => {
-    if (!reminderStatus?.nextTriggerDate) return null;
-    return format(reminderStatus.nextTriggerDate, 'dd.MM.yyyy');
-  };
-  
-  return (
-    <Card className={cn(
-      "hover:shadow-md transition-shadow",
-      isInactive && "opacity-70",
-      med.intolerance_flag && "border-destructive/30 bg-destructive/5"
-    )}>
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <Pill className={cn("h-5 w-5 shrink-0", med.intolerance_flag ? "text-destructive" : "text-primary")} />
-              <h3 className="font-semibold text-sm leading-tight line-clamp-2 break-words">{med.name}</h3>
-              {getMedicationBadge(med)}
-            </div>
-            {med.wirkstoff && (
-              <p className="text-xs text-muted-foreground mb-1">{med.wirkstoff} {med.staerke}</p>
-            )}
-            {med.intolerance_notes && (
-              <p className="text-xs text-destructive mt-1">⚠️ {med.intolerance_notes}</p>
-            )}
-            {/* Reminder status line - improved display */}
-            {!isInactive && hasActiveReminder && (
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground leading-tight mt-1">
-                <Bell className="h-3.5 w-3.5 text-primary" />
-                {isIntervalMed ? (
-                  <span>Erinnerung{formatNextDate() && ` · nächste: ${formatNextDate()}`}</span>
-                ) : (
-                  <span>
-                    {formatReminderTimes()} 
-                    {reminderCount === 1 ? ' täglich' : ` (${reminderCount}× täglich)`}
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-          
-          <div className="flex items-center gap-1 shrink-0">
-            {!isInactive && (
-              <Button
-                variant={hasActiveReminder ? "secondary" : "ghost"}
-                size="icon"
-                onClick={onReminder}
-                title={hasActiveReminder ? "Erinnerung aktiv" : "Erinnerung einrichten"}
-                className={cn(
-                  "h-10 w-10",
-                  hasActiveReminder && "bg-primary/10 hover:bg-primary/20"
-                )}
-              >
-                {hasActiveReminder ? (
-                  <Bell className="h-4 w-4 text-primary" />
-                ) : (
-                  <BellOff className="h-4 w-4 text-muted-foreground" />
-                )}
-              </Button>
-            )}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onEdit}
-              title="Bearbeiten"
-              className="h-10 w-10"
-            >
-              <Pencil className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onDelete}
-              title="Löschen"
-              className="h-10 w-10"
-            >
-              <Trash2 className="h-4 w-4 text-destructive" />
-            </Button>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-};
+// Type for tracking expanded item - can be a medication ID or course ID
+type ExpandedItem = { type: 'med' | 'course'; id: string } | null;
 
 export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBack, onNavigateToLimits }) => {
   const { data: medications, isLoading } = useMeds();
@@ -214,6 +84,16 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
   // Collapsible sections state
   const [showInactive, setShowInactive] = useState(false);
   const [showIntolerance, setShowIntolerance] = useState(true);
+  
+  // Accordion state - only one medication can be expanded at a time
+  const [expandedItem, setExpandedItem] = useState<ExpandedItem>(null);
+  
+  // Toggle handler for accordion behavior
+  const handleToggleExpand = (type: 'med' | 'course', id: string) => {
+    setExpandedItem(prev => 
+      prev?.type === type && prev?.id === id ? null : { type, id }
+    );
+  };
   
   const [selectedMedication, setSelectedMedication] = useState<Med | null>(null);
   const [selectedCourse, setSelectedCourse] = useState<MedicationCourse | null>(null);
@@ -733,10 +613,12 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-3 mt-3">
                 {categorizedMeds.intolerant.map((med) => (
-                  <MedicationCard
+                  <AccordionMedicationCard
                     key={med.id}
                     med={med}
                     reminderStatus={reminderStatusMap.get(med.id)}
+                    isExpanded={expandedItem?.type === 'med' && expandedItem?.id === med.id}
+                    onToggle={() => handleToggleExpand('med', med.id)}
                     onEdit={() => openEditModal(med)}
                     onDelete={() => openDeleteDialog(med)}
                     onReminder={() => {}}
@@ -754,10 +636,12 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
               </h3>
               {/* Aktive medication_courses (Prophylaxe wie Ajovy) */}
               {sortedActiveCourses.map((course) => (
-                <MedicationCourseCard
+                <AccordionMedicationCourseCard
                   key={course.id}
                   course={course}
                   reminderStatus={courseReminderMap.get(course.id)}
+                  isExpanded={expandedItem?.type === 'course' && expandedItem?.id === course.id}
+                  onToggle={() => handleToggleExpand('course', course.id)}
                   onEdit={openCourseEditWizard}
                   onDelete={openCourseDeleteDialog}
                   onReminder={openCourseReminderDialog}
@@ -765,10 +649,12 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
               ))}
               {/* Reguläre Medikamente aus user_medications */}
               {categorizedMeds.regular.map((med) => (
-                <MedicationCard
+                <AccordionMedicationCard
                   key={med.id}
                   med={med}
                   reminderStatus={reminderStatusMap.get(med.id)}
+                  isExpanded={expandedItem?.type === 'med' && expandedItem?.id === med.id}
+                  onToggle={() => handleToggleExpand('med', med.id)}
                   onEdit={() => openEditModal(med)}
                   onDelete={() => openDeleteDialog(med)}
                   onReminder={() => openReminderDialog(med)}
@@ -784,10 +670,12 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
                 Bedarfsmedikation ({categorizedMeds.onDemand.length})
               </h3>
               {categorizedMeds.onDemand.map((med) => (
-                <MedicationCard
+                <AccordionMedicationCard
                   key={med.id}
                   med={med}
                   reminderStatus={reminderStatusMap.get(med.id)}
+                  isExpanded={expandedItem?.type === 'med' && expandedItem?.id === med.id}
+                  onToggle={() => handleToggleExpand('med', med.id)}
                   onEdit={() => openEditModal(med)}
                   onDelete={() => openDeleteDialog(med)}
                   onReminder={() => openReminderDialog(med)}
@@ -843,10 +731,12 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
                 <div className="space-y-3">
                   <h4 className="text-sm font-medium text-muted-foreground">Abgesetzte Medikamente</h4>
                   {categorizedMeds.inactive.map((med) => (
-                    <MedicationCard
+                    <AccordionMedicationCard
                       key={med.id}
                       med={med}
                       reminderStatus={reminderStatusMap.get(med.id)}
+                      isExpanded={expandedItem?.type === 'med' && expandedItem?.id === med.id}
+                      onToggle={() => handleToggleExpand('med', med.id)}
                       onEdit={() => openEditModal(med)}
                       onDelete={() => openDeleteDialog(med)}
                       onReminder={() => {}}
@@ -860,9 +750,11 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
                 <div className="space-y-3">
                   <h4 className="text-sm font-medium text-muted-foreground">Frühere Behandlungen</h4>
                   {sortedInactiveCourses.map((course) => (
-                    <MedicationCourseCard
+                    <AccordionMedicationCourseCard
                       key={course.id}
                       course={course}
+                      isExpanded={expandedItem?.type === 'course' && expandedItem?.id === course.id}
+                      onToggle={() => handleToggleExpand('course', course.id)}
                       onEdit={openCourseEditWizard}
                       onDelete={openCourseDeleteDialog}
                     />
