@@ -1,9 +1,8 @@
 import React, { useEffect, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AlertTriangle, CheckCircle, Settings2, Info, Power } from "lucide-react";
+import { Settings2, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Tooltip,
@@ -24,8 +23,8 @@ interface MedicationLimitsCompactCardProps {
 
 /**
  * Compact card showing medication limits status.
- * Designed to be visible without scrolling on the medication management screen.
- * Max 2 text lines + 1 action button.
+ * Designed to be calm, informative (not alarming).
+ * Max 2 text lines + 1 secondary action.
  */
 export function MedicationLimitsCompactCard({ onManageLimits }: MedicationLimitsCompactCardProps) {
   const { data: limits = [], isLoading: limitsLoading } = useMedicationLimits();
@@ -111,7 +110,7 @@ export function MedicationLimitsCompactCard({ onManageLimits }: MedicationLimits
   // Loading state
   if (limitsLoading || medsLoading) {
     return (
-      <Card className="border-border/50 bg-secondary/5">
+      <Card className="border-border/50 bg-card">
         <CardContent className="p-4">
           <div className="flex items-center gap-3">
             <Skeleton className="h-8 w-8 rounded-md" />
@@ -119,7 +118,7 @@ export function MedicationLimitsCompactCard({ onManageLimits }: MedicationLimits
               <Skeleton className="h-4 w-32" />
               <Skeleton className="h-3 w-48" />
             </div>
-            <Skeleton className="h-9 w-28" />
+            <Skeleton className="h-8 w-24" />
           </div>
         </CardContent>
       </Card>
@@ -129,7 +128,7 @@ export function MedicationLimitsCompactCard({ onManageLimits }: MedicationLimits
   // No limits configured - show activation prompt
   if (!summary.hasLimits) {
     return (
-      <Card className="border-border/50 bg-secondary/5">
+      <Card className="border-border/50 bg-card">
         <CardContent className="p-4">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-md bg-muted/50">
@@ -156,12 +155,11 @@ export function MedicationLimitsCompactCard({ onManageLimits }: MedicationLimits
               </p>
             </div>
             <Button 
-              variant="outline" 
+              variant="ghost" 
               size="sm" 
               onClick={onManageLimits}
-              className="shrink-0"
+              className="shrink-0 text-muted-foreground hover:text-foreground"
             >
-              <Power className="h-4 w-4 mr-1.5" />
               Aktivieren
             </Button>
           </div>
@@ -173,7 +171,7 @@ export function MedicationLimitsCompactCard({ onManageLimits }: MedicationLimits
   // All limits deactivated
   if (summary.activeLimits === 0) {
     return (
-      <Card className="border-border/50 bg-secondary/5">
+      <Card className="border-border/50 bg-card">
         <CardContent className="p-4">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-md bg-muted/50">
@@ -182,19 +180,18 @@ export function MedicationLimitsCompactCard({ onManageLimits }: MedicationLimits
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="font-medium text-sm">Einnahme-Limits</span>
-                <Badge variant="secondary" className="text-xs">Deaktiviert</Badge>
+                <span className="text-xs text-muted-foreground">(deaktiviert)</span>
               </div>
               <p className="text-xs text-muted-foreground truncate">
-                {summary.totalLimits} Limit{summary.totalLimits !== 1 ? 's' : ''} konfiguriert, aber inaktiv
+                {summary.totalLimits} Limit{summary.totalLimits !== 1 ? 's' : ''} konfiguriert
               </p>
             </div>
             <Button 
-              variant="outline" 
+              variant="ghost" 
               size="sm" 
               onClick={onManageLimits}
-              className="shrink-0"
+              className="shrink-0 text-muted-foreground hover:text-foreground"
             >
-              <Power className="h-4 w-4 mr-1.5" />
               Aktivieren
             </Button>
           </div>
@@ -203,21 +200,13 @@ export function MedicationLimitsCompactCard({ onManageLimits }: MedicationLimits
     );
   }
 
-  // Active limits with status
-  const getStatusIcon = () => {
-    switch (summary.status) {
-      case 'exceeded':
-      case 'reached':
-        return <AlertTriangle className="h-5 w-5 text-destructive" />;
-      case 'warning':
-        return <AlertTriangle className="h-5 w-5 text-warning" />;
-      default:
-        return <CheckCircle className="h-5 w-5 text-green-500" />;
-    }
-  };
-
+  // Active limits with status - CALM styling, no alarm colors
   const getStatusText = () => {
-    if (!summary.worstCheck) return 'Alles im grünen Bereich';
+    if (!summary.worstCheck) {
+      return `${summary.activeLimits} aktive${summary.activeLimits !== 1 ? ' Limits' : 's Limit'}`;
+    }
+    
+    const remaining = summary.worstCheck.limit_count - summary.worstCheck.current_count;
     
     switch (summary.status) {
       case 'exceeded':
@@ -225,49 +214,36 @@ export function MedicationLimitsCompactCard({ onManageLimits }: MedicationLimits
       case 'reached':
         return `${summary.worstCheck.medication_name}: Limit erreicht`;
       case 'warning':
-        return `${summary.worstCheck.medication_name}: ${summary.worstCheck.current_count}/${summary.worstCheck.limit_count}`;
+      case 'safe':
       default:
-        return 'Alles im grünen Bereich';
+        if (remaining > 0) {
+          return `Noch ${remaining} von ${summary.worstCheck.limit_count} verfügbar`;
+        }
+        return `${summary.activeLimits} aktive${summary.activeLimits !== 1 ? ' Limits' : 's Limit'}`;
     }
   };
 
   const getSecondaryText = () => {
-    if (summary.status === 'safe') {
-      return `${summary.activeLimits} aktive${summary.activeLimits !== 1 ? ' Limits' : 's Limit'}`;
+    if (daysUntilReset !== null && daysUntilReset > 0 && summary.status !== 'safe') {
+      return `Reset in ${daysUntilReset} Tag${daysUntilReset !== 1 ? 'en' : ''}`;
     }
     
-    if (daysUntilReset !== null && daysUntilReset > 0) {
-      return `Reset in ${daysUntilReset} Tag${daysUntilReset !== 1 ? 'en' : ''}`;
+    if (summary.status === 'safe' && summary.activeLimits > 0) {
+      return 'Alles im grünen Bereich';
     }
     
     return null;
   };
 
-  const borderColor = cn({
-    'border-green-500/30': summary.status === 'safe',
-    'border-warning/30': summary.status === 'warning',
-    'border-destructive/30': summary.status === 'reached' || summary.status === 'exceeded',
-  });
-
-  const bgColor = cn({
-    'bg-green-500/5': summary.status === 'safe',
-    'bg-warning/5': summary.status === 'warning',
-    'bg-destructive/5': summary.status === 'reached' || summary.status === 'exceeded',
-  });
-
   return (
-    <Card className={cn("border", borderColor, bgColor)}>
+    <Card className="border-border/50 bg-card">
       <CardContent className="p-4">
         <div className="flex items-center gap-3">
-          <div className={cn(
-            "p-2 rounded-md",
-            summary.status === 'safe' ? 'bg-green-500/10' :
-            summary.status === 'warning' ? 'bg-warning/10' : 'bg-destructive/10'
-          )}>
+          <div className="p-2 rounded-md bg-muted/50">
             {checking ? (
               <div className="h-5 w-5 animate-pulse bg-muted rounded" />
             ) : (
-              getStatusIcon()
+              <Settings2 className="h-5 w-5 text-muted-foreground" />
             )}
           </div>
           <div className="flex-1 min-w-0">
@@ -289,27 +265,27 @@ export function MedicationLimitsCompactCard({ onManageLimits }: MedicationLimits
             <div className="flex items-center gap-2 text-xs">
               <span className={cn(
                 "truncate",
-                summary.status === 'safe' ? 'text-green-600 dark:text-green-400' :
-                summary.status === 'warning' ? 'text-warning' : 'text-destructive'
+                (summary.status === 'reached' || summary.status === 'exceeded') 
+                  ? 'text-foreground font-medium' 
+                  : 'text-muted-foreground'
               )}>
                 {getStatusText()}
               </span>
               {getSecondaryText() && (
                 <>
-                  <span className="text-muted-foreground">·</span>
+                  <span className="text-muted-foreground/50">·</span>
                   <span className="text-muted-foreground">{getSecondaryText()}</span>
                 </>
               )}
             </div>
           </div>
           <Button 
-            variant="outline" 
+            variant="ghost" 
             size="sm" 
             onClick={onManageLimits}
-            className="shrink-0"
+            className="shrink-0 text-muted-foreground hover:text-foreground"
           >
-            <Settings2 className="h-4 w-4 mr-1.5" />
-            Verwalten
+            Limits bearbeiten
           </Button>
         </div>
       </CardContent>
