@@ -242,14 +242,17 @@ export default function DailyImpactCheckScreen({ onBack }: DailyImpactCheckScree
             <Input
               ref={hit6InputRef}
               id="hit6-score"
-              type="number"
+              type="text"
               inputMode="numeric"
-              min={36}
-              max={78}
+              pattern="[0-9]*"
               value={externalHit6Score}
-              onChange={(e) => setExternalHit6Score(e.target.value)}
+              onChange={(e) => {
+                // Nur Zahlen erlauben
+                const val = e.target.value.replace(/[^0-9]/g, '');
+                setExternalHit6Score(val);
+              }}
               placeholder="z.B. 56"
-              className="w-24 h-10 text-center"
+              className="w-32 h-10 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
             />
           </div>
         </div>
