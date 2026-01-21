@@ -224,6 +224,45 @@ export type Database = {
           },
         ]
       }
+      generated_reports: {
+        Row: {
+          created_at: string
+          file_size_bytes: number | null
+          from_date: string | null
+          id: string
+          metadata: Json | null
+          pdf_blob: string
+          report_type: string
+          title: string
+          to_date: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          file_size_bytes?: number | null
+          from_date?: string | null
+          id?: string
+          metadata?: Json | null
+          pdf_blob: string
+          report_type: string
+          title: string
+          to_date?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          file_size_bytes?: number | null
+          from_date?: string | null
+          id?: string
+          metadata?: Json | null
+          pdf_blob?: string
+          report_type?: string
+          title?: string
+          to_date?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       hit6_assessments: {
         Row: {
           answers: Json

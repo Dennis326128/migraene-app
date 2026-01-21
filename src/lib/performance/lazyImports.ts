@@ -111,6 +111,20 @@ export const LazyAIReportDetail = lazy(() =>
   import("@/features/ai-reports/components/AIReportDetail").then(m => ({ default: m.AIReportDetail }))
 );
 
+/**
+ * ReportsHubPage - Report selection hub
+ */
+export const LazyReportsHubPage = lazy(() => 
+  import("@/components/PainApp/Reports/ReportsHubPage").then(m => ({ default: m.ReportsHubPage }))
+);
+
+/**
+ * ReportHistoryPage - PDF history list
+ */
+export const LazyReportHistoryPage = lazy(() => 
+  import("@/components/PainApp/Reports/ReportHistoryPage").then(m => ({ default: m.ReportHistoryPage }))
+);
+
 // ═══════════════════════════════════════════════════════════════════════════
 // PDF GENERATION - Only load when needed
 // ═══════════════════════════════════════════════════════════════════════════
