@@ -94,13 +94,6 @@ export const LazySettingsDoctorsPage = lazy(() =>
 );
 
 /**
- * Hit6Screen - HIT-6 questionnaire with PDF generation (legacy, being replaced)
- */
-export const LazyHit6Screen = lazy(() => 
-  import("@/components/PainApp/Hit6Screen").then(m => ({ default: m.default }))
-);
-
-/**
  * DailyImpactCheckScreen - Alltagsbelastung Kurzcheck (replaces HIT-6)
  */
 export const LazyDailyImpactCheckScreen = lazy(() => 
