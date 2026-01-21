@@ -31,7 +31,6 @@ import {
   LazyRemindersPage,
   LazySettingsDoctorsPage,
   LazyDiaryReport,
-  LazyHit6Screen,
   LazyDailyImpactCheckScreen,
   LazyAIReportsList,
   LazyAIReportDetail,
@@ -41,7 +40,7 @@ import {
 } from "@/lib/performance/lazyImports";
 import type { AIReport } from "@/features/ai-reports";
 
-type View = "menu" | "new" | "list" | "analysis" | "settings" | "settings-doctors" | "medication-overview" | "medication-management" | "voice-notes" | "reminders" | "diary-timeline" | "context-tags" | "diary-report" | "medication-limits" | "hit6" | "daily-impact" | "ai-reports" | "ai-report-detail" | "therapy-medication" | "reports-hub" | "report-history";
+type View = "menu" | "new" | "list" | "analysis" | "settings" | "settings-doctors" | "medication-overview" | "medication-management" | "voice-notes" | "reminders" | "diary-timeline" | "context-tags" | "diary-report" | "medication-limits" | "daily-impact" | "ai-reports" | "ai-report-detail" | "therapy-medication" | "reports-hub" | "report-history";
 
 // Track where the user navigated from for proper back navigation
 type DiaryReportOrigin = 'home' | 'diary-timeline' | null;
@@ -169,8 +168,6 @@ export const PainApp: React.FC = () => {
               setView('ai-reports');
             } else if (target === 'therapy-medication') {
               setView('therapy-medication');
-            } else if (target === 'hit6') {
-              setView('hit6');
             }
           }}
           onLimitWarning={handleLimitWarning}
@@ -307,19 +304,10 @@ export const PainApp: React.FC = () => {
               const editId = params.get('id') || undefined;
               setDoctorsOrigin(origin ? { origin, editDoctorId: editId } : null);
               setView('settings-doctors');
-            } else if (target === 'hit6') {
-              setView('hit6');
             }
           }} 
         />,
         "Bericht laden..."
-      )}
-
-      {view === "hit6" && withSuspense(
-        <LazyHit6Screen 
-          onBack={() => setView('reports-hub')}
-        />,
-        "HIT-6 laden..."
       )}
 
       {/* Daily Impact Check - Ersetzt HIT-6 */}

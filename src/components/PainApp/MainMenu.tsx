@@ -276,7 +276,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               />
             </StartPageCard>
 
-            {/* Medikamente verwalten */}
+            {/* Medikamente & Limits */}
             <StartPageCard 
               variant="muted" 
               size="small"
@@ -286,7 +286,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               <StartPageCardHeader
                 icon="📋"
                 iconBgClassName="bg-muted"
-                title={t('mainMenu.manageMedications')}
+                title="Medikamente & Limits"
               />
             </StartPageCard>
           </div>

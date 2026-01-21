@@ -142,7 +142,7 @@ export function getReportTypeLabel(type: ReportType): string {
   const labels: Record<ReportType, string> = {
     diary: 'Kopfschmerztagebuch',
     medication_plan: 'Medikationsplan',
-    hit6: 'HIT-6 Fragebogen',
+    hit6: 'Fragebogen (alt)', // Legacy: HIT-6 PDFs die noch im Verlauf sind
     daily_impact: 'Alltagsbelastung (Kurzcheck)',
   };
   return labels[type] || type;
