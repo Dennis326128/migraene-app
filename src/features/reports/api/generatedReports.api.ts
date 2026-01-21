@@ -5,7 +5,7 @@
 
 import { supabase } from "@/lib/supabaseClient";
 
-export type ReportType = 'diary' | 'medication_plan' | 'hit6';
+export type ReportType = 'diary' | 'medication_plan' | 'hit6' | 'daily_impact';
 
 export interface GeneratedReport {
   id: string;
@@ -143,6 +143,7 @@ export function getReportTypeLabel(type: ReportType): string {
     diary: 'Kopfschmerztagebuch',
     medication_plan: 'Medikationsplan',
     hit6: 'HIT-6 Fragebogen',
+    daily_impact: 'Alltagsbelastung (Kurzcheck)',
   };
   return labels[type] || type;
 }

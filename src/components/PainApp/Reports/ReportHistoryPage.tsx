@@ -23,6 +23,7 @@ const REPORT_TYPE_ICONS: Record<ReportType, React.ReactNode> = {
   diary: <FileText className="h-5 w-5 text-primary" />,
   medication_plan: <Pill className="h-5 w-5 text-blue-500" />,
   hit6: <ClipboardList className="h-5 w-5 text-orange-500" />,
+  daily_impact: <ClipboardList className="h-5 w-5 text-amber-500" />,
 };
 
 export const ReportHistoryPage: React.FC<ReportHistoryPageProps> = ({
@@ -42,6 +43,7 @@ export const ReportHistoryPage: React.FC<ReportHistoryPageProps> = ({
       diary: [],
       medication_plan: [],
       hit6: [],
+      daily_impact: [],
     };
     
     (reports || []).forEach(r => {
@@ -66,6 +68,7 @@ export const ReportHistoryPage: React.FC<ReportHistoryPageProps> = ({
     if (reportsByType.diary?.length) tabs.push('diary');
     if (reportsByType.medication_plan?.length) tabs.push('medication_plan');
     if (reportsByType.hit6?.length) tabs.push('hit6');
+    if (reportsByType.daily_impact?.length) tabs.push('daily_impact');
     return tabs;
   }, [reportsByType]);
 
@@ -136,7 +139,7 @@ export const ReportHistoryPage: React.FC<ReportHistoryPageProps> = ({
             {/* Tabs - only show if multiple types exist */}
             {visibleTabs.length > 2 && (
               <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
-                <TabsList className="w-full grid grid-cols-4">
+                <TabsList className="w-full grid" style={{ gridTemplateColumns: `repeat(${Math.min(visibleTabs.length, 5)}, 1fr)` }}>
                   <TabsTrigger value="all">Alle</TabsTrigger>
                   {visibleTabs.includes('diary') && (
                     <TabsTrigger value="diary">Tagebuch</TabsTrigger>
@@ -146,6 +149,9 @@ export const ReportHistoryPage: React.FC<ReportHistoryPageProps> = ({
                   )}
                   {visibleTabs.includes('hit6') && (
                     <TabsTrigger value="hit6">HIT-6</TabsTrigger>
+                  )}
+                  {visibleTabs.includes('daily_impact') && (
+                    <TabsTrigger value="daily_impact">Belastung</TabsTrigger>
                   )}
                 </TabsList>
               </Tabs>
