@@ -682,54 +682,25 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div>
-          <h1 className="text-2xl font-bold">Medikamente verwalten</h1>
+          <h1 className="text-2xl font-bold">Medikamente & Limits</h1>
           <p className="text-sm text-muted-foreground">
             {totalActive} aktive Medikamente
           </p>
         </div>
       </div>
 
-      {/* PROMINENT: Medikationsplan PDF Button */}
-      <Card className="border-primary/40 bg-gradient-to-r from-primary/10 to-primary/5 hover:border-primary/60 transition-all duration-200">
-        <CardContent className="p-4">
-          <Button
-            onClick={handleGenerateMedicationPlan}
-            disabled={isGeneratingPdf}
-            className="w-full h-auto py-4 px-5 bg-primary hover:bg-primary/90 text-primary-foreground shadow-md hover:shadow-lg"
-          >
-            <div className="flex items-center gap-4 w-full">
-              <div className="p-2.5 rounded-xl bg-primary-foreground/20 shrink-0">
-                {isGeneratingPdf ? (
-                  <Loader2 className="h-6 w-6 animate-spin" />
-                ) : (
-                  <Download className="h-6 w-6" />
-                )}
-              </div>
-              <div className="flex-1 text-left">
-                <div className="font-bold text-lg">
-                  {isGeneratingPdf ? "PDF wird erstellt..." : "Medikationsplan (PDF) erstellen"}
-                </div>
-                <div className="opacity-90 font-normal text-sm">
-                  Für Arzt, Krankenhaus oder Notfall
-                </div>
-              </div>
-            </div>
-          </Button>
-        </CardContent>
-      </Card>
-
-      {/* LIMITS COMPACT BLOCK - Always visible, 1-tap to manage */}
-      <MedicationLimitsCompactCard onManageLimits={() => setShowLimitsSheet(true)} />
-
-      {/* Add Button */}
+      {/* PRIMARY ACTION: Neues Medikament hinzufügen - EINZIGE dominante Aktion */}
       <Button 
         onClick={() => setShowAddDialog(true)}
-        className="w-full"
+        className="w-full h-14 text-base font-semibold shadow-md hover:shadow-lg"
         size="lg"
       >
         <Plus className="h-5 w-5 mr-2" />
         Neues Medikament hinzufügen
       </Button>
+
+      {/* LIMITS BLOCK - Ruhig, informativ, keine Warnfarben */}
+      <MedicationLimitsCompactCard onManageLimits={() => setShowLimitsSheet(true)} />
 
       {/* ========== AKTUELLE MEDIKAMENTE ========== */}
       {(totalActive > 0 || categorizedMeds.intolerant.length > 0) && (
@@ -838,20 +809,6 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
         </Card>
       )}
 
-      {/* Dezenter Link zu Grenzen & Warnungen */}
-      {onNavigateToLimits && (
-        <div className="flex justify-center pt-4 pb-2">
-          <Button
-            variant="link"
-            className="text-muted-foreground hover:text-foreground text-xs h-auto py-1"
-            onClick={onNavigateToLimits}
-          >
-            <AlertTriangle className="h-3.5 w-3.5 mr-1.5" />
-            Grenzen & Warnungen öffnen
-          </Button>
-        </div>
-      )}
-
       {/* ========== VERGANGENE MEDIKAMENTE & BEHANDLUNGEN ========== */}
       {(categorizedMeds.inactive.length > 0 || sortedInactiveCourses.length > 0) && (
         <>
@@ -916,6 +873,34 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
           </Collapsible>
         </>
       )}
+
+      {/* ========== UTILITY: Medikationsplan PDF (ruhig, nicht prominent) ========== */}
+      <Separator className="my-4" />
+      <Card className="border-border/50 bg-card hover:bg-muted/30 transition-colors">
+        <CardContent className="p-4">
+          <button
+            onClick={handleGenerateMedicationPlan}
+            disabled={isGeneratingPdf}
+            className="flex items-center gap-3 w-full text-left"
+          >
+            <div className="p-2 rounded-md bg-muted/50 shrink-0">
+              {isGeneratingPdf ? (
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              ) : (
+                <Download className="h-5 w-5 text-muted-foreground" />
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <span className="font-medium text-sm block">
+                {isGeneratingPdf ? "PDF wird erstellt..." : "Medikationsplan (PDF) erstellen"}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                Für Arztbesuche & Notfälle
+              </span>
+            </div>
+          </button>
+        </CardContent>
+      </Card>
 
       {/* Add Dialog - Simplified for users with headaches */}
       <Dialog open={showAddDialog} onOpenChange={(open) => {
