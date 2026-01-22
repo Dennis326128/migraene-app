@@ -89,3 +89,21 @@ verify_jwt = false
 
 [functions.generate-ai-diary-report]
 verify_jwt = true
+
+[functions.create-doctor-share]
+verify_jwt = true
+
+[functions.validate-doctor-share]
+verify_jwt = false
+
+[functions.ping-doctor-session]
+verify_jwt = false
+
+[functions.revoke-doctor-share]
+verify_jwt = true
+
+[functions.get-shared-report-data]
+verify_jwt = false
+
+[functions.get-shared-report-pdf]
+verify_jwt = false
