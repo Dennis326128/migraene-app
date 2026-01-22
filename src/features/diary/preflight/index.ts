@@ -1,4 +1,14 @@
 // Diary Preflight Check - exports
+
+// New intelligent reminder system
+export { useReportReminder } from "./useReportReminder";
+export { ReportReminderDialog } from "./ReportReminderDialog";
+export { 
+  resetReminderPreferences,
+  getReminderPreferences,
+} from "./reminderStorage";
+
+// Legacy exports (kept for backwards compatibility)
 export { useDiaryPreflight } from "./useDiaryPreflight";
 export { PreflightWizardModal } from "./PreflightWizardModal";
 export { 
@@ -12,5 +22,8 @@ export type {
   MissingItem, 
   MissingItemType, 
   DiaryCreationPromptPreferences, 
-  PreflightResult 
+  PreflightResult,
+  ReminderDialogType,
+  MissingDataAnalysis,
+  ReminderPreferences,
 } from "./types";
