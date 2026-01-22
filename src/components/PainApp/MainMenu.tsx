@@ -299,33 +299,34 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               />
             </StartPageCard>
 
-            {/* Medikamente */}
-            <StartPageCard 
-              variant="muted" 
-              size="small"
-              touchFeedback 
-              onClick={() => onNavigate?.('medication-management')}
-            >
-              <StartPageCardHeader
-                icon="💊"
-                iconBgClassName="bg-muted"
-                title={t('mainMenu.medications')}
-              />
-            </StartPageCard>
+            {/* Medikamente + Übergebrauch - 2-Spalten-Row (wie Schnell-Eintrag + Alltag) */}
+            <StartPageButtonGrid columns={2} gap="md">
+              <StartPageCard 
+                variant="muted" 
+                size="small"
+                touchFeedback 
+                onClick={() => onNavigate?.('medication-management')}
+              >
+                <StartPageCardHeader
+                  icon="💊"
+                  iconBgClassName="bg-muted"
+                  title={t('mainMenu.medications')}
+                />
+              </StartPageCard>
 
-            {/* Übergebrauch & Limits */}
-            <StartPageCard 
-              variant="muted" 
-              size="small"
-              touchFeedback 
-              onClick={() => onNavigate?.('medication-limits')}
-            >
-              <StartPageCardHeader
-                icon="⚖️"
-                iconBgClassName="bg-muted"
-                title={t('mainMenu.limits')}
-              />
-            </StartPageCard>
+              <StartPageCard 
+                variant="muted" 
+                size="small"
+                touchFeedback 
+                onClick={() => onNavigate?.('medication-limits')}
+              >
+                <StartPageCardHeader
+                  icon="🛡️"
+                  iconBgClassName="bg-muted"
+                  title={t('mainMenu.overuse')}
+                />
+              </StartPageCard>
+            </StartPageButtonGrid>
           </div>
 
           {/* ORGANISATION */}

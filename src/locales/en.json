@@ -383,7 +383,8 @@
     "manageMedications": "Manage medicines",
     "historyAndCalendar": "History & Calendar",
     "medications": "Medications",
-    "limits": "Overuse & Limits"
+    "limits": "Overuse & Limits",
+    "overuse": "Overuse"
   },
 
   "sections": {

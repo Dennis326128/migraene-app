@@ -383,7 +383,8 @@
     "manageMedications": "Medikamente verwalten",
     "historyAndCalendar": "Verlauf & Kalender",
     "medications": "Medikamente",
-    "limits": "Übergebrauch & Limits"
+    "limits": "Übergebrauch & Limits",
+    "overuse": "Übergebrauch"
   },
 
   "sections": {
