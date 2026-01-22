@@ -4,6 +4,8 @@
  * Auth: Cookie (doctor_session) ODER Header (x-doctor-session)
  * 
  * NEU: Prüft share_active_until für 24h-Freigabe-Fenster
+ * Liefert patient_data (Stammdaten) für vollständige Arzt-Ansicht
+ * WICHTIG: Keine Arzt-Kontaktdaten (doctors-Tabelle wird nicht abgefragt)
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
@@ -106,7 +108,7 @@ function painLevelToNumber(level: string): number {
 async function validateSession(
   supabase: ReturnType<typeof createClient>,
   sessionId: string
-): Promise<{ valid: boolean; userId?: string; reason?: string }> {
+): Promise<{ valid: boolean; userId?: string; shareId?: string; reason?: string }> {
   const { data: session, error } = await supabase
     .from("doctor_share_sessions")
     .select(`
@@ -164,7 +166,58 @@ async function validateSession(
     return { valid: false, reason: "session_timeout" };
   }
 
-  return { valid: true, userId: share.user_id };
+  return { valid: true, userId: share.user_id, shareId: share.id };
+}
+
+// Patient-Daten formatieren (KEINE Arzt-Daten!)
+interface PatientInfo {
+  first_name: string | null;
+  last_name: string | null;
+  full_name: string | null;
+  date_of_birth: string | null;
+  street: string | null;
+  postal_code: string | null;
+  city: string | null;
+  phone: string | null;
+  fax: string | null;
+  health_insurance: string | null;
+  insurance_number: string | null;
+  salutation: string | null;
+  title: string | null;
+}
+
+function formatPatientData(data: Record<string, unknown> | null): PatientInfo | null {
+  if (!data) return null;
+  
+  const firstName = data.first_name as string | null;
+  const lastName = data.last_name as string | null;
+  const title = data.title as string | null;
+  const salutation = data.salutation as string | null;
+  
+  let fullName: string | null = null;
+  if (firstName || lastName) {
+    const parts: string[] = [];
+    if (title) parts.push(title);
+    if (firstName) parts.push(firstName);
+    if (lastName) parts.push(lastName);
+    fullName = parts.join(" ");
+  }
+  
+  return {
+    first_name: firstName || null,
+    last_name: lastName || null,
+    full_name: fullName,
+    date_of_birth: data.date_of_birth as string | null,
+    street: data.street as string | null,
+    postal_code: data.postal_code as string | null,
+    city: data.city as string | null,
+    phone: data.phone as string | null,
+    fax: data.fax as string | null,
+    health_insurance: data.health_insurance as string | null,
+    insurance_number: data.insurance_number as string | null,
+    salutation: salutation || null,
+    title: title || null,
+  };
 }
 
 Deno.serve(async (req) => {
@@ -223,12 +276,16 @@ Deno.serve(async (req) => {
 
     const entryIds = allEntryIds?.map(e => e.id) || [];
 
+    // Alle Daten parallel laden (inkl. patient_data)
     const [
       entriesResult,
       entriesCountResult,
       medicationCoursesResult,
       medicationEffectsResult,
+      patientDataResult,
+      userMedicationsResult,
     ] = await Promise.all([
+      // Paginierte Einträge
       supabase
         .from("pain_entries")
         .select("*")
@@ -239,6 +296,7 @@ Deno.serve(async (req) => {
         .order("selected_time", { ascending: false })
         .range((page - 1) * pageSize, page * pageSize - 1),
 
+      // Total Count
       supabase
         .from("pain_entries")
         .select("*", { count: "exact", head: true })
@@ -246,33 +304,50 @@ Deno.serve(async (req) => {
         .gte("selected_date", from)
         .lte("selected_date", to),
 
+      // Medication Courses (Prophylaxe)
       supabase
         .from("medication_courses")
-        .select("*")
+        .select("id, medication_name, start_date, end_date, dose_text, is_active, subjective_effectiveness, side_effects_text, discontinuation_reason, type")
         .eq("user_id", userId)
         .order("start_date", { ascending: false }),
 
+      // Medication Effects
       entryIds.length > 0
         ? supabase
             .from("medication_effects")
             .select("entry_id, med_name, effect_rating, effect_score")
             .in("entry_id", entryIds)
         : Promise.resolve({ data: [], error: null }),
+
+      // Patient Data (Stammdaten) - WICHTIG: Keine doctors-Tabelle!
+      supabase
+        .from("patient_data")
+        .select("first_name, last_name, date_of_birth, street, postal_code, city, phone, fax, health_insurance, insurance_number, salutation, title")
+        .eq("user_id", userId)
+        .maybeSingle(),
+
+      // User Medications (für detaillierte Medikamenten-Infos)
+      supabase
+        .from("user_medications")
+        .select("id, name, wirkstoff, staerke, art, intake_type, is_active")
+        .eq("user_id", userId),
     ]);
 
     const entries = entriesResult.data || [];
     const totalEntries = entriesCountResult.count || 0;
     const medicationCourses = medicationCoursesResult.data || [];
     const medicationEffects = medicationEffectsResult.data || [];
+    const patientData = formatPatientData(patientDataResult.data);
+    const userMedications = userMedicationsResult.data || [];
 
-    console.log(`[Doctor Report] Found ${totalEntries} entries in range ${from} to ${to}`);
+    console.log(`[Doctor Report] Found ${totalEntries} entries in range ${from} to ${to}, patient_data: ${patientData ? 'yes' : 'no'}`);
 
-    // Summary berechnen
+    // Summary berechnen (über alle Einträge im Zeitraum)
     let summaryEntries = entries;
     if (totalEntries > pageSize) {
       const { data: allEntriesForSummary } = await supabase
         .from("pain_entries")
-        .select("id, selected_date, pain_level, medications")
+        .select("id, selected_date, pain_level, medications, aura_type, pain_locations")
         .eq("user_id", userId)
         .gte("selected_date", from)
         .lte("selected_date", to);
@@ -291,6 +366,7 @@ Deno.serve(async (req) => {
         .map(e => e.selected_date)
     );
 
+    // Triptan-Keywords (erweitert)
     const triptanKeywords = [
       "triptan", "almotriptan", "eletriptan", "frovatriptan", 
       "naratriptan", "rizatriptan", "sumatriptan", "zolmitriptan",
@@ -312,6 +388,13 @@ Deno.serve(async (req) => {
     const acuteMedDays = new Set(
       summaryEntries
         .filter(e => e.medications && e.medications.length > 0)
+        .map(e => e.selected_date)
+    );
+
+    // Aura-Statistik
+    const auraDays = new Set(
+      summaryEntries
+        .filter(e => e.aura_type && e.aura_type !== "keine")
         .map(e => e.selected_date)
     );
 
@@ -376,26 +459,52 @@ Deno.serve(async (req) => {
       }))
       .sort((a, b) => b.intake_count - a.intake_count);
 
+    // Pain Locations Stats
+    const locationStats = new Map<string, number>();
+    summaryEntries.forEach(entry => {
+      entry.pain_locations?.forEach((loc: string) => {
+        locationStats.set(loc, (locationStats.get(loc) || 0) + 1);
+      });
+    });
+
     return new Response(
       JSON.stringify({
+        // Patient-Stammdaten (NEU!)
+        patient: patientData,
+        
+        // Summary
         summary: {
           headache_days: painDays.size,
           migraine_days: migraineDays.size,
           triptan_days: triptanDays.size,
           acute_med_days: acuteMedDays.size,
+          aura_days: auraDays.size,
           avg_intensity: Math.round(avgIntensity * 10) / 10,
           overuse_warning: overuseWarning,
+          days_in_range: daysInRange,
         },
+        
+        // Chart Data
         chart_data: {
           dates: chartDates,
           pain_levels: chartPainLevels,
         },
+        
+        // Paginated Entries
         entries: entries,
         entries_total: totalEntries,
         entries_page: page,
         entries_page_size: pageSize,
+        
+        // Medication Info
         medication_stats: medicationStatsArray,
         medication_courses: medicationCourses,
+        user_medications: userMedications,
+        
+        // Location Stats
+        location_stats: Object.fromEntries(locationStats),
+        
+        // Date Range
         from_date: from,
         to_date: to,
       }),

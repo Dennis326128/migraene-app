@@ -10,8 +10,8 @@ import {
   getDoctorShareStatus,
   activateDoctorShare,
   revokeDoctorShare,
-  type DoctorShareStatus,
 } from "../api/doctorShare.api";
+import type { DoctorShareStatus } from "../api/types";
 
 const QUERY_KEY = ["doctor-share-status"];
 
