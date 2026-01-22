@@ -1,62 +1,51 @@
 /**
  * Doctor Share Hooks
  * React Query hooks for the "Mit Arzt teilen" feature
+ * 
+ * Vereinfachte Version: Ein permanenter Code pro Nutzer
  */
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
-  fetchDoctorShares,
-  fetchActiveDoctorShares,
-  createDoctorShare,
-  revokeDoctorShare,
+  getPermanentDoctorCode,
   type DoctorShare,
 } from "../api/doctorShare.api";
-import { toast } from "sonner";
 
-const QUERY_KEY = ["doctor-shares"];
+const QUERY_KEY = ["doctor-code"];
 
-export function useDoctorShares() {
+/**
+ * Haupthook: Holt den permanenten Arzt-Code des Nutzers
+ */
+export function usePermanentDoctorCode() {
   return useQuery({
     queryKey: QUERY_KEY,
-    queryFn: fetchDoctorShares,
+    queryFn: getPermanentDoctorCode,
+    staleTime: 1000 * 60 * 60, // 1 Stunde - Code ändert sich nie
   });
+}
+
+// Legacy hooks für Kompatibilität
+export function useDoctorShares() {
+  return usePermanentDoctorCode();
 }
 
 export function useActiveDoctorShares() {
-  return useQuery({
-    queryKey: [...QUERY_KEY, "active"],
-    queryFn: fetchActiveDoctorShares,
-  });
+  return usePermanentDoctorCode();
 }
 
+// Diese Hooks sind nicht mehr nötig, aber für Kompatibilität behalten
 export function useCreateDoctorShare() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: createDoctorShare,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEY });
-      toast.success("Freigabe erstellt");
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || "Freigabe konnte nicht erstellt werden");
-    },
-  });
+  return {
+    mutate: () => console.warn("useCreateDoctorShare nicht mehr unterstützt"),
+    isPending: false,
+  };
 }
 
 export function useRevokeDoctorShare() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: revokeDoctorShare,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEY });
-      toast.success("Freigabe beendet");
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || "Freigabe konnte nicht beendet werden");
-    },
-  });
+  return {
+    mutate: () => console.warn("useRevokeDoctorShare nicht mehr unterstützt"),
+    isPending: false,
+  };
 }
 
 // Re-export types

@@ -48,9 +48,6 @@ export const ReportsHubPage: React.FC<ReportsHubPageProps> = ({
                 <span className="font-medium text-base block">
                   Mit Arzt teilen
                 </span>
-                <span className="text-xs text-muted-foreground mt-0.5 block">
-                  Freigabe-Code erstellen für Ihren Arzt
-                </span>
               </div>
             </CardContent>
           </Card>
