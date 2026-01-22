@@ -37,16 +37,16 @@ import { cn } from "@/lib/utils";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { isBrowserSttSupported } from "@/lib/voice/sttConfig";
 // MedicationLimitsCompactCard and MedicationLimitsSheet removed - Limits now has its own screen
-import { AccordionMedicationCard } from "./AccordionMedicationCard";
-import { AccordionMedicationCourseCard } from "./AccordionMedicationCourseCard";
+// AccordionMedicationCard and AccordionMedicationCourseCard removed - Now using tap-to-detail pattern
+import { SimpleMedicationRow } from "./SimpleMedicationRow";
+import { SimpleCourseRow } from "./SimpleCourseRow";
 
 interface MedicationManagementProps {
   onBack: () => void;
   onNavigateToLimits?: () => void;
 }
 
-// Type for tracking expanded item - can be a medication ID or course ID
-type ExpandedItem = { type: 'med' | 'course'; id: string } | null;
+// ExpandedItem type removed - no longer using accordion pattern
 
 export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBack, onNavigateToLimits }) => {
   const { data: medications, isLoading } = useMeds();
@@ -89,15 +89,7 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
   const [showInactive, setShowInactive] = useState(false);
   const [showIntolerance, setShowIntolerance] = useState(true);
   
-  // Accordion state - only one medication can be expanded at a time
-  const [expandedItem, setExpandedItem] = useState<ExpandedItem>(null);
-  
-  // Toggle handler for accordion behavior
-  const handleToggleExpand = (type: 'med' | 'course', id: string) => {
-    setExpandedItem(prev => 
-      prev?.type === type && prev?.id === id ? null : { type, id }
-    );
-  };
+  // Accordion state removed - now using tap-to-detail pattern
   
   const [selectedMedication, setSelectedMedication] = useState<Med | null>(null);
   const [selectedCourse, setSelectedCourse] = useState<MedicationCourse | null>(null);
@@ -654,16 +646,10 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-3 mt-3">
                 {categorizedMeds.intolerant.map((med) => (
-                  <AccordionMedicationCard
+                  <SimpleMedicationRow
                     key={med.id}
                     med={med}
-                    reminderStatus={reminderStatusMap.get(med.id)}
-                    isExpanded={expandedItem?.type === 'med' && expandedItem?.id === med.id}
-                    isTogglingReminder={togglingReminderId === med.id}
-                    onToggle={() => handleToggleExpand('med', med.id)}
-                    onEdit={() => openEditModal(med)}
-                    onDelete={() => openDeleteDialog(med)}
-                    onToggleReminder={() => handleToggleMedReminder(med)}
+                    onTap={() => openEditModal(med)}
                   />
                 ))}
               </CollapsibleContent>
@@ -678,30 +664,19 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
               </h3>
               {/* Aktive medication_courses (Prophylaxe wie Ajovy) */}
               {sortedActiveCourses.map((course) => (
-                <AccordionMedicationCourseCard
+                <SimpleCourseRow
                   key={course.id}
                   course={course}
                   reminderStatus={courseReminderMap.get(course.id)}
-                  isExpanded={expandedItem?.type === 'course' && expandedItem?.id === course.id}
-                  isTogglingReminder={togglingReminderId === course.id}
-                  onToggle={() => handleToggleExpand('course', course.id)}
-                  onEdit={openCourseEditWizard}
-                  onDelete={openCourseDeleteDialog}
-                  onToggleReminder={handleToggleCourseReminder}
+                  onTap={() => openCourseEditWizard(course)}
                 />
               ))}
               {/* Reguläre Medikamente aus user_medications */}
               {categorizedMeds.regular.map((med) => (
-                <AccordionMedicationCard
+                <SimpleMedicationRow
                   key={med.id}
                   med={med}
-                  reminderStatus={reminderStatusMap.get(med.id)}
-                  isExpanded={expandedItem?.type === 'med' && expandedItem?.id === med.id}
-                  isTogglingReminder={togglingReminderId === med.id}
-                  onToggle={() => handleToggleExpand('med', med.id)}
-                  onEdit={() => openEditModal(med)}
-                  onDelete={() => openDeleteDialog(med)}
-                  onToggleReminder={() => handleToggleMedReminder(med)}
+                  onTap={() => openEditModal(med)}
                 />
               ))}
             </div>
@@ -714,16 +689,10 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
                 Bedarfsmedikation ({categorizedMeds.onDemand.length})
               </h3>
               {categorizedMeds.onDemand.map((med) => (
-                <AccordionMedicationCard
+                <SimpleMedicationRow
                   key={med.id}
                   med={med}
-                  reminderStatus={reminderStatusMap.get(med.id)}
-                  isExpanded={expandedItem?.type === 'med' && expandedItem?.id === med.id}
-                  isTogglingReminder={togglingReminderId === med.id}
-                  onToggle={() => handleToggleExpand('med', med.id)}
-                  onEdit={() => openEditModal(med)}
-                  onDelete={() => openDeleteDialog(med)}
-                  onToggleReminder={() => handleToggleMedReminder(med)}
+                  onTap={() => openEditModal(med)}
                 />
               ))}
             </div>
@@ -776,16 +745,10 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
                 <div className="space-y-3">
                   <h4 className="text-sm font-medium text-muted-foreground">Abgesetzte Medikamente</h4>
                   {categorizedMeds.inactive.map((med) => (
-                    <AccordionMedicationCard
+                    <SimpleMedicationRow
                       key={med.id}
                       med={med}
-                      reminderStatus={reminderStatusMap.get(med.id)}
-                      isExpanded={expandedItem?.type === 'med' && expandedItem?.id === med.id}
-                      isTogglingReminder={togglingReminderId === med.id}
-                      onToggle={() => handleToggleExpand('med', med.id)}
-                      onEdit={() => openEditModal(med)}
-                      onDelete={() => openDeleteDialog(med)}
-                      onToggleReminder={() => handleToggleMedReminder(med)}
+                      onTap={() => openEditModal(med)}
                     />
                   ))}
                 </div>
@@ -796,13 +759,10 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
                 <div className="space-y-3">
                   <h4 className="text-sm font-medium text-muted-foreground">Frühere Behandlungen</h4>
                   {sortedInactiveCourses.map((course) => (
-                    <AccordionMedicationCourseCard
+                    <SimpleCourseRow
                       key={course.id}
                       course={course}
-                      isExpanded={expandedItem?.type === 'course' && expandedItem?.id === course.id}
-                      onToggle={() => handleToggleExpand('course', course.id)}
-                      onEdit={openCourseEditWizard}
-                      onDelete={openCourseDeleteDialog}
+                      onTap={() => openCourseEditWizard(course)}
                     />
                   ))}
                 </div>
