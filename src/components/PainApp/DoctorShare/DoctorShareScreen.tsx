@@ -18,8 +18,16 @@ interface DoctorShareScreenProps {
 }
 
 export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) => {
-  const { data: doctorCode, isLoading, error } = usePermanentDoctorCode();
+  const { data: doctorCode, isLoading, error, refetch } = usePermanentDoctorCode();
   const [copied, setCopied] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  // Retry-Handler mit Loading-State
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    await refetch();
+    setIsRetrying(false);
+  };
 
   // URL für Arzt
   const getDoctorUrl = () => {
@@ -65,15 +73,20 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
             </div>
           )}
 
-          {/* Fehler-Zustand: Sanft, keine roten Elemente */}
+          {/* Fehler-Zustand: Sanft, keine roten Elemente, mit Retry */}
           {!isLoading && error && (
             <div className="py-12 text-center space-y-4">
               <p className="text-muted-foreground">
                 Der Code kann gerade nicht angezeigt werden.
               </p>
-              <p className="text-sm text-muted-foreground/70">
-                Bitte später erneut öffnen.
-              </p>
+              <Button 
+                variant="outline" 
+                onClick={handleRetry}
+                disabled={isRetrying}
+                className="gap-2"
+              >
+                {isRetrying ? "Wird geladen…" : "Erneut versuchen"}
+              </Button>
             </div>
           )}
 
