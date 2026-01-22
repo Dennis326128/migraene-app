@@ -153,9 +153,11 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
           {/* Freigabe AKTIV */}
           {!isLoading && !error && shareStatus && isShareActive && (
             <div className="flex flex-col items-center space-y-8">
-              {/* Der Code - groß, ruhig, zentriert */}
-              <div className="font-mono text-4xl font-bold tracking-widest text-foreground">
-                {shareStatus.code_display}
+              {/* Der Code - in grünlich getöntem Container */}
+              <div className="bg-primary/5 border border-primary/20 rounded-xl px-8 py-6">
+                <div className="font-mono text-4xl font-bold tracking-widest text-foreground text-center">
+                  {shareStatus.code_display}
+                </div>
               </div>
 
               {/* Zeitinformation - klein, ruhig */}
