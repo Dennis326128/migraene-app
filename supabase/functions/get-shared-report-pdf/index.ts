@@ -1,10 +1,9 @@
 /**
  * Edge Function: get-shared-report-pdf
  * Generiert PDF für die Arzt-Ansicht
- * Auth: Cookie (doctor_session)
+ * Auth: Cookie (doctor_session) ODER Header (x-doctor-session)
  * 
- * WICHTIG: Nutzt direkt buildDiaryPdf + buildReportData Logik
- * (keine eigene PDF-Generierung, keine Duplikate)
+ * Unterstützt permanente Codes (expires_at: NULL)
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
@@ -17,7 +16,7 @@ function getCorsHeaders(req: Request): Record<string, string> {
   
   return {
     "Access-Control-Allow-Origin": isAllowed ? origin : "https://migraene-app.lovable.app",
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, cookie",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, cookie, x-doctor-session",
     "Access-Control-Allow-Credentials": "true",
   };
 }
@@ -37,6 +36,24 @@ function parseCookies(cookieHeader: string): Record<string, string> {
   });
   
   return cookies;
+}
+
+// Session ID extrahieren: Cookie ODER Header Fallback
+function getSessionId(req: Request): string | null {
+  // 1. Versuche Cookie
+  const cookieHeader = req.headers.get("cookie") || "";
+  const cookies = parseCookies(cookieHeader);
+  if (cookies["doctor_session"]) {
+    return cookies["doctor_session"];
+  }
+  
+  // 2. Fallback: Header (für Safari/iOS wo Cookies nicht funktionieren)
+  const headerSession = req.headers.get("x-doctor-session");
+  if (headerSession) {
+    return headerSession;
+  }
+  
+  return null;
 }
 
 // Date Range berechnen
@@ -104,7 +121,7 @@ function formatTime(timeStr: string | null): string {
   return timeStr.substring(0, 5); // HH:MM
 }
 
-// Session validieren
+// Session validieren - unterstützt expires_at: NULL für permanente Codes
 async function validateSession(
   supabase: ReturnType<typeof createClient>,
   sessionId: string
@@ -136,7 +153,7 @@ async function validateSession(
   const share = session.doctor_shares as { 
     id: string; 
     user_id: string; 
-    expires_at: string; 
+    expires_at: string | null;  // Kann NULL sein für permanente Codes
     revoked_at: string | null 
   };
   const now = new Date();
@@ -145,7 +162,9 @@ async function validateSession(
     return { valid: false, reason: "share_revoked" };
   }
 
-  if (now > new Date(share.expires_at)) {
+  // WICHTIG: expires_at kann NULL sein für permanente Codes
+  // Nur prüfen wenn expires_at gesetzt ist
+  if (share.expires_at && now > new Date(share.expires_at)) {
     return { valid: false, reason: "share_expired" };
   }
 
@@ -168,10 +187,8 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Session-ID aus Cookie
-    const cookieHeader = req.headers.get("cookie") || "";
-    const cookies = parseCookies(cookieHeader);
-    const sessionId = cookies["doctor_session"];
+    // Session-ID aus Cookie ODER Header
+    const sessionId = getSessionId(req);
 
     if (!sessionId) {
       return new Response(
@@ -238,7 +255,15 @@ Deno.serve(async (req) => {
         .map(e => e.selected_date)
     );
 
-    const triptanKeywords = ["triptan", "suma", "riza", "zolmi", "nara", "almo", "ele", "frova"];
+    // Erweiterte Triptan-Keyword-Liste
+    const triptanKeywords = [
+      "triptan", "almotriptan", "eletriptan", "frovatriptan", 
+      "naratriptan", "rizatriptan", "sumatriptan", "zolmitriptan",
+      "suma", "riza", "zolmi", "nara", "almo", "ele", "frova",
+      "imigran", "maxalt", "ascotop", "naramig", "almogran",
+      "relpax", "allegro", "dolotriptan", "formigran"
+    ];
+    
     const triptanDays = new Set(
       allEntries
         .filter(e => 

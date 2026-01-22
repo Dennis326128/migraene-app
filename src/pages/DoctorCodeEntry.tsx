@@ -83,7 +83,7 @@ const DoctorCodeEntry: React.FC = () => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ code }),
-        ...buildDoctorFetchInit(),
+        credentials: "include", // Wichtig für Cookie-Handling
       });
 
       const data = await response.json();
@@ -94,6 +94,7 @@ const DoctorCodeEntry: React.FC = () => {
         return;
       }
 
+      // Session-ID für Header-Fallback speichern (falls Cookies nicht funktionieren)
       if (data.session_id && typeof data.session_id === "string") {
         doctorSessionFallback.set(data.session_id);
       }
