@@ -2,7 +2,8 @@
  * DoctorShareScreen
  * Zeigt den permanenten, festen Arzt-Code des Nutzers an
  * - Kein Erstellen, kein Widerrufen, kein Ablauf
- * - Maximale Einfachheit
+ * - Get-or-create Logik im Backend
+ * - Maximale Einfachheit und ruhiges Design
  */
 
 import React, { useState } from "react";
@@ -44,8 +45,8 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
 
   return (
     <div className="flex flex-col h-full bg-background">
-      {/* Header */}
-      <div className="flex items-center gap-3 p-4 border-b">
+      {/* Header - KEINE border-b (weiße Linie entfernt) */}
+      <div className="flex items-center gap-3 p-4">
         <Button variant="ghost" size="icon" onClick={onBack}>
           <ArrowLeft className="w-5 h-5" />
         </Button>
@@ -59,16 +60,30 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
             <h2 className="text-xl font-semibold text-foreground">Ihr Arzt-Code</h2>
           </div>
 
-          {/* Code-Anzeige */}
-          {isLoading ? (
-            <div className="py-12 text-center text-muted-foreground">
-              Lade...
+          {/* Lade-Zustand: Ruhig und neutral */}
+          {isLoading && (
+            <div className="py-12 text-center">
+              <div className="animate-pulse space-y-4">
+                <div className="h-16 bg-muted/30 rounded-xl max-w-[200px] mx-auto" />
+                <p className="text-sm text-muted-foreground">Code wird vorbereitet…</p>
+              </div>
             </div>
-          ) : error ? (
-            <div className="py-12 text-center text-destructive">
-              Fehler beim Laden des Codes
+          )}
+
+          {/* Fehler-Zustand: Sanft, keine roten Elemente */}
+          {!isLoading && error && (
+            <div className="py-12 text-center space-y-4">
+              <p className="text-muted-foreground">
+                Der Code kann gerade nicht angezeigt werden.
+              </p>
+              <p className="text-sm text-muted-foreground/70">
+                Bitte später erneut öffnen.
+              </p>
             </div>
-          ) : doctorCode ? (
+          )}
+
+          {/* Code erfolgreich geladen */}
+          {!isLoading && !error && doctorCode && (
             <div className="space-y-6">
               {/* Der Code - groß und lesbar */}
               <div className="bg-muted/50 rounded-xl p-6 text-center">
@@ -97,26 +112,17 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
                 )}
               </Button>
 
-              {/* Hinweise */}
-              <div className="space-y-3 text-sm text-muted-foreground text-center">
+              {/* Hinweise - ruhig und zurückhaltend */}
+              <div className="space-y-3 text-sm text-muted-foreground text-center pt-2">
                 <p>
                   Diesen Code können Sie Ihrem Arzt vorlesen oder zeigen.
                 </p>
-                <p>
-                  Ihr Arzt gibt den Code unter{" "}
-                  <span className="font-medium text-foreground">
-                    {getDoctorUrl()}
-                  </span>{" "}
-                  ein.
+                <p className="text-muted-foreground/80">
+                  Auch zur Ansicht Ihrer Daten am Computer geeignet.
                 </p>
               </div>
-
-              {/* Sekundärer Hinweis */}
-              <p className="text-xs text-muted-foreground/70 text-center pt-4">
-                Der Code ist fest und ändert sich nicht.
-              </p>
             </div>
-          ) : null}
+          )}
         </div>
       </div>
     </div>
