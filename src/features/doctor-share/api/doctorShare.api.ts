@@ -63,7 +63,7 @@ export async function revokeDoctorShare(): Promise<ActivateShareResult> {
   if (!session) throw new Error("Nicht angemeldet");
 
   const { data, error } = await supabase.functions.invoke("activate-doctor-share", {
-    method: "DELETE",
+    body: { action: "revoke" },
     headers: {
       Authorization: `Bearer ${session.access_token}`,
     },

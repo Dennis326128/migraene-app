@@ -1,9 +1,9 @@
 /**
  * Edge Function: activate-doctor-share
- * Aktiviert die 24h-Freigabe für den Arzt-Code des Nutzers
+ * Aktiviert/Beendet die 24h-Freigabe für den Arzt-Code des Nutzers
  * 
- * POST: Aktiviert Freigabe (share_active_until = now + 24h)
- * DELETE: Beendet Freigabe sofort (share_active_until = now, share_revoked_at = now)
+ * POST mit { action: "activate" }: Aktiviert Freigabe (share_active_until = now + 24h)
+ * POST mit { action: "revoke" }: Beendet Freigabe sofort
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
@@ -27,6 +27,17 @@ Deno.serve(async (req) => {
         JSON.stringify({ error: "Nicht authentifiziert" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // Body parsen für action
+    let action = "activate";
+    try {
+      const body = await req.json();
+      if (body.action === "revoke") {
+        action = "revoke";
+      }
+    } catch {
+      // Kein Body = activate (Standard)
     }
 
     // Supabase Client mit User-Token
@@ -72,8 +83,8 @@ Deno.serve(async (req) => {
 
     const now = new Date();
 
-    // DELETE = Freigabe beenden
-    if (req.method === "DELETE") {
+    // REVOKE = Freigabe beenden
+    if (action === "revoke") {
       const { error: updateError } = await supabase
         .from("doctor_shares")
         .update({
@@ -90,6 +101,8 @@ Deno.serve(async (req) => {
         );
       }
 
+      console.log(`[Doctor Share] Revoked share for user ${user.id.substring(0, 8)}...`);
+
       return new Response(
         JSON.stringify({
           success: true,
@@ -102,7 +115,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // POST = Freigabe aktivieren (24h)
+    // ACTIVATE = Freigabe aktivieren (24h)
     const activeUntil = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
     const { error: updateError } = await supabase
