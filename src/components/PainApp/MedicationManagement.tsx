@@ -36,8 +36,7 @@ import { DoctorSelectionDialog, type Doctor } from "./DoctorSelectionDialog";
 import { cn } from "@/lib/utils";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { isBrowserSttSupported } from "@/lib/voice/sttConfig";
-import { MedicationLimitsCompactCard } from "./MedicationLimitsCompactCard";
-import { MedicationLimitsSheet } from "./MedicationLimitsSheet";
+// MedicationLimitsCompactCard and MedicationLimitsSheet removed - Limits now has its own screen
 import { AccordionMedicationCard } from "./AccordionMedicationCard";
 import { AccordionMedicationCourseCard } from "./AccordionMedicationCourseCard";
 
@@ -76,7 +75,7 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
   const [showReminderModal, setShowReminderModal] = useState(false);
   const [showCourseReminderModal, setShowCourseReminderModal] = useState(false);
   const [showDoctorSelection, setShowDoctorSelection] = useState(false);
-  const [showLimitsSheet, setShowLimitsSheet] = useState(false);
+  // showLimitsSheet removed - Limits now has its own screen
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [showCourseWizard, setShowCourseWizard] = useState(false);
   const [editingCourse, setEditingCourse] = useState<MedicationCourse | null>(null);
@@ -598,7 +597,7 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div>
-          <h1 className="text-2xl font-bold">Medikamente & Limits</h1>
+          <h1 className="text-2xl font-bold">Medikamente</h1>
           <p className="text-sm text-muted-foreground">
             {totalActive} aktive Medikamente
           </p>
@@ -615,8 +614,14 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
         Neues Medikament hinzufügen
       </Button>
 
-      {/* LIMITS BLOCK - Ruhig, informativ, keine Warnfarben */}
-      <MedicationLimitsCompactCard onManageLimits={() => setShowLimitsSheet(true)} />
+      {/* LIMITS SHORTCUT - Kleiner Link statt große Kachel */}
+      <button
+        onClick={onNavigateToLimits}
+        className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 mt-2"
+      >
+        <span>→</span>
+        <span>Zu Übergebrauch & Limits</span>
+      </button>
 
       {/* ========== AKTUELLE MEDIKAMENTE ========== */}
       {(totalActive > 0 || categorizedMeds.intolerant.length > 0) && (
@@ -1095,11 +1100,6 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Medication Limits Bottom Sheet */}
-      <MedicationLimitsSheet 
-        open={showLimitsSheet} 
-        onOpenChange={setShowLimitsSheet}
-      />
     </div>
   );
 };
