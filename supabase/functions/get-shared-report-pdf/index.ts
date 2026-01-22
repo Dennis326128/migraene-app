@@ -10,11 +10,17 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, cookie",
-  "Access-Control-Allow-Credentials": "true",
-};
+// Dynamischer CORS Origin für Credentials (Wildcard * funktioniert nicht mit credentials)
+function getCorsHeaders(req: Request): Record<string, string> {
+  const origin = req.headers.get("origin") || "";
+  const isAllowed = origin.includes("lovable.app") || origin.includes("localhost");
+  
+  return {
+    "Access-Control-Allow-Origin": isAllowed ? origin : "https://migraene-app.lovable.app",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, cookie",
+    "Access-Control-Allow-Credentials": "true",
+  };
+}
 
 const SESSION_TIMEOUT_MINUTES = 60;
 
@@ -154,6 +160,8 @@ async function validateSession(
 }
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   // CORS Preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -485,6 +493,7 @@ Deno.serve(async (req) => {
 
   } catch (err) {
     console.error("Unexpected error:", err);
+    const corsHeaders = getCorsHeaders(req);
     return new Response(
       JSON.stringify({ error: "PDF-Generierung fehlgeschlagen" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
