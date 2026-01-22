@@ -1,9 +1,9 @@
 /**
- * MainMenu.tsx - STABLE STRUCTURE v3.0
+ * MainMenu.tsx - STABLE STRUCTURE v4.0
  * 
  * WICHTIG: Diese Struktur ist FINAL und darf NICHT geändert werden ohne explizite User-Anfrage!
  * 
- * Layout-Struktur (memory: navigation/main-menu-regrouping-v3-0-final-structure):
+ * Layout-Struktur (memory: navigation/main-menu-regrouping-v4-0-ux-refactor):
  * 
  * SECTION 1: "Schnell erfassen" (t('sections.quickEntry'))
  * - Spracheingabe (voiceHighlight, volle Breite)
@@ -12,12 +12,15 @@
  * - Wirkung bewerten (warning, volle Breite)
  * 
  * SECTION 2: "Auswertung" (t('sections.analysis'))
+ * - NUR echte Analyse-/Rückblick-Funktionen:
  * - Berichte & PDFs (neutral, small)
  * - Statistiken & Muster (neutral, small)
  * - Verlauf & Kalender (neutral, small)
- * - Medikamente & Limits (muted, small)
  * 
- * SECTION 3: "Organisation" (t('sections.organization'))
+ * SECTION 3: KEIN HEADER - Behandlung & Sicherheit
+ * - 2-spaltig: Medikamente + Übergebrauch (beide muted, small)
+ * 
+ * SECTION 4: "Organisation" (t('sections.organization'))
  * - 2-spaltig: Erinnerungen + Einstellungen (beide muted, small)
  * 
  * FOOTER: FeedbackButton
@@ -253,7 +256,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             </StartPageCard>
           </div>
 
-          {/* AUSWERTUNG - Tiefe Analyse */}
+          {/* AUSWERTUNG - NUR echte Analyse-/Rückblick-Funktionen */}
           <SectionHeader title={t('sections.analysis')} />
           
           <div className="space-y-2">
@@ -298,8 +301,10 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 title={t('mainMenu.historyAndCalendar')}
               />
             </StartPageCard>
+          </div>
 
-            {/* Medikamente + Übergebrauch - 2-Spalten-Row (wie Schnell-Eintrag + Alltag) */}
+          {/* BEHANDLUNG & SICHERHEIT - Kein Header (bewusst ohne Überschrift) */}
+          <div className="pt-4">
             <StartPageButtonGrid columns={2} gap="md">
               <StartPageCard 
                 variant="muted" 
@@ -321,8 +326,8 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 onClick={() => onNavigate?.('medication-limits')}
               >
                 <StartPageCardHeader
-                  icon="🛡️"
-                  iconBgClassName="bg-muted"
+                  icon="⚠️"
+                  iconBgClassName="bg-warning/20"
                   title={t('mainMenu.overuse')}
                 />
               </StartPageCard>
