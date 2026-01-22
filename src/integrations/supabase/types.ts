@@ -269,6 +269,66 @@ export type Database = {
           },
         ]
       }
+      doctor_share_settings: {
+        Row: {
+          ai_analysis_generated_at: string | null
+          created_at: string
+          custom_from: string | null
+          custom_to: string | null
+          generated_report_id: string | null
+          id: string
+          include_ai_analysis: boolean
+          include_context_notes: boolean
+          include_entry_notes: boolean
+          range_preset: string
+          share_id: string
+          updated_at: string
+        }
+        Insert: {
+          ai_analysis_generated_at?: string | null
+          created_at?: string
+          custom_from?: string | null
+          custom_to?: string | null
+          generated_report_id?: string | null
+          id?: string
+          include_ai_analysis?: boolean
+          include_context_notes?: boolean
+          include_entry_notes?: boolean
+          range_preset?: string
+          share_id: string
+          updated_at?: string
+        }
+        Update: {
+          ai_analysis_generated_at?: string | null
+          created_at?: string
+          custom_from?: string | null
+          custom_to?: string | null
+          generated_report_id?: string | null
+          id?: string
+          include_ai_analysis?: boolean
+          include_context_notes?: boolean
+          include_entry_notes?: boolean
+          range_preset?: string
+          share_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "doctor_share_settings_generated_report_id_fkey"
+            columns: ["generated_report_id"]
+            isOneToOne: false
+            referencedRelation: "generated_reports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "doctor_share_settings_share_id_fkey"
+            columns: ["share_id"]
+            isOneToOne: true
+            referencedRelation: "doctor_shares"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       doctor_shares: {
         Row: {
           code: string
