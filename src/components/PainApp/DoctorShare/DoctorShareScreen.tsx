@@ -1,16 +1,16 @@
 /**
  * DoctorShareScreen
- * "Mit Arzt teilen" - Minimalistisches 24h-Freigabe-Fenster
+ * "Mit Arzt teilen" - Vollständiger Flow mit Settings und Code-Anzeige
  * 
  * Zustände:
- * A) Keine aktive Freigabe + NICHT heute revoked → Auto-Aktivierung
+ * A) Keine aktive Freigabe → Dialog zum Einrichten
  * B) Freigabe aktiv → Code + Status + "Freigabe beenden"
  * C) Heute manuell beendet → Button "Für 24h freigeben"
  */
 
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Copy, Check } from "lucide-react";
+import { Copy, Check, Settings2, ExternalLink, FileDown } from "lucide-react";
 import { toast } from "sonner";
 import { 
   useDoctorShareStatus, 
@@ -29,6 +29,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import DoctorShareDialog from "./DoctorShareDialog";
 
 interface DoctorShareScreenProps {
   onBack: () => void;
@@ -67,24 +68,8 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
   const revokeMutation = useRevokeDoctorShare();
   
   const [copied, setCopied] = useState(false);
-  const [autoActivated, setAutoActivated] = useState(false);
-
-  // Zustand A: Auto-Aktivierung wenn keine aktive Freigabe UND nicht heute beendet
-  useEffect(() => {
-    if (
-      shareStatus && 
-      !shareStatus.is_share_active && 
-      !shareStatus.was_revoked_today &&
-      !autoActivated &&
-      !activateMutation.isPending
-    ) {
-      setAutoActivated(true);
-      activateMutation.mutate(undefined, {
-        onSuccess: () => refetch(),
-        onError: (err) => console.error("Auto-Aktivierung fehlgeschlagen:", err),
-      });
-    }
-  }, [shareStatus, autoActivated, activateMutation, refetch]);
+  const [showSetupDialog, setShowSetupDialog] = useState(false);
+  const [justCreatedCode, setJustCreatedCode] = useState<string | null>(null);
 
   // Code kopieren
   const handleCopyCode = async () => {
@@ -121,30 +106,59 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
     });
   };
 
+  // Dialog-Complete Handler
+  const handleShareComplete = (shareCode: string) => {
+    setShowSetupDialog(false);
+    setJustCreatedCode(shareCode);
+    refetch();
+  };
+
   const isShareActive = shareStatus?.is_share_active ?? false;
   const isPending = activateMutation.isPending || revokeMutation.isPending;
+
+  // Zeige Setup-Dialog wenn noch keine Freigabe aktiv und nicht heute revoked
+  const shouldShowSetup = !isLoading && !error && shareStatus && 
+    !isShareActive && !shareStatus.was_revoked_today && !justCreatedCode;
+
+  // Automatisch Dialog öffnen für neue Shares
+  useEffect(() => {
+    if (shouldShowSetup && !showSetupDialog) {
+      setShowSetupDialog(true);
+    }
+  }, [shouldShowSetup, showSetupDialog]);
 
   return (
     <div className="flex flex-col h-full bg-background">
       <AppHeader title="Mit Arzt teilen" onBack={onBack} sticky />
 
       <div className="flex-1 overflow-auto p-4">
-        <div className="max-w-md mx-auto pt-8">
+        <div className="max-w-md mx-auto pt-4">
           
-          {/* Lade-Zustand (inkl. Auto-Aktivierung) */}
-          {(isLoading || (activateMutation.isPending && !shareStatus?.is_share_active)) && (
+          {/* Setup Dialog */}
+          {showSetupDialog && (
+            <DoctorShareDialog
+              onComplete={handleShareComplete}
+              onCancel={() => {
+                setShowSetupDialog(false);
+                onBack();
+              }}
+            />
+          )}
+
+          {/* Lade-Zustand */}
+          {isLoading && !showSetupDialog && (
             <div className="py-16 text-center">
               <div className="animate-pulse space-y-4">
                 <div className="h-12 bg-muted/30 rounded-lg max-w-[180px] mx-auto" />
                 <p className="text-sm text-muted-foreground">
-                  Code wird vorbereitet…
+                  Wird geladen…
                 </p>
               </div>
             </div>
           )}
 
           {/* Fehler-Zustand */}
-          {!isLoading && error && (
+          {!isLoading && error && !showSetupDialog && (
             <div className="py-16 text-center space-y-4">
               <p className="text-muted-foreground">
                 Der Code kann gerade nicht angezeigt werden.
@@ -156,8 +170,20 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
           )}
 
           {/* Zustand B: Freigabe AKTIV */}
-          {!isLoading && !error && shareStatus && isShareActive && (
+          {!isLoading && !error && !showSetupDialog && (shareStatus?.is_share_active || justCreatedCode) && (
             <div className="flex flex-col items-center space-y-8">
+              {/* Success Message nach Erstellung */}
+              {justCreatedCode && (
+                <div className="w-full bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900 rounded-lg p-4 text-center">
+                  <p className="text-sm text-green-800 dark:text-green-200 font-medium">
+                    ✓ Freigabe erstellt & Bericht gespeichert
+                  </p>
+                  <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                    Das PDF findest du unter "Gespeicherte Berichte"
+                  </p>
+                </div>
+              )}
+
               {/* Der Code - tappbar zum Kopieren */}
               <button
                 onClick={handleCopyCode}
@@ -165,7 +191,7 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
                 aria-label="Code kopieren"
               >
                 <div className="font-mono text-4xl font-bold tracking-widest text-foreground">
-                  {shareStatus.code_display}
+                  {justCreatedCode || shareStatus?.code_display}
                 </div>
                 {copied ? (
                   <Check className="w-5 h-5 text-primary shrink-0" />
@@ -174,10 +200,36 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
                 )}
               </button>
 
-              {/* Zeitinformation - klein, ruhig */}
-              <p className="text-sm text-muted-foreground">
-                Zugriff möglich bis {formatActiveUntil(shareStatus.share_active_until)}
-              </p>
+              {/* Zeitinformation */}
+              {shareStatus?.share_active_until && (
+                <p className="text-sm text-muted-foreground">
+                  Zugriff möglich bis {formatActiveUntil(shareStatus.share_active_until)}
+                </p>
+              )}
+
+              {/* Hilfreiche Links */}
+              <div className="w-full space-y-2">
+                <a 
+                  href="https://migraina.lovable.app/doctor"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-lg border border-muted hover:bg-muted/50 transition-colors text-sm"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  Website für Ihren Arzt öffnen
+                </a>
+              </div>
+
+              {/* Neue Freigabe erstellen */}
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setShowSetupDialog(true)}
+                className="mt-4"
+              >
+                <Settings2 className="w-4 h-4 mr-2" />
+                Neue Freigabe mit anderen Einstellungen
+              </Button>
 
               {/* Freigabe beenden - dezent */}
               <div className="pt-4">
@@ -209,8 +261,9 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
             </div>
           )}
 
-          {/* Zustand C: Freigabe INAKTIV (heute beendet oder abgelaufen) */}
-          {!isLoading && !error && shareStatus && !isShareActive && !activateMutation.isPending && (
+          {/* Zustand C: Freigabe INAKTIV (heute beendet) */}
+          {!isLoading && !error && !showSetupDialog && shareStatus && !isShareActive && 
+           shareStatus.was_revoked_today && !justCreatedCode && (
             <div className="flex flex-col items-center space-y-8">
               {/* Der Code - ausgegraut */}
               <div className="font-mono text-4xl font-bold tracking-widest text-muted-foreground/40">
@@ -230,6 +283,16 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
                 disabled={isPending}
               >
                 {activateMutation.isPending ? "Wird aktiviert…" : "Für 24 Stunden freigeben"}
+              </Button>
+
+              {/* Oder neu einrichten */}
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => setShowSetupDialog(true)}
+              >
+                <Settings2 className="w-4 h-4 mr-2" />
+                Neue Freigabe einrichten
               </Button>
             </div>
           )}
