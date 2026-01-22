@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Filter, Calendar as CalendarIcon, Edit, Trash2, ChevronDown, ChevronUp, ArrowDown, Heart, MessageSquare, List, LayoutGrid, Pill, Activity } from 'lucide-react';
+import { Filter, Calendar as CalendarIcon, Edit, Trash2, ChevronDown, ChevronUp, ArrowDown, Heart, MessageSquare, List, LayoutGrid, Pill, Activity } from 'lucide-react';
+import { AppHeader } from '@/components/ui/app-header';
 import { format, subDays } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { toZonedTime } from 'date-fns-tz';
@@ -418,20 +419,15 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
     <div className="min-h-screen bg-background pb-20">
       {/* Sticky Header with View Toggle */}
       <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-md border-b border-border">
-        {/* Title Row */}
-        <div className="px-4 py-3 flex items-center gap-3">
-          <Button 
-            variant="ghost" 
-            onClick={onBack} 
-            className="p-2 hover:bg-secondary/80"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <h1 className="text-xl font-semibold flex-1">{t('mainMenu.historyAndCalendar')}</h1>
-          <Badge variant="outline" className="text-xs">
-            {filteredItems.length}
-          </Badge>
-        </div>
+        <AppHeader 
+          title={t('mainMenu.historyAndCalendar')} 
+          onBack={onBack}
+          action={
+            <Badge variant="outline" className="text-xs">
+              {filteredItems.length}
+            </Badge>
+          }
+        />
         
         {/* Segmented Control - Always Visible */}
         <div className="px-4 pb-3">

@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Download, Trash2, FileText, Pill, ClipboardList, Loader2 } from "lucide-react";
+import { Download, Trash2, FileText, Pill, ClipboardList, Loader2 } from "lucide-react";
+import { AppHeader } from "@/components/ui/app-header";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { 
@@ -101,22 +102,10 @@ export const ReportHistoryPage: React.FC<ReportHistoryPageProps> = ({
   const isEmpty = !reports?.length;
 
   return (
-    <div className="min-h-screen bg-background p-4">
-      <div className="max-w-2xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onBack}
-            className="shrink-0"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold">Verlauf</h1>
-          </div>
-        </div>
+    <div className="min-h-screen bg-background">
+      <AppHeader title="Verlauf" onBack={onBack} sticky />
+
+      <div className="p-4 max-w-2xl mx-auto space-y-6">
 
         {/* Empty State */}
         {isEmpty && (
