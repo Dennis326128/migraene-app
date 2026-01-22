@@ -188,7 +188,8 @@ Deno.serve(async (req) => {
 
     const userId = sessionResult.userId!;
 
-    // Query-Parameter
+    // Server-Log für Verifikation (nur in Logs sichtbar)
+    console.log(`[Doctor Report] Loading data for user_id=${userId.substring(0, 8)}...`);
     const url = new URL(req.url);
     const range = url.searchParams.get("range") || "3m";
     const page = parseInt(url.searchParams.get("page") || "1", 10);
@@ -260,6 +261,10 @@ Deno.serve(async (req) => {
     const entries = entriesResult.data || [];
     const totalEntries = entriesCountResult.count || 0;
     const medicationCourses = medicationCoursesResult.data || [];
+    const medicationEffects = medicationEffectsResult.data || [];
+
+    // Verifikations-Log: echte Entry-IDs
+    console.log(`[Doctor Report] Found ${totalEntries} entries in range ${from} to ${to}`);
     const medicationEffects = medicationEffectsResult.data || [];
 
     // ═══════════════════════════════════════════════════════════════════════
