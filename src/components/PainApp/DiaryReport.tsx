@@ -25,7 +25,7 @@ import { buildReportData, type ReportData, getEntryDate } from "@/lib/pdf/report
 
 import { PremiumBadge } from "@/components/ui/premium-badge";
 import { useUserAISettings } from "@/features/draft-composer/hooks/useUserAISettings";
-import { useDiaryPreflight, PreflightWizardModal } from "@/features/diary/preflight";
+import { useReportReminder, ReportReminderDialog } from "@/features/diary/preflight";
 import { useDiaryReportQuota } from "@/features/ai-reports/hooks/useDiaryReportQuota";
 
 // Premium AI Report Response Type
@@ -417,14 +417,10 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     return doctors;
   }, [doctors, selectedDoctorIds, includeDoctorData]);
 
-  // Preflight wizard for diary creation - must be after selectedDoctorsForExport
+  // Intelligent reminder for missing data before PDF generation
   const proceedWithPdfGenerationRef = useRef<() => Promise<void>>();
   
-  const preflight = useDiaryPreflight(useCallback(() => {
-    proceedWithPdfGenerationRef.current?.();
-  }, []));
-  
-  // Update the ref when dependencies change - using eslint disable for intentional pattern
+  // Update the ref when dependencies change
   useEffect(() => {
     proceedWithPdfGenerationRef.current = async () => {
       if (includeDoctorData && doctors.length > 1) {
@@ -437,8 +433,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [includeDoctorData, doctors.length, selectedDoctorsForExport]);
   
-  const handlePreflightNavigate = useCallback((target: 'personal' | 'doctors') => {
-    preflight.closeWizard();
+  const handleReminderNavigate = useCallback((target: 'personal' | 'doctors') => {
     setPendingNavigationTarget(target);
     if (onNavigate) {
       if (target === 'personal') {
@@ -447,7 +442,14 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         onNavigate('settings-doctors');
       }
     }
-  }, [onNavigate, preflight]);
+  }, [onNavigate]);
+  
+  const reminder = useReportReminder(
+    useCallback(() => {
+      proceedWithPdfGenerationRef.current?.();
+    }, []),
+    handleReminderNavigate
+  );
 
   // Check if all medications are selected
   const allMedsSelected = useMemo(() => {
@@ -778,8 +780,11 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
       toast.error("Keine Einträge im ausgewählten Zeitraum");
       return;
     }
-    // Run preflight check - this will either show wizard or proceed directly
-    preflight.runPreflight();
+    // Run intelligent reminder check - shows dialog max 1x per day
+    const shouldProceed = reminder.runCheck();
+    if (shouldProceed) {
+      proceedWithPdfGenerationRef.current?.();
+    }
   };
 
   const handleDoctorSelectionConfirm = async (selectedDoctors: Doctor[]) => {
@@ -1216,23 +1221,15 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         </div>
       </div>
 
-      {/* Preflight Wizard Modal */}
-      <PreflightWizardModal
-        open={preflight.showWizard}
-        currentItem={preflight.currentItem}
-        currentIndex={preflight.currentIndex}
-        totalItems={preflight.totalItems}
-        patientData={patientData ?? null}
-        onLater={preflight.handleLater}
-        onNeverAsk={preflight.handleNeverAsk}
-        onDataSaved={() => {
-          // Refetch data and proceed
-          refetchPatientData();
-          refetchDoctors();
-          preflight.handleDataSaved();
-        }}
-        onNavigateToSettings={handlePreflightNavigate}
-        onCancel={preflight.handleCancel}
+      {/* Intelligent Reminder Dialog */}
+      <ReportReminderDialog
+        open={reminder.showDialog}
+        dialogType={reminder.dialogType}
+        missingData={reminder.missingData}
+        onNavigate={reminder.handleNavigate}
+        onLater={reminder.handleLater}
+        onNeverAsk={reminder.handleNeverAsk}
+        onClose={reminder.closeDialog}
       />
 
       {/* Doctor Selection Dialog */}
