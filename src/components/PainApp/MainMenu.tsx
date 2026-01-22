@@ -1,3 +1,27 @@
+/**
+ * MainMenu.tsx - STABLE STRUCTURE v3.0
+ * 
+ * WICHTIG: Diese Struktur ist FINAL und darf NICHT geändert werden ohne explizite User-Anfrage!
+ * 
+ * Layout-Struktur (memory: navigation/main-menu-regrouping-v3-0-final-structure):
+ * 
+ * SECTION 1: "Schnell erfassen" (t('sections.quickEntry'))
+ * - Spracheingabe (voiceHighlight, volle Breite)
+ * - Migräne-Eintrag Detail (success, volle Breite)
+ * - 2-spaltig: Schnell-Eintrag (quick/rot) + Alltag & Auslöser (muted)
+ * - Wirkung bewerten (warning, volle Breite)
+ * 
+ * SECTION 2: "Auswertung" (t('sections.analysis'))
+ * - Berichte & PDFs (neutral, small)
+ * - Statistiken & Muster (neutral, small)
+ * - Verlauf & Kalender (neutral, small)
+ * - Medikamente & Limits (muted, small)
+ * 
+ * SECTION 3: "Organisation" (t('sections.organization'))
+ * - 2-spaltig: Erinnerungen + Einstellungen (beide muted, small)
+ * 
+ * FOOTER: FeedbackButton
+ */
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -7,7 +31,6 @@ import { StartPageCard, StartPageCardHeader, StartPageButtonGrid, SectionHeader,
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Mic, X, RefreshCw } from "lucide-react";
-
 import { useOnboarding } from "@/hooks/useOnboarding";
 import { ReminderFormWithVoiceData } from "@/components/Reminders/ReminderFormWithVoiceData";
 import { useCreateReminder, useCreateMultipleReminders } from "@/features/reminders/hooks/useReminders";
