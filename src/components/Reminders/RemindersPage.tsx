@@ -30,7 +30,7 @@ import { toast } from '@/hooks/use-toast';
 type ViewMode = 'list' | 'form';
 type ActiveTab = 'active' | 'history';
 type FilterType = 'all' | 'medication' | 'appointment';
-type RangeFilter = 'today' | '7days' | '30days' | 'all';
+type RangeFilter = 'today' | '7days' | '30days' | 'all' | 'next-appointment';
 
 interface RemindersPageProps {
   onBack?: () => void;
@@ -43,6 +43,7 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('active');
   const [filterType, setFilterType] = useState<FilterType>('all');
   const [rangeFilter, setRangeFilter] = useState<RangeFilter>('all');
+  const [lastNonAppointmentFilter, setLastNonAppointmentFilter] = useState<RangeFilter>('all');
   const [hasNotificationPermission, setHasNotificationPermission] = useState(false);
   const [formKey, setFormKey] = useState(0); // Force re-mount on new reminder
 
@@ -298,9 +299,26 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
         return 'Nächste 30 Tage';
       case 'all':
         return 'Alle';
+      case 'next-appointment':
+        return 'Nächster Termin';
       default:
         return 'Nächste 7 Tage';
     }
+  };
+
+  // Tab-Wechsel-Logik: Bei Termine-Tab automatisch "Nächster Termin" anzeigen
+  const handleFilterTypeChange = (newFilterType: FilterType) => {
+    if (newFilterType === 'appointment') {
+      // Merke den aktuellen Filter, bevor wir auf Termine wechseln
+      if (rangeFilter !== 'next-appointment') {
+        setLastNonAppointmentFilter(rangeFilter);
+      }
+      setRangeFilter('next-appointment');
+    } else if (filterType === 'appointment') {
+      // Wechsel von Termine weg: stelle den letzten Filter wieder her
+      setRangeFilter(lastNonAppointmentFilter);
+    }
+    setFilterType(newFilterType);
   };
 
   const getEmptyStateForActive = () => {
@@ -373,22 +391,32 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
         title="Erinnerungen" 
         onBack={onBack}
         action={
-          activeReminders.length > 0 && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => toggleAllMutation.mutate(!someNotificationsEnabled)}
-              disabled={toggleAllMutation.isPending}
-              className="h-10 w-10"
-              title={someNotificationsEnabled ? 'Alle pausieren' : 'Alle aktivieren'}
-            >
-              {someNotificationsEnabled ? (
-                <Bell className="h-5 w-5 text-primary" />
-              ) : (
-                <BellOff className="h-5 w-5 text-muted-foreground" />
-              )}
-            </Button>
-          )
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => {
+              const newState = !someNotificationsEnabled;
+              toggleAllMutation.mutate(newState, {
+                onSuccess: () => {
+                  toast({
+                    title: newState ? 'Alle Erinnerungen aktiviert' : 'Alle Erinnerungen pausiert',
+                    description: newState 
+                      ? 'Du erhältst wieder Benachrichtigungen.'
+                      : 'Du erhältst keine Benachrichtigungen mehr.',
+                  });
+                },
+              });
+            }}
+            disabled={toggleAllMutation.isPending || activeReminders.length === 0}
+            className="h-10 w-10"
+            title={someNotificationsEnabled ? 'Alle pausieren' : 'Alle aktivieren'}
+          >
+            {someNotificationsEnabled ? (
+              <Bell className="h-5 w-5 text-primary" />
+            ) : (
+              <BellOff className="h-5 w-5 text-muted-foreground" />
+            )}
+          </Button>
         }
       />
 
@@ -433,7 +461,7 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
               <Button
                 size="sm"
                 variant={filterType === 'all' ? 'default' : 'outline'}
-                onClick={() => setFilterType('all')}
+                onClick={() => handleFilterTypeChange('all')}
                 className="whitespace-nowrap touch-manipulation"
               >
                 Alle {typeCounts.all > 0 && `(${typeCounts.all})`}
@@ -441,7 +469,7 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
               <Button
                 size="sm"
                 variant={filterType === 'medication' ? 'default' : 'outline'}
-                onClick={() => setFilterType('medication')}
+                onClick={() => handleFilterTypeChange('medication')}
                 className="whitespace-nowrap touch-manipulation"
               >
                 Medikamente {typeCounts.medication > 0 && `(${typeCounts.medication})`}
@@ -449,7 +477,7 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
               <Button
                 size="sm"
                 variant={filterType === 'appointment' ? 'default' : 'outline'}
-                onClick={() => setFilterType('appointment')}
+                onClick={() => handleFilterTypeChange('appointment')}
                 className="whitespace-nowrap touch-manipulation"
               >
                 Termine {typeCounts.appointment > 0 && `(${typeCounts.appointment})`}
@@ -457,18 +485,35 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
             </div>
 
             <div className="flex justify-end mb-4">
-              <Select value={rangeFilter} onValueChange={(v) => setRangeFilter(v as RangeFilter)}>
+              <Select 
+                value={rangeFilter} 
+                onValueChange={(v) => {
+                  // Verhindere Wechsel vom "Nächster Termin" Filter während Termine-Tab aktiv
+                  if (filterType === 'appointment') return;
+                  setRangeFilter(v as RangeFilter);
+                  setLastNonAppointmentFilter(v as RangeFilter);
+                }}
+                disabled={filterType === 'appointment'}
+              >
                 <SelectTrigger className="w-[200px]">
                   <div className="flex items-center gap-2">
                     <Clock className="w-4 h-4" />
-                    <SelectValue placeholder="Zeitraum wählen" />
+                    <SelectValue placeholder="Zeitraum wählen">
+                      {getRangeLabel()}
+                    </SelectValue>
                   </div>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="today">Heute</SelectItem>
-                  <SelectItem value="7days">Nächste 7 Tage</SelectItem>
-                  <SelectItem value="30days">Nächste 30 Tage</SelectItem>
-                  <SelectItem value="all">Alle</SelectItem>
+                  {filterType === 'appointment' ? (
+                    <SelectItem value="next-appointment">Nächster Termin</SelectItem>
+                  ) : (
+                    <>
+                      <SelectItem value="today">Heute</SelectItem>
+                      <SelectItem value="7days">Nächste 7 Tage</SelectItem>
+                      <SelectItem value="30days">Nächste 30 Tage</SelectItem>
+                      <SelectItem value="all">Alle</SelectItem>
+                    </>
+                  )}
                 </SelectContent>
               </Select>
             </div>
