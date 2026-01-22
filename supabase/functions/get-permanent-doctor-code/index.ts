@@ -93,14 +93,14 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Kein Code vorhanden -> Neuen erstellen
+    // Kein Code vorhanden -> Neuen erstellen mit Race-Condition-Schutz
     let attempts = 0;
     let codeData: { code: string; display: string } | null = null;
     
     while (attempts < 5) {
       const candidate = generateShareCode();
       
-      // Prüfe ob Code bereits existiert
+      // Prüfe ob Code bereits existiert (Code-Kollision, nicht User-Kollision)
       const { data: existing } = await supabase
         .from("doctor_shares")
         .select("id")
@@ -122,6 +122,7 @@ Deno.serve(async (req) => {
     }
 
     // Permanenten Code erstellen (kein Ablaufdatum)
+    // Mit Unique-Index auf user_id WHERE revoked_at IS NULL geschützt
     const { data: newCode, error: insertError } = await supabase
       .from("doctor_shares")
       .insert({
@@ -134,7 +135,32 @@ Deno.serve(async (req) => {
       .select("id, code, code_display, created_at")
       .single();
 
+    // Falls Unique-Violation (Race Condition: anderer Request war schneller)
     if (insertError) {
+      // Code 23505 = unique_violation in PostgreSQL
+      if (insertError.code === "23505") {
+        console.log("Race condition detected, fetching existing code");
+        // Nochmal fetchen - der andere Request hat bereits einen Code erstellt
+        const { data: raceCode } = await supabase
+          .from("doctor_shares")
+          .select("id, code, code_display, created_at")
+          .eq("user_id", user.id)
+          .is("revoked_at", null)
+          .single();
+
+        if (raceCode) {
+          return new Response(
+            JSON.stringify({
+              id: raceCode.id,
+              code: raceCode.code,
+              code_display: raceCode.code_display,
+              created_at: raceCode.created_at,
+            }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      }
+      
       console.error("Insert error:", insertError);
       return new Response(
         JSON.stringify({ error: "Code konnte nicht erstellt werden" }),
