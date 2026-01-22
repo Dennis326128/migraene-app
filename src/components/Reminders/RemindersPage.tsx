@@ -30,7 +30,7 @@ import { toast } from '@/hooks/use-toast';
 type ViewMode = 'list' | 'form';
 type ActiveTab = 'active' | 'history';
 type FilterType = 'all' | 'medication' | 'appointment';
-type RangeFilter = 'today' | '7days' | '30days' | 'all' | 'next-appointment';
+type RangeFilter = 'today' | '7days' | '30days' | 'all' | 'next-appointment' | 'all-appointments';
 
 interface RemindersPageProps {
   onBack?: () => void;
@@ -143,6 +143,15 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
     }
   };
 
+  // Alle zukünftigen Termine (für Zählung und "weitere Termine" Hinweis)
+  const getAllFutureAppointments = () => {
+    const reminders = activeTab === 'active' ? activeReminders : historyReminders;
+    const now = new Date();
+    return reminders
+      .filter(r => r.type === 'appointment' && new Date(r.date_time) >= now)
+      .sort((a, b) => new Date(a.date_time).getTime() - new Date(b.date_time).getTime());
+  };
+
   const getFilteredReminders = () => {
     let reminders = activeTab === 'active' ? activeReminders : historyReminders;
     
@@ -151,13 +160,20 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
       reminders = reminders.filter(r => r.type === filterType);
     }
     
-    // CRITICAL FIX: "Termine" Tab ignoriert den Zeitraum-Filter komplett
-    // Zeigt IMMER alle zukünftigen Termine (>= jetzt)
+    // Termine-Tab: unterscheide zwischen "Nächster Termin" und "Alle Termine"
     if (filterType === 'appointment') {
       const now = new Date();
-      // Für Termine: zeige alle zukünftigen, ignoriere rangeFilter
-      return reminders.filter(r => new Date(r.date_time) >= now)
+      const futureAppointments = reminders
+        .filter(r => new Date(r.date_time) >= now)
         .sort((a, b) => new Date(a.date_time).getTime() - new Date(b.date_time).getTime());
+      
+      // "Nächster Termin": zeige nur den nächsten
+      if (rangeFilter === 'next-appointment') {
+        return futureAppointments.slice(0, 1);
+      }
+      
+      // "Alle Termine": zeige alle zukünftigen
+      return futureAppointments;
     }
     
     // Für andere Filter: wende rangeFilter normal an
@@ -301,6 +317,8 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
         return 'Alle';
       case 'next-appointment':
         return 'Nächster Termin';
+      case 'all-appointments':
+        return 'Alle Termine';
       default:
         return 'Nächste 7 Tage';
     }
@@ -488,12 +506,13 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
               <Select 
                 value={rangeFilter} 
                 onValueChange={(v) => {
-                  // Verhindere Wechsel vom "Nächster Termin" Filter während Termine-Tab aktiv
-                  if (filterType === 'appointment') return;
-                  setRangeFilter(v as RangeFilter);
-                  setLastNonAppointmentFilter(v as RangeFilter);
+                  const newRange = v as RangeFilter;
+                  setRangeFilter(newRange);
+                  // Merke den Filter für Nicht-Termine-Tabs
+                  if (filterType !== 'appointment') {
+                    setLastNonAppointmentFilter(newRange);
+                  }
                 }}
-                disabled={filterType === 'appointment'}
               >
                 <SelectTrigger className="w-[200px]">
                   <div className="flex items-center gap-2">
@@ -505,7 +524,10 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
                 </SelectTrigger>
                 <SelectContent>
                   {filterType === 'appointment' ? (
-                    <SelectItem value="next-appointment">Nächster Termin</SelectItem>
+                    <>
+                      <SelectItem value="next-appointment">Nächster Termin</SelectItem>
+                      <SelectItem value="all-appointments">Alle Termine</SelectItem>
+                    </>
                   ) : (
                     <>
                       <SelectItem value="today">Heute</SelectItem>
@@ -535,6 +557,24 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
                     onPlanFollowUp={handlePlanFollowUp}
                   />
                 ))}
+                
+                {/* Hinweis auf weitere Termine im "Nächster Termin" Modus */}
+                {filterType === 'appointment' && rangeFilter === 'next-appointment' && (() => {
+                  const allFuture = getAllFutureAppointments();
+                  const additionalCount = allFuture.length - 1;
+                  if (additionalCount > 0) {
+                    return (
+                      <button
+                        onClick={() => setRangeFilter('all-appointments')}
+                        className="w-full py-3 px-4 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors flex items-center justify-center gap-2"
+                      >
+                        <Calendar className="w-4 h-4" />
+                        <span>+ {additionalCount} weitere{additionalCount === 1 ? 'r' : ''} Termin{additionalCount === 1 ? '' : 'e'}</span>
+                      </button>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
             ) : (
               <EmptyState
