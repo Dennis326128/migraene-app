@@ -3,10 +3,19 @@
  * Vollbild-Ansicht nach Erstellung eines Freigabe-Codes
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Copy, Check, ExternalLink, XCircle, Clock, Eye } from "lucide-react";
+import {
+  ArrowLeft,
+  Copy,
+  Check,
+  ExternalLink,
+  XCircle,
+  Clock,
+  Eye,
+  UserRound,
+} from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { toast } from "sonner";
@@ -39,10 +48,9 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [revokeConfirmShare, setRevokeConfirmShare] = useState<DoctorShare | null>(null);
 
-  // URL für Arzt
+  // URL für Arzt - nutze origin, in Prod korrekt
   const getDoctorUrl = () => {
-    const baseUrl = window.location.origin;
-    return `${baseUrl}/doctor`;
+    return `${window.location.origin}/doctor`;
   };
 
   // Code kopieren
@@ -78,10 +86,6 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
   // Formatierung
   const formatExpiry = (expiresAt: string) => {
     return format(new Date(expiresAt), "d. MMMM yyyy, HH:mm 'Uhr'", { locale: de });
-  };
-
-  const isExpired = (expiresAt: string) => {
-    return new Date(expiresAt) < new Date();
   };
 
   return (
@@ -237,5 +241,4 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
   );
 };
 
-// Import für Icon (fehlt oben)
-import { UserRound } from "lucide-react";
+export default DoctorShareScreen;

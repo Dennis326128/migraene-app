@@ -125,6 +125,13 @@ export const LazyReportHistoryPage = lazy(() =>
   import("@/components/PainApp/Reports/ReportHistoryPage").then(m => ({ default: m.ReportHistoryPage }))
 );
 
+/**
+ * DoctorShareScreen - Share with doctor
+ */
+export const LazyDoctorShareScreen = lazy(() => 
+  import("@/components/PainApp/DoctorShare/DoctorShareScreen").then(m => ({ default: m.default }))
+);
+
 // ═══════════════════════════════════════════════════════════════════════════
 // PDF GENERATION - Only load when needed
 // ═══════════════════════════════════════════════════════════════════════════
