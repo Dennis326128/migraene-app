@@ -279,7 +279,10 @@ const DoctorReportView: React.FC = () => {
 
         {/* Loading State */}
         {isLoading ? (
-          <div className="space-y-4">
+          <div className="space-y-6">
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">Bericht wird geladen…</p>
+            </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[1, 2, 3, 4].map((i) => (
                 <Skeleton key={i} className="h-24" />
@@ -309,7 +312,7 @@ const DoctorReportView: React.FC = () => {
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2 text-muted-foreground mb-1">
                     <Calendar className="w-4 h-4" />
-                    <span className="text-xs">Kopfschmerztage</span>
+                    <span className="text-xs">Kopfschmerztage / 30 Tage</span>
                   </div>
                   <p className="text-2xl font-bold">{data.summary.headache_days}</p>
                 </CardContent>
@@ -329,7 +332,7 @@ const DoctorReportView: React.FC = () => {
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2 text-muted-foreground mb-1">
                     <Pill className="w-4 h-4" />
-                    <span className="text-xs">Triptantage</span>
+                    <span className="text-xs">Triptantage / 30 Tage</span>
                   </div>
                   <p className="text-2xl font-bold">{data.summary.triptan_days}</p>
                 </CardContent>
@@ -436,41 +439,47 @@ const DoctorReportView: React.FC = () => {
                 )}
               </CardHeader>
               <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="text-left py-2 font-medium">Datum</th>
-                        <th className="text-left py-2 font-medium">Intensität</th>
-                        <th className="text-left py-2 font-medium">Medikamente</th>
-                        <th className="text-left py-2 font-medium">Notizen</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {data.entries.map((entry) => (
-                        <tr key={entry.id} className="border-b last:border-0">
-                          <td className="py-2 whitespace-nowrap">
-                            {formatDateShort(entry.selected_date)}
-                            {entry.selected_time && (
-                              <span className="text-muted-foreground ml-1">
-                                {entry.selected_time.substring(0, 5)}
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-2">
-                            {PAIN_LEVEL_LABELS[entry.pain_level] || entry.pain_level}
-                          </td>
-                          <td className="py-2 max-w-[200px] truncate">
-                            {entry.medications?.join(", ") || "-"}
-                          </td>
-                          <td className="py-2 max-w-[200px] truncate text-muted-foreground">
-                            {entry.notes || "-"}
-                          </td>
+                {data.entries.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <p>Noch keine Einträge im gewählten Zeitraum.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left py-2 font-medium">Datum</th>
+                          <th className="text-left py-2 font-medium">Intensität</th>
+                          <th className="text-left py-2 font-medium">Medikamente</th>
+                          <th className="text-left py-2 font-medium">Notizen</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {data.entries.map((entry) => (
+                          <tr key={entry.id} className="border-b last:border-0">
+                            <td className="py-2 whitespace-nowrap">
+                              {formatDateShort(entry.selected_date)}
+                              {entry.selected_time && (
+                                <span className="text-muted-foreground ml-1">
+                                  {entry.selected_time.substring(0, 5)}
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-2">
+                              {PAIN_LEVEL_LABELS[entry.pain_level] || entry.pain_level}
+                            </td>
+                            <td className="py-2 max-w-[200px] truncate">
+                              {entry.medications?.join(", ") || "-"}
+                            </td>
+                            <td className="py-2 max-w-[200px] truncate text-muted-foreground">
+                              {entry.notes || "-"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </CardContent>
             </Card>
 

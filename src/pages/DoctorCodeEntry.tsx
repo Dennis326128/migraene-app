@@ -68,7 +68,7 @@ const DoctorCodeEntry: React.FC = () => {
       const data = await response.json();
 
       if (!response.ok || !data.valid) {
-        setError(data.error || "Code ungültig");
+        setError(data.error || "Code ungültig oder abgelaufen");
         setIsValidating(false);
         return;
       }
@@ -112,9 +112,9 @@ const DoctorCodeEntry: React.FC = () => {
 
             {/* Title */}
             <div className="text-center space-y-2">
-              <h2 className="text-xl font-semibold">Patientenbericht einsehen</h2>
+              <h2 className="text-xl font-semibold">Patientenbericht anzeigen</h2>
               <p className="text-sm text-muted-foreground">
-                Bitte geben Sie den Freigabe-Code Ihres Patienten ein.
+                Für Ärzt:innen und zur Ansicht der eigenen Daten am Computer.
               </p>
             </div>
 
@@ -160,17 +160,17 @@ const DoctorCodeEntry: React.FC = () => {
                 {isValidating ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Wird geprüft...
+                    Bericht wird geladen...
                   </>
                 ) : (
-                  "Code prüfen"
+                  "Bericht anzeigen"
                 )}
               </Button>
             </form>
 
             {/* Info */}
             <p className="text-xs text-center text-muted-foreground">
-              Der Code ist 24 Stunden gültig und wird vom Patienten erstellt.
+              Geben Sie den 8-stelligen Code ein, den Sie vom Patienten erhalten haben.
             </p>
           </CardContent>
         </Card>
