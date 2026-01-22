@@ -36,11 +36,12 @@ import {
   LazyAIReportDetail,
   LazyReportsHubPage,
   LazyReportHistoryPage,
+  LazyDoctorShareScreen,
   prefetchCommonViews,
 } from "@/lib/performance/lazyImports";
 import type { AIReport } from "@/features/ai-reports";
 
-type View = "menu" | "new" | "list" | "analysis" | "settings" | "settings-doctors" | "medication-overview" | "medication-management" | "voice-notes" | "reminders" | "diary-timeline" | "context-tags" | "diary-report" | "medication-limits" | "daily-impact" | "ai-reports" | "ai-report-detail" | "therapy-medication" | "reports-hub" | "report-history";
+type View = "menu" | "new" | "list" | "analysis" | "settings" | "settings-doctors" | "medication-overview" | "medication-management" | "voice-notes" | "reminders" | "diary-timeline" | "context-tags" | "diary-report" | "medication-limits" | "daily-impact" | "ai-reports" | "ai-report-detail" | "therapy-medication" | "reports-hub" | "report-history" | "doctor-share";
 
 // Track where the user navigated from for proper back navigation
 type DiaryReportOrigin = 'home' | 'diary-timeline' | null;
@@ -389,6 +390,7 @@ export const PainApp: React.FC = () => {
             }
           }}
           onViewHistory={() => setView('report-history')}
+          onDoctorShare={() => setView('doctor-share')}
         />,
         "Berichte laden..."
       )}
@@ -400,6 +402,14 @@ export const PainApp: React.FC = () => {
           onCreateReport={() => setView('reports-hub')}
         />,
         "Verlauf laden..."
+      )}
+
+      {/* Doctor Share Screen */}
+      {view === "doctor-share" && withSuspense(
+        <LazyDoctorShareScreen 
+          onBack={() => setView('reports-hub')}
+        />,
+        "Freigabe laden..."
       )}
 
       {/* Onboarding Modal */}

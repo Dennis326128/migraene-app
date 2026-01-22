@@ -177,6 +177,16 @@ Deno.serve(async (req) => {
     // DATEN LADEN (parallel)
     // ═══════════════════════════════════════════════════════════════════════
 
+    // First get all entry IDs for the period (for medication_effects query)
+    const { data: allEntryIds } = await supabase
+      .from("pain_entries")
+      .select("id")
+      .eq("user_id", userId)
+      .gte("selected_date", from)
+      .lte("selected_date", to);
+
+    const entryIds = allEntryIds?.map(e => e.id) || [];
+
     const [
       entriesResult,
       entriesCountResult,
@@ -209,21 +219,13 @@ Deno.serve(async (req) => {
         .eq("user_id", userId)
         .order("start_date", { ascending: false }),
 
-      // Medication Effects (für Statistik)
-      supabase
-        .from("medication_effects")
-        .select("entry_id, med_name, effect_rating, effect_score")
-        .in(
-          "entry_id",
-          // Subquery: alle Entry-IDs im Zeitraum
-          (await supabase
-            .from("pain_entries")
-            .select("id")
-            .eq("user_id", userId)
-            .gte("selected_date", from)
-            .lte("selected_date", to)
-          ).data?.map(e => e.id) || []
-        ),
+      // Medication Effects - only query if we have entries
+      entryIds.length > 0
+        ? supabase
+            .from("medication_effects")
+            .select("entry_id, med_name, effect_rating, effect_score")
+            .in("entry_id", entryIds)
+        : Promise.resolve({ data: [], error: null }),
     ]);
 
     const entries = entriesResult.data || [];
@@ -232,18 +234,20 @@ Deno.serve(async (req) => {
     const medicationEffects = medicationEffectsResult.data || [];
 
     // ═══════════════════════════════════════════════════════════════════════
-    // SUMMARY BERECHNEN
+    // SUMMARY BERECHNEN (nutze bereits geladene entries für Performance)
     // ═══════════════════════════════════════════════════════════════════════
 
-    // Alle Entries im Zeitraum für Summary (nicht paginiert)
-    const { data: allEntriesForSummary } = await supabase
-      .from("pain_entries")
-      .select("id, selected_date, pain_level, medications")
-      .eq("user_id", userId)
-      .gte("selected_date", from)
-      .lte("selected_date", to);
-
-    const summaryEntries = allEntriesForSummary || [];
+    // Wenn wir mehr als pageSize haben, brauchen wir alle Entries für Summary
+    let summaryEntries = entries;
+    if (totalEntries > pageSize) {
+      const { data: allEntriesForSummary } = await supabase
+        .from("pain_entries")
+        .select("id, selected_date, pain_level, medications")
+        .eq("user_id", userId)
+        .gte("selected_date", from)
+        .lte("selected_date", to);
+      summaryEntries = allEntriesForSummary || [];
+    }
 
     // Tage mit Schmerzen
     const painDays = new Set(

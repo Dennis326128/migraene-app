@@ -25,6 +25,10 @@ import { MedicationEffectsPage } from "./features/medication-effects/components/
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { getAccountStatus, AccountStatus } from "@/features/account/api/accountStatus.api";
 
+// Doctor Share Pages (public, no auth)
+import DoctorCodeEntry from "./pages/DoctorCodeEntry";
+import DoctorReportView from "./pages/DoctorReportView";
+
 // Lazy load DEV-only pages
 const QAPage = React.lazy(() => import("./pages/QAPage"));
 const StringInventoryPage = React.lazy(() => import("./pages/StringInventoryPage"));
@@ -173,6 +177,10 @@ function App() {
               <Route path="/datenschutz" element={<Navigate to="/privacy" replace />} />
               <Route path="/impressum" element={<Navigate to="/imprint" replace />} />
               <Route path="/agb" element={<Navigate to="/terms" replace />} />
+
+              {/* Doctor Share (PUBLIC - no auth required) */}
+              <Route path="/doctor" element={<DoctorCodeEntry />} />
+              <Route path="/doctor/view" element={<DoctorReportView />} />
 
               {/* Consent required page (for users who decline consent) */}
               <Route path="/consent-required" element={<ConsentRequiredPage />} />

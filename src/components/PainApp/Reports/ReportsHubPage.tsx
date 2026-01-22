@@ -1,18 +1,20 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, FileText, Pill, ClipboardList, History } from "lucide-react";
+import { ArrowLeft, FileText, Pill, ClipboardList, History, Share2 } from "lucide-react";
 
 interface ReportsHubPageProps {
   onBack: () => void;
   onSelectReportType: (type: 'diary' | 'medication_plan' | 'daily_impact') => void;
   onViewHistory: () => void;
+  onDoctorShare?: () => void;
 }
 
 export const ReportsHubPage: React.FC<ReportsHubPageProps> = ({
   onBack,
   onSelectReportType,
   onViewHistory,
+  onDoctorShare,
 }) => {
   return (
     <div className="min-h-screen bg-background p-4">
@@ -32,10 +34,32 @@ export const ReportsHubPage: React.FC<ReportsHubPageProps> = ({
           </div>
         </div>
 
+        {/* Section: Doctor Share - Primary Action */}
+        {onDoctorShare && (
+          <Card 
+            className="cursor-pointer hover:bg-primary/5 transition-colors border-primary/30 bg-primary/5"
+            onClick={onDoctorShare}
+          >
+            <CardContent className="p-4 flex items-center gap-4">
+              <div className="p-3 rounded-lg bg-primary/20 shrink-0">
+                <Share2 className="h-6 w-6 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <span className="font-medium text-base block">
+                  Mit Arzt teilen
+                </span>
+                <span className="text-xs text-muted-foreground mt-0.5 block">
+                  Freigabe-Code erstellen für Ihren Arzt
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Section: Create Report */}
         <div className="space-y-3">
           <h2 className="text-base font-medium text-muted-foreground">
-            Was möchtest du erstellen?
+            Berichte erstellen
           </h2>
 
           {/* Report Type Cards */}

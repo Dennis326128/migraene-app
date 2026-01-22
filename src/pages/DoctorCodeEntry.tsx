@@ -55,8 +55,7 @@ const DoctorCodeEntry: React.FC = () => {
     setError(null);
 
     try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const response = await fetch(`${supabaseUrl}/functions/v1/validate-doctor-share`, {
+      const response = await fetch(`https://lzcbjciqrhsezxkjeyhb.supabase.co/functions/v1/validate-doctor-share`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
