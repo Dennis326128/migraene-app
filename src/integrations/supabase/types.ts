@@ -170,6 +170,70 @@ export type Database = {
         }
         Relationships: []
       }
+      doctor_share_report_snapshots: {
+        Row: {
+          generated_at: string
+          id: string
+          is_stale: boolean
+          pdf_last_generated_at: string | null
+          pdf_report_id: string | null
+          range: string
+          report_json: Json
+          report_version: string
+          session_id: string | null
+          share_id: string
+          source_updated_at: string | null
+        }
+        Insert: {
+          generated_at?: string
+          id?: string
+          is_stale?: boolean
+          pdf_last_generated_at?: string | null
+          pdf_report_id?: string | null
+          range: string
+          report_json: Json
+          report_version?: string
+          session_id?: string | null
+          share_id: string
+          source_updated_at?: string | null
+        }
+        Update: {
+          generated_at?: string
+          id?: string
+          is_stale?: boolean
+          pdf_last_generated_at?: string | null
+          pdf_report_id?: string | null
+          range?: string
+          report_json?: Json
+          report_version?: string
+          session_id?: string | null
+          share_id?: string
+          source_updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "doctor_share_report_snapshots_pdf_report_id_fkey"
+            columns: ["pdf_report_id"]
+            isOneToOne: false
+            referencedRelation: "generated_reports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "doctor_share_report_snapshots_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "doctor_share_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "doctor_share_report_snapshots_share_id_fkey"
+            columns: ["share_id"]
+            isOneToOne: false
+            referencedRelation: "doctor_shares"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       doctor_share_sessions: {
         Row: {
           ended_at: string | null
