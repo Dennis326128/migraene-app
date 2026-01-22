@@ -215,6 +215,8 @@ export type Database = {
           id: string
           last_accessed_at: string | null
           revoked_at: string | null
+          share_active_until: string | null
+          share_revoked_at: string | null
           user_id: string
         }
         Insert: {
@@ -226,6 +228,8 @@ export type Database = {
           id?: string
           last_accessed_at?: string | null
           revoked_at?: string | null
+          share_active_until?: string | null
+          share_revoked_at?: string | null
           user_id: string
         }
         Update: {
@@ -237,6 +241,8 @@ export type Database = {
           id?: string
           last_accessed_at?: string | null
           revoked_at?: string | null
+          share_active_until?: string | null
+          share_revoked_at?: string | null
           user_id?: string
         }
         Relationships: []

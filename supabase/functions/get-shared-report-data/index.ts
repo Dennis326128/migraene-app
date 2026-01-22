@@ -3,12 +3,12 @@
  * Liefert Report-Daten für die Arzt-Ansicht
  * Auth: Cookie (doctor_session) ODER Header (x-doctor-session)
  * 
- * Unterstützt permanente Codes (expires_at: NULL)
+ * NEU: Prüft share_active_until für 24h-Freigabe-Fenster
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
-// Dynamischer CORS Origin für Credentials (Wildcard * funktioniert nicht mit credentials)
+// Dynamischer CORS Origin für Credentials
 function getCorsHeaders(req: Request): Record<string, string> {
   const origin = req.headers.get("origin") || "";
   const isAllowed = origin.includes("lovable.app") || origin.includes("localhost");
@@ -37,16 +37,14 @@ function parseCookies(cookieHeader: string): Record<string, string> {
   return cookies;
 }
 
-// Session ID extrahieren: Cookie ODER Header Fallback
+// Session ID extrahieren
 function getSessionId(req: Request): string | null {
-  // 1. Versuche Cookie
   const cookieHeader = req.headers.get("cookie") || "";
   const cookies = parseCookies(cookieHeader);
   if (cookies["doctor_session"]) {
     return cookies["doctor_session"];
   }
   
-  // 2. Fallback: Header (für Safari/iOS wo Cookies nicht funktionieren)
   const headerSession = req.headers.get("x-doctor-session");
   if (headerSession) {
     return headerSession;
@@ -74,7 +72,7 @@ function getDateRange(range: string): { from: string; to: string } {
       from.setFullYear(from.getFullYear() - 1);
       break;
     default:
-      from.setMonth(from.getMonth() - 3); // Default: 3 Monate
+      from.setMonth(from.getMonth() - 3);
   }
   
   return {
@@ -95,8 +93,7 @@ function painLevelToNumber(level: string): number {
   return map[level] ?? 5;
 }
 
-// Session validieren (gemeinsame Logik)
-// Unterstützt expires_at: NULL für permanente Codes
+// Session validieren (inkl. share_active_until Prüfung)
 async function validateSession(
   supabase: ReturnType<typeof createClient>,
   sessionId: string
@@ -111,7 +108,8 @@ async function validateSession(
         id,
         user_id,
         expires_at,
-        revoked_at
+        revoked_at,
+        share_active_until
       )
     `)
     .eq("id", sessionId)
@@ -128,21 +126,28 @@ async function validateSession(
   const share = session.doctor_shares as { 
     id: string; 
     user_id: string; 
-    expires_at: string | null;  // Kann NULL sein für permanente Codes
-    revoked_at: string | null 
+    expires_at: string | null;
+    revoked_at: string | null;
+    share_active_until: string | null;
   };
   const now = new Date();
 
+  // Hard-Check: dauerhaft widerrufen
   if (share.revoked_at) {
     return { valid: false, reason: "share_revoked" };
   }
 
-  // WICHTIG: expires_at kann NULL sein für permanente Codes
-  // Nur prüfen wenn expires_at gesetzt ist
+  // Code-Lebensdauer (falls gesetzt)
   if (share.expires_at && now > new Date(share.expires_at)) {
     return { valid: false, reason: "share_expired" };
   }
 
+  // NEU: 24h-Freigabe-Fenster prüfen
+  if (!share.share_active_until || now > new Date(share.share_active_until)) {
+    return { valid: false, reason: "not_shared" };
+  }
+
+  // Session-Timeout
   const lastActivity = new Date(session.last_activity_at);
   const minutesSinceActivity = (now.getTime() - lastActivity.getTime()) / (1000 * 60);
 
@@ -156,40 +161,36 @@ async function validateSession(
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
 
-  // CORS Preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Session-ID aus Cookie ODER Header
     const sessionId = getSessionId(req);
 
     if (!sessionId) {
       return new Response(
-        JSON.stringify({ error: "Keine aktive Sitzung" }),
+        JSON.stringify({ error: "Keine aktive Sitzung", reason: "no_session" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Supabase Client mit Service Role
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Session validieren
     const sessionResult = await validateSession(supabase, sessionId);
     if (!sessionResult.valid) {
       return new Response(
-        JSON.stringify({ error: "Sitzung abgelaufen", reason: sessionResult.reason }),
+        JSON.stringify({ error: "Sitzung abgelaufen oder Freigabe beendet", reason: sessionResult.reason }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     const userId = sessionResult.userId!;
 
-    // Server-Log für Verifikation (nur in Logs sichtbar)
     console.log(`[Doctor Report] Loading data for user_id=${userId.substring(0, 8)}...`);
+    
     const url = new URL(req.url);
     const range = url.searchParams.get("range") || "3m";
     const page = parseInt(url.searchParams.get("page") || "1", 10);
@@ -203,11 +204,7 @@ Deno.serve(async (req) => {
       .update({ last_activity_at: new Date().toISOString() })
       .eq("id", sessionId);
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // DATEN LADEN (parallel)
-    // ═══════════════════════════════════════════════════════════════════════
-
-    // First get all entry IDs for the period (for medication_effects query)
+    // Entry IDs für medication_effects
     const { data: allEntryIds } = await supabase
       .from("pain_entries")
       .select("id")
@@ -223,7 +220,6 @@ Deno.serve(async (req) => {
       medicationCoursesResult,
       medicationEffectsResult,
     ] = await Promise.all([
-      // Pain Entries (paginiert)
       supabase
         .from("pain_entries")
         .select("*")
@@ -234,7 +230,6 @@ Deno.serve(async (req) => {
         .order("selected_time", { ascending: false })
         .range((page - 1) * pageSize, page * pageSize - 1),
 
-      // Total Count
       supabase
         .from("pain_entries")
         .select("*", { count: "exact", head: true })
@@ -242,14 +237,12 @@ Deno.serve(async (req) => {
         .gte("selected_date", from)
         .lte("selected_date", to),
 
-      // Medication Courses (Prophylaxe)
       supabase
         .from("medication_courses")
         .select("*")
         .eq("user_id", userId)
         .order("start_date", { ascending: false }),
 
-      // Medication Effects - only query if we have entries
       entryIds.length > 0
         ? supabase
             .from("medication_effects")
@@ -263,15 +256,9 @@ Deno.serve(async (req) => {
     const medicationCourses = medicationCoursesResult.data || [];
     const medicationEffects = medicationEffectsResult.data || [];
 
-    // Verifikations-Log: echte Entry-IDs
     console.log(`[Doctor Report] Found ${totalEntries} entries in range ${from} to ${to}`);
-    const medicationEffects = medicationEffectsResult.data || [];
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // SUMMARY BERECHNEN (nutze bereits geladene entries für Performance)
-    // ═══════════════════════════════════════════════════════════════════════
-
-    // Wenn wir mehr als pageSize haben, brauchen wir alle Entries für Summary
+    // Summary berechnen
     let summaryEntries = entries;
     if (totalEntries > pageSize) {
       const { data: allEntriesForSummary } = await supabase
@@ -283,28 +270,22 @@ Deno.serve(async (req) => {
       summaryEntries = allEntriesForSummary || [];
     }
 
-    // Tage mit Schmerzen
     const painDays = new Set(
       summaryEntries
         .filter(e => e.pain_level && e.pain_level !== "-")
         .map(e => e.selected_date)
     );
 
-    // Migränetage (stark/sehr_stark)
     const migraineDays = new Set(
       summaryEntries
         .filter(e => e.pain_level === "stark" || e.pain_level === "sehr_stark")
         .map(e => e.selected_date)
     );
 
-    // Triptantage - erweiterte Keyword-Liste für robuste Erkennung
     const triptanKeywords = [
-      // Wirkstoffe (generisch)
       "triptan", "almotriptan", "eletriptan", "frovatriptan", 
       "naratriptan", "rizatriptan", "sumatriptan", "zolmitriptan",
-      // Kurzformen
       "suma", "riza", "zolmi", "nara", "almo", "ele", "frova",
-      // Gängige Handelsnamen (DE)
       "imigran", "maxalt", "ascotop", "naramig", "almogran",
       "relpax", "allegro", "dolotriptan", "formigran"
     ];
@@ -319,14 +300,12 @@ Deno.serve(async (req) => {
         .map(e => e.selected_date)
     );
 
-    // Akutmedikationstage
     const acuteMedDays = new Set(
       summaryEntries
         .filter(e => e.medications && e.medications.length > 0)
         .map(e => e.selected_date)
     );
 
-    // Durchschnittliche Intensität
     const painLevels = summaryEntries
       .filter(e => e.pain_level && e.pain_level !== "-")
       .map(e => painLevelToNumber(e.pain_level));
@@ -334,7 +313,6 @@ Deno.serve(async (req) => {
       ? painLevels.reduce((a, b) => a + b, 0) / painLevels.length
       : 0;
 
-    // Overuse-Warnung: > 10 Akutmedikationstage/Monat
     const daysInRange = Math.ceil(
       (new Date(to).getTime() - new Date(from).getTime()) / (1000 * 60 * 60 * 24)
     ) + 1;
@@ -342,11 +320,7 @@ Deno.serve(async (req) => {
     const acuteMedDaysPerMonth = acuteMedDays.size / monthsInRange;
     const overuseWarning = acuteMedDaysPerMonth > 10;
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // CHART DATA
-    // ═══════════════════════════════════════════════════════════════════════
-
-    // Gruppiere nach Datum für Chart
+    // Chart Data
     const chartDataMap = new Map<string, number>();
     summaryEntries.forEach(entry => {
       if (entry.selected_date && entry.pain_level && entry.pain_level !== "-") {
@@ -361,10 +335,7 @@ Deno.serve(async (req) => {
     const chartDates = Array.from(chartDataMap.keys()).sort();
     const chartPainLevels = chartDates.map(d => chartDataMap.get(d) || 0);
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // MEDICATION STATS
-    // ═══════════════════════════════════════════════════════════════════════
-
+    // Medication Stats
     const medStats = new Map<string, { count: number; effects: number[]; totalScore: number }>();
     
     summaryEntries.forEach(entry => {
@@ -377,7 +348,6 @@ Deno.serve(async (req) => {
       });
     });
 
-    // Effects hinzufügen
     medicationEffects.forEach(effect => {
       const stat = medStats.get(effect.med_name);
       if (stat && effect.effect_score !== null) {
@@ -396,10 +366,6 @@ Deno.serve(async (req) => {
         effect_count: stat.effects.length,
       }))
       .sort((a, b) => b.intake_count - a.intake_count);
-
-    // ═══════════════════════════════════════════════════════════════════════
-    // RESPONSE
-    // ═══════════════════════════════════════════════════════════════════════
 
     return new Response(
       JSON.stringify({
@@ -431,7 +397,7 @@ Deno.serve(async (req) => {
     console.error("Unexpected error:", err);
     const corsHeaders = getCorsHeaders(req);
     return new Response(
-      JSON.stringify({ error: "Interner Fehler" }),
+      JSON.stringify({ error: "Interner Fehler", reason: "internal_error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Session laden
+    // Session laden (inkl. share_active_until für 24h-Fenster)
     const { data: session, error: sessionError } = await supabase
       .from("doctor_share_sessions")
       .select(`
@@ -90,7 +90,8 @@ Deno.serve(async (req) => {
         doctor_shares!inner (
           id,
           expires_at,
-          revoked_at
+          revoked_at,
+          share_active_until
         )
       `)
       .eq("id", sessionId)
@@ -113,8 +114,9 @@ Deno.serve(async (req) => {
 
     const share = session.doctor_shares as { 
       id: string; 
-      expires_at: string | null;  // Kann NULL sein für permanente Codes
-      revoked_at: string | null 
+      expires_at: string | null;
+      revoked_at: string | null;
+      share_active_until: string | null;
     };
     const now = new Date();
 
@@ -132,8 +134,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // WICHTIG: expires_at kann NULL sein für permanente Codes
-    // Nur prüfen wenn expires_at gesetzt ist
+    // Code-Lebensdauer (expires_at kann NULL sein für permanente Codes)
     if (share.expires_at && now > new Date(share.expires_at)) {
       await supabase
         .from("doctor_share_sessions")
@@ -142,6 +143,19 @@ Deno.serve(async (req) => {
 
       return new Response(
         JSON.stringify({ active: false, reason: "share_expired" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // NEU: 24h-Freigabe-Fenster prüfen (share_active_until)
+    if (!share.share_active_until || now > new Date(share.share_active_until)) {
+      await supabase
+        .from("doctor_share_sessions")
+        .update({ ended_at: now.toISOString() })
+        .eq("id", sessionId);
+
+      return new Response(
+        JSON.stringify({ active: false, reason: "not_shared" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

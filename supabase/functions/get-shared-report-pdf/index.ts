@@ -121,7 +121,7 @@ function formatTime(timeStr: string | null): string {
   return timeStr.substring(0, 5); // HH:MM
 }
 
-// Session validieren - unterstützt expires_at: NULL für permanente Codes
+// Session validieren - inkl. share_active_until Prüfung für 24h-Fenster
 async function validateSession(
   supabase: ReturnType<typeof createClient>,
   sessionId: string
@@ -136,7 +136,8 @@ async function validateSession(
         id,
         user_id,
         expires_at,
-        revoked_at
+        revoked_at,
+        share_active_until
       )
     `)
     .eq("id", sessionId)
@@ -153,21 +154,28 @@ async function validateSession(
   const share = session.doctor_shares as { 
     id: string; 
     user_id: string; 
-    expires_at: string | null;  // Kann NULL sein für permanente Codes
-    revoked_at: string | null 
+    expires_at: string | null;
+    revoked_at: string | null;
+    share_active_until: string | null;
   };
   const now = new Date();
 
+  // Hard-Check: dauerhaft widerrufen
   if (share.revoked_at) {
     return { valid: false, reason: "share_revoked" };
   }
 
-  // WICHTIG: expires_at kann NULL sein für permanente Codes
-  // Nur prüfen wenn expires_at gesetzt ist
+  // Code-Lebensdauer (falls gesetzt)
   if (share.expires_at && now > new Date(share.expires_at)) {
     return { valid: false, reason: "share_expired" };
   }
 
+  // NEU: 24h-Freigabe-Fenster prüfen
+  if (!share.share_active_until || now > new Date(share.share_active_until)) {
+    return { valid: false, reason: "not_shared" };
+  }
+
+  // Session-Timeout
   const lastActivity = new Date(session.last_activity_at);
   const minutesSinceActivity = (now.getTime() - lastActivity.getTime()) / (1000 * 60);
 
