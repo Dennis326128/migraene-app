@@ -97,7 +97,7 @@ export const MedicationReminderSheet: React.FC<MedicationReminderSheetProps> = (
       
       await createReminder.mutateAsync({
         type: 'medication',
-        title: `${medicationName} einnehmen`,
+        title: `Einnahme: ${medicationName}`,
         date_time: dateTime,
         repeat: newRepeat,
         notification_enabled: true,
