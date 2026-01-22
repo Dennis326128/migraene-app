@@ -4,22 +4,29 @@
  * Route: /doctor
  */
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertCircle, Lock, ExternalLink, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  SUPABASE_FUNCTIONS_BASE_URL,
+  doctorSessionFallback,
+  buildDoctorFetchInit,
+} from "@/features/doctor-share/doctorSessionFallback";
 
 const DoctorCodeEntry: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const inputRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   const [code, setCode] = useState("");
   const [isValidating, setIsValidating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showConnectingHint, setShowConnectingHint] = useState(false);
 
   // Expired-Message aus URL
   const expired = searchParams.get("expired") === "1";
@@ -28,6 +35,17 @@ const DoctorCodeEntry: React.FC = () => {
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  // After 800ms show a calm "connecting" hint to avoid the "nothing happens" feeling.
+  useEffect(() => {
+    if (!isValidating) {
+      setShowConnectingHint(false);
+      return;
+    }
+
+    const t = window.setTimeout(() => setShowConnectingHint(true), 800);
+    return () => window.clearTimeout(t);
+  }, [isValidating]);
 
   // Code formatieren (Auto-Bindestrich)
   const formatCode = (input: string): string => {
@@ -42,11 +60,15 @@ const DoctorCodeEntry: React.FC = () => {
     setError(null);
   };
 
+  const canSubmit = useMemo(() => code.replace(/-/g, "").length >= 8, [code]);
+
   // Validierung
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (isValidating) return; // prevent double submit
     
-    if (code.replace(/-/g, "").length < 8) {
+    if (!canSubmit) {
       setError("Bitte geben Sie den vollständigen 8-stelligen Code ein");
       return;
     }
@@ -55,14 +77,13 @@ const DoctorCodeEntry: React.FC = () => {
     setError(null);
 
     try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const response = await fetch(`${supabaseUrl}/functions/v1/validate-doctor-share`, {
+      const response = await fetch(`${SUPABASE_FUNCTIONS_BASE_URL}/validate-doctor-share`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ code }),
-        credentials: "include", // Wichtig für Cookie
+        ...buildDoctorFetchInit(),
       });
 
       const data = await response.json();
@@ -71,6 +92,10 @@ const DoctorCodeEntry: React.FC = () => {
         setError(data.error || "Code ungültig oder abgelaufen");
         setIsValidating(false);
         return;
+      }
+
+      if (data.session_id && typeof data.session_id === "string") {
+        doctorSessionFallback.set(data.session_id);
       }
 
       // Erfolg → zur Ansicht navigieren
@@ -129,7 +154,7 @@ const DoctorCodeEntry: React.FC = () => {
             )}
 
             {/* Form */}
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <Input
                   ref={inputRef}
@@ -143,19 +168,13 @@ const DoctorCodeEntry: React.FC = () => {
                   spellCheck={false}
                   disabled={isValidating}
                 />
-                {error && (
-                  <p className="mt-2 text-sm text-destructive flex items-center gap-1">
-                    <AlertCircle className="w-4 h-4" />
-                    {error}
-                  </p>
-                )}
               </div>
 
               <Button
                 type="submit"
                 className="w-full"
                 size="lg"
-                disabled={isValidating || code.replace(/-/g, "").length < 8}
+                disabled={isValidating || !canSubmit}
               >
                 {isValidating ? (
                   <>
@@ -166,6 +185,31 @@ const DoctorCodeEntry: React.FC = () => {
                   "Bericht anzeigen"
                 )}
               </Button>
+
+              {/* Visible feedback after click */}
+              {isValidating && showConnectingHint && (
+                <p className="text-xs text-muted-foreground text-center">
+                  Verbindung wird hergestellt…
+                </p>
+              )}
+
+              {/* Inline error directly under the button */}
+              {error && !isValidating && (
+                <div className="text-sm text-destructive flex flex-col items-center gap-2">
+                  <p className="flex items-center gap-1">
+                    <AlertCircle className="w-4 h-4" />
+                    {error}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => formRef.current?.requestSubmit()}
+                  >
+                    Erneut versuchen
+                  </Button>
+                </div>
+              )}
             </form>
 
             {/* Info */}

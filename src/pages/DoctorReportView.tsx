@@ -24,6 +24,11 @@ import {
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { toast } from "sonner";
+import {
+  SUPABASE_FUNCTIONS_BASE_URL,
+  buildDoctorFetchInit,
+  doctorSessionFallback,
+} from "@/features/doctor-share/doctorSessionFallback";
 
 // Types
 interface ReportSummary {
@@ -95,20 +100,22 @@ const DoctorReportView: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [expiredMessage, setExpiredMessage] = useState<string | null>(null);
 
   // Session-Ping Interval
   const pingSession = useCallback(async () => {
     try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const response = await fetch(`${supabaseUrl}/functions/v1/ping-doctor-session`, {
+      const response = await fetch(`${SUPABASE_FUNCTIONS_BASE_URL}/ping-doctor-session`, {
         method: "POST",
-        credentials: "include",
+        ...buildDoctorFetchInit(),
       });
 
       const result = await response.json();
 
       if (!response.ok || !result.active) {
         // Session abgelaufen → zurück zur Code-Eingabe
+        setExpiredMessage("Sitzung abgelaufen");
+        doctorSessionFallback.clear();
         navigate("/doctor?expired=1");
       }
     } catch {
@@ -120,19 +127,21 @@ const DoctorReportView: React.FC = () => {
   const loadData = useCallback(async (currentRange: RangeFilter, currentPage: number) => {
     setIsLoading(true);
     setError(null);
+    setExpiredMessage(null);
 
     try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const response = await fetch(
-        `${supabaseUrl}/functions/v1/get-shared-report-data?range=${currentRange}&page=${currentPage}`,
+        `${SUPABASE_FUNCTIONS_BASE_URL}/get-shared-report-data?range=${currentRange}&page=${currentPage}`,
         {
           method: "GET",
-          credentials: "include",
+          ...buildDoctorFetchInit(),
         }
       );
 
       if (!response.ok) {
         if (response.status === 401) {
+          setExpiredMessage("Sitzung abgelaufen");
+          doctorSessionFallback.clear();
           navigate("/doctor?expired=1");
           return;
         }
@@ -179,17 +188,17 @@ const DoctorReportView: React.FC = () => {
   const handleDownloadPdf = async () => {
     setIsDownloading(true);
     try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const response = await fetch(
-        `${supabaseUrl}/functions/v1/get-shared-report-pdf?range=${range}`,
+        `${SUPABASE_FUNCTIONS_BASE_URL}/get-shared-report-pdf?range=${range}`,
         {
           method: "GET",
-          credentials: "include",
+          ...buildDoctorFetchInit(),
         }
       );
 
       if (!response.ok) {
         if (response.status === 401) {
+          doctorSessionFallback.clear();
           navigate("/doctor?expired=1");
           return;
         }
@@ -218,7 +227,21 @@ const DoctorReportView: React.FC = () => {
   // Abmelden
   const handleLogout = () => {
     // Cookie wird serverseitig nicht aktiv gelöscht, aber Session läuft ab
+    doctorSessionFallback.clear();
     navigate("/doctor");
+  };
+
+  const computeDaysInRange = (fromDate: string, toDate: string) => {
+    const from = new Date(fromDate);
+    const to = new Date(toDate);
+    const ms = to.getTime() - from.getTime();
+    const days = Math.floor(ms / (1000 * 60 * 60 * 24)) + 1;
+    return Math.max(1, days);
+  };
+
+  const formatPer30 = (value: number, daysInRange: number) => {
+    const per30 = (value / daysInRange) * 30;
+    return per30.toFixed(1);
   };
 
   // Formatierung
@@ -306,15 +329,31 @@ const DoctorReportView: React.FC = () => {
           </Card>
         ) : data ? (
           <>
+            {/* Expired Message (rare, but keep UX clear) */}
+            {expiredMessage && (
+              <Card>
+                <CardContent className="py-4 text-center text-muted-foreground">
+                  {expiredMessage}
+                </CardContent>
+              </Card>
+            )}
+
             {/* Summary Cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {(() => {
+                const daysInRange = computeDaysInRange(data.from_date, data.to_date);
+                const headachePer30 = formatPer30(data.summary.headache_days, daysInRange);
+                const triptanPer30 = formatPer30(data.summary.triptan_days, daysInRange);
+
+                return (
+                  <>
               <Card>
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2 text-muted-foreground mb-1">
                     <Calendar className="w-4 h-4" />
                     <span className="text-xs">Kopfschmerztage / 30 Tage</span>
                   </div>
-                  <p className="text-2xl font-bold">{data.summary.headache_days}</p>
+                  <p className="text-2xl font-bold">{headachePer30}</p>
                 </CardContent>
               </Card>
 
@@ -334,7 +373,7 @@ const DoctorReportView: React.FC = () => {
                     <Pill className="w-4 h-4" />
                     <span className="text-xs">Triptantage / 30 Tage</span>
                   </div>
-                  <p className="text-2xl font-bold">{data.summary.triptan_days}</p>
+                  <p className="text-2xl font-bold">{triptanPer30}</p>
                 </CardContent>
               </Card>
 
@@ -347,7 +386,47 @@ const DoctorReportView: React.FC = () => {
                   <p className="text-2xl font-bold">{data.summary.avg_intensity}</p>
                 </CardContent>
               </Card>
+                  </>
+                );
+              })()}
             </div>
+
+            {/* Raw vs normalized table */}
+            {(() => {
+              const daysInRange = computeDaysInRange(data.from_date, data.to_date);
+              const headachePer30 = formatPer30(data.summary.headache_days, daysInRange);
+              const triptanPer30 = formatPer30(data.summary.triptan_days, daysInRange);
+              return (
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <tbody>
+                          <tr className="border-b">
+                            <td className="py-2 text-muted-foreground">Tage im Zeitraum</td>
+                            <td className="py-2 text-right font-medium">{daysInRange}</td>
+                          </tr>
+                          <tr className="border-b">
+                            <td className="py-2 text-muted-foreground">davon mit Schmerzen (roh)</td>
+                            <td className="py-2 text-right font-medium">{data.summary.headache_days}</td>
+                          </tr>
+                          <tr className="border-b">
+                            <td className="py-2 text-muted-foreground">davon mit Triptan (roh)</td>
+                            <td className="py-2 text-right font-medium">{data.summary.triptan_days}</td>
+                          </tr>
+                          <tr>
+                            <td className="py-2 text-muted-foreground">Ø pro 30 Tage (normiert)</td>
+                            <td className="py-2 text-right font-medium">
+                              Schmerzen {headachePer30} · Triptan {triptanPer30}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })()}
 
             {/* Overuse Warning */}
             {data.summary.overuse_warning && (
