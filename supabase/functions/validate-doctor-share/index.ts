@@ -9,15 +9,24 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
-// Dynamischer CORS Origin für Credentials
+// Erlaubte Origins für CORS mit Credentials
+const ALLOWED_ORIGINS = [
+  "https://migraina.lovable.app",
+  "https://migraene-app.lovable.app",
+  "http://localhost:5173",
+  "http://localhost:3000",
+];
+
 function getCorsHeaders(req: Request): Record<string, string> {
-  const origin = req.headers.get("origin") || "";
-  const isAllowed = origin.includes("lovable.app") || origin.includes("localhost");
-  
+  const origin = req.headers.get("origin") ?? "";
+  const isAllowed = ALLOWED_ORIGINS.includes(origin) || origin.endsWith(".lovable.app");
+
   return {
-    "Access-Control-Allow-Origin": isAllowed ? origin : "https://migraene-app.lovable.app",
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-doctor-session",
+    "Access-Control-Allow-Origin": isAllowed ? origin : "https://migraina.lovable.app",
+    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+    "Access-Control-Allow-Headers": "content-type, x-doctor-session, authorization, x-client-info, apikey, cookie",
     "Access-Control-Allow-Credentials": "true",
+    "Vary": "Origin",
   };
 }
 
@@ -61,7 +70,7 @@ Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
 
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { status: 204, headers: corsHeaders });
   }
 
   try {
