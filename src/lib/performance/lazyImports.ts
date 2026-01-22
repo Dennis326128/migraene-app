@@ -66,10 +66,10 @@ export const LazyVoiceNotesList = lazy(() =>
 );
 
 /**
- * MedicationLimitsPage - Limits management
+ * LimitsPage - Medication overuse limits (new simplified full-screen)
  */
 export const LazyMedicationLimitsPage = lazy(() => 
-  import("@/components/PainApp/MedicationLimitsPage").then(m => ({ default: m.MedicationLimitsPage }))
+  import("@/pages/LimitsPage").then(m => ({ default: m.LimitsPage }))
 );
 
 /**

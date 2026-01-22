@@ -381,7 +381,9 @@
     "createReport": "Bericht erstellen",
     "statsAndPatterns": "Statistiken & Muster",
     "manageMedications": "Medikamente verwalten",
-    "historyAndCalendar": "Verlauf & Kalender"
+    "historyAndCalendar": "Verlauf & Kalender",
+    "medications": "Medikamente",
+    "limits": "Übergebrauch & Limits"
   },
 
   "sections": {

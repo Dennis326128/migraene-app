@@ -299,7 +299,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               />
             </StartPageCard>
 
-            {/* Medikamente & Limits */}
+            {/* Medikamente */}
             <StartPageCard 
               variant="muted" 
               size="small"
@@ -307,9 +307,23 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               onClick={() => onNavigate?.('medication-management')}
             >
               <StartPageCardHeader
-                icon="📋"
+                icon="💊"
                 iconBgClassName="bg-muted"
-                title="Medikamente & Limits"
+                title={t('mainMenu.medications')}
+              />
+            </StartPageCard>
+
+            {/* Übergebrauch & Limits */}
+            <StartPageCard 
+              variant="muted" 
+              size="small"
+              touchFeedback 
+              onClick={() => onNavigate?.('medication-limits')}
+            >
+              <StartPageCardHeader
+                icon="⚖️"
+                iconBgClassName="bg-muted"
+                title={t('mainMenu.limits')}
               />
             </StartPageCard>
           </div>
