@@ -2,6 +2,8 @@
  * Edge Function: validate-doctor-share
  * Arzt gibt Code ein → Session wird erstellt (Cookie)
  * ÖFFENTLICH (kein JWT), aber rate-limited
+ * 
+ * Unterstützt permanente Codes (expires_at: NULL)
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
@@ -14,7 +16,7 @@ function getCorsHeaders(req: Request): Record<string, string> {
   
   return {
     "Access-Control-Allow-Origin": isAllowed ? origin : "https://migraene-app.lovable.app",
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-doctor-session",
     "Access-Control-Allow-Credentials": "true",
   };
 }
@@ -121,13 +123,17 @@ Deno.serve(async (req) => {
       );
     }
 
-    const now = new Date();
-    const expiresAt = new Date(share.expires_at);
-    if (now > expiresAt) {
-      return new Response(
-        JSON.stringify({ valid: false, error: "Dieser Code ist abgelaufen" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    // WICHTIG: expires_at kann NULL sein für permanente Codes
+    // Nur prüfen wenn expires_at gesetzt ist
+    if (share.expires_at) {
+      const now = new Date();
+      const expiresAt = new Date(share.expires_at);
+      if (now > expiresAt) {
+        return new Response(
+          JSON.stringify({ valid: false, error: "Dieser Code ist abgelaufen" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     // Session erstellen
@@ -152,6 +158,7 @@ Deno.serve(async (req) => {
     }
 
     // last_accessed_at aktualisieren
+    const now = new Date();
     await supabase
       .from("doctor_shares")
       .update({ last_accessed_at: now.toISOString() })
@@ -173,7 +180,8 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         valid: true,
-        expires_at: share.expires_at,
+        session_id: session.id, // Für Fallback localStorage
+        expires_at: share.expires_at, // Kann null sein
         default_range: share.default_range,
       }),
       { 
