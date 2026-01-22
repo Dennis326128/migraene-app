@@ -211,7 +211,7 @@ export type Database = {
           code_display: string
           created_at: string
           default_range: string
-          expires_at: string
+          expires_at: string | null
           id: string
           last_accessed_at: string | null
           revoked_at: string | null
@@ -222,7 +222,7 @@ export type Database = {
           code_display: string
           created_at?: string
           default_range?: string
-          expires_at: string
+          expires_at?: string | null
           id?: string
           last_accessed_at?: string | null
           revoked_at?: string | null
@@ -233,7 +233,7 @@ export type Database = {
           code_display?: string
           created_at?: string
           default_range?: string
-          expires_at?: string
+          expires_at?: string | null
           id?: string
           last_accessed_at?: string | null
           revoked_at?: string | null
