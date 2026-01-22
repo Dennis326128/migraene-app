@@ -157,4 +157,22 @@ export const remindersApi = {
   async markAsMissed(id: string): Promise<Reminder> {
     return this.update(id, { status: 'missed' });
   },
+
+  /**
+   * Toggle notification_enabled for ALL active reminders (global mute/unmute)
+   */
+  async toggleAllNotifications(enabled: boolean): Promise<number> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    const { data, error } = await supabase
+      .from('reminders')
+      .update({ notification_enabled: enabled })
+      .eq('user_id', user.id)
+      .in('status', ['pending', 'scheduled'])
+      .select('id');
+
+    if (error) throw error;
+    return data?.length || 0;
+  },
 };

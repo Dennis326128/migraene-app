@@ -195,3 +195,32 @@ export const useMarkReminderMissed = () => {
     },
   });
 };
+
+/**
+ * Toggle ALL reminders notification_enabled (global mute/unmute)
+ */
+export const useToggleAllReminders = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (enabled: boolean) => remindersApi.toggleAllNotifications(enabled),
+    onSuccess: (count, enabled) => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: ['due-reminders'] });
+      toast({
+        title: enabled ? 'Erinnerungen aktiviert' : 'Erinnerungen pausiert',
+        description: enabled 
+          ? `${count} Erinnerung(en) werden wieder benachrichtigen.`
+          : `${count} Erinnerung(en) wurden stummgeschaltet.`,
+      });
+    },
+    onError: (error) => {
+      console.error('Failed to toggle all reminders:', error);
+      toast({
+        title: 'Fehler',
+        description: 'Erinnerungen konnten nicht geändert werden.',
+        variant: 'destructive',
+      });
+    },
+  });
+};

@@ -21,6 +21,7 @@ import {
   useUpdateReminder,
   useDeleteReminder,
   useMarkReminderDone,
+  useToggleAllReminders,
 } from '@/features/reminders/hooks/useReminders';
 import type { Reminder, CreateReminderInput, UpdateReminderInput, ReminderPrefill } from '@/types/reminder.types';
 import { notificationService } from '@/lib/notifications';
@@ -53,6 +54,12 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
   const updateMutation = useUpdateReminder();
   const deleteMutation = useDeleteReminder();
   const markDoneMutation = useMarkReminderDone();
+  const toggleAllMutation = useToggleAllReminders();
+
+  // Compute global notifications status (all active reminders have notification_enabled)
+  const allNotificationsEnabled = activeReminders.length > 0 && 
+    activeReminders.every(r => r.notification_enabled);
+  const someNotificationsEnabled = activeReminders.some(r => r.notification_enabled);
 
   useEffect(() => {
     setHasNotificationPermission(notificationService.hasPermission());
@@ -138,10 +145,21 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
   const getFilteredReminders = () => {
     let reminders = activeTab === 'active' ? activeReminders : historyReminders;
     
+    // Type filter
     if (filterType !== 'all') {
       reminders = reminders.filter(r => r.type === filterType);
     }
     
+    // CRITICAL FIX: "Termine" Tab ignoriert den Zeitraum-Filter komplett
+    // Zeigt IMMER alle zukünftigen Termine (>= jetzt)
+    if (filterType === 'appointment') {
+      const now = new Date();
+      // Für Termine: zeige alle zukünftigen, ignoriere rangeFilter
+      return reminders.filter(r => new Date(r.date_time) >= now)
+        .sort((a, b) => new Date(a.date_time).getTime() - new Date(b.date_time).getTime());
+    }
+    
+    // Für andere Filter: wende rangeFilter normal an
     if (activeTab === 'active' && rangeFilter !== 'all') {
       const now = new Date();
       const startOfToday = new Date(now);
@@ -286,6 +304,24 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
   };
 
   const getEmptyStateForActive = () => {
+    // Spezifischer Empty-State für "Termine" Tab
+    if (filterType === 'appointment') {
+      const hasAnyAppointments = activeReminders.some(r => r.type === 'appointment');
+      if (!hasAnyAppointments) {
+        return {
+          icon: <Calendar className="w-12 h-12" />,
+          title: 'Keine zukünftigen Termine',
+          description: 'Nutze "Neue Erinnerung", um einen Termin hinzuzufügen.',
+        };
+      }
+      // Hat Termine, aber keine zukünftigen (alle in der Vergangenheit)
+      return {
+        icon: <Calendar className="w-12 h-12" />,
+        title: 'Keine zukünftigen Termine',
+        description: 'Alle Termine liegen in der Vergangenheit.',
+      };
+    }
+
     if (activeReminders.length === 0) {
       return {
         icon: <Bell className="w-12 h-12" />,
@@ -336,6 +372,24 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
       <PageHeader 
         title="Erinnerungen" 
         onBack={onBack}
+        action={
+          activeReminders.length > 0 && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => toggleAllMutation.mutate(!someNotificationsEnabled)}
+              disabled={toggleAllMutation.isPending}
+              className="h-10 w-10"
+              title={someNotificationsEnabled ? 'Alle pausieren' : 'Alle aktivieren'}
+            >
+              {someNotificationsEnabled ? (
+                <Bell className="h-5 w-5 text-primary" />
+              ) : (
+                <BellOff className="h-5 w-5 text-muted-foreground" />
+              )}
+            </Button>
+          )
+        }
       />
 
       <div className="container mx-auto px-4 pb-6">
