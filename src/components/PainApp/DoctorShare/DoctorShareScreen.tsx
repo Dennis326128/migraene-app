@@ -1,16 +1,11 @@
 /**
  * DoctorShareScreen
- * "Mit Arzt teilen" - 24h-Freigabe-Fenster UX
- * 
- * Zustände:
- * A) Keine aktive Freigabe → Auto-Start beim Öffnen (sofern nicht heute beendet)
- * B) Freigabe aktiv → Code + "gültig bis" + "Freigabe beenden"
- * C) Heute bewusst beendet → Button "Für Arzt freigeben (24h)"
+ * "Mit Arzt teilen" - Minimalistisches 24h-Freigabe-Fenster
  */
 
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Copy, Check, Shield, ShieldOff, Clock } from "lucide-react";
+import { Copy, Check } from "lucide-react";
 import { toast } from "sonner";
 import { 
   useDoctorShareStatus, 
@@ -18,37 +13,47 @@ import {
   useRevokeDoctorShare 
 } from "@/features/doctor-share";
 import { AppHeader } from "@/components/ui/app-header";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface DoctorShareScreenProps {
   onBack: () => void;
 }
 
-// Formatiert das Ablaufdatum benutzerfreundlich
+// Formatiert das Ablaufdatum benutzerfreundlich: "morgen 14:28 Uhr" oder "Do. 14:28 Uhr"
 function formatActiveUntil(dateStr: string | null): string {
   if (!dateStr) return "";
   
   const date = new Date(dateStr);
   const now = new Date();
-  const diffMs = date.getTime() - now.getTime();
-  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-  const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
   
-  // Deutsches Datumsformat
-  const options: Intl.DateTimeFormatOptions = {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  };
-  const formatted = date.toLocaleDateString("de-DE", options);
+  const isToday = date.toDateString() === now.toDateString();
+  const isTomorrow = date.toDateString() === tomorrow.toDateString();
   
-  if (diffHours > 0) {
-    return `${formatted} (noch ${diffHours}h ${diffMinutes}min)`;
-  } else if (diffMinutes > 0) {
-    return `${formatted} (noch ${diffMinutes} Minuten)`;
+  const timeStr = date.toLocaleTimeString("de-DE", { 
+    hour: "2-digit", 
+    minute: "2-digit" 
+  });
+  
+  if (isToday) {
+    return `heute ${timeStr} Uhr`;
+  } else if (isTomorrow) {
+    return `morgen ${timeStr} Uhr`;
+  } else {
+    const dayStr = date.toLocaleDateString("de-DE", { weekday: "short" });
+    return `${dayStr} ${timeStr} Uhr`;
   }
-  return formatted;
 }
 
 export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) => {
@@ -57,7 +62,6 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
   const revokeMutation = useRevokeDoctorShare();
   
   const [copied, setCopied] = useState(false);
-  const [isRetrying, setIsRetrying] = useState(false);
   const [autoActivated, setAutoActivated] = useState(false);
 
   // Auto-Aktivierung: Wenn keine aktive Freigabe und nicht heute beendet
@@ -71,13 +75,8 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
     ) {
       setAutoActivated(true);
       activateMutation.mutate(undefined, {
-        onSuccess: () => {
-          // Stille Aktivierung, kein Toast
-          refetch();
-        },
-        onError: (err) => {
-          console.error("Auto-Aktivierung fehlgeschlagen:", err);
-        },
+        onSuccess: () => refetch(),
+        onError: (err) => console.error("Auto-Aktivierung fehlgeschlagen:", err),
       });
     }
   }, [shareStatus, autoActivated, activateMutation, refetch]);
@@ -95,16 +94,14 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
     }
   };
 
-  // Freigabe manuell aktivieren (nach bewusstem Beenden)
+  // Freigabe manuell aktivieren
   const handleActivate = () => {
     activateMutation.mutate(undefined, {
       onSuccess: () => {
-        toast.success("Freigabe aktiviert für 24 Stunden");
+        toast.success("Freigabe aktiviert");
         refetch();
       },
-      onError: () => {
-        toast.error("Freigabe konnte nicht aktiviert werden");
-      },
+      onError: () => toast.error("Freigabe konnte nicht aktiviert werden"),
     });
   };
 
@@ -115,22 +112,11 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
         toast.success("Freigabe beendet");
         refetch();
       },
-      onError: () => {
-        toast.error("Freigabe konnte nicht beendet werden");
-      },
+      onError: () => toast.error("Freigabe konnte nicht beendet werden"),
     });
   };
 
-  // Retry bei Fehler
-  const handleRetry = async () => {
-    setIsRetrying(true);
-    await refetch();
-    setIsRetrying(false);
-  };
-
-  // Prüfe Freigabe-Status
   const isShareActive = shareStatus?.is_share_active ?? false;
-  const wasRevokedToday = shareStatus?.was_revoked_today ?? false;
   const isPending = activateMutation.isPending || revokeMutation.isPending;
 
   return (
@@ -138,15 +124,15 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
       <AppHeader title="Mit Arzt teilen" onBack={onBack} sticky />
 
       <div className="flex-1 overflow-auto p-4">
-        <div className="max-w-md mx-auto space-y-6 pt-4">
+        <div className="max-w-md mx-auto pt-8">
           
           {/* Lade-Zustand */}
           {(isLoading || (activateMutation.isPending && !shareStatus?.is_share_active)) && (
-            <div className="py-12 text-center">
+            <div className="py-16 text-center">
               <div className="animate-pulse space-y-4">
-                <div className="h-16 bg-muted/30 rounded-xl max-w-[200px] mx-auto" />
+                <div className="h-12 bg-muted/30 rounded-lg max-w-[180px] mx-auto" />
                 <p className="text-sm text-muted-foreground">
-                  {activateMutation.isPending ? "Freigabe wird aktiviert…" : "Code wird vorbereitet…"}
+                  Code wird vorbereitet…
                 </p>
               </div>
             </div>
@@ -154,128 +140,100 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
 
           {/* Fehler-Zustand */}
           {!isLoading && error && (
-            <div className="py-12 text-center space-y-4">
+            <div className="py-16 text-center space-y-4">
               <p className="text-muted-foreground">
                 Der Code kann gerade nicht angezeigt werden.
               </p>
-              <Button 
-                variant="outline" 
-                onClick={handleRetry}
-                disabled={isRetrying}
-                className="gap-2"
-              >
-                {isRetrying ? "Wird geladen…" : "Erneut versuchen"}
+              <Button variant="outline" onClick={() => refetch()}>
+                Erneut versuchen
               </Button>
             </div>
           )}
 
-          {/* Zustand B: Freigabe AKTIV */}
+          {/* Freigabe AKTIV */}
           {!isLoading && !error && shareStatus && isShareActive && (
-            <div className="space-y-6">
-              {/* Status-Header */}
-              <div className="flex items-center justify-center gap-2 text-primary">
-                <Shield className="w-5 h-5" />
-                <span className="font-medium">Freigabe aktiv</span>
+            <div className="flex flex-col items-center space-y-8">
+              {/* Der Code - groß, ruhig, zentriert */}
+              <div className="font-mono text-4xl font-bold tracking-widest text-foreground">
+                {shareStatus.code_display}
               </div>
 
-              {/* Der Code */}
-              <div className="bg-primary/5 border border-primary/20 rounded-xl p-6 text-center">
-                <div className="font-mono text-4xl font-bold tracking-widest text-primary">
-                  {shareStatus.code_display}
-                </div>
-              </div>
+              {/* Zeitinformation - klein, ruhig */}
+              <p className="text-sm text-muted-foreground">
+                Zugriff möglich bis {formatActiveUntil(shareStatus.share_active_until)}
+              </p>
 
-              {/* Gültig bis */}
-              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                <Clock className="w-4 h-4" />
-                <span>Gültig bis {formatActiveUntil(shareStatus.share_active_until)}</span>
-              </div>
-
-              {/* Kopieren-Button */}
-              <Button
-                onClick={handleCopyCode}
-                variant="outline"
-                size="lg"
-                className="w-full gap-2"
-              >
-                {copied ? (
-                  <>
-                    <Check className="w-5 h-5" />
-                    Kopiert
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-5 h-5" />
-                    Code kopieren
-                  </>
-                )}
-              </Button>
-
-              {/* Hinweise */}
-              <div className="space-y-2 text-sm text-muted-foreground text-center">
-                <p>
-                  Ihr Arzt kann Ihre Daten mit diesem Code einsehen.
-                </p>
-                <p className="text-xs text-muted-foreground/70">
-                  Der Code bleibt immer gleich.
-                </p>
-              </div>
-
-              {/* Freigabe beenden */}
-              <div className="pt-4 border-t">
+              {/* Aktionen - dezent */}
+              <div className="flex flex-col items-center gap-4 pt-4">
                 <Button
-                  onClick={handleRevoke}
+                  onClick={handleCopyCode}
                   variant="ghost"
                   size="sm"
-                  className="w-full text-muted-foreground hover:text-destructive gap-2"
-                  disabled={isPending}
+                  className="gap-2 text-muted-foreground hover:text-foreground"
                 >
-                  <ShieldOff className="w-4 h-4" />
-                  {revokeMutation.isPending ? "Wird beendet…" : "Freigabe jetzt beenden"}
+                  {copied ? (
+                    <>
+                      <Check className="w-4 h-4" />
+                      Kopiert
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-4 h-4" />
+                      Code kopieren
+                    </>
+                  )}
                 </Button>
+
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <button 
+                      className="text-sm text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+                      disabled={isPending}
+                    >
+                      Freigabe beenden
+                    </button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Freigabe beenden?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Der Zugriff auf Ihre Daten wird sofort beendet. Sie können die Freigabe jederzeit erneut starten.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleRevoke}>
+                        Beenden
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             </div>
           )}
 
-          {/* Zustand C: Heute bewusst beendet (oder noch nie aktiviert nach Revoke) */}
+          {/* Freigabe INAKTIV */}
           {!isLoading && !error && shareStatus && !isShareActive && !activateMutation.isPending && (
-            <div className="space-y-6">
-              {/* Status-Header */}
-              <div className="flex items-center justify-center gap-2 text-muted-foreground">
-                <ShieldOff className="w-5 h-5" />
-                <span className="font-medium">Freigabe beendet</span>
+            <div className="flex flex-col items-center space-y-8">
+              {/* Der Code - ausgegraut */}
+              <div className="font-mono text-4xl font-bold tracking-widest text-muted-foreground/40">
+                {shareStatus.code_display}
               </div>
 
-              {/* Der Code (ausgegraut) */}
-              <div className="bg-muted/30 rounded-xl p-6 text-center">
-                <div className="font-mono text-4xl font-bold tracking-widest text-muted-foreground/50">
-                  {shareStatus.code_display}
-                </div>
-              </div>
-
-              {/* Hinweis */}
-              <p className="text-sm text-muted-foreground text-center">
-                {wasRevokedToday 
-                  ? "Sie haben die Freigabe heute beendet. Wenn Sie möchten, können Sie erneut für 24 Stunden freigeben."
-                  : "Ihre Daten sind derzeit nicht freigegeben. Aktivieren Sie die Freigabe, um Ihrem Arzt Zugang zu gewähren."
-                }
+              {/* Status */}
+              <p className="text-sm text-muted-foreground">
+                Zugriff nicht aktiv
               </p>
 
               {/* Aktivieren-Button */}
               <Button
                 onClick={handleActivate}
-                size="lg"
-                className="w-full gap-2"
+                variant="outline"
+                size="sm"
                 disabled={isPending}
               >
-                <Shield className="w-5 h-5" />
-                {activateMutation.isPending ? "Wird aktiviert…" : "Für Arzt freigeben (24 h)"}
+                {activateMutation.isPending ? "Wird aktiviert…" : "Für 24 Stunden freigeben"}
               </Button>
-
-              {/* Code-Hinweis */}
-              <p className="text-xs text-muted-foreground/70 text-center">
-                Der Code bleibt immer gleich.
-              </p>
             </div>
           )}
         </div>
