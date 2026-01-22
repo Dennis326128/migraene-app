@@ -355,7 +355,9 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
 
     // CREATE MODE with time-of-day presets (daily medication)
     if (showTimeOfDayPresets && selectedTimeOfDay.length > 0) {
-      const medsList = selectedMedications.length > 0 ? selectedMedications.join(', ') : 'Medikamente';
+      // Klarer Titel ohne Tageszeit - "Einnahme: Medikamentenname"
+      const medsList = selectedMedications.length > 0 ? selectedMedications.join(', ') : 'Medikament';
+      const cleanTitle = `Einnahme: ${medsList}`;
       
       const reminders: CreateReminderInput[] = selectedTimeOfDay.map((tod) => {
         const preset = TIME_PRESETS.find(p => p.id === tod)!;
@@ -364,7 +366,7 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
         
         return {
           type: data.type,
-          title: `${medsList} (${preset.label})`,
+          title: cleanTitle,
           date_time: dateTime,
           repeat: data.repeat,
           notes: data.notes || undefined,
@@ -382,10 +384,10 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
     const effectiveTime = singleTime || '09:00';
     const dateTime = `${data.date}T${effectiveTime}:00`;
     
-    // Generate title if empty (for medication type)
+    // Generate title if empty (for medication type) - klares "Einnahme:" Präfix
     const effectiveTitle = data.title?.trim() 
       || (isMedicationType && selectedMedications.length > 0 
-          ? selectedMedications.join(', ') 
+          ? `Einnahme: ${selectedMedications.join(', ')}` 
           : 'Erinnerung');
     
     const submitData: CreateReminderInput = {
