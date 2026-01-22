@@ -1,6 +1,11 @@
 /**
  * DoctorShareScreen
  * "Mit Arzt teilen" - Minimalistisches 24h-Freigabe-Fenster
+ * 
+ * Zustände:
+ * A) Keine aktive Freigabe + NICHT heute revoked → Auto-Aktivierung
+ * B) Freigabe aktiv → Code + Status + "Freigabe beenden"
+ * C) Heute manuell beendet → Button "Für 24h freigeben"
  */
 
 import React, { useState, useEffect } from "react";
@@ -64,7 +69,7 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
   const [copied, setCopied] = useState(false);
   const [autoActivated, setAutoActivated] = useState(false);
 
-  // Auto-Aktivierung: Wenn keine aktive Freigabe und nicht heute beendet
+  // Zustand A: Auto-Aktivierung wenn keine aktive Freigabe UND nicht heute beendet
   useEffect(() => {
     if (
       shareStatus && 
@@ -94,7 +99,7 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
     }
   };
 
-  // Freigabe manuell aktivieren
+  // Zustand C: Manuelle Aktivierung (nach Revoke am selben Tag)
   const handleActivate = () => {
     activateMutation.mutate(undefined, {
       onSuccess: () => {
@@ -126,7 +131,7 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
       <div className="flex-1 overflow-auto p-4">
         <div className="max-w-md mx-auto pt-8">
           
-          {/* Lade-Zustand */}
+          {/* Lade-Zustand (inkl. Auto-Aktivierung) */}
           {(isLoading || (activateMutation.isPending && !shareStatus?.is_share_active)) && (
             <div className="py-16 text-center">
               <div className="animate-pulse space-y-4">
@@ -150,7 +155,7 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
             </div>
           )}
 
-          {/* Freigabe AKTIV */}
+          {/* Zustand B: Freigabe AKTIV */}
           {!isLoading && !error && shareStatus && isShareActive && (
             <div className="flex flex-col items-center space-y-8">
               {/* Der Code - in grünlich getöntem Container */}
@@ -214,7 +219,7 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
             </div>
           )}
 
-          {/* Freigabe INAKTIV */}
+          {/* Zustand C: Freigabe INAKTIV (heute beendet oder abgelaufen) */}
           {!isLoading && !error && shareStatus && !isShareActive && !activateMutation.isPending && (
             <div className="flex flex-col items-center space-y-8">
               {/* Der Code - ausgegraut */}

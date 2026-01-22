@@ -14,7 +14,22 @@ export {
   createDoctorShare,
 } from "./api/doctorShare.api";
 
-export type { DoctorShareStatus, ActivateShareResult } from "./api/doctorShare.api";
+// Type exports
+export type { 
+  DoctorShareStatus, 
+  ActivateShareResult,
+  PatientInfo,
+  ReportSummary,
+  ChartData,
+  PainEntry,
+  MedicationStat,
+  MedicationCourse,
+  UserMedication,
+  DoctorReportData,
+  ValidateShareResponse,
+  PingSessionResponse,
+  DoctorShare,
+} from "./api/types";
 
 // Hooks exports
 export {
@@ -26,6 +41,3 @@ export {
   useActiveDoctorShares,
   useCreateDoctorShare,
 } from "./hooks/useDoctorShare";
-
-// Legacy type alias
-export type { DoctorShareStatus as DoctorShare } from "./api/doctorShare.api";

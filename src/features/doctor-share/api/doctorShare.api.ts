@@ -8,26 +8,13 @@
  */
 
 import { supabase } from "@/lib/supabaseClient";
+import type { 
+  DoctorShareStatus, 
+  ActivateShareResult 
+} from "./types";
 
-export interface DoctorShareStatus {
-  id: string;
-  code: string;
-  code_display: string;
-  created_at: string;
-  share_active_until: string | null;
-  share_revoked_at: string | null;
-  is_share_active: boolean;
-  was_revoked_today: boolean;
-}
-
-export interface ActivateShareResult {
-  success: boolean;
-  message: string;
-  share_active_until: string | null;
-  share_revoked_at: string | null;
-  is_share_active: boolean;
-  code_display?: string;
-}
+// Re-export types
+export type { DoctorShareStatus, ActivateShareResult };
 
 /**
  * Holt den Status des Arzt-Codes (inkl. Freigabe-Status)

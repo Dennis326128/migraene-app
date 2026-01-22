@@ -3,7 +3,8 @@
  * Generiert PDF für die Arzt-Ansicht
  * Auth: Cookie (doctor_session) ODER Header (x-doctor-session)
  * 
- * Unterstützt permanente Codes (expires_at: NULL)
+ * NEU: Zeigt Patientenstammdaten (Name, Geburtsdatum, Kontakt, Versicherung) im Header
+ * WICHTIG: Keine Arzt-Kontaktdaten!
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
@@ -49,14 +50,12 @@ function parseCookies(cookieHeader: string): Record<string, string> {
 
 // Session ID extrahieren: Cookie ODER Header Fallback
 function getSessionId(req: Request): string | null {
-  // 1. Versuche Cookie
   const cookieHeader = req.headers.get("cookie") || "";
   const cookies = parseCookies(cookieHeader);
   if (cookies["doctor_session"]) {
     return cookies["doctor_session"];
   }
   
-  // 2. Fallback: Header (für Safari/iOS wo Cookies nicht funktionieren)
   const headerSession = req.headers.get("x-doctor-session");
   if (headerSession) {
     return headerSession;
@@ -127,7 +126,7 @@ function formatDateGerman(dateStr: string): string {
 // Zeit formatieren
 function formatTime(timeStr: string | null): string {
   if (!timeStr) return "";
-  return timeStr.substring(0, 5); // HH:MM
+  return timeStr.substring(0, 5);
 }
 
 // Session validieren - inkl. share_active_until Prüfung für 24h-Fenster
@@ -169,22 +168,18 @@ async function validateSession(
   };
   const now = new Date();
 
-  // Hard-Check: dauerhaft widerrufen
   if (share.revoked_at) {
     return { valid: false, reason: "share_revoked" };
   }
 
-  // Code-Lebensdauer (falls gesetzt)
   if (share.expires_at && now > new Date(share.expires_at)) {
     return { valid: false, reason: "share_expired" };
   }
 
-  // NEU: 24h-Freigabe-Fenster prüfen
   if (!share.share_active_until || now > new Date(share.share_active_until)) {
     return { valid: false, reason: "not_shared" };
   }
 
-  // Session-Timeout
   const lastActivity = new Date(session.last_activity_at);
   const minutesSinceActivity = (now.getTime() - lastActivity.getTime()) / (1000 * 60);
 
@@ -198,13 +193,11 @@ async function validateSession(
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
 
-  // CORS Preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
 
   try {
-    // Session-ID aus Cookie ODER Header
     const sessionId = getSessionId(req);
 
     if (!sessionId) {
@@ -214,12 +207,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Supabase Client mit Service Role
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Session validieren
     const sessionResult = await validateSession(supabase, sessionId);
     if (!sessionResult.valid) {
       return new Response(
@@ -230,7 +221,6 @@ Deno.serve(async (req) => {
 
     const userId = sessionResult.userId!;
 
-    // Query-Parameter
     const url = new URL(req.url);
     const range = url.searchParams.get("range") || "3m";
     const { from, to } = getDateRange(range);
@@ -242,19 +232,38 @@ Deno.serve(async (req) => {
       .eq("id", sessionId);
 
     // ═══════════════════════════════════════════════════════════════════════
-    // DATEN LADEN
+    // DATEN LADEN (inkl. patient_data)
     // ═══════════════════════════════════════════════════════════════════════
 
-    const { data: entries } = await supabase
-      .from("pain_entries")
-      .select("*")
-      .eq("user_id", userId)
-      .gte("selected_date", from)
-      .lte("selected_date", to)
-      .order("selected_date", { ascending: false })
-      .order("selected_time", { ascending: false });
+    const [entriesResult, patientDataResult] = await Promise.all([
+      supabase
+        .from("pain_entries")
+        .select("*")
+        .eq("user_id", userId)
+        .gte("selected_date", from)
+        .lte("selected_date", to)
+        .order("selected_date", { ascending: false })
+        .order("selected_time", { ascending: false }),
+      
+      supabase
+        .from("patient_data")
+        .select("first_name, last_name, date_of_birth, street, postal_code, city, phone, health_insurance, insurance_number, title")
+        .eq("user_id", userId)
+        .maybeSingle(),
+    ]);
 
-    const allEntries = entries || [];
+    const allEntries = entriesResult.data || [];
+    const patientData = patientDataResult.data;
+
+    // Patient-Name formatieren
+    let patientName = "Patient";
+    if (patientData) {
+      const parts: string[] = [];
+      if (patientData.title) parts.push(patientData.title);
+      if (patientData.first_name) parts.push(patientData.first_name);
+      if (patientData.last_name) parts.push(patientData.last_name);
+      if (parts.length > 0) patientName = parts.join(" ");
+    }
 
     // ═══════════════════════════════════════════════════════════════════════
     // SUMMARY BERECHNEN
@@ -272,7 +281,6 @@ Deno.serve(async (req) => {
         .map(e => e.selected_date)
     );
 
-    // Erweiterte Triptan-Keyword-Liste
     const triptanKeywords = [
       "triptan", "almotriptan", "eletriptan", "frovatriptan", 
       "naratriptan", "rizatriptan", "sumatriptan", "zolmitriptan",
@@ -305,14 +313,14 @@ Deno.serve(async (req) => {
       : 0;
 
     // ═══════════════════════════════════════════════════════════════════════
-    // PDF ERSTELLEN (vereinfachte Version für Arzt-Ansicht)
+    // PDF ERSTELLEN
     // ═══════════════════════════════════════════════════════════════════════
 
     const pdfDoc = await PDFDocument.create();
     const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-    const pageWidth = 595.28; // A4
+    const pageWidth = 595.28;
     const pageHeight = 841.89;
     const margin = 40;
 
@@ -327,8 +335,95 @@ Deno.serve(async (req) => {
       font: helveticaBold,
       color: rgb(0.15, 0.35, 0.65),
     });
-    y -= 25;
+    y -= 30;
 
+    // ─── PATIENT DATA (NEU!) ───
+    page.drawText("Patientendaten", {
+      x: margin,
+      y,
+      size: 12,
+      font: helveticaBold,
+      color: rgb(0.2, 0.2, 0.2),
+    });
+    y -= 18;
+
+    // Patient Name
+    page.drawText(`Name: ${patientName}`, {
+      x: margin,
+      y,
+      size: 10,
+      font: helvetica,
+      color: rgb(0.2, 0.2, 0.2),
+    });
+    y -= 14;
+
+    // Geburtsdatum
+    if (patientData?.date_of_birth) {
+      page.drawText(`Geburtsdatum: ${formatDateGerman(patientData.date_of_birth)}`, {
+        x: margin,
+        y,
+        size: 10,
+        font: helvetica,
+        color: rgb(0.2, 0.2, 0.2),
+      });
+      y -= 14;
+    }
+
+    // Adresse
+    if (patientData?.street || patientData?.postal_code || patientData?.city) {
+      const addressParts: string[] = [];
+      if (patientData.street) addressParts.push(patientData.street);
+      if (patientData.postal_code && patientData.city) {
+        addressParts.push(`${patientData.postal_code} ${patientData.city}`);
+      } else if (patientData.city) {
+        addressParts.push(patientData.city);
+      }
+      if (addressParts.length > 0) {
+        page.drawText(`Adresse: ${addressParts.join(", ")}`, {
+          x: margin,
+          y,
+          size: 10,
+          font: helvetica,
+          color: rgb(0.2, 0.2, 0.2),
+        });
+        y -= 14;
+      }
+    }
+
+    // Telefon
+    if (patientData?.phone) {
+      page.drawText(`Telefon: ${patientData.phone}`, {
+        x: margin,
+        y,
+        size: 10,
+        font: helvetica,
+        color: rgb(0.2, 0.2, 0.2),
+      });
+      y -= 14;
+    }
+
+    // Versicherung
+    if (patientData?.health_insurance || patientData?.insurance_number) {
+      let insuranceText = "Versicherung: ";
+      if (patientData.health_insurance) insuranceText += patientData.health_insurance;
+      if (patientData.insurance_number) {
+        insuranceText += patientData.health_insurance 
+          ? ` (${patientData.insurance_number})` 
+          : patientData.insurance_number;
+      }
+      page.drawText(insuranceText, {
+        x: margin,
+        y,
+        size: 10,
+        font: helvetica,
+        color: rgb(0.2, 0.2, 0.2),
+      });
+      y -= 14;
+    }
+
+    y -= 10;
+
+    // ─── ZEITRAUM ───
     page.drawText(`Zeitraum: ${formatDateGerman(from)} – ${formatDateGerman(to)}`, {
       x: margin,
       y,
@@ -394,7 +489,6 @@ Deno.serve(async (req) => {
     });
     y -= 20;
 
-    // Tabellenkopf
     const colWidths = [80, 60, 150, 200];
     const headers = ["Datum", "Intensität", "Medikamente", "Notizen"];
     let x = margin;
@@ -411,7 +505,6 @@ Deno.serve(async (req) => {
     });
     y -= 5;
 
-    // Linie
     page.drawLine({
       start: { x: margin, y },
       end: { x: pageWidth - margin, y },
@@ -420,18 +513,15 @@ Deno.serve(async (req) => {
     });
     y -= 12;
 
-    // Einträge (max 40 pro Seite)
-    const maxEntriesPerPage = 40;
+    const maxEntriesPerPage = 35;
     let entriesOnPage = 0;
 
     for (const entry of allEntries) {
       if (y < margin + 50 || entriesOnPage >= maxEntriesPerPage) {
-        // Neue Seite
         page = pdfDoc.addPage([pageWidth, pageHeight]);
         y = pageHeight - margin;
         entriesOnPage = 0;
 
-        // Tabellenkopf wiederholen
         x = margin;
         headers.forEach((header, i) => {
           page.drawText(header, {
@@ -455,7 +545,6 @@ Deno.serve(async (req) => {
 
       x = margin;
 
-      // Datum + Zeit
       const dateTime = `${formatDateGerman(entry.selected_date)}${entry.selected_time ? `, ${formatTime(entry.selected_time)}` : ""}`;
       page.drawText(dateTime.substring(0, 15), {
         x,
@@ -466,7 +555,6 @@ Deno.serve(async (req) => {
       });
       x += colWidths[0];
 
-      // Intensität
       page.drawText(painLevelLabel(entry.pain_level), {
         x,
         y,
@@ -476,7 +564,6 @@ Deno.serve(async (req) => {
       });
       x += colWidths[1];
 
-      // Medikamente
       const meds = (entry.medications || []).join(", ");
       page.drawText(meds.substring(0, 30) + (meds.length > 30 ? "..." : ""), {
         x,
@@ -487,7 +574,6 @@ Deno.serve(async (req) => {
       });
       x += colWidths[2];
 
-      // Notizen
       const notes = (entry.notes || "").replace(/\n/g, " ");
       page.drawText(notes.substring(0, 40) + (notes.length > 40 ? "..." : ""), {
         x,
@@ -520,7 +606,6 @@ Deno.serve(async (req) => {
       });
     });
 
-    // PDF ausgeben
     const pdfBytes = await pdfDoc.save();
     const filename = `Kopfschmerztagebuch_${formatDateGerman(from)}-${formatDateGerman(to)}.pdf`.replace(/\./g, "-");
 
