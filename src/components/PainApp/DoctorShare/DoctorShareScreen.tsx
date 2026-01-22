@@ -8,9 +8,10 @@
 
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Copy, Check } from "lucide-react";
+import { Copy, Check } from "lucide-react";
 import { toast } from "sonner";
 import { usePermanentDoctorCode } from "@/features/doctor-share";
+import { AppHeader } from "@/components/ui/app-header";
 
 interface DoctorShareScreenProps {
   onBack: () => void;
@@ -45,13 +46,7 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
 
   return (
     <div className="flex flex-col h-full bg-background">
-      {/* Header - KEINE border-b (weiße Linie entfernt) */}
-      <div className="flex items-center gap-3 p-4">
-        <Button variant="ghost" size="icon" onClick={onBack}>
-          <ArrowLeft className="w-5 h-5" />
-        </Button>
-        <h1 className="text-lg font-semibold">Mit Arzt teilen</h1>
-      </div>
+      <AppHeader title="Mit Arzt teilen" onBack={onBack} sticky />
 
       <div className="flex-1 overflow-auto p-4">
         <div className="max-w-md mx-auto space-y-8 pt-8">

@@ -1,7 +1,7 @@
 import React from "react";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, FileText, Pill, ClipboardList, History, Share2 } from "lucide-react";
+import { FileText, Pill, ClipboardList, History, Share2 } from "lucide-react";
+import { AppHeader } from "@/components/ui/app-header";
 
 interface ReportsHubPageProps {
   onBack: () => void;
@@ -17,22 +17,10 @@ export const ReportsHubPage: React.FC<ReportsHubPageProps> = ({
   onDoctorShare,
 }) => {
   return (
-    <div className="min-h-screen bg-background p-4">
-      <div className="max-w-2xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onBack}
-            className="shrink-0"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold">Berichte & PDFs</h1>
-          </div>
-        </div>
+    <div className="min-h-screen bg-background">
+      <AppHeader title="Berichte & PDFs" onBack={onBack} sticky />
+
+      <div className="p-4 max-w-2xl mx-auto space-y-6">
 
         {/* Section: Doctor Share - Primary Action */}
         {onDoctorShare && (
