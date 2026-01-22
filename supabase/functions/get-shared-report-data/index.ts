@@ -3,12 +3,20 @@
  * Liefert Report-Daten für die Arzt-Ansicht
  * Auth: Cookie (doctor_session) ODER Header (x-doctor-session)
  * 
- * NEU: Prüft share_active_until für 24h-Freigabe-Fenster
- * Liefert patient_data (Stammdaten) für vollständige Arzt-Ansicht
- * WICHTIG: Keine Arzt-Kontaktdaten (doctors-Tabelle wird nicht abgefragt)
+ * NEU v2: Snapshot-basiert mit Caching
+ * - Prüft share_active_until für 24h-Freigabe-Fenster
+ * - Liefert stabiles report_json Format für Website-Rendering
+ * - Cached Snapshots für Performance
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import {
+  buildDoctorReportSnapshot,
+  getCachedSnapshot,
+  isSnapshotStale,
+  upsertSnapshot,
+  type DoctorReportJSON,
+} from "../_shared/doctorReportSnapshot.ts";
 
 // Erlaubte Origins für CORS mit Credentials
 const ALLOWED_ORIGINS = [
@@ -64,51 +72,11 @@ function getSessionId(req: Request): string | null {
   return null;
 }
 
-// Date Range berechnen
-function getDateRange(range: string): { from: string; to: string } {
-  const to = new Date();
-  const from = new Date();
-  
-  switch (range) {
-    case "30d":
-      from.setDate(from.getDate() - 30);
-      break;
-    case "3m":
-      from.setMonth(from.getMonth() - 3);
-      break;
-    case "6m":
-      from.setMonth(from.getMonth() - 6);
-      break;
-    case "12m":
-      from.setFullYear(from.getFullYear() - 1);
-      break;
-    default:
-      from.setMonth(from.getMonth() - 3);
-  }
-  
-  return {
-    from: from.toISOString().split("T")[0],
-    to: to.toISOString().split("T")[0],
-  };
-}
-
-// Pain Level zu Zahl
-function painLevelToNumber(level: string): number {
-  const map: Record<string, number> = {
-    "-": 0,
-    "leicht": 3,
-    "mittel": 5,
-    "stark": 7,
-    "sehr_stark": 9,
-  };
-  return map[level] ?? 5;
-}
-
 // Session validieren (inkl. share_active_until Prüfung)
 async function validateSession(
   supabase: ReturnType<typeof createClient>,
   sessionId: string
-): Promise<{ valid: boolean; userId?: string; shareId?: string; reason?: string }> {
+): Promise<{ valid: boolean; userId?: string; shareId?: string; defaultRange?: string; reason?: string }> {
   const { data: session, error } = await supabase
     .from("doctor_share_sessions")
     .select(`
@@ -120,7 +88,8 @@ async function validateSession(
         user_id,
         expires_at,
         revoked_at,
-        share_active_until
+        share_active_until,
+        default_range
       )
     `)
     .eq("id", sessionId)
@@ -140,6 +109,7 @@ async function validateSession(
     expires_at: string | null;
     revoked_at: string | null;
     share_active_until: string | null;
+    default_range: string;
   };
   const now = new Date();
 
@@ -166,57 +136,11 @@ async function validateSession(
     return { valid: false, reason: "session_timeout" };
   }
 
-  return { valid: true, userId: share.user_id, shareId: share.id };
-}
-
-// Patient-Daten formatieren (KEINE Arzt-Daten!)
-interface PatientInfo {
-  first_name: string | null;
-  last_name: string | null;
-  full_name: string | null;
-  date_of_birth: string | null;
-  street: string | null;
-  postal_code: string | null;
-  city: string | null;
-  phone: string | null;
-  fax: string | null;
-  health_insurance: string | null;
-  insurance_number: string | null;
-  salutation: string | null;
-  title: string | null;
-}
-
-function formatPatientData(data: Record<string, unknown> | null): PatientInfo | null {
-  if (!data) return null;
-  
-  const firstName = data.first_name as string | null;
-  const lastName = data.last_name as string | null;
-  const title = data.title as string | null;
-  const salutation = data.salutation as string | null;
-  
-  let fullName: string | null = null;
-  if (firstName || lastName) {
-    const parts: string[] = [];
-    if (title) parts.push(title);
-    if (firstName) parts.push(firstName);
-    if (lastName) parts.push(lastName);
-    fullName = parts.join(" ");
-  }
-  
-  return {
-    first_name: firstName || null,
-    last_name: lastName || null,
-    full_name: fullName,
-    date_of_birth: data.date_of_birth as string | null,
-    street: data.street as string | null,
-    postal_code: data.postal_code as string | null,
-    city: data.city as string | null,
-    phone: data.phone as string | null,
-    fax: data.fax as string | null,
-    health_insurance: data.health_insurance as string | null,
-    insurance_number: data.insurance_number as string | null,
-    salutation: salutation || null,
-    title: title || null,
+  return { 
+    valid: true, 
+    userId: share.user_id, 
+    shareId: share.id,
+    defaultRange: share.default_range || "3m"
   };
 }
 
@@ -250,15 +174,14 @@ Deno.serve(async (req) => {
     }
 
     const userId = sessionResult.userId!;
+    const shareId = sessionResult.shareId!;
 
-    console.log(`[Doctor Report] Loading data for user_id=${userId.substring(0, 8)}...`);
+    console.log(`[Doctor Report v2] Loading data for user_id=${userId.substring(0, 8)}...`);
     
     const url = new URL(req.url);
-    const range = url.searchParams.get("range") || "3m";
+    const range = url.searchParams.get("range") || sessionResult.defaultRange || "3m";
     const page = parseInt(url.searchParams.get("page") || "1", 10);
-    const pageSize = 50;
-
-    const { from, to } = getDateRange(range);
+    const useSnapshot = url.searchParams.get("v") !== "legacy"; // Default to snapshot mode
 
     // Session Activity aktualisieren
     await supabase
@@ -266,256 +189,166 @@ Deno.serve(async (req) => {
       .update({ last_activity_at: new Date().toISOString() })
       .eq("id", sessionId);
 
-    // Entry IDs für medication_effects
-    const { data: allEntryIds } = await supabase
-      .from("pain_entries")
-      .select("id")
-      .eq("user_id", userId)
-      .gte("selected_date", from)
-      .lte("selected_date", to);
+    // ═══════════════════════════════════════════════════════════════════════
+    // SNAPSHOT-BASIERTER FLOW (v2)
+    // ═══════════════════════════════════════════════════════════════════════
 
-    const entryIds = allEntryIds?.map(e => e.id) || [];
+    let reportJson: DoctorReportJSON;
 
-    // Alle Daten parallel laden (inkl. patient_data)
-    const [
-      entriesResult,
-      entriesCountResult,
-      medicationCoursesResult,
-      medicationEffectsResult,
-      patientDataResult,
-      userMedicationsResult,
-    ] = await Promise.all([
-      // Paginierte Einträge
-      supabase
-        .from("pain_entries")
-        .select("*")
-        .eq("user_id", userId)
-        .gte("selected_date", from)
-        .lte("selected_date", to)
-        .order("selected_date", { ascending: false })
-        .order("selected_time", { ascending: false })
-        .range((page - 1) * pageSize, page * pageSize - 1),
+    if (useSnapshot) {
+      // 1) Check for cached snapshot
+      const cached = await getCachedSnapshot(supabase, shareId, range);
+      
+      let needsRebuild = !cached || cached.isStale;
 
-      // Total Count
-      supabase
-        .from("pain_entries")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", userId)
-        .gte("selected_date", from)
-        .lte("selected_date", to),
+      // 2) Check staleness if we have a cached snapshot
+      if (cached && !cached.isStale) {
+        const stale = await isSnapshotStale(supabase, userId, range, cached.sourceUpdatedAt);
+        if (stale) {
+          needsRebuild = true;
+          // Mark as stale for next request
+          await supabase
+            .from("doctor_share_report_snapshots")
+            .update({ is_stale: true })
+            .eq("id", cached.id);
+        }
+      }
 
-      // Medication Courses (Prophylaxe)
-      supabase
-        .from("medication_courses")
-        .select("id, medication_name, start_date, end_date, dose_text, is_active, subjective_effectiveness, side_effects_text, discontinuation_reason, type")
-        .eq("user_id", userId)
-        .order("start_date", { ascending: false }),
+      // 3) Build new snapshot if needed
+      if (needsRebuild) {
+        console.log(`[Doctor Report v2] Building new snapshot for share=${shareId.substring(0, 8)}, range=${range}`);
+        
+        const { reportJson: newReport, sourceUpdatedAt } = await buildDoctorReportSnapshot(supabase, {
+          userId,
+          range,
+          page,
+          includePatientData: true,
+        });
 
-      // Medication Effects
-      entryIds.length > 0
-        ? supabase
-            .from("medication_effects")
-            .select("entry_id, med_name, effect_rating, effect_score")
-            .in("entry_id", entryIds)
-        : Promise.resolve({ data: [], error: null }),
-
-      // Patient Data (Stammdaten) - WICHTIG: Keine doctors-Tabelle!
-      supabase
-        .from("patient_data")
-        .select("first_name, last_name, date_of_birth, street, postal_code, city, phone, fax, health_insurance, insurance_number, salutation, title")
-        .eq("user_id", userId)
-        .maybeSingle(),
-
-      // User Medications (für detaillierte Medikamenten-Infos)
-      supabase
-        .from("user_medications")
-        .select("id, name, wirkstoff, staerke, art, intake_type, is_active")
-        .eq("user_id", userId),
-    ]);
-
-    const entries = entriesResult.data || [];
-    const totalEntries = entriesCountResult.count || 0;
-    const medicationCourses = medicationCoursesResult.data || [];
-    const medicationEffects = medicationEffectsResult.data || [];
-    const patientData = formatPatientData(patientDataResult.data);
-    const userMedications = userMedicationsResult.data || [];
-
-    console.log(`[Doctor Report] Found ${totalEntries} entries in range ${from} to ${to}, patient_data: ${patientData ? 'yes' : 'no'}`);
-
-    // Summary berechnen (über alle Einträge im Zeitraum)
-    let summaryEntries = entries;
-    if (totalEntries > pageSize) {
-      const { data: allEntriesForSummary } = await supabase
-        .from("pain_entries")
-        .select("id, selected_date, pain_level, medications, aura_type, pain_locations")
-        .eq("user_id", userId)
-        .gte("selected_date", from)
-        .lte("selected_date", to);
-      summaryEntries = allEntriesForSummary || [];
+        // 4) Cache the snapshot
+        await upsertSnapshot(supabase, shareId, range, newReport, sourceUpdatedAt, sessionId);
+        
+        reportJson = newReport;
+      } else {
+        console.log(`[Doctor Report v2] Using cached snapshot for share=${shareId.substring(0, 8)}`);
+        
+        // If page > 1, we need to rebuild with correct pagination
+        if (page > 1) {
+          const { reportJson: newReport } = await buildDoctorReportSnapshot(supabase, {
+            userId,
+            range,
+            page,
+            includePatientData: true,
+          });
+          reportJson = newReport;
+        } else {
+          reportJson = cached!.reportJson;
+        }
+      }
+    } else {
+      // Legacy mode: Build on-the-fly without caching
+      const { reportJson: newReport } = await buildDoctorReportSnapshot(supabase, {
+        userId,
+        range,
+        page,
+        includePatientData: true,
+      });
+      reportJson = newReport;
     }
 
-    const painDays = new Set(
-      summaryEntries
-        .filter(e => e.pain_level && e.pain_level !== "-")
-        .map(e => e.selected_date)
-    );
-
-    const migraineDays = new Set(
-      summaryEntries
-        .filter(e => e.pain_level === "stark" || e.pain_level === "sehr_stark")
-        .map(e => e.selected_date)
-    );
-
-    // Triptan-Keywords (erweitert)
-    const triptanKeywords = [
-      "triptan", "almotriptan", "eletriptan", "frovatriptan", 
-      "naratriptan", "rizatriptan", "sumatriptan", "zolmitriptan",
-      "suma", "riza", "zolmi", "nara", "almo", "ele", "frova",
-      "imigran", "maxalt", "ascotop", "naramig", "almogran",
-      "relpax", "allegro", "dolotriptan", "formigran"
-    ];
-    
-    const triptanDays = new Set(
-      summaryEntries
-        .filter(e => 
-          e.medications?.some((med: string) => 
-            triptanKeywords.some(kw => med.toLowerCase().includes(kw))
-          )
-        )
-        .map(e => e.selected_date)
-    );
-
-    const acuteMedDays = new Set(
-      summaryEntries
-        .filter(e => e.medications && e.medications.length > 0)
-        .map(e => e.selected_date)
-    );
-
-    // Aura-Statistik
-    const auraDays = new Set(
-      summaryEntries
-        .filter(e => e.aura_type && e.aura_type !== "keine")
-        .map(e => e.selected_date)
-    );
-
-    const painLevels = summaryEntries
-      .filter(e => e.pain_level && e.pain_level !== "-")
-      .map(e => painLevelToNumber(e.pain_level));
-    const avgIntensity = painLevels.length > 0
-      ? painLevels.reduce((a, b) => a + b, 0) / painLevels.length
-      : 0;
-
-    const daysInRange = Math.ceil(
-      (new Date(to).getTime() - new Date(from).getTime()) / (1000 * 60 * 60 * 24)
-    ) + 1;
-    const monthsInRange = daysInRange / 30;
-    const acuteMedDaysPerMonth = acuteMedDays.size / monthsInRange;
-    const overuseWarning = acuteMedDaysPerMonth > 10;
-
-    // Chart Data
-    const chartDataMap = new Map<string, number>();
-    summaryEntries.forEach(entry => {
-      if (entry.selected_date && entry.pain_level && entry.pain_level !== "-") {
-        const existing = chartDataMap.get(entry.selected_date);
-        const level = painLevelToNumber(entry.pain_level);
-        if (!existing || level > existing) {
-          chartDataMap.set(entry.selected_date, level);
-        }
-      }
-    });
-
-    const chartDates = Array.from(chartDataMap.keys()).sort();
-    const chartPainLevels = chartDates.map(d => chartDataMap.get(d) || 0);
-
-    // Medication Stats
-    const medStats = new Map<string, { count: number; effects: number[]; totalScore: number }>();
-    
-    summaryEntries.forEach(entry => {
-      entry.medications?.forEach((med: string) => {
-        if (!medStats.has(med)) {
-          medStats.set(med, { count: 0, effects: [], totalScore: 0 });
-        }
-        const stat = medStats.get(med)!;
-        stat.count++;
-      });
-    });
-
-    medicationEffects.forEach(effect => {
-      const stat = medStats.get(effect.med_name);
-      if (stat && effect.effect_score !== null) {
-        stat.effects.push(effect.effect_score);
-        stat.totalScore += effect.effect_score;
-      }
-    });
-
-    const medicationStatsArray = Array.from(medStats.entries())
-      .map(([name, stat]) => ({
-        name,
-        intake_count: stat.count,
-        avg_effect: stat.effects.length > 0 
-          ? Math.round((stat.totalScore / stat.effects.length) * 10) / 10 
-          : null,
-        effect_count: stat.effects.length,
-      }))
-      .sort((a, b) => b.intake_count - a.intake_count);
-
-    // Pain Locations Stats
-    const locationStats = new Map<string, number>();
-    summaryEntries.forEach(entry => {
-      entry.pain_locations?.forEach((loc: string) => {
-        locationStats.set(loc, (locationStats.get(loc) || 0) + 1);
-      });
-    });
+    // ═══════════════════════════════════════════════════════════════════════
+    // RESPONSE: Neues stabiles Format
+    // ═══════════════════════════════════════════════════════════════════════
 
     return new Response(
       JSON.stringify({
-        // Patient-Stammdaten (NEU!)
-        patient: patientData,
+        // Neues Format für Website v2
+        report: reportJson,
         
-        // Summary
+        // Backward-compatible legacy fields (für alte Website-Version)
+        patient: reportJson.optional.patientData ? {
+          first_name: reportJson.optional.patientData.firstName,
+          last_name: reportJson.optional.patientData.lastName,
+          full_name: reportJson.optional.patientData.fullName,
+          date_of_birth: reportJson.optional.patientData.dateOfBirth,
+          street: reportJson.optional.patientData.street,
+          postal_code: reportJson.optional.patientData.postalCode,
+          city: reportJson.optional.patientData.city,
+          phone: reportJson.optional.patientData.phone,
+          fax: reportJson.optional.patientData.fax,
+          health_insurance: reportJson.optional.patientData.healthInsurance,
+          insurance_number: reportJson.optional.patientData.insuranceNumber,
+          salutation: reportJson.optional.patientData.salutation,
+          title: reportJson.optional.patientData.title,
+        } : null,
+        
         summary: {
-          headache_days: painDays.size,
-          migraine_days: migraineDays.size,
-          triptan_days: triptanDays.size,
-          acute_med_days: acuteMedDays.size,
-          aura_days: auraDays.size,
-          avg_intensity: Math.round(avgIntensity * 10) / 10,
-          overuse_warning: overuseWarning,
-          days_in_range: daysInRange,
+          headache_days: reportJson.summary.headacheDays,
+          migraine_days: reportJson.summary.migraineDays,
+          triptan_days: reportJson.summary.triptanDays,
+          acute_med_days: reportJson.summary.acuteMedDays,
+          aura_days: reportJson.summary.auraDays,
+          avg_intensity: reportJson.summary.avgIntensity,
+          overuse_warning: reportJson.summary.overuseWarning,
+          days_in_range: reportJson.summary.daysInRange,
         },
         
-        // Chart Data
         chart_data: {
-          dates: chartDates,
-          pain_levels: chartPainLevels,
+          dates: reportJson.charts.intensityOverTime.map(d => d.date),
+          pain_levels: reportJson.charts.intensityOverTime.map(d => d.maxIntensity),
         },
         
-        // Paginated Entries
-        entries: entries,
-        entries_total: totalEntries,
-        entries_page: page,
-        entries_page_size: pageSize,
+        entries: reportJson.tables.entries.map(e => ({
+          id: e.id,
+          user_id: userId, // Not exposed in new format but needed for legacy
+          selected_date: e.date,
+          selected_time: e.time,
+          pain_level: e.intensityLabel.toLowerCase().replace(" ", "_"),
+          medications: e.medications,
+          notes: e.note,
+          aura_type: e.aura || "keine",
+          pain_locations: e.painLocations,
+        })),
+        entries_total: reportJson.tables.entriesTotal,
+        entries_page: reportJson.tables.entriesPage,
+        entries_page_size: reportJson.tables.entriesPageSize,
         
-        // Medication Info
-        medication_stats: medicationStatsArray,
-        medication_courses: medicationCourses,
-        user_medications: userMedications,
+        medication_stats: reportJson.tables.medicationStats.map(m => ({
+          name: m.name,
+          intake_count: m.intakeCount,
+          avg_effect: m.avgEffect,
+          effect_count: m.effectCount,
+        })),
         
-        // Location Stats
-        location_stats: Object.fromEntries(locationStats),
+        medication_courses: reportJson.tables.prophylaxisCourses.map(c => ({
+          id: c.id,
+          medication_name: c.name,
+          start_date: c.startDate,
+          end_date: c.endDate,
+          dose_text: c.doseText,
+          is_active: c.isActive,
+          subjective_effectiveness: c.effectiveness,
+          side_effects_text: c.sideEffects,
+          discontinuation_reason: c.discontinuationReason,
+          type: "prophylaxe",
+        })),
         
-        // Date Range
-        from_date: from,
-        to_date: to,
+        user_medications: [], // Not included in snapshot, add if needed
+        location_stats: reportJson.tables.locationStats,
+        
+        from_date: reportJson.meta.fromDate,
+        to_date: reportJson.meta.toDate,
       }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { 
+        status: 200, 
+        headers: { ...corsHeaders, "Content-Type": "application/json" } 
+      }
     );
 
   } catch (err) {
-    console.error("Unexpected error:", err);
-    const corsHeaders = getCorsHeaders(req);
+    console.error("[Doctor Report v2] Error:", err);
     return new Response(
-      JSON.stringify({ error: "Interner Fehler", reason: "internal_error" }),
+      JSON.stringify({ error: "Interner Fehler", details: String(err) }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
