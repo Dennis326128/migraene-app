@@ -170,6 +170,77 @@ export type Database = {
         }
         Relationships: []
       }
+      doctor_share_sessions: {
+        Row: {
+          ended_at: string | null
+          id: string
+          last_activity_at: string
+          share_id: string
+          started_at: string
+          user_agent_hash: string | null
+        }
+        Insert: {
+          ended_at?: string | null
+          id?: string
+          last_activity_at?: string
+          share_id: string
+          started_at?: string
+          user_agent_hash?: string | null
+        }
+        Update: {
+          ended_at?: string | null
+          id?: string
+          last_activity_at?: string
+          share_id?: string
+          started_at?: string
+          user_agent_hash?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "doctor_share_sessions_share_id_fkey"
+            columns: ["share_id"]
+            isOneToOne: false
+            referencedRelation: "doctor_shares"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      doctor_shares: {
+        Row: {
+          code: string
+          code_display: string
+          created_at: string
+          default_range: string
+          expires_at: string
+          id: string
+          last_accessed_at: string | null
+          revoked_at: string | null
+          user_id: string
+        }
+        Insert: {
+          code: string
+          code_display: string
+          created_at?: string
+          default_range?: string
+          expires_at: string
+          id?: string
+          last_accessed_at?: string | null
+          revoked_at?: string | null
+          user_id: string
+        }
+        Update: {
+          code?: string
+          code_display?: string
+          created_at?: string
+          default_range?: string
+          expires_at?: string
+          id?: string
+          last_accessed_at?: string | null
+          revoked_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       doctors: {
         Row: {
           city: string | null
