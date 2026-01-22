@@ -6,11 +6,18 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Credentials": "true",
-};
+// Dynamischer CORS Origin für Credentials (Wildcard * funktioniert nicht mit credentials)
+function getCorsHeaders(req: Request): Record<string, string> {
+  const origin = req.headers.get("origin") || "";
+  // Alle lovable.app Subdomains erlauben
+  const isAllowed = origin.includes("lovable.app") || origin.includes("localhost");
+  
+  return {
+    "Access-Control-Allow-Origin": isAllowed ? origin : "https://migraene-app.lovable.app",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Credentials": "true",
+  };
+}
 
 // Rate Limiting: In-Memory (für Edge Function Instanz)
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
@@ -49,6 +56,8 @@ async function hashString(str: string): Promise<string> {
 }
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   // CORS Preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -179,6 +188,7 @@ Deno.serve(async (req) => {
 
   } catch (err) {
     console.error("Unexpected error:", err);
+    const corsHeaders = getCorsHeaders(req);
     return new Response(
       JSON.stringify({ valid: false, error: "Interner Fehler" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }

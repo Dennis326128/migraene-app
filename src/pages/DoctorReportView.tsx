@@ -99,7 +99,8 @@ const DoctorReportView: React.FC = () => {
   // Session-Ping Interval
   const pingSession = useCallback(async () => {
     try {
-      const response = await fetch(`https://lzcbjciqrhsezxkjeyhb.supabase.co/functions/v1/ping-doctor-session`, {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const response = await fetch(`${supabaseUrl}/functions/v1/ping-doctor-session`, {
         method: "POST",
         credentials: "include",
       });
@@ -121,8 +122,9 @@ const DoctorReportView: React.FC = () => {
     setError(null);
 
     try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const response = await fetch(
-        `https://lzcbjciqrhsezxkjeyhb.supabase.co/functions/v1/get-shared-report-data?range=${currentRange}&page=${currentPage}`,
+        `${supabaseUrl}/functions/v1/get-shared-report-data?range=${currentRange}&page=${currentPage}`,
         {
           method: "GET",
           credentials: "include",
@@ -177,8 +179,9 @@ const DoctorReportView: React.FC = () => {
   const handleDownloadPdf = async () => {
     setIsDownloading(true);
     try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const response = await fetch(
-        `https://lzcbjciqrhsezxkjeyhb.supabase.co/functions/v1/get-shared-report-pdf?range=${range}`,
+        `${supabaseUrl}/functions/v1/get-shared-report-pdf?range=${range}`,
         {
           method: "GET",
           credentials: "include",
