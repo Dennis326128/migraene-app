@@ -127,15 +127,20 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
     }
   }, [shouldShowSetup, showSetupDialog]);
 
-  return (
-    <div className="flex flex-col h-full bg-background">
-      <AppHeader title="Mit Arzt teilen" onBack={onBack} sticky />
-
-      <div className="flex-1 overflow-auto p-4">
-        <div className="max-w-md mx-auto pt-4">
-          
-          {/* Setup Dialog */}
-          {showSetupDialog && (
+  // Wenn Setup-Dialog aktiv, zeige ihn im vollen Screen
+  if (showSetupDialog) {
+    return (
+      <div className="flex flex-col h-full bg-background">
+        <AppHeader 
+          title="Mit Arzt teilen" 
+          onBack={() => {
+            setShowSetupDialog(false);
+            onBack();
+          }} 
+          sticky 
+        />
+        <div className="flex-1 overflow-auto p-4">
+          <div className="max-w-4xl mx-auto">
             <DoctorShareDialog
               onComplete={handleShareComplete}
               onCancel={() => {
@@ -143,10 +148,21 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
                 onBack();
               }}
             />
-          )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-full bg-background">
+      <AppHeader title="Mit Arzt teilen" onBack={onBack} sticky />
+
+      <div className="flex-1 overflow-auto p-4">
+        <div className="max-w-md mx-auto pt-4">
 
           {/* Lade-Zustand */}
-          {isLoading && !showSetupDialog && (
+          {isLoading && (
             <div className="py-16 text-center">
               <div className="animate-pulse space-y-4">
                 <div className="h-12 bg-muted/30 rounded-lg max-w-[180px] mx-auto" />
@@ -158,7 +174,7 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
           )}
 
           {/* Fehler-Zustand */}
-          {!isLoading && error && !showSetupDialog && (
+          {!isLoading && error && (
             <div className="py-16 text-center space-y-4">
               <p className="text-muted-foreground">
                 Der Code kann gerade nicht angezeigt werden.
@@ -170,7 +186,7 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
           )}
 
           {/* Zustand B: Freigabe AKTIV */}
-          {!isLoading && !error && !showSetupDialog && (shareStatus?.is_share_active || justCreatedCode) && (
+          {!isLoading && !error && (shareStatus?.is_share_active || justCreatedCode) && (
             <div className="flex flex-col items-center space-y-8">
               {/* Success Message nach Erstellung */}
               {justCreatedCode && (
@@ -262,7 +278,7 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
           )}
 
           {/* Zustand C: Freigabe INAKTIV (heute beendet) */}
-          {!isLoading && !error && !showSetupDialog && shareStatus && !isShareActive && 
+          {!isLoading && !error && shareStatus && !isShareActive && 
            shareStatus.was_revoked_today && !justCreatedCode && (
             <div className="flex flex-col items-center space-y-8">
               {/* Der Code - ausgegraut */}
