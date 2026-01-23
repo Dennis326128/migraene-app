@@ -2,7 +2,7 @@
  * DoctorShareDialog
  * Vollständiger "Mit Arzt teilen" Flow mit Settings und PDF-Generierung
  * 
- * UI-Stil: ähnlich zu DiaryReport.tsx mit Toggle-Komponenten
+ * UI-Stil: Übernommen von DiaryReport.tsx - Full-width Screen-Layout
  * - Zeitraum-Auswahl
  * - Datenschutz-Schalter (Default AUS)
  * - KI-Analyse (Premium, orange Badge)
@@ -13,10 +13,11 @@ import React, { useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Info, FileText, Lock, Sparkles, Check } from "lucide-react";
+import { Loader2, Info, FileText, Lock, Brain, Check, ChevronDown, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 
 import { supabase } from "@/lib/supabaseClient";
 import { TimeRangeButtons, type TimeRangePreset } from "../TimeRangeButtons";
@@ -27,14 +28,13 @@ import { usePatientData, useDoctors } from "@/features/account/hooks/useAccount"
 import { useMedicationCourses } from "@/features/medication-courses/hooks/useMedicationCourses";
 import { useDiaryReportQuota } from "@/features/ai-reports/hooks/useDiaryReportQuota";
 import { saveGeneratedReport } from "@/features/reports/api/generatedReports.api";
+import { PremiumBadge } from "@/components/ui/premium-badge";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { 
   useDoctorShareStatus, 
   useActivateDoctorShare 
 } from "@/features/doctor-share";
 import { upsertShareSettings } from "@/features/doctor-share/api/doctorShareSettings.api";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon } from "lucide-react";
 
 interface DoctorShareDialogProps {
   onComplete: (shareCode: string) => void;
@@ -48,6 +48,34 @@ function addMonths(d: Date, m: number) {
   return dd;
 }
 function fmt(d: Date) { return d.toISOString().slice(0, 10); }
+
+// Toggle-Row Komponente (identisch zu DiaryReport)
+const ToggleRow = ({ 
+  label, 
+  checked, 
+  onCheckedChange, 
+  disabled, 
+  subtext 
+}: { 
+  label: string; 
+  checked: boolean; 
+  onCheckedChange: (checked: boolean) => void; 
+  disabled?: boolean;
+  subtext?: string;
+}) => (
+  <div className={`flex items-center justify-between py-2.5 ${disabled ? 'opacity-50' : ''}`}>
+    <div className="flex-1 min-w-0">
+      <span className="text-sm">{label}</span>
+      {subtext && <p className="text-xs text-muted-foreground mt-0.5">{subtext}</p>}
+    </div>
+    <Switch 
+      checked={checked} 
+      onCheckedChange={onCheckedChange}
+      disabled={disabled}
+      className="ml-3 shrink-0"
+    />
+  </div>
+);
 
 export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({ 
   onComplete, 
@@ -66,6 +94,9 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
   
   // KI-Analyse
   const [includeAI, setIncludeAI] = useState(false);
+  
+  // Advanced Section
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   
   // UI State
   const [isGenerating, setIsGenerating] = useState(false);
@@ -130,7 +161,6 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
       if (!shareStatus?.is_share_active) {
         await activateMutation.mutateAsync(undefined);
         await refetchShareStatus();
-        // Nach refetch haben wir die aktuelle ID
       }
       
       // Hole aktuelle Share-Daten
@@ -152,7 +182,7 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
       setGenerationStep("Einstellungen werden gespeichert...");
       
       await upsertShareSettings(currentShareId, {
-        range_preset: preset === 'all' ? '12m' : preset, // 'all' nicht unterstützt, fallback
+        range_preset: preset === 'all' ? '12m' : preset,
         custom_from: preset === 'custom' ? customStart : null,
         custom_to: preset === 'custom' ? customEnd : null,
         include_entry_notes: includeEntryNotes,
@@ -243,7 +273,6 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
           }
         } catch (aiError) {
           console.warn("KI-Analyse fehlgeschlagen:", aiError);
-          // Weiter ohne KI
         }
       }
       
@@ -331,7 +360,7 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
       setGenerationStep("Bericht wird gespeichert...");
       
       const savedReport = await saveGeneratedReport({
-        report_type: 'diary', // Standard-Typ für Kompatibilität mit "Gespeicherte Berichte"
+        report_type: 'diary',
         title: `Kopfschmerztagebuch (Arztfreigabe) – ${rangeLabel}`,
         from_date: from,
         to_date: to,
@@ -366,180 +395,188 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
   };
 
   return (
-    <div className="space-y-6">
-      {/* Zeitraum */}
-      <Card className="p-4">
-        <h3 className="text-sm font-medium text-foreground mb-3">Zeitraum</h3>
-        <TimeRangeButtons
-          value={preset}
-          onChange={setPreset}
-          compact
-        />
+    <div className="flex flex-col min-h-full">
+      {/* Scrollable Content Area */}
+      <div className="flex-1 overflow-y-auto pb-28 space-y-4">
         
-        {/* Custom Date Pickers */}
-        {preset === "custom" && (
-          <div className="flex gap-2 mt-3">
-            <div className="flex-1">
-              <label className="text-xs text-muted-foreground mb-1 block">Von</label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start text-left font-normal h-9 text-sm">
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {format(new Date(customStart), 'dd.MM.yyyy', { locale: de })}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={new Date(customStart)}
-                    onSelect={(date) => date && setCustomStart(fmt(date))}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-            <div className="flex-1">
-              <label className="text-xs text-muted-foreground mb-1 block">Bis</label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start text-left font-normal h-9 text-sm">
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {format(new Date(customEnd), 'dd.MM.yyyy', { locale: de })}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={new Date(customEnd)}
-                    onSelect={(date) => date && setCustomEnd(fmt(date))}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-          </div>
-        )}
-        
-        <p className="text-xs text-muted-foreground mt-2">{rangeLabel}</p>
-      </Card>
-      
-      {/* Datenschutz-Optionen */}
-      <Card className="p-4 space-y-4">
-        <h3 className="text-sm font-medium text-foreground flex items-center gap-2">
-          <Lock className="w-4 h-4" />
-          Datenschutz-Optionen
-        </h3>
-        
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium">Notizen aus Schmerzeinträgen</p>
-            <p className="text-xs text-muted-foreground">Persönliche Notizen werden geteilt</p>
-          </div>
-          <Switch 
-            checked={includeEntryNotes} 
-            onCheckedChange={setIncludeEntryNotes}
-          />
-        </div>
-        
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium">Kontextnotizen teilen</p>
-            <p className="text-xs text-muted-foreground">Zusätzliche Notizen aus Spracheinträgen</p>
-          </div>
-          <Switch 
-            checked={includeContextNotes} 
-            onCheckedChange={setIncludeContextNotes}
-          />
-        </div>
-      </Card>
-      
-      {/* KI-Analyse (Premium) */}
-      <Card className="p-4 border-orange-200 bg-orange-50/50 dark:border-orange-900 dark:bg-orange-950/20">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-orange-100 dark:bg-orange-900/30">
-              <Sparkles className="w-5 h-5 text-orange-600 dark:text-orange-400" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <p className="text-sm font-medium text-orange-900 dark:text-orange-100">
-                  KI-Analysebericht
-                </p>
-                <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-orange-200 text-orange-700 dark:bg-orange-800 dark:text-orange-200">
-                  Premium
-                </span>
+        {/* ═══════════════════════════════════════════════════════════════════
+            ZEITRAUM CARD - Identisch zu DiaryReport
+        ═══════════════════════════════════════════════════════════════════ */}
+        <Card className="p-4 space-y-3">
+          <h3 className="text-sm font-semibold text-muted-foreground">Zeitraum</h3>
+          <TimeRangeButtons value={preset} onChange={setPreset} compact />
+
+          {preset === "custom" && (
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              <div>
+                <label className="block text-xs text-muted-foreground mb-1">Start</label>
+                <input 
+                  className="border-border/40 border rounded-md px-3 h-10 w-full bg-background text-foreground text-sm" 
+                  type="date" 
+                  value={customStart} 
+                  onChange={e => setCustomStart(e.target.value)} 
+                />
               </div>
-              <p className="text-xs text-orange-700/80 dark:text-orange-300/80">
-                {isQuotaExhausted 
-                  ? "Monatliches Limit erreicht" 
-                  : isAIDisabled
-                    ? "KI ist deaktiviert"
-                    : quotaData?.isUnlimited 
-                      ? "Unbegrenzt verfügbar"
-                      : `${quotaData?.remaining ?? 0} von ${quotaData?.limit ?? 5} übrig`
-                }
-              </p>
+              <div>
+                <label className="block text-xs text-muted-foreground mb-1">Ende</label>
+                <input 
+                  className="border-border/40 border rounded-md px-3 h-10 w-full bg-background text-foreground text-sm" 
+                  type="date" 
+                  value={customEnd} 
+                  onChange={e => setCustomEnd(e.target.value)} 
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Zeitraum Anzeige */}
+          <div className="text-sm text-muted-foreground pt-1">
+            {rangeLabel}
+          </div>
+        </Card>
+
+        {/* ═══════════════════════════════════════════════════════════════════
+            OPTIONEN CARD - Toggle-Listen-Stil wie DiaryReport
+        ═══════════════════════════════════════════════════════════════════ */}
+        <Card className="divide-y divide-border/50">
+          
+          {/* Section: Immer enthaltene Inhalte (Info) */}
+          <div className="p-4">
+            <div className="flex items-start gap-3">
+              <Info className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+              <div className="text-xs text-muted-foreground space-y-1">
+                <p className="font-medium text-foreground text-sm">Immer enthalten:</p>
+                <ul className="space-y-0.5">
+                  <li className="flex items-center gap-1.5">
+                    <Check className="w-3 h-3" /> Statistiken & Diagramme
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <Check className="w-3 h-3" /> Einträge-Liste
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <Check className="w-3 h-3" /> Therapien & Prophylaxe
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <Check className="w-3 h-3" /> Patientendaten (falls vorhanden)
+                  </li>
+                </ul>
+              </div>
             </div>
           </div>
-          <Switch 
-            checked={includeAI} 
-            onCheckedChange={setIncludeAI}
-            disabled={isQuotaExhausted || isAIDisabled}
-          />
-        </div>
-      </Card>
-      
-      {/* Fixe Inhalte (Info) */}
-      <Card className="p-4 bg-muted/30">
-        <div className="flex items-start gap-3">
-          <Info className="w-4 h-4 text-muted-foreground mt-0.5" />
-          <div className="text-xs text-muted-foreground space-y-1">
-            <p className="font-medium text-foreground">Immer enthalten:</p>
-            <ul className="space-y-0.5">
-              <li className="flex items-center gap-1.5">
-                <Check className="w-3 h-3" /> Statistiken & Diagramme
-              </li>
-              <li className="flex items-center gap-1.5">
-                <Check className="w-3 h-3" /> Einträge-Liste
-              </li>
-              <li className="flex items-center gap-1.5">
-                <Check className="w-3 h-3" /> Therapien & Prophylaxe
-              </li>
-              <li className="flex items-center gap-1.5">
-                <Check className="w-3 h-3" /> Patientendaten (falls vorhanden)
-              </li>
-            </ul>
+
+          {/* Section: Datenschutz-Optionen (Accordion) */}
+          <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+            <CollapsibleTrigger className="flex items-center justify-between w-full p-4 text-sm hover:bg-muted/30 transition-colors">
+              <div className="flex items-center gap-2">
+                <Lock className="w-4 h-4 text-muted-foreground" />
+                <span className="font-medium">Datenschutz-Optionen</span>
+              </div>
+              {advancedOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            </CollapsibleTrigger>
+            <CollapsibleContent className="px-4 pb-4 space-y-0.5">
+              <ToggleRow
+                label="Notizen aus Schmerzeinträgen"
+                checked={includeEntryNotes}
+                onCheckedChange={setIncludeEntryNotes}
+                subtext="Persönliche Notizen werden geteilt"
+              />
+              <ToggleRow
+                label="Kontextnotizen teilen"
+                checked={includeContextNotes}
+                onCheckedChange={setIncludeContextNotes}
+                subtext="Zusätzliche Notizen aus Spracheinträgen"
+              />
+            </CollapsibleContent>
+          </Collapsible>
+
+          {/* Premium Section: KI-Analysebericht - Identisch zu DiaryReport */}
+          <div className="p-4 border-t border-border/30 bg-gradient-to-r from-amber-500/5 to-amber-600/5">
+            <div className="flex items-center justify-between py-1">
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <Brain className="h-4 w-4 text-amber-500/80" />
+                <span className="text-sm font-medium">KI-Analysebericht</span>
+                <PremiumBadge />
+              </div>
+              <Switch 
+                checked={includeAI && !isQuotaExhausted && !isAIDisabled} 
+                onCheckedChange={(checked) => {
+                  if (!isQuotaExhausted && !isAIDisabled) {
+                    setIncludeAI(checked);
+                  }
+                }}
+                disabled={isGenerating || isQuotaExhausted || isAIDisabled}
+                className="ml-3 shrink-0"
+              />
+            </div>
+            
+            {/* Status Display - Minimal */}
+            {(isAIDisabled || isQuotaExhausted) && (
+              <div className="mt-2 pl-6">
+                {isAIDisabled ? (
+                  <p className="text-xs text-muted-foreground">KI deaktiviert</p>
+                ) : isQuotaExhausted ? (
+                  <p className="text-xs text-muted-foreground">
+                    Verfügbar ab{" "}
+                    {(() => {
+                      const now = new Date();
+                      const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+                      return nextMonth.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                    })()}
+                  </p>
+                ) : null}
+              </div>
+            )}
+            
+            {/* Quota Info - nur wenn nicht erschöpft/deaktiviert */}
+            {!isAIDisabled && !isQuotaExhausted && (
+              <div className="mt-1 pl-6">
+                <p className="text-xs text-muted-foreground">
+                  {quotaData?.isUnlimited 
+                    ? "Unbegrenzt verfügbar"
+                    : `${quotaData?.remaining ?? 0} von ${quotaData?.limit ?? 5} übrig`
+                  }
+                </p>
+              </div>
+            )}
           </div>
-        </div>
-      </Card>
-      
-      {/* Actions */}
-      <div className="flex gap-3 pt-2">
-        <Button 
-          variant="outline" 
-          onClick={onCancel}
-          disabled={isGenerating}
-          className="flex-1"
-        >
-          Abbrechen
-        </Button>
+        </Card>
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          STICKY ACTION BAR - Identisch zu DiaryReport
+      ═══════════════════════════════════════════════════════════════════ */}
+      <div className="sticky bottom-0 left-0 right-0 bg-background border-t border-border p-4 space-y-2 -mx-4 -mb-4 mt-auto">
         <Button 
           onClick={handleCreateShare}
           disabled={isGenerating}
-          className="flex-1"
+          size="lg"
+          className="w-full"
         >
           {isGenerating ? (
             <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              {generationStep || "Wird erstellt..."}
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              {generationStep || "Wird erstellt…"}
             </>
           ) : (
             <>
-              <FileText className="w-4 h-4 mr-2" />
+              <FileText className="mr-2 h-5 w-5" />
               Freigabe erstellen
             </>
           )}
         </Button>
+
+        {/* Secondary action - less prominent */}
+        <div className="flex justify-center">
+          <Button 
+            onClick={onCancel}
+            disabled={isGenerating}
+            variant="ghost"
+            size="sm"
+            className="text-xs text-muted-foreground hover:text-foreground"
+          >
+            Abbrechen
+          </Button>
+        </div>
       </div>
     </div>
   );
