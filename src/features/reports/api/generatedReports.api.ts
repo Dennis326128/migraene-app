@@ -1,6 +1,7 @@
 /**
  * Generated Reports API
  * Manages the history of generated PDF reports
+ * Now uses Supabase Storage for robust binary handling
  */
 
 import { supabase } from "@/lib/supabaseClient";
@@ -15,6 +16,7 @@ export interface GeneratedReport {
   from_date: string | null;
   to_date: string | null;
   file_size_bytes: number | null;
+  storage_path: string | null;
   metadata: Record<string, unknown> | null;
   created_at: string;
 }
@@ -22,13 +24,50 @@ export interface GeneratedReport {
 // Light version without blob for listing
 type GeneratedReportListItem = Omit<GeneratedReport, 'pdf_blob'>;
 
+/**
+ * Compute simple checksum for verification (sum of all bytes mod 2^32)
+ */
+function computeChecksum(bytes: Uint8Array): number {
+  let sum = 0;
+  for (let i = 0; i < bytes.length; i++) {
+    sum = (sum + bytes[i]) >>> 0; // Keep as unsigned 32-bit
+  }
+  return sum;
+}
+
+/**
+ * Extract header and tail for PDF validation
+ */
+function getPdfSignatures(bytes: Uint8Array): { header: string; tail: string; byteLength: number; checksum: number } {
+  const header = bytes.length >= 5 
+    ? String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3], bytes[4])
+    : '';
+  
+  const tailStart = Math.max(0, bytes.length - 20);
+  const tailBytes = bytes.slice(tailStart);
+  let tail = '';
+  for (let i = 0; i < tailBytes.length; i++) {
+    const char = tailBytes[i];
+    if (char >= 32 && char <= 126) {
+      tail += String.fromCharCode(char);
+    }
+  }
+  
+  return {
+    header,
+    tail,
+    byteLength: bytes.length,
+    checksum: computeChecksum(bytes),
+  };
+}
+
 export async function fetchGeneratedReports(): Promise<GeneratedReportListItem[]> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return [];
 
   const { data, error } = await supabase
     .from('generated_reports')
-    .select('id, user_id, report_type, title, from_date, to_date, file_size_bytes, metadata, created_at')
+    .select('id, user_id, report_type, title, from_date, to_date, file_size_bytes, storage_path, metadata, created_at')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false });
 
@@ -46,7 +85,7 @@ export async function fetchGeneratedReportsByType(reportType: ReportType): Promi
 
   const { data, error } = await supabase
     .from('generated_reports')
-    .select('id, user_id, report_type, title, from_date, to_date, file_size_bytes, metadata, created_at')
+    .select('id, user_id, report_type, title, from_date, to_date, file_size_bytes, storage_path, metadata, created_at')
     .eq('user_id', user.id)
     .eq('report_type', reportType)
     .order('created_at', { ascending: false });
@@ -58,7 +97,7 @@ export async function fetchGeneratedReportsByType(reportType: ReportType): Promi
 export async function downloadGeneratedReport(id: string): Promise<Uint8Array | null> {
   const { data, error } = await supabase
     .from('generated_reports')
-    .select('pdf_blob, title, file_size_bytes')
+    .select('pdf_blob, storage_path, title, file_size_bytes')
     .eq('id', id)
     .single();
 
@@ -67,16 +106,53 @@ export async function downloadGeneratedReport(id: string): Promise<Uint8Array | 
     throw error;
   }
 
-  // pdf_blob is stored as base64 string
+  console.log('[downloadGeneratedReport] Report metadata:', {
+    id,
+    storedFileSize: data.file_size_bytes,
+    hasStoragePath: !!data.storage_path,
+    hasPdfBlob: !!data.pdf_blob,
+  });
+
+  // NEW: Try storage_path first (preferred method)
+  if (data.storage_path) {
+    console.log('[downloadGeneratedReport] Using Storage path:', data.storage_path);
+    
+    const { data: fileData, error: downloadError } = await supabase.storage
+      .from('generated-reports')
+      .download(data.storage_path);
+    
+    if (downloadError) {
+      console.error('[downloadGeneratedReport] Storage download failed:', downloadError);
+      // Fall through to legacy pdf_blob
+    } else if (fileData) {
+      const arrayBuffer = await fileData.arrayBuffer();
+      const bytes = new Uint8Array(arrayBuffer);
+      
+      const signatures = getPdfSignatures(bytes);
+      console.log('[downloadGeneratedReport] Storage download success:', {
+        byteLength: signatures.byteLength,
+        header: signatures.header,
+        startsWithPDF: signatures.header.startsWith('%PDF-'),
+        tail: signatures.tail,
+        checksum: signatures.checksum,
+      });
+      
+      if (!signatures.header.startsWith('%PDF-')) {
+        console.error('[downloadGeneratedReport] Invalid PDF from storage: header mismatch');
+      }
+      
+      return bytes;
+    }
+  }
+
+  // LEGACY: Fall back to pdf_blob (base64 in bytea column)
   if (!data?.pdf_blob) {
-    console.error('[downloadGeneratedReport] pdf_blob is null or empty');
+    console.error('[downloadGeneratedReport] No storage_path and pdf_blob is null');
     return null;
   }
   
   const blob = data.pdf_blob;
-  console.log('[downloadGeneratedReport] Loading PDF:', {
-    id,
-    storedFileSize: data.file_size_bytes,
+  console.log('[downloadGeneratedReport] Using legacy pdf_blob:', {
     blobType: typeof blob,
     blobLength: typeof blob === 'string' ? blob.length : 'N/A',
   });
@@ -90,13 +166,8 @@ export async function downloadGeneratedReport(id: string): Promise<Uint8Array | 
         bytes[i / 2] = parseInt(hex.substr(i, 2), 16);
       }
       
-      // Validate PDF header
-      const header = String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3], bytes[4]);
-      console.log('[downloadGeneratedReport] Hex decoded:', {
-        byteLength: bytes.byteLength,
-        headerASCII: header,
-        startsWithPDF: header.startsWith('%PDF-'),
-      });
+      const signatures = getPdfSignatures(bytes);
+      console.log('[downloadGeneratedReport] Hex decoded:', signatures);
       
       return bytes;
     }
@@ -109,15 +180,10 @@ export async function downloadGeneratedReport(id: string): Promise<Uint8Array | 
         bytes[i] = binary.charCodeAt(i);
       }
       
-      // Validate PDF header
-      const header = String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3], bytes[4]);
-      console.log('[downloadGeneratedReport] Base64 decoded:', {
-        byteLength: bytes.byteLength,
-        headerASCII: header,
-        startsWithPDF: header.startsWith('%PDF-'),
-      });
+      const signatures = getPdfSignatures(bytes);
+      console.log('[downloadGeneratedReport] Base64 decoded:', signatures);
       
-      if (!header.startsWith('%PDF-')) {
+      if (!signatures.header.startsWith('%PDF-')) {
         console.error('[downloadGeneratedReport] Invalid PDF: header does not start with %PDF-');
       }
       
@@ -133,6 +199,25 @@ export async function downloadGeneratedReport(id: string): Promise<Uint8Array | 
 }
 
 export async function deleteGeneratedReport(id: string): Promise<void> {
+  // First get the storage_path to delete from storage
+  const { data } = await supabase
+    .from('generated_reports')
+    .select('storage_path')
+    .eq('id', id)
+    .single();
+  
+  // Delete from storage if path exists
+  if (data?.storage_path) {
+    const { error: storageError } = await supabase.storage
+      .from('generated-reports')
+      .remove([data.storage_path]);
+    
+    if (storageError) {
+      console.warn('[deleteGeneratedReport] Failed to delete from storage:', storageError);
+      // Continue with DB delete anyway
+    }
+  }
+
   const { error } = await supabase
     .from('generated_reports')
     .delete()
@@ -154,27 +239,93 @@ export async function saveGeneratedReport(input: SaveGeneratedReportInput): Prom
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Nicht angemeldet');
 
-  // Convert Uint8Array to base64 for storage
-  // Using chunked approach to avoid call stack size exceeded for large PDFs
   const bytes = input.pdf_bytes;
-  const chunkSize = 0x8000; // 32KB chunks
-  const chunks: string[] = [];
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    const chunk = bytes.subarray(i, i + chunkSize);
-    chunks.push(String.fromCharCode.apply(null, chunk as unknown as number[]));
-  }
-  const base64 = btoa(chunks.join(''));
   
-  // Debug logging for PDF validation
-  const header = String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3], bytes[4]);
-  console.log('[saveGeneratedReport] PDF validation:', {
+  // STEP 1: Validate PDF before upload
+  const beforeSignatures = getPdfSignatures(bytes);
+  console.log('[saveGeneratedReport] BEFORE upload - PDF validation:', {
     isUint8Array: bytes instanceof Uint8Array,
-    byteLength: bytes.byteLength,
-    headerASCII: header,
-    startsWithPDF: header.startsWith('%PDF-'),
-    base64Length: base64.length,
+    ...beforeSignatures,
+    startsWithPDF: beforeSignatures.header.startsWith('%PDF-'),
   });
+  
+  if (!beforeSignatures.header.startsWith('%PDF-')) {
+    throw new Error('Invalid PDF: header does not start with %PDF-');
+  }
 
+  // STEP 2: Upload to Supabase Storage (robust binary handling)
+  const timestamp = Date.now();
+  const storagePath = `${user.id}/${timestamp}_${input.report_type}.pdf`;
+  
+  console.log('[saveGeneratedReport] Uploading to storage:', {
+    bucket: 'generated-reports',
+    path: storagePath,
+    byteLength: bytes.length,
+  });
+  
+  // Create a Blob for upload (Supabase Storage expects Blob/File for binary data)
+  const pdfBlob = new Blob([new Uint8Array(bytes).buffer as ArrayBuffer], { type: 'application/pdf' });
+  
+  const { error: uploadError } = await supabase.storage
+    .from('generated-reports')
+    .upload(storagePath, pdfBlob, {
+      contentType: 'application/pdf',
+      upsert: false,
+    });
+  
+  if (uploadError) {
+    console.error('[saveGeneratedReport] Storage upload failed:', uploadError);
+    throw new Error(`PDF upload failed: ${uploadError.message}`);
+  }
+  
+  console.log('[saveGeneratedReport] Storage upload success');
+
+  // STEP 3: Verify round-trip by immediately downloading
+  const { data: verifyData, error: verifyError } = await supabase.storage
+    .from('generated-reports')
+    .download(storagePath);
+  
+  if (verifyError || !verifyData) {
+    console.error('[saveGeneratedReport] Round-trip verification FAILED:', verifyError);
+    // Clean up the uploaded file
+    await supabase.storage.from('generated-reports').remove([storagePath]);
+    throw new Error('PDF verification failed after upload');
+  }
+  
+  const verifyArrayBuffer = await verifyData.arrayBuffer();
+  const verifyBytes = new Uint8Array(verifyArrayBuffer);
+  const afterSignatures = getPdfSignatures(verifyBytes);
+  
+  console.log('[saveGeneratedReport] AFTER upload - Round-trip verification:', {
+    ...afterSignatures,
+    startsWithPDF: afterSignatures.header.startsWith('%PDF-'),
+  });
+  
+  // Compare checksums
+  const isIdentical = beforeSignatures.checksum === afterSignatures.checksum 
+    && beforeSignatures.byteLength === afterSignatures.byteLength;
+  
+  console.log('[saveGeneratedReport] Round-trip comparison:', {
+    beforeChecksum: beforeSignatures.checksum,
+    afterChecksum: afterSignatures.checksum,
+    beforeLength: beforeSignatures.byteLength,
+    afterLength: afterSignatures.byteLength,
+    isIdentical,
+  });
+  
+  if (!isIdentical) {
+    console.error('[saveGeneratedReport] CORRUPTION DETECTED: checksum mismatch!');
+    await supabase.storage.from('generated-reports').remove([storagePath]);
+    throw new Error('PDF corruption detected: checksum mismatch after upload');
+  }
+  
+  if (!afterSignatures.header.startsWith('%PDF-')) {
+    console.error('[saveGeneratedReport] CORRUPTION DETECTED: PDF header invalid after upload!');
+    await supabase.storage.from('generated-reports').remove([storagePath]);
+    throw new Error('PDF corruption detected: invalid header after upload');
+  }
+
+  // STEP 4: Save metadata to generated_reports table
   const { data, error } = await supabase
     .from('generated_reports')
     .insert({
@@ -183,18 +334,25 @@ export async function saveGeneratedReport(input: SaveGeneratedReportInput): Prom
       title: input.title,
       from_date: input.from_date,
       to_date: input.to_date,
-      pdf_blob: base64,
-      file_size_bytes: input.pdf_bytes.length,
+      storage_path: storagePath,
+      pdf_blob: null, // No longer using bytea
+      file_size_bytes: bytes.length,
       metadata: input.metadata || {},
     })
-    .select('id, user_id, report_type, title, from_date, to_date, file_size_bytes, metadata, created_at')
+    .select('id, user_id, report_type, title, from_date, to_date, file_size_bytes, storage_path, metadata, created_at')
     .single();
 
-  if (error) throw error;
+  if (error) {
+    // Clean up storage on DB error
+    await supabase.storage.from('generated-reports').remove([storagePath]);
+    throw error;
+  }
   
   console.log('[saveGeneratedReport] Saved successfully:', {
     id: data.id,
+    storage_path: data.storage_path,
     file_size_bytes: data.file_size_bytes,
+    roundTripVerified: true,
   });
   
   return data as GeneratedReport;
