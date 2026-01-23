@@ -88,7 +88,7 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
   const handleActivate = () => {
     activateMutation.mutate(undefined, {
       onSuccess: () => {
-        toast.success("Freigabe aktiviert");
+        // Kein Toast - UI-Update reicht
         refetch();
       },
       onError: () => toast.error("Freigabe konnte nicht aktiviert werden"),
@@ -99,7 +99,7 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
   const handleRevoke = () => {
     revokeMutation.mutate(undefined, {
       onSuccess: () => {
-        toast.success("Freigabe beendet");
+        // Kein Toast - UI-Update reicht
         refetch();
       },
       onError: () => toast.error("Freigabe konnte nicht beendet werden"),
