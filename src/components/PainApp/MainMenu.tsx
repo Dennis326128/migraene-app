@@ -26,6 +26,7 @@
  * FOOTER: FeedbackButton
  */
 import React, { useState, useEffect } from "react";
+import { APP_VERSION, forceClearCachesAndReload } from "@/lib/version";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { WelcomeModal } from "./WelcomeModal";
@@ -508,6 +509,19 @@ export const MainMenu: React.FC<MainMenuProps> = ({
       
       {/* Critical medication reminder popup (shown once per day) */}
       <CriticalMedicationPopup />
+      
+      {/* Version indicator (click to force refresh) */}
+      <div 
+        className="mt-6 text-center text-xs text-muted-foreground/50 cursor-pointer hover:text-muted-foreground transition-colors"
+        onClick={() => {
+          if (confirm('Cache leeren und App neu laden?')) {
+            forceClearCachesAndReload();
+          }
+        }}
+        title="Klicken zum Cache leeren"
+      >
+        v{APP_VERSION}
+      </div>
     </div>
   );
 };

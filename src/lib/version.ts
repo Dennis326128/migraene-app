@@ -1,7 +1,64 @@
 export const BUILD_ID = import.meta.env.VITE_BUILD_ID || 'dev';
+export const APP_VERSION = '4.0.1'; // Increment on significant UI changes
 
 let hasCheckedOnce = false;
 let isReloading = false;
+
+/**
+ * Force clear all caches and reload
+ */
+export async function forceClearCachesAndReload() {
+  console.log('🧹 Force clearing all caches...');
+  
+  try {
+    // 1. Clear Service Worker caches
+    if ('caches' in window) {
+      const cacheNames = await caches.keys();
+      await Promise.all(cacheNames.map(name => caches.delete(name)));
+      console.log('✅ Cleared', cacheNames.length, 'caches');
+    }
+    
+    // 2. Unregister all Service Workers
+    if ('serviceWorker' in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map(r => r.unregister()));
+      console.log('✅ Unregistered', registrations.length, 'service workers');
+    }
+    
+    // 3. Clear localStorage version markers
+    localStorage.removeItem('build_id');
+    localStorage.removeItem('app_version');
+    
+    // 4. Set new version
+    localStorage.setItem('app_version', APP_VERSION);
+    
+    // 5. Hard reload
+    location.reload();
+  } catch (err) {
+    console.error('Cache clear failed:', err);
+    location.reload();
+  }
+}
+
+/**
+ * Check if app version changed and force refresh if needed
+ */
+export function checkAppVersion() {
+  const storedVersion = localStorage.getItem('app_version');
+  
+  if (storedVersion !== APP_VERSION) {
+    console.log(`🔄 App version changed: ${storedVersion} → ${APP_VERSION}`);
+    localStorage.setItem('app_version', APP_VERSION);
+    
+    // Only force reload if there was a previous version (not first visit)
+    if (storedVersion) {
+      forceClearCachesAndReload();
+      return true;
+    }
+  }
+  
+  return false;
+}
 
 /**
  * Check for new version and reload if needed
