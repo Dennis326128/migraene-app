@@ -13,7 +13,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Info, FileText, Lock, Brain, Check, ChevronDown, ChevronRight } from "lucide-react";
+import { Loader2, Info, FileText, Lock, Brain, Check, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -29,7 +29,6 @@ import { useMedicationCourses } from "@/features/medication-courses/hooks/useMed
 import { useDiaryReportQuota } from "@/features/ai-reports/hooks/useDiaryReportQuota";
 import { saveGeneratedReport } from "@/features/reports/api/generatedReports.api";
 import { PremiumBadge } from "@/components/ui/premium-badge";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { 
   useDoctorShareStatus, 
   useActivateDoctorShare 
@@ -95,12 +94,11 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
   // KI-Analyse
   const [includeAI, setIncludeAI] = useState(false);
   
-  // Advanced Section
-  const [advancedOpen, setAdvancedOpen] = useState(false);
-  
   // UI State
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStep, setGenerationStep] = useState<string>("");
+  const [inlineError, setInlineError] = useState<string | null>(null);
+  const [noEntriesWarning, setNoEntriesWarning] = useState<string | null>(null);
   
   // Data hooks
   const { data: patientData } = usePatientData();
@@ -151,6 +149,8 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
    */
   const handleCreateShare = async () => {
     setIsGenerating(true);
+    setInlineError(null);
+    setNoEntriesWarning(null);
     
     try {
       // Step 1: Share aktivieren (falls noch nicht aktiv)
@@ -207,7 +207,8 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
       const entries = await fetchAllEntriesForExport(from, to);
       
       if (entries.length === 0) {
-        toast.warning("Keine Einträge im Zeitraum. Freigabe wurde trotzdem erstellt.");
+        // Inline-Hinweis statt Toast, aber trotzdem fortfahren
+        setNoEntriesWarning("Keine Einträge im gewählten Zeitraum vorhanden.");
         onComplete(shareCode);
         return;
       }
@@ -382,12 +383,13 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
         ai_analysis_generated_at: includeAI ? new Date().toISOString() : null,
       });
       
-      toast.success("Freigabe erstellt und Bericht gespeichert!");
+      // Kein Toast - Success wird im DoctorShareScreen als grüne Box angezeigt
       onComplete(shareCode);
       
     } catch (error) {
       console.error("Share-Erstellung fehlgeschlagen:", error);
-      toast.error("Freigabe konnte nicht erstellt werden");
+      // Inline-Error statt Toast
+      setInlineError("Freigabe konnte nicht erstellt werden. Bitte versuche es erneut.");
     } finally {
       setIsGenerating(false);
       setGenerationStep("");
@@ -464,30 +466,31 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
             </div>
           </div>
 
-          {/* Section: Datenschutz-Optionen (Accordion) */}
-          <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
-            <CollapsibleTrigger className="flex items-center justify-between w-full p-4 text-sm hover:bg-muted/30 transition-colors">
-              <div className="flex items-center gap-2">
-                <Lock className="w-4 h-4 text-muted-foreground" />
-                <span className="font-medium">Datenschutz-Optionen</span>
-              </div>
-              {advancedOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-            </CollapsibleTrigger>
-            <CollapsibleContent className="px-4 pb-4 space-y-0.5">
+          {/* Section: Datenschutz (IMMER SICHTBAR - nicht als Accordion) */}
+          <div className="p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <Lock className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Datenschutz (optional)</span>
+            </div>
+            <p className="text-xs text-muted-foreground mb-3 ml-6">
+              Standard: Notizen werden nicht geteilt.
+            </p>
+            
+            <div className="space-y-0.5 ml-6">
               <ToggleRow
-                label="Notizen aus Schmerzeinträgen"
+                label="Notizen aus Einträgen teilen"
                 checked={includeEntryNotes}
                 onCheckedChange={setIncludeEntryNotes}
-                subtext="Persönliche Notizen werden geteilt"
+                subtext="Kann persönliche Details enthalten."
               />
               <ToggleRow
                 label="Kontextnotizen teilen"
                 checked={includeContextNotes}
                 onCheckedChange={setIncludeContextNotes}
-                subtext="Zusätzliche Notizen aus Spracheinträgen"
+                subtext="Zusätzliche Notizen (z.B. aus Spracheinträgen)."
               />
-            </CollapsibleContent>
-          </Collapsible>
+            </div>
+          </div>
 
           {/* Premium Section: KI-Analysebericht - Identisch zu DiaryReport */}
           <div className="p-4 border-t border-border/30 bg-gradient-to-r from-amber-500/5 to-amber-600/5">
@@ -546,6 +549,22 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
           STICKY ACTION BAR - Identisch zu DiaryReport
       ═══════════════════════════════════════════════════════════════════ */}
       <div className="sticky bottom-0 left-0 right-0 bg-background border-t border-border p-4 space-y-2 -mx-4 -mb-4 mt-auto">
+        {/* Inline Error Feedback */}
+        {inlineError && (
+          <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{inlineError}</span>
+          </div>
+        )}
+        
+        {/* Inline Warning (keine Einträge) */}
+        {noEntriesWarning && (
+          <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-sm">
+            <Info className="w-4 h-4 shrink-0" />
+            <span>{noEntriesWarning}</span>
+          </div>
+        )}
+        
         <Button 
           onClick={handleCreateShare}
           disabled={isGenerating}
@@ -565,18 +584,19 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
           )}
         </Button>
 
-        {/* Secondary action - less prominent */}
-        <div className="flex justify-center">
-          <Button 
-            onClick={onCancel}
-            disabled={isGenerating}
-            variant="ghost"
-            size="sm"
-            className="text-xs text-muted-foreground hover:text-foreground"
-          >
-            Abbrechen
-          </Button>
-        </div>
+        {/* Abbrechen - NUR vor Erstellung sichtbar, während Generierung ausgeblendet */}
+        {!isGenerating && (
+          <div className="flex justify-center">
+            <Button 
+              onClick={onCancel}
+              variant="ghost"
+              size="sm"
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              Abbrechen
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
