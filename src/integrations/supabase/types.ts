@@ -471,8 +471,9 @@ export type Database = {
           from_date: string | null
           id: string
           metadata: Json | null
-          pdf_blob: string
+          pdf_blob: string | null
           report_type: string
+          storage_path: string | null
           title: string
           to_date: string | null
           user_id: string
@@ -483,8 +484,9 @@ export type Database = {
           from_date?: string | null
           id?: string
           metadata?: Json | null
-          pdf_blob: string
+          pdf_blob?: string | null
           report_type: string
+          storage_path?: string | null
           title: string
           to_date?: string | null
           user_id: string
@@ -495,8 +497,9 @@ export type Database = {
           from_date?: string | null
           id?: string
           metadata?: Json | null
-          pdf_blob?: string
+          pdf_blob?: string | null
           report_type?: string
+          storage_path?: string | null
           title?: string
           to_date?: string | null
           user_id?: string
