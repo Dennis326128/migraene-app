@@ -7,9 +7,15 @@ import './index.css'
 import '@/lib/i18n/i18n';
 
 // Version Watcher für Auto-Reload bei neuen Deployments
-import { initVersionWatcher } from './lib/version';
+import { initVersionWatcher, checkAppVersion } from './lib/version';
 // QA Error Capture
 import { initErrorCapture, loadPersistedErrors } from './lib/qa/errorCapture';
+
+// CRITICAL: Check app version FIRST - this may trigger reload
+if (checkAppVersion()) {
+  // Reload triggered, stop execution
+  throw new Error('App version changed, reloading...');
+}
 
 const container = document.getElementById("root");
 if (!container) throw new Error("Root element not found");
