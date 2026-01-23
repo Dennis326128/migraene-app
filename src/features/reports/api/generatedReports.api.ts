@@ -38,12 +38,13 @@ function computeChecksum(bytes: Uint8Array): number {
 /**
  * Extract header and tail for PDF validation
  */
-function getPdfSignatures(bytes: Uint8Array): { header: string; tail: string; byteLength: number; checksum: number } {
+function getPdfSignatures(bytes: Uint8Array): { header: string; tail: string; byteLength: number; checksum: number; hasEOF: boolean } {
   const header = bytes.length >= 5 
     ? String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3], bytes[4])
     : '';
   
-  const tailStart = Math.max(0, bytes.length - 20);
+  // Check last 50 bytes for %%EOF marker
+  const tailStart = Math.max(0, bytes.length - 50);
   const tailBytes = bytes.slice(tailStart);
   let tail = '';
   for (let i = 0; i < tailBytes.length; i++) {
@@ -53,11 +54,14 @@ function getPdfSignatures(bytes: Uint8Array): { header: string; tail: string; by
     }
   }
   
+  const hasEOF = tail.includes('%%EOF');
+  
   return {
     header,
     tail,
     byteLength: bytes.length,
     checksum: computeChecksum(bytes),
+    hasEOF,
   };
 }
 
@@ -245,6 +249,9 @@ export async function saveGeneratedReport(input: SaveGeneratedReportInput): Prom
   const beforeSignatures = getPdfSignatures(bytes);
   console.log('[saveGeneratedReport] BEFORE upload - PDF validation:', {
     isUint8Array: bytes instanceof Uint8Array,
+    byteOffset: bytes.byteOffset,
+    byteLength: bytes.byteLength,
+    bufferByteLength: bytes.buffer.byteLength,
     ...beforeSignatures,
     startsWithPDF: beforeSignatures.header.startsWith('%PDF-'),
   });
@@ -263,8 +270,14 @@ export async function saveGeneratedReport(input: SaveGeneratedReportInput): Prom
     byteLength: bytes.length,
   });
   
-  // Create a Blob for upload (Supabase Storage expects Blob/File for binary data)
-  const pdfBlob = new Blob([new Uint8Array(bytes).buffer as ArrayBuffer], { type: 'application/pdf' });
+  // CRITICAL: Create exact Blob from Uint8Array slice (ensures exact bytes, not shared buffer)
+  const exactBytes = new Uint8Array(bytes);
+  const pdfBlob = new Blob([exactBytes.buffer.slice(exactBytes.byteOffset, exactBytes.byteOffset + exactBytes.byteLength)], { type: 'application/pdf' });
+  
+  console.log('[saveGeneratedReport] Blob created:', {
+    blobSize: pdfBlob.size,
+    blobType: pdfBlob.type,
+  });
   
   const { error: uploadError } = await supabase.storage
     .from('generated-reports')
@@ -299,9 +312,10 @@ export async function saveGeneratedReport(input: SaveGeneratedReportInput): Prom
   console.log('[saveGeneratedReport] AFTER upload - Round-trip verification:', {
     ...afterSignatures,
     startsWithPDF: afterSignatures.header.startsWith('%PDF-'),
+    hasEOF: afterSignatures.hasEOF,
   });
   
-  // Compare checksums
+  // Compare checksums and lengths
   const isIdentical = beforeSignatures.checksum === afterSignatures.checksum 
     && beforeSignatures.byteLength === afterSignatures.byteLength;
   
@@ -310,6 +324,8 @@ export async function saveGeneratedReport(input: SaveGeneratedReportInput): Prom
     afterChecksum: afterSignatures.checksum,
     beforeLength: beforeSignatures.byteLength,
     afterLength: afterSignatures.byteLength,
+    beforeHasEOF: beforeSignatures.hasEOF,
+    afterHasEOF: afterSignatures.hasEOF,
     isIdentical,
   });
   
