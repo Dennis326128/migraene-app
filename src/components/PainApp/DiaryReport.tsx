@@ -417,21 +417,31 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     return doctors;
   }, [doctors, selectedDoctorIds, includeDoctorData]);
 
+  // Filter for active doctors only
+  const activeDoctors = useMemo(() => 
+    doctors.filter(d => d.is_active !== false),
+    [doctors]
+  );
+
   // Intelligent reminder for missing data before PDF generation
   const proceedWithPdfGenerationRef = useRef<() => Promise<void>>();
   
   // Update the ref when dependencies change
   useEffect(() => {
     proceedWithPdfGenerationRef.current = async () => {
-      if (includeDoctorData && doctors.length > 1) {
+      // Only show selection dialog if MORE than 1 active doctor
+      // If exactly 1 active doctor, auto-select and proceed
+      if (includeDoctorData && activeDoctors.length > 1) {
         setPendingPdfType("diary");
         setShowDoctorSelection(true);
         return;
       }
-      await actuallyGenerateDiaryPDF(selectedDoctorsForExport);
+      // Auto-select the only active doctor if exactly 1 exists
+      const doctorsToExport = activeDoctors.length === 1 ? activeDoctors : selectedDoctorsForExport;
+      await actuallyGenerateDiaryPDF(doctorsToExport);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [includeDoctorData, doctors.length, selectedDoctorsForExport]);
+  }, [includeDoctorData, activeDoctors, selectedDoctorsForExport]);
   
   const handleReminderNavigate = useCallback((target: 'personal' | 'doctors') => {
     setPendingNavigationTarget(target);
