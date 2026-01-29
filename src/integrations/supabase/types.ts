@@ -1516,6 +1516,39 @@ export type Database = {
         }
         Relationships: []
       }
+      user_settings: {
+        Row: {
+          backfill_days: number | null
+          created_at: string | null
+          default_report_preset: string | null
+          include_no_meds: boolean | null
+          selected_report_medications: string[] | null
+          snapshot_hours: number[] | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          backfill_days?: number | null
+          created_at?: string | null
+          default_report_preset?: string | null
+          include_no_meds?: boolean | null
+          selected_report_medications?: string[] | null
+          snapshot_hours?: number[] | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          backfill_days?: number | null
+          created_at?: string | null
+          default_report_preset?: string | null
+          include_no_meds?: boolean | null
+          selected_report_medications?: string[] | null
+          snapshot_hours?: number[] | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       voice_entries_debug: {
         Row: {
           confidence_scores: Json | null

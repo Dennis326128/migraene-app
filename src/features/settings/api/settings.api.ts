@@ -22,14 +22,23 @@ export type UserDefaults = {
 };
 
 export async function getUserSettings(): Promise<UserSettings | null> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-  const { data } = await supabase
-    .from("user_settings")
-    .select("*")
-    .eq("user_id", user.id)
-    .maybeSingle();
-  return (data as UserSettings) ?? null;
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+    const { data, error } = await supabase
+      .from("user_settings")
+      .select("*")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (error) {
+      console.warn('getUserSettings error, using defaults:', error.message);
+      return null;
+    }
+    return (data as UserSettings) ?? null;
+  } catch (error) {
+    console.warn('getUserSettings failed, using defaults:', error);
+    return null;
+  }
 }
 
 export async function upsertUserSettings(patch: Partial<UserSettings>): Promise<void> {
@@ -41,14 +50,23 @@ export async function upsertUserSettings(patch: Partial<UserSettings>): Promise<
 }
 
 export async function getUserDefaults(): Promise<UserDefaults | null> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-  const { data } = await supabase
-    .from("user_profiles")
-    .select("user_id, default_symptoms, default_pain_location, voice_notes_enabled, ai_enabled, track_cycle, medication_limit_warning_threshold_pct, updated_at")
-    .eq("user_id", user.id)
-    .maybeSingle();
-  return (data as UserDefaults) ?? null;
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+    const { data, error } = await supabase
+      .from("user_profiles")
+      .select("user_id, default_symptoms, default_pain_location, voice_notes_enabled, ai_enabled, track_cycle, medication_limit_warning_threshold_pct, updated_at")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (error) {
+      console.warn('getUserDefaults error:', error.message);
+      return null;
+    }
+    return (data as UserDefaults) ?? null;
+  } catch (error) {
+    console.warn('getUserDefaults failed:', error);
+    return null;
+  }
 }
 
 export async function upsertUserDefaults(patch: Partial<UserDefaults>): Promise<void> {
