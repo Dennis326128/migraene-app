@@ -40,7 +40,8 @@ const isValidWeatherCondition = (text: string | null | undefined): boolean => {
   return !invalidPatterns.some(pattern => pattern.test(text));
 };
 
-// Compact KPI Summary for Verlauf page
+// Compact Rolling 30d KPI Summary - Info only, not a filter
+// This shows a quick snapshot of the last 30 days while the full list shows ALL entries
 function CompactKPISummary({ entries }: { entries: any[] }) {
   const { t } = useTranslation();
   const last30Days = useMemo(() => {
@@ -82,31 +83,36 @@ function CompactKPISummary({ entries }: { entries: any[] }) {
   }, [last30Days]);
   
   return (
-    <div className="flex items-center justify-between gap-2 p-3 rounded-lg bg-muted/40 border border-border/50">
-      <div className="flex items-center gap-2 flex-1">
-        <CalendarIcon className="h-4 w-4 text-muted-foreground shrink-0" />
-        <div className="text-sm">
-          <span className="font-semibold">{stats.painDays}</span>
-          <span className="text-muted-foreground"> {t('diary.painDays')}</span>
+    <div className="space-y-1">
+      {/* Label: Quick 30d snapshot - NOT a filter */}
+      <p className="text-xs text-muted-foreground/70 px-1">
+        {t('diary.last30DaysInfo', 'Kurzinfo letzte 30 Tage')}
+      </p>
+      <div className="flex items-center justify-between gap-2 p-3 rounded-lg bg-muted/40 border border-border/50">
+        <div className="flex items-center gap-2 flex-1">
+          <CalendarIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+          <div className="text-sm">
+            <span className="font-semibold">{stats.painDays}</span>
+            <span className="text-muted-foreground"> {t('diary.painDays')}</span>
+          </div>
+        </div>
+        <div className="w-px h-6 bg-border" />
+        <div className="flex items-center gap-2 flex-1">
+          <Pill className="h-4 w-4 text-muted-foreground shrink-0" />
+          <div className="text-sm">
+            <span className="font-semibold">{stats.triptanCount}</span>
+            <span className="text-muted-foreground"> {t('diary.triptans')}</span>
+          </div>
+        </div>
+        <div className="w-px h-6 bg-border" />
+        <div className="flex items-center gap-2 flex-1">
+          <Activity className="h-4 w-4 text-muted-foreground shrink-0" />
+          <div className="text-sm">
+            <span className="font-semibold">Ø {stats.avgIntensity}</span>
+            <span className="text-muted-foreground">/10</span>
+          </div>
         </div>
       </div>
-      <div className="w-px h-6 bg-border" />
-      <div className="flex items-center gap-2 flex-1">
-        <Pill className="h-4 w-4 text-muted-foreground shrink-0" />
-        <div className="text-sm">
-          <span className="font-semibold">{stats.triptanCount}</span>
-          <span className="text-muted-foreground"> {t('diary.triptans')}</span>
-        </div>
-      </div>
-      <div className="w-px h-6 bg-border" />
-      <div className="flex items-center gap-2 flex-1">
-        <Activity className="h-4 w-4 text-muted-foreground shrink-0" />
-        <div className="text-sm">
-          <span className="font-semibold">Ø {stats.avgIntensity}</span>
-          <span className="text-muted-foreground">/10</span>
-        </div>
-      </div>
-      <span className="text-xs text-muted-foreground/60 shrink-0">30d</span>
     </div>
   );
 }

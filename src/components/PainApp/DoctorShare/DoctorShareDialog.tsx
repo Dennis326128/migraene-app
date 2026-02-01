@@ -405,7 +405,13 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
             ZEITRAUM CARD - Identisch zu DiaryReport
         ═══════════════════════════════════════════════════════════════════ */}
         <Card className="p-4 space-y-3">
-          <h3 className="text-sm font-semibold text-muted-foreground">Zeitraum</h3>
+          <h3 className="text-sm font-semibold text-muted-foreground">Zeitraum für den Bericht</h3>
+          
+          {/* Clarification hint */}
+          <p className="text-xs text-muted-foreground/80 -mt-1">
+            Dies betrifft nur den Bericht – deine gespeicherten Daten bleiben vollständig erhalten.
+          </p>
+          
           <TimeRangeButtons value={preset} onChange={setPreset} compact />
 
           {preset === "custom" && (
