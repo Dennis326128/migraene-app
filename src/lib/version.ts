@@ -91,6 +91,17 @@ export async function checkForNewVersionAndReload(force = false) {
       if ('serviceWorker' in navigator) {
         const regs = await navigator.serviceWorker.getRegistrations();
         await Promise.all(regs.map(r => r.update().catch(() => {})));
+
+        // If a new SW is waiting (vite-plugin-pwa registerType: 'prompt'),
+        // explicitly activate it so we don't reload into the old cached UI.
+        try {
+          const reg = await navigator.serviceWorker.getRegistration();
+          if (reg?.waiting) {
+            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+          }
+        } catch {
+          // ignore
+        }
       }
 
       // localStorage updaten VOR Reload
