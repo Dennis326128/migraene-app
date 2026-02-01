@@ -291,6 +291,10 @@ Deno.serve(async (req) => {
           avg_intensity: reportJson.summary.avgIntensity,
           overuse_warning: reportJson.summary.overuseWarning,
           days_in_range: reportJson.summary.daysInRange,
+          // NEU: Erweiterte KPIs
+          total_triptan_intakes: reportJson.summary.totalTriptanIntakes,
+          kpis: reportJson.summary.kpis,
+          normalizedKPIs: reportJson.summary.normalizedKPIs,
         },
         
         chart_data: {

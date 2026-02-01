@@ -38,6 +38,24 @@ interface ReportSummary {
   acute_med_days: number;
   avg_intensity: number;
   overuse_warning: boolean;
+  // NEU: Erweiterte KPIs vom Snapshot
+  total_triptan_intakes?: number;
+  kpis?: {
+    painDays: number;
+    migraineDays: number;
+    triptanDays: number;
+    acuteMedDays: number;
+    auraDays: number;
+    avgIntensity: number;
+    totalTriptanIntakes: number;
+  };
+  normalizedKPIs?: {
+    painDaysPer30: number;
+    migraineDaysPer30: number;
+    triptanDaysPer30: number;
+    triptanIntakesPer30: number;
+    acuteMedDaysPer30: number;
+  };
 }
 
 interface ChartData {
@@ -50,6 +68,10 @@ interface MedicationStat {
   intake_count: number;
   avg_effect: number | null;
   effect_count: number;
+  // NEU: Erweiterte Felder
+  days_used?: number;
+  avg_per_30?: number;
+  is_triptan?: boolean;
 }
 
 interface PainEntry {
@@ -62,6 +84,14 @@ interface PainEntry {
   notes: string | null;
 }
 
+interface ReportPeriod {
+  fromDate: string;
+  toDate: string;
+  daysInRange: number;
+  documentedDaysCount: number;
+  entriesCount: number;
+}
+
 interface ReportData {
   summary: ReportSummary;
   chart_data: ChartData;
@@ -72,6 +102,17 @@ interface ReportData {
   medication_stats: MedicationStat[];
   from_date: string;
   to_date: string;
+  // NEU: Erweiterte Metadaten vom Snapshot
+  report?: {
+    meta?: {
+      period?: ReportPeriod;
+      normalization?: {
+        enabled: boolean;
+        targetDays: number;
+        basisDays: number;
+      };
+    };
+  };
 }
 
 type RangeFilter = "30d" | "3m" | "6m" | "12m";
@@ -338,12 +379,23 @@ const DoctorReportView: React.FC = () => {
               </Card>
             )}
 
-            {/* Summary Cards */}
+            {/* Summary Cards - Nutze normalizedKPIs wenn vorhanden, sonst berechne */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {(() => {
-                const daysInRange = computeDaysInRange(data.from_date, data.to_date);
-                const headachePer30 = formatPer30(data.summary.headache_days, daysInRange);
-                const triptanPer30 = formatPer30(data.summary.triptan_days, daysInRange);
+                // Nutze erweiterte KPIs wenn vorhanden
+                const nkpis = data.summary.normalizedKPIs;
+                const daysInRange = data.report?.meta?.period?.daysInRange 
+                  ?? computeDaysInRange(data.from_date, data.to_date);
+                
+                // Bevorzuge Server-berechnete Werte, Fallback auf Client-Berechnung
+                const headachePer30 = nkpis?.painDaysPer30?.toFixed(1) 
+                  ?? formatPer30(data.summary.headache_days, daysInRange);
+                const triptanPer30 = nkpis?.triptanDaysPer30?.toFixed(1) 
+                  ?? formatPer30(data.summary.triptan_days, daysInRange);
+                const triptanIntakesPer30 = nkpis?.triptanIntakesPer30?.toFixed(1) 
+                  ?? (data.summary.total_triptan_intakes 
+                      ? formatPer30(data.summary.total_triptan_intakes, daysInRange) 
+                      : null);
 
                 return (
                   <>
@@ -361,7 +413,7 @@ const DoctorReportView: React.FC = () => {
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2 text-muted-foreground mb-1">
                     <Activity className="w-4 h-4" />
-                    <span className="text-xs">Migränetage</span>
+                    <span className="text-xs">Migränetage (roh)</span>
                   </div>
                   <p className="text-2xl font-bold">{data.summary.migraine_days}</p>
                 </CardContent>
@@ -371,9 +423,11 @@ const DoctorReportView: React.FC = () => {
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2 text-muted-foreground mb-1">
                     <Pill className="w-4 h-4" />
-                    <span className="text-xs">Triptantage / 30 Tage</span>
+                    <span className="text-xs">
+                      {triptanIntakesPer30 ? "Triptan-Einnahmen / 30 Tage" : "Triptantage / 30 Tage"}
+                    </span>
                   </div>
-                  <p className="text-2xl font-bold">{triptanPer30}</p>
+                  <p className="text-2xl font-bold">{triptanIntakesPer30 || triptanPer30}</p>
                 </CardContent>
               </Card>
 
@@ -391,11 +445,15 @@ const DoctorReportView: React.FC = () => {
               })()}
             </div>
 
-            {/* Raw vs normalized table */}
+            {/* Erweiterte Zusammenfassung mit Normalisierung */}
             {(() => {
-              const daysInRange = computeDaysInRange(data.from_date, data.to_date);
-              const headachePer30 = formatPer30(data.summary.headache_days, daysInRange);
-              const triptanPer30 = formatPer30(data.summary.triptan_days, daysInRange);
+              const period = data.report?.meta?.period;
+              const daysInRange = period?.daysInRange ?? computeDaysInRange(data.from_date, data.to_date);
+              const nkpis = data.summary.normalizedKPIs;
+              const headachePer30 = nkpis?.painDaysPer30?.toFixed(1) ?? formatPer30(data.summary.headache_days, daysInRange);
+              const triptanPer30 = nkpis?.triptanDaysPer30?.toFixed(1) ?? formatPer30(data.summary.triptan_days, daysInRange);
+              const triptanIntakesPer30 = nkpis?.triptanIntakesPer30;
+              
               return (
                 <Card>
                   <CardContent className="p-4">
@@ -406,18 +464,38 @@ const DoctorReportView: React.FC = () => {
                             <td className="py-2 text-muted-foreground">Tage im Zeitraum</td>
                             <td className="py-2 text-right font-medium">{daysInRange}</td>
                           </tr>
+                          {period?.documentedDaysCount !== undefined && (
+                            <tr className="border-b">
+                              <td className="py-2 text-muted-foreground">davon dokumentiert</td>
+                              <td className="py-2 text-right font-medium">{period.documentedDaysCount}</td>
+                            </tr>
+                          )}
                           <tr className="border-b">
-                            <td className="py-2 text-muted-foreground">davon mit Schmerzen (roh)</td>
+                            <td className="py-2 text-muted-foreground">Einträge gesamt</td>
+                            <td className="py-2 text-right font-medium">{data.entries_total}</td>
+                          </tr>
+                          <tr className="border-b">
+                            <td className="py-2 text-muted-foreground">Schmerztage (roh)</td>
                             <td className="py-2 text-right font-medium">{data.summary.headache_days}</td>
                           </tr>
                           <tr className="border-b">
-                            <td className="py-2 text-muted-foreground">davon mit Triptan (roh)</td>
+                            <td className="py-2 text-muted-foreground">Triptantage (roh)</td>
                             <td className="py-2 text-right font-medium">{data.summary.triptan_days}</td>
                           </tr>
+                          {data.summary.total_triptan_intakes !== undefined && (
+                            <tr className="border-b">
+                              <td className="py-2 text-muted-foreground">Triptan-Einnahmen gesamt</td>
+                              <td className="py-2 text-right font-medium">{data.summary.total_triptan_intakes}</td>
+                            </tr>
+                          )}
                           <tr>
                             <td className="py-2 text-muted-foreground">Ø pro 30 Tage (normiert)</td>
                             <td className="py-2 text-right font-medium">
-                              Schmerzen {headachePer30} · Triptan {triptanPer30}
+                              Schmerzen {headachePer30} · 
+                              {triptanIntakesPer30 !== undefined 
+                                ? ` Triptan ${triptanIntakesPer30.toFixed(1)} Einnahmen`
+                                : ` Triptan ${triptanPer30} Tage`
+                              }
                             </td>
                           </tr>
                         </tbody>

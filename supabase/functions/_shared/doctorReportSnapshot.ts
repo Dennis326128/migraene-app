@@ -11,7 +11,22 @@ import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 // ════════════════════════════════════════════════════════════════════════════
 // TYPES: Report JSON Shape (stabil & websitefreundlich)
+// Aligned with src/features/doctor-share/api/reportModel.ts
 // ════════════════════════════════════════════════════════════════════════════
+
+export interface ReportPeriod {
+  fromDate: string;
+  toDate: string;
+  daysInRange: number;
+  documentedDaysCount: number;
+  entriesCount: number;
+}
+
+export interface NormalizationConfig {
+  enabled: boolean;
+  targetDays: number;
+  basisDays: number;
+}
 
 export interface DoctorReportMeta {
   range: string;
@@ -20,11 +35,33 @@ export interface DoctorReportMeta {
   generatedAt: string;
   timezone: string;
   reportVersion: string;
+  /** NEW: Detailed period info */
+  period: ReportPeriod;
+  /** NEW: Normalization config */
+  normalization: NormalizationConfig;
 }
 
 export interface DocumentationGap {
   gapDays: number;
   message: string;
+}
+
+export interface CoreKPIs {
+  painDays: number;
+  migraineDays: number;
+  triptanDays: number;
+  acuteMedDays: number;
+  auraDays: number;
+  avgIntensity: number;
+  totalTriptanIntakes: number;
+}
+
+export interface NormalizedKPIs {
+  painDaysPer30: number;
+  migraineDaysPer30: number;
+  triptanDaysPer30: number;
+  triptanIntakesPer30: number;
+  acuteMedDaysPer30: number;
 }
 
 export interface DoctorReportSummary {
@@ -37,6 +74,12 @@ export interface DoctorReportSummary {
   avgIntensity: number;
   overuseWarning: boolean;
   documentationGaps: DocumentationGap;
+  /** NEW: Raw KPIs */
+  kpis: CoreKPIs;
+  /** NEW: Normalized KPIs (per 30 days) */
+  normalizedKPIs: NormalizedKPIs;
+  /** NEW: Total triptan intakes (not days) */
+  totalTriptanIntakes: number;
 }
 
 export interface IntensityDataPoint {
@@ -60,6 +103,8 @@ export interface DoctorReportEntry {
   id: number;
   date: string;
   time: string | null;
+  /** NEW: createdAt for secondary sorting */
+  createdAt: string;
   intensity: number;
   intensityLabel: string;
   medications: string[];
@@ -86,6 +131,12 @@ export interface MedicationStat {
   avgEffect: number | null;
   effectCount: number;
   category?: string;
+  /** NEW: Distinct days used */
+  daysUsed?: number;
+  /** NEW: Avg per 30 days */
+  avgPer30?: number;
+  /** NEW: Is triptan flag */
+  isTriptan?: boolean;
 }
 
 export interface DoctorReportTables {
@@ -274,15 +325,16 @@ export async function buildDoctorReportSnapshot(
       .gte("selected_date", from)
       .lte("selected_date", to),
 
-    // Paginierte Einträge für Tabelle
+    // Paginierte Einträge für Tabelle (inkl. timestamp_created für Sortierung)
     supabase
       .from("pain_entries")
-      .select("id, selected_date, selected_time, pain_level, medications, aura_type, pain_locations, notes")
+      .select("id, selected_date, selected_time, pain_level, medications, aura_type, pain_locations, notes, timestamp_created")
       .eq("user_id", userId)
       .gte("selected_date", from)
       .lte("selected_date", to)
       .order("selected_date", { ascending: false })
-      .order("selected_time", { ascending: false })
+      .order("selected_time", { ascending: false, nullsFirst: false })
+      .order("timestamp_created", { ascending: false })
       .range((page - 1) * pageSize, page * pageSize - 1),
 
     // Medication Courses (Prophylaxe)
@@ -355,6 +407,9 @@ export async function buildDoctorReportSnapshot(
 
   // Intensity für Durchschnitt (Tagesmaximum)
   const dailyMaxIntensity = new Map<string, number>();
+  
+  // NEU: Triptan-Einnahmen zählen (nicht Tage!)
+  let totalTriptanIntakes = 0;
 
   allEntries.forEach(entry => {
     const date = entry.selected_date;
@@ -380,9 +435,14 @@ export async function buildDoctorReportSnapshot(
       migraineDaysSet.add(date);
     }
 
-    // Triptantag
-    if (entry.medications?.some((med: string) => isTriptan(med))) {
-      triptanDaysSet.add(date);
+    // Triptantag + Triptan-Einnahmen zählen
+    if (entry.medications?.length) {
+      entry.medications.forEach((med: string) => {
+        if (isTriptan(med)) {
+          triptanDaysSet.add(date);
+          totalTriptanIntakes++;
+        }
+      });
     }
 
     // Akutmedikationstag
@@ -416,6 +476,29 @@ export async function buildDoctorReportSnapshot(
       : "Vollständig dokumentiert",
   };
 
+  // ─── NEUE KPI-Strukturen ─────────────────────────────────────────────────
+
+  // Normalisierungsfunktion
+  const normalize30 = (value: number) => Math.round((value / daysInRange) * 30 * 10) / 10;
+
+  const kpis: CoreKPIs = {
+    painDays: painDaysSet.size,
+    migraineDays: migraineDaysSet.size,
+    triptanDays: triptanDaysSet.size,
+    acuteMedDays: acuteMedDaysSet.size,
+    auraDays: auraDaysSet.size,
+    avgIntensity,
+    totalTriptanIntakes,
+  };
+
+  const normalizedKPIs: NormalizedKPIs = {
+    painDaysPer30: normalize30(painDaysSet.size),
+    migraineDaysPer30: normalize30(migraineDaysSet.size),
+    triptanDaysPer30: normalize30(triptanDaysSet.size),
+    triptanIntakesPer30: normalize30(totalTriptanIntakes),
+    acuteMedDaysPer30: normalize30(acuteMedDaysSet.size),
+  };
+
   const summary: DoctorReportSummary = {
     daysInRange,
     headacheDays: painDaysSet.size,
@@ -426,6 +509,10 @@ export async function buildDoctorReportSnapshot(
     avgIntensity,
     overuseWarning,
     documentationGaps,
+    // NEU: Erweiterte KPIs
+    kpis,
+    normalizedKPIs,
+    totalTriptanIntakes,
   };
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -473,11 +560,12 @@ export async function buildDoctorReportSnapshot(
   // 5) TABLES BAUEN
   // ─────────────────────────────────────────────────────────────────────────
 
-  // Entries (paginiert)
+  // Entries (paginiert) mit createdAt für konsistente Sortierung
   const entries: DoctorReportEntry[] = paginatedEntries.map(e => ({
     id: e.id,
     date: e.selected_date,
     time: formatTime(e.selected_time),
+    createdAt: e.timestamp_created || new Date().toISOString(),
     intensity: painLevelToNumber(e.pain_level),
     intensityLabel: painLevelToLabel(e.pain_level),
     medications: e.medications || [],
@@ -499,14 +587,17 @@ export async function buildDoctorReportSnapshot(
     discontinuationReason: c.discontinuation_reason || null,
   }));
 
-  // Medication Stats
-  const medEffectMap = new Map<string, { count: number; effects: number[] }>();
+  // Medication Stats mit erweiterten Feldern
+  const medEffectMap = new Map<string, { count: number; daysUsed: Set<string>; effects: number[] }>();
   allEntries.forEach(entry => {
+    const date = entry.selected_date;
     entry.medications?.forEach((med: string) => {
       if (!medEffectMap.has(med)) {
-        medEffectMap.set(med, { count: 0, effects: [] });
+        medEffectMap.set(med, { count: 0, daysUsed: new Set(), effects: [] });
       }
-      medEffectMap.get(med)!.count++;
+      const stat = medEffectMap.get(med)!;
+      stat.count++;
+      if (date) stat.daysUsed.add(date);
     });
   });
 
@@ -517,6 +608,10 @@ export async function buildDoctorReportSnapshot(
       avgEffect: null, // TODO: Integrate medication_effects if needed
       effectCount: 0,
       category: medCategoryMap.get(name) || (isTriptan(name) ? "triptan" : "akut"),
+      // NEU: Erweiterte Felder
+      daysUsed: stat.daysUsed.size,
+      avgPer30: Math.round((stat.count / daysInRange) * 30 * 10) / 10,
+      isTriptan: isTriptan(name),
     }))
     .sort((a, b) => b.intakeCount - a.intakeCount);
 
@@ -586,6 +681,19 @@ export async function buildDoctorReportSnapshot(
     generatedAt: now,
     timezone: TIMEZONE,
     reportVersion: REPORT_VERSION,
+    // NEU: Erweiterte Metadaten
+    period: {
+      fromDate: from,
+      toDate: to,
+      daysInRange,
+      documentedDaysCount: documentedDatesSet.size,
+      entriesCount: totalEntries,
+    },
+    normalization: {
+      enabled: true,
+      targetDays: 30,
+      basisDays: daysInRange,
+    },
   };
 
   const reportJson: DoctorReportJSON = {
