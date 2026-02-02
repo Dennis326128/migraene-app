@@ -14,7 +14,7 @@ export default defineConfig(({ mode }) => ({
     react(),
     mode === 'development' && componentTagger(),
     VitePWA({
-      registerType: 'prompt', // Nutzer entscheidet über Update
+      registerType: 'autoUpdate', // Automatisches Update ohne User-Klick
       includeAssets: ['apple-touch-icon.png', 'pwa-icons/*.png', 'offline.html'],
       manifest: false, // Wir nutzen public/manifest.json
       workbox: {
@@ -77,9 +77,9 @@ export default defineConfig(({ mode }) => ({
         ],
         // Alte Caches aufräumen
         cleanupOutdatedCaches: true,
-        // Skip Waiting nur nach User-Bestätigung
-        skipWaiting: false,
-        clientsClaim: false,
+        // Sofort aktivieren bei neuem SW
+        skipWaiting: true,
+        clientsClaim: true,
       },
       devOptions: {
         enabled: false, // Nur in Production
