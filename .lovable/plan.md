@@ -1,97 +1,148 @@
 
 
-## 🐛 Problem: Auswertung & Statistik laden nicht
+## Problem: Veraltete UI wird angezeigt
 
 ### Diagnose
 
-Die Datenbank-Logs zeigen zwei kritische Fehler:
+Ich habe die Architektur analysiert und **drei kritische Probleme** identifiziert:
 
-1. **`relation "public.user_settings" does not exist`**
-   - Die Tabelle `user_settings` existiert nicht in der Datenbank
-   - Der Code in `src/features/settings/api/settings.api.ts` versucht, diese abzufragen
-   - Betrifft: `Index.tsx`, `SettingsForm.tsx`, `weatherLogger.ts`
+1. **Build-ID nicht synchron**: Die `build-id.txt` auf der publizierten Seite (`migraene-app.lovable.app`) zeigt `2025-10-14-01`, während der Code auf `2026-02-01-01` aktualisiert wurde. Die Build-ID wird beim Publish nicht automatisch aktualisiert.
 
-2. **`column pain_entries.pain_location does not exist`**
-   - Die Spalte heißt `pain_locations` (Plural), nicht `pain_location` (Singular)
-   - Betrifft möglicherweise alte Queries
+2. **Doppelte Service Worker Registrierung**: 
+   - `vite-plugin-pwa` generiert einen Workbox-SW
+   - `public/sw.js` ist ein manueller SW
+   - `registerOfflineSupport()` in `useOptimizedCache.ts` registriert den manuellen SW
+   - Diese konkurrieren und erzeugen unvorhersehbares Caching
 
-### Existierende Tabellen
+3. **Version-Check hat Lücken**:
+   - Check wird nur einmal ausgeführt (`hasCheckedOnce`)
+   - Wenn SW alte Dateien liefert, hilft auch der Check nicht
+   - `SKIP_WAITING` wird nur an den wartenden SW gesendet, aber nicht erzwungen
+
+---
+
+## Lösung: Aggressives Auto-Update System
+
+### Schritt 1: Einheitlicher Service Worker
+
+Den manuellen `public/sw.js` entfernen und vollständig auf `vite-plugin-pwa` setzen:
 
 ```text
-user_ai_usage
-user_consents
-user_feedback
-user_medication_limits
-user_medications
-user_profiles        ← Benutzerprofil (defaults, ai_enabled, etc.)
-user_report_settings ← Report-Einstellungen (default_report_preset, etc.)
+Änderungen:
+- public/sw.js löschen (oder umbenennen zu sw.legacy.js)
+- vite.config.ts: registerType auf 'autoUpdate' ändern
+- useOptimizedCache.ts: registerOfflineSupport() entfernen
 ```
 
-Die `user_settings` Tabelle wurde NIE erstellt, aber der Code referenziert sie.
+### Schritt 2: Automatisches Hard-Reload bei neuer Version
 
----
+Statt "Prompt" (User muss klicken) wird automatisch neu geladen, sobald keine Sync-Vorgänge laufen:
 
-## Lösung
-
-### Option A: Tabelle erstellen (EMPFOHLEN)
-Erstelle die fehlende `user_settings` Tabelle mit den benötigten Spalten:
-
-```sql
-CREATE TABLE public.user_settings (
-  user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  snapshot_hours INTEGER[] DEFAULT '{6,12,18}',
-  backfill_days INTEGER DEFAULT 7,
-  default_report_preset TEXT DEFAULT '3m',
-  include_no_meds BOOLEAN DEFAULT true,
-  selected_report_medications TEXT[] DEFAULT '{}',
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
-);
-
--- RLS aktivieren
-ALTER TABLE public.user_settings ENABLE ROW LEVEL SECURITY;
-
--- Policies
-CREATE POLICY "Users can view own settings" ON public.user_settings
-  FOR SELECT USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can insert own settings" ON public.user_settings
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update own settings" ON public.user_settings
-  FOR UPDATE USING (auth.uid() = user_id);
+```text
+src/lib/version.ts anpassen:
+- Neuer Mechanismus: checkAndAutoReload()
+- Prüft pending saves via getPendingCount()
+- Wenn 0: Sofort reload
+- Wenn > 0: Warte auf sync-complete, dann reload
+- Fallback: Nach 30s Timeout trotzdem reload mit Warnung
 ```
 
-### Option B: Code anpassen (Alternative)
-Ersetze Referenzen zu `user_settings` durch `user_report_settings` und migriere fehlende Felder.
+### Schritt 3: Service Worker Controller Change Listener
+
+Wenn ein neuer SW die Kontrolle übernimmt, sofort neu laden:
+
+```typescript
+// In main.tsx hinzufügen
+navigator.serviceWorker?.addEventListener('controllerchange', () => {
+  window.location.reload();
+});
+```
+
+### Schritt 4: Aggressiverer Version-Check
+
+```text
+src/lib/version.ts:
+- hasCheckedOnce Variable entfernen
+- Bei JEDEM Tab-Focus checken (kein 5-Min-Cooldown)
+- Bei SW-Update-Event: Sofort forceClearCachesAndReload()
+```
+
+### Schritt 5: PWA Update Banner entfernen
+
+Da wir auf Auto-Update setzen, brauchen wir kein manuelles Banner mehr.
 
 ---
 
-## Technische Schritte
+## Technische Änderungen im Detail
 
-1. **Migration erstellen** - Neue Tabelle `user_settings` mit RLS-Policies
+### 1. vite.config.ts
 
-2. **Fehlerbehandlung verbessern** - In `settings.api.ts` sicherstellen, dass Fehler beim Laden nicht die ganze App blockieren:
-   ```typescript
-   export async function getUserSettings(): Promise<UserSettings | null> {
-     try {
-       // ... existing code
-     } catch (error) {
-       console.warn('getUserSettings failed, using defaults:', error);
-       return null; // Return null instead of throwing
-     }
-   }
-   ```
+```typescript
+VitePWA({
+  registerType: 'autoUpdate', // War 'prompt'
+  // ...
+  workbox: {
+    skipWaiting: true,    // War false
+    clientsClaim: true,   // War false
+    // ...
+  }
+})
+```
 
-3. **Index.tsx absichern** - Der `getUserSettings().catch(() => null)` ist bereits vorhanden, aber wenn die Query einen Fehler wirft, blockiert sie möglicherweise andere React-Queries
+### 2. src/main.tsx
 
-4. **Testen** - Statistik- und Auswertungsseiten nach Fix verifizieren
+```typescript
+// Am Ende von main.tsx hinzufügen:
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    console.log('🔄 New SW took control, reloading...');
+    window.location.reload();
+  });
+}
+```
+
+### 3. src/lib/version.ts
+
+```typescript
+// Komplett überarbeitete Version:
+// - Entfernt hasCheckedOnce
+// - Prüft pending saves vor Reload
+// - Aggressiverer Check-Rhythmus
+```
+
+### 4. Dateien entfernen/anpassen
+
+```text
+- public/sw.js → löschen (oder zu .bak umbenennen)
+- src/hooks/useOptimizedCache.ts → registerOfflineSupport entfernen
+- src/components/PWA/PWAUpdateBanner.tsx → entfernen (optional)
+```
 
 ---
 
-## Akzeptanzkriterien
+## Sicherheitsmaßnahmen
 
-- Auswertung & Statistik laden korrekt
-- Keine Datenbank-Fehler mehr in den Logs
-- Einstellungen können gespeichert werden
+1. **Kein Datenverlust**: Vor Reload wird geprüft, ob pending saves existieren
+2. **Timeout-Fallback**: Nach 30 Sekunden wird auch bei pending saves neu geladen (mit Toast-Warnung)
+3. **Offline-Erkennung**: Wenn offline, kein Reload-Versuch
+
+---
+
+## Wichtig: Build-ID Automatisierung
+
+Damit das langfristig funktioniert, sollte die `build-id.txt` bei jedem Publish automatisch aktualisiert werden. Das kann durch einen GitHub Action oder Lovable Webhook geschehen.
+
+Als Sofortmaßnahme: Nach dem Publish die App erneut publishen oder die `build-id.txt` manuell aktualisieren.
+
+---
+
+## Zusammenfassung
+
+| Komponente | Vorher | Nachher |
+|------------|--------|---------|
+| SW Registrierung | Doppelt (Workbox + Manual) | Nur Workbox |
+| Update-Modus | Prompt (User klickt) | AutoUpdate |
+| Version-Check | Einmal + 5min Cooldown | Bei jedem Tab-Focus |
+| Reload | Nach User-Klick | Automatisch (wenn safe) |
+| Pending Saves | Nicht berücksichtigt | Geprüft vor Reload |
 
