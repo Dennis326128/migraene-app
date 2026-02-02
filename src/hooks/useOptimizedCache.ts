@@ -93,17 +93,5 @@ export function useOptimizedCache() {
   };
 }
 
-/**
- * Service Worker für Offline-Unterstützung
- */
-export function registerOfflineSupport() {
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js', { scope: '/' })
-      .then(registration => {
-        console.log('SW registered: ', registration);
-      })
-      .catch(registrationError => {
-        console.log('SW registration failed: ', registrationError);
-      });
-  }
-}
+// Note: Service Worker registration is now handled by vite-plugin-pwa (autoUpdate mode)
+// The manual registerOfflineSupport() function has been removed to avoid SW conflicts

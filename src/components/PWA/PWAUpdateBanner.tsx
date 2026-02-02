@@ -1,4 +1,4 @@
-import { RefreshCw, X } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { usePWAUpdate } from '@/hooks/usePWAUpdate';
 import { cn } from '@/lib/utils';
@@ -6,6 +6,8 @@ import { cn } from '@/lib/utils';
 export function PWAUpdateBanner() {
   const { needRefresh, updateServiceWorker } = usePWAUpdate();
 
+  // In autoUpdate mode, this should rarely show since SW auto-activates
+  // But we keep it as a fallback for edge cases
   if (!needRefresh) return null;
 
   return (
@@ -17,10 +19,7 @@ export function PWAUpdateBanner() {
       <div className="container mx-auto flex items-center justify-between gap-4">
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium">
-            Neue Version verfügbar
-          </p>
-          <p className="text-xs opacity-90">
-            Aktualisieren für die neuesten Verbesserungen
+            Neue Version wird geladen...
           </p>
         </div>
         
@@ -31,7 +30,7 @@ export function PWAUpdateBanner() {
           className="flex-shrink-0 bg-white/20 hover:bg-white/30 text-white border-0"
         >
           <RefreshCw className="h-4 w-4 mr-1.5" />
-          Aktualisieren
+          Jetzt laden
         </Button>
       </div>
     </div>

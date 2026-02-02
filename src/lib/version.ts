@@ -1,13 +1,18 @@
-export const BUILD_ID = import.meta.env.VITE_BUILD_ID || 'dev';
-export const APP_VERSION = '4.0.1'; // Increment on significant UI changes
+import { getPendingCount } from './performance/optimisticSave';
 
-let hasCheckedOnce = false;
+export const BUILD_ID = import.meta.env.VITE_BUILD_ID || 'dev';
+export const APP_VERSION = '4.1.0'; // Increment on significant UI changes
+
 let isReloading = false;
+let reloadTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
 /**
  * Force clear all caches and reload
  */
 export async function forceClearCachesAndReload() {
+  if (isReloading) return;
+  isReloading = true;
+  
   console.log('🧹 Force clearing all caches...');
   
   try {
@@ -61,18 +66,57 @@ export function checkAppVersion() {
 }
 
 /**
- * Check for new version and reload if needed
- * @param force - Force check even if already checked
+ * Safe reload that waits for pending saves
  */
-export async function checkForNewVersionAndReload(force = false) {
-  // Nur einmal checken, außer force=true
-  if (!force && hasCheckedOnce) return;
-  if (isReloading) return; // Prevent double-reload
+async function safeReload() {
+  if (isReloading) return;
+  
+  const pendingCount = getPendingCount();
+  
+  if (pendingCount === 0) {
+    console.log('✅ No pending saves, reloading now...');
+    isReloading = true;
+    location.reload();
+    return;
+  }
+  
+  console.log(`⏳ Waiting for ${pendingCount} pending saves before reload...`);
+  
+  // Set a timeout fallback - reload after 30s even with pending saves
+  if (!reloadTimeoutId) {
+    reloadTimeoutId = setTimeout(() => {
+      console.warn('⚠️ Timeout reached, forcing reload despite pending saves');
+      isReloading = true;
+      location.reload();
+    }, 30000);
+  }
+  
+  // Check again in 1 second
+  setTimeout(() => {
+    if (!isReloading && getPendingCount() === 0) {
+      if (reloadTimeoutId) {
+        clearTimeout(reloadTimeoutId);
+        reloadTimeoutId = null;
+      }
+      console.log('✅ All saves completed, reloading now...');
+      isReloading = true;
+      location.reload();
+    }
+  }, 1000);
+}
 
+/**
+ * Check for new version and reload if needed
+ * Called on every tab focus - no cooldown
+ */
+export async function checkForNewVersionAndReload() {
+  if (isReloading) return;
+  if (!navigator.onLine) return; // Skip if offline
+  
   try {
     const res = await fetch('/build-id.txt', { 
       cache: 'no-store',
-      headers: { 'Cache-Control': 'no-cache' }
+      headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' }
     });
     
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -80,40 +124,18 @@ export async function checkForNewVersionAndReload(force = false) {
     const remote = (await res.text()).trim();
     const local = localStorage.getItem('build_id') || '';
 
-    hasCheckedOnce = true;
-
     // Neue Version erkannt
     if (remote && local && remote !== local) {
       console.log(`🔄 New version detected: ${remote} (current: ${local})`);
-      isReloading = true;
-
-      // Service Worker updaten
-      if ('serviceWorker' in navigator) {
-        const regs = await navigator.serviceWorker.getRegistrations();
-        await Promise.all(regs.map(r => r.update().catch(() => {})));
-
-        // If a new SW is waiting (vite-plugin-pwa registerType: 'prompt'),
-        // explicitly activate it so we don't reload into the old cached UI.
-        try {
-          const reg = await navigator.serviceWorker.getRegistration();
-          if (reg?.waiting) {
-            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-          }
-        } catch {
-          // ignore
-        }
-      }
-
-      // localStorage updaten VOR Reload
       localStorage.setItem('build_id', remote);
       
-      // Reload
-      location.reload();
+      // Safe reload with pending saves check
+      await safeReload();
       return;
     }
 
-    // Nur speichern, wenn noch nicht gesetzt oder neu
-    if (remote && remote !== local) {
+    // Erste Initialisierung
+    if (remote && !local) {
       localStorage.setItem('build_id', remote);
     }
 
@@ -123,43 +145,58 @@ export async function checkForNewVersionAndReload(force = false) {
 }
 
 /**
- * Initialize version watcher with efficient strategy
+ * Initialize version watcher with aggressive strategy
  */
 export function initVersionWatcher() {
-  // 1. Beim App-Start einmal checken
+  // 1. Check on app start
   checkForNewVersionAndReload();
 
-  // 2. Bei Tab-Visibility-Change (User kehrt zurück)
-  let lastCheck = Date.now();
-  const MIN_CHECK_INTERVAL = 5 * 60 * 1000; // 5 Min Cooldown
-
+  // 2. Check on EVERY tab focus (no cooldown)
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
-      const now = Date.now();
-      // Nur checken, wenn mindestens 5 Min seit letztem Check
-      if (now - lastCheck > MIN_CHECK_INTERVAL) {
-        console.log('👁️ Tab visible again, checking for updates...');
-        lastCheck = now;
-        checkForNewVersionAndReload(true); // force=true
-      }
+      console.log('👁️ Tab visible, checking for updates...');
+      checkForNewVersionAndReload();
     }
   });
 
-  // 3. Service Worker Message Listener
+  // 3. Service Worker message listener
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('message', (event) => {
       if (event.data?.type === 'NEW_VERSION_AVAILABLE') {
         console.log('📬 Service Worker detected new version');
-        checkForNewVersionAndReload(true);
+        safeReload();
       }
     });
   }
+  
+  // 4. Periodic check every 5 minutes while tab is active
+  setInterval(() => {
+    if (document.visibilityState === 'visible' && navigator.onLine) {
+      checkForNewVersionAndReload();
+    }
+  }, 5 * 60 * 1000);
 }
 
 /**
- * Helper: Manuell triggered durch API-Response (optional)
+ * Helper: Triggered by API response or external event
  */
 export function triggerVersionCheckFromAPI() {
   console.log('🔔 API requested version check');
-  checkForNewVersionAndReload(true);
+  checkForNewVersionAndReload();
+}
+
+/**
+ * Setup Service Worker controller change listener
+ * Call this early in app initialization (main.tsx)
+ */
+export function setupServiceWorkerListener() {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!isReloading) {
+        console.log('🔄 New Service Worker took control, reloading...');
+        isReloading = true;
+        location.reload();
+      }
+    });
+  }
 }

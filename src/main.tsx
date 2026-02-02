@@ -7,11 +7,14 @@ import './index.css'
 import '@/lib/i18n/i18n';
 
 // Version Watcher für Auto-Reload bei neuen Deployments
-import { initVersionWatcher, checkAppVersion } from './lib/version';
+import { initVersionWatcher, checkAppVersion, setupServiceWorkerListener } from './lib/version';
 // QA Error Capture
 import { initErrorCapture, loadPersistedErrors } from './lib/qa/errorCapture';
 
-// CRITICAL: Check app version FIRST - this may trigger reload
+// CRITICAL: Setup SW listener FIRST - catches controller changes early
+setupServiceWorkerListener();
+
+// CRITICAL: Check app version - this may trigger reload
 if (checkAppVersion()) {
   // Reload triggered, stop execution
   throw new Error('App version changed, reloading...');
@@ -26,7 +29,7 @@ if (import.meta.env.DEV) {
   loadPersistedErrors();
 }
 
-// Version-Check initialisieren
+// Version-Check initialisieren (aggressive checks on tab focus)
 initVersionWatcher();
 
 createRoot(container).render(
