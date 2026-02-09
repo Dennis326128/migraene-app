@@ -1,15 +1,11 @@
 /**
- * DoctorShareDialog – Simplified
- * Ein Screen, zwei Schalter, eine Aktion.
- * Zero-Decision-UX für den Arztkontext.
+ * DoctorShareDialog – Minimal
+ * Ein Satz, ein Button. Zero-Decision-UX für den Arztkontext.
  */
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { Loader2, AlertCircle } from "lucide-react";
-import { format } from "date-fns";
-import { de } from "date-fns/locale";
 
 import { supabase } from "@/lib/supabaseClient";
 import { buildDiaryPdf } from "@/lib/pdf/report";
@@ -17,13 +13,14 @@ import { buildReportData } from "@/lib/pdf/reportData";
 import { fetchAllEntriesForExport } from "@/features/entries/api/entries.api";
 import { useDoctors } from "@/features/account/hooks/useAccount";
 import { useMedicationCourses } from "@/features/medication-courses/hooks/useMedicationCourses";
-import { useDiaryReportQuota } from "@/features/ai-reports/hooks/useDiaryReportQuota";
 import { saveGeneratedReport } from "@/features/reports/api/generatedReports.api";
 import {
   useDoctorShareStatus,
   useActivateDoctorShare,
 } from "@/features/doctor-share";
 import { upsertShareSettings } from "@/features/doctor-share/api/doctorShareSettings.api";
+import { format } from "date-fns";
+import { de } from "date-fns/locale";
 
 interface DoctorShareDialogProps {
   onComplete: (shareCode: string) => void;
@@ -42,35 +39,17 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
   onCancel,
 }) => {
   const today = useMemo(() => new Date(), []);
-
-  // Fixed range: 3 months (default, implicit)
   const from = useMemo(() => fmt(addMonths(today, -3)), [today]);
   const to = useMemo(() => fmt(today), [today]);
 
-  // Two toggles only
-  const [includeNotes, setIncludeNotes] = useState(false);
-  const [includeAI, setIncludeAI] = useState(true); // Default ON in dev phase
-
-  // UI state
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStep, setGenerationStep] = useState("");
   const [inlineError, setInlineError] = useState<string | null>(null);
 
-  // Data hooks
   const { data: doctors = [] } = useDoctors();
   const { data: medicationCourses = [] } = useMedicationCourses();
-  const { data: quotaData } = useDiaryReportQuota();
   const { data: shareStatus, refetch: refetchShareStatus } = useDoctorShareStatus();
   const activateMutation = useActivateDoctorShare();
-
-  // Quota logic
-  const isQuotaExhausted = quotaData && !quotaData.isUnlimited && quotaData.remaining <= 0;
-  const isAIDisabled = quotaData && !quotaData.aiEnabled;
-  const canUseAI = !isQuotaExhausted && !isAIDisabled;
-
-  useEffect(() => {
-    if (!canUseAI && includeAI) setIncludeAI(false);
-  }, [canUseAI, includeAI]);
 
   const handleCreateShare = async () => {
     setIsGenerating(true);
@@ -97,15 +76,15 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
       const shareId = freshShare.id;
       const shareCode = freshShare.code_display;
 
-      // 2. Save settings
+      // 2. Save settings (defaults, no notes, no AI in share step)
       setGenerationStep("Einstellungen werden gespeichert…");
       await upsertShareSettings(shareId, {
         range_preset: "3m",
         custom_from: null,
         custom_to: null,
-        include_entry_notes: includeNotes,
-        include_context_notes: includeNotes,
-        include_ai_analysis: includeAI && canUseAI,
+        include_entry_notes: false,
+        include_context_notes: false,
+        include_ai_analysis: false,
       });
 
       // 3. Load data
@@ -146,55 +125,8 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
         now: new Date(),
       });
 
-      // 4. AI analysis (optional)
-      let aiAnalysis: string | undefined;
-      let premiumAIReport: any = undefined;
-
-      if (includeAI && canUseAI) {
-        setGenerationStep("Analyse wird erstellt…");
-
-        try {
-          const { data: analysisData } = await supabase.functions.invoke(
-            "generate-doctor-summary",
-            {
-              body: {
-                fromDate: `${from}T00:00:00Z`,
-                toDate: `${to}T23:59:59Z`,
-                includeContextNotes: includeNotes,
-                totalAttacks: reportData.kpis.totalAttacks,
-                daysInRange: reportData.kpis.daysInRange,
-              },
-            }
-          );
-
-          if (analysisData?.summary) aiAnalysis = analysisData.summary;
-
-          const { data: premiumData } = await supabase.functions.invoke(
-            "generate-ai-diary-report",
-            {
-              body: {
-                fromDate: from,
-                toDate: to,
-                includeStats: true,
-                includeTherapies: true,
-                includeEntryNotes: includeNotes,
-                includeContextNotes: includeNotes,
-              },
-            }
-          );
-
-          if (premiumData && !premiumData.errorCode) {
-            premiumAIReport = premiumData;
-          }
-        } catch (aiError) {
-          console.warn("KI-Analyse fehlgeschlagen:", aiError);
-        }
-      }
-
-      // 5. Generate PDF
+      // 4. Generate PDF (no AI, no notes)
       setGenerationStep("Bericht wird erstellt…");
-
-      const freeTextMode = includeNotes ? "notes_and_context" : "none";
 
       const medicationStats = reportData.acuteMedicationStats.map((stat) => ({
         name: stat.name,
@@ -214,15 +146,15 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
         selectedMeds: [],
         includeStats: true,
         includeChart: true,
-        includeAnalysis: !includeAI && !!aiAnalysis,
+        includeAnalysis: false,
         includeEntriesList: true,
         includePatientData: true,
         includeDoctorData: doctors.length > 0,
         includeMedicationCourses: true,
         includePatientNotes: false,
-        freeTextExportMode: freeTextMode as any,
-        isPremiumAIRequested: includeAI && canUseAI,
-        analysisReport: aiAnalysis,
+        freeTextExportMode: "none",
+        isPremiumAIRequested: false,
+        analysisReport: undefined,
         patientNotes: "",
         medicationStats,
         medicationCourses: medicationCourses.map((c) => ({
@@ -270,10 +202,10 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
                 email: d.email || "",
               }))
             : undefined,
-        premiumAIReport,
+        premiumAIReport: undefined,
       });
 
-      // 6. Save report
+      // 5. Save report
       setGenerationStep("Bericht wird gespeichert…");
 
       const rangeLabel = `${format(new Date(from), "dd.MM.yyyy", { locale: de })} – ${format(new Date(to), "dd.MM.yyyy", { locale: de })}`;
@@ -287,16 +219,15 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
         metadata: {
           share_id: shareId,
           range_preset: "3m",
-          include_notes: includeNotes,
-          include_ai_analysis: includeAI && canUseAI,
-          ai_used: !!premiumAIReport,
+          include_notes: false,
+          include_ai_analysis: false,
+          ai_used: false,
           generated_for: "doctor_share",
         },
       });
 
       await upsertShareSettings(shareId, {
         generated_report_id: savedReport.id,
-        ai_analysis_generated_at: includeAI ? new Date().toISOString() : null,
       });
 
       onComplete(shareCode);
@@ -311,77 +242,10 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
 
   return (
     <div className="flex flex-col min-h-full">
-      <div className="flex-1 overflow-y-auto pb-28 space-y-6">
-        {/* Header text */}
-        <p className="text-sm text-muted-foreground">
-          Dein Kopfschmerz-Verlauf wird für deine Ärztin freigegeben und ein Kopfschmerztagebuch erstellt.
+      <div className="flex-1 flex flex-col justify-center items-center pb-28">
+        <p className="text-sm text-muted-foreground text-center">
+          Dein Kopfschmerz-Verlauf wird für deine Ärztin freigegeben.
         </p>
-
-        {/* Toggle 1: Privacy – personal notes */}
-        <div className="space-y-1">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">Persönliche Notizen teilen</span>
-            <Switch
-              checked={includeNotes}
-              onCheckedChange={setIncludeNotes}
-              disabled={isGenerating}
-              className="shrink-0"
-            />
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Freie Texte, Kommentare und Zusatznotizen.
-          </p>
-        </div>
-
-        {/* Divider */}
-        <div className="border-t border-border/50" />
-
-        {/* Toggle 2: AI analysis */}
-        <div className="space-y-2">
-          <h3 className="text-sm font-medium">Kopfschmerztagebuch auswerten</h3>
-
-          <div className="flex items-center justify-between">
-            <span className="text-sm">Erweiterte Analyse (empfohlen)</span>
-            <Switch
-              checked={includeAI && canUseAI}
-              onCheckedChange={(checked) => {
-                if (canUseAI) setIncludeAI(checked);
-              }}
-              disabled={isGenerating || !canUseAI}
-              className="shrink-0"
-            />
-          </div>
-
-          <p className="text-xs text-muted-foreground">
-            Erkennt Muster, Zusammenhänge und erstellt eine verständliche Zusammenfassung.
-          </p>
-
-          <p className="text-xs text-muted-foreground/70 italic">
-            Für den Arzt ist keine zusätzliche Analyse erforderlich.
-          </p>
-
-          {/* Quota hint – neutral, small */}
-          {!canUseAI && isQuotaExhausted && (
-            <p className="text-xs text-muted-foreground/60">
-              Verfügbar ab{" "}
-              {(() => {
-                const now = new Date();
-                const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-                return nextMonth.toLocaleDateString("de-DE", {
-                  day: "2-digit",
-                  month: "2-digit",
-                  year: "numeric",
-                });
-              })()}
-            </p>
-          )}
-
-          {canUseAI && (
-            <p className="text-xs text-muted-foreground/60">
-              Begrenzt verfügbar – kann jederzeit deaktiviert werden.
-            </p>
-          )}
-        </div>
       </div>
 
       {/* Sticky action bar */}
