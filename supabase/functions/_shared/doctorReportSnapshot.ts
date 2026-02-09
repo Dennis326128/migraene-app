@@ -35,9 +35,11 @@ export interface DoctorReportMeta {
   generatedAt: string;
   timezone: string;
   reportVersion: string;
-  /** NEW: Detailed period info */
+  /** Canonical schema version field for API contract */
+  schemaVersion: string;
+  /** Detailed period info */
   period: ReportPeriod;
-  /** NEW: Normalization config */
+  /** Normalization config */
   normalization: NormalizationConfig;
 }
 
@@ -681,7 +683,7 @@ export async function buildDoctorReportSnapshot(
     generatedAt: now,
     timezone: TIMEZONE,
     reportVersion: REPORT_VERSION,
-    // NEU: Erweiterte Metadaten
+    schemaVersion: REPORT_VERSION,
     period: {
       fromDate: from,
       toDate: to,
