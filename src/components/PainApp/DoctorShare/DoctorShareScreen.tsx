@@ -30,7 +30,6 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import DoctorShareDialog from "./DoctorShareDialog";
-import AnalysisPromptDialog from "./AnalysisPromptDialog";
 
 interface DoctorShareScreenProps {
   onBack: () => void;
@@ -71,8 +70,7 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
   const [copied, setCopied] = useState(false);
   const [showSetupDialog, setShowSetupDialog] = useState(false);
   const [justCreatedCode, setJustCreatedCode] = useState<string | null>(null);
-  const [showAnalysisPrompt, setShowAnalysisPrompt] = useState(false);
-  const [analysisRequested, setAnalysisRequested] = useState(false);
+  // AI analysis starts automatically (no separate prompt needed)
 
   // Code kopieren
   const handleCopyCode = async () => {
@@ -113,20 +111,7 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
   const handleShareComplete = (shareCode: string) => {
     setShowSetupDialog(false);
     setJustCreatedCode(shareCode);
-    setShowAnalysisPrompt(true);
     refetch();
-  };
-
-  const handleAnalysisStart = () => {
-    setAnalysisRequested(true);
-    setShowAnalysisPrompt(false);
-    console.log("[DoctorShare] analysisRequested=true for share:", justCreatedCode);
-  };
-
-  const handleAnalysisSkip = () => {
-    setAnalysisRequested(false);
-    setShowAnalysisPrompt(false);
-    console.log("[DoctorShare] analysisRequested=false for share:", justCreatedCode);
   };
 
   const isShareActive = shareStatus?.is_share_active ?? false;
@@ -201,16 +186,8 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
             </div>
           )}
 
-          {/* Post-Success: Analysis Prompt */}
-          {showAnalysisPrompt && justCreatedCode && (
-            <AnalysisPromptDialog
-              onStart={handleAnalysisStart}
-              onSkip={handleAnalysisSkip}
-            />
-          )}
-
           {/* Zustand B: Freigabe AKTIV */}
-          {!isLoading && !error && !showAnalysisPrompt && (shareStatus?.is_share_active || justCreatedCode) && (
+          {!isLoading && !error && (shareStatus?.is_share_active || justCreatedCode) && (
             <div className="flex flex-col items-center space-y-8">
               {/* Success Message nach Erstellung */}
               {justCreatedCode && (
