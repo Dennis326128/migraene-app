@@ -1,37 +1,27 @@
 /**
- * DoctorShareDialog
- * Vollständiger "Mit Arzt teilen" Flow mit Settings und PDF-Generierung
- * 
- * UI-Stil: Übernommen von DiaryReport.tsx - Full-width Screen-Layout
- * - Zeitraum-Auswahl
- * - Datenschutz-Schalter (Default AUS)
- * - KI-Analyse (Premium, orange Badge)
- * - Fixe Inhalte (nicht abwählbar)
+ * DoctorShareDialog – Simplified
+ * Ein Screen, zwei Schalter, eine Aktion.
+ * Zero-Decision-UX für den Arztkontext.
  */
 
 import React, { useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Info, FileText, Lock, Brain, Check, AlertCircle } from "lucide-react";
-import { toast } from "sonner";
+import { Loader2, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
-import { cn } from "@/lib/utils";
 
 import { supabase } from "@/lib/supabaseClient";
-import { TimeRangeButtons, type TimeRangePreset } from "../TimeRangeButtons";
 import { buildDiaryPdf } from "@/lib/pdf/report";
 import { buildReportData } from "@/lib/pdf/reportData";
 import { fetchAllEntriesForExport } from "@/features/entries/api/entries.api";
-import { usePatientData, useDoctors } from "@/features/account/hooks/useAccount";
+import { useDoctors } from "@/features/account/hooks/useAccount";
 import { useMedicationCourses } from "@/features/medication-courses/hooks/useMedicationCourses";
 import { useDiaryReportQuota } from "@/features/ai-reports/hooks/useDiaryReportQuota";
 import { saveGeneratedReport } from "@/features/reports/api/generatedReports.api";
-import { PremiumBadge } from "@/components/ui/premium-badge";
-import { 
-  useDoctorShareStatus, 
-  useActivateDoctorShare 
+import {
+  useDoctorShareStatus,
+  useActivateDoctorShare,
 } from "@/features/doctor-share";
 import { upsertShareSettings } from "@/features/doctor-share/api/doctorShareSettings.api";
 
@@ -40,7 +30,6 @@ interface DoctorShareDialogProps {
   onCancel: () => void;
 }
 
-// Zeitraum-Hilfsfunktionen
 function addMonths(d: Date, m: number) {
   const dd = new Date(d);
   dd.setMonth(dd.getMonth() + m);
@@ -48,182 +37,105 @@ function addMonths(d: Date, m: number) {
 }
 function fmt(d: Date) { return d.toISOString().slice(0, 10); }
 
-// Toggle-Row Komponente (identisch zu DiaryReport)
-const ToggleRow = ({ 
-  label, 
-  checked, 
-  onCheckedChange, 
-  disabled, 
-  subtext 
-}: { 
-  label: string; 
-  checked: boolean; 
-  onCheckedChange: (checked: boolean) => void; 
-  disabled?: boolean;
-  subtext?: string;
-}) => (
-  <div className={`flex items-center justify-between py-2.5 ${disabled ? 'opacity-50' : ''}`}>
-    <div className="flex-1 min-w-0">
-      <span className="text-sm">{label}</span>
-      {subtext && <p className="text-xs text-muted-foreground mt-0.5">{subtext}</p>}
-    </div>
-    <Switch 
-      checked={checked} 
-      onCheckedChange={onCheckedChange}
-      disabled={disabled}
-      className="ml-3 shrink-0"
-    />
-  </div>
-);
-
-export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({ 
-  onComplete, 
-  onCancel 
+export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
+  onComplete,
+  onCancel,
 }) => {
   const today = useMemo(() => new Date(), []);
-  
-  // Zeitraum
-  const [preset, setPreset] = useState<TimeRangePreset>("3m");
-  const [customStart, setCustomStart] = useState<string>(fmt(addMonths(today, -3)));
-  const [customEnd, setCustomEnd] = useState<string>(fmt(today));
-  
-  // Datenschutz-Toggles (Default AUS)
-  const [includeEntryNotes, setIncludeEntryNotes] = useState(false);
-  const [includeContextNotes, setIncludeContextNotes] = useState(false);
-  
-  // KI-Analyse
-  const [includeAI, setIncludeAI] = useState(false);
-  
-  // UI State
+
+  // Fixed range: 3 months (default, implicit)
+  const from = useMemo(() => fmt(addMonths(today, -3)), [today]);
+  const to = useMemo(() => fmt(today), [today]);
+
+  // Two toggles only
+  const [includeNotes, setIncludeNotes] = useState(false);
+  const [includeAI, setIncludeAI] = useState(true); // Default ON in dev phase
+
+  // UI state
   const [isGenerating, setIsGenerating] = useState(false);
-  const [generationStep, setGenerationStep] = useState<string>("");
+  const [generationStep, setGenerationStep] = useState("");
   const [inlineError, setInlineError] = useState<string | null>(null);
-  const [noEntriesWarning, setNoEntriesWarning] = useState<string | null>(null);
-  
+
   // Data hooks
-  const { data: patientData } = usePatientData();
   const { data: doctors = [] } = useDoctors();
   const { data: medicationCourses = [] } = useMedicationCourses();
   const { data: quotaData } = useDiaryReportQuota();
   const { data: shareStatus, refetch: refetchShareStatus } = useDoctorShareStatus();
   const activateMutation = useActivateDoctorShare();
-  
-  // KI-Limits
+
+  // Quota logic
   const isQuotaExhausted = quotaData && !quotaData.isUnlimited && quotaData.remaining <= 0;
   const isAIDisabled = quotaData && !quotaData.aiEnabled;
-  
-  // Auto-disable AI if quota exhausted
-  useEffect(() => {
-    if (isQuotaExhausted && includeAI) {
-      setIncludeAI(false);
-    }
-  }, [isQuotaExhausted, includeAI]);
-  
-  // Zeitraum berechnen
-  const { from, to } = useMemo(() => {
-    if (preset === "custom" && customStart && customEnd) {
-      return { from: customStart, to: customEnd };
-    }
-    const end = fmt(today);
-    let start: string;
-    switch (preset) {
-      case "1m": start = fmt(addMonths(today, -1)); break;
-      case "3m": start = fmt(addMonths(today, -3)); break;
-      case "6m": start = fmt(addMonths(today, -6)); break;
-      case "12m": start = fmt(addMonths(today, -12)); break;
-      case "all": start = "2000-01-01"; break;
-      default: start = fmt(addMonths(today, -3));
-    }
-    return { from: start, to: end };
-  }, [preset, customStart, customEnd, today]);
-  
-  // Zeitraum-Label
-  const rangeLabel = useMemo(() => {
-    const fromDate = new Date(from);
-    const toDate = new Date(to);
-    return `${format(fromDate, 'dd.MM.yyyy', { locale: de })} – ${format(toDate, 'dd.MM.yyyy', { locale: de })}`;
-  }, [from, to]);
+  const canUseAI = !isQuotaExhausted && !isAIDisabled;
 
-  /**
-   * Hauptfunktion: Freigabe erstellen + PDF generieren
-   */
+  useEffect(() => {
+    if (!canUseAI && includeAI) setIncludeAI(false);
+  }, [canUseAI, includeAI]);
+
   const handleCreateShare = async () => {
     setIsGenerating(true);
     setInlineError(null);
-    setNoEntriesWarning(null);
-    
+
     try {
-      // Step 1: Share aktivieren (falls noch nicht aktiv)
-      setGenerationStep("Freigabe wird aktiviert...");
-      
-      let currentShareId = shareStatus?.id;
-      
+      // 1. Activate share
+      setGenerationStep("Freigabe wird aktiviert…");
+
       if (!shareStatus?.is_share_active) {
         await activateMutation.mutateAsync(undefined);
         await refetchShareStatus();
       }
-      
-      // Hole aktuelle Share-Daten
-      const { data: freshShareStatus } = await supabase
-        .from('doctor_shares')
-        .select('id, code_display')
-        .order('created_at', { ascending: false })
+
+      const { data: freshShare } = await supabase
+        .from("doctor_shares")
+        .select("id, code_display")
+        .order("created_at", { ascending: false })
         .limit(1)
         .single();
-      
-      if (!freshShareStatus) {
-        throw new Error("Share konnte nicht erstellt werden");
-      }
-      
-      currentShareId = freshShareStatus.id;
-      const shareCode = freshShareStatus.code_display;
-      
-      // Step 2: Settings speichern
-      setGenerationStep("Einstellungen werden gespeichert...");
-      
-      await upsertShareSettings(currentShareId, {
-        range_preset: preset === 'all' ? '12m' : preset,
-        custom_from: preset === 'custom' ? customStart : null,
-        custom_to: preset === 'custom' ? customEnd : null,
-        include_entry_notes: includeEntryNotes,
-        include_context_notes: includeContextNotes,
-        include_ai_analysis: includeAI,
+
+      if (!freshShare) throw new Error("Share konnte nicht erstellt werden");
+
+      const shareId = freshShare.id;
+      const shareCode = freshShare.code_display;
+
+      // 2. Save settings
+      setGenerationStep("Einstellungen werden gespeichert…");
+      await upsertShareSettings(shareId, {
+        range_preset: "3m",
+        custom_from: null,
+        custom_to: null,
+        include_entry_notes: includeNotes,
+        include_context_notes: includeNotes,
+        include_ai_analysis: includeAI && canUseAI,
       });
-      
-      // Step 3: Daten laden
-      setGenerationStep("Daten werden geladen...");
-      
+
+      // 3. Load data
+      setGenerationStep("Daten werden geladen…");
+
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Nicht angemeldet");
-      
-      // Frische Patientendaten
+
       const { data: freshPatientData } = await supabase
-        .from('patient_data')
-        .select('*')
-        .eq('user_id', user.id)
+        .from("patient_data")
+        .select("*")
+        .eq("user_id", user.id)
         .maybeSingle();
-      
-      // Alle Einträge im Zeitraum
+
       const entries = await fetchAllEntriesForExport(from, to);
-      
+
       if (entries.length === 0) {
-        // Inline-Hinweis statt Toast, aber trotzdem fortfahren
-        setNoEntriesWarning("Keine Einträge im gewählten Zeitraum vorhanden.");
         onComplete(shareCode);
         return;
       }
-      
-      // Medikamenteneffekte laden
-      const entryIds = entries.map(e => Number(e.id));
+
+      const entryIds = entries.map((e) => Number(e.id));
       const { data: effects } = await supabase
-        .from('medication_effects')
-        .select('*')
-        .in('entry_id', entryIds);
-      
-      // Report-Daten berechnen
+        .from("medication_effects")
+        .select("*")
+        .in("entry_id", entryIds);
+
       const reportData = buildReportData({
         entries,
-        medicationEffects: (effects || []).map(e => ({
+        medicationEffects: (effects || []).map((e) => ({
           entry_id: e.entry_id,
           med_name: e.med_name,
           effect_rating: e.effect_rating,
@@ -233,42 +145,44 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
         toDate: to,
         now: new Date(),
       });
-      
-      // Step 4: KI-Analyse (optional)
+
+      // 4. AI analysis (optional)
       let aiAnalysis: string | undefined;
       let premiumAIReport: any = undefined;
-      
-      if (includeAI && !isQuotaExhausted && !isAIDisabled) {
-        setGenerationStep("KI-Analyse wird erstellt...");
-        
+
+      if (includeAI && canUseAI) {
+        setGenerationStep("Analyse wird erstellt…");
+
         try {
-          // Statische Analyse
-          const { data: analysisData } = await supabase.functions.invoke('generate-doctor-summary', {
-            body: { 
-              fromDate: `${from}T00:00:00Z`, 
-              toDate: `${to}T23:59:59Z`,
-              includeContextNotes,
-              totalAttacks: reportData.kpis.totalAttacks,
-              daysInRange: reportData.kpis.daysInRange
+          const { data: analysisData } = await supabase.functions.invoke(
+            "generate-doctor-summary",
+            {
+              body: {
+                fromDate: `${from}T00:00:00Z`,
+                toDate: `${to}T23:59:59Z`,
+                includeContextNotes: includeNotes,
+                totalAttacks: reportData.kpis.totalAttacks,
+                daysInRange: reportData.kpis.daysInRange,
+              },
             }
-          });
-          
-          if (analysisData?.summary) {
-            aiAnalysis = analysisData.summary;
-          }
-          
-          // Premium KI-Bericht
-          const { data: premiumData } = await supabase.functions.invoke('generate-ai-diary-report', {
-            body: {
-              fromDate: from,
-              toDate: to,
-              includeStats: true,
-              includeTherapies: true,
-              includeEntryNotes,
-              includeContextNotes,
+          );
+
+          if (analysisData?.summary) aiAnalysis = analysisData.summary;
+
+          const { data: premiumData } = await supabase.functions.invoke(
+            "generate-ai-diary-report",
+            {
+              body: {
+                fromDate: from,
+                toDate: to,
+                includeStats: true,
+                includeTherapies: true,
+                includeEntryNotes: includeNotes,
+                includeContextNotes: includeNotes,
+              },
             }
-          });
-          
+          );
+
           if (premiumData && !premiumData.errorCode) {
             premiumAIReport = premiumData;
           }
@@ -276,13 +190,13 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
           console.warn("KI-Analyse fehlgeschlagen:", aiError);
         }
       }
-      
-      // Step 5: PDF generieren
-      setGenerationStep("PDF wird erstellt...");
-      
-      const freeTextMode = includeContextNotes ? 'notes_and_context' : (includeEntryNotes ? 'short_notes' : 'none');
-      
-      const medicationStats = reportData.acuteMedicationStats.map(stat => ({
+
+      // 5. Generate PDF
+      setGenerationStep("Bericht wird erstellt…");
+
+      const freeTextMode = includeNotes ? "notes_and_context" : "none";
+
+      const medicationStats = reportData.acuteMedicationStats.map((stat) => ({
         name: stat.name,
         count: stat.last30Units,
         avgEffect: stat.avgEffectiveness ?? 0,
@@ -291,14 +205,13 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
         avgPerMonth: stat.avgPerMonth,
         last30Units: stat.last30Units,
       }));
-      
+
       const pdfBytes = await buildDiaryPdf({
         title: "Kopfschmerztagebuch (Arztfreigabe)",
         from,
         to,
         entries,
         selectedMeds: [],
-        
         includeStats: true,
         includeChart: true,
         includeAnalysis: !includeAI && !!aiAnalysis,
@@ -308,13 +221,11 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
         includeMedicationCourses: true,
         includePatientNotes: false,
         freeTextExportMode: freeTextMode as any,
-        
-        isPremiumAIRequested: includeAI,
-        
+        isPremiumAIRequested: includeAI && canUseAI,
         analysisReport: aiAnalysis,
         patientNotes: "",
         medicationStats,
-        medicationCourses: medicationCourses.map(c => ({
+        medicationCourses: medicationCourses.map((c) => ({
           medication_name: c.medication_name,
           type: c.type,
           dose_text: c.dose_text || undefined,
@@ -330,65 +241,67 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
           baseline_impairment_level: c.baseline_impairment_level || undefined,
           note_for_physician: c.note_for_physician || undefined,
         })),
-        patientData: freshPatientData ? {
-          firstName: freshPatientData.first_name || "",
-          lastName: freshPatientData.last_name || "",
-          street: freshPatientData.street || "",
-          postalCode: freshPatientData.postal_code || "",
-          city: freshPatientData.city || "",
-          phone: freshPatientData.phone || "",
-          fax: freshPatientData.fax || "",
-          email: user.email || "",
-          dateOfBirth: freshPatientData.date_of_birth || "",
-          healthInsurance: freshPatientData.health_insurance || "",
-          insuranceNumber: freshPatientData.insurance_number || ""
-        } : undefined,
-        doctors: doctors.length > 0 ? doctors.map(d => ({
-          firstName: d.first_name || "",
-          lastName: d.last_name || "",
-          specialty: d.specialty || "",
-          street: d.street || "",
-          postalCode: d.postal_code || "",
-          city: d.city || "",
-          phone: d.phone || "",
-          fax: d.fax || "",
-          email: d.email || ""
-        })) : undefined,
+        patientData: freshPatientData
+          ? {
+              firstName: freshPatientData.first_name || "",
+              lastName: freshPatientData.last_name || "",
+              street: freshPatientData.street || "",
+              postalCode: freshPatientData.postal_code || "",
+              city: freshPatientData.city || "",
+              phone: freshPatientData.phone || "",
+              fax: freshPatientData.fax || "",
+              email: user.email || "",
+              dateOfBirth: freshPatientData.date_of_birth || "",
+              healthInsurance: freshPatientData.health_insurance || "",
+              insuranceNumber: freshPatientData.insurance_number || "",
+            }
+          : undefined,
+        doctors:
+          doctors.length > 0
+            ? doctors.map((d) => ({
+                firstName: d.first_name || "",
+                lastName: d.last_name || "",
+                specialty: d.specialty || "",
+                street: d.street || "",
+                postalCode: d.postal_code || "",
+                city: d.city || "",
+                phone: d.phone || "",
+                fax: d.fax || "",
+                email: d.email || "",
+              }))
+            : undefined,
         premiumAIReport,
       });
-      
-      // Step 6: PDF in generated_reports speichern
-      setGenerationStep("Bericht wird gespeichert...");
-      
+
+      // 6. Save report
+      setGenerationStep("Bericht wird gespeichert…");
+
+      const rangeLabel = `${format(new Date(from), "dd.MM.yyyy", { locale: de })} – ${format(new Date(to), "dd.MM.yyyy", { locale: de })}`;
+
       const savedReport = await saveGeneratedReport({
-        report_type: 'diary',
+        report_type: "diary",
         title: `Kopfschmerztagebuch (Arztfreigabe) – ${rangeLabel}`,
         from_date: from,
         to_date: to,
         pdf_bytes: pdfBytes,
         metadata: {
-          share_id: currentShareId,
-          range_preset: preset,
-          include_entry_notes: includeEntryNotes,
-          include_context_notes: includeContextNotes,
-          include_ai_analysis: includeAI,
+          share_id: shareId,
+          range_preset: "3m",
+          include_notes: includeNotes,
+          include_ai_analysis: includeAI && canUseAI,
           ai_used: !!premiumAIReport,
-          generated_for: 'doctor_share',
+          generated_for: "doctor_share",
         },
       });
-      
-      // Link Report zu Share-Settings
-      await upsertShareSettings(currentShareId, {
+
+      await upsertShareSettings(shareId, {
         generated_report_id: savedReport.id,
         ai_analysis_generated_at: includeAI ? new Date().toISOString() : null,
       });
-      
-      // Kein Toast - Success wird im DoctorShareScreen als grüne Box angezeigt
+
       onComplete(shareCode);
-      
     } catch (error) {
       console.error("Share-Erstellung fehlgeschlagen:", error);
-      // Inline-Error statt Toast
       setInlineError("Freigabe konnte nicht erstellt werden. Bitte versuche es erneut.");
     } finally {
       setIsGenerating(false);
@@ -398,180 +311,89 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
 
   return (
     <div className="flex flex-col min-h-full">
-      {/* Scrollable Content Area */}
-      <div className="flex-1 overflow-y-auto pb-28 space-y-4">
-        
-        {/* ═══════════════════════════════════════════════════════════════════
-            ZEITRAUM CARD - Identisch zu DiaryReport
-        ═══════════════════════════════════════════════════════════════════ */}
-        <Card className="p-4 space-y-3">
-          <h3 className="text-sm font-semibold text-muted-foreground">Zeitraum für den Bericht</h3>
-          
-          {/* Clarification hint */}
-          <p className="text-xs text-muted-foreground/80 -mt-1">
-            Dies betrifft nur den Bericht – deine gespeicherten Daten bleiben vollständig erhalten.
-          </p>
-          
-          <TimeRangeButtons value={preset} onChange={setPreset} compact />
+      <div className="flex-1 overflow-y-auto pb-28 space-y-6">
+        {/* Header text */}
+        <p className="text-sm text-muted-foreground">
+          Dein Kopfschmerz-Verlauf wird für deine Ärztin freigegeben und ein Kopfschmerztagebuch erstellt.
+        </p>
 
-          {preset === "custom" && (
-            <div className="grid grid-cols-2 gap-3 pt-1">
-              <div>
-                <label className="block text-xs text-muted-foreground mb-1">Start</label>
-                <input 
-                  className="border-border/40 border rounded-md px-3 h-10 w-full bg-background text-foreground text-sm" 
-                  type="date" 
-                  value={customStart} 
-                  onChange={e => setCustomStart(e.target.value)} 
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-muted-foreground mb-1">Ende</label>
-                <input 
-                  className="border-border/40 border rounded-md px-3 h-10 w-full bg-background text-foreground text-sm" 
-                  type="date" 
-                  value={customEnd} 
-                  onChange={e => setCustomEnd(e.target.value)} 
-                />
-              </div>
-            </div>
+        {/* Toggle 1: Privacy – personal notes */}
+        <div className="space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">Persönliche Notizen teilen</span>
+            <Switch
+              checked={includeNotes}
+              onCheckedChange={setIncludeNotes}
+              disabled={isGenerating}
+              className="shrink-0"
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Freie Texte, Kommentare und Zusatznotizen.
+          </p>
+        </div>
+
+        {/* Divider */}
+        <div className="border-t border-border/50" />
+
+        {/* Toggle 2: AI analysis */}
+        <div className="space-y-2">
+          <h3 className="text-sm font-medium">Kopfschmerztagebuch auswerten</h3>
+
+          <div className="flex items-center justify-between">
+            <span className="text-sm">Erweiterte Analyse (empfohlen)</span>
+            <Switch
+              checked={includeAI && canUseAI}
+              onCheckedChange={(checked) => {
+                if (canUseAI) setIncludeAI(checked);
+              }}
+              disabled={isGenerating || !canUseAI}
+              className="shrink-0"
+            />
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            Erkennt Muster, Zusammenhänge und erstellt eine verständliche Zusammenfassung.
+          </p>
+
+          <p className="text-xs text-muted-foreground/70 italic">
+            Für den Arzt ist keine zusätzliche Analyse erforderlich.
+          </p>
+
+          {/* Quota hint – neutral, small */}
+          {!canUseAI && isQuotaExhausted && (
+            <p className="text-xs text-muted-foreground/60">
+              Verfügbar ab{" "}
+              {(() => {
+                const now = new Date();
+                const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+                return nextMonth.toLocaleDateString("de-DE", {
+                  day: "2-digit",
+                  month: "2-digit",
+                  year: "numeric",
+                });
+              })()}
+            </p>
           )}
 
-          {/* Zeitraum Anzeige */}
-          <div className="text-sm text-muted-foreground pt-1">
-            {rangeLabel}
-          </div>
-        </Card>
-
-        {/* ═══════════════════════════════════════════════════════════════════
-            OPTIONEN CARD - Toggle-Listen-Stil wie DiaryReport
-        ═══════════════════════════════════════════════════════════════════ */}
-        <Card className="divide-y divide-border/50">
-          
-          {/* Section: Immer enthaltene Inhalte (Info) */}
-          <div className="p-4">
-            <div className="flex items-start gap-3">
-              <Info className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
-              <div className="text-xs text-muted-foreground space-y-1">
-                <p className="font-medium text-foreground text-sm">Immer enthalten:</p>
-                <ul className="space-y-0.5">
-                  <li className="flex items-center gap-1.5">
-                    <Check className="w-3 h-3" /> Statistiken & Diagramme
-                  </li>
-                  <li className="flex items-center gap-1.5">
-                    <Check className="w-3 h-3" /> Einträge-Liste
-                  </li>
-                  <li className="flex items-center gap-1.5">
-                    <Check className="w-3 h-3" /> Therapien & Prophylaxe
-                  </li>
-                  <li className="flex items-center gap-1.5">
-                    <Check className="w-3 h-3" /> Patientendaten (falls vorhanden)
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </div>
-
-          {/* Section: Datenschutz (IMMER SICHTBAR - nicht als Accordion) */}
-          <div className="p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <Lock className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Datenschutz (optional)</span>
-            </div>
-            <p className="text-xs text-muted-foreground mb-3 ml-6">
-              Standard: Notizen werden nicht geteilt.
+          {canUseAI && (
+            <p className="text-xs text-muted-foreground/60">
+              Begrenzt verfügbar – kann jederzeit deaktiviert werden.
             </p>
-            
-            <div className="space-y-0.5 ml-6">
-              <ToggleRow
-                label="Notizen aus Einträgen teilen"
-                checked={includeEntryNotes}
-                onCheckedChange={setIncludeEntryNotes}
-                subtext="Kann persönliche Details enthalten."
-              />
-              <ToggleRow
-                label="Kontextnotizen teilen"
-                checked={includeContextNotes}
-                onCheckedChange={setIncludeContextNotes}
-                subtext="Zusätzliche Notizen (z.B. aus Spracheinträgen)."
-              />
-            </div>
-          </div>
-
-          {/* Premium Section: KI-Analysebericht - Identisch zu DiaryReport */}
-          <div className="p-4 border-t border-border/30 bg-gradient-to-r from-amber-500/5 to-amber-600/5">
-            <div className="flex items-center justify-between py-1">
-              <div className="flex items-center gap-2 flex-1 min-w-0">
-                <Brain className="h-4 w-4 text-amber-500/80" />
-                <span className="text-sm font-medium">KI-Analysebericht</span>
-                <PremiumBadge />
-              </div>
-              <Switch 
-                checked={includeAI && !isQuotaExhausted && !isAIDisabled} 
-                onCheckedChange={(checked) => {
-                  if (!isQuotaExhausted && !isAIDisabled) {
-                    setIncludeAI(checked);
-                  }
-                }}
-                disabled={isGenerating || isQuotaExhausted || isAIDisabled}
-                className="ml-3 shrink-0"
-              />
-            </div>
-            
-            {/* Status Display - Minimal */}
-            {(isAIDisabled || isQuotaExhausted) && (
-              <div className="mt-2 pl-6">
-                {isAIDisabled ? (
-                  <p className="text-xs text-muted-foreground">KI deaktiviert</p>
-                ) : isQuotaExhausted ? (
-                  <p className="text-xs text-muted-foreground">
-                    Verfügbar ab{" "}
-                    {(() => {
-                      const now = new Date();
-                      const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-                      return nextMonth.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
-                    })()}
-                  </p>
-                ) : null}
-              </div>
-            )}
-            
-            {/* Quota Info - nur wenn nicht erschöpft/deaktiviert */}
-            {!isAIDisabled && !isQuotaExhausted && (
-              <div className="mt-1 pl-6">
-                <p className="text-xs text-muted-foreground">
-                  {quotaData?.isUnlimited 
-                    ? "Unbegrenzt verfügbar"
-                    : `${quotaData?.remaining ?? 0} von ${quotaData?.limit ?? 5} übrig`
-                  }
-                </p>
-              </div>
-            )}
-          </div>
-        </Card>
+          )}
+        </div>
       </div>
 
-      {/* ═══════════════════════════════════════════════════════════════════
-          STICKY ACTION BAR - Identisch zu DiaryReport
-      ═══════════════════════════════════════════════════════════════════ */}
+      {/* Sticky action bar */}
       <div className="sticky bottom-0 left-0 right-0 bg-background border-t border-border p-4 space-y-2 -mx-4 -mb-4 mt-auto">
-        {/* Inline Error Feedback */}
         {inlineError && (
           <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{inlineError}</span>
           </div>
         )}
-        
-        {/* Inline Warning (keine Einträge) */}
-        {noEntriesWarning && (
-          <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-sm">
-            <Info className="w-4 h-4 shrink-0" />
-            <span>{noEntriesWarning}</span>
-          </div>
-        )}
-        
-        <Button 
+
+        <Button
           onClick={handleCreateShare}
           disabled={isGenerating}
           size="lg"
@@ -583,17 +405,13 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
               {generationStep || "Wird erstellt…"}
             </>
           ) : (
-            <>
-              <FileText className="mr-2 h-5 w-5" />
-              Freigabe erstellen
-            </>
+            "Freigabe erstellen"
           )}
         </Button>
 
-        {/* Abbrechen - NUR vor Erstellung sichtbar, während Generierung ausgeblendet */}
         {!isGenerating && (
           <div className="flex justify-center">
-            <Button 
+            <Button
               onClick={onCancel}
               variant="ghost"
               size="sm"
