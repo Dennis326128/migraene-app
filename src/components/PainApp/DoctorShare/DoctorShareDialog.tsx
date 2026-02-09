@@ -1,11 +1,14 @@
 /**
- * DoctorShareDialog – Minimal
- * Ein Satz, ein Button. Zero-Decision-UX für den Arztkontext.
+ * DoctorShareDialog – Zero-Decision-UX
+ * Step 1: Single toggle for personal notes
+ * Step 2: Calm progress animation during share creation
+ * AI analysis starts automatically, no separate prompt.
  */
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Loader2, AlertCircle } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Progress } from "@/components/ui/progress";
 
 import { supabase } from "@/lib/supabaseClient";
 import { buildDiaryPdf } from "@/lib/pdf/report";
@@ -34,6 +37,14 @@ function addMonths(d: Date, m: number) {
 }
 function fmt(d: Date) { return d.toISOString().slice(0, 10); }
 
+const PROGRESS_STEPS = [
+  "Freigabe wird vorbereitet …",
+  "Kopfschmerztagebuch wird erstellt …",
+  "Daten werden aufbereitet …",
+];
+
+type Phase = "toggle" | "progress";
+
 export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
   onComplete,
   onCancel,
@@ -42,23 +53,63 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
   const from = useMemo(() => fmt(addMonths(today, -3)), [today]);
   const to = useMemo(() => fmt(today), [today]);
 
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [generationStep, setGenerationStep] = useState("");
-  const [inlineError, setInlineError] = useState<string | null>(null);
+  const [phase, setPhase] = useState<Phase>("toggle");
+  const [shareNotes, setShareNotes] = useState(false);
+
+  // Progress state
+  const [progress, setProgress] = useState(0);
+  const [stepIndex, setStepIndex] = useState(0);
+  const [generationDone, setGenerationDone] = useState(false);
 
   const { data: doctors = [] } = useDoctors();
   const { data: medicationCourses = [] } = useMedicationCourses();
   const { data: shareStatus, refetch: refetchShareStatus } = useDoctorShareStatus();
   const activateMutation = useActivateDoctorShare();
 
-  const handleCreateShare = async () => {
-    setIsGenerating(true);
-    setInlineError(null);
+  // Smooth progress animation (visual only, ~4.5s total)
+  useEffect(() => {
+    if (phase !== "progress") return;
+
+    // Step text changes at 33% and 66%
+    const stepTimer1 = setTimeout(() => setStepIndex(1), 1500);
+    const stepTimer2 = setTimeout(() => setStepIndex(2), 3000);
+
+    // Smooth progress: 0→90% over 4s, then wait for done
+    const interval = setInterval(() => {
+      setProgress((prev) => {
+        if (prev >= 90) return 90; // cap at 90 until done
+        return prev + 2;
+      });
+    }, 80);
+
+    return () => {
+      clearTimeout(stepTimer1);
+      clearTimeout(stepTimer2);
+      clearInterval(interval);
+    };
+  }, [phase]);
+
+  // When generation completes, animate to 100% and finish
+  useEffect(() => {
+    if (!generationDone || phase !== "progress") return;
+    setProgress(100);
+    setStepIndex(2);
+  }, [generationDone, phase]);
+
+  // After progress reaches 100, wait a beat then complete
+  const [resultCode, setResultCode] = useState<string | null>(null);
+  useEffect(() => {
+    if (progress === 100 && resultCode) {
+      const timer = setTimeout(() => onComplete(resultCode), 600);
+      return () => clearTimeout(timer);
+    }
+  }, [progress, resultCode, onComplete]);
+
+  const handleContinue = useCallback(async () => {
+    setPhase("progress");
 
     try {
       // 1. Activate share
-      setGenerationStep("Freigabe wird aktiviert…");
-
       if (!shareStatus?.is_share_active) {
         await activateMutation.mutateAsync(undefined);
         await refetchShareStatus();
@@ -76,20 +127,17 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
       const shareId = freshShare.id;
       const shareCode = freshShare.code_display;
 
-      // 2. Save settings (defaults, no notes, no AI in share step)
-      setGenerationStep("Einstellungen werden gespeichert…");
+      // 2. Save settings
       await upsertShareSettings(shareId, {
         range_preset: "3m",
         custom_from: null,
         custom_to: null,
-        include_entry_notes: false,
-        include_context_notes: false,
-        include_ai_analysis: false,
+        include_entry_notes: shareNotes,
+        include_context_notes: shareNotes,
+        include_ai_analysis: true, // auto-enabled
       });
 
       // 3. Load data
-      setGenerationStep("Daten werden geladen…");
-
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Nicht angemeldet");
 
@@ -102,7 +150,8 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
       const entries = await fetchAllEntriesForExport(from, to);
 
       if (entries.length === 0) {
-        onComplete(shareCode);
+        setResultCode(shareCode);
+        setGenerationDone(true);
         return;
       }
 
@@ -125,9 +174,7 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
         now: new Date(),
       });
 
-      // 4. Generate PDF (no AI, no notes)
-      setGenerationStep("Bericht wird erstellt…");
-
+      // 4. Generate PDF
       const medicationStats = reportData.acuteMedicationStats.map((stat) => ({
         name: stat.name,
         count: stat.last30Units,
@@ -137,6 +184,8 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
         avgPerMonth: stat.avgPerMonth,
         last30Units: stat.last30Units,
       }));
+
+      const includeNotes = shareNotes;
 
       const pdfBytes = await buildDiaryPdf({
         title: "Kopfschmerztagebuch (Arztfreigabe)",
@@ -151,8 +200,8 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
         includePatientData: true,
         includeDoctorData: doctors.length > 0,
         includeMedicationCourses: true,
-        includePatientNotes: false,
-        freeTextExportMode: "none",
+        includePatientNotes: includeNotes,
+        freeTextExportMode: includeNotes ? "notes_and_context" : "none",
         isPremiumAIRequested: false,
         analysisReport: undefined,
         patientNotes: "",
@@ -206,8 +255,6 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
       });
 
       // 5. Save report
-      setGenerationStep("Bericht wird gespeichert…");
-
       const rangeLabel = `${format(new Date(from), "dd.MM.yyyy", { locale: de })} – ${format(new Date(to), "dd.MM.yyyy", { locale: de })}`;
 
       const savedReport = await saveGeneratedReport({
@@ -219,8 +266,8 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
         metadata: {
           share_id: shareId,
           range_preset: "3m",
-          include_notes: false,
-          include_ai_analysis: false,
+          include_notes: shareNotes,
+          include_ai_analysis: true,
           ai_used: false,
           generated_for: "doctor_share",
         },
@@ -230,61 +277,76 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
         generated_report_id: savedReport.id,
       });
 
-      onComplete(shareCode);
+      setResultCode(shareCode);
+      setGenerationDone(true);
     } catch (error) {
       console.error("Share-Erstellung fehlgeschlagen:", error);
-      setInlineError("Freigabe konnte nicht erstellt werden. Bitte versuche es erneut.");
-    } finally {
-      setIsGenerating(false);
-      setGenerationStep("");
+      // On error, go back to toggle phase
+      setPhase("toggle");
+      setProgress(0);
+      setStepIndex(0);
     }
-  };
+  }, [shareStatus, shareNotes, from, to, doctors, medicationCourses, activateMutation, refetchShareStatus, onComplete]);
 
+  // ─── Phase: Toggle ─────────────────────────────────────
+  if (phase === "toggle") {
+    return (
+      <div className="flex flex-col min-h-full">
+        <div className="flex-1 flex flex-col justify-center items-center px-4 pb-28">
+          <h2 className="text-lg font-semibold text-foreground mb-2">
+            Persönliche Notizen teilen?
+          </h2>
+          <p className="text-sm text-muted-foreground text-center mb-8">
+            Freie Anmerkungen, die du selbst ergänzt hast.
+          </p>
+
+          {/* Toggle row */}
+          <div className="flex items-center gap-4">
+            <span className={`text-sm transition-colors ${!shareNotes ? "text-foreground font-medium" : "text-muted-foreground"}`}>
+              Nicht teilen
+            </span>
+            <Switch
+              checked={shareNotes}
+              onCheckedChange={setShareNotes}
+            />
+            <span className={`text-sm transition-colors ${shareNotes ? "text-foreground font-medium" : "text-muted-foreground"}`}>
+              Teilen
+            </span>
+          </div>
+        </div>
+
+        {/* Sticky action bar */}
+        <div className="sticky bottom-0 left-0 right-0 bg-background border-t border-border p-4 -mx-4 -mb-4 mt-auto">
+          <Button
+            onClick={handleContinue}
+            size="lg"
+            className="w-full"
+          >
+            Weiter
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Phase: Progress ───────────────────────────────────
   return (
     <div className="flex flex-col min-h-full">
-      <div className="flex-1 flex flex-col justify-center items-center pb-28">
-        <p className="text-sm text-muted-foreground text-center">
-          Dein Kopfschmerz-Verlauf wird für deine Ärztin freigegeben.
+      <div className="flex-1 flex flex-col justify-center items-center px-6">
+        <p className="text-sm text-foreground mb-4 text-center transition-opacity duration-500">
+          {PROGRESS_STEPS[stepIndex]}
         </p>
-      </div>
 
-      {/* Sticky action bar */}
-      <div className="sticky bottom-0 left-0 right-0 bg-background border-t border-border p-4 space-y-2 -mx-4 -mb-4 mt-auto">
-        {inlineError && (
-          <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{inlineError}</span>
-          </div>
-        )}
+        <div className="w-full max-w-xs">
+          <Progress
+            value={progress}
+            className="h-2 bg-muted/30"
+          />
+        </div>
 
-        <Button
-          onClick={handleCreateShare}
-          disabled={isGenerating}
-          size="lg"
-          className="w-full"
-        >
-          {isGenerating ? (
-            <>
-              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-              {generationStep || "Wird erstellt…"}
-            </>
-          ) : (
-            "Freigabe erstellen"
-          )}
-        </Button>
-
-        {!isGenerating && (
-          <div className="flex justify-center">
-            <Button
-              onClick={onCancel}
-              variant="ghost"
-              size="sm"
-              className="text-xs text-muted-foreground hover:text-foreground"
-            >
-              Abbrechen
-            </Button>
-          </div>
-        )}
+        <p className="text-xs text-muted-foreground/60 mt-6">
+          Das kann einen Moment dauern.
+        </p>
       </div>
     </div>
   );
