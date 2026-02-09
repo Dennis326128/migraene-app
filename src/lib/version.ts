@@ -1,7 +1,7 @@
 import { getPendingCount } from './performance/optimisticSave';
 
 export const BUILD_ID = import.meta.env.VITE_BUILD_ID || 'dev';
-export const APP_VERSION = '4.1.0'; // Increment on significant UI changes
+export const APP_VERSION = '4.2.0'; // Increment on significant UI changes
 
 let isReloading = false;
 let reloadTimeoutId: ReturnType<typeof setTimeout> | null = null;
