@@ -10,7 +10,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Copy, Check, Settings2, ExternalLink, FileDown } from "lucide-react";
+import { Copy, Check, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { 
   useDoctorShareStatus, 
@@ -30,6 +30,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import DoctorShareDialog from "./DoctorShareDialog";
+import AnalysisPromptDialog from "./AnalysisPromptDialog";
 
 interface DoctorShareScreenProps {
   onBack: () => void;
@@ -70,6 +71,8 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
   const [copied, setCopied] = useState(false);
   const [showSetupDialog, setShowSetupDialog] = useState(false);
   const [justCreatedCode, setJustCreatedCode] = useState<string | null>(null);
+  const [showAnalysisPrompt, setShowAnalysisPrompt] = useState(false);
+  const [analysisRequested, setAnalysisRequested] = useState(false);
 
   // Code kopieren
   const handleCopyCode = async () => {
@@ -110,7 +113,20 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
   const handleShareComplete = (shareCode: string) => {
     setShowSetupDialog(false);
     setJustCreatedCode(shareCode);
+    setShowAnalysisPrompt(true);
     refetch();
+  };
+
+  const handleAnalysisStart = () => {
+    setAnalysisRequested(true);
+    setShowAnalysisPrompt(false);
+    console.log("[DoctorShare] analysisRequested=true for share:", justCreatedCode);
+  };
+
+  const handleAnalysisSkip = () => {
+    setAnalysisRequested(false);
+    setShowAnalysisPrompt(false);
+    console.log("[DoctorShare] analysisRequested=false for share:", justCreatedCode);
   };
 
   const isShareActive = shareStatus?.is_share_active ?? false;
@@ -185,17 +201,25 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
             </div>
           )}
 
+          {/* Post-Success: Analysis Prompt */}
+          {showAnalysisPrompt && justCreatedCode && (
+            <AnalysisPromptDialog
+              onStart={handleAnalysisStart}
+              onSkip={handleAnalysisSkip}
+            />
+          )}
+
           {/* Zustand B: Freigabe AKTIV */}
-          {!isLoading && !error && (shareStatus?.is_share_active || justCreatedCode) && (
+          {!isLoading && !error && !showAnalysisPrompt && (shareStatus?.is_share_active || justCreatedCode) && (
             <div className="flex flex-col items-center space-y-8">
               {/* Success Message nach Erstellung */}
               {justCreatedCode && (
-                <div className="w-full bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900 rounded-lg p-4 text-center">
-                  <p className="text-sm text-green-800 dark:text-green-200 font-medium">
+                <div className="w-full bg-primary/5 border border-primary/20 rounded-lg p-4 text-center">
+                  <p className="text-sm text-foreground font-medium">
                     ✓ Freigabe erstellt & Bericht gespeichert
                   </p>
-                  <p className="text-xs text-green-600 dark:text-green-400 mt-1">
-                    Das PDF findest du unter "Gespeicherte Berichte"
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Das PDF findest du unter „Gespeicherte Berichte"
                   </p>
                 </div>
               )}
@@ -235,17 +259,6 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
                   Website für Ihren Arzt öffnen
                 </a>
               </div>
-
-              {/* Neue Freigabe erstellen */}
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => setShowSetupDialog(true)}
-                className="mt-4"
-              >
-                <Settings2 className="w-4 h-4 mr-2" />
-                Neue Freigabe mit anderen Einstellungen
-              </Button>
 
               {/* Freigabe beenden - dezent */}
               <div className="pt-4">
@@ -307,7 +320,6 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
                 size="sm"
                 onClick={() => setShowSetupDialog(true)}
               >
-                <Settings2 className="w-4 h-4 mr-2" />
                 Neue Freigabe einrichten
               </Button>
             </div>
