@@ -783,12 +783,27 @@ function cleanNotes(
     cleaned = cleaned.replace(new RegExp(escaped, 'gi'), '');
   }
   cleaned = cleaned.replace(/\b\d+\s*(?:von\s*10|\/10|auf\s*10|aus\s*10)\b/gi, '');
-  // Remove standalone numbers that were part of pain expressions (if preceded/followed by nothing meaningful)
   
-  // 5. Remove "now" indicators
+  // 5. Fuzzy slot-noise pass: remove STT-mangled pain keywords (e.g. "schmerzstrecke")
+  // Uses the same isPainKeyword fuzzy logic from the parser
+  const remainingTokens = cleaned.split(/\s+/).filter(Boolean);
+  const cleanedTokens = remainingTokens.filter(token => {
+    const stripped = token.replace(/[,.:;!?]/g, '');
+    if (stripped.length < 4) return true; // keep short words
+    // If the token looks like a pain keyword (fuzzy match), remove it
+    if (isPainKeyword(stripped)) return false;
+    return true;
+  });
+  cleaned = cleanedTokens.join(' ');
+  
+  // 6. Remove standalone pain numbers (orphaned after trigger removal)
+  // Only remove if the number is isolated (not part of a meaningful phrase)
+  cleaned = cleaned.replace(/^\d{1,2}$/, ''); // entire notes is just a number
+  
+  // 7. Remove "now" indicators
   cleaned = cleaned.replace(/\b(jetzt|gerade|sofort|eben|aktuell|momentan)\b/gi, '');
   
-  // 6. Clean up whitespace and punctuation
+  // 8. Clean up whitespace and punctuation
   cleaned = cleaned.replace(/\s+/g, ' ').trim();
   cleaned = cleaned.replace(/^[\s,.\-:;]+/, '').replace(/[\s,.\-:;]+$/, '');
   cleaned = cleaned.replace(/[,]{2,}/g, ',').replace(/[.]{2,}/g, '.');

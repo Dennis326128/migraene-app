@@ -278,6 +278,31 @@ describe('Simple Voice Parser v2', () => {
     });
   });
 
+  describe('Fuzzy slot-noise cleanup in notes', () => {
+    it('should remove "schmerzstrecke" (STT error for schmerzstärke) from notes', () => {
+      const result = parseVoiceEntry('schmerzstrecke 5 wegen stress', userMeds);
+      expect(result.note).not.toMatch(/schmerzstrecke/i);
+      expect(result.note).toContain('stress');
+    });
+
+    it('should remove "schmerzstarke" from notes', () => {
+      const result = parseVoiceEntry('schmerzstarke 7 Ibuprofen', userMeds);
+      expect(result.note).not.toMatch(/schmerzstarke/i);
+    });
+
+    it('should produce empty notes when only slot data present with STT errors', () => {
+      const result = parseVoiceEntry('vor 10 minuten schmerzstrecke 5 ibuprofen 800 mg', userMeds);
+      expect(result.note).toBe('');
+    });
+
+    it('should keep genuine context alongside STT-mangled pain keyword', () => {
+      const result = parseVoiceEntry('schmerzstrecke 5 übelkeit und lichtempfindlich', userMeds);
+      expect(result.note).toContain('übelkeit');
+      expect(result.note).toContain('lichtempfindlich');
+      expect(result.note).not.toMatch(/schmerzstrecke/i);
+    });
+  });
+
   describe('Edge Cases', () => {
     it('should handle empty input', () => {
       const result = parseVoiceEntry('', userMeds);
