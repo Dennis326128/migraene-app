@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/collapsible';
 import type { Reminder, CreateReminderInput, UpdateReminderInput, ReminderPrefill, TimeOfDay } from '@/types/reminder.types';
 import { format, parseISO } from 'date-fns';
-import { ArrowLeft, Clock, Plus, X, CalendarPlus, Info, Bell, ChevronDown, ListTodo, Pill, Calendar, Sunrise, Sun, Sunset, Moon, Pencil } from 'lucide-react';
+import { ArrowLeft, Clock, Plus, X, CalendarPlus, Info, Bell, ChevronDown, ListTodo, Pill, Calendar, Sunrise, Sun, Sunset, Moon } from 'lucide-react';
 import { MedicationSelector } from './MedicationSelector';
 import { cloneReminderForCreate, generateSeriesId } from '@/features/reminders/helpers/reminderHelpers';
 import { 
@@ -132,10 +132,6 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
     if (reminder?.time_of_day) {
       return [reminder.time_of_day];
     }
-    // Default: Morgens selected for new medication reminders
-    if (!reminder && (!prefill || prefill.type === 'medication')) {
-      return ['morning'];
-    }
     return [];
   });
 
@@ -187,12 +183,7 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
   // Weekdays for weekday repeat
   const [selectedWeekdays, setSelectedWeekdays] = useState<Weekday[]>([]);
 
-  // Optional title editing (hidden by default)
-  const [showTitleField, setShowTitleField] = useState(() => {
-    // Show title field if editing an existing reminder (user may have customized it)
-    if (reminder) return true;
-    return false;
-  });
+  // Title field removed from UI — auto-title only
 
   // Form setup
   const defaultValues: FormData = reminder
@@ -310,14 +301,14 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
   // Show time-of-day presets for daily/weekdays medication reminders
   const showTimeOfDayPresets = isMedicationType && (repeat === 'daily' || repeat === 'weekdays');
   
-  // Need at least one time of day selected for daily meds
-  const hasValidTimeSelection = !showTimeOfDayPresets || selectedTimeOfDay.length > 0;
+  // Time of day is now fully optional — no validation needed
+  const hasValidTimeSelection = true;
   
-  // Auto-title is always available as fallback — no title validation needed
+  // Auto-title is always generated internally
   const autoTitle = generateAutoTitle(type as any, selectedMedications, selectedTimeOfDay[0] || null);
   
   // Combined validation for submit button
-  const canSubmit = hasValidTimeSelection;
+  const canSubmit = true;
 
   // Toggle time of day selection
   const toggleTimeOfDay = (tod: TimeOfDay) => {
@@ -363,7 +354,7 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
       
       const submitData: UpdateReminderInput = {
         type: data.type,
-        title: data.title?.trim() || autoTitle,
+        title: autoTitle,
         date_time: dateTime,
         repeat: data.repeat,
         notes: data.notes || undefined,
@@ -384,17 +375,15 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
       return;
     }
 
-    // CREATE MODE with time-of-day presets (daily medication)
+    // CREATE MODE with time-of-day presets (daily medication) — only if user selected any
     if (showTimeOfDayPresets && selectedTimeOfDay.length > 0) {
-      const effectiveTitle = data.title?.trim() || autoTitle;
-      
       const reminders: CreateReminderInput[] = selectedTimeOfDay.map((tod) => {
         const time = customTimes[tod];
         const dateTime = `${data.date}T${time}:00`;
         
         return {
           type: data.type,
-          title: effectiveTitle,
+          title: autoTitle,
           date_time: dateTime,
           repeat: data.repeat,
           notes: data.notes || undefined,
@@ -408,16 +397,13 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
       return;
     }
 
-    // CREATE MODE with single time
-    const effectiveTime = singleTime || '09:00';
+    // CREATE MODE with single time (no time-of-day selected → default 09:00)
+    const effectiveTime = showTimeOfDayPresets ? '09:00' : (singleTime || '09:00');
     const dateTime = `${data.date}T${effectiveTime}:00`;
-    
-    // Use manual title if set, otherwise auto-generated
-    const effectiveTitle = data.title?.trim() || autoTitle;
     
     const submitData: CreateReminderInput = {
       type: data.type,
-      title: effectiveTitle,
+      title: autoTitle,
       date_time: dateTime,
       repeat: data.repeat,
       notes: data.notes || undefined,
@@ -588,82 +574,68 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
             )}
           </div>
 
-          {/* 4️⃣ TIME OF DAY PRESETS (for daily/weekdays medication) */}
+          {/* 4️⃣ TIME OF DAY PRESETS (for daily/weekdays medication) — optional */}
           {showTimeOfDayPresets && (
             <div className="space-y-3 p-4 bg-muted/30 rounded-lg">
-              <Label className="text-base font-medium">Zu welchen Tageszeiten?</Label>
+              <Label className="text-base font-medium">Tageszeit <span className="text-muted-foreground font-normal text-sm">(optional)</span></Label>
               <p className="text-sm text-muted-foreground -mt-1">
-                Wähle eine oder mehrere Zeiten
+                Ohne Auswahl wird 09:00 Uhr verwendet
               </p>
               
               <div className="grid grid-cols-2 gap-2">
                 {TIME_PRESETS.map((preset) => {
                   const isSelected = selectedTimeOfDay.includes(preset.id);
-                  const isEditing = editingTimeOfDay === preset.id;
+                  const isEditingTime = editingTimeOfDay === preset.id;
                   
                   return (
-                    <div
+                    <button
                       key={preset.id}
-                    className={`relative flex flex-col rounded-lg text-sm transition-all ${
+                      type="button"
+                      onClick={() => toggleTimeOfDay(preset.id)}
+                      className={`flex items-center gap-2 px-3 py-3 rounded-lg text-sm font-medium transition-all touch-manipulation ${
                         isSelected
                           ? 'bg-primary text-primary-foreground'
                           : 'bg-muted/50 text-foreground hover:bg-muted'
                       }`}
                     >
-                      {/* Main button for toggle */}
-                      <button
-                        type="button"
-                        onClick={() => toggleTimeOfDay(preset.id)}
-                        className="flex items-center gap-2 px-3 py-3 touch-manipulation"
-                      >
-                        {preset.icon}
-                        <span className="font-medium">{preset.label}</span>
-                      </button>
-                      
-                      {/* Time display/edit - tappable */}
+                      {preset.icon}
+                      <span>{preset.label}</span>
+                      {/* Inline time display — only when selected */}
                       {isSelected && (
-                        <div className="px-3 pb-3 pt-0">
-                          {isEditing ? (
+                        <span
+                          className="ml-auto flex items-center gap-1 text-xs opacity-80"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingTimeOfDay(preset.id);
+                          }}
+                        >
+                          <Clock className="h-3 w-3" />
+                          {isEditingTime ? (
                             <Input
                               type="time"
                               value={customTimes[preset.id]}
-                              onChange={(e) => updateCustomTime(preset.id, e.target.value)}
+                              onChange={(ev) => updateCustomTime(preset.id, ev.target.value)}
                               onBlur={() => setEditingTimeOfDay(null)}
+                              onClick={(ev) => ev.stopPropagation()}
                               autoFocus
-                              className="h-8 text-sm bg-primary-foreground text-primary touch-manipulation"
+                              className="h-6 w-20 text-xs bg-primary-foreground text-primary px-1 touch-manipulation"
                             />
                           ) : (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingTimeOfDay(preset.id);
-                              }}
-                              className="flex items-center gap-1.5 px-2 py-1 rounded bg-primary-foreground/20 hover:bg-primary-foreground/30 transition-colors touch-manipulation"
-                            >
-                              <Clock className="h-3 w-3" />
-                              <span className="text-sm font-medium">{customTimes[preset.id]}</span>
-                            </button>
+                            customTimes[preset.id]
                           )}
-                        </div>
+                        </span>
                       )}
-                    </div>
+                    </button>
                   );
                 })}
               </div>
 
-              {selectedTimeOfDay.length === 0 && (
-                <p className="text-xs text-destructive/80">
-                  Mindestens eine Tageszeit auswählen
-                </p>
-              )}
-
-              {/* Summary */}
+              {/* Summary — only when selections exist */}
               {selectedTimeOfDay.length > 0 && (
                 <p className="text-sm text-muted-foreground pt-2 border-t">
                   {selectedTimeOfDay.length === 1 
-                    ? `1 Erinnerung wird erstellt (${customTimes[selectedTimeOfDay[0]]})`
-                    : `${selectedTimeOfDay.length} Erinnerungen werden erstellt`
+                    ? `1 Erinnerung (${customTimes[selectedTimeOfDay[0]]})`
+                    : `${selectedTimeOfDay.length} Erinnerungen`
                   }
                 </p>
               )}
@@ -721,33 +693,7 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
             </div>
           )}
 
-          {/* AUTO-TITLE PREVIEW + OPTIONAL EDIT */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
-                Titel: <span className="text-foreground font-medium">{watch('title')?.trim() || autoTitle}</span>
-              </p>
-              {!showTitleField && (
-                <button
-                  type="button"
-                  onClick={() => setShowTitleField(true)}
-                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors touch-manipulation"
-                >
-                  <Pencil className="h-3 w-3" />
-                  Anpassen
-                </button>
-              )}
-            </div>
-            {showTitleField && (
-              <Input
-                id="title"
-                {...register('title')}
-                placeholder={autoTitle}
-                className="touch-manipulation"
-                autoFocus={!isEditing}
-              />
-            )}
-          </div>
+          {/* Title is auto-generated internally — no UI field */}
 
           {/* 6️⃣ FOLLOW-UP FOR APPOINTMENTS */}
           {isAppointmentType && (
