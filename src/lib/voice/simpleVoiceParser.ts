@@ -878,10 +878,19 @@ function cleanNotes(
   cleaned = cleaned.replace(/[,]{2,}/g, ',').replace(/[.]{2,}/g, '.');
   cleaned = cleaned.replace(/^\s*[,.\-:;]\s*/, '').replace(/\s*[,.\-:;]\s*$/, '');
   
-  // 9. Remove orphaned short connectors/fillers if they're the only thing left
-  cleaned = cleaned.replace(/^(und|oder|aber|dann|also|noch|nur|habe?|bin|ist|war|hat|mit|bei|ich|es|das|die|der|den|dem|ein|so|da|ja|nein|doch)\s*$/i, '');
-  // Also remove orphaned connectors at start/end
-  cleaned = cleaned.replace(/^\s*(und|oder|aber|dann|also)\s+/i, '').replace(/\s+(und|oder|aber|dann|also)\s*$/i, '');
+  // 9. Strip leading filler phrases (loop until stable)
+  const LEADING_FILLERS = /^(ich\s+hab(e)?|habe|hab|ich|es\s+ist|es\s+sind|das\s+ist|gerade|momentan|aktuell|jetzt|seit|also|und|aber|oder|dann|noch|nur|so|da|ja|nein|doch)\b[\s,.:;\-]*/i;
+  let prev = '';
+  while (cleaned !== prev) {
+    prev = cleaned;
+    cleaned = cleaned.replace(LEADING_FILLERS, '').trim();
+  }
+
+  // 10. Strip trailing orphaned connectors
+  cleaned = cleaned.replace(/\s+(und|oder|aber|dann|also)\s*$/i, '').trim();
+
+  // 11. If only short filler words remain, clear entirely
+  cleaned = cleaned.replace(/^(und|oder|aber|dann|also|noch|nur|bin|ist|war|hat|mit|bei|es|das|die|der|den|dem|ein|so|da|ja|nein|doch)\s*$/i, '');
   cleaned = cleaned.trim();
   
   return cleaned;

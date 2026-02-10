@@ -708,4 +708,45 @@ describe('Simple Voice Parser v2', () => {
       expect(result.medications.length).toBe(0);
     });
   });
+
+  // ============================================
+  // Leading filler phrase cleanup
+  // ============================================
+
+  describe('Leading filler cleanup', () => {
+    it('"ich habe sehr starke schmerzen" → note empty', () => {
+      const result = parseVoiceEntry('ich habe sehr starke schmerzen', userMeds);
+      expect(result.pain_intensity.value).toBeGreaterThanOrEqual(7);
+      expect(result.note).toBe('');
+    });
+
+    it('"ich habe sehr starke schmerzen und übelkeit" → note contains only Übelkeit', () => {
+      const result = parseVoiceEntry('ich habe sehr starke schmerzen und übelkeit', userMeds);
+      expect(result.pain_intensity.value).toBeGreaterThanOrEqual(7);
+      expect(result.note.toLowerCase()).toContain('übelkeit');
+      expect(result.note.toLowerCase()).not.toContain('ich habe');
+    });
+
+    it('"ich habe" alone → note empty', () => {
+      const result = parseVoiceEntry('ich habe', userMeds);
+      expect(result.note).toBe('');
+    });
+
+    it('"ich hab sehr starke schmerzen" → note empty', () => {
+      const result = parseVoiceEntry('ich hab sehr starke schmerzen', userMeds);
+      expect(result.pain_intensity.value).toBeGreaterThanOrEqual(7);
+      expect(result.note).toBe('');
+    });
+
+    it('"es ist gerade sehr schlimm kopfschmerzen" → note empty', () => {
+      const result = parseVoiceEntry('es ist gerade sehr schlimm kopfschmerzen', userMeds);
+      expect(result.note).toBe('');
+    });
+
+    it('"ich habe wegen stress kopfschmerzen" → note contains "wegen stress"', () => {
+      const result = parseVoiceEntry('ich habe wegen stress kopfschmerzen', userMeds);
+      expect(result.note.toLowerCase()).toContain('stress');
+      expect(result.note.toLowerCase()).not.toContain('ich habe');
+    });
+  });
 });
