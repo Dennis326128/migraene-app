@@ -15,7 +15,7 @@ import { formatNextOccurrence } from '@/features/reminders/helpers/groupReminder
 interface ReminderCardProps {
   /** Grouped reminder data (series-based display) */
   grouped: GroupedReminder;
-  onEdit: (reminder: Reminder) => void;
+  onEdit: (reminder: Reminder, allReminders: Reminder[]) => void;
   onMarkDone: (id: string) => void;
   onPlanFollowUp?: (prefill: ReminderPrefill) => void;
 }
@@ -182,7 +182,7 @@ export const ReminderCard = ({ grouped, onEdit, onMarkDone, onPlanFollowUp }: Re
           <Button
             size="sm"
             variant="ghost"
-            onClick={() => onEdit(reminder)}
+            onClick={() => onEdit(reminder, grouped.allReminders)}
             className="touch-manipulation"
           >
             <Edit2 className="h-4 w-4" />
