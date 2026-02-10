@@ -173,6 +173,10 @@ export function SimpleVoiceOverlay({
   // ============================================
   
   const finishRecording = useCallback(() => {
+    // State wird bereits vom Caller gesetzt (handleFertig),
+    // aber als Sicherheit auch hier nochmal erzwingen
+    setState('processing');
+    
     clearAllTimers();
     intentionalStopRef.current = true;
     
@@ -187,7 +191,25 @@ export function SimpleVoiceOverlay({
     
     const currentText = committedTextRef.current.trim();
     
-    setState('processing');
+    // Fallback-Timer: Falls Parsing hängt, nach 1500ms trotzdem Review öffnen
+    const fallbackTimer = setTimeout(() => {
+      if (stateRef.current === 'processing') {
+        console.warn('[SimpleVoice] Fallback triggered – forcing review');
+        setEmptyTranscript(true);
+        setPainDefaultUsed(true);
+        setReviewState({
+          painLevel: 7,
+          selectedMedications: new Map(),
+          notesText: '',
+          occurredAt: {
+            date: new Date().toISOString().slice(0, 10),
+            time: new Date().toTimeString().slice(0, 5),
+          },
+        });
+        setVoiceMode('new');
+        setState('review');
+      }
+    }, 1500);
     
     setTimeout(() => {
       if (voiceMode === 'append' && baseTranscriptRef.current) {
@@ -227,6 +249,7 @@ export function SimpleVoiceOverlay({
       
       setVoiceMode('new');
       setState('review');
+      clearTimeout(fallbackTimer);
     }, 400);
   }, [clearAllTimers, userMeds, buildReviewState, voiceMode, reviewState, userEdited]);
   
@@ -449,6 +472,10 @@ export function SimpleVoiceOverlay({
   // ============================================
   
   const handleFertig = useCallback(() => {
+    // SOFORT sichtbares Feedback – vor allem anderen
+    setState('processing');
+    
+    // Dann Recording stoppen & parsen
     finishRecording();
   }, [finishRecording]);
   
