@@ -162,7 +162,7 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
   const [singleTime, setSingleTime] = useState<string>(() => {
     if (reminder) return extractTimeFromDateTime(reminder.date_time);
     if (prefill && (prefill as any).prefill_time) return (prefill as any).prefill_time;
-    return format(new Date(), 'HH:mm');
+    return '09:00';
   });
 
   // Time picker state for inline editing
@@ -665,7 +665,9 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
             <>
               {/* Date */}
               <div className="space-y-2">
-                <Label htmlFor="date">Datum</Label>
+                <Label htmlFor="date">
+                  {repeat !== 'none' ? 'Startdatum' : 'Datum'}
+                </Label>
                 <Input
                   id="date"
                   type="date"
