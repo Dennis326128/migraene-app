@@ -262,24 +262,41 @@ function parsePainIntensity(text: string): ParsedPainIntensity {
     const isTrigger = isPainKeyword(token) || (multiToken && isPainKeyword(multiToken));
 
     if (isTrigger) {
-      // Look for number in nearby tokens (window of ±4)
+      // Look for number AFTER the trigger first (most natural: "schmerzstärke 5")
+      // Then check before. This prevents "vor 10 minuten schmerzstärke 5" matching 10.
+      let bestMatch: { value: number; distance: number } | null = null;
+      
       for (let j = Math.max(0, i - 2); j < Math.min(tokens.length, i + 5); j++) {
         if (j === i) continue;
         
-        // Strip punctuation before matching number
+        // Skip tokens that are part of time/dose expressions
+        if (j > 0 && /^(minute|minuten|min|stunde|stunden|std|mg|milligramm)$/i.test(tokens[Math.min(j + 1, tokens.length - 1)])) continue;
+        if (/^(minute|minuten|min|stunde|stunden|std|mg|milligramm)$/i.test(tokens[j])) continue;
+        // Skip if preceded by "vor"/"seit" (time expression)
+        if (j > 0 && /^(vor|seit)$/i.test(tokens[j - 1])) continue;
+        
         const cleanToken = tokens[j].replace(/[,.:;!?]/g, '');
         const numMatch = cleanToken.match(/^(\d{1,2})$/);
         if (numMatch) {
           const level = parseInt(numMatch[1], 10);
           if (level >= 0 && level <= 10) {
-            return {
-              value: level,
-              confidence: 0.85,
-              evidence: `${token} ... ${cleanToken}`,
-              needsReview: false,
-            };
+            const distance = Math.abs(j - i);
+            // Prefer tokens AFTER the trigger (positive distance) and closer
+            const adjustedDist = j > i ? distance : distance + 10; // penalize tokens before trigger
+            if (!bestMatch || adjustedDist < bestMatch.distance) {
+              bestMatch = { value: level, distance: adjustedDist };
+            }
           }
         }
+      }
+      
+      if (bestMatch) {
+        return {
+          value: bestMatch.value,
+          confidence: 0.85,
+          evidence: `${token} ... ${bestMatch.value}`,
+          needsReview: false,
+        };
       }
     }
   }
@@ -757,14 +774,21 @@ function cleanNotes(
   }
   cleaned = cleaned.replace(/\b(jetzt|gerade|sofort|eben|aktuell)\b/gi, '');
   
-  // 4. Remove pain level expressions
+  // 4. Remove pain level expressions (trigger words + associated number)
   for (const trigger of PAIN_INTENSITY_TRIGGERS) {
     const escaped = trigger.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // Remove trigger word + optional following number
+    cleaned = cleaned.replace(new RegExp(escaped + '\\s*\\d{0,2}', 'gi'), '');
+    // Remove standalone trigger word
     cleaned = cleaned.replace(new RegExp(escaped, 'gi'), '');
   }
-  cleaned = cleaned.replace(/\b\d+\s*(?:von\s*10|\/10|auf\s*10|aus\s*10)/gi, '');
+  cleaned = cleaned.replace(/\b\d+\s*(?:von\s*10|\/10|auf\s*10|aus\s*10)\b/gi, '');
+  // Remove standalone numbers that were part of pain expressions (if preceded/followed by nothing meaningful)
   
-  // 5. Clean up whitespace and punctuation
+  // 5. Remove "now" indicators
+  cleaned = cleaned.replace(/\b(jetzt|gerade|sofort|eben|aktuell|momentan)\b/gi, '');
+  
+  // 6. Clean up whitespace and punctuation
   cleaned = cleaned.replace(/\s+/g, ' ').trim();
   cleaned = cleaned.replace(/^[\s,.\-:;]+/, '').replace(/[\s,.\-:;]+$/, '');
   cleaned = cleaned.replace(/[,]{2,}/g, ',').replace(/[.]{2,}/g, '.');
