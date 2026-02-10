@@ -170,16 +170,17 @@ const PAIN_KEYWORD_TARGETS = [
 
 /**
  * Check if a token is a pain keyword using fuzzy matching
- * Returns true if token contains "schmerz" OR is within Damerau-Levenshtein ≤2 of known targets
+ * Returns true if token contains "schmerz" substring OR matches a known target via Damerau-Levenshtein ≤2
+ * IMPORTANT: Does NOT match broad substrings like "schnell" alone – only full fuzzy targets.
  */
 function isPainKeyword(token: string): boolean {
   const norm = normalizePainToken(token);
   if (norm.length < 4) return false;
   
-  // Substring check: contains "schmerz" or "schmerz" variants
-  if (norm.includes('schmerz') || norm.includes('schnell')) return true;
+  // Substring check: only "schmerz" (very specific, no false positives)
+  if (norm.includes('schmerz')) return true;
   
-  // Exact match against triggers (normalized)
+  // Exact match against normalized triggers
   for (const trigger of PAIN_INTENSITY_TRIGGERS) {
     const normTrigger = normalizePainToken(trigger.replace(/\s+/g, ''));
     if (norm === normTrigger) return true;
@@ -251,26 +252,30 @@ function parsePainIntensity(text: string): ParsedPainIntensity {
   }
 
   // 2. Check for trigger word + number within 4 tokens (using fuzzy isPainKeyword)
+  // Number words have already been replaced with digits in `normalized`
   const tokens = sanitized.split(/\s+/);
   for (let i = 0; i < tokens.length; i++) {
     const token = tokens[i];
     
-    // Check if this token matches a pain trigger using fuzzy matching
-    const isTrigger = isPainKeyword(token);
+    // Also check multi-token triggers (e.g., "schmerz stärke" → join adjacent)
+    const multiToken = i < tokens.length - 1 ? token + tokens[i + 1] : '';
+    const isTrigger = isPainKeyword(token) || (multiToken && isPainKeyword(multiToken));
 
     if (isTrigger) {
-      // Look for number in nearby tokens (window of 4)
+      // Look for number in nearby tokens (window of ±4)
       for (let j = Math.max(0, i - 2); j < Math.min(tokens.length, i + 5); j++) {
         if (j === i) continue;
         
-        const numMatch = tokens[j].match(/^(\d{1,2})$/);
+        // Strip punctuation before matching number
+        const cleanToken = tokens[j].replace(/[,.:;!?]/g, '');
+        const numMatch = cleanToken.match(/^(\d{1,2})$/);
         if (numMatch) {
           const level = parseInt(numMatch[1], 10);
           if (level >= 0 && level <= 10) {
             return {
               value: level,
               confidence: 0.85,
-              evidence: `${token} ... ${tokens[j]}`,
+              evidence: `${token} ... ${cleanToken}`,
               needsReview: false,
             };
           }
@@ -294,16 +299,20 @@ function parsePainIntensity(text: string): ParsedPainIntensity {
     }
   }
 
-  // 4. Check for intensity words
-  for (const { regex, value } of INTENSITY_WORD_MAP) {
-    const match = sanitized.match(regex);
-    if (match) {
-      return {
-        value,
-        confidence: 0.60,
-        evidence: match[0],
-        needsReview: true,
-      };
+  // 4. Check for intensity words — ONLY if pain context is present
+  // (prevents "wenig geschlafen" from being interpreted as pain level 3)
+  const hasPainContext = /\b(schmerz|migräne|migraene|kopfschmerz|kopfweh|attacke|anfall|weh)\b/i.test(text);
+  if (hasPainContext) {
+    for (const { regex, value } of INTENSITY_WORD_MAP) {
+      const match = sanitized.match(regex);
+      if (match) {
+        return {
+          value,
+          confidence: 0.60,
+          evidence: match[0],
+          needsReview: true,
+        };
+      }
     }
   }
 
@@ -395,7 +404,7 @@ const DAY_PATTERNS: Array<{ regex: RegExp; daysAgo: number; defaultHour?: number
 // Clock time patterns
 const CLOCK_PATTERNS: Array<{ 
   regex: RegExp; 
-  parse: (m: RegExpMatchArray) => { hours: number; minutes: number } 
+  parse: (m: RegExpMatchArray, text: string) => { hours: number; minutes: number } 
 }> = [
   {
     regex: /\b(?:um|gegen)\s*(\d{1,2})[:.](\d{2})\s*(?:uhr)?\b/i,
@@ -406,8 +415,16 @@ const CLOCK_PATTERNS: Array<{
     parse: m => ({ hours: parseInt(m[1], 10), minutes: m[2] ? parseInt(m[2], 10) : 0 })
   },
   {
+    // "halb drei" = 2:30, but check for "nachmittags/abends" modifier → +12
     regex: /\bhalb\s+(\d{1,2})\b/i,
-    parse: m => ({ hours: (parseInt(m[1], 10) - 1 + 24) % 24, minutes: 30 })
+    parse: (m, text) => {
+      const baseHour = (parseInt(m[1], 10) - 1 + 24) % 24;
+      const lower = text.toLowerCase();
+      // Check for PM-context after the match
+      const isPM = /nachmittag|abend|pm/i.test(lower);
+      const hours = (isPM && baseHour < 12) ? baseHour + 12 : baseHour;
+      return { hours, minutes: 30 };
+    }
   },
   {
     regex: /\bviertel\s+nach\s+(\d{1,2})\b/i,
@@ -493,7 +510,7 @@ function parseTime(text: string): ParsedTime {
   for (const pattern of CLOCK_PATTERNS) {
     const match = normalized.match(pattern.regex);
     if (match) {
-      const { hours, minutes } = pattern.parse(match);
+      const { hours, minutes } = pattern.parse(match, normalized);
       const clampedHours = Math.max(0, Math.min(23, hours));
       const clampedMinutes = Math.max(0, Math.min(59, minutes));
       const timeStr = `${String(clampedHours).padStart(2, '0')}:${String(clampedMinutes).padStart(2, '0')}`;
@@ -561,19 +578,24 @@ const DOSE_PATTERNS: Array<{ regex: RegExp; quarters: number; text: string }> = 
 
 /**
  * Parse medications from text with fuzzy matching
+ * Returns medications + token spans for span-based note cleanup
  */
 function parseMedications(
   text: string,
   userMeds: UserMedication[]
-): ParsedMedication[] {
+): { medications: ParsedMedication[]; tokenSpans: Array<{ startIndex: number; endIndex: number }> } {
   const lexicon = buildUserMedicationLexicon(userMeds);
   const hits = findMedicationMentions(text, lexicon);
   
   const medications: ParsedMedication[] = [];
+  const tokenSpans: Array<{ startIndex: number; endIndex: number }> = [];
   const tokens = text.toLowerCase().split(/\s+/);
   
   for (const hit of hits) {
     if (!hit.match) continue;
+    
+    // Record the token span for cleanup
+    tokenSpans.push({ startIndex: hit.startIndex, endIndex: hit.endIndex });
     
     // Find dose in surrounding context
     const windowStart = Math.max(0, hit.startIndex - 4);
@@ -602,7 +624,7 @@ function parseMedications(
     });
   }
   
-  return medications;
+  return { medications, tokenSpans };
 }
 
 // ============================================
@@ -650,37 +672,32 @@ function classifyEntryType(
   const hasPainLevel = painIntensity.value !== null;
   const hasExplicitTime = !time.isNow && time.kind !== 'none';
   
-  // Scoring
-  let newEntryScore = 0;
-  let contextScore = 0;
-  
-  // Strong indicators for new entry
-  if (hasMedications) newEntryScore += 0.35;
-  if (hasPainLevel) newEntryScore += 0.30;
-  if (hasExplicitTime && (hasMedications || hasPainLevel)) newEntryScore += 0.15;
-  if (hasNewEntryTrigger) newEntryScore += 0.20;
-  
-  // Strong indicators for context entry
-  if (hasContextTrigger && !hasMedications && !hasPainLevel) contextScore += 0.40;
-  if (!hasMedications && !hasPainLevel && !hasNewEntryTrigger) contextScore += 0.30;
-  
-  // Decision
-  const totalScore = newEntryScore + contextScore;
-  const normalizedNewEntry = totalScore > 0 ? newEntryScore / totalScore : 0.5;
-  
-  if (newEntryScore > contextScore && (hasMedications || hasPainLevel || hasNewEntryTrigger)) {
+  // RULE: If pain OR meds are detected, it's always a new_entry 
+  // (even if context triggers are also present)
+  if (hasMedications || hasPainLevel) {
+    const confidence = (hasMedications ? 0.35 : 0) + (hasPainLevel ? 0.30 : 0) + 
+                       (hasExplicitTime ? 0.15 : 0) + (hasNewEntryTrigger ? 0.20 : 0);
     return {
       type: 'new_entry',
-      confidence: Math.min(0.95, normalizedNewEntry),
-      canToggle: normalizedNewEntry < 0.75
+      confidence: Math.min(0.95, confidence / 1.0),
+      canToggle: hasContextTrigger // Allow toggle if context words also present
+    };
+  }
+  
+  // No pain, no meds: check for new entry triggers
+  if (hasNewEntryTrigger && !hasContextTrigger) {
+    return {
+      type: 'new_entry',
+      confidence: 0.55,
+      canToggle: true
     };
   }
   
   // Default to context entry (fail-open)
   return {
     type: 'context_entry',
-    confidence: Math.min(0.95, 1 - normalizedNewEntry),
-    canToggle: normalizedNewEntry > 0.35
+    confidence: hasContextTrigger ? 0.85 : 0.60,
+    canToggle: hasNewEntryTrigger
   };
 }
 
@@ -692,11 +709,43 @@ function cleanNotes(
   text: string,
   time: ParsedTime,
   painIntensity: ParsedPainIntensity,
-  medications: ParsedMedication[]
+  medications: ParsedMedication[],
+  medTokenSpans: Array<{ startIndex: number; endIndex: number }> = []
 ): string {
-  let cleaned = text;
+  const tokens = text.split(/\s+/);
   
-  // Remove time expressions
+  // Build a set of token indices to remove (span-based)
+  const removeIndices = new Set<number>();
+  
+  // 1. Mark medication token spans from fuzzy match
+  for (const span of medTokenSpans) {
+    for (let i = span.startIndex; i <= span.endIndex; i++) {
+      removeIndices.add(i);
+    }
+  }
+  
+  // 2. Mark dose/quantity/verb tokens near each medication span (±3 tokens)
+  const doseWords = /^(eine[nrm]?|halbe?|ganze?|viertel|dreiviertel|anderthalb|eineinhalb|tablette[n]?|kapsel[n]?|sprühstoß|sprühstöße|\d+)$/i;
+  const intakeVerbs = /^(genommen|eingenommen|eingeworfen|geschluckt|nehme|nehmen|mg|milligramm)$/i;
+  
+  for (const span of medTokenSpans) {
+    const windowStart = Math.max(0, span.startIndex - 3);
+    const windowEnd = Math.min(tokens.length - 1, span.endIndex + 3);
+    for (let i = windowStart; i <= windowEnd; i++) {
+      if (removeIndices.has(i)) continue;
+      const t = tokens[i].replace(/[,.:;!?]/g, '');
+      if (doseWords.test(t) || intakeVerbs.test(t)) {
+        removeIndices.add(i);
+      }
+    }
+  }
+  
+  // 3. Remove time expressions from remaining text
+  let cleaned = tokens
+    .filter((_, idx) => !removeIndices.has(idx))
+    .join(' ');
+  
+  // Remove time patterns
   for (const pattern of RELATIVE_TIME_PATTERNS) {
     cleaned = cleaned.replace(pattern.regex, '');
   }
@@ -708,53 +757,16 @@ function cleanNotes(
   }
   cleaned = cleaned.replace(/\b(jetzt|gerade|sofort|eben|aktuell)\b/gi, '');
   
-  // Remove pain level expressions (including fuzzy STT variants)
+  // 4. Remove pain level expressions
   for (const trigger of PAIN_INTENSITY_TRIGGERS) {
     const escaped = trigger.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     cleaned = cleaned.replace(new RegExp(escaped, 'gi'), '');
   }
-  // Remove standalone pain numbers near triggers
   cleaned = cleaned.replace(/\b\d+\s*(?:von\s*10|\/10|auf\s*10|aus\s*10)/gi, '');
   
-  // Remove medication names (and their raw matched forms)
-  for (const med of medications) {
-    // Remove canonical name
-    cleaned = cleaned.replace(new RegExp(`\\b${med.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi'), '');
-    // Remove base name (without strength) for partial matches
-    const baseName = med.name.replace(/\s*\d+\s*(mg|ml|mcg|µg).*$/i, '').trim();
-    if (baseName && baseName !== med.name) {
-      cleaned = cleaned.replace(new RegExp(`\\b${baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi'), '');
-    }
-  }
-  
-  // Remove dose expressions
-  for (const pattern of DOSE_PATTERNS) {
-    cleaned = cleaned.replace(pattern.regex, '');
-  }
-  
-  // Remove medication-related filler words (quantity, intake verbs, units)
-  cleaned = cleaned.replace(/\b(genommen|eingenommen|eingeworfen|geschluckt|tablette|tabletten|kapsel|kapseln|mg|milligramm|sprühstoß|sprühstöße)\b/gi, '');
-  
-  // Remove isolated "eine/einen/einer" that was likely a quantity word for medication
-  // Only remove if medications were detected (otherwise "eine" might be meaningful)
-  if (medications.length > 0) {
-    // Remove "eine/einen/einer/einem" at word boundaries when isolated
-    cleaned = cleaned.replace(/\b(eine[nrm]?)\b/gi, (match, _word, offset, str) => {
-      // Keep "eine" if it's part of a longer meaningful phrase (not near a medication)
-      // Simple heuristic: if "eine" is followed by a common word, keep it
-      const after = str.slice(offset + match.length).trim().split(/\s+/)[0] || '';
-      const meaningfulFollowers = ['art', 'weile', 'zeit', 'pause', 'stunde'];
-      if (meaningfulFollowers.some(w => after.toLowerCase().startsWith(w))) {
-        return match; // Keep it
-      }
-      return '';
-    });
-  }
-  
-  // Clean up whitespace and punctuation
+  // 5. Clean up whitespace and punctuation
   cleaned = cleaned.replace(/\s+/g, ' ').trim();
   cleaned = cleaned.replace(/^[\s,.\-:;]+/, '').replace(/[\s,.\-:;]+$/, '');
-  // Remove double commas/periods from removals
   cleaned = cleaned.replace(/[,]{2,}/g, ',').replace(/[.]{2,}/g, '.');
   cleaned = cleaned.replace(/^\s*[,.\-:;]\s*/, '').replace(/\s*[,.\-:;]\s*$/, '');
   
@@ -805,14 +817,14 @@ export function parseVoiceEntry(
   // Parse components
   const time = parseTime(normalized);
   const painIntensity = parsePainIntensity(normalized);
-  const medications = parseMedications(normalized, userMeds);
+  const { medications, tokenSpans: medTokenSpans } = parseMedications(normalized, userMeds);
   
   // Classify entry type
   const classification = classifyEntryType(normalized, painIntensity, medications, time);
   
-  // Clean notes (remove extracted parts for new_entry)
+  // Clean notes (remove extracted parts for new_entry, using span-based cleanup)
   const note = classification.type === 'new_entry'
-    ? cleanNotes(normalized, time, painIntensity, medications)
+    ? cleanNotes(normalized, time, painIntensity, medications, medTokenSpans)
     : normalized;
   
   // Calculate if needs review

@@ -101,7 +101,7 @@ export function EntryReviewSheet({
       {emptyTranscript && (
         <div className="bg-muted/50 rounded-xl p-4 text-center">
           <p className="text-sm text-muted-foreground">
-            Ich habe leider nichts verstanden. Du kannst trotzdem speichern oder nochmal sprechen.
+            Nichts verstanden – bitte korrigieren oder nochmal sprechen.
           </p>
         </div>
       )}
@@ -126,7 +126,7 @@ export function EntryReviewSheet({
           onValueChange={handlePainChange}
           disabled={saving}
         />
-        {painDefaultUsed && (
+        {painDefaultUsed && !emptyTranscript && (
           <p className="text-xs text-muted-foreground/60 mt-2 text-center">
             Schmerzstärke nicht erkannt – auf 7 gesetzt
           </p>
