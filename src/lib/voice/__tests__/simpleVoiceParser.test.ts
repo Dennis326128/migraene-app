@@ -226,6 +226,83 @@ describe('Simple Voice Parser v2', () => {
       const result = parseVoiceEntry('habe gut geschlafen', userMeds);
       expect(result.pain_intensity.value).toBeNull();
     });
+
+    it('should recognize "heftige Kopfschmerzen" as ~7', () => {
+      const result = parseVoiceEntry('heftige Kopfschmerzen', userMeds);
+      expect(result.pain_intensity.value).toBe(7);
+    });
+
+    it('should recognize "habe gerade sehr starke Kopfschmerzen" as ~9', () => {
+      const result = parseVoiceEntry('habe gerade sehr starke Kopfschmerzen', userMeds);
+      expect(result.pain_intensity.value).toBe(9);
+      expect(result.pain_intensity.needsReview).toBe(true);
+      expect(result.pain_intensity.painFromDescriptor).toBe(true);
+    });
+
+    it('should recognize "unerträgliche Migräne" as ~9', () => {
+      const result = parseVoiceEntry('unerträgliche Migräne', userMeds);
+      expect(result.pain_intensity.value).toBe(9);
+    });
+
+    it('should recognize "mittelstarke Kopfschmerzen" as ~5', () => {
+      const result = parseVoiceEntry('mittelstarke Kopfschmerzen', userMeds);
+      expect(result.pain_intensity.value).toBe(5);
+    });
+
+    it('should recognize "leichte Schmerzen" as ~3', () => {
+      const result = parseVoiceEntry('leichte Schmerzen', userMeds);
+      expect(result.pain_intensity.value).toBe(3);
+    });
+
+    it('should recognize "kaum spürbare Kopfschmerzen" as ~1', () => {
+      const result = parseVoiceEntry('kaum spürbare Kopfschmerzen', userMeds);
+      expect(result.pain_intensity.value).toBe(1);
+    });
+
+    it('should NOT interpret "sehr stark gestresst" as pain (no pain context)', () => {
+      const result = parseVoiceEntry('sehr stark gestresst', userMeds);
+      expect(result.pain_intensity.value).toBeNull();
+    });
+
+    it('should NOT interpret "leicht übel" as pain (no pain context)', () => {
+      const result = parseVoiceEntry('leicht übel', userMeds);
+      expect(result.pain_intensity.value).toBeNull();
+    });
+
+    it('should recognize "schlimme Migräne" as ~7', () => {
+      const result = parseVoiceEntry('schlimme Migräne', userMeds);
+      expect(result.pain_intensity.value).toBe(7);
+    });
+
+    it('should recognize "massive Kopfschmerzen" as ~7', () => {
+      const result = parseVoiceEntry('massive Kopfschmerzen', userMeds);
+      expect(result.pain_intensity.value).toBe(7);
+    });
+
+    it('should recognize "brutale Kopfschmerzen" as ~9', () => {
+      const result = parseVoiceEntry('brutale Kopfschmerzen', userMeds);
+      expect(result.pain_intensity.value).toBe(9);
+    });
+
+    it('should recognize "höllische Migräne" as ~9', () => {
+      const result = parseVoiceEntry('höllische Migräne', userMeds);
+      expect(result.pain_intensity.value).toBe(9);
+    });
+
+    it('should recognize "keine Kopfschmerzen" as 0', () => {
+      const result = parseVoiceEntry('keine Kopfschmerzen', userMeds);
+      expect(result.pain_intensity.value).toBe(0);
+    });
+
+    it('should recognize "so mittel Kopfweh" as ~5', () => {
+      const result = parseVoiceEntry('so mittel Kopfweh', userMeds);
+      expect(result.pain_intensity.value).toBe(5);
+    });
+
+    it('should recognize "ein bisschen Kopfschmerzen" as ~3', () => {
+      const result = parseVoiceEntry('ein bisschen Kopfschmerzen', userMeds);
+      expect(result.pain_intensity.value).toBe(3);
+    });
   });
 
   // ================================================

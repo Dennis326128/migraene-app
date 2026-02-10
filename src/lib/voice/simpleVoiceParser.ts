@@ -42,6 +42,7 @@ export interface ParsedPainIntensity {
   confidence: number;       // 0-1
   evidence: string;         // Matched phrase for debugging
   needsReview: boolean;
+  painFromDescriptor?: boolean; // True if estimated from descriptive words
 }
 
 export interface ParsedMedication {
@@ -66,6 +67,7 @@ export interface VoiceParseResult {
   
   // UI helpers
   needsReview: boolean;
+  medsNeedReview: boolean;      // Any medication match is uncertain
   typeCanBeToggled: boolean;    // Show toggle chip?
 }
 
@@ -207,14 +209,14 @@ const PAIN_PREPOSITION_PATTERNS = [
   /\b(?:bei|auf)\s+(\d{1,2})\b/i,
 ];
 
-// Intensity word mappings
+// Intensity word mappings (ordered: most specific first to avoid partial matches)
 const INTENSITY_WORD_MAP: Array<{ regex: RegExp; value: number }> = [
-  { regex: /\b(sehr\s*starke?r?|unerträglich\w*|extreme?r?|heftige?r?|maximale?r?|höllische?r?|brutale?r?|kaum\s*auszuhalten)\b/i, value: 9 },
-  { regex: /\b(starke?r?|schwere?r?|massive?r?|richtig\s*schlimm\w*|echt\s*schlimm\w*)\b/i, value: 7 },
-  { regex: /\b(mittel\w*|mäßige?r?|maessige?r?|mässige?r?|normale?r?|moderate?r?)\b/i, value: 5 },
-  { regex: /\b(leichte?r?|schwache?r?|geringe?r?|wenig|dezente?r?|bisschen)\b/i, value: 3 },
-  { regex: /\b(sehr\s*leichte?r?|minimale?r?|kaum\s*spürbar\w*)\b/i, value: 1 },
-  { regex: /\b(keine?r?|null)\s*(schmerz|kopfschmerz|migräne|attacke)/i, value: 0 },
+  { regex: /\b(keine?r?|null)\s*(schmerz\w*|kopfschmerz\w*|migräne\w*|migraene\w*|attacke\w*|weh)\b/i, value: 0 },
+  { regex: /\b(sehr\s*leichte?r?|minimale?r?|kaum\s*spürbar\w*|kaum\s*merklich\w*)\b/i, value: 1 },
+  { regex: /\b(leichte?r?|schwache?r?|geringe?r?|dezente?r?|ein\s*bisschen)\b/i, value: 3 },
+  { regex: /\b(mittel\w*|mäßige?r?|maessige?r?|mässige?r?|moderate?r?|so\s*mittel|geht\s*so)\b/i, value: 5 },
+  { regex: /\b(sehr\s*starke?r?|unerträglich\w*|extreme?r?|maximale?r?|höllische?r?|brutale?r?|kaum\s*auszuhalten)\b/i, value: 9 },
+  { regex: /\b(starke?r?|schwere?r?|heftige?r?|massive?r?|schlimme?r?|richtig\s*schlimm\w*|echt\s*schlimm\w*)\b/i, value: 7 },
 ];
 
 /**
@@ -291,6 +293,8 @@ function parsePainIntensity(text: string): ParsedPainIntensity {
         if (isTimeUnitToken(nextToken) || isDoseUnitToken(nextToken)) continue;
         if (isTimeUnitToken(tokens[j]) || isDoseUnitToken(tokens[j])) continue;
         if (/^(vor|seit)$/i.test(prevToken)) continue;
+        // Skip numbers that came from "ein/eine" followed by intensity qualifiers
+        if (/^(bisschen|wenig|paar)$/i.test(nextToken)) continue;
         
         const cleanToken = tokens[j].replace(/[,.:;!?]/g, '');
         const numMatch = cleanToken.match(/^(\d{1,2})$/);
@@ -354,15 +358,23 @@ function parsePainIntensity(text: string): ParsedPainIntensity {
   }
 
   // 5. Check for intensity words — ONLY if pain context is present
+  // Match against original lowercase text (not sanitized) to preserve "ein bisschen" etc.
+  const lowerText = text.toLowerCase();
   if (hasPainContext) {
+    // Check "wenig" separately: only as pain if directly adjacent to pain word, NOT in "wenig geschlafen" etc.
+    const wenigAsPain = /\bwenig\s+(schmerz\w*|kopfschmerz\w*|kopfweh|migräne\w*|migraene\w*|weh)\b/i.test(text);
+    
     for (const { regex, value } of INTENSITY_WORD_MAP) {
-      const match = sanitized.match(regex);
+      const match = lowerText.match(regex);
       if (match) {
+        // Guard: "wenig" alone should not match without direct pain context
+        if (/wenig/i.test(match[0]) && !wenigAsPain) continue;
         return {
           value,
-          confidence: 0.60,
+          confidence: value === 0 ? 0.70 : 0.60,
           evidence: match[0],
           needsReview: true,
+          painFromDescriptor: true,
         };
       }
     }
@@ -377,7 +389,7 @@ function parsePainIntensity(text: string): ParsedPainIntensity {
       const matchIdx = standaloneMatch.index || 0;
       const afterText = sanitized.substring(matchIdx + standaloneMatch[0].length).trim();
       const firstWordAfter = afterText.split(/\s+/)[0] || '';
-      if (level >= 0 && level <= 10 && !isTimeUnitToken(firstWordAfter) && !isDoseUnitToken(firstWordAfter)) {
+      if (level >= 0 && level <= 10 && !isTimeUnitToken(firstWordAfter) && !isDoseUnitToken(firstWordAfter) && !/^(bisschen|wenig|paar)$/i.test(firstWordAfter)) {
         return {
           value: level,
           confidence: 0.55,
@@ -901,6 +913,7 @@ export function parseVoiceEntry(
       medications: [],
       note: transcript || '',
       needsReview: false,
+      medsNeedReview: false,
       typeCanBeToggled: false
     };
   }
@@ -922,8 +935,9 @@ export function parseVoiceEntry(
     : normalized;
   
   // Calculate if needs review
+  const medsNeedReview = medications.some(m => m.needsReview);
   const needsReview = 
-    medications.some(m => m.needsReview) || 
+    medsNeedReview || 
     painIntensity.needsReview ||
     classification.confidence < 0.65;
   
@@ -936,6 +950,7 @@ export function parseVoiceEntry(
     medications,
     note,
     needsReview,
+    medsNeedReview,
     typeCanBeToggled: classification.canToggle
   };
 }

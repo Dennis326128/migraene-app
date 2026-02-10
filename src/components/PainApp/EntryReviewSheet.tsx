@@ -59,6 +59,10 @@ export interface EntryReviewSheetProps {
   emptyTranscript?: boolean;
   /** If true, show a hint that pain was defaulted (not recognized from voice) */
   painDefaultUsed?: boolean;
+  /** If true, show a hint that pain was estimated from descriptive words */
+  painFromDescriptor?: boolean;
+  /** If true, show a hint to review medication selection */
+  medsNeedReview?: boolean;
   /** If true, hide the time display row */
   hideTimeDisplay?: boolean;
   className?: string;
@@ -80,6 +84,8 @@ export function EntryReviewSheet({
   saving = false,
   emptyTranscript = false,
   painDefaultUsed = false,
+  painFromDescriptor = false,
+  medsNeedReview = false,
   hideTimeDisplay = false,
   className,
 }: EntryReviewSheetProps) {
@@ -133,12 +139,22 @@ export function EntryReviewSheet({
             Schmerzstärke nicht erkannt – auf 7 gesetzt
           </p>
         )}
+        {painFromDescriptor && !painDefaultUsed && !emptyTranscript && (
+          <p className="text-xs text-muted-foreground/60 mt-2 text-center">
+            Aus Beschreibung geschätzt – bitte kurz prüfen
+          </p>
+        )}
       </Card>
 
       {/* Medications */}
       {medications.length > 0 && (
         <Card className="p-4">
           <Label className="text-base font-medium mb-3 block">Medikamente</Label>
+          {medsNeedReview && (
+            <p className="text-xs text-muted-foreground/60 mb-2">
+              Bitte kurz prüfen – ähnlich klingende Medikamente möglich.
+            </p>
+          )}
           <MedicationDoseList
             medications={medications}
             selectedMedications={state.selectedMedications}
