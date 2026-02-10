@@ -624,6 +624,64 @@ describe('Simple Voice Parser v2', () => {
   });
 
   // ================================================
+  // CRITICAL: Descriptor pain regression tests
+  // ================================================
+  describe('CRITICAL: Descriptor pain must not produce wrong values', () => {
+    it('"sehr starke Schmerzen" → pain=9, notes=""', () => {
+      const result = parseVoiceEntry('sehr starke Schmerzen', userMeds);
+      expect(result.pain_intensity.value).toBe(9);
+      expect(result.note.trim()).toBe('');
+    });
+
+    it('"extrem starke Kopfschmerzen" → pain=9', () => {
+      const result = parseVoiceEntry('extrem starke Kopfschmerzen', userMeds);
+      expect(result.pain_intensity.value).toBe(9);
+    });
+
+    it('"sehr leichte Schmerzen" → pain=1 (not 3, "sehr" + "leicht" = very light)', () => {
+      const result = parseVoiceEntry('sehr leichte Schmerzen', userMeds);
+      expect(result.pain_intensity.value).toBe(1);
+    });
+
+    it('"starke Schmerzen" → pain=7', () => {
+      const result = parseVoiceEntry('starke Schmerzen', userMeds);
+      expect(result.pain_intensity.value).toBe(7);
+    });
+
+    it('"sehr und" → pain=null, notes=""', () => {
+      const result = parseVoiceEntry('sehr und', userMeds);
+      expect(result.pain_intensity.value).toBeNull();
+      expect(result.note.trim()).toBe('');
+    });
+
+    it('"sehr stark gestresst" → pain=null (no pain context)', () => {
+      const result = parseVoiceEntry('sehr stark gestresst', userMeds);
+      expect(result.pain_intensity.value).toBeNull();
+    });
+
+    it('descriptor pain must never produce value=1 for strong inputs', () => {
+      const strongInputs = [
+        'sehr starke Kopfschmerzen',
+        'heftige Migräne',
+        'starke Schmerzen seit heute',
+        'brutale Kopfschmerzen',
+      ];
+      for (const input of strongInputs) {
+        const result = parseVoiceEntry(input, userMeds);
+        expect(result.pain_intensity.value).toBeGreaterThanOrEqual(7);
+      }
+    });
+
+    it('"sehr starke Schmerzen wegen Stress" → pain=9, notes contain "Stress"', () => {
+      const result = parseVoiceEntry('sehr starke Schmerzen wegen Stress', userMeds);
+      expect(result.pain_intensity.value).toBe(9);
+      expect(result.note).toContain('Stress');
+      expect(result.note).not.toMatch(/\bsehr\b/i);
+      expect(result.note).not.toMatch(/\bstarke?\b/i);
+    });
+  });
+
+  // ================================================
   // Edge Cases
   // ================================================
   describe('Edge Cases', () => {
