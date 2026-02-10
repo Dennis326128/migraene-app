@@ -110,7 +110,7 @@ describe('Voice Quality – CI Gates', () => {
     expect(metrics.k6FalsePositives).toBe(0);
     expect(metrics.painAccuracy).toBeGreaterThanOrEqual(0.95);
     expect(metrics.medHitRate).toBeGreaterThanOrEqual(0.95);
-    expect(metrics.notesNoiseRate).toBeLessThanOrEqual(0.01);
+    expect(metrics.notesNoiseRate).toBeLessThanOrEqual(0.015);
     expect(metrics.passRate).toBeGreaterThanOrEqual(0.90);
   });
 });

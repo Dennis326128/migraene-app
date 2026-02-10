@@ -362,9 +362,13 @@ function parsePainIntensity(text: string, hasMeds: boolean = false): ParsedPainI
         if (/^(vor|seit)$/i.test(prevToken)) continue;
         // Skip numbers that came from "ein/eine" followed by intensity qualifiers
         if (/^(bisschen|wenig|paar)$/i.test(nextToken)) continue;
-        // Skip numbers that were originally quantity words (eine/ein/einen/etc.)
+        // Skip numbers followed by tablet/capsule words (dose context)
+        if (/^(tablette[n]?|kapsel[n]?|sprühstöße?|hübe?|spray[s]?|tropfen)$/i.test(nextToken)) continue;
+        // Skip numbers from quantity words ONLY if there's NO active pain trigger in this sentence
         const origWord = j < origTokens.length ? origTokens[j] : '';
-        if (/^(eine[nrm]?|zwei|drei|vier|fünf|fuenf)$/i.test(origWord)) continue;
+        const isQuantityWord = /^(eine[nrm]?)$/i.test(origWord);
+        if (isQuantityWord) continue;
+        // Number words (fünf, sechs, etc.) are ALLOWED here — they were already converted to digits
         const cleanToken = tokens[j].replace(/[,.:;!?]/g, '');
         const numMatch = cleanToken.match(/^(\d{1,2})$/);
         if (numMatch) {
@@ -461,8 +465,8 @@ function parsePainIntensity(text: string, hasMeds: boolean = false): ParsedPainI
       const beforeMatch = sanitized.substring(0, matchIdx);
       const tokenIdx = beforeMatch.split(/\s+/).filter(Boolean).length;
       const origWord = tokenIdx < origTokens.length ? origTokens[tokenIdx] : '';
-      // Skip if original word was a quantity word (eine/einer/etc.)
-      const isQuantityWord = /^(eine[nrm]?|zwei|drei|vier|fünf|fuenf)$/i.test(origWord);
+      // Skip ONLY if original word was a quantity word (eine/einer/etc.), NOT number words like fünf
+      const isQuantityWord = /^(eine[nrm]?)$/i.test(origWord);
       if (level >= 0 && level <= 10 && !isQuantityWord && !isTimeUnitToken(firstWordAfter) && !isDoseUnitToken(firstWordAfter) && !/^(bisschen|wenig|paar)$/i.test(firstWordAfter)) {
         return {
           value: level,
@@ -830,9 +834,19 @@ function classifyEntryType(
   const hasMedications = medications.length > 0;
   const hasPainLevel = painIntensity.value !== null;
   const hasExplicitTime = !time.isNow && time.kind !== 'none';
-  // Check for explicit pain context words (Kopfschmerzen, Migräne, etc.)
-  // This catches inflected forms that NEW_ENTRY_TRIGGERS (exact boundary) misses
   const hasPainContext = hasPainContextInText(text, false);
+  
+  // RULE 0: NEGATION GUARD
+  // "keine Tablette heute", "kein Triptan genommen" → context_entry
+  // Only if NO pain level AND NO pain context words (Kopfschmerzen etc.)
+  const negationMatch = /\b(kein|keine|keinen|keiner|keinem|nicht)\s+(tablette[n]?|medikament\w*|triptan\w*|schmerzmittel)\b/i.test(text);
+  if (negationMatch && !hasPainLevel && !hasPainContext && !hasMedications) {
+    return {
+      type: 'context_entry',
+      confidence: 0.80,
+      canToggle: true
+    };
+  }
   
   // RULE 1: If pain OR meds are detected → always new_entry
   if (hasMedications || hasPainLevel) {
@@ -846,7 +860,6 @@ function classifyEntryType(
   }
   
   // RULE 2: Pain context words present → new_entry (even with context triggers)
-  // "ich habe wegen Stress Kopfschmerzen" → Kopfschmerzen wins over Stress
   if (hasPainContext) {
     return {
       type: 'new_entry',
@@ -1004,9 +1017,28 @@ function cleanNotes(
   }
 
   // Final: if no meaningful content words remain, clear
+  // Use Unicode-safe matching (no \b for umlauts)
   if (cleaned.length > 0) {
-    const CONTENT_PATTERNS = /\b(übelkeit|übel|erbrechen|lichtempfindlich\w*|geräuschempfindlich\w*|schwindel\w*|aura|flimmern|sehstörung\w*|links\w*|rechts\w*|linksseiti\w*|rechtsseiti\w*|hinterm?\s*auge|nacken|stirn|schläfe|hinterkopf|pulsierend|stechend|drückend|hämmernd|ziehend|dumpf|pochend|bohrend|stress\w*|gestresst|wetter\w*|menstruation|periode|regel\w*|schlaf|geschlafen|dehydriert|alkohol|kaffee|müde|müdigkeit|erschöpft|sport|training|reise|essen|getrunken|schlecht|angefangen|aufgewacht|wegen\s+\w{4,}|nach\s+\w{4,}|morgens|abends|nachts|mittags|hämmert|pocht|sticht|bohrt|drückt|pulsiert|notieren|eintragen|glaub\w*|kommen|wird|geworden|besser|verschlechtert|verschlimmert|verspannt|angestrengt|bildschirm\w*|arbeit\w*|lärm|geräusch\w*|zyklus|vollmond|autofahren|zugfahrt|überstunden|termine)\b/i;
-    if (!CONTENT_PATTERNS.test(cleaned)) {
+    const contentWords = [
+      'übelkeit', 'übel', 'erbrechen', 'lichtempfindlich', 'geräuschempfindlich',
+      'schwindel', 'aura', 'flimmern', 'sehstörung', 'links', 'rechts',
+      'linksseitig', 'rechtsseitig', 'hinterm auge', 'nacken', 'stirn', 'schläfe',
+      'hinterkopf', 'pulsierend', 'stechend', 'drückend', 'hämmernd', 'ziehend',
+      'dumpf', 'pochend', 'bohrend', 'stress', 'gestresst', 'wetter',
+      'menstruation', 'periode', 'regel', 'schlaf', 'geschlafen', 'dehydriert',
+      'alkohol', 'kaffee', 'müde', 'müdigkeit', 'erschöpft', 'sport', 'training',
+      'reise', 'essen', 'getrunken', 'schlecht', 'angefangen', 'aufgewacht',
+      'morgens', 'abends', 'nachts', 'mittags', 'hämmert', 'pocht', 'sticht',
+      'bohrt', 'drückt', 'pulsiert', 'notieren', 'eintragen', 'kommen', 'wird',
+      'geworden', 'besser', 'verschlechtert', 'verschlimmert', 'verspannt',
+      'angestrengt', 'bildschirm', 'arbeit', 'lärm', 'geräusch', 'zyklus',
+      'vollmond', 'autofahren', 'zugfahrt', 'überstunden', 'termine', 'föhn',
+    ];
+    const lowerCleaned = cleaned.toLowerCase();
+    const hasContent = contentWords.some(w => lowerCleaned.includes(w)) ||
+                       /wegen\s+\w{4,}/i.test(cleaned) ||
+                       /nach\s+\w{4,}/i.test(cleaned);
+    if (!hasContent) {
       const words = cleaned.split(/\s+/).filter(w => w.length > 0);
       // All very short words (articles, prepositions) → clear
       if (words.every(w => w.replace(/[,.:;!?]/g, '').length <= 3)) {
