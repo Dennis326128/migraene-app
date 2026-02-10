@@ -29,6 +29,7 @@ import {
 } from '@/lib/voice/voiceTimingConfig';
 import { useLanguage } from '@/hooks/useLanguage';
 import { EntryReviewSheet, type EntryReviewState } from './EntryReviewSheet';
+import { VoiceDebugOverlay } from './VoiceDebugOverlay';
 import { mergeVoiceAppend, type UserEditedFlags } from '@/lib/voice/mergeVoiceAppend';
 import { DEFAULT_DOSE_QUARTERS } from '@/lib/utils/doseFormatter';
 
@@ -75,6 +76,7 @@ export function SimpleVoiceOverlay({
   const [medsNeedReview, setMedsNeedReview] = useState(false);
   const [saving, setSaving] = useState(false);
   const [voiceMode, setVoiceMode] = useState<VoiceMode>('new');
+  const [lastParseResult, setLastParseResult] = useState<VoiceParseResult | null>(null);
   
   // User edit tracking
   const [userEdited, setUserEdited] = useState<UserEditedFlags>({ pain: false, meds: false, notes: false });
@@ -266,6 +268,7 @@ export function SimpleVoiceOverlay({
         const review = buildReviewState(result);
         reviewOpenedRef.current = true;
         setReviewState(review);
+        setLastParseResult(result);
         setPainDefaultUsed(result.pain_intensity.value === null);
         setPainFromDescriptor(!!result.pain_intensity.painFromDescriptor);
         setMedsNeedReview(result.medsNeedReview);
@@ -716,6 +719,12 @@ export function SimpleVoiceOverlay({
               medsNeedReview={medsNeedReview}
               hideTimeDisplay={true}
               rawTranscript={baseTranscriptRef.current}
+            />
+            <VoiceDebugOverlay
+              parseResult={lastParseResult}
+              painDefaultUsed={painDefaultUsed}
+              painFromDescriptor={painFromDescriptor}
+              medsNeedReview={medsNeedReview}
             />
           </div>
         </div>
