@@ -214,7 +214,7 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
         type: prefill.type,
         title: prefill.title,
         date: prefill.prefill_date?.trim() || getTodayDate(),
-        time: (prefill as any).prefill_time || format(new Date(), 'HH:mm'),
+        time: (prefill as any).prefill_time || '09:00',
         repeat: prefill.repeat || 'none',
         notes: prefill.notes || '',
         notification_enabled: prefill.notification_enabled ?? true,
@@ -223,7 +223,7 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
         type: 'medication',
         title: '',
         date: getTodayDate(),
-        time: format(new Date(), 'HH:mm'),
+        time: '09:00',
         repeat: 'daily', // Default to daily for new reminders
         notes: '',
         notification_enabled: true,
@@ -240,21 +240,21 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
   useEffect(() => {
     const now = new Date();
     const todayDate = format(now, 'yyyy-MM-dd');
-    const currentTime = format(now, 'HH:mm');
+    const defaultTime = '09:00';
 
     if (!reminder && !prefill) {
       reset({
         type: 'medication',
         title: '',
         date: todayDate,
-        time: currentTime,
+        time: defaultTime,
         repeat: 'daily',
         notes: '',
         notification_enabled: true,
       });
       setSelectedMedications([]);
       setSelectedTimeOfDay([]);
-      setSingleTime(currentTime);
+      setSingleTime(defaultTime);
       setFollowUpEnabled(false);
       setFollowUpValue(3);
       setFollowUpUnit('months');
@@ -287,13 +287,13 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
         type: prefill.type,
         title: prefill.title,
         date: prefill.prefill_date?.trim() || todayDate,
-        time: (prefill as any).prefill_time || currentTime,
+        time: (prefill as any).prefill_time || defaultTime,
         repeat: prefill.repeat || 'none',
         notes: prefill.notes || '',
         notification_enabled: prefill.notification_enabled ?? true,
       });
       setSelectedMedications(prefill.medications || []);
-      setSingleTime((prefill as any).prefill_time || currentTime);
+      setSingleTime((prefill as any).prefill_time || defaultTime);
       setFollowUpEnabled(prefill.follow_up_enabled || false);
       setFollowUpValue(prefill.follow_up_interval_value || 3);
       setFollowUpUnit(prefill.follow_up_interval_unit || 'months');
