@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Plus, Bell, BellOff, Clock, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/ui/page-header';
@@ -25,6 +26,7 @@ import {
   useToggleAllReminders,
 } from '@/features/reminders/hooks/useReminders';
 import type { Reminder, CreateReminderInput, UpdateReminderInput, ReminderPrefill } from '@/types/reminder.types';
+import { remindersApi } from '@/features/reminders/api/reminders.api';
 import { notificationService } from '@/lib/notifications';
 import { toast } from '@/hooks/use-toast';
 
@@ -40,6 +42,7 @@ interface RemindersPageProps {
 export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [editingReminder, setEditingReminder] = useState<Reminder | null>(null);
+  const [editingGroupReminders, setEditingGroupReminders] = useState<Reminder[]>([]);
   const [prefillData, setPrefillData] = useState<ReminderPrefill | null>(null);
   const [activeTab, setActiveTab] = useState<ActiveTab>('active');
   const [filterType, setFilterType] = useState<FilterType>('all');
@@ -48,6 +51,7 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
   const [hasNotificationPermission, setHasNotificationPermission] = useState(false);
   const [formKey, setFormKey] = useState(0); // Force re-mount on new reminder
 
+  const queryClient = useQueryClient();
   const { data: activeReminders = [], isLoading: loadingActive } = useActiveReminders();
   const { data: historyReminders = [], isLoading: loadingHistory } = useHistoryReminders();
 
@@ -225,8 +229,9 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
   const typeCounts = getTypeCounts();
   const filteredReminders = getFilteredReminders();
 
-  const handleEdit = (reminder: Reminder) => {
+  const handleEdit = (reminder: Reminder, allReminders: Reminder[] = []) => {
     setEditingReminder(reminder);
+    setEditingGroupReminders(allReminders.length > 0 ? allReminders : [reminder]);
     setPrefillData(null);
     setViewMode('form');
   };
@@ -248,7 +253,7 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
     markDoneMutation.mutate(id);
   };
 
-  const handleCreate = (data: CreateReminderInput | CreateReminderInput[]) => {
+  const handleCreate = (data: CreateReminderInput | CreateReminderInput[] | UpdateReminderInput) => {
     if (Array.isArray(data)) {
       createMultipleMutation.mutate(data, {
         onSuccess: (newReminders) => {
@@ -265,7 +270,7 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
         },
       });
     } else {
-      createMutation.mutate(data, {
+      createMutation.mutate(data as CreateReminderInput, {
         onSuccess: (newReminder) => {
           setViewMode('list');
           setEditingReminder(null);
@@ -278,15 +283,47 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
     }
   };
 
-  const handleUpdate = (data: UpdateReminderInput) => {
+  const handleUpdate = async (data: CreateReminderInput | CreateReminderInput[] | UpdateReminderInput) => {
     if (!editingReminder) return;
+
+    // Group reconciliation: form returned array of desired reminders
+    if (Array.isArray(data)) {
+      try {
+        // Delete all old reminders in the group
+        const deletePromises = editingGroupReminders.map(r => remindersApi.delete(r.id));
+        await Promise.all(deletePromises);
+        // Create new ones
+        const newReminders = await remindersApi.createMultiple(data);
+        // Invalidate queries to refetch
+        queryClient.invalidateQueries({ queryKey: ['reminders'] });
+        queryClient.invalidateQueries({ queryKey: ['reminder-badge'] });
+        queryClient.invalidateQueries({ queryKey: ['due-reminders'] });
+        // Schedule notifications
+        if (hasNotificationPermission) {
+          newReminders.forEach((r) => {
+            if (r.notification_enabled) {
+              notificationService.scheduleReminder(r);
+            }
+          });
+        }
+        setViewMode('list');
+        setEditingReminder(null);
+        setEditingGroupReminders([]);
+        setPrefillData(null);
+      } catch (error) {
+        console.error('Group update failed:', error);
+        toast({ title: 'Fehler', description: 'Speichern fehlgeschlagen. Bitte erneut versuchen.', variant: 'destructive' });
+      }
+      return;
+    }
     
     updateMutation.mutate(
-      { id: editingReminder.id, input: data },
+      { id: editingReminder.id, input: data as UpdateReminderInput },
       {
         onSuccess: () => {
           setViewMode('list');
           setEditingReminder(null);
+          setEditingGroupReminders([]);
           setPrefillData(null);
         },
       }
@@ -439,6 +476,7 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
       <ReminderForm
         key={`reminder-form-${formKey}-${editingReminder?.id || 'new'}`}
         reminder={editingReminder || undefined}
+        groupedReminders={editingGroupReminders.length > 1 ? editingGroupReminders : undefined}
         prefill={prefillData || undefined}
         onSubmit={editingReminder ? handleUpdate : handleCreate}
         onCancel={handleCancel}

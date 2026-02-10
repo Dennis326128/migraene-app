@@ -60,6 +60,8 @@ type FormData = z.infer<typeof reminderSchema>;
 
 interface ReminderFormProps {
   reminder?: Reminder;
+  /** All reminders in the group (for editing multi-time series) */
+  groupedReminders?: Reminder[];
   prefill?: ReminderPrefill;
   onSubmit: (data: CreateReminderInput | CreateReminderInput[] | UpdateReminderInput) => void;
   onCancel: () => void;
@@ -128,7 +130,7 @@ function generateAutoTitle(
   }
 }
 
-export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, onCreateAnother }: ReminderFormProps) => {
+export const ReminderForm = ({ reminder, groupedReminders, prefill, onSubmit, onCancel, onDelete, onCreateAnother }: ReminderFormProps) => {
   const isEditing = !!reminder;
   
   // Selected medications
@@ -138,6 +140,13 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
 
   // Time of day selections (for daily/weekdays)
   const [selectedTimeOfDay, setSelectedTimeOfDay] = useState<TimeOfDay[]>(() => {
+    // Load all time-of-day selections from grouped reminders
+    if (groupedReminders && groupedReminders.length > 0) {
+      const times = groupedReminders
+        .map(r => r.time_of_day)
+        .filter((t): t is TimeOfDay => !!t);
+      if (times.length > 0) return times;
+    }
     if (reminder?.time_of_day) {
       return [reminder.time_of_day];
     }
@@ -152,7 +161,14 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
       evening: '18:00',
       night: '22:00',
     };
-    if (reminder?.time_of_day) {
+    // Load actual times from all grouped reminders
+    if (groupedReminders && groupedReminders.length > 0) {
+      for (const r of groupedReminders) {
+        if (r.time_of_day) {
+          times[r.time_of_day] = extractTimeFromDateTime(r.date_time);
+        }
+      }
+    } else if (reminder?.time_of_day) {
       times[reminder.time_of_day] = extractTimeFromDateTime(reminder.date_time);
     }
     return times;
@@ -273,7 +289,21 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
         status: reminder.status,
       });
       setSelectedMedications(reminder.medications || []);
-      if (reminder.time_of_day) {
+      // Load all time-of-day selections from grouped reminders
+      if (groupedReminders && groupedReminders.length > 0) {
+        const allTods = groupedReminders
+          .map(r => r.time_of_day)
+          .filter((t): t is TimeOfDay => !!t);
+        setSelectedTimeOfDay(allTods.length > 0 ? allTods : reminder.time_of_day ? [reminder.time_of_day] : []);
+        // Also update custom times from group
+        const newCustomTimes: Record<TimeOfDay, string> = { morning: '08:00', noon: '12:00', evening: '18:00', night: '22:00' };
+        for (const r of groupedReminders) {
+          if (r.time_of_day) {
+            newCustomTimes[r.time_of_day] = extractTimeFromDateTime(r.date_time);
+          }
+        }
+        setCustomTimes(newCustomTimes);
+      } else if (reminder.time_of_day) {
         setSelectedTimeOfDay([reminder.time_of_day]);
       }
       setSingleTime(extractTimeFromDateTime(reminder.date_time));
@@ -299,7 +329,7 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
       setFollowUpUnit(prefill.follow_up_interval_unit || 'months');
       setSeriesId(prefill.series_id);
     }
-  }, [reminder, prefill, reset]);
+  }, [reminder, groupedReminders, prefill, reset]);
 
   const type = watch('type');
   const notificationEnabled = watch('notification_enabled');
@@ -368,9 +398,28 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
 
     // EDITING MODE
     if (isEditing) {
-      const effectiveTime = showTimeOfDayPresets && selectedTimeOfDay.length > 0
-        ? customTimes[selectedTimeOfDay[0]]
-        : singleTime || '09:00';
+      // Multi-time edit: if multiple time-of-day selected, return array for group reconciliation
+      if (showTimeOfDayPresets && selectedTimeOfDay.length > 0) {
+        const reminders: CreateReminderInput[] = selectedTimeOfDay.map((tod) => {
+          const time = customTimes[tod];
+          const dateTime = `${data.date}T${time}:00`;
+          return {
+            type: data.type,
+            title: autoTitle,
+            date_time: dateTime,
+            repeat: data.repeat,
+            notes: data.notes || undefined,
+            notification_enabled: data.notification_enabled,
+            medications: selectedMedications,
+            time_of_day: tod,
+          };
+        });
+        onSubmit(reminders);
+        return;
+      }
+
+      // Single time edit
+      const effectiveTime = singleTime || '09:00';
       const dateTime = `${data.date}T${effectiveTime}:00`;
       
       const submitData: UpdateReminderInput = {
