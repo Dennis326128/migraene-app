@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { X, Check, Clock, Trash2, Pill } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { useCriticalReminderPopup, type CriticalReminder } from '@/features/reminders/hooks/useCriticalReminderPopup';
-import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 interface CriticalMedicationPopupProps {
   onClose?: () => void;
@@ -24,6 +24,12 @@ export const CriticalMedicationPopup: React.FC<CriticalMedicationPopupProps> = (
   
   const [open, setOpen] = useState(false);
   const [hasShownThisSession, setHasShownThisSession] = useState(false);
+  // Optimistic: track IDs that have been acted on so they disappear immediately
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
+  
+  // Visible reminders = server list minus optimistically dismissed
+  const visibleReminders = criticalReminders.filter(r => !dismissedIds.has(r.id));
+  const hasVisible = visibleReminders.length > 0;
   
   // Show popup once when critical reminders are detected
   useEffect(() => {
@@ -33,39 +39,69 @@ export const CriticalMedicationPopup: React.FC<CriticalMedicationPopupProps> = (
     }
   }, [hasReminders, hasShownThisSession]);
   
-  const handleClose = async () => {
-    // Snooze all reminders for today when closing
-    await snoozeAll();
+  // Auto-close when all visible reminders are dismissed
+  useEffect(() => {
+    if (open && !hasVisible) {
+      setOpen(false);
+      onClose?.();
+    }
+  }, [open, hasVisible, onClose]);
+  
+  const closePopup = useCallback(() => {
     setOpen(false);
     onClose?.();
+  }, [onClose]);
+  
+  const handleClose = async () => {
+    // Snooze all remaining visible reminders for today when closing
+    await snoozeAll();
+    closePopup();
   };
   
-  const handleMarkDone = async (reminder: CriticalReminder) => {
-    markAsDone(reminder.id);
-    // If this was the last reminder, close the popup
-    if (criticalReminders.length <= 1) {
-      setOpen(false);
-      onClose?.();
-    }
-  };
+  const handleMarkDone = useCallback((reminder: CriticalReminder) => {
+    // Optimistic: immediately hide this reminder
+    setDismissedIds(prev => new Set(prev).add(reminder.id));
+    // Fire mutation (non-blocking)
+    markAsDone(reminder.id, {
+      onError: () => {
+        // Rollback: show it again
+        setDismissedIds(prev => {
+          const next = new Set(prev);
+          next.delete(reminder.id);
+          return next;
+        });
+        toast.error('Fehler beim Speichern. Bitte erneut versuchen.');
+      },
+    });
+  }, [markAsDone]);
   
-  const handleSnooze = async (reminder: CriticalReminder) => {
-    snoozeForToday(reminder.id);
-    // If this was the last reminder, close the popup
-    if (criticalReminders.length <= 1) {
-      setOpen(false);
-      onClose?.();
-    }
-  };
+  const handleSnooze = useCallback((reminder: CriticalReminder) => {
+    setDismissedIds(prev => new Set(prev).add(reminder.id));
+    snoozeForToday(reminder.id, {
+      onError: () => {
+        setDismissedIds(prev => {
+          const next = new Set(prev);
+          next.delete(reminder.id);
+          return next;
+        });
+        toast.error('Fehler beim Speichern. Bitte erneut versuchen.');
+      },
+    });
+  }, [snoozeForToday]);
   
-  const handleCancel = async (reminder: CriticalReminder) => {
-    cancelReminder(reminder.id);
-    // If this was the last reminder, close the popup
-    if (criticalReminders.length <= 1) {
-      setOpen(false);
-      onClose?.();
-    }
-  };
+  const handleCancel = useCallback((reminder: CriticalReminder) => {
+    setDismissedIds(prev => new Set(prev).add(reminder.id));
+    cancelReminder(reminder.id, {
+      onError: () => {
+        setDismissedIds(prev => {
+          const next = new Set(prev);
+          next.delete(reminder.id);
+          return next;
+        });
+        toast.error('Fehler beim Speichern. Bitte erneut versuchen.');
+      },
+    });
+  }, [cancelReminder]);
   
   const formatReminderDate = (dateStr: string) => {
     try {
@@ -75,10 +111,10 @@ export const CriticalMedicationPopup: React.FC<CriticalMedicationPopupProps> = (
     }
   };
   
-  if (!hasReminders) return null;
+  if (!hasVisible) return null;
   
-  const singleReminder = criticalReminders.length === 1;
-  const reminder = criticalReminders[0];
+  const singleReminder = visibleReminders.length === 1;
+  const reminder = visibleReminders[0];
   
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleClose()}>
@@ -116,7 +152,7 @@ export const CriticalMedicationPopup: React.FC<CriticalMedicationPopupProps> = (
               </>
             ) : (
               <>
-                Du hast <strong>{criticalReminders.length} offene Medikamenten-Erinnerungen</strong>, 
+                Du hast <strong>{visibleReminders.length} offene Medikamenten-Erinnerungen</strong>, 
                 die noch nicht als erledigt markiert wurden.
               </>
             )}
@@ -125,7 +161,6 @@ export const CriticalMedicationPopup: React.FC<CriticalMedicationPopupProps> = (
         
         <div className="space-y-4 py-4">
           {singleReminder ? (
-            // Single reminder: show action buttons directly
             <div className="space-y-3">
               <Button
                 onClick={() => handleMarkDone(reminder)}
@@ -157,9 +192,8 @@ export const CriticalMedicationPopup: React.FC<CriticalMedicationPopupProps> = (
               </Button>
             </div>
           ) : (
-            // Multiple reminders: show list with individual actions
             <div className="space-y-3 max-h-[300px] overflow-y-auto">
-              {criticalReminders.map((r) => (
+              {visibleReminders.map((r) => (
                 <div 
                   key={r.id}
                   className="p-3 rounded-lg border border-border bg-card/50 space-y-2"
@@ -214,7 +248,6 @@ export const CriticalMedicationPopup: React.FC<CriticalMedicationPopupProps> = (
           )}
         </div>
         
-        {/* Footer hint */}
         <p className="text-xs text-muted-foreground text-center">
           Dieses Popup erscheint einmal pro Tag, bis die Erinnerung erledigt ist.
         </p>
