@@ -690,10 +690,8 @@ export function SimpleVoiceOverlay({
             }
           `}</style>
           
-          {/* Handle */}
-          <div className="flex justify-center pt-3 pb-1 sticky top-0 bg-card rounded-t-3xl z-10">
-            <div className="w-10 h-1 rounded-full bg-muted-foreground/20" />
-          </div>
+          {/* Top spacing (no grabber – avoids "drag" confusion for migraine users) */}
+          <div className="pt-4 sticky top-0 bg-card rounded-t-3xl z-10" />
           
           {/* Content */}
           <div className="px-6 pb-8 pt-2">
