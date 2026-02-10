@@ -124,9 +124,9 @@ export function useCriticalReminderPopup() {
     criticalReminders,
     isLoading,
     hasReminders: criticalReminders.length > 0,
-    markAsDone: markAsDone.mutate,
-    snoozeForToday: snoozeForToday.mutate,
-    cancelReminder: cancelReminder.mutate,
+    markAsDone: markAsDone.mutate as typeof markAsDone.mutate,
+    snoozeForToday: snoozeForToday.mutate as typeof snoozeForToday.mutate,
+    cancelReminder: cancelReminder.mutate as typeof cancelReminder.mutate,
     snoozeAll,
     isUpdating: markAsDone.isPending || snoozeForToday.isPending || cancelReminder.isPending,
   };
