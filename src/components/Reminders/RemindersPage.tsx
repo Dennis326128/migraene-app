@@ -476,7 +476,7 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
       <ReminderForm
         key={`reminder-form-${formKey}-${editingReminder?.id || 'new'}`}
         reminder={editingReminder || undefined}
-        groupedReminders={editingGroupReminders.length > 1 ? editingGroupReminders : undefined}
+        groupedReminders={editingGroupReminders.length > 0 ? editingGroupReminders : undefined}
         prefill={prefillData || undefined}
         onSubmit={editingReminder ? handleUpdate : handleCreate}
         onCancel={handleCancel}
