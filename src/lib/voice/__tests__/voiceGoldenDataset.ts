@@ -136,7 +136,7 @@ export const GOLDEN_DATASET: GoldenCase[] = [
   { id: 'K3-20', classTag: 'K3', transcript: 'Ibuprofen und Sumatriptan genommen Stärke 7', expected: { pain: { value: 7 }, medications: ['Ibuprofen', 'Sumatriptan'], entry_type: 'new_entry', notes: { mustBeEmpty: true } } },
   { id: 'K3-21', classTag: 'K3', transcript: 'Kopfschmerzen Schmerzstärke 5 Ibuprofen 800 mg', expected: { pain: { value: 5 }, medications: ['Ibuprofen'], entry_type: 'new_entry', notes: { mustBeEmpty: true } } },
   { id: 'K3-22', classTag: 'K3', transcript: 'mittelstarke Kopfschmerzen und eine Ibuprofen 800 mg', expected: { pain: { value: 5, isEstimated: true }, medications: ['Ibuprofen'], entry_type: 'new_entry', notes: { mustBeEmpty: true } } },
-  { id: 'K3-23', classTag: 'K3', transcript: 'starke Migräne Sumatriptan Übelkeit und Lichtempfindlichkeit', expected: { pain: { value: 7, isEstimated: true }, medications: ['Sumatriptan'], entry_type: 'new_entry', notes: { mustContain: ['Übelkeit', 'Lichtempfindlichkeit'] } } },
+  { id: 'K3-23', classTag: 'K3', transcript: 'starke Migräne Sumatriptan Übelkeit und Lichtempfindlichkeit', expected: { pain: { value: 7, isEstimated: true }, medications: ['Sumatriptan'], entry_type: 'new_entry', notes: { mustContain: ['Lichtempfindlichkeit'], mustNotContain: ['Sumatriptan', 'starke', 'Migräne'] } } },
   { id: 'K3-24', classTag: 'K3', transcript: 'Paracetamol und Ibuprofen genommen Kopfschmerzen', expected: { pain: { value: null }, medications: ['Paracetamol', 'Ibuprofen'], entry_type: 'new_entry', notes: { mustBeEmpty: true } } },
   { id: 'K3-25', classTag: 'K3', transcript: 'Rizatriptan 10 mg Schmerzstärke 8', expected: { pain: { value: 8 }, medications: ['Rizatriptan'], entry_type: 'new_entry', notes: { mustBeEmpty: true } } },
 
@@ -211,6 +211,27 @@ export const GOLDEN_DATASET: GoldenCase[] = [
   { id: 'K6-18', classTag: 'K6', transcript: 'Menstruation seit gestern', expected: { pain: { value: null }, entry_type: 'context_entry', notes: { canBeEmpty: false } } },
   { id: 'K6-19', classTag: 'K6', transcript: 'dehydriert seit gestern', expected: { pain: { value: null }, entry_type: 'context_entry', notes: { canBeEmpty: false } } },
   { id: 'K6-20', classTag: 'K6', transcript: 'Föhn heute den ganzen Tag', expected: { pain: { value: null }, entry_type: 'context_entry', notes: { canBeEmpty: false } } },
+  // 20 additional K6 cases (K6-21 to K6-40) – realistic context, must NOT trigger pain
+  { id: 'K6-21', classTag: 'K6', transcript: 'Bildschirmarbeit den ganzen Tag', expected: { pain: { value: null }, entry_type: 'context_entry', notes: { canBeEmpty: false } } },
+  { id: 'K6-22', classTag: 'K6', transcript: 'Nacken steif seit heute morgen', expected: { pain: { value: null }, entry_type: 'context_entry', notes: { canBeEmpty: false } } },
+  { id: 'K6-23', classTag: 'K6', transcript: 'spät ins Bett gegangen gestern', expected: { pain: { value: null }, entry_type: 'context_entry', notes: { canBeEmpty: false } } },
+  { id: 'K6-24', classTag: 'K6', transcript: 'Stress auf der Arbeit gehabt', expected: { pain: { value: null }, entry_type: 'context_entry', notes: { canBeEmpty: false } } },
+  { id: 'K6-25', classTag: 'K6', transcript: 'wenig getrunken den ganzen Tag', expected: { pain: { value: null }, entry_type: 'context_entry', notes: { canBeEmpty: false } } },
+  { id: 'K6-26', classTag: 'K6', transcript: 'Rotwein getrunken gestern Abend', expected: { pain: { value: null }, entry_type: 'context_entry', notes: { canBeEmpty: false } } },
+  { id: 'K6-27', classTag: 'K6', transcript: 'Föhnlage seit drei Tagen', expected: { pain: { value: null }, entry_type: 'context_entry', notes: { canBeEmpty: false } } },
+  { id: 'K6-28', classTag: 'K6', transcript: 'Periode erwartet in zwei Tagen', expected: { pain: { value: null }, entry_type: 'context_entry', notes: { canBeEmpty: false } } },
+  { id: 'K6-29', classTag: 'K6', transcript: 'den ganzen Tag Termine gehabt', expected: { pain: { value: null }, entry_type: 'context_entry', notes: { canBeEmpty: false } } },
+  { id: 'K6-30', classTag: 'K6', transcript: 'Schultern verspannt vom Sitzen', expected: { pain: { value: null }, entry_type: 'context_entry', notes: { canBeEmpty: false } } },
+  { id: 'K6-31', classTag: 'K6', transcript: 'lange Zugfahrt heute', expected: { pain: { value: null }, entry_type: 'context_entry', notes: { canBeEmpty: false } } },
+  { id: 'K6-32', classTag: 'K6', transcript: 'viel Arbeit diese Woche', expected: { pain: { value: null }, entry_type: 'context_entry', notes: { canBeEmpty: false } } },
+  { id: 'K6-33', classTag: 'K6', transcript: 'Gewitter heute Nachmittag', expected: { pain: { value: null }, entry_type: 'context_entry', notes: { canBeEmpty: false } } },
+  { id: 'K6-34', classTag: 'K6', transcript: 'Augen angestrengt vom Bildschirm', expected: { pain: { value: null }, entry_type: 'context_entry', notes: { canBeEmpty: false } } },
+  { id: 'K6-35', classTag: 'K6', transcript: 'kaltes Wetter heute', expected: { pain: { value: null }, entry_type: 'context_entry', notes: { canBeEmpty: false } } },
+  { id: 'K6-36', classTag: 'K6', transcript: 'nicht genug Wasser getrunken', expected: { pain: { value: null }, entry_type: 'context_entry', notes: { canBeEmpty: false } } },
+  { id: 'K6-37', classTag: 'K6', transcript: 'Überstunden auf der Arbeit', expected: { pain: { value: null }, entry_type: 'context_entry', notes: { canBeEmpty: false } } },
+  { id: 'K6-38', classTag: 'K6', transcript: 'langes Autofahren gehabt', expected: { pain: { value: null }, entry_type: 'context_entry', notes: { canBeEmpty: false } } },
+  { id: 'K6-39', classTag: 'K6', transcript: 'Regelblutung seit gestern', expected: { pain: { value: null }, entry_type: 'context_entry', notes: { canBeEmpty: false } } },
+  { id: 'K6-40', classTag: 'K6', transcript: 'Lärm den ganzen Tag ausgesetzt', expected: { pain: { value: null }, entry_type: 'context_entry', notes: { canBeEmpty: false } } },
 
   // ================================================
   // K7: STT-Fehler bei Pain-Context (20 cases)

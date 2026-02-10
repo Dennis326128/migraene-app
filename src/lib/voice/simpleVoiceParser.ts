@@ -188,6 +188,9 @@ function isPainContextToken(token: string): boolean {
   const norm = normalizePainToken(token);
   if (norm.length < 4) return false;
   
+  // Exclude "schmerzfrei" variants — means pain-FREE, not pain
+  if (norm.includes('frei')) return false;
+  
   // Direct substring: if token contains "schmerz" or "migraen" → true
   if (norm.includes('schmerz') || norm.includes('migraen') || norm.includes('kopfweh')) return true;
   
@@ -212,8 +215,8 @@ function isPainContextToken(token: string): boolean {
  * Also returns true if meds + descriptor are present (soft heuristic).
  */
 function hasPainContextInText(text: string, hasMeds: boolean = false): boolean {
-  // Exact regex check (fast path)
-  if (/\b(schmerz\w*|migräne\w*|migraene\w*|kopfschmerz\w*|kopfweh|attacke\w*|anfall\w*|weh)\b/i.test(text)) {
+  // Exact regex check (fast path) — exclude "schmerzfrei" (means pain-FREE)
+  if (/\b(schmerz(?!frei)\w*|migräne\w*|migraene\w*|kopfschmerz\w*|kopfweh|attacke\w*|anfall\w*|weh)\b/i.test(text)) {
     return true;
   }
   
@@ -451,11 +454,16 @@ function parsePainIntensity(text: string, hasMeds: boolean = false): ParsedPainI
     const standaloneMatch = sanitized.match(/\b([0-9]|10)\b/);
     if (standaloneMatch) {
       const level = parseInt(standaloneMatch[1], 10);
-      // Verify this number isn't adjacent to a time/dose unit
       const matchIdx = standaloneMatch.index || 0;
       const afterText = sanitized.substring(matchIdx + standaloneMatch[0].length).trim();
       const firstWordAfter = afterText.split(/\s+/)[0] || '';
-      if (level >= 0 && level <= 10 && !isTimeUnitToken(firstWordAfter) && !isDoseUnitToken(firstWordAfter) && !/^(bisschen|wenig|paar)$/i.test(firstWordAfter)) {
+      // Find the original word at this token position
+      const beforeMatch = sanitized.substring(0, matchIdx);
+      const tokenIdx = beforeMatch.split(/\s+/).filter(Boolean).length;
+      const origWord = tokenIdx < origTokens.length ? origTokens[tokenIdx] : '';
+      // Skip if original word was a quantity word (eine/einer/etc.)
+      const isQuantityWord = /^(eine[nrm]?|zwei|drei|vier|fünf|fuenf)$/i.test(origWord);
+      if (level >= 0 && level <= 10 && !isQuantityWord && !isTimeUnitToken(firstWordAfter) && !isDoseUnitToken(firstWordAfter) && !/^(bisschen|wenig|paar)$/i.test(firstWordAfter)) {
         return {
           value: level,
           confidence: 0.55,
@@ -803,6 +811,8 @@ const NEW_ENTRY_TRIGGERS = [
   /\b\d+\s*(von\s*10|\/10)\b/i,
   /\b(triptan|ibuprofen|paracetamol|naproxen|aspirin|ass)\b/i,
   /\bvor\s+\d+\s*(minute|stunde)/i,
+  // Pain verbs (descriptive pain expressions)
+  /\b(hämmert|hämmern|pocht|pochen|sticht|stechen|pulsiert|pulsieren|drückt|drücken|bohrt|bohren)\b/i,
 ];
 
 /**
@@ -820,20 +830,32 @@ function classifyEntryType(
   const hasMedications = medications.length > 0;
   const hasPainLevel = painIntensity.value !== null;
   const hasExplicitTime = !time.isNow && time.kind !== 'none';
+  // Check for explicit pain context words (Kopfschmerzen, Migräne, etc.)
+  // This catches inflected forms that NEW_ENTRY_TRIGGERS (exact boundary) misses
+  const hasPainContext = hasPainContextInText(text, false);
   
-  // RULE: If pain OR meds are detected, it's always a new_entry 
-  // (even if context triggers are also present)
+  // RULE 1: If pain OR meds are detected → always new_entry
   if (hasMedications || hasPainLevel) {
     const confidence = (hasMedications ? 0.35 : 0) + (hasPainLevel ? 0.30 : 0) + 
                        (hasExplicitTime ? 0.15 : 0) + (hasNewEntryTrigger ? 0.20 : 0);
     return {
       type: 'new_entry',
       confidence: Math.min(0.95, confidence / 1.0),
-      canToggle: hasContextTrigger // Allow toggle if context words also present
+      canToggle: hasContextTrigger
     };
   }
   
-  // No pain, no meds: check for new entry triggers
+  // RULE 2: Pain context words present → new_entry (even with context triggers)
+  // "ich habe wegen Stress Kopfschmerzen" → Kopfschmerzen wins over Stress
+  if (hasPainContext) {
+    return {
+      type: 'new_entry',
+      confidence: 0.65,
+      canToggle: hasContextTrigger
+    };
+  }
+  
+  // RULE 3: New entry triggers without context triggers
   if (hasNewEntryTrigger && !hasContextTrigger) {
     return {
       type: 'new_entry',
@@ -905,8 +927,8 @@ function cleanNotes(
     cleaned = cleaned.replace(pattern.regex, '');
   }
   cleaned = cleaned.replace(/\b(jetzt|gerade|sofort|eben|aktuell)\b/gi, '');
-  // Orphaned time unit words
-  cleaned = cleaned.replace(/\b(minuten|minute|min|stunden|stunde|std|tage?)\b/gi, '');
+  // Orphaned time unit words (including partial matches from destroyed time expressions)
+  cleaned = cleaned.replace(/\b(minuten|minute|min|stunden|stunde|std|tage?|halben?|halber|halbes|viertelstunde|dreiviertelstunde)\b/gi, '');
 
   // === STEP 2: Remove pain slots (comprehensive) ===
   // 2.1 Pain triggers + number
@@ -915,16 +937,21 @@ function cleanNotes(
     cleaned = cleaned.replace(new RegExp(escaped + '\\s*\\d{0,2}', 'gi'), '');
     cleaned = cleaned.replace(new RegExp(escaped, 'gi'), '');
   }
-  cleaned = cleaned.replace(/\b\d+\s*(?:von\s*10|\/10|auf\s*10|aus\s*10)\b/gi, '');
+  cleaned = cleaned.replace(/\b\d+\s*(?:von\s*10|\/10|auf\s*10|aus\s*10|von\s*zehn|auf\s*zehn)\b/gi, '');
   cleaned = cleaned.replace(/\b(?:bei|auf)\s+\d{1,2}\b/gi, '');
+  // Scale references: "auf der Schmerzskala" etc.
+  cleaned = cleaned.replace(/\bauf\s+der\s+(schmerzskala|skala)\b/gi, '');
 
-  // 2.2 Intensity descriptors (ALWAYS remove – they were used for pain estimation)
-  cleaned = cleaned.replace(/\b(sehr|extrem|richtig|total|echt|kaum|ziemlich|unglaublich|wahnsinnig|stark|starke|starker|starken|starkes|leicht|leichte|leichter|leichten|leichtes|mittel|mittelstark|mittelstarke|mittelstarker|mittelstarken|mittelstarkes|heftig|heftige|heftiger|heftigen|massiv|massive|massiver|schlimm|schlimme|schlimmer|schwer|schwere|schwerer|brutal|brutale|höllisch|höllische|unerträglich|unerträgliche|minimal|minimale|dezent|dezente|schwach|schwache|schwacher|gering|geringe|geringer|maximal|maximale|mäßig|mäßige|moderat|moderate|spürbar|spuerbar)\b/gi, '');
+  // 2.2 Intensity descriptors (ALWAYS remove – used for pain estimation)
+  cleaned = cleaned.replace(/\b(sehr|extrem|extreme[nrsm]?|extremer|richtig|total|echt|kaum|ziemlich|unglaublich|wahnsinnig|stark|starke[nrsm]?|starker|starkes|leicht|leichte[nrsm]?|leichter|leichtes|mittel|mittelstark|mittelstarke[nrsm]?|mittelstarker|mittelstarkes|heftig|heftige[nrsm]?|heftiger|heftiges|massiv|massive[nrsm]?|massiver|massives|schlimm|schlimme[nrsm]?|schlimmer|schlimmes|schwer|schwere[nrsm]?|schwerer|schweres|brutal|brutale[nrsm]?|brutaler|brutales|höllisch|höllische[nrsm]?|höllischer|höllisches|unerträglich|unerträgliche[nrsm]?|unerträglicher|unerträgliches|minimal|minimale[nrsm]?|minimaler|minimales|dezent|dezente[nrsm]?|dezenter|dezentes|schwach|schwache[nrsm]?|schwacher|schwaches|gering|geringe[nrsm]?|geringer|geringes|maximal|maximale[nrsm]?|maximaler|maximales|mäßig|mäßige[nrsm]?|mäßiger|moderat|moderate[nrsm]?|moderater|spürbar|spürbare[nrsm]?|spürbarer|spuerbar|keine[nrsm]?|kein|keiner|keinem|bisschen|ein\s+bisschen)\b/gi, '');
 
   // 2.3 Pain context words (redundant, not real context)
-  cleaned = cleaned.replace(/\b(kopfschmerze?n?|kopfweh|migräne|migraene|schmerze?n?|attacke|anfall|schmerzattacke)\b/gi, '');
+  cleaned = cleaned.replace(/\b(kopfschmerze?n?|kopfweh|migräne\w*|migraene\w*|schmerze?n?|attacke|anfall|schmerzattacke)\b/gi, '');
 
-  // 2.4 Fuzzy pain keyword AND pain context pass (STT-mangled variants like "gekoppelschmerzen")
+  // 2.4 Number words (original words used for pain parsing)
+  cleaned = cleaned.replace(/\b(null|eins|zwei|zwo|drei|vier|fünf|fuenf|sechs|sieben|acht|neun|zehn)\b/gi, '');
+
+  // 2.5 Fuzzy pain keyword AND pain context pass (STT-mangled variants like "gekoppelschmerzen")
   const remainingTokens = cleaned.split(/\s+/).filter(Boolean);
   const cleanedTokens = remainingTokens.filter(token => {
     const stripped = token.replace(/[,.:;!?]/g, '');
@@ -956,7 +983,7 @@ function cleanNotes(
   cleaned = cleaned.replace(/^\s*[,.\-:;]\s*/, '').replace(/\s*[,.\-:;]\s*$/, '');
 
   // === STEP 5: Strip leading filler phrases (loop until stable) ===
-  const LEADING_FILLERS = /^(ich\s+hab(e)?|habe|hab|ich|es\s+ist|es\s+sind|das\s+ist|gerade|momentan|aktuell|jetzt|seit|also|und|aber|oder|dann|noch|nur|so|da|ja|nein|doch|mal|bitte|plus)\b[\s,.:;\-]*/i;
+  const LEADING_FILLERS = /^(ich\s+hab(e)?|habe|hab|ich|es\s+ist|es\s+sind|das\s+ist|mir\s+ist|gerade|momentan|aktuell|jetzt|seit|vor|also|und|aber|oder|dann|noch|nur|so|da|ja|nein|naja|doch|mal|bitte|plus|weil|hm|äh|ähm|öhm)\b[\s,.:;\-]*/i;
   let prev = '';
   while (cleaned !== prev) {
     prev = cleaned;
@@ -964,11 +991,11 @@ function cleanNotes(
   }
 
   // === STEP 6: Strip trailing orphaned connectors ===
-  cleaned = cleaned.replace(/\s+(und|oder|aber|dann|also|noch|mal|bitte|plus)\s*$/i, '').trim();
+  cleaned = cleaned.replace(/\s+(und|oder|aber|dann|also|noch|mal|bitte|plus|wegen)\s*$/i, '').trim();
 
   // === STEP 7: Final quality gate ===
-  // If only short filler words remain, clear entirely
-  cleaned = cleaned.replace(/^(und|oder|aber|dann|also|noch|nur|bin|ist|war|hat|mit|bei|es|das|die|der|den|dem|ein|eine|so|da|ja|nein|doch|mal|bitte|plus)\s*$/i, '');
+  // Single meaningless word
+  cleaned = cleaned.replace(/^(und|oder|aber|dann|also|noch|nur|bin|ist|war|hat|mit|bei|es|das|die|der|den|dem|ein|eine|so|da|ja|nein|doch|mal|bitte|plus|wegen|ohne|kein|keine|vom|von|für|zum|zur|im|am|an|auf)\s*$/i, '');
   cleaned = cleaned.trim();
 
   // If less than 3 chars or only digits remain → empty
@@ -978,11 +1005,19 @@ function cleanNotes(
 
   // Final: if no meaningful content words remain, clear
   if (cleaned.length > 0) {
-    const CONTENT_PATTERNS = /\b(übelkeit|erbrechen|lichtempfindlich|geräuschempfindlich|schwindel|aura|flimmern|sehstörung|links|rechts|linksseiti|rechtsseiti|hinterm?\s*auge|nacken|pulsierend|stechend|drückend|hämmernd|ziehend|dumpf|stress|wetter|menstruation|periode|schlaf|dehydriert|alkohol|kaffee|müde|erschöpft|sport|training|reise|essen|getrunken|wegen|nach|seit|durch|morgens|abends|nachts|mittags)\b/i;
+    const CONTENT_PATTERNS = /\b(übelkeit|übel|erbrechen|lichtempfindlich\w*|geräuschempfindlich\w*|schwindel\w*|aura|flimmern|sehstörung\w*|links\w*|rechts\w*|linksseiti\w*|rechtsseiti\w*|hinterm?\s*auge|nacken|stirn|schläfe|hinterkopf|pulsierend|stechend|drückend|hämmernd|ziehend|dumpf|pochend|bohrend|stress\w*|gestresst|wetter\w*|menstruation|periode|regel\w*|schlaf|geschlafen|dehydriert|alkohol|kaffee|müde|müdigkeit|erschöpft|sport|training|reise|essen|getrunken|schlecht|angefangen|aufgewacht|wegen\s+\w{4,}|nach\s+\w{4,}|morgens|abends|nachts|mittags|hämmert|pocht|sticht|bohrt|drückt|pulsiert|notieren|eintragen|glaub\w*|kommen|wird|geworden|besser|verschlechtert|verschlimmert|verspannt|angestrengt|bildschirm\w*|arbeit\w*|lärm|geräusch\w*|zyklus|vollmond|autofahren|zugfahrt|überstunden|termine)\b/i;
     if (!CONTENT_PATTERNS.test(cleaned)) {
-      // Check if it's just 1-2 short meaningless words
       const words = cleaned.split(/\s+/).filter(w => w.length > 0);
-      if (words.length <= 2 && words.every(w => w.replace(/[,.:;!?]/g, '').length <= 4)) {
+      // All very short words (articles, prepositions) → clear
+      if (words.every(w => w.replace(/[,.:;!?]/g, '').length <= 3)) {
+        cleaned = '';
+      }
+      // 1-2 short meaningless words → clear
+      else if (words.length <= 2 && words.every(w => w.replace(/[,.:;!?]/g, '').length <= 5)) {
+        cleaned = '';
+      }
+      // Single word up to 6 chars without content match → clear
+      else if (words.length === 1 && words[0].replace(/[,.:;!?]/g, '').length <= 6) {
         cleaned = '';
       }
     }
