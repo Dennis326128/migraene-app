@@ -12,7 +12,7 @@
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Mic } from 'lucide-react';
+import { Mic, ChevronLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useMeds, useRecentMeds } from '@/features/meds/hooks/useMeds';
 import { 
@@ -688,12 +688,21 @@ export function SimpleVoiceOverlay({
   
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col">
+      {/* Header with back arrow */}
+      {(state === 'recording' || state === 'paused' || state === 'processing') && (
+        <div className="flex items-center px-4 pt-4 pb-2">
+          <button
+            onClick={handleClose}
+            className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-muted/50 active:bg-muted transition-colors -ml-1"
+            aria-label={t('common.back')}
+          >
+            <ChevronLeft className="w-6 h-6 text-foreground" />
+          </button>
+        </div>
+      )}
+      
       {/* Main content area */}
       <div className="flex-1 flex flex-col">
-        {state === 'recording' && renderRecordingState()}
-        {state === 'paused' && renderPausedState()}
-        {state === 'processing' && renderProcessingState()}
-        {state === 'review' && renderReviewState()}
       </div>
       
       {/* Bottom buttons for recording/paused states */}
