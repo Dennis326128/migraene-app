@@ -1,19 +1,18 @@
 /**
- * SimpleVoiceOverlay - Radikal vereinfachte Spracheingabe V2
+ * SimpleVoiceOverlay - Voice Capture V2 (Migränefreundlich)
  * 
- * Migräne-optimierte Design-Prinzipien:
- * - Kein Transkript während der Aufnahme
- * - Nur 1 sichtbarer Hauptbutton
- * - Nach Aufnahme IMMER interaktiver Review-Dialog
- * - Nutzer kann erkannte Werte korrigieren (Slider + Meds + Sonstiges)
+ * Design-Prinzipien:
+ * - Auto-Start: Aufnahme beginnt sofort beim Öffnen
+ * - Nutzer-gesteuertes Ende: "Fertig"-Button als primärer Stop
+ * - Großzügiger Stille-Fallback (12–15s), kein aggressiver Auto-Stop
+ * - Auto-Restart bei unerwartetem API-Ende
+ * - "Weiter sprechen" Append-Modus
  * - Ruhige, dunkle Darstellung
- * - Adaptive Auto-Stop mit Satzende-Erkennung
  */
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Mic } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useMeds, useRecentMeds } from '@/features/meds/hooks/useMeds';
 import { 
@@ -30,13 +29,15 @@ import {
 } from '@/lib/voice/voiceTimingConfig';
 import { useLanguage } from '@/hooks/useLanguage';
 import { EntryReviewSheet, type EntryReviewState } from './EntryReviewSheet';
+import { mergeVoiceAppend, type UserEditedFlags } from '@/lib/voice/mergeVoiceAppend';
 import { DEFAULT_DOSE_QUARTERS } from '@/lib/utils/doseFormatter';
 
 // ============================================
 // Types
 // ============================================
 
-type OverlayState = 'idle' | 'recording' | 'processing' | 'review';
+type OverlayState = 'recording' | 'processing' | 'review' | 'paused';
+type VoiceMode = 'new' | 'append';
 
 /** Unified save payload for voice entries */
 export interface VoiceSavePayload {
@@ -66,25 +67,29 @@ export function SimpleVoiceOverlay({
   const { currentLanguage } = useLanguage();
   
   // State
-  const [state, setState] = useState<OverlayState>('idle');
+  const [state, setState] = useState<OverlayState>('recording');
   const [reviewState, setReviewState] = useState<EntryReviewState | null>(null);
   const [emptyTranscript, setEmptyTranscript] = useState(false);
   const [painDefaultUsed, setPainDefaultUsed] = useState(false);
-  const [showIdleHint, setShowIdleHint] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [voiceMode, setVoiceMode] = useState<VoiceMode>('new');
+  
+  // User edit tracking
+  const [userEdited, setUserEdited] = useState<UserEditedFlags>({ pain: false, meds: false, notes: false });
+  
+  // Transcript storage for append mode
+  const baseTranscriptRef = useRef('');
   
   // Refs
   const recognitionRef = useRef<any>(null);
   const committedTextRef = useRef('');
   const autoStopTimerRef = useRef<NodeJS.Timeout | null>(null);
   const hardTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const noSpeechTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const autoStartTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const hasSpokenRef = useRef(false);
-  const stateRef = useRef<OverlayState>('idle');
+  const stateRef = useRef<OverlayState>('recording');
   const recordingStartRef = useRef<number>(0);
-  const lastSpeechRef = useRef<number>(0);
-  const isAutoStartRef = useRef(false);
+  const hasSpokenRef = useRef(false);
+  const intentionalStopRef = useRef(false);
+  const continueSpeakingUsedRef = useRef(false);
   
   // Keep stateRef in sync
   useEffect(() => {
@@ -117,7 +122,7 @@ export function SimpleVoiceOverlay({
   );
   
   // ============================================
-  // Auto-Stop Timer (Adaptive, Migraine-Friendly)
+  // Timer Management
   // ============================================
   
   const clearAllTimers = useCallback(() => {
@@ -129,14 +134,6 @@ export function SimpleVoiceOverlay({
       clearTimeout(hardTimeoutRef.current);
       hardTimeoutRef.current = null;
     }
-    if (noSpeechTimeoutRef.current) {
-      clearTimeout(noSpeechTimeoutRef.current);
-      noSpeechTimeoutRef.current = null;
-    }
-    if (autoStartTimerRef.current) {
-      clearTimeout(autoStartTimerRef.current);
-      autoStartTimerRef.current = null;
-    }
   }, []);
   
   // ============================================
@@ -146,7 +143,6 @@ export function SimpleVoiceOverlay({
   const buildReviewState = useCallback((result: VoiceParseResult): EntryReviewState => {
     const now = new Date();
     
-    // Map parsed medications to selection map
     const selectedMeds = new Map<string, { doseQuarters: number; medicationId?: string }>();
     for (const med of result.medications) {
       selectedMeds.set(med.name, {
@@ -155,17 +151,11 @@ export function SimpleVoiceOverlay({
       });
     }
 
-    // Determine notes text: cleaned rest text or full transcript
     const notesText = result.note || result.raw_text || '';
-
-    // Time display
     const timeDisplay = formatTimeDisplay(result.time);
 
-    const usedDefault = result.pain_intensity.value === null;
-    setPainDefaultUsed(usedDefault);
-
     return {
-      painLevel: result.pain_intensity.value ?? 7, // Default 7
+      painLevel: result.pain_intensity.value ?? 7,
       selectedMedications: selectedMeds,
       notesText,
       occurredAt: {
@@ -184,6 +174,7 @@ export function SimpleVoiceOverlay({
   
   const finishRecording = useCallback(() => {
     clearAllTimers();
+    intentionalStopRef.current = true;
     
     if (recognitionRef.current) {
       try {
@@ -194,60 +185,90 @@ export function SimpleVoiceOverlay({
       recognitionRef.current = null;
     }
     
-    const finalText = committedTextRef.current.trim();
-    const isEmpty = !finalText;
+    const currentText = committedTextRef.current.trim();
     
     setState('processing');
-    setEmptyTranscript(isEmpty);
     
-    // Parse the transcript (even if empty - we still show review)
     setTimeout(() => {
-      const result = parseVoiceEntry(
-        finalText,
-        userMeds.map(m => ({ id: m.id, name: m.name, wirkstoff: m.wirkstoff }))
-      );
+      if (voiceMode === 'append' && baseTranscriptRef.current) {
+        // Append mode: combine transcripts and merge
+        const combinedTranscript = (baseTranscriptRef.current + ' ' + currentText).trim();
+        const result = parseVoiceEntry(
+          combinedTranscript,
+          userMeds.map(m => ({ id: m.id, name: m.name, wirkstoff: m.wirkstoff }))
+        );
+        
+        if (reviewState) {
+          const merged = mergeVoiceAppend(reviewState, result, userEdited);
+          setReviewState(merged.state);
+          setPainDefaultUsed(merged.painDefaultUsed);
+          setEmptyTranscript(!combinedTranscript);
+        }
+        
+        // Update base transcript for potential further appends
+        baseTranscriptRef.current = combinedTranscript;
+      } else {
+        // New mode: fresh parse
+        const isEmpty = !currentText;
+        setEmptyTranscript(isEmpty);
+        
+        const result = parseVoiceEntry(
+          currentText,
+          userMeds.map(m => ({ id: m.id, name: m.name, wirkstoff: m.wirkstoff }))
+        );
+        
+        const review = buildReviewState(result);
+        setReviewState(review);
+        setPainDefaultUsed(result.pain_intensity.value === null);
+        
+        // Store base transcript for potential appends
+        baseTranscriptRef.current = currentText;
+      }
       
-      const review = buildReviewState(result);
-      setReviewState(review);
+      setVoiceMode('new');
       setState('review');
     }, 400);
-  }, [clearAllTimers, userMeds, buildReviewState]);
+  }, [clearAllTimers, userMeds, buildReviewState, voiceMode, reviewState, userEdited]);
   
-  /**
-   * Adaptive Auto-Stop Timer
-   */
+  // ============================================
+  // Auto-Stop Timer (generous fallback only)
+  // ============================================
+  
   const startAutoStopTimer = useCallback(() => {
-    clearAllTimers();
+    if (autoStopTimerRef.current) {
+      clearTimeout(autoStopTimerRef.current);
+      autoStopTimerRef.current = null;
+    }
+    
+    // Don't auto-stop if "Weiter sprechen" was recently used
+    if (continueSpeakingUsedRef.current) return;
     
     const text = committedTextRef.current.trim();
     const recordingDuration = Date.now() - recordingStartRef.current;
     
     if (!canAutoStop(text, recordingDuration)) {
+      // Retry check later
       autoStopTimerRef.current = setTimeout(() => {
         if (hasSpokenRef.current && committedTextRef.current.trim()) {
           startAutoStopTimer();
         }
-      }, 500);
+      }, 2000);
       return;
     }
     
     const silenceThreshold = getAdaptiveSilenceThreshold(text, recordingDuration);
     
     autoStopTimerRef.current = setTimeout(() => {
-      if (hasSpokenRef.current && committedTextRef.current.trim()) {
+      if (hasSpokenRef.current && committedTextRef.current.trim() && stateRef.current === 'recording') {
         finishRecording();
       }
     }, silenceThreshold);
-  }, [clearAllTimers, finishRecording]);
+  }, [finishRecording]);
   
-  /**
-   * Start hard timeout (safety limit)
-   */
   const startHardTimeout = useCallback(() => {
     if (hardTimeoutRef.current) {
       clearTimeout(hardTimeoutRef.current);
     }
-    
     hardTimeoutRef.current = setTimeout(() => {
       if (stateRef.current === 'recording') {
         finishRecording();
@@ -274,9 +295,8 @@ export function SimpleVoiceOverlay({
     committedTextRef.current = '';
     hasSpokenRef.current = false;
     recordingStartRef.current = Date.now();
-    lastSpeechRef.current = Date.now();
-    setReviewState(null);
-    setEmptyTranscript(false);
+    intentionalStopRef.current = false;
+    continueSpeakingUsedRef.current = false;
     
     const recognition = new SpeechRecognitionAPI();
     recognition.lang = currentLanguage === 'en' ? 'en-US' : 'de-DE';
@@ -286,37 +306,13 @@ export function SimpleVoiceOverlay({
     recognition.onstart = () => {
       setState('recording');
       startHardTimeout();
-      
-      if (isAutoStartRef.current) {
-        noSpeechTimeoutRef.current = setTimeout(() => {
-          if (stateRef.current === 'recording' && !hasSpokenRef.current) {
-            clearAllTimers();
-            if (recognitionRef.current) {
-              try {
-                recognitionRef.current.stop();
-              } catch (e) { /* ignore */ }
-              recognitionRef.current = null;
-            }
-            setState('idle');
-            setShowIdleHint(true);
-            isAutoStartRef.current = false;
-          }
-        }, 3500);
-      }
     };
     
     recognition.onresult = (event: any) => {
-      if (noSpeechTimeoutRef.current) {
-        clearTimeout(noSpeechTimeoutRef.current);
-        noSpeechTimeoutRef.current = null;
-      }
-      
       if (autoStopTimerRef.current) {
         clearTimeout(autoStopTimerRef.current);
         autoStopTimerRef.current = null;
       }
-      
-      lastSpeechRef.current = Date.now();
       
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i];
@@ -327,6 +323,7 @@ export function SimpleVoiceOverlay({
           committedTextRef.current += (committedTextRef.current ? ' ' : '') + corrected;
           hasSpokenRef.current = true;
           
+          // Restart generous auto-stop timer after each speech segment
           startAutoStopTimer();
         }
       }
@@ -339,11 +336,35 @@ export function SimpleVoiceOverlay({
         onOpenChange(false);
         return;
       }
+      // For other errors (network, etc): show paused state
+      if (event.error === 'no-speech' || event.error === 'network') {
+        // Don't stop, let onend handle restart
+      }
     };
     
     recognition.onend = () => {
-      if (stateRef.current === 'recording' && hasSpokenRef.current && committedTextRef.current.trim()) {
-        finishRecording();
+      // If the user intentionally stopped, don't restart
+      if (intentionalStopRef.current) return;
+      
+      // If we're still in recording state, the API ended unexpectedly
+      // Auto-restart to keep listening
+      if (stateRef.current === 'recording') {
+        try {
+          const newRecognition = new SpeechRecognitionAPI();
+          newRecognition.lang = currentLanguage === 'en' ? 'en-US' : 'de-DE';
+          newRecognition.continuous = true;
+          newRecognition.interimResults = false;
+          newRecognition.onstart = recognition.onstart;
+          newRecognition.onresult = recognition.onresult;
+          newRecognition.onerror = recognition.onerror;
+          newRecognition.onend = recognition.onend;
+          recognitionRef.current = newRecognition;
+          newRecognition.start();
+        } catch (e) {
+          // Auto-restart failed, show paused state
+          console.warn('[SimpleVoice] Auto-restart failed, showing paused state');
+          setState('paused');
+        }
       }
     };
     
@@ -354,10 +375,11 @@ export function SimpleVoiceOverlay({
       console.error('[SimpleVoice] Start failed:', e);
       onOpenChange(false);
     }
-  }, [isSttSupported, lexicon, currentLanguage, clearAllTimers, startAutoStopTimer, startHardTimeout, finishRecording, onOpenChange]);
+  }, [isSttSupported, lexicon, currentLanguage, clearAllTimers, startAutoStopTimer, startHardTimeout, onOpenChange]);
   
   const stopRecording = useCallback(() => {
     clearAllTimers();
+    intentionalStopRef.current = true;
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
@@ -369,27 +391,32 @@ export function SimpleVoiceOverlay({
   }, [clearAllTimers]);
   
   // ============================================
-  // Lifecycle
+  // Lifecycle: Auto-start on open
   // ============================================
   
   useEffect(() => {
     if (open) {
-      setState('idle');
-    setReviewState(null);
-    setEmptyTranscript(false);
-    setPainDefaultUsed(false);
-    setShowIdleHint(false);
+      setState('recording');
+      setReviewState(null);
+      setEmptyTranscript(false);
+      setPainDefaultUsed(false);
       setSaving(false);
+      setVoiceMode('new');
+      setUserEdited({ pain: false, meds: false, notes: false });
       committedTextRef.current = '';
       hasSpokenRef.current = false;
-      isAutoStartRef.current = false;
+      baseTranscriptRef.current = '';
+      intentionalStopRef.current = false;
+      continueSpeakingUsedRef.current = false;
       
-      autoStartTimerRef.current = setTimeout(() => {
-        if (stateRef.current === 'idle' && isSttSupported) {
-          isAutoStartRef.current = true;
+      // Auto-start recording immediately
+      const timer = setTimeout(() => {
+        if (isSttSupported) {
           startRecording();
         }
-      }, 400);
+      }, 200);
+      
+      return () => clearTimeout(timer);
     } else {
       clearAllTimers();
       stopRecording();
@@ -403,18 +430,48 @@ export function SimpleVoiceOverlay({
   }, [stopRecording]);
   
   // ============================================
+  // Review state change tracking (for userEdited flags)
+  // ============================================
+  
+  const handleReviewChange = useCallback((newState: EntryReviewState) => {
+    if (reviewState) {
+      setUserEdited(prev => ({
+        pain: prev.pain || newState.painLevel !== reviewState.painLevel,
+        meds: prev.meds || newState.selectedMedications !== reviewState.selectedMedications,
+        notes: prev.notes || newState.notesText !== reviewState.notesText,
+      }));
+    }
+    setReviewState(newState);
+  }, [reviewState]);
+  
+  // ============================================
   // Actions
   // ============================================
   
-  const handleMicTap = useCallback(() => {
-    if (state === 'idle') {
-      setShowIdleHint(false);
-      isAutoStartRef.current = false;
+  const handleFertig = useCallback(() => {
+    finishRecording();
+  }, [finishRecording]);
+  
+  const handleResumeRecording = useCallback(() => {
+    intentionalStopRef.current = false;
+    startRecording();
+  }, [startRecording]);
+  
+  const handleContinueSpeaking = useCallback(() => {
+    // Switch to append mode and reopen recording
+    setVoiceMode('append');
+    continueSpeakingUsedRef.current = true;
+    committedTextRef.current = '';
+    hasSpokenRef.current = false;
+    intentionalStopRef.current = false;
+    setState('recording');
+    
+    const timer = setTimeout(() => {
       startRecording();
-    } else if (state === 'recording') {
-      finishRecording();
-    }
-  }, [state, startRecording, finishRecording]);
+    }, 200);
+    
+    return () => clearTimeout(timer);
+  }, [startRecording]);
   
   const handleSave = useCallback(async () => {
     if (!reviewState) return;
@@ -446,47 +503,26 @@ export function SimpleVoiceOverlay({
   }, [reviewState, onSave, onOpenChange]);
   
   const handleDiscard = useCallback(() => {
-    // Verwerfen: close without saving anything
     clearAllTimers();
     stopRecording();
-    setState('idle');
-    setReviewState(null);
-    setEmptyTranscript(false);
-    committedTextRef.current = '';
-    hasSpokenRef.current = false;
     onOpenChange(false);
   }, [clearAllTimers, stopRecording, onOpenChange]);
-
-  const handleRetryVoice = useCallback(() => {
-    committedTextRef.current = '';
-    hasSpokenRef.current = false;
-    setReviewState(null);
-    setEmptyTranscript(false);
-    setState('idle');
-  }, []);
 
   const handleClose = useCallback(() => {
     clearAllTimers();
     stopRecording();
-    setState('idle');
-    setReviewState(null);
-    setEmptyTranscript(false);
-    committedTextRef.current = '';
-    hasSpokenRef.current = false;
     onOpenChange(false);
   }, [clearAllTimers, stopRecording, onOpenChange]);
   
-  // ESC key support for desktop
+  // ESC key support
   useEffect(() => {
     if (!open) return;
-    
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
         handleClose();
       }
     };
-    
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [open, handleClose]);
@@ -498,38 +534,13 @@ export function SimpleVoiceOverlay({
   if (!open) return null;
   
   // ============================================
-  // Render Idle State
-  // ============================================
-  
-  const renderIdleState = () => (
-    <div className="flex flex-col items-center justify-center flex-1 pb-24">
-      <button
-        onClick={handleMicTap}
-        className="w-32 h-32 rounded-full bg-primary/10 border-2 border-primary/30 flex items-center justify-center transition-all hover:bg-primary/20 hover:scale-105 active:scale-95 focus:outline-none"
-        aria-label={t('voice.tapToSpeak')}
-      >
-        <Mic className="w-14 h-14 text-primary" />
-      </button>
-      
-      {showIdleHint && (
-        <p className="mt-10 text-sm text-muted-foreground/50">
-          {t('voice.tapToSpeak')}
-        </p>
-      )}
-    </div>
-  );
-  
-  // ============================================
   // Render Recording State
   // ============================================
   
   const renderRecordingState = () => (
-    <div className="flex flex-col items-center justify-center flex-1 pb-24">
-      <button
-        onClick={handleMicTap}
-        className="relative w-32 h-32 focus:outline-none"
-        aria-label={t('common.done')}
-      >
+    <div className="flex flex-col items-center justify-center flex-1 pb-32">
+      {/* Pulsing mic indicator */}
+      <div className="relative w-32 h-32 mb-8">
         <div 
           className="absolute inset-0 rounded-full bg-primary/15 animate-ping" 
           style={{ animationDuration: '2.5s' }} 
@@ -538,10 +549,38 @@ export function SimpleVoiceOverlay({
           className="absolute inset-0 rounded-full bg-primary/10 animate-pulse" 
           style={{ animationDuration: '2s' }} 
         />
-        
         <div className="relative w-full h-full rounded-full bg-primary/20 border-2 border-primary/40 flex items-center justify-center">
           <Mic className="w-14 h-14 text-primary" />
         </div>
+      </div>
+      
+      {/* Status text */}
+      <p className="text-base text-muted-foreground mb-2">
+        {voiceMode === 'append' ? 'Ergänze deine Eingabe …' : 'Ich höre zu …'}
+      </p>
+      <p className="text-xs text-muted-foreground/50">
+        Tippe auf „Fertig", wenn du fertig bist.
+      </p>
+    </div>
+  );
+  
+  // ============================================
+  // Render Paused State (unexpected API stop)
+  // ============================================
+  
+  const renderPausedState = () => (
+    <div className="flex flex-col items-center justify-center flex-1 pb-32">
+      <div className="w-32 h-32 rounded-full bg-muted/30 border-2 border-muted-foreground/20 flex items-center justify-center mb-8">
+        <Mic className="w-14 h-14 text-muted-foreground/50" />
+      </div>
+      
+      <p className="text-base text-muted-foreground mb-6">Aufnahme pausiert</p>
+      
+      <button
+        onClick={handleResumeRecording}
+        className="px-6 py-3 rounded-xl bg-primary/10 border border-primary/30 text-primary text-sm font-medium hover:bg-primary/20 transition-colors"
+      >
+        Weiter aufnehmen
       </button>
     </div>
   );
@@ -558,7 +597,7 @@ export function SimpleVoiceOverlay({
   );
   
   // ============================================
-  // Render Review State (Interactive!)
+  // Render Review State
   // ============================================
   
   const renderReviewState = () => {
@@ -597,10 +636,10 @@ export function SimpleVoiceOverlay({
           <div className="px-6 pb-8 pt-2">
             <EntryReviewSheet
               state={reviewState}
-              onChange={setReviewState}
+              onChange={handleReviewChange}
               onSave={handleSave}
               onDiscard={handleDiscard}
-              onRetryVoice={handleRetryVoice}
+              onContinueSpeaking={handleContinueSpeaking}
               medications={medicationOptions}
               recentMedications={recentMedOptions}
               saving={saving}
@@ -618,25 +657,32 @@ export function SimpleVoiceOverlay({
   // Main Render
   // ============================================
   
-  // Show cancel button in idle, recording, and processing states
-  const showCancelButton = state === 'idle' || state === 'recording' || state === 'processing';
+  const showBottomButtons = state === 'recording' || state === 'paused';
   
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col">
       {/* Main content area */}
       <div className="flex-1 flex flex-col">
-        {state === 'idle' && renderIdleState()}
         {state === 'recording' && renderRecordingState()}
+        {state === 'paused' && renderPausedState()}
         {state === 'processing' && renderProcessingState()}
         {state === 'review' && renderReviewState()}
       </div>
       
-      {/* Bottom cancel button - large, clearly labeled, always visible */}
-      {showCancelButton && (
-        <div className="pb-safe px-6 pb-8">
+      {/* Bottom buttons for recording/paused states */}
+      {showBottomButtons && (
+        <div className="pb-safe px-6 pb-8 space-y-3">
+          {state === 'recording' && (
+            <button
+              onClick={handleFertig}
+              className="w-full h-14 rounded-xl bg-primary text-primary-foreground text-base font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30 hover:bg-primary/90 active:scale-[0.98]"
+            >
+              Fertig
+            </button>
+          )}
           <button
             onClick={handleClose}
-            className="w-full h-14 rounded-xl bg-muted/50 hover:bg-muted text-muted-foreground text-base font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30"
+            className="w-full h-12 rounded-xl bg-muted/50 hover:bg-muted text-muted-foreground text-sm font-medium transition-colors focus:outline-none"
           >
             {t('common.cancel')}
           </button>
