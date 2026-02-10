@@ -1,11 +1,11 @@
 /**
- * SimpleVoiceOverlay - Radikal vereinfachte Spracheingabe
+ * SimpleVoiceOverlay - Radikal vereinfachte Spracheingabe V2
  * 
  * Migräne-optimierte Design-Prinzipien:
  * - Kein Transkript während der Aufnahme
  * - Nur 1 sichtbarer Hauptbutton
- * - Keine erklärenden Texte
- * - Keine Modus-Auswahl sichtbar
+ * - Nach Aufnahme IMMER interaktiver Review-Dialog
+ * - Nutzer kann erkannte Werte korrigieren (Slider + Meds + Sonstiges)
  * - Ruhige, dunkle Darstellung
  * - Adaptive Auto-Stop mit Satzende-Erkennung
  */
@@ -14,12 +14,10 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Mic } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { useMeds } from '@/features/meds/hooks/useMeds';
+import { useMeds, useRecentMeds } from '@/features/meds/hooks/useMeds';
 import { 
   parseVoiceEntry,
-  formatDoseQuarters, 
   formatTimeDisplay,
   type VoiceParseResult 
 } from '@/lib/voice/simpleVoiceParser';
@@ -31,6 +29,8 @@ import {
   canAutoStop 
 } from '@/lib/voice/voiceTimingConfig';
 import { useLanguage } from '@/hooks/useLanguage';
+import { EntryReviewSheet, type EntryReviewState } from './EntryReviewSheet';
+import { DEFAULT_DOSE_QUARTERS } from '@/lib/utils/doseFormatter';
 
 // ============================================
 // Types
@@ -38,17 +38,19 @@ import { useLanguage } from '@/hooks/useLanguage';
 
 type OverlayState = 'idle' | 'recording' | 'processing' | 'review';
 
+/** Unified save payload for voice entries */
+export interface VoiceSavePayload {
+  painLevel: number;
+  date: string;
+  time: string;
+  medications: Array<{ name: string; medicationId?: string; doseQuarters: number }>;
+  notes: string;
+}
+
 interface SimpleVoiceOverlayProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSavePainEntry: (data: {
-    painLevel?: number;
-    date?: string;
-    time?: string;
-    medications?: Array<{ name: string; medicationId?: string; doseQuarters: number }>;
-    notes?: string;
-  }) => void;
-  onSaveContextNote: (text: string, timestamp?: string) => void;
+  onSave: (data: VoiceSavePayload) => void;
 }
 
 // ============================================
@@ -58,17 +60,17 @@ interface SimpleVoiceOverlayProps {
 export function SimpleVoiceOverlay({
   open,
   onOpenChange,
-  onSavePainEntry,
-  onSaveContextNote
+  onSave,
 }: SimpleVoiceOverlayProps) {
   const { t } = useTranslation();
   const { currentLanguage } = useLanguage();
   
   // State
   const [state, setState] = useState<OverlayState>('idle');
-  const [parsedResult, setParsedResult] = useState<VoiceParseResult | null>(null);
-  const [overriddenType, setOverriddenType] = useState<'new_entry' | 'context_entry' | null>(null);
+  const [reviewState, setReviewState] = useState<EntryReviewState | null>(null);
+  const [emptyTranscript, setEmptyTranscript] = useState(false);
   const [showIdleHint, setShowIdleHint] = useState(false);
+  const [saving, setSaving] = useState(false);
   
   // Refs
   const recognitionRef = useRef<any>(null);
@@ -90,6 +92,7 @@ export function SimpleVoiceOverlay({
   
   // Hooks
   const { data: userMeds = [] } = useMeds();
+  const { data: recentMeds = [] } = useRecentMeds(5);
   const isSttSupported = isBrowserSttSupported();
   
   // Build lexicon
@@ -101,8 +104,16 @@ export function SimpleVoiceOverlay({
     })));
   }, [userMeds]);
 
-  // Get effective entry type (with override support)
-  const effectiveType = overriddenType ?? parsedResult?.entry_type ?? 'context_entry';
+  // Medication options for the review sheet
+  const medicationOptions = React.useMemo(() => 
+    userMeds.map(m => ({ id: m.id, name: m.name })),
+    [userMeds]
+  );
+
+  const recentMedOptions = React.useMemo(() =>
+    recentMeds.map(m => ({ id: m.id, name: m.name, use_count: m.use_count || 0 })),
+    [recentMeds]
+  );
   
   // ============================================
   // Auto-Stop Timer (Adaptive, Migraine-Friendly)
@@ -128,6 +139,42 @@ export function SimpleVoiceOverlay({
   }, []);
   
   // ============================================
+  // Build Review State from Parse Result
+  // ============================================
+
+  const buildReviewState = useCallback((result: VoiceParseResult): EntryReviewState => {
+    const now = new Date();
+    
+    // Map parsed medications to selection map
+    const selectedMeds = new Map<string, { doseQuarters: number; medicationId?: string }>();
+    for (const med of result.medications) {
+      selectedMeds.set(med.name, {
+        doseQuarters: med.doseQuarters || DEFAULT_DOSE_QUARTERS,
+        medicationId: med.medicationId,
+      });
+    }
+
+    // Determine notes text: cleaned rest text or full transcript
+    const notesText = result.note || result.raw_text || '';
+
+    // Time display
+    const timeDisplay = formatTimeDisplay(result.time);
+
+    return {
+      painLevel: result.pain_intensity.value ?? 7, // Default 7
+      selectedMedications: selectedMeds,
+      notesText,
+      occurredAt: {
+        date: result.time.date || now.toISOString().slice(0, 10),
+        time: result.time.time || now.toTimeString().slice(0, 5),
+        displayText: result.time.isNow 
+          ? 'Jetzt' 
+          : timeDisplay || undefined,
+      },
+    };
+  }, []);
+  
+  // ============================================
   // Finish Recording & Parse
   // ============================================
   
@@ -144,25 +191,23 @@ export function SimpleVoiceOverlay({
     }
     
     const finalText = committedTextRef.current.trim();
-    if (!finalText) {
-      onOpenChange(false);
-      return;
-    }
+    const isEmpty = !finalText;
     
     setState('processing');
+    setEmptyTranscript(isEmpty);
     
-    // Parse the transcript
+    // Parse the transcript (even if empty - we still show review)
     setTimeout(() => {
-      const result = parseVoiceEntry(finalText, userMeds.map(m => ({
-        id: m.id,
-        name: m.name,
-        wirkstoff: m.wirkstoff
-      })));
+      const result = parseVoiceEntry(
+        finalText,
+        userMeds.map(m => ({ id: m.id, name: m.name, wirkstoff: m.wirkstoff }))
+      );
       
-      setParsedResult(result);
+      const review = buildReviewState(result);
+      setReviewState(review);
       setState('review');
     }, 400);
-  }, [clearAllTimers, userMeds, onOpenChange]);
+  }, [clearAllTimers, userMeds, buildReviewState]);
   
   /**
    * Adaptive Auto-Stop Timer
@@ -226,8 +271,8 @@ export function SimpleVoiceOverlay({
     hasSpokenRef.current = false;
     recordingStartRef.current = Date.now();
     lastSpeechRef.current = Date.now();
-    setOverriddenType(null);
-    setParsedResult(null);
+    setReviewState(null);
+    setEmptyTranscript(false);
     
     const recognition = new SpeechRecognitionAPI();
     recognition.lang = currentLanguage === 'en' ? 'en-US' : 'de-DE';
@@ -326,9 +371,10 @@ export function SimpleVoiceOverlay({
   useEffect(() => {
     if (open) {
       setState('idle');
-      setParsedResult(null);
-      setOverriddenType(null);
+      setReviewState(null);
+      setEmptyTranscript(false);
       setShowIdleHint(false);
+      setSaving(false);
       committedTextRef.current = '';
       hasSpokenRef.current = false;
       isAutoStartRef.current = false;
@@ -365,47 +411,61 @@ export function SimpleVoiceOverlay({
     }
   }, [state, startRecording, finishRecording]);
   
-  const handleSave = useCallback(() => {
-    if (!parsedResult) return;
+  const handleSave = useCallback(async () => {
+    if (!reviewState) return;
     
-    if (effectiveType === 'new_entry') {
-      onSavePainEntry({
-        painLevel: parsedResult.pain_intensity.value ?? undefined,
-        date: parsedResult.time.date,
-        time: parsedResult.time.time,
-        medications: parsedResult.medications.map(m => ({
-          name: m.name,
-          medicationId: m.medicationId,
-          doseQuarters: m.doseQuarters
-        })),
-        notes: parsedResult.note || undefined
+    setSaving(true);
+    try {
+      const medications = Array.from(reviewState.selectedMedications.entries()).map(
+        ([name, data]) => ({
+          name,
+          medicationId: data.medicationId,
+          doseQuarters: data.doseQuarters,
+        })
+      );
+
+      onSave({
+        painLevel: reviewState.painLevel,
+        date: reviewState.occurredAt.date,
+        time: reviewState.occurredAt.time,
+        medications,
+        notes: reviewState.notesText,
       });
-    } else {
-      onSaveContextNote(parsedResult.raw_text, parsedResult.time.iso ?? undefined);
+      
+      onOpenChange(false);
+    } catch (error) {
+      console.error('[SimpleVoice] Save failed:', error);
+    } finally {
+      setSaving(false);
     }
-    
-    onOpenChange(false);
-  }, [parsedResult, effectiveType, onSavePainEntry, onSaveContextNote, onOpenChange]);
+  }, [reviewState, onSave, onOpenChange]);
   
-  const handleRetry = useCallback(() => {
+  const handleDiscard = useCallback(() => {
+    // Verwerfen: close without saving anything
+    clearAllTimers();
+    stopRecording();
+    setState('idle');
+    setReviewState(null);
+    setEmptyTranscript(false);
     committedTextRef.current = '';
     hasSpokenRef.current = false;
-    setParsedResult(null);
-    setOverriddenType(null);
+    onOpenChange(false);
+  }, [clearAllTimers, stopRecording, onOpenChange]);
+
+  const handleRetryVoice = useCallback(() => {
+    committedTextRef.current = '';
+    hasSpokenRef.current = false;
+    setReviewState(null);
+    setEmptyTranscript(false);
     setState('idle');
   }, []);
-
-  const toggleEntryType = useCallback(() => {
-    const newType = effectiveType === 'new_entry' ? 'context_entry' : 'new_entry';
-    setOverriddenType(newType);
-  }, [effectiveType]);
 
   const handleClose = useCallback(() => {
     clearAllTimers();
     stopRecording();
     setState('idle');
-    setParsedResult(null);
-    setOverriddenType(null);
+    setReviewState(null);
+    setEmptyTranscript(false);
     committedTextRef.current = '';
     hasSpokenRef.current = false;
     onOpenChange(false);
@@ -493,131 +553,29 @@ export function SimpleVoiceOverlay({
   );
   
   // ============================================
-  // Generate natural language summary
-  // ============================================
-  
-  const generateSummaryText = (result: VoiceParseResult, isNewEntry: boolean): string => {
-    const isEnglish = currentLanguage === 'en';
-    
-    if (!isNewEntry) {
-      return isEnglish ? 'Note captured.' : 'Notiz wurde erfasst.';
-    }
-    
-    const parts: string[] = [];
-    
-    // Time component
-    if (result.time && !result.time.isNow) {
-      const timeDisplay = formatTimeDisplay(result.time);
-      if (timeDisplay) {
-        parts.push(timeDisplay);
-      }
-    }
-    
-    // Pain component
-    if (result.pain_intensity.value !== null) {
-      const painLevel = result.pain_intensity.value;
-      if (isEnglish) {
-        const painDesc = painLevel >= 7 ? 'severe' : painLevel >= 4 ? 'moderate' : 'mild';
-        parts.push(`${painDesc} headache (level ${painLevel})`);
-      } else {
-        const painDesc = painLevel >= 7 ? 'starke' : painLevel >= 4 ? 'mäßige' : 'leichte';
-        parts.push(`${painDesc} Kopfschmerzen (Stärke ${painLevel})`);
-      }
-    } else {
-      parts.push(isEnglish ? 'Headache' : 'Kopfschmerzen');
-    }
-    
-    // Medication component
-    if (result.medications.length > 0) {
-      const medTexts = result.medications.map(m => {
-        const doseText = formatDoseQuarters(m.doseQuarters);
-        return doseText ? `${doseText} ${m.name}` : m.name;
-      });
-      
-      if (isEnglish) {
-        if (medTexts.length === 1) {
-          parts.push(`took ${medTexts[0]}`);
-        } else {
-          const lastMed = medTexts.pop();
-          parts.push(`took ${medTexts.join(', ')} and ${lastMed}`);
-        }
-      } else {
-        if (medTexts.length === 1) {
-          parts.push(`${medTexts[0]} eingenommen`);
-        } else {
-          const lastMed = medTexts.pop();
-          parts.push(`${medTexts.join(', ')} und ${lastMed} eingenommen`);
-        }
-      }
-    }
-    
-    // Build natural sentence
-    if (parts.length === 0) {
-      return isEnglish ? 'Entry recognized.' : 'Eintrag erkannt.';
-    }
-    
-    let text = parts[0];
-    for (let i = 1; i < parts.length; i++) {
-      const part = parts[i];
-      if (i === 1 && (parts[0].includes('Stärke') || parts[0].includes('level'))) {
-        text += '. ' + part.charAt(0).toUpperCase() + part.slice(1);
-      } else if (part.includes('eingenommen') || part.includes('took')) {
-        text += '. ' + part.charAt(0).toUpperCase() + part.slice(1);
-      } else {
-        text += ' ' + part;
-      }
-    }
-    
-    if (!text.endsWith('.')) {
-      text += '.';
-    }
-    
-    return text;
-  };
-  
-  // ============================================
-  // Render Review State
+  // Render Review State (Interactive!)
   // ============================================
   
   const renderReviewState = () => {
-    if (!parsedResult) return null;
-    
-    const isNewEntry = effectiveType === 'new_entry';
-    const showTypeToggle = parsedResult.typeCanBeToggled;
-    const hasPain = parsedResult.pain_intensity.value !== null;
-    const hasMeds = parsedResult.medications.length > 0;
-    const hasStructuredData = hasPain || hasMeds;
-    
-    const summaryText = generateSummaryText(parsedResult, isNewEntry);
-    const showMinimalFallback = isNewEntry && !hasStructuredData;
-    
-    const isEnglish = currentLanguage === 'en';
+    if (!reviewState) return null;
     
     return (
       <>
+        {/* Backdrop */}
         <div 
           className="absolute inset-0 bg-background/80"
-          style={{ 
-            animation: 'fadeIn 0.25s ease-out',
-          }}
+          style={{ animation: 'fadeIn 0.25s ease-out' }}
         />
         
+        {/* Bottom Sheet */}
         <div 
-          className="absolute bottom-0 left-0 right-0 bg-card rounded-t-3xl border-t border-border/20 shadow-2xl"
-          style={{ 
-            animation: 'slideUp 0.3s ease-out',
-          }}
+          className="absolute bottom-0 left-0 right-0 bg-card rounded-t-3xl border-t border-border/20 shadow-2xl max-h-[85vh] overflow-y-auto"
+          style={{ animation: 'slideUp 0.3s ease-out' }}
         >
           <style>{`
             @keyframes slideUp {
-              from { 
-                transform: translateY(100%); 
-                opacity: 0.8;
-              }
-              to { 
-                transform: translateY(0); 
-                opacity: 1;
-              }
+              from { transform: translateY(100%); opacity: 0.8; }
+              to { transform: translateY(0); opacity: 1; }
             }
             @keyframes fadeIn {
               from { opacity: 0; }
@@ -625,57 +583,24 @@ export function SimpleVoiceOverlay({
             }
           `}</style>
           
-          <div className="flex justify-center pt-3 pb-1">
+          {/* Handle */}
+          <div className="flex justify-center pt-3 pb-1 sticky top-0 bg-card rounded-t-3xl z-10">
             <div className="w-10 h-1 rounded-full bg-muted-foreground/20" />
           </div>
           
-          <div className="px-6 pb-8 pt-4">
-            <div className="flex justify-center mb-6">
-              <Badge 
-                variant="outline"
-                className={cn(
-                  "text-xs px-3 py-1 font-normal bg-transparent border-border/40 text-muted-foreground",
-                  showTypeToggle && "cursor-pointer hover:bg-muted/30 transition-colors"
-                )}
-                onClick={showTypeToggle ? toggleEntryType : undefined}
-              >
-                {isNewEntry 
-                  ? (isEnglish ? 'New entry' : 'Neuer Eintrag')
-                  : (isEnglish ? 'Context note' : 'Kontexteintrag')
-                }
-              </Badge>
-            </div>
-            
-            <div className="bg-muted/30 rounded-2xl p-5 mb-8">
-              {showMinimalFallback ? (
-                <p className="text-center text-base text-foreground/80 leading-relaxed">
-                  {isEnglish ? 'Entry recognized. Save it?' : 'Eintrag erkannt. Möchtest du ihn speichern?'}
-                </p>
-              ) : (
-                <p className="text-center text-base text-foreground leading-relaxed">
-                  {summaryText}
-                </p>
-              )}
-            </div>
-            
-            <div className="space-y-4">
-              <Button
-                size="lg"
-                className="w-full h-12 text-base font-medium bg-primary/90 hover:bg-primary"
-                onClick={handleSave}
-              >
-                {t('common.save')}
-              </Button>
-              
-              <div className="flex justify-center pt-2">
-                <button
-                  onClick={handleRetry}
-                  className="text-sm text-muted-foreground/60 hover:text-muted-foreground transition-colors py-2 px-4"
-                >
-                  {t('voice.speakAgain')}
-                </button>
-              </div>
-            </div>
+          {/* Content */}
+          <div className="px-6 pb-8 pt-2">
+            <EntryReviewSheet
+              state={reviewState}
+              onChange={setReviewState}
+              onSave={handleSave}
+              onDiscard={handleDiscard}
+              onRetryVoice={handleRetryVoice}
+              medications={medicationOptions}
+              recentMedications={recentMedOptions}
+              saving={saving}
+              emptyTranscript={emptyTranscript}
+            />
           </div>
         </div>
       </>
