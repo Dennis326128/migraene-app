@@ -202,15 +202,34 @@ const PAIN_SCALE_PATTERNS = [
   /(\d{1,2})\s*[\/\\]\s*10/i,
 ];
 
+// Preposition patterns: "bei 5", "auf 5" (only valid near pain context)
+const PAIN_PREPOSITION_PATTERNS = [
+  /\b(?:bei|auf)\s+(\d{1,2})\b/i,
+];
+
 // Intensity word mappings
 const INTENSITY_WORD_MAP: Array<{ regex: RegExp; value: number }> = [
-  { regex: /\b(sehr\s*stark|unerträglich|extrem|heftig|maximal|höllisch|brutal|kaum\s*auszuhalten)\b/i, value: 9 },
-  { regex: /\b(stark|schwer|massiv|richtig\s*schlimm|echt\s*schlimm)\b/i, value: 7 },
-  { regex: /\b(mittel|mäßig|maessig|mässig|normal|moderat)\b/i, value: 5 },
-  { regex: /\b(leicht|schwach|gering|wenig|dezent|bisschen)\b/i, value: 3 },
-  { regex: /\b(sehr\s*leicht|minimal|kaum\s*spürbar)\b/i, value: 1 },
+  { regex: /\b(sehr\s*starke?r?|unerträglich\w*|extreme?r?|heftige?r?|maximale?r?|höllische?r?|brutale?r?|kaum\s*auszuhalten)\b/i, value: 9 },
+  { regex: /\b(starke?r?|schwere?r?|massive?r?|richtig\s*schlimm\w*|echt\s*schlimm\w*)\b/i, value: 7 },
+  { regex: /\b(mittel\w*|mäßige?r?|maessige?r?|mässige?r?|normale?r?|moderate?r?)\b/i, value: 5 },
+  { regex: /\b(leichte?r?|schwache?r?|geringe?r?|wenig|dezente?r?|bisschen)\b/i, value: 3 },
+  { regex: /\b(sehr\s*leichte?r?|minimale?r?|kaum\s*spürbar\w*)\b/i, value: 1 },
   { regex: /\b(keine?r?|null)\s*(schmerz|kopfschmerz|migräne|attacke)/i, value: 0 },
 ];
+
+/**
+ * Check if a token is a time-unit word (to exclude numbers near it from pain)
+ */
+function isTimeUnitToken(token: string): boolean {
+  return /^(minute|minuten|min|stunde|stunden|std|sekunde|sekunden|sek|tage?|wochen?)$/i.test(token);
+}
+
+/**
+ * Check if a token is a dose-unit word (to exclude numbers near it from pain)
+ */
+function isDoseUnitToken(token: string): boolean {
+  return /^(mg|milligramm|ml|mcg|mikrogramm|gramm|tropfen|sprühstöße?)$/i.test(token);
+}
 
 /**
  * Parse pain intensity with robust STT error handling
@@ -223,17 +242,17 @@ function parsePainIntensity(text: string): ParsedPainIntensity {
     needsReview: false,
   };
 
-  // Normalize text
+  // Normalize text: replace number words with digits
   let normalized = text.toLowerCase();
   for (const [word, num] of Object.entries(NUMBER_WORDS)) {
     normalized = normalized.replace(new RegExp(`\\b${word}\\b`, 'gi'), String(num));
   }
 
-  // Remove mg/dosage values to avoid confusion
+  // Remove mg/dosage values and clock times to avoid confusion
   const sanitized = normalized
     .replace(/\d+\s*mg/gi, '[DOSE]')
     .replace(/\d+\s*milligramm/gi, '[DOSE]')
-    .replace(/\d{1,2}:\d{2}/g, '[TIME]'); // Remove clock times
+    .replace(/\d{1,2}:\d{2}/g, '[TIME]');
 
   // 1. Check for explicit scale patterns ("X von 10", "X/10")
   for (const pattern of PAIN_SCALE_PATTERNS) {
@@ -252,7 +271,6 @@ function parsePainIntensity(text: string): ParsedPainIntensity {
   }
 
   // 2. Check for trigger word + number within 4 tokens (using fuzzy isPainKeyword)
-  // Number words have already been replaced with digits in `normalized`
   const tokens = sanitized.split(/\s+/);
   for (let i = 0; i < tokens.length; i++) {
     const token = tokens[i];
@@ -262,18 +280,17 @@ function parsePainIntensity(text: string): ParsedPainIntensity {
     const isTrigger = isPainKeyword(token) || (multiToken && isPainKeyword(multiToken));
 
     if (isTrigger) {
-      // Look for number AFTER the trigger first (most natural: "schmerzstärke 5")
-      // Then check before. This prevents "vor 10 minuten schmerzstärke 5" matching 10.
       let bestMatch: { value: number; distance: number } | null = null;
       
       for (let j = Math.max(0, i - 2); j < Math.min(tokens.length, i + 5); j++) {
         if (j === i) continue;
         
-        // Skip tokens that are part of time/dose expressions
-        if (j > 0 && /^(minute|minuten|min|stunde|stunden|std|mg|milligramm)$/i.test(tokens[Math.min(j + 1, tokens.length - 1)])) continue;
-        if (/^(minute|minuten|min|stunde|stunden|std|mg|milligramm)$/i.test(tokens[j])) continue;
-        // Skip if preceded by "vor"/"seit" (time expression)
-        if (j > 0 && /^(vor|seit)$/i.test(tokens[j - 1])) continue;
+        // Skip tokens adjacent to time or dose units
+        const nextToken = j + 1 < tokens.length ? tokens[j + 1] : '';
+        const prevToken = j > 0 ? tokens[j - 1] : '';
+        if (isTimeUnitToken(nextToken) || isDoseUnitToken(nextToken)) continue;
+        if (isTimeUnitToken(tokens[j]) || isDoseUnitToken(tokens[j])) continue;
+        if (/^(vor|seit)$/i.test(prevToken)) continue;
         
         const cleanToken = tokens[j].replace(/[,.:;!?]/g, '');
         const numMatch = cleanToken.match(/^(\d{1,2})$/);
@@ -281,8 +298,7 @@ function parsePainIntensity(text: string): ParsedPainIntensity {
           const level = parseInt(numMatch[1], 10);
           if (level >= 0 && level <= 10) {
             const distance = Math.abs(j - i);
-            // Prefer tokens AFTER the trigger (positive distance) and closer
-            const adjustedDist = j > i ? distance : distance + 10; // penalize tokens before trigger
+            const adjustedDist = j > i ? distance : distance + 10;
             if (!bestMatch || adjustedDist < bestMatch.distance) {
               bestMatch = { value: level, distance: adjustedDist };
             }
@@ -316,9 +332,28 @@ function parsePainIntensity(text: string): ParsedPainIntensity {
     }
   }
 
-  // 4. Check for intensity words — ONLY if pain context is present
-  // (prevents "wenig geschlafen" from being interpreted as pain level 3)
-  const hasPainContext = /\b(schmerz|migräne|migraene|kopfschmerz|kopfweh|attacke|anfall|weh)\b/i.test(text);
+  // 4. Check for "bei X" / "auf X" — ONLY if pain context is present
+  const hasPainContext = /\b(schmerz\w*|migräne\w*|migraene\w*|kopfschmerz\w*|kopfweh|attacke\w*|anfall\w*|weh)\b/i.test(text);
+  if (hasPainContext) {
+    for (const pattern of PAIN_PREPOSITION_PATTERNS) {
+      const match = sanitized.match(pattern);
+      if (match) {
+        const level = parseInt(match[1], 10);
+        // Ensure it's not near a time/dose unit
+        const afterMatch = sanitized.substring((match.index || 0) + match[0].length).trim();
+        if (level >= 0 && level <= 10 && !isTimeUnitToken(afterMatch.split(/\s+/)[0] || '')) {
+          return {
+            value: level,
+            confidence: 0.70,
+            evidence: match[0],
+            needsReview: true,
+          };
+        }
+      }
+    }
+  }
+
+  // 5. Check for intensity words — ONLY if pain context is present
   if (hasPainContext) {
     for (const { regex, value } of INTENSITY_WORD_MAP) {
       const match = sanitized.match(regex);
@@ -333,12 +368,16 @@ function parsePainIntensity(text: string): ParsedPainIntensity {
     }
   }
 
-  // 5. Check for standalone number with pain context nearby
-  if (/\b(schmerz|migräne|migraene|kopfschmerz|attacke|anfall|kopfweh)\b/i.test(text)) {
+  // 6. Check for standalone number with pain context nearby
+  if (/\b(schmerz\w*|migräne\w*|migraene\w*|kopfschmerz\w*|attacke\w*|anfall\w*|kopfweh)\b/i.test(text)) {
     const standaloneMatch = sanitized.match(/\b([0-9]|10)\b/);
     if (standaloneMatch) {
       const level = parseInt(standaloneMatch[1], 10);
-      if (level >= 0 && level <= 10) {
+      // Verify this number isn't adjacent to a time/dose unit
+      const matchIdx = standaloneMatch.index || 0;
+      const afterText = sanitized.substring(matchIdx + standaloneMatch[0].length).trim();
+      const firstWordAfter = afterText.split(/\s+/)[0] || '';
+      if (level >= 0 && level <= 10 && !isTimeUnitToken(firstWordAfter) && !isDoseUnitToken(firstWordAfter)) {
         return {
           value: level,
           confidence: 0.55,
@@ -378,7 +417,7 @@ const RELATIVE_TIME_PATTERNS: Array<{
     display: () => 'vor einer Stunde'
   },
   {
-    regex: /\b(?:vor|seit)\s+(einer?|einem)\s+halben?\s+(stunde)\b/i,
+    regex: /\b(?:vor|seit)\s+(?:einer?|einem|1)\s+halben?\s+(?:stunde)\b/i,
     minutesAgo: () => 30,
     display: () => 'vor einer halben Stunde'
   },
@@ -388,12 +427,12 @@ const RELATIVE_TIME_PATTERNS: Array<{
     display: () => 'vor anderthalb Stunden'
   },
   {
-    regex: /\b(?:vor|seit)\s+(einer?)\s+(viertel\s*stunde)\b/i,
+    regex: /\b(?:vor|seit)\s+(?:einer?|einem|1)\s+(?:viertel\s*stunde)\b/i,
     minutesAgo: () => 15,
     display: () => 'vor einer Viertelstunde'
   },
   {
-    regex: /\b(?:vor|seit)\s+(einer?)\s+(dreiviertel\s*stunde)\b/i,
+    regex: /\b(?:vor|seit)\s+(?:einer?|einem|1)\s+(?:dreiviertel\s*stunde)\b/i,
     minutesAgo: () => 45,
     display: () => 'vor einer Dreiviertelstunde'
   },
@@ -462,6 +501,16 @@ const CLOCK_PATTERNS: Array<{
   {
     regex: /\b(\d{1,2})[:.](\d{2})\b/i,
     parse: m => ({ hours: parseInt(m[1], 10), minutes: parseInt(m[2], 10) })
+  },
+  {
+    // "um 8" / "gegen 14" (without "uhr") — only if preceded by um/gegen
+    regex: /\b(?:um|gegen)\s+(\d{1,2})\b/i,
+    parse: (m, text) => {
+      const hours = parseInt(m[1], 10);
+      if (hours > 24) return { hours: 0, minutes: 0 }; // invalid, will be clamped
+      const isPM = /nachmittag|abend|pm/i.test(text.toLowerCase());
+      return { hours: (isPM && hours < 12) ? hours + 12 : hours, minutes: 0 };
+    }
   },
 ];
 
@@ -578,19 +627,24 @@ function parseTime(text: string): ParsedTime {
 // MEDICATION PARSING
 // ============================================
 
-// Dose patterns
+// Dose patterns - ordered by specificity (most specific first)
 const DOSE_PATTERNS: Array<{ regex: RegExp; quarters: number; text: string }> = [
-  { regex: /\bviertel\s*(tablette)?\b/i, quarters: 1, text: 'Viertel Tablette' },
-  { regex: /\b(1\/4|0[.,]25)\s*(tablette)?\b/i, quarters: 1, text: 'Viertel Tablette' },
-  { regex: /\bhalbe?\s*(tablette)?\b/i, quarters: 2, text: 'halbe Tablette' },
+  { regex: /\bviertel\s*(tablette|kapsel)?\b/i, quarters: 1, text: 'Viertel Tablette' },
+  { regex: /\b(1\/4|0[.,]25)\s*(tablette|kapsel)?\b/i, quarters: 1, text: 'Viertel Tablette' },
+  { regex: /\bhalbe?\s*(tablette|kapsel)?\b/i, quarters: 2, text: 'halbe Tablette' },
   { regex: /\b(1\/2|0[.,]5)\b/i, quarters: 2, text: 'halbe Tablette' },
   { regex: /\bdrei\s*viertel\b/i, quarters: 3, text: 'dreiviertel Tablette' },
   { regex: /\b(3\/4|0[.,]75)\b/i, quarters: 3, text: 'dreiviertel Tablette' },
-  { regex: /\b(eine?|1)\s*tablette?\b/i, quarters: 4, text: '1 Tablette' },
-  { regex: /\bganze?\s*tablette?\b/i, quarters: 4, text: '1 Tablette' },
+  { regex: /\bganze?\s*(tablette|kapsel)?\b/i, quarters: 4, text: '1 Tablette' },
   { regex: /\banderthalb\b/i, quarters: 6, text: 'eineinhalb Tabletten' },
-  { regex: /\b(eineinhalb|1[.,]5)\s*(tablette)?\b/i, quarters: 6, text: 'eineinhalb Tabletten' },
-  { regex: /\b(zwei|2)\s*tablette/i, quarters: 8, text: '2 Tabletten' },
+  { regex: /\b(eineinhalb|1[.,]5)\s*(tablette|kapsel)?\b/i, quarters: 6, text: 'eineinhalb Tabletten' },
+  { regex: /\b(zwei|2)\s*(tablette|kapsel)/i, quarters: 8, text: '2 Tabletten' },
+  { regex: /\b(drei|3)\s*(tablette|kapsel)/i, quarters: 12, text: '3 Tabletten' },
+  // "eine tablette" or standalone "eine" near a med (handled in parseMedications)
+  { regex: /\b(eine?|1)\s*(tablette|kapsel)\b/i, quarters: 4, text: '1 Tablette' },
+  // Spray/drops
+  { regex: /\b(einen?|1)\s*(sprühstoß|hub|spray)\b/i, quarters: 4, text: '1 Sprühstoß' },
+  { regex: /\b(zwei|2)\s*(sprühstöße|hübe|sprays?)\b/i, quarters: 8, text: '2 Sprühstöße' },
 ];
 
 /**
@@ -742,8 +796,8 @@ function cleanNotes(
   }
   
   // 2. Mark dose/quantity/verb tokens near each medication span (±3 tokens)
-  const doseWords = /^(eine[nrm]?|halbe?|ganze?|viertel|dreiviertel|anderthalb|eineinhalb|tablette[n]?|kapsel[n]?|sprühstoß|sprühstöße|\d+)$/i;
-  const intakeVerbs = /^(genommen|eingenommen|eingeworfen|geschluckt|nehme|nehmen|mg|milligramm)$/i;
+  const doseWords = /^(eine[nrm]?|halbe?|ganze?|viertel|dreiviertel|anderthalb|eineinhalb|tablette[n]?|kapsel[n]?|sprühstoß|sprühstöße|hübe?|spray[s]?|tropfen|\d+)$/i;
+  const intakeVerbs = /^(genommen|eingenommen|eingeworfen|geschluckt|nehme|nehmen|nehm|geschmissen|mg|milligramm|ml)$/i;
   
   for (const span of medTokenSpans) {
     const windowStart = Math.max(0, span.startIndex - 3);
@@ -777,31 +831,32 @@ function cleanNotes(
   // 4. Remove pain level expressions (trigger words + associated number)
   for (const trigger of PAIN_INTENSITY_TRIGGERS) {
     const escaped = trigger.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    // Remove trigger word + optional following number
     cleaned = cleaned.replace(new RegExp(escaped + '\\s*\\d{0,2}', 'gi'), '');
-    // Remove standalone trigger word
     cleaned = cleaned.replace(new RegExp(escaped, 'gi'), '');
   }
   cleaned = cleaned.replace(/\b\d+\s*(?:von\s*10|\/10|auf\s*10|aus\s*10)\b/gi, '');
+  // Remove "bei X"/"auf X" pain prepositions
+  cleaned = cleaned.replace(/\b(?:bei|auf)\s+\d{1,2}\b/gi, '');
   
   // 5. Fuzzy slot-noise pass: remove STT-mangled pain keywords (e.g. "schmerzstrecke")
-  // Uses the same isPainKeyword fuzzy logic from the parser
   const remainingTokens = cleaned.split(/\s+/).filter(Boolean);
   const cleanedTokens = remainingTokens.filter(token => {
     const stripped = token.replace(/[,.:;!?]/g, '');
-    if (stripped.length < 4) return true; // keep short words
-    // If the token looks like a pain keyword (fuzzy match), remove it
+    if (stripped.length < 4) return true;
     if (isPainKeyword(stripped)) return false;
     return true;
   });
   cleaned = cleanedTokens.join(' ');
   
-  // 6. Remove standalone pain numbers (orphaned after trigger removal)
-  // Only remove if the number is isolated (not part of a meaningful phrase)
-  cleaned = cleaned.replace(/^\d{1,2}$/, ''); // entire notes is just a number
+  // 6. Remove orphaned standalone numbers (pain remnants)
+  cleaned = cleaned.replace(/^\d{1,2}$/, '');
   
-  // 7. Remove "now" indicators
+  // 7. Remove "now" indicators and common filler words
   cleaned = cleaned.replace(/\b(jetzt|gerade|sofort|eben|aktuell|momentan)\b/gi, '');
+  // Remove orphaned time unit words left after time pattern removal
+  cleaned = cleaned.replace(/\b(minuten|minute|min|stunden|stunde|std)\b/gi, '');
+  // Remove common pain context words that are redundant as notes (but NOT symptom words like Übelkeit)
+  cleaned = cleaned.replace(/\b(kopfschmerz|kopfschmerzen|kopfweh|migräne|migraene|attacke|anfall)\b/gi, '');
   
   // 8. Clean up whitespace and punctuation
   cleaned = cleaned.replace(/\s+/g, ' ').trim();
