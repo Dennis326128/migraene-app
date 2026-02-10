@@ -520,7 +520,7 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
           )}
 
           {/* 3️⃣ REPEAT SELECTION - NOW FIRST AFTER TYPE! */}
-          <div className="space-y-3 p-4 bg-muted/30 rounded-lg border">
+          <div className="space-y-3 p-4 bg-muted/30 rounded-lg">
             <Label className="text-base font-medium">Wie oft erinnern?</Label>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {[
@@ -534,10 +534,10 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
                   key={option.value}
                   type="button"
                   onClick={() => setValue('repeat', option.value as any)}
-                  className={`px-3 py-2 rounded-lg border text-sm font-medium transition-all touch-manipulation ${
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-all touch-manipulation ${
                     repeat === option.value
-                      ? 'bg-primary text-primary-foreground border-primary'
-                      : 'bg-background text-foreground border-border hover:border-primary/50'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted/50 text-foreground hover:bg-muted'
                   }`}
                 >
                   {option.label}
@@ -565,7 +565,7 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
 
           {/* 4️⃣ TIME OF DAY PRESETS (for daily/weekdays medication) */}
           {showTimeOfDayPresets && (
-            <div className="space-y-3 p-4 bg-muted/30 rounded-lg border">
+            <div className="space-y-3 p-4 bg-muted/30 rounded-lg">
               <Label className="text-base font-medium">Zu welchen Tageszeiten?</Label>
               <p className="text-sm text-muted-foreground -mt-1">
                 Wähle eine oder mehrere Zeiten
@@ -579,10 +579,10 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
                   return (
                     <div
                       key={preset.id}
-                      className={`relative flex flex-col rounded-lg border text-sm transition-all ${
+                    className={`relative flex flex-col rounded-lg text-sm transition-all ${
                         isSelected
-                          ? 'bg-primary text-primary-foreground border-primary'
-                          : 'bg-background text-foreground border-border hover:border-primary/50'
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted/50 text-foreground hover:bg-muted'
                       }`}
                     >
                       {/* Main button for toggle */}
@@ -712,7 +712,7 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
 
           {/* 6️⃣ FOLLOW-UP FOR APPOINTMENTS */}
           {isAppointmentType && (
-            <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
+            <div className="space-y-4 p-4 bg-muted/30 rounded-lg">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label htmlFor="follow-up" className="cursor-pointer font-medium">
