@@ -454,24 +454,39 @@ export const MainMenu: React.FC<MainMenuProps> = ({
       <SimpleVoiceOverlay
         open={showVoiceAssistant}
         onOpenChange={setShowVoiceAssistant}
-        onSavePainEntry={async (data) => {
+        onSave={async (data) => {
           const now = new Date();
-          const payload: {
-            selected_date: string;
-            selected_time: string;
-            pain_level: number;
-            medications: string[];
-            notes: string;
-          } = {
+          const payload = {
             selected_date: data.date || format(now, 'yyyy-MM-dd'),
             selected_time: data.time || format(now, 'HH:mm'),
-            pain_level: data.painLevel ?? 5,
+            pain_level: data.painLevel ?? 7,
             medications: data.medications?.map(m => m.name) || [],
-            notes: data.notes || ''
+            notes: data.notes || '',
           };
           
           try {
-            await createEntryMut.mutateAsync(payload);
+            const savedId = await createEntryMut.mutateAsync(payload);
+            
+            // Sync medication intakes with doses
+            const numericId = Number(savedId);
+            if (Number.isFinite(numericId) && data.medications && data.medications.length > 0) {
+              const { useSyncIntakes } = await import('@/features/medication-intakes/hooks/useMedicationIntakes');
+              // We need to call the sync inline since we can't use hooks here
+              const { supabase } = await import('@/integrations/supabase/client');
+              const { data: { user } } = await supabase.auth.getUser();
+              if (user) {
+                for (const med of data.medications) {
+                  await supabase.from('medication_intakes').insert({
+                    entry_id: numericId,
+                    medication_name: med.name,
+                    medication_id: med.medicationId || null,
+                    dose_quarters: med.doseQuarters,
+                    user_id: user.id,
+                  });
+                }
+              }
+            }
+            
             toast.success(t('entry.saved'), {
               action: {
                 label: t('common.edit'),
@@ -482,26 +497,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             });
           } catch (error) {
             devError('Error saving voice entry:', error, { context: 'MainMenu' });
-            toast.error(t('error.saveFailed'));
-          }
-        }}
-        onSaveContextNote={async (text, _timestamp) => {
-          try {
-            await saveVoiceNote({
-              rawText: text,
-              sttConfidence: 0.95,
-              source: 'voice'
-            });
-            toast.success(t('voice.noteSaved'), {
-              action: {
-                label: t('voice.view'),
-                onClick: () => {
-                  onNavigate?.('voice-notes');
-                }
-              }
-            });
-          } catch (error) {
-            devError('Error saving context note:', error, { context: 'MainMenu' });
             toast.error(t('error.saveFailed'));
           }
         }}

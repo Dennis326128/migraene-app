@@ -927,6 +927,60 @@ export type Database = {
         }
         Relationships: []
       }
+      reminder_completions: {
+        Row: {
+          created_at: string
+          id: string
+          medication_id: string | null
+          medication_name: string | null
+          notes: string | null
+          reminder_id: string
+          scheduled_at: string
+          source: string
+          taken_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          medication_id?: string | null
+          medication_name?: string | null
+          notes?: string | null
+          reminder_id: string
+          scheduled_at: string
+          source?: string
+          taken_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          medication_id?: string | null
+          medication_name?: string | null
+          notes?: string | null
+          reminder_id?: string
+          scheduled_at?: string
+          source?: string
+          taken_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reminder_completions_medication_id_fkey"
+            columns: ["medication_id"]
+            isOneToOne: false
+            referencedRelation: "user_medications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reminder_completions_reminder_id_fkey"
+            columns: ["reminder_id"]
+            isOneToOne: false
+            referencedRelation: "reminders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reminders: {
         Row: {
           created_at: string
@@ -943,6 +997,7 @@ export type Database = {
           notification_enabled: boolean
           notify_offsets_minutes: number[] | null
           repeat: string
+          schedule_mode: string
           series_id: string | null
           snooze_count: number | null
           snoozed_until: string | null
@@ -968,6 +1023,7 @@ export type Database = {
           notification_enabled?: boolean
           notify_offsets_minutes?: number[] | null
           repeat?: string
+          schedule_mode?: string
           series_id?: string | null
           snooze_count?: number | null
           snoozed_until?: string | null
@@ -993,6 +1049,7 @@ export type Database = {
           notification_enabled?: boolean
           notify_offsets_minutes?: number[] | null
           repeat?: string
+          schedule_mode?: string
           series_id?: string | null
           snooze_count?: number | null
           snoozed_until?: string | null

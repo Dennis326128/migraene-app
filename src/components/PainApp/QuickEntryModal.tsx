@@ -219,7 +219,7 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
         aura_type: "keine" as const,
         pain_locations: [] as string[],
         medications: medicationNames,
-        notes: initialNotes ? `Spracheintrag: ${initialNotes}` : "Schnelleintrag",
+        notes: initialNotes || "Schnelleintrag",
         weather_id: weatherId,
         latitude,
         longitude,
