@@ -61,12 +61,20 @@ const MEDICATION_CONTEXT_WORDS = new Set([
   'halbe', 'ganze', 'viertel', 'eine', 'zwei',
 ]);
 
-// Words to skip when searching for medications
+// Words to skip when searching for medications (NEVER match as med names)
 const SKIP_WORDS = new Set([
   'vor', 'nach', 'mit', 'und', 'oder', 'bei', 'wegen', 'durch',
-  'ich', 'habe', 'hab', 'heute', 'gestern', 'jetzt', 'gerade',
-  'eine', 'einen', 'einer', 'einem', 'das', 'die', 'der', 'den',
+  'ich', 'habe', 'hab', 'heute', 'gestern', 'jetzt', 'gerade', 'dann', 'noch',
+  'eine', 'einen', 'einer', 'einem', 'das', 'die', 'der', 'den', 'dem',
   'schmerz', 'kopfschmerz', 'migräne', 'migraene', 'stark', 'stärke',
+  // Context words that must NEVER fuzzy-match to medications
+  'büro', 'buero', 'stress', 'trigger', 'geschlafen', 'arbeit',
+  'müde', 'muede', 'wenig', 'morgen', 'schlaf', 'schlecht',
+  'wetter', 'sport', 'training', 'essen', 'trinken', 'getrunken',
+  'kaffee', 'alkohol', 'periode', 'regel', 'zyklus', 'reise',
+  'lärm', 'laerm', 'erschöpft', 'erschoepft', 'verspannt',
+  'bildschirm', 'termine', 'sitzen', 'autofahren', 'zugfahrt',
+  'gearbeitet', 'ausgesetzt', 'angestrengt', 'überstunden',
 ]);
 
 // Minimum similarity thresholds
@@ -452,6 +460,9 @@ export function findMedicationMentions(
   // Tokenize
   const tokens = transcript.toLowerCase().split(/\s+/).filter(t => t.length > 0);
   
+  // Negation words
+  const NEGATION_WORDS = new Set(['kein', 'keine', 'keinen', 'keiner', 'keinem', 'nicht', 'ohne']);
+  
   let i = 0;
   while (i < tokens.length) {
     const token = tokens[i];
@@ -462,18 +473,35 @@ export function findMedicationMentions(
       continue;
     }
     
+    // NEGATION GUARD: check if negation word is ≤2 tokens before
+    const hasNegation = (
+      (i >= 1 && NEGATION_WORDS.has(tokens[i - 1])) ||
+      (i >= 2 && NEGATION_WORDS.has(tokens[i - 2]))
+    );
+    if (hasNegation) {
+      i++;
+      continue;
+    }
+    
     // Check for split token match first
     const splitResult = tryMatchSplitTokens(tokens, i, lexicon);
     if (splitResult) {
-      const raw = tokens.slice(i, i + splitResult.consumedTokens).join(' ');
-      if (!foundCanonicals.has(splitResult.match.canonical)) {
-        foundCanonicals.add(splitResult.match.canonical);
-        hits.push({
-          raw,
-          match: splitResult.match,
-          startIndex: i,
-          endIndex: i + splitResult.consumedTokens - 1
-        });
+      // Also check negation for split tokens
+      const splitNegation = (
+        (i >= 1 && NEGATION_WORDS.has(tokens[i - 1])) ||
+        (i >= 2 && NEGATION_WORDS.has(tokens[i - 2]))
+      );
+      if (!splitNegation) {
+        const raw = tokens.slice(i, i + splitResult.consumedTokens).join(' ');
+        if (!foundCanonicals.has(splitResult.match.canonical)) {
+          foundCanonicals.add(splitResult.match.canonical);
+          hits.push({
+            raw,
+            match: splitResult.match,
+            startIndex: i,
+            endIndex: i + splitResult.consumedTokens - 1
+          });
+        }
       }
       i += splitResult.consumedTokens;
       continue;
