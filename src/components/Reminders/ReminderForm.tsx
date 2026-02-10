@@ -26,6 +26,15 @@ import {
 import type { Reminder, CreateReminderInput, UpdateReminderInput, ReminderPrefill, TimeOfDay } from '@/types/reminder.types';
 import { format, parseISO } from 'date-fns';
 import { ArrowLeft, Clock, Plus, X, CalendarPlus, Info, Bell, ChevronDown, ListTodo, Pill, Calendar, Sunrise, Sun, Sunset, Moon } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+} from '@/components/ui/alert-dialog';
 import { MedicationSelector } from './MedicationSelector';
 import { cloneReminderForCreate, generateSeriesId } from '@/features/reminders/helpers/reminderHelpers';
 import { 
@@ -183,6 +192,9 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
   // Weekdays for weekday repeat
   const [selectedWeekdays, setSelectedWeekdays] = useState<Weekday[]>([]);
 
+  // Friendly hint dialog for missing medication
+  const [showMedHintDialog, setShowMedHintDialog] = useState(false);
+
   // Title field removed from UI — auto-title only
 
   // Form setup
@@ -322,6 +334,15 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
   // Update custom time for a preset
   const updateCustomTime = (tod: TimeOfDay, time: string) => {
     setCustomTimes(prev => ({ ...prev, [tod]: time }));
+  };
+
+  // Intercept form submit to show friendly hint if no medication selected
+  const onFormSubmitGuarded = (data: FormData) => {
+    if (isMedicationType && selectedMedications.length === 0 && !isEditing) {
+      setShowMedHintDialog(true);
+      return;
+    }
+    onFormSubmit(data);
   };
 
   // Handle form submit
@@ -479,7 +500,7 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
       </div>
 
       <Card className="p-4 sm:p-6 max-h-[75vh] overflow-y-auto modern-scrollbar">
-        <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-5">
+        <form onSubmit={handleSubmit(onFormSubmitGuarded)} className="space-y-5">
           
           {/* 1️⃣ TYPE SELECTION */}
           <div className="space-y-2">
@@ -578,9 +599,6 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
           {showTimeOfDayPresets && (
             <div className="space-y-3 p-4 bg-muted/30 rounded-lg">
               <Label className="text-base font-medium">Tageszeit <span className="text-muted-foreground font-normal text-sm">(optional)</span></Label>
-              <p className="text-sm text-muted-foreground -mt-1">
-                Ohne Auswahl wird 09:00 Uhr verwendet
-              </p>
               
               <div className="grid grid-cols-2 gap-2">
                 {TIME_PRESETS.map((preset) => {
@@ -911,6 +929,25 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
           </div>
         </form>
       </Card>
+
+      {/* Friendly hint dialog when no medication selected */}
+      <AlertDialog open={showMedHintDialog} onOpenChange={setShowMedHintDialog}>
+        <AlertDialogContent className="sm:max-w-sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-base font-semibold">
+              Du hast noch kein Medikament ausgewählt.
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm text-muted-foreground">
+              Möchtest du eines hinzufügen?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction className="bg-success hover:bg-success/90 text-success-foreground">
+              OK
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

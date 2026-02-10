@@ -111,13 +111,6 @@ export const MedicationSelector = ({ selectedMedications, onSelectionChange }: M
         )}
       </div>
 
-      {/* Selection hint */}
-      {selectedMedications.length === 0 && medications.length > 0 && (
-        <p className="text-xs text-muted-foreground">
-          Mindestens ein Medikament auswählen
-        </p>
-      )}
-
       {selectedMedications.length > 0 && (
         <p className="text-xs text-muted-foreground">
           {selectedMedications.length} ausgewählt
