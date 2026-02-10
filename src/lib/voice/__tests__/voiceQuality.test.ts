@@ -106,10 +106,11 @@ describe('Voice Quality – CI Gates', () => {
       }
     }
     
-    // Current baseline gates – tighten as parser improves
-    expect(metrics.k6FalsePositives).toBeLessThanOrEqual(1);
-    expect(metrics.painAccuracy).toBeGreaterThanOrEqual(0.85);
-    expect(metrics.notesNoiseRate).toBeLessThanOrEqual(0.05);
-    expect(metrics.passRate).toBeGreaterThanOrEqual(0.75);
+    // Phase 1 CI gates – Trust & Safety
+    expect(metrics.k6FalsePositives).toBe(0);
+    expect(metrics.painAccuracy).toBeGreaterThanOrEqual(0.95);
+    expect(metrics.medHitRate).toBeGreaterThanOrEqual(0.95);
+    expect(metrics.notesNoiseRate).toBeLessThanOrEqual(0.01);
+    expect(metrics.passRate).toBeGreaterThanOrEqual(0.90);
   });
 });
