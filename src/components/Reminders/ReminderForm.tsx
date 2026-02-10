@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/collapsible';
 import type { Reminder, CreateReminderInput, UpdateReminderInput, ReminderPrefill, TimeOfDay } from '@/types/reminder.types';
 import { format, parseISO } from 'date-fns';
-import { ArrowLeft, Clock, Plus, X, CalendarPlus, Info, Bell, ChevronDown, ListTodo, Pill, Calendar, Sunrise, Sun, Sunset, Moon } from 'lucide-react';
+import { ArrowLeft, Clock, Plus, X, CalendarPlus, Info, Bell, ChevronDown, ListTodo, Pill, Calendar, Sunrise, Sun, Sunset, Moon, Pencil } from 'lucide-react';
 import { MedicationSelector } from './MedicationSelector';
 import { cloneReminderForCreate, generateSeriesId } from '@/features/reminders/helpers/reminderHelpers';
 import { 
@@ -94,6 +94,31 @@ const extractTimeFromDateTime = (dateTime: string): string => {
 
 const getTodayDate = (): string => format(new Date(), 'yyyy-MM-dd');
 
+/**
+ * Auto-generate a sensible title based on reminder type and context
+ */
+function generateAutoTitle(
+  type: 'medication' | 'appointment' | 'todo',
+  medications: string[],
+  timeOfDay?: TimeOfDay | null
+): string {
+  switch (type) {
+    case 'medication':
+      if (medications.length === 1) {
+        return `${medications[0]} einnehmen`;
+      } else if (medications.length > 1) {
+        return 'Medikamente einnehmen';
+      }
+      return 'Medikament einnehmen';
+    case 'appointment':
+      return 'Arzttermin';
+    case 'todo':
+      return 'Erinnerung';
+    default:
+      return 'Erinnerung';
+  }
+}
+
 export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, onCreateAnother }: ReminderFormProps) => {
   const isEditing = !!reminder;
   
@@ -161,6 +186,13 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
 
   // Weekdays for weekday repeat
   const [selectedWeekdays, setSelectedWeekdays] = useState<Weekday[]>([]);
+
+  // Optional title editing (hidden by default)
+  const [showTitleField, setShowTitleField] = useState(() => {
+    // Show title field if editing an existing reminder (user may have customized it)
+    if (reminder) return true;
+    return false;
+  });
 
   // Form setup
   const defaultValues: FormData = reminder
@@ -281,12 +313,11 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
   // Need at least one time of day selected for daily meds
   const hasValidTimeSelection = !showTimeOfDayPresets || selectedTimeOfDay.length > 0;
   
-  // Title validation: required when not using time-of-day presets (which auto-generate title)
-  const titleValue = watch('title');
-  const hasValidTitle = showTimeOfDayPresets || (titleValue && titleValue.trim().length > 0);
+  // Auto-title is always available as fallback — no title validation needed
+  const autoTitle = generateAutoTitle(type as any, selectedMedications, selectedTimeOfDay[0] || null);
   
   // Combined validation for submit button
-  const canSubmit = hasValidTimeSelection && hasValidTitle;
+  const canSubmit = hasValidTimeSelection;
 
   // Toggle time of day selection
   const toggleTimeOfDay = (tod: TimeOfDay) => {
@@ -332,7 +363,7 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
       
       const submitData: UpdateReminderInput = {
         type: data.type,
-        title: data.title,
+        title: data.title?.trim() || autoTitle,
         date_time: dateTime,
         repeat: data.repeat,
         notes: data.notes || undefined,
@@ -355,18 +386,15 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
 
     // CREATE MODE with time-of-day presets (daily medication)
     if (showTimeOfDayPresets && selectedTimeOfDay.length > 0) {
-      // Klarer Titel ohne Tageszeit - "Einnahme: Medikamentenname"
-      const medsList = selectedMedications.length > 0 ? selectedMedications.join(', ') : 'Medikament';
-      const cleanTitle = `Einnahme: ${medsList}`;
+      const effectiveTitle = data.title?.trim() || autoTitle;
       
       const reminders: CreateReminderInput[] = selectedTimeOfDay.map((tod) => {
-        const preset = TIME_PRESETS.find(p => p.id === tod)!;
         const time = customTimes[tod];
         const dateTime = `${data.date}T${time}:00`;
         
         return {
           type: data.type,
-          title: cleanTitle,
+          title: effectiveTitle,
           date_time: dateTime,
           repeat: data.repeat,
           notes: data.notes || undefined,
@@ -384,11 +412,8 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
     const effectiveTime = singleTime || '09:00';
     const dateTime = `${data.date}T${effectiveTime}:00`;
     
-    // Generate title if empty (for medication type) - klares "Einnahme:" Präfix
-    const effectiveTitle = data.title?.trim() 
-      || (isMedicationType && selectedMedications.length > 0 
-          ? `Einnahme: ${selectedMedications.join(', ')}` 
-          : 'Erinnerung');
+    // Use manual title if set, otherwise auto-generated
+    const effectiveTitle = data.title?.trim() || autoTitle;
     
     const submitData: CreateReminderInput = {
       type: data.type,
@@ -628,7 +653,7 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
               </div>
 
               {selectedTimeOfDay.length === 0 && (
-                <p className="text-xs text-amber-600 dark:text-amber-400">
+                <p className="text-xs text-destructive/80">
                   Mindestens eine Tageszeit auswählen
                 </p>
               )}
@@ -648,20 +673,6 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
           {/* 5️⃣ SINGLE TIME + DATE (for non-daily or non-medication) */}
           {!showTimeOfDayPresets && (
             <>
-              {/* Title */}
-              <div className="space-y-2">
-                <Label htmlFor="title">{isTodoType ? 'Text' : 'Titel'}</Label>
-                <Input
-                  id="title"
-                  {...register('title')}
-                  placeholder={isTodoType ? 'z. B. Rezept abholen' : 'Titel eingeben...'}
-                  className="touch-manipulation"
-                />
-                {errors.title && (
-                  <p className="text-sm text-destructive">{errors.title.message}</p>
-                )}
-              </div>
-
               {/* Date */}
               <div className="space-y-2">
                 <Label htmlFor="date">Datum</Label>
@@ -709,6 +720,34 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
               )}
             </div>
           )}
+
+          {/* AUTO-TITLE PREVIEW + OPTIONAL EDIT */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">
+                Titel: <span className="text-foreground font-medium">{watch('title')?.trim() || autoTitle}</span>
+              </p>
+              {!showTitleField && (
+                <button
+                  type="button"
+                  onClick={() => setShowTitleField(true)}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors touch-manipulation"
+                >
+                  <Pencil className="h-3 w-3" />
+                  Anpassen
+                </button>
+              )}
+            </div>
+            {showTitleField && (
+              <Input
+                id="title"
+                {...register('title')}
+                placeholder={autoTitle}
+                className="touch-manipulation"
+                autoFocus={!isEditing}
+              />
+            )}
+          </div>
 
           {/* 6️⃣ FOLLOW-UP FOR APPOINTMENTS */}
           {isAppointmentType && (
