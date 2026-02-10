@@ -715,6 +715,7 @@ export function SimpleVoiceOverlay({
               painFromDescriptor={painFromDescriptor}
               medsNeedReview={medsNeedReview}
               hideTimeDisplay={true}
+              rawTranscript={baseTranscriptRef.current}
             />
           </div>
         </div>

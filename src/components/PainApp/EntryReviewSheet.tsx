@@ -16,8 +16,9 @@ import { Card } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { SaveButton } from '@/components/ui/save-button';
 import { MedicationDoseList } from './MedicationDose';
-import { Clock, Mic } from 'lucide-react';
+import { Clock, Mic, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 // ============================================
 // Types
@@ -65,6 +66,8 @@ export interface EntryReviewSheetProps {
   medsNeedReview?: boolean;
   /** If true, hide the time display row */
   hideTimeDisplay?: boolean;
+  /** Raw transcript to display in collapsible "Gesagt (Original)" section */
+  rawTranscript?: string;
   className?: string;
 }
 
@@ -87,6 +90,7 @@ export function EntryReviewSheet({
   painFromDescriptor = false,
   medsNeedReview = false,
   hideTimeDisplay = false,
+  rawTranscript,
   className,
 }: EntryReviewSheetProps) {
   const { t } = useTranslation();
@@ -177,6 +181,23 @@ export function EntryReviewSheet({
           disabled={saving}
         />
       </Card>
+
+      {/* Original Transcript (collapsible, trust-building) */}
+      {rawTranscript && rawTranscript.trim().length > 0 && (
+        <Collapsible>
+          <CollapsibleTrigger className="flex items-center gap-1.5 px-1 py-1 text-xs text-muted-foreground/50 hover:text-muted-foreground/70 transition-colors w-full group">
+            <ChevronDown className="h-3 w-3 transition-transform group-data-[state=open]:rotate-180" />
+            <span>Gesagt (Original)</span>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="px-1 pb-2">
+              <p className="text-xs text-muted-foreground/40 italic leading-relaxed">
+                „{rawTranscript}"
+              </p>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      )}
 
       {/* Action Buttons */}
       <div className="space-y-3 pt-2">
