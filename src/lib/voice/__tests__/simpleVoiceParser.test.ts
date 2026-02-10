@@ -780,4 +780,42 @@ describe('Simple Voice Parser v2', () => {
       expect(result.note).toBe('');
     });
   });
+
+  // ============================================
+  // Fuzzy pain context + intake verb cleanup
+  // ============================================
+
+  describe('Fuzzy pain context detection', () => {
+    it('"ich habe sehr stark gekoppelschmerzen und eine Sumatriptan 100mg" → pain=9, meds found, note empty', () => {
+      const result = parseVoiceEntry(
+        'ich habe sehr stark gekoppelschmerzen und eine Sumatriptan 100mg',
+        userMeds
+      );
+      expect(result.pain_intensity.value).toBe(9);
+      expect(result.medications.length).toBeGreaterThanOrEqual(1);
+      expect(result.note).toBe('');
+    });
+
+    it('"Sumatriptan genommen starke schmerzen" → note does NOT contain "genommen"', () => {
+      const result = parseVoiceEntry('Sumatriptan genommen starke schmerzen', userMeds);
+      expect(result.medications.length).toBeGreaterThanOrEqual(1);
+      expect(result.note.toLowerCase()).not.toContain('genommen');
+    });
+
+    it('"ich bin sehr stark gestresst" → pain=null (no pain context)', () => {
+      const result = parseVoiceEntry('ich bin sehr stark gestresst', userMeds);
+      expect(result.pain_intensity.value).toBeNull();
+      expect(result.entry_type).toBe('context_entry');
+    });
+
+    it('fuzzy "kopfschmerzn" (typo) still recognized as pain context', () => {
+      const result = parseVoiceEntry('sehr starke kopfschmerzn', userMeds);
+      expect(result.pain_intensity.value).toBeGreaterThanOrEqual(7);
+    });
+
+    it('med + descriptor without explicit pain word → pain detected via heuristic', () => {
+      const result = parseVoiceEntry('sehr starke und eine Ibuprofen 400 mg', userMeds);
+      expect(result.pain_intensity.value).toBeGreaterThanOrEqual(7);
+    });
+  });
 });

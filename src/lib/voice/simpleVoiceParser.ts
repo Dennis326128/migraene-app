@@ -170,6 +170,69 @@ const PAIN_KEYWORD_TARGETS = [
   'schnellstaerke', 'schmerzlautstaerke',
 ];
 
+// Pain CONTEXT word targets for fuzzy matching (STT error tolerant)
+const PAIN_CONTEXT_TARGETS = [
+  'kopfschmerz', 'kopfschmerzen',
+  'migraene', 'migraine',
+  'schmerzen', 'schmerz',
+  'attacke', 'anfall',
+  'kopfweh',
+];
+
+/**
+ * Check if a token is a pain-context word using fuzzy matching.
+ * Handles STT typos like "gekoppelschmerzen" → "kopfschmerzen".
+ * IMPORTANT: Does NOT match non-pain words like "gestresst".
+ */
+function isPainContextToken(token: string): boolean {
+  const norm = normalizePainToken(token);
+  if (norm.length < 4) return false;
+  
+  // Direct substring: if token contains "schmerz" or "migraen" → true
+  if (norm.includes('schmerz') || norm.includes('migraen') || norm.includes('kopfweh')) return true;
+  
+  // Exact match against known pain context words
+  for (const target of PAIN_CONTEXT_TARGETS) {
+    if (norm === target) return true;
+  }
+  
+  // Fuzzy match: Damerau-Levenshtein distance
+  for (const target of PAIN_CONTEXT_TARGETS) {
+    const maxDist = target.length >= 10 ? 3 : 2;
+    if (Math.abs(norm.length - target.length) <= maxDist + 1) {
+      if (damerauLevenshtein(norm, target) <= maxDist) return true;
+    }
+  }
+  
+  return false;
+}
+
+/**
+ * Check if text has pain context (exact or fuzzy token-level match).
+ * Also returns true if meds + descriptor are present (soft heuristic).
+ */
+function hasPainContextInText(text: string, hasMeds: boolean = false): boolean {
+  // Exact regex check (fast path)
+  if (/\b(schmerz\w*|migräne\w*|migraene\w*|kopfschmerz\w*|kopfweh|attacke\w*|anfall\w*|weh)\b/i.test(text)) {
+    return true;
+  }
+  
+  // Fuzzy token-level check for STT errors
+  const tokens = text.split(/\s+/);
+  for (const token of tokens) {
+    const stripped = token.replace(/[,.:;!?]/g, '');
+    if (stripped.length >= 4 && isPainContextToken(stripped)) return true;
+  }
+  
+  // Soft heuristic: medication + descriptor → very likely pain entry
+  if (hasMeds) {
+    const hasDescriptor = /\b(sehr\s*stark|extrem|heftig|stark|starke|mittelstark|mittelstarke|leicht|leichte|schlimm|brutal|höllisch|unerträglich)\b/i.test(text);
+    if (hasDescriptor) return true;
+  }
+  
+  return false;
+}
+
 /**
  * Check if a token is a pain keyword using fuzzy matching
  * Returns true if token contains "schmerz" substring OR matches a known target via Damerau-Levenshtein ≤2
@@ -236,7 +299,7 @@ function isDoseUnitToken(token: string): boolean {
 /**
  * Parse pain intensity with robust STT error handling
  */
-function parsePainIntensity(text: string): ParsedPainIntensity {
+function parsePainIntensity(text: string, hasMeds: boolean = false): ParsedPainIntensity {
   const result: ParsedPainIntensity = {
     value: null,
     confidence: 0,
@@ -274,6 +337,7 @@ function parsePainIntensity(text: string): ParsedPainIntensity {
 
   // 2. Check for trigger word + number within 4 tokens (using fuzzy isPainKeyword)
   const tokens = sanitized.split(/\s+/);
+  const origTokens = text.toLowerCase().split(/\s+/);
   for (let i = 0; i < tokens.length; i++) {
     const token = tokens[i];
     
@@ -295,7 +359,9 @@ function parsePainIntensity(text: string): ParsedPainIntensity {
         if (/^(vor|seit)$/i.test(prevToken)) continue;
         // Skip numbers that came from "ein/eine" followed by intensity qualifiers
         if (/^(bisschen|wenig|paar)$/i.test(nextToken)) continue;
-        
+        // Skip numbers that were originally quantity words (eine/ein/einen/etc.)
+        const origWord = j < origTokens.length ? origTokens[j] : '';
+        if (/^(eine[nrm]?|zwei|drei|vier|fünf|fuenf)$/i.test(origWord)) continue;
         const cleanToken = tokens[j].replace(/[,.:;!?]/g, '');
         const numMatch = cleanToken.match(/^(\d{1,2})$/);
         if (numMatch) {
@@ -337,7 +403,7 @@ function parsePainIntensity(text: string): ParsedPainIntensity {
   }
 
   // 4. Check for "bei X" / "auf X" — ONLY if pain context is present
-  const hasPainContext = /\b(schmerz\w*|migräne\w*|migraene\w*|kopfschmerz\w*|kopfweh|attacke\w*|anfall\w*|weh)\b/i.test(text);
+  const hasPainContext = hasPainContextInText(text, hasMeds);
   if (hasPainContext) {
     for (const pattern of PAIN_PREPOSITION_PATTERNS) {
       const match = sanitized.match(pattern);
@@ -381,7 +447,7 @@ function parsePainIntensity(text: string): ParsedPainIntensity {
   }
 
   // 6. Check for standalone number with pain context nearby
-  if (/\b(schmerz\w*|migräne\w*|migraene\w*|kopfschmerz\w*|attacke\w*|anfall\w*|kopfweh)\b/i.test(text)) {
+  if (hasPainContext) {
     const standaloneMatch = sanitized.match(/\b([0-9]|10)\b/);
     if (standaloneMatch) {
       const level = parseInt(standaloneMatch[1], 10);
@@ -858,12 +924,13 @@ function cleanNotes(
   // 2.3 Pain context words (redundant, not real context)
   cleaned = cleaned.replace(/\b(kopfschmerze?n?|kopfweh|migräne|migraene|schmerze?n?|attacke|anfall|schmerzattacke)\b/gi, '');
 
-  // 2.4 Fuzzy pain keyword pass (STT-mangled variants)
+  // 2.4 Fuzzy pain keyword AND pain context pass (STT-mangled variants like "gekoppelschmerzen")
   const remainingTokens = cleaned.split(/\s+/).filter(Boolean);
   const cleanedTokens = remainingTokens.filter(token => {
     const stripped = token.replace(/[,.:;!?]/g, '');
     if (stripped.length < 4) return true;
     if (isPainKeyword(stripped)) return false;
+    if (isPainContextToken(stripped)) return false;
     return true;
   });
   cleaned = cleanedTokens.join(' ');
@@ -966,10 +1033,10 @@ export function parseVoiceEntry(
   // Normalize text
   const normalized = transcript.trim();
   
-  // Parse components
+  // Parse components (meds first so pain can use med-context heuristic)
   const time = parseTime(normalized);
-  const painIntensity = parsePainIntensity(normalized);
   const { medications, tokenSpans: medTokenSpans } = parseMedications(normalized, userMeds);
+  const painIntensity = parsePainIntensity(normalized, medications.length > 0);
   
   // Classify entry type
   const classification = classifyEntryType(normalized, painIntensity, medications, time);
