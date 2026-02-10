@@ -31,7 +31,7 @@ const extractTimeFromDateTime = (dateTime: string): string => {
 };
 
 export const ReminderCard = ({ grouped, onEdit, onMarkDone, onPlanFollowUp }: ReminderCardProps) => {
-  const { reminder, nextOccurrence, frequencyLabel, isRecurring } = grouped;
+  const { reminder, nextOccurrence, frequencyLabel, isRecurring, displayTitle } = grouped;
   const isOverdue = isReminderOverdue(reminder);
   const showFollowUp = hasFollowUpConfigured(reminder) && onPlanFollowUp;
   const nextFollowUpDate = (reminder as any).next_follow_up_date;
@@ -94,7 +94,7 @@ export const ReminderCard = ({ grouped, onEdit, onMarkDone, onPlanFollowUp }: Re
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="font-semibold text-foreground truncate text-base">
-                {reminder.title}
+                {displayTitle}
               </h3>
               {isOverdue && (
                 <Badge variant="destructive" className="text-xs">

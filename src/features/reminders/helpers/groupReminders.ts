@@ -20,20 +20,34 @@ export interface GroupedReminder {
   timesPerDay: number;
   /** Whether this is a recurring reminder */
   isRecurring: boolean;
+  /** Display title (base title without time-of-day suffix) */
+  displayTitle: string;
+}
+
+/**
+ * Strip time-of-day suffixes from reminder titles to create a base title for grouping.
+ * E.g. "Medikamente (Morgens)" and "Medikamente (Nachts)" → "Medikamente"
+ */
+function getBaseTitle(title: string): string {
+  // Remove common German time-of-day suffixes in parentheses
+  return title
+    .replace(/\s*\((Morgens|Mittags|Abends|Nachts|Vormittags|Nachmittags)\)\s*$/i, '')
+    .trim();
 }
 
 /**
  * Build a grouping key for reminders that should be shown as one entry.
- * Repeating reminders with the same title+type+repeat are grouped.
+ * Repeating reminders with the same base title + type + repeat are grouped.
+ * Time-of-day suffixes are stripped so "Medikamente (Morgens)" and
+ * "Medikamente (Nachts)" end up in the same group.
  * Non-repeating reminders are never grouped.
  */
 function getGroupKey(reminder: Reminder): string {
   if (reminder.repeat === 'none') {
-    // Non-repeating: unique per reminder
     return `single_${reminder.id}`;
   }
-  // Group by title + type + repeat pattern
-  return `series_${reminder.type}_${reminder.repeat}_${reminder.title}`;
+  const baseTitle = getBaseTitle(reminder.title);
+  return `series_${reminder.type}_${reminder.repeat}_${baseTitle}`;
 }
 
 /**
@@ -114,6 +128,7 @@ export function groupReminders(reminders: Reminder[]): GroupedReminder[] {
       frequencyLabel: isRecurring ? buildFrequencyLabel(lead.repeat, timesPerDay) : '',
       timesPerDay,
       isRecurring,
+      displayTitle: isRecurring ? getBaseTitle(lead.title) : lead.title,
     });
   }
 
