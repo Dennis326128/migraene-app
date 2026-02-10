@@ -14,10 +14,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { SaveButton } from '@/components/ui/save-button';
 import { MedicationDoseList } from './MedicationDose';
-import { Clock, Mic, X } from 'lucide-react';
+import { Clock, Mic } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // ============================================
@@ -52,6 +51,8 @@ export interface EntryReviewSheetProps {
   onSave: () => void;
   onDiscard: () => void;
   onRetryVoice?: () => void;
+  /** Callback for "Weiter sprechen" append mode */
+  onContinueSpeaking?: () => void;
   medications: MedicationOption[];
   recentMedications?: RecentMedication[];
   saving?: boolean;
@@ -73,6 +74,7 @@ export function EntryReviewSheet({
   onSave,
   onDiscard,
   onRetryVoice,
+  onContinueSpeaking,
   medications,
   recentMedications = [],
   saving = false,
@@ -169,6 +171,19 @@ export function EntryReviewSheet({
           className="w-full h-12 text-base"
         />
         
+        {/* "Weiter sprechen" button - secondary but visible */}
+        {onContinueSpeaking && (
+          <Button
+            variant="outline"
+            onClick={onContinueSpeaking}
+            disabled={saving}
+            className="w-full h-11 text-sm gap-2"
+          >
+            <Mic className="h-4 w-4" />
+            Weiter sprechen
+          </Button>
+        )}
+
         <div className="flex items-center justify-center gap-4">
           <button
             onClick={onDiscard}
@@ -178,7 +193,7 @@ export function EntryReviewSheet({
             Verwerfen
           </button>
           
-          {onRetryVoice && (
+          {onRetryVoice && !onContinueSpeaking && (
             <>
               <span className="text-muted-foreground/30">·</span>
               <button

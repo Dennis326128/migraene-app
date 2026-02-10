@@ -14,20 +14,20 @@
  * Central config for all timing parameters - can be adjusted without UI changes
  */
 export const VOICE_MIGRAINE_PROFILE = {
-  /** Base silence threshold before auto-stop (ms) - for normal speech */
-  baseSilenceMs: 2500,
+  /** Base silence threshold before auto-stop (ms) - generous fallback only */
+  baseSilenceMs: 12000,
   
   /** Extended silence threshold for slow/pausy speech (ms) */
-  slowSpeechSilenceMs: 4000,
+  slowSpeechSilenceMs: 15000,
   
   /** Minimum recording duration before auto-stop can trigger (ms) */
-  minRecordMs: 2500,
+  minRecordMs: 6000,
   
   /** Hard timeout - max recording duration regardless of speech (ms) */
-  hardTimeoutMs: 60000,
+  hardTimeoutMs: 120000,
   
   /** Extra time added when sentence appears incomplete (ms) */
-  continuationBoostMs: 1000,
+  continuationBoostMs: 3000,
   
   /** Words per second threshold below which speech is considered "slow" */
   slowSpeechWpsThreshold: 0.8,
