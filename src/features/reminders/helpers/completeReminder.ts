@@ -3,13 +3,46 @@ import { addDays, addWeeks, addMonths, format } from 'date-fns';
 import type { Reminder } from '@/types/reminder.types';
 
 /**
+ * Log a completion record in reminder_completions.
+ * For medication reminders this creates an auditable intake record
+ * that can be used by analytics and AI analysis (especially prophylaxis).
+ */
+async function logReminderCompletion(reminder: Reminder): Promise<void> {
+  if (reminder.type !== 'medication') return;
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+
+  const { error } = await supabase
+    .from('reminder_completions')
+    .insert({
+      user_id: user.id,
+      reminder_id: reminder.id,
+      medication_id: reminder.medication_id || null,
+      medication_name: reminder.medications?.[0] || reminder.title,
+      scheduled_at: reminder.date_time,
+      taken_at: new Date().toISOString(),
+      source: 'app',
+    });
+
+  if (error) {
+    // Log but don't block – completion record is secondary
+    console.error('Failed to log reminder completion:', error);
+  }
+}
+
+/**
  * Central helper for completing a reminder
  * Handles repeat logic correctly:
  * - repeat='none': mark as done
  * - repeat='daily'|'weekly'|'monthly': reschedule to next occurrence
+ * Also logs a reminder_completions record for medication reminders.
  */
 export async function completeReminderInDb(reminder: Reminder): Promise<void> {
   const today = format(new Date(), 'yyyy-MM-dd');
+
+  // Log completion record (non-blocking for medication reminders)
+  await logReminderCompletion(reminder);
 
   if (reminder.repeat === 'none') {
     // Non-repeating: mark as done

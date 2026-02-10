@@ -2,20 +2,26 @@ import { useState, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
+import type { Reminder } from '@/types/reminder.types';
+import { completeReminderInDb } from '../helpers/completeReminder';
 
 export interface CriticalReminder {
   id: string;
   title: string;
   date_time: string;
   medications: string[] | null;
+  medication_id: string | null;
   notes: string | null;
   status: string;
   last_popup_date: string | null;
+  type: string;
+  repeat: string;
 }
 
 /**
  * Hook to manage critical monthly medication reminders popup
  * Shows popup once per day for pending monthly medication reminders
+ * Uses centralized completeReminderInDb to ensure completion records are logged.
  */
 export function useCriticalReminderPopup() {
   const queryClient = useQueryClient();
@@ -31,7 +37,7 @@ export function useCriticalReminderPopup() {
       // Get pending monthly medication reminders that are due
       const { data, error } = await supabase
         .from('reminders')
-        .select('id, title, date_time, medications, notes, status, last_popup_date')
+        .select('id, title, date_time, medications, medication_id, notes, status, last_popup_date, type, repeat')
         .eq('user_id', user.id)
         .eq('type', 'medication')
         .eq('repeat', 'monthly')
@@ -53,24 +59,28 @@ export function useCriticalReminderPopup() {
     refetchOnWindowFocus: false,
   });
   
-  // Mark reminder as done
+  // Mark reminder as done using centralized helper (logs reminder_completions)
   const markAsDone = useMutation({
     mutationFn: async (reminderId: string) => {
-      const { error } = await supabase
-        .from('reminders')
-        .update({ 
-          status: 'done',
-          last_popup_date: today,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', reminderId);
-      
-      if (error) throw error;
+      const reminder = criticalReminders.find(r => r.id === reminderId);
+      if (reminder) {
+        await completeReminderInDb(reminder as unknown as Reminder);
+      } else {
+        // Fallback: fetch and complete
+        const { data, error } = await supabase
+          .from('reminders')
+          .select('*')
+          .eq('id', reminderId)
+          .single();
+        if (error) throw error;
+        await completeReminderInDb(data as Reminder);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reminders'] });
       queryClient.invalidateQueries({ queryKey: ['critical-reminders-popup'] });
       queryClient.invalidateQueries({ queryKey: ['reminder-badge'] });
+      queryClient.invalidateQueries({ queryKey: ['due-reminders'] });
     },
   });
   
@@ -131,4 +141,3 @@ export function useCriticalReminderPopup() {
     isUpdating: markAsDone.isPending || snoozeForToday.isPending || cancelReminder.isPending,
   };
 }
-

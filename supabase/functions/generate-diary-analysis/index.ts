@@ -17,14 +17,8 @@ const DiaryAnalysisRequestSchema = z.object({
   const from = new Date(data.fromDate);
   const to = new Date(data.toDate);
   const now = new Date();
-  
-  // Check: fromDate not in future
   if (from > now) return false;
-  
-  // Check: toDate >= fromDate
   if (to < from) return false;
-  
-  // Check: Max 365 days range
   const daysDiff = (to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24);
   return daysDiff <= 365;
 }, {
@@ -33,13 +27,11 @@ const DiaryAnalysisRequestSchema = z.object({
 
 // Generic error handler to prevent exposing internal structures
 function handleError(error: unknown, context: string): Response {
-  // Log detailed error internally
   console.error(`❌ [${context}] Error:`, error);
   if (error instanceof Error) {
     console.error('Stack trace:', error.stack);
   }
 
-  // Determine error type and return generic message
   if (error instanceof z.ZodError) {
     return new Response(JSON.stringify({ 
       error: 'Ungültige Datumseingabe'
@@ -49,7 +41,6 @@ function handleError(error: unknown, context: string): Response {
     });
   }
 
-  // Check for authentication errors
   const errorMessage = error instanceof Error ? error.message.toLowerCase() : '';
   if (errorMessage.includes('authorization') || errorMessage.includes('authentifizierung') || errorMessage.includes('unauthorized')) {
     return new Response(JSON.stringify({ 
@@ -60,7 +51,6 @@ function handleError(error: unknown, context: string): Response {
     });
   }
 
-  // Check for AI analysis disabled
   if (errorMessage.includes('ai-analyse') && errorMessage.includes('deaktiviert')) {
     return new Response(JSON.stringify({ 
       error: 'AI-Analyse ist in den Einstellungen deaktiviert'
@@ -70,7 +60,6 @@ function handleError(error: unknown, context: string): Response {
     });
   }
 
-  // Check for rate limit / credit errors (preserve these as they're user-facing)
   if (errorMessage.includes('rate limit') || errorMessage.includes('429')) {
     return new Response(JSON.stringify({ 
       error: 'Rate Limit erreicht. Bitte später erneut versuchen.'
@@ -89,13 +78,76 @@ function handleError(error: unknown, context: string): Response {
     });
   }
 
-  // Generic server error
   return new Response(JSON.stringify({ 
     error: 'Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.'
   }), {
     status: 500,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' }
   });
+}
+
+/**
+ * Build prophylaxis intake text for LLM prompt.
+ * Queries reminder_completions for prophylaxis medications in the date range
+ * and formats them with pre/post analysis windows.
+ */
+async function buildProphylaxisContext(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  fromDate: string,
+  toDate: string
+): Promise<{ text: string; intakeCount: number }> {
+  // Fetch reminder completions for medication reminders in the period
+  // We extend the query window by 30 days before fromDate to catch
+  // prophylaxis intakes whose post-window overlaps the analysis range
+  const extendedFrom = new Date(fromDate);
+  extendedFrom.setDate(extendedFrom.getDate() - 30);
+
+  const { data: completions, error } = await supabase
+    .from('reminder_completions')
+    .select('medication_name, medication_id, taken_at, scheduled_at')
+    .eq('user_id', userId)
+    .gte('taken_at', extendedFrom.toISOString())
+    .lte('taken_at', toDate)
+    .order('taken_at', { ascending: true });
+
+  if (error || !completions || completions.length === 0) {
+    return { text: '', intakeCount: 0 };
+  }
+
+  // Also check user_medications to identify prophylaxis meds
+  const medNames = [...new Set(completions.map((c: any) => c.medication_name))];
+  const { data: userMeds } = await supabase
+    .from('user_medications')
+    .select('name, effect_category, intake_type, art')
+    .eq('user_id', userId)
+    .in('name', medNames);
+
+  const prophylaxisMeds = new Set<string>();
+  (userMeds || []).forEach((m: any) => {
+    if (
+      m.effect_category === 'migraene_prophylaxe' ||
+      m.intake_type === 'regular' ||
+      m.art === 'prophylaxe'
+    ) {
+      prophylaxisMeds.add(m.name);
+    }
+  });
+
+  // Format completions
+  const lines: string[] = [];
+  completions.forEach((c: any) => {
+    const takenDate = c.taken_at.split('T')[0];
+    const isProphylaxis = prophylaxisMeds.has(c.medication_name);
+    const label = isProphylaxis ? ' [PROPHYLAXE]' : '';
+    lines.push(`  ${takenDate}: ${c.medication_name}${label}`);
+  });
+
+  if (lines.length === 0) return { text: '', intakeCount: 0 };
+
+  const text = `\n\nPROPHYLAXE-EINNAHMEN & MEDIKAMENTEN-COMPLETIONS (${lines.length} bestätigte Einnahmen):\n${lines.join('\n')}\n\nHinweis für die Analyse: Prüfe insbesondere bei Prophylaxe-Medikamenten (z.B. Ajovy, Aimovig, Emgality) ob zeitliche Muster erkennbar sind:\n- Schmerzintensität/Häufigkeit in den 7–14 Tagen NACH der Injektion vs. 7 Tage VOR der nächsten Injektion\n- Veränderung der Akutmedikations-Nutzung im zeitlichen Zusammenhang mit der Prophylaxe-Gabe`;
+
+  return { text, intakeCount: lines.length };
 }
 
 serve(async (req) => {
@@ -192,13 +244,15 @@ serve(async (req) => {
       });
     }
 
+    // Fetch prophylaxis / medication completion data
+    const prophylaxisContext = await buildProphylaxisContext(supabase, user.id, fromDate, toDate);
+
     // Structure data for LLM analysis
     const structuredEntries = painEntries.map(entry => {
       const weather = Array.isArray(entry.weather) ? entry.weather[0] : entry.weather;
       const date = entry.selected_date || entry.timestamp_created.split('T')[0];
       const time = entry.selected_time || entry.timestamp_created.split('T')[1].substring(0, 5);
       
-      // Handle pain_locations as array
       const painLocations = entry.pain_locations || [];
       const painLocationDisplay = painLocations.length > 0 
         ? painLocations.join(', ') 
@@ -238,6 +292,16 @@ serve(async (req) => {
     }).join('\n');
 
     const hasWeatherData = structuredEntries.some(e => e.weather !== null);
+    const hasProphylaxisData = prophylaxisContext.intakeCount > 0;
+
+    // Build prophylaxis-specific analysis instruction
+    const prophylaxisInstruction = hasProphylaxisData
+      ? `\n\n6. **Prophylaxe-Wirksamkeitsanalyse** (NUR wenn Prophylaxe-Einnahmen vorliegen):
+   - Vergleiche die Schmerzintensität und Migränetage in den 7–14 Tagen NACH einer Prophylaxe-Injektion mit den 7 Tagen VOR der nächsten Injektion
+   - Bewerte ob ein „End-of-Dose"-Effekt erkennbar ist (Zunahme der Beschwerden gegen Ende des Injektionsintervalls)
+   - Analysiere die Akutmedikationsnutzung im zeitlichen Zusammenhang mit der Prophylaxe-Gabe
+   - Formuliere vorsichtig: „Die Daten deuten darauf hin…" / „Es gibt Hinweise, dass…"`
+      : '';
 
     // Call Lovable AI
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
@@ -247,7 +311,7 @@ serve(async (req) => {
 
 DATENSATZ (${painEntries.length} Einträge von ${fromDate.split('T')[0]} bis ${toDate.split('T')[0]}):
 
-${dataText}
+${dataText}${prophylaxisContext.text}
 
 ANFORDERUNGEN:
 
@@ -283,7 +347,7 @@ ANFORDERUNGEN:
    - Die "Vorsichtigen Hinweise" sind KEINE ärztlichen Empfehlungen
    - Sie basieren ausschließlich auf beobachteten Mustern in den dokumentierten Daten
    - Korrelation bedeutet nicht Kausalität - formulieren Sie entsprechend vorsichtig
-   - Machen Sie deutlich, dass alle Hinweise mit dem behandelnden Arzt besprochen werden sollten
+   - Machen Sie deutlich, dass alle Hinweise mit dem behandelnden Arzt besprochen werden sollten${prophylaxisInstruction}
 
 Formatieren Sie die Antwort in gut strukturiertem Markdown mit klaren Überschriften.`;
 
@@ -296,7 +360,7 @@ Formatieren Sie die Antwort in gut strukturiertem Markdown mit klaren Überschri
       body: JSON.stringify({
         model: 'google/gemini-2.5-flash',
         messages: [
-          { role: 'system', content: 'Sie sind ein medizinischer Fachassistent, der professionelle Analyseberichte für Migränepatienten erstellt. Ihre Berichte sind präzise, faktenbasiert und folgen medizinischen Standards.' },
+          { role: 'system', content: 'Sie sind ein medizinischer Fachassistent, der professionelle Analyseberichte für Migränepatienten erstellt. Ihre Berichte sind präzise, faktenbasiert und folgen medizinischen Standards. Wenn Prophylaxe-Einnahmedaten vorliegen, analysieren Sie gezielt die zeitliche Beziehung zwischen Prophylaxe-Gaben und Kopfschmerzhäufigkeit/-intensität.' },
           { role: 'user', content: prompt }
         ],
       }),
@@ -336,6 +400,8 @@ Formatieren Sie die Antwort in gut strukturiertem Markdown mit klaren Überschri
         model: 'gemini-2.5-flash',
         entries_count: painEntries.length,
         has_weather_data: hasWeatherData,
+        has_prophylaxis_data: hasProphylaxisData,
+        prophylaxis_intakes: prophylaxisContext.intakeCount,
         tokens: aiData.usage?.total_tokens || 0
       }
     });
@@ -344,6 +410,7 @@ Formatieren Sie die Antwort in gut strukturiertem Markdown mit klaren Überschri
       report,
       analyzed_entries: painEntries.length,
       has_weather_data: hasWeatherData,
+      has_prophylaxis_data: hasProphylaxisData,
       date_range: { from: fromDate.split('T')[0], to: toDate.split('T')[0] }
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
