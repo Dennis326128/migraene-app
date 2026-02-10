@@ -56,6 +56,10 @@ export interface EntryReviewSheetProps {
   recentMedications?: RecentMedication[];
   saving?: boolean;
   emptyTranscript?: boolean;
+  /** If true, show a hint that pain was defaulted (not recognized from voice) */
+  painDefaultUsed?: boolean;
+  /** If true, hide the time display row */
+  hideTimeDisplay?: boolean;
   className?: string;
 }
 
@@ -73,6 +77,8 @@ export function EntryReviewSheet({
   recentMedications = [],
   saving = false,
   emptyTranscript = false,
+  painDefaultUsed = false,
+  hideTimeDisplay = false,
   className,
 }: EntryReviewSheetProps) {
   const { t } = useTranslation();
@@ -100,13 +106,15 @@ export function EntryReviewSheet({
         </div>
       )}
 
-      {/* Time display (read-only) */}
-      <div className="flex items-center gap-2 px-1">
-        <Clock className="h-4 w-4 text-muted-foreground" />
-        <span className="text-sm text-muted-foreground">
-          {state.occurredAt.displayText || `${state.occurredAt.date}, ${state.occurredAt.time}`}
-        </span>
-      </div>
+      {/* Time display (read-only, hidden by default for voice) */}
+      {!hideTimeDisplay && (
+        <div className="flex items-center gap-2 px-1">
+          <Clock className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm text-muted-foreground">
+            {state.occurredAt.displayText || `${state.occurredAt.date}, ${state.occurredAt.time}`}
+          </span>
+        </div>
+      )}
 
       {/* Pain Level */}
       <Card className="p-4">
@@ -118,6 +126,11 @@ export function EntryReviewSheet({
           onValueChange={handlePainChange}
           disabled={saving}
         />
+        {painDefaultUsed && (
+          <p className="text-xs text-muted-foreground/60 mt-2 text-center">
+            Schmerzstärke nicht erkannt – auf 7 gesetzt
+          </p>
+        )}
       </Card>
 
       {/* Medications */}
@@ -141,7 +154,7 @@ export function EntryReviewSheet({
         <Textarea
           value={state.notesText}
           onChange={handleNotesChange}
-          placeholder="Zusätzliche Notizen..."
+          placeholder="Optional: Notiz hinzufügen…"
           className="min-h-[60px] resize-none"
           disabled={saving}
         />

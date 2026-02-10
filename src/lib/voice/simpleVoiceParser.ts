@@ -116,11 +116,84 @@ const PAIN_INTENSITY_TRIGGERS = [
   'schmerzlautstärke', 'schmerzlautstaerke', 'schmerz lautstärke', 'schmerzlaut',
   'schmerzlautsärke', 'schmerzlautsaerke', 'schmerz lautsärke',
   'schmerz stärker', 'schmerzstärker', 'schmerzstarke',
+  // Additional STT error variants
+  'schnellstärke', 'schnellstaerke', 'schnell stärke', 'schnellstarke',
+  'schmerstärke', 'schmerstaerke', 'schmerzstärk', 'schmerzstaerk',
+  'schmerz-stärke', 'schmerz-staerke',
   // Generic intensity words
   'stärke', 'staerke', 'level', 'intensität', 'intensitaet', 'skala',
   'kopfschmerzstärke', 'kopfschmerz stärke',
   'migränestärke', 'migraenestärke', 'migräne stärke',
 ];
+
+/**
+ * Normalize a token for pain keyword matching:
+ * lowercase, replace umlauts/ß, remove hyphens/special chars
+ */
+function normalizePainToken(token: string): string {
+  return token
+    .toLowerCase()
+    .replace(/ä/g, 'ae')
+    .replace(/ö/g, 'oe')
+    .replace(/ü/g, 'ue')
+    .replace(/ß/g, 'ss')
+    .replace(/[-_]/g, '')
+    .replace(/[^a-z0-9]/g, '');
+}
+
+/**
+ * Simple Damerau-Levenshtein distance for short strings
+ */
+function damerauLevenshtein(a: string, b: string): number {
+  const la = a.length, lb = b.length;
+  const d: number[][] = Array.from({ length: la + 1 }, () => Array(lb + 1).fill(0));
+  for (let i = 0; i <= la; i++) d[i][0] = i;
+  for (let j = 0; j <= lb; j++) d[0][j] = j;
+  for (let i = 1; i <= la; i++) {
+    for (let j = 1; j <= lb; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+        d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + cost);
+      }
+    }
+  }
+  return d[la][lb];
+}
+
+// Pre-normalized pain keyword targets for fuzzy matching
+const PAIN_KEYWORD_TARGETS = [
+  'schmerzstaerke', 'staerke', 'schmerzlevel', 'schmerzwert',
+  'schmerzintensitaet', 'intensitaet', 'schmerzskala', 'skala',
+  'schnellstaerke', 'schmerzlautstaerke',
+];
+
+/**
+ * Check if a token is a pain keyword using fuzzy matching
+ * Returns true if token contains "schmerz" OR is within Damerau-Levenshtein ≤2 of known targets
+ */
+function isPainKeyword(token: string): boolean {
+  const norm = normalizePainToken(token);
+  if (norm.length < 4) return false;
+  
+  // Substring check: contains "schmerz" or "schmerz" variants
+  if (norm.includes('schmerz') || norm.includes('schnell')) return true;
+  
+  // Exact match against triggers (normalized)
+  for (const trigger of PAIN_INTENSITY_TRIGGERS) {
+    const normTrigger = normalizePainToken(trigger.replace(/\s+/g, ''));
+    if (norm === normTrigger) return true;
+  }
+  
+  // Fuzzy match: Damerau-Levenshtein ≤ 2 against known targets
+  for (const target of PAIN_KEYWORD_TARGETS) {
+    if (norm.length >= 5 && Math.abs(norm.length - target.length) <= 3) {
+      if (damerauLevenshtein(norm, target) <= 2) return true;
+    }
+  }
+  
+  return false;
+}
 
 // Pattern fragments (used to recognize "X von 10" etc.)
 const PAIN_SCALE_PATTERNS = [
@@ -177,26 +250,13 @@ function parsePainIntensity(text: string): ParsedPainIntensity {
     }
   }
 
-  // 2. Check for trigger word + number within 4 tokens
+  // 2. Check for trigger word + number within 4 tokens (using fuzzy isPainKeyword)
   const tokens = sanitized.split(/\s+/);
   for (let i = 0; i < tokens.length; i++) {
     const token = tokens[i];
     
-    // Check if this token matches a pain trigger
-    const isTrigger = PAIN_INTENSITY_TRIGGERS.some(trigger => {
-      const normalizedTrigger = trigger.toLowerCase().replace(/\s+/g, '');
-      const normalizedToken = token.replace(/[^\wäöüß]/gi, '');
-      
-      // Exact match or fuzzy match (for STT errors)
-      return normalizedToken === normalizedTrigger ||
-             normalizedToken.includes(normalizedTrigger) ||
-             normalizedTrigger.includes(normalizedToken) ||
-             // Levenshtein-like: allow 1-2 char differences for longer words
-             (normalizedToken.length >= 6 && 
-              normalizedTrigger.length >= 6 && 
-              Math.abs(normalizedToken.length - normalizedTrigger.length) <= 2 &&
-              normalizedToken.substring(0, 6) === normalizedTrigger.substring(0, 6));
-    });
+    // Check if this token matches a pain trigger using fuzzy matching
+    const isTrigger = isPainKeyword(token);
 
     if (isTrigger) {
       // Look for number in nearby tokens (window of 4)
@@ -648,15 +708,23 @@ function cleanNotes(
   }
   cleaned = cleaned.replace(/\b(jetzt|gerade|sofort|eben|aktuell)\b/gi, '');
   
-  // Remove pain level expressions
+  // Remove pain level expressions (including fuzzy STT variants)
   for (const trigger of PAIN_INTENSITY_TRIGGERS) {
-    cleaned = cleaned.replace(new RegExp(`\\b${trigger}\\b`, 'gi'), '');
+    const escaped = trigger.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    cleaned = cleaned.replace(new RegExp(escaped, 'gi'), '');
   }
-  cleaned = cleaned.replace(/\b\d+\s*(?:von\s*10|\/10)/gi, '');
+  // Remove standalone pain numbers near triggers
+  cleaned = cleaned.replace(/\b\d+\s*(?:von\s*10|\/10|auf\s*10|aus\s*10)/gi, '');
   
-  // Remove medication names
+  // Remove medication names (and their raw matched forms)
   for (const med of medications) {
+    // Remove canonical name
     cleaned = cleaned.replace(new RegExp(`\\b${med.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi'), '');
+    // Remove base name (without strength) for partial matches
+    const baseName = med.name.replace(/\s*\d+\s*(mg|ml|mcg|µg).*$/i, '').trim();
+    if (baseName && baseName !== med.name) {
+      cleaned = cleaned.replace(new RegExp(`\\b${baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi'), '');
+    }
   }
   
   // Remove dose expressions
@@ -664,12 +732,31 @@ function cleanNotes(
     cleaned = cleaned.replace(pattern.regex, '');
   }
   
-  // Remove common filler
-  cleaned = cleaned.replace(/\b(genommen|eingenommen|tablette|tabletten|mg|milligramm)\b/gi, '');
+  // Remove medication-related filler words (quantity, intake verbs, units)
+  cleaned = cleaned.replace(/\b(genommen|eingenommen|eingeworfen|geschluckt|tablette|tabletten|kapsel|kapseln|mg|milligramm|sprühstoß|sprühstöße)\b/gi, '');
   
-  // Clean up
+  // Remove isolated "eine/einen/einer" that was likely a quantity word for medication
+  // Only remove if medications were detected (otherwise "eine" might be meaningful)
+  if (medications.length > 0) {
+    // Remove "eine/einen/einer/einem" at word boundaries when isolated
+    cleaned = cleaned.replace(/\b(eine[nrm]?)\b/gi, (match, _word, offset, str) => {
+      // Keep "eine" if it's part of a longer meaningful phrase (not near a medication)
+      // Simple heuristic: if "eine" is followed by a common word, keep it
+      const after = str.slice(offset + match.length).trim().split(/\s+/)[0] || '';
+      const meaningfulFollowers = ['art', 'weile', 'zeit', 'pause', 'stunde'];
+      if (meaningfulFollowers.some(w => after.toLowerCase().startsWith(w))) {
+        return match; // Keep it
+      }
+      return '';
+    });
+  }
+  
+  // Clean up whitespace and punctuation
   cleaned = cleaned.replace(/\s+/g, ' ').trim();
   cleaned = cleaned.replace(/^[\s,.\-:;]+/, '').replace(/[\s,.\-:;]+$/, '');
+  // Remove double commas/periods from removals
+  cleaned = cleaned.replace(/[,]{2,}/g, ',').replace(/[.]{2,}/g, '.');
+  cleaned = cleaned.replace(/^\s*[,.\-:;]\s*/, '').replace(/\s*[,.\-:;]\s*$/, '');
   
   return cleaned;
 }

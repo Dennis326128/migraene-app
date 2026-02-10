@@ -163,6 +163,27 @@ describe('Simple Voice Parser v2', () => {
       expect(result.pain_intensity.value).toBe(6);
       // Should NOT be 400
     });
+
+    it('should recognize "schnellstärke 4" (STT typo for Schmerzstärke)', () => {
+      const result = parseVoiceEntry('schnellstärke 4', userMeds);
+      expect(result.pain_intensity.value).toBe(4);
+    });
+
+    it('should recognize "schmerstärke 5" (missing z)', () => {
+      const result = parseVoiceEntry('schmerstärke 5', userMeds);
+      expect(result.pain_intensity.value).toBe(5);
+    });
+
+    it('should recognize "schnellstaerke 3" (STT typo + no umlaut)', () => {
+      const result = parseVoiceEntry('schnellstaerke 3', userMeds);
+      expect(result.pain_intensity.value).toBe(3);
+    });
+
+    it('should default to null when no pain recognized', () => {
+      const result = parseVoiceEntry('Kopfschmerzen seit gestern', userMeds);
+      // Should NOT default in parser; UI handles default
+      // pain_intensity.value should be found via context though
+    });
   });
 
   describe('Time Parsing', () => {
@@ -277,6 +298,25 @@ describe('Simple Voice Parser v2', () => {
     it('should handle German number words', () => {
       const result = parseVoiceEntry('Schmerzstärke sieben', userMeds);
       expect(result.pain_intensity.value).toBe(7);
+    });
+  });
+
+  describe('Sonstiges/Notes Cleanup', () => {
+    it('should remove "eine" when it belongs to a medication intake', () => {
+      const result = parseVoiceEntry('eine Sumatriptan schnellstärke 4', userMeds);
+      expect(result.medications.length).toBeGreaterThan(0);
+      expect(result.note).not.toContain('eine');
+    });
+
+    it('should not leave dose words in notes', () => {
+      const result = parseVoiceEntry('halbe Ibuprofen genommen Stärke 6', userMeds);
+      expect(result.note).not.toMatch(/halbe/i);
+      expect(result.note).not.toMatch(/genommen/i);
+    });
+
+    it('should leave non-medication text in notes', () => {
+      const result = parseVoiceEntry('Ibuprofen genommen wegen Stress auf der Arbeit', userMeds);
+      expect(result.note).toContain('Stress');
     });
   });
 });

@@ -69,6 +69,7 @@ export function SimpleVoiceOverlay({
   const [state, setState] = useState<OverlayState>('idle');
   const [reviewState, setReviewState] = useState<EntryReviewState | null>(null);
   const [emptyTranscript, setEmptyTranscript] = useState(false);
+  const [painDefaultUsed, setPainDefaultUsed] = useState(false);
   const [showIdleHint, setShowIdleHint] = useState(false);
   const [saving, setSaving] = useState(false);
   
@@ -159,6 +160,9 @@ export function SimpleVoiceOverlay({
 
     // Time display
     const timeDisplay = formatTimeDisplay(result.time);
+
+    const usedDefault = result.pain_intensity.value === null;
+    setPainDefaultUsed(usedDefault);
 
     return {
       painLevel: result.pain_intensity.value ?? 7, // Default 7
@@ -371,9 +375,10 @@ export function SimpleVoiceOverlay({
   useEffect(() => {
     if (open) {
       setState('idle');
-      setReviewState(null);
-      setEmptyTranscript(false);
-      setShowIdleHint(false);
+    setReviewState(null);
+    setEmptyTranscript(false);
+    setPainDefaultUsed(false);
+    setShowIdleHint(false);
       setSaving(false);
       committedTextRef.current = '';
       hasSpokenRef.current = false;
@@ -600,6 +605,8 @@ export function SimpleVoiceOverlay({
               recentMedications={recentMedOptions}
               saving={saving}
               emptyTranscript={emptyTranscript}
+              painDefaultUsed={painDefaultUsed}
+              hideTimeDisplay={true}
             />
           </div>
         </div>
