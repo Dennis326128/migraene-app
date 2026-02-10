@@ -702,7 +702,11 @@ export function SimpleVoiceOverlay({
       )}
       
       {/* Main content area */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-h-0">
+        {state === 'recording' && renderRecordingState()}
+        {state === 'paused' && renderPausedState()}
+        {state === 'processing' && renderProcessingState()}
+        {state === 'review' && renderReviewState()}
       </div>
       
       {/* Bottom buttons for recording/paused states */}
