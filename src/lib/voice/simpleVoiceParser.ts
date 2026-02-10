@@ -828,7 +828,7 @@ function cleanNotes(
     .filter((_, idx) => !removeIndices.has(idx))
     .join(' ');
   
-  // Remove time patterns
+  // === STEP 1: Remove time slots ===
   for (const pattern of RELATIVE_TIME_PATTERNS) {
     cleaned = cleaned.replace(pattern.regex, '');
   }
@@ -839,18 +839,26 @@ function cleanNotes(
     cleaned = cleaned.replace(pattern.regex, '');
   }
   cleaned = cleaned.replace(/\b(jetzt|gerade|sofort|eben|aktuell)\b/gi, '');
-  
-  // 4. Remove pain level expressions (trigger words + associated number)
+  // Orphaned time unit words
+  cleaned = cleaned.replace(/\b(minuten|minute|min|stunden|stunde|std|tage?)\b/gi, '');
+
+  // === STEP 2: Remove pain slots (comprehensive) ===
+  // 2.1 Pain triggers + number
   for (const trigger of PAIN_INTENSITY_TRIGGERS) {
     const escaped = trigger.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     cleaned = cleaned.replace(new RegExp(escaped + '\\s*\\d{0,2}', 'gi'), '');
     cleaned = cleaned.replace(new RegExp(escaped, 'gi'), '');
   }
   cleaned = cleaned.replace(/\b\d+\s*(?:von\s*10|\/10|auf\s*10|aus\s*10)\b/gi, '');
-  // Remove "bei X"/"auf X" pain prepositions
   cleaned = cleaned.replace(/\b(?:bei|auf)\s+\d{1,2}\b/gi, '');
-  
-  // 5. Fuzzy slot-noise pass: remove STT-mangled pain keywords (e.g. "schmerzstrecke")
+
+  // 2.2 Intensity descriptors (ALWAYS remove – they were used for pain estimation)
+  cleaned = cleaned.replace(/\b(sehr|extrem|richtig|total|echt|kaum|ziemlich|unglaublich|wahnsinnig|stark|starke|starker|starken|starkes|leicht|leichte|leichter|leichten|leichtes|mittel|mittelstark|mittelstarke|mittelstarker|mittelstarken|mittelstarkes|heftig|heftige|heftiger|heftigen|massiv|massive|massiver|schlimm|schlimme|schlimmer|schwer|schwere|schwerer|brutal|brutale|höllisch|höllische|unerträglich|unerträgliche|minimal|minimale|dezent|dezente|schwach|schwache|schwacher|gering|geringe|geringer|maximal|maximale|mäßig|mäßige|moderat|moderate|spürbar|spuerbar)\b/gi, '');
+
+  // 2.3 Pain context words (redundant, not real context)
+  cleaned = cleaned.replace(/\b(kopfschmerze?n?|kopfweh|migräne|migraene|schmerze?n?|attacke|anfall|schmerzattacke)\b/gi, '');
+
+  // 2.4 Fuzzy pain keyword pass (STT-mangled variants)
   const remainingTokens = cleaned.split(/\s+/).filter(Boolean);
   const cleanedTokens = remainingTokens.filter(token => {
     const stripped = token.replace(/[,.:;!?]/g, '');
@@ -859,39 +867,59 @@ function cleanNotes(
     return true;
   });
   cleaned = cleanedTokens.join(' ');
-  
-  // 6. Remove orphaned standalone numbers (pain remnants)
-  cleaned = cleaned.replace(/^\d{1,2}$/, '');
-  
-  // 7. Remove "now" indicators and common filler words
-  cleaned = cleaned.replace(/\b(jetzt|gerade|sofort|eben|aktuell|momentan)\b/gi, '');
-  // Remove orphaned time unit words left after time pattern removal
-  cleaned = cleaned.replace(/\b(minuten|minute|min|stunden|stunde|std)\b/gi, '');
-  // Remove common pain context words that are redundant as notes (but NOT symptom words like Übelkeit)
-  cleaned = cleaned.replace(/\b(kopfschmerz|kopfschmerzen|kopfweh|migräne|migraene|attacke|anfall|schmerzen?)\b/gi, '');
-  // Remove intensity descriptor words that were used for pain estimation
-  cleaned = cleaned.replace(/\b(sehr|extrem|richtig|total|echt|kaum|stark|starke|starker|starken|leicht|leichte|leichter|leichten|mittel|mittelstark|mittelstarke|heftig|heftige|heftiger|massiv|massive|massiver|schlimm|schlimme|schlimmer|schwer|schwere|schwerer|brutal|brutale|höllisch|höllische|unerträglich|unerträgliche|minimal|minimale|dezent|dezente|schwach|schwache|schwacher|gering|geringe|geringer|maximal|maximale)\b/gi, '');
-  
-  // 8. Clean up whitespace and punctuation
+
+  // === STEP 3: Remove medication slots (robust, global) ===
+  // 3.1 Dose patterns anywhere: "800 mg", "400mg", "50 milligramm"
+  cleaned = cleaned.replace(/\b\d+\s*(?:mg|milligramm|ml|µg|ug)\b/gi, '');
+  // 3.2 Intake verbs (global)
+  cleaned = cleaned.replace(/\b(genommen|eingenommen|eingeworfen|geschluckt|geschmissen|nehme|nehmen|nehm|nimm|nimmst)\b/gi, '');
+  // 3.3 Quantity words + tablet/capsule forms (global)
+  cleaned = cleaned.replace(/\b(tablette[n]?|kapsel[n]?|sprühstoß|sprühstöße|hübe?|spray[s]?|tropfen)\b/gi, '');
+  cleaned = cleaned.replace(/\b(eine[nrm]?|halbe?|ganze?|viertel|dreiviertel|anderthalb|eineinhalb)\b/gi, '');
+  // 3.4 Remove recognized med names that may have survived token-span removal
+  for (const med of medications) {
+    const medName = med.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    cleaned = cleaned.replace(new RegExp('\\b' + medName + '\\b', 'gi'), '');
+  }
+
+  // === STEP 4: Whitespace & punctuation cleanup (intermediate) ===
   cleaned = cleaned.replace(/\s+/g, ' ').trim();
   cleaned = cleaned.replace(/^[\s,.\-:;]+/, '').replace(/[\s,.\-:;]+$/, '');
   cleaned = cleaned.replace(/[,]{2,}/g, ',').replace(/[.]{2,}/g, '.');
   cleaned = cleaned.replace(/^\s*[,.\-:;]\s*/, '').replace(/\s*[,.\-:;]\s*$/, '');
-  
-  // 9. Strip leading filler phrases (loop until stable)
-  const LEADING_FILLERS = /^(ich\s+hab(e)?|habe|hab|ich|es\s+ist|es\s+sind|das\s+ist|gerade|momentan|aktuell|jetzt|seit|also|und|aber|oder|dann|noch|nur|so|da|ja|nein|doch)\b[\s,.:;\-]*/i;
+
+  // === STEP 5: Strip leading filler phrases (loop until stable) ===
+  const LEADING_FILLERS = /^(ich\s+hab(e)?|habe|hab|ich|es\s+ist|es\s+sind|das\s+ist|gerade|momentan|aktuell|jetzt|seit|also|und|aber|oder|dann|noch|nur|so|da|ja|nein|doch|mal|bitte|plus)\b[\s,.:;\-]*/i;
   let prev = '';
   while (cleaned !== prev) {
     prev = cleaned;
     cleaned = cleaned.replace(LEADING_FILLERS, '').trim();
   }
 
-  // 10. Strip trailing orphaned connectors
-  cleaned = cleaned.replace(/\s+(und|oder|aber|dann|also)\s*$/i, '').trim();
+  // === STEP 6: Strip trailing orphaned connectors ===
+  cleaned = cleaned.replace(/\s+(und|oder|aber|dann|also|noch|mal|bitte|plus)\s*$/i, '').trim();
 
-  // 11. If only short filler words remain, clear entirely
-  cleaned = cleaned.replace(/^(und|oder|aber|dann|also|noch|nur|bin|ist|war|hat|mit|bei|es|das|die|der|den|dem|ein|so|da|ja|nein|doch)\s*$/i, '');
+  // === STEP 7: Final quality gate ===
+  // If only short filler words remain, clear entirely
+  cleaned = cleaned.replace(/^(und|oder|aber|dann|also|noch|nur|bin|ist|war|hat|mit|bei|es|das|die|der|den|dem|ein|eine|so|da|ja|nein|doch|mal|bitte|plus)\s*$/i, '');
   cleaned = cleaned.trim();
+
+  // If less than 3 chars or only digits remain → empty
+  if (cleaned.length < 3 || /^\d+$/.test(cleaned)) {
+    cleaned = '';
+  }
+
+  // Final: if no meaningful content words remain, clear
+  if (cleaned.length > 0) {
+    const CONTENT_PATTERNS = /\b(übelkeit|erbrechen|lichtempfindlich|geräuschempfindlich|schwindel|aura|flimmern|sehstörung|links|rechts|linksseiti|rechtsseiti|hinterm?\s*auge|nacken|pulsierend|stechend|drückend|hämmernd|ziehend|dumpf|stress|wetter|menstruation|periode|schlaf|dehydriert|alkohol|kaffee|müde|erschöpft|sport|training|reise|essen|getrunken|wegen|nach|seit|durch|morgens|abends|nachts|mittags)\b/i;
+    if (!CONTENT_PATTERNS.test(cleaned)) {
+      // Check if it's just 1-2 short meaningless words
+      const words = cleaned.split(/\s+/).filter(w => w.length > 0);
+      if (words.length <= 2 && words.every(w => w.replace(/[,.:;!?]/g, '').length <= 4)) {
+        cleaned = '';
+      }
+    }
+  }
   
   return cleaned;
 }

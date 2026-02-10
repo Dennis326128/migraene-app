@@ -713,7 +713,7 @@ describe('Simple Voice Parser v2', () => {
   // Leading filler phrase cleanup
   // ============================================
 
-  describe('Leading filler cleanup', () => {
+  describe('Notes cleanup V3', () => {
     it('"ich habe sehr starke schmerzen" → note empty', () => {
       const result = parseVoiceEntry('ich habe sehr starke schmerzen', userMeds);
       expect(result.pain_intensity.value).toBeGreaterThanOrEqual(7);
@@ -747,6 +747,37 @@ describe('Simple Voice Parser v2', () => {
       const result = parseVoiceEntry('ich habe wegen stress kopfschmerzen', userMeds);
       expect(result.note.toLowerCase()).toContain('stress');
       expect(result.note.toLowerCase()).not.toContain('ich habe');
+    });
+
+    // V3 regression: full slot sentence with med + dose
+    it('"ich habe gerade mittelstarke Kopfschmerzen und eine ibuprofen 800 mg" → note empty', () => {
+      const result = parseVoiceEntry('ich habe gerade mittelstarke Kopfschmerzen und eine ibuprofen 800 mg', userMeds);
+      expect(result.note).toBe('');
+      expect(result.medications.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('"ich habe mittelstarke kopfschmerzen und ibuprofen 800 mg wegen stress" → note has stress only', () => {
+      const result = parseVoiceEntry('ich habe mittelstarke kopfschmerzen und ibuprofen 800 mg wegen stress', userMeds);
+      expect(result.note.toLowerCase()).toContain('stress');
+      expect(result.note.toLowerCase()).not.toContain('ich habe');
+      expect(result.note.toLowerCase()).not.toContain('kopfschmerzen');
+      expect(result.note.toLowerCase()).not.toContain('ibuprofen');
+      expect(result.note.toLowerCase()).not.toContain('800');
+      expect(result.note.toLowerCase()).not.toContain('mg');
+    });
+
+    it('"ich habe starke schmerzen und übelkeit und lichtempfindlich" → note has symptoms only', () => {
+      const result = parseVoiceEntry('ich habe starke schmerzen und übelkeit und lichtempfindlich', userMeds);
+      expect(result.note.toLowerCase()).toContain('übelkeit');
+      expect(result.note.toLowerCase()).toContain('lichtempfindlich');
+      expect(result.note.toLowerCase()).not.toContain('ich habe');
+      expect(result.note.toLowerCase()).not.toContain('starke');
+      expect(result.note.toLowerCase()).not.toContain('schmerzen');
+    });
+
+    it('"ich habe gerade" → note empty', () => {
+      const result = parseVoiceEntry('ich habe gerade', userMeds);
+      expect(result.note).toBe('');
     });
   });
 });
