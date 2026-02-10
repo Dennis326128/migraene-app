@@ -730,18 +730,17 @@ export function SimpleVoiceOverlay({
   
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col">
-      {/* Header with back arrow */}
-      {(state === 'recording' || state === 'paused' || state === 'processing' || state === 'review') && (
-        <div className="flex items-center px-4 pt-4 pb-2">
-          <button
-            onClick={handleClose}
-            className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-muted/50 active:bg-muted transition-colors -ml-1"
-            aria-label={t('common.back')}
-          >
-            <ChevronLeft className="w-6 h-6 text-foreground" />
-          </button>
-        </div>
-      )}
+      {/* Header with back arrow – always on top, even above review overlay */}
+      <div className="relative z-[60] flex items-center px-4 pt-4 pb-2">
+        <button
+          onClick={handleClose}
+          onPointerDown={(e) => { e.stopPropagation(); handleClose(); }}
+          className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-muted/50 active:bg-muted transition-colors -ml-1"
+          aria-label={t('common.back')}
+        >
+          <ChevronLeft className="w-6 h-6 text-foreground" />
+        </button>
+      </div>
       
       {/* Main content area */}
       <div className="flex-1 flex flex-col min-h-0">
