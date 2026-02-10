@@ -327,7 +327,10 @@ export function SimpleVoiceOverlay({
     recognition.interimResults = false;
     
     recognition.onstart = () => {
-      setState('recording');
+      // Only set recording if we're not already in processing/review
+      if (stateRef.current !== 'processing' && stateRef.current !== 'review') {
+        setState('recording');
+      }
       startHardTimeout();
     };
     
@@ -366,28 +369,25 @@ export function SimpleVoiceOverlay({
     };
     
     recognition.onend = () => {
-      // If the user intentionally stopped, don't restart
+      // If the user intentionally stopped or we're past recording, don't restart
       if (intentionalStopRef.current) return;
+      if (stateRef.current !== 'recording') return;
       
-      // If we're still in recording state, the API ended unexpectedly
       // Auto-restart to keep listening
-      if (stateRef.current === 'recording') {
-        try {
-          const newRecognition = new SpeechRecognitionAPI();
-          newRecognition.lang = currentLanguage === 'en' ? 'en-US' : 'de-DE';
-          newRecognition.continuous = true;
-          newRecognition.interimResults = false;
-          newRecognition.onstart = recognition.onstart;
-          newRecognition.onresult = recognition.onresult;
-          newRecognition.onerror = recognition.onerror;
-          newRecognition.onend = recognition.onend;
-          recognitionRef.current = newRecognition;
-          newRecognition.start();
-        } catch (e) {
-          // Auto-restart failed, show paused state
-          console.warn('[SimpleVoice] Auto-restart failed, showing paused state');
-          setState('paused');
-        }
+      try {
+        const newRecognition = new SpeechRecognitionAPI();
+        newRecognition.lang = currentLanguage === 'en' ? 'en-US' : 'de-DE';
+        newRecognition.continuous = true;
+        newRecognition.interimResults = false;
+        newRecognition.onstart = recognition.onstart;
+        newRecognition.onresult = recognition.onresult;
+        newRecognition.onerror = recognition.onerror;
+        newRecognition.onend = recognition.onend;
+        recognitionRef.current = newRecognition;
+        newRecognition.start();
+      } catch (e) {
+        console.warn('[SimpleVoice] Auto-restart failed, showing paused state');
+        setState('paused');
       }
     };
     
@@ -472,7 +472,11 @@ export function SimpleVoiceOverlay({
   // ============================================
   
   const handleFertig = useCallback(() => {
-    // SOFORT sichtbares Feedback – vor allem anderen
+    // SOFORT: Prevent any auto-restart from onend
+    intentionalStopRef.current = true;
+    // SOFORT: Update ref synchronously so onstart/onend checks work immediately
+    stateRef.current = 'processing';
+    // SOFORT: React state for UI
     setState('processing');
     
     // Dann Recording stoppen & parsen
