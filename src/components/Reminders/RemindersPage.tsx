@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/ui/page-header';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ReminderCard } from './ReminderCard';
+import { groupReminders } from '@/features/reminders/helpers/groupReminders';
 import { ReminderForm } from './ReminderForm';
 import { EmptyState } from '@/components/ui/empty-state';
 import {
@@ -212,11 +213,12 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
 
   const getTypeCounts = () => {
     const reminders = activeTab === 'active' ? activeReminders : historyReminders;
+    const grouped = groupReminders(reminders);
     
     return {
-      all: reminders.length,
-      medication: reminders.filter(r => r.type === 'medication').length,
-      appointment: reminders.filter(r => r.type === 'appointment').length,
+      all: grouped.length,
+      medication: groupReminders(reminders.filter(r => r.type === 'medication')).length,
+      appointment: groupReminders(reminders.filter(r => r.type === 'appointment')).length,
     };
   };
 
@@ -592,10 +594,10 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
               </div>
             ) : filteredReminders.length > 0 ? (
               <div className="space-y-3">
-                {filteredReminders.map((reminder) => (
+                {groupReminders(filteredReminders).map((grouped) => (
                   <ReminderCard
-                    key={reminder.id}
-                    reminder={reminder}
+                    key={grouped.reminder.id}
+                    grouped={grouped}
                     onEdit={handleEdit}
                     onMarkDone={handleMarkDone}
                     onPlanFollowUp={handlePlanFollowUp}
@@ -676,10 +678,10 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
               </div>
             ) : filteredReminders.length > 0 ? (
               <div className="space-y-3">
-                {filteredReminders.map((reminder) => (
+                {groupReminders(filteredReminders).map((grouped) => (
                   <ReminderCard
-                    key={reminder.id}
-                    reminder={reminder}
+                    key={grouped.reminder.id}
+                    grouped={grouped}
                     onEdit={handleEdit}
                     onMarkDone={handleMarkDone}
                     onPlanFollowUp={handlePlanFollowUp}

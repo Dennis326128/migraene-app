@@ -1,16 +1,20 @@
 import { Pill, Calendar, Edit2, AlertTriangle, Check, CalendarPlus } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { isToday, isTomorrow } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import type { Reminder, ReminderPrefill } from '@/types/reminder.types';
-import { formatDistance, isToday, isTomorrow, format, parseISO } from 'date-fns';
+import { formatDistance, format, parseISO } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { hasFollowUpConfigured, formatFollowUpDate, cloneReminderForCreate } from '@/features/reminders/helpers/reminderHelpers';
 import { isReminderOverdue } from '@/features/reminders/helpers/attention';
+import type { GroupedReminder } from '@/features/reminders/helpers/groupReminders';
+import { formatNextOccurrence } from '@/features/reminders/helpers/groupReminders';
 
 interface ReminderCardProps {
-  reminder: Reminder;
+  /** Grouped reminder data (series-based display) */
+  grouped: GroupedReminder;
   onEdit: (reminder: Reminder) => void;
   onMarkDone: (id: string) => void;
   onPlanFollowUp?: (prefill: ReminderPrefill) => void;
@@ -26,40 +30,20 @@ const extractTimeFromDateTime = (dateTime: string): string => {
   }
 };
 
-export const ReminderCard = ({ reminder, onEdit, onMarkDone, onPlanFollowUp }: ReminderCardProps) => {
-  const reminderDate = new Date(reminder.date_time);
+export const ReminderCard = ({ grouped, onEdit, onMarkDone, onPlanFollowUp }: ReminderCardProps) => {
+  const { reminder, nextOccurrence, frequencyLabel, isRecurring } = grouped;
   const isOverdue = isReminderOverdue(reminder);
   const showFollowUp = hasFollowUpConfigured(reminder) && onPlanFollowUp;
   const nextFollowUpDate = (reminder as any).next_follow_up_date;
   
-  const getFormattedDateTime = (dateTime: string) => {
-    const date = new Date(dateTime);
-    const time = format(date, 'HH:mm', { locale: de });
-    
-    let dateLabel = '';
-    if (isToday(date)) {
-      dateLabel = 'Heute';
-    } else if (isTomorrow(date)) {
-      dateLabel = 'Morgen';
-    } else {
-      dateLabel = format(date, 'EEE, dd.MM.', { locale: de });
-    }
-    
-    const relative = formatDistance(date, new Date(), { 
-      addSuffix: true, 
-      locale: de 
-    });
-    
-    return {
-      primary: `${dateLabel}, ${time} Uhr`,
-      secondary: relative,
-    };
-  };
+  const relative = formatDistance(nextOccurrence, new Date(), { 
+    addSuffix: true, 
+    locale: de 
+  });
 
   const handlePlanFollowUp = () => {
     if (!onPlanFollowUp) return;
 
-    // Get the original time from the current reminder to use as suggestion
     const originalTime = extractTimeFromDateTime(reminder.date_time);
 
     const cloned = cloneReminderForCreate(reminder, {
@@ -80,13 +64,11 @@ export const ReminderCard = ({ reminder, onEdit, onMarkDone, onPlanFollowUp }: R
       follow_up_interval_unit: cloned.follow_up_interval_unit,
       series_id: cloned.series_id,
       prefill_date: nextFollowUpDate,
-      // Pass the original time as suggestion
       prefill_time: originalTime,
     } as ReminderPrefill & { prefill_time?: string });
   };
   
   const TypeIcon = reminder.type === 'medication' ? Pill : Calendar;
-  const formattedTime = getFormattedDateTime(reminder.date_time);
 
   return (
     <Card className={cn(
@@ -121,15 +103,37 @@ export const ReminderCard = ({ reminder, onEdit, onMarkDone, onPlanFollowUp }: R
               )}
             </div>
             
+            {/* Frequency label for recurring reminders */}
+            {isRecurring && frequencyLabel && (
+              <div className="text-xs text-muted-foreground mt-0.5">
+                {frequencyLabel}
+              </div>
+            )}
+
+            {/* Next occurrence */}
             <div className="flex flex-col gap-0.5 mt-1">
               <div className={cn(
                 "text-sm font-medium",
                 isOverdue ? "text-destructive" : "text-foreground"
               )}>
-                {formattedTime.primary}
+                {isRecurring
+                  ? formatNextOccurrence(nextOccurrence, reminder.type)
+                  : (() => {
+                      const time = format(nextOccurrence, 'HH:mm', { locale: de });
+                      let dateLabel = '';
+                      if (isToday(nextOccurrence)) {
+                        dateLabel = 'Heute';
+                      } else if (isTomorrow(nextOccurrence)) {
+                        dateLabel = 'Morgen';
+                      } else {
+                        dateLabel = format(nextOccurrence, 'EEE, dd.MM.', { locale: de });
+                      }
+                      return `${dateLabel}, ${time} Uhr`;
+                    })()
+                }
               </div>
               <div className="text-xs text-muted-foreground">
-                {formattedTime.secondary}
+                {relative}
               </div>
             </div>
 
