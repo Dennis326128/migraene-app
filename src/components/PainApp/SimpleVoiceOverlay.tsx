@@ -71,6 +71,8 @@ export function SimpleVoiceOverlay({
   const [reviewState, setReviewState] = useState<EntryReviewState | null>(null);
   const [emptyTranscript, setEmptyTranscript] = useState(false);
   const [painDefaultUsed, setPainDefaultUsed] = useState(false);
+  const [painFromDescriptor, setPainFromDescriptor] = useState(false);
+  const [medsNeedReview, setMedsNeedReview] = useState(false);
   const [saving, setSaving] = useState(false);
   const [voiceMode, setVoiceMode] = useState<VoiceMode>('new');
   
@@ -265,6 +267,8 @@ export function SimpleVoiceOverlay({
         reviewOpenedRef.current = true;
         setReviewState(review);
         setPainDefaultUsed(result.pain_intensity.value === null);
+        setPainFromDescriptor(!!result.pain_intensity.painFromDescriptor);
+        setMedsNeedReview(result.medsNeedReview);
         baseTranscriptRef.current = currentText;
       }
       
@@ -450,6 +454,8 @@ export function SimpleVoiceOverlay({
       setReviewState(null);
       setEmptyTranscript(false);
       setPainDefaultUsed(false);
+      setPainFromDescriptor(false);
+      setMedsNeedReview(false);
       setSaving(false);
       setVoiceMode('new');
       setUserEdited({ pain: false, meds: false, notes: false });
@@ -706,6 +712,8 @@ export function SimpleVoiceOverlay({
               saving={saving}
               emptyTranscript={emptyTranscript}
               painDefaultUsed={painDefaultUsed}
+              painFromDescriptor={painFromDescriptor}
+              medsNeedReview={medsNeedReview}
               hideTimeDisplay={true}
             />
           </div>
