@@ -30,7 +30,7 @@ import { toast } from '@/hooks/use-toast';
 type ViewMode = 'list' | 'form';
 type ActiveTab = 'active' | 'history';
 type FilterType = 'all' | 'medication' | 'appointment';
-type RangeFilter = 'today' | '7days' | '30days' | 'all' | 'next-appointment' | 'all-appointments';
+type RangeFilter = 'today' | '7days' | '30days' | 'all' | 'next-appointment' | 'next-3-appointments' | 'all-appointments';
 
 interface RemindersPageProps {
   onBack?: () => void;
@@ -81,8 +81,9 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
   }, [activeReminders, filterType, rangeFilter, activeTab, loadingActive]);
 
   // Intelligente Zeitraum-Auswahl basierend auf vorhandenen Erinnerungen
+  // WICHTIG: Nur für Nicht-Termine-Tabs — Termine haben eigene Logik in handleFilterTypeChange
   useEffect(() => {
-    if (activeTab === 'active' && activeReminders.length > 0) {
+    if (activeTab === 'active' && filterType !== 'appointment' && activeReminders.length > 0) {
       const now = new Date();
       const startOfToday = new Date(now);
       startOfToday.setHours(0, 0, 0, 0);
@@ -123,7 +124,7 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
       
       setRangeFilter('all');
     }
-  }, [activeReminders, activeTab]);
+  }, [activeReminders, activeTab, filterType]);
 
   const requestNotificationPermission = async () => {
     const granted = await notificationService.requestPermission();
@@ -160,16 +161,19 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
       reminders = reminders.filter(r => r.type === filterType);
     }
     
-    // Termine-Tab: unterscheide zwischen "Nächster Termin" und "Alle Termine"
+    // Termine-Tab: unterscheide zwischen Termin-Modi
     if (filterType === 'appointment') {
       const now = new Date();
       const futureAppointments = reminders
         .filter(r => new Date(r.date_time) >= now)
         .sort((a, b) => new Date(a.date_time).getTime() - new Date(b.date_time).getTime());
       
-      // "Nächster Termin": zeige nur den nächsten
       if (rangeFilter === 'next-appointment') {
         return futureAppointments.slice(0, 1);
+      }
+      
+      if (rangeFilter === 'next-3-appointments') {
+        return futureAppointments.slice(0, 3);
       }
       
       // "Alle Termine": zeige alle zukünftigen
@@ -317,6 +321,8 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
         return 'Alle';
       case 'next-appointment':
         return 'Nächster Termin';
+      case 'next-3-appointments':
+        return 'Nächste 3 Termine';
       case 'all-appointments':
         return 'Alle Termine';
       default:
@@ -324,14 +330,22 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
     }
   };
 
-  // Tab-Wechsel-Logik: Bei Termine-Tab automatisch "Nächster Termin" anzeigen
+  // Tab-Wechsel-Logik: Bei Termine-Tab automatisch "Nächste 3 Termine" anzeigen
   const handleFilterTypeChange = (newFilterType: FilterType) => {
     if (newFilterType === 'appointment') {
       // Merke den aktuellen Filter, bevor wir auf Termine wechseln
-      if (rangeFilter !== 'next-appointment') {
+      if (rangeFilter !== 'next-appointment' && rangeFilter !== 'next-3-appointments' && rangeFilter !== 'all-appointments') {
         setLastNonAppointmentFilter(rangeFilter);
       }
-      setRangeFilter('next-appointment');
+      // Smart default: "Nächste 3 Termine" wenn genug vorhanden, sonst "Alle Termine"
+      const futureCount = getAllFutureAppointments().length;
+      if (futureCount >= 3) {
+        setRangeFilter('next-3-appointments');
+      } else if (futureCount > 0) {
+        setRangeFilter('all-appointments');
+      } else {
+        setRangeFilter('all-appointments');
+      }
     } else if (filterType === 'appointment') {
       // Wechsel von Termine weg: stelle den letzten Filter wieder her
       setRangeFilter(lastNonAppointmentFilter);
@@ -342,19 +356,48 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
   const getEmptyStateForActive = () => {
     // Spezifischer Empty-State für "Termine" Tab
     if (filterType === 'appointment') {
-      const hasAnyAppointments = activeReminders.some(r => r.type === 'appointment');
-      if (!hasAnyAppointments) {
+      const futureAppts = getAllFutureAppointments();
+      if (futureAppts.length === 0) {
+        const hasAnyAppointments = activeReminders.some(r => r.type === 'appointment');
         return {
           icon: <Calendar className="w-12 h-12" />,
-          title: 'Keine zukünftigen Termine',
-          description: 'Nutze "Neue Erinnerung", um einen Termin hinzuzufügen.',
+          title: 'Keine kommenden Termine',
+          description: hasAnyAppointments 
+            ? 'Alle Termine liegen in der Vergangenheit.'
+            : 'Nutze "Neue Erinnerung", um einen Termin hinzuzufügen.',
+          cta: (
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-3"
+              onClick={() => {
+                setPrefillData({ type: 'appointment' } as any);
+                setEditingReminder(null);
+                setFormKey(prev => prev + 1);
+                setViewMode('form');
+              }}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Neuen Termin hinzufügen
+            </Button>
+          ),
         };
       }
-      // Hat Termine, aber keine zukünftigen (alle in der Vergangenheit)
+      // Should not happen with smart defaults, but safety net
       return {
         icon: <Calendar className="w-12 h-12" />,
-        title: 'Keine zukünftigen Termine',
-        description: 'Alle Termine liegen in der Vergangenheit.',
+        title: 'Keine Termine im gewählten Zeitraum',
+        description: `Du hast ${futureAppts.length} kommende${futureAppts.length === 1 ? 'n' : ''} Termin${futureAppts.length === 1 ? '' : 'e'}.`,
+        cta: (
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-3"
+            onClick={() => setRangeFilter('all-appointments')}
+          >
+            Alle Termine anzeigen
+          </Button>
+        ),
       };
     }
 
@@ -526,6 +569,7 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
                   {filterType === 'appointment' ? (
                     <>
                       <SelectItem value="next-appointment">Nächster Termin</SelectItem>
+                      <SelectItem value="next-3-appointments">Nächste 3 Termine</SelectItem>
                       <SelectItem value="all-appointments">Alle Termine</SelectItem>
                     </>
                   ) : (
@@ -558,10 +602,11 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
                   />
                 ))}
                 
-                {/* Hinweis auf weitere Termine im "Nächster Termin" Modus */}
-                {filterType === 'appointment' && rangeFilter === 'next-appointment' && (() => {
+                {/* Hinweis auf weitere Termine bei begrenzter Anzeige */}
+                {filterType === 'appointment' && (rangeFilter === 'next-appointment' || rangeFilter === 'next-3-appointments') && (() => {
                   const allFuture = getAllFutureAppointments();
-                  const additionalCount = allFuture.length - 1;
+                  const shownCount = rangeFilter === 'next-appointment' ? 1 : 3;
+                  const additionalCount = allFuture.length - shownCount;
                   if (additionalCount > 0) {
                     return (
                       <button
@@ -576,13 +621,23 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
                   return null;
                 })()}
               </div>
-            ) : (
-              <EmptyState
-                icon={getEmptyStateForActive().icon}
-                title={getEmptyStateForActive().title}
-                description={getEmptyStateForActive().description}
-              />
-            )}
+            ) : (() => {
+              const emptyState = getEmptyStateForActive();
+              return (
+                <div>
+                  <EmptyState
+                    icon={emptyState.icon}
+                    title={emptyState.title}
+                    description={emptyState.description}
+                  />
+                  {emptyState.cta && (
+                    <div className="flex justify-center">
+                      {emptyState.cta}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </TabsContent>
 
           <TabsContent value="history" className="mt-0">
