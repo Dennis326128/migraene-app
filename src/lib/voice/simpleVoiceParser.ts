@@ -868,13 +868,21 @@ function cleanNotes(
   // Remove orphaned time unit words left after time pattern removal
   cleaned = cleaned.replace(/\b(minuten|minute|min|stunden|stunde|std)\b/gi, '');
   // Remove common pain context words that are redundant as notes (but NOT symptom words like Übelkeit)
-  cleaned = cleaned.replace(/\b(kopfschmerz|kopfschmerzen|kopfweh|migräne|migraene|attacke|anfall)\b/gi, '');
+  cleaned = cleaned.replace(/\b(kopfschmerz|kopfschmerzen|kopfweh|migräne|migraene|attacke|anfall|schmerzen?)\b/gi, '');
+  // Remove intensity descriptor words that were used for pain estimation
+  cleaned = cleaned.replace(/\b(sehr|extrem|richtig|total|echt|kaum|stark|starke|starker|starken|leicht|leichte|leichter|leichten|mittel|mittelstark|mittelstarke|heftig|heftige|heftiger|massiv|massive|massiver|schlimm|schlimme|schlimmer|schwer|schwere|schwerer|brutal|brutale|höllisch|höllische|unerträglich|unerträgliche|minimal|minimale|dezent|dezente|schwach|schwache|schwacher|gering|geringe|geringer|maximal|maximale)\b/gi, '');
   
   // 8. Clean up whitespace and punctuation
   cleaned = cleaned.replace(/\s+/g, ' ').trim();
   cleaned = cleaned.replace(/^[\s,.\-:;]+/, '').replace(/[\s,.\-:;]+$/, '');
   cleaned = cleaned.replace(/[,]{2,}/g, ',').replace(/[.]{2,}/g, '.');
   cleaned = cleaned.replace(/^\s*[,.\-:;]\s*/, '').replace(/\s*[,.\-:;]\s*$/, '');
+  
+  // 9. Remove orphaned short connectors/fillers if they're the only thing left
+  cleaned = cleaned.replace(/^(und|oder|aber|dann|also|noch|nur|habe?|bin|ist|war|hat|mit|bei|ich|es|das|die|der|den|dem|ein|so|da|ja|nein|doch)\s*$/i, '');
+  // Also remove orphaned connectors at start/end
+  cleaned = cleaned.replace(/^\s*(und|oder|aber|dann|also)\s+/i, '').replace(/\s+(und|oder|aber|dann|also)\s*$/i, '');
+  cleaned = cleaned.trim();
   
   return cleaned;
 }
@@ -929,10 +937,9 @@ export function parseVoiceEntry(
   // Classify entry type
   const classification = classifyEntryType(normalized, painIntensity, medications, time);
   
-  // Clean notes (remove extracted parts for new_entry, using span-based cleanup)
-  const note = classification.type === 'new_entry'
-    ? cleanNotes(normalized, time, painIntensity, medications, medTokenSpans)
-    : normalized;
+  // Clean notes (remove extracted parts, using span-based cleanup)
+  // Always clean notes to remove slot noise, even for context entries
+  const note = cleanNotes(normalized, time, painIntensity, medications, medTokenSpans);
   
   // Calculate if needs review
   const medsNeedReview = medications.some(m => m.needsReview);
