@@ -9,7 +9,6 @@ import { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Plus, Pill, Check } from 'lucide-react';
 import { useMeds, useAddMed } from '@/features/meds/hooks/useMeds';
 import { toast } from 'sonner';
@@ -23,8 +22,7 @@ interface MedicationSelectorProps {
 export const MedicationSelector = ({ selectedMedications, onSelectionChange }: MedicationSelectorProps) => {
   const { data: medications = [], isLoading } = useMeds();
   const addMed = useAddMed();
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [newMedicationName, setNewMedicationName] = useState('');
+  const [newMedication, setNewMedication] = useState('');
   // Alphabetically sorted medications
   const sortedMedications = useMemo(() => {
     return [...medications].sort((a, b) => a.name.localeCompare(b.name, 'de'));
@@ -39,21 +37,26 @@ export const MedicationSelector = ({ selectedMedications, onSelectionChange }: M
   };
 
   const handleAddNewMedication = async () => {
-    const name = newMedicationName.trim();
-    if (!name) {
-      toast.error('Bitte geben Sie einen Medikamentennamen ein');
+    const name = newMedication.trim();
+    if (!name) return;
+
+    // Check for duplicates (case-insensitive)
+    const existing = medications.find(m => m.name.toLowerCase() === name.toLowerCase());
+    if (existing) {
+      // Just select the existing one
+      if (!selectedMedications.includes(existing.name)) {
+        onSelectionChange([...selectedMedications, existing.name]);
+      }
+      setNewMedication('');
       return;
     }
 
     try {
       await addMed.mutateAsync(name);
-      // Auto-select the new medication
       onSelectionChange([...selectedMedications, name]);
-      toast.success('Medikament hinzugefügt');
-      setNewMedicationName('');
-      setIsAddDialogOpen(false);
-    } catch (error) {
-      toast.error('Fehler beim Hinzufügen des Medikaments');
+      setNewMedication('');
+    } catch {
+      toast.error('Fehler beim Hinzufügen');
     }
   };
 
@@ -63,19 +66,7 @@ export const MedicationSelector = ({ selectedMedications, onSelectionChange }: M
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <Label className="text-base font-medium">Medikamente</Label>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={() => setIsAddDialogOpen(true)}
-          className="gap-1.5 text-muted-foreground hover:text-foreground"
-        >
-          <Plus className="h-4 w-4" />
-          Neu
-        </Button>
-      </div>
+      <Label className="text-base font-medium">Medikamente</Label>
 
       {/* Medication pills - same pattern as pain entry */}
       <div
@@ -117,50 +108,23 @@ export const MedicationSelector = ({ selectedMedications, onSelectionChange }: M
         </p>
       )}
 
-      {/* Add new medication dialog */}
-      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Neues Medikament hinzufügen</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="med-name">Medikamentenname *</Label>
-              <Input
-                id="med-name"
-                value={newMedicationName}
-                onChange={(e) => setNewMedicationName(e.target.value)}
-                placeholder="z.B. Aspirin"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleAddNewMedication();
-                  }
-                }}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setIsAddDialogOpen(false);
-                setNewMedicationName('');
-              }}
-            >
-              Abbrechen
-            </Button>
-            <Button
-              type="button"
-              onClick={handleAddNewMedication}
-              disabled={addMed.isPending}
-            >
-              Hinzufügen
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Inline add – identical pattern to NewEntry.tsx */}
+      <div className="flex gap-2">
+        <Input
+          placeholder="Neues Medikament eingeben..."
+          value={newMedication}
+          onChange={(e) => setNewMedication(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddNewMedication())}
+        />
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleAddNewMedication}
+          disabled={!newMedication.trim() || addMed.isPending}
+        >
+          <Plus className="h-4 w-4" />
+        </Button>
+      </div>
     </div>
   );
 };
