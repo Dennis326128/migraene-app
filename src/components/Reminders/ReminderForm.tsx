@@ -598,7 +598,7 @@ export const ReminderForm = ({ reminder, prefill, onSubmit, onCancel, onDelete, 
           {/* 4️⃣ TIME OF DAY PRESETS (for daily/weekdays medication) — optional */}
           {showTimeOfDayPresets && (
             <div className="space-y-3 p-4 bg-muted/30 rounded-lg">
-              <Label className="text-base font-medium">Tageszeit <span className="text-muted-foreground font-normal text-sm">(optional)</span></Label>
+              <Label className="text-base font-medium">Tageszeit</Label>
               
               <div className="grid grid-cols-2 gap-2">
                 {TIME_PRESETS.map((preset) => {
