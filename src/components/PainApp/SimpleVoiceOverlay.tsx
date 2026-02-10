@@ -85,11 +85,13 @@ export function SimpleVoiceOverlay({
   const committedTextRef = useRef('');
   const autoStopTimerRef = useRef<NodeJS.Timeout | null>(null);
   const hardTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const fallbackTimerRef = useRef<NodeJS.Timeout | null>(null);
   const stateRef = useRef<OverlayState>('recording');
   const recordingStartRef = useRef<number>(0);
   const hasSpokenRef = useRef(false);
   const intentionalStopRef = useRef(false);
   const continueSpeakingUsedRef = useRef(false);
+  const reviewOpenedRef = useRef(false);
   
   // Keep stateRef in sync
   useEffect(() => {
@@ -134,6 +136,10 @@ export function SimpleVoiceOverlay({
       clearTimeout(hardTimeoutRef.current);
       hardTimeoutRef.current = null;
     }
+    if (fallbackTimerRef.current) {
+      clearTimeout(fallbackTimerRef.current);
+      fallbackTimerRef.current = null;
+    }
   }, []);
   
   // ============================================
@@ -172,86 +178,110 @@ export function SimpleVoiceOverlay({
   // Finish Recording & Parse
   // ============================================
   
+  // Use refs for values needed in finishRecording to avoid dep cascades
+  const voiceModeRef = useRef<VoiceMode>('new');
+  const reviewStateRef = useRef<EntryReviewState | null>(null);
+  const userEditedRef = useRef<UserEditedFlags>({ pain: false, meds: false, notes: false });
+  const userMedsRef = useRef(userMeds);
+  
+  useEffect(() => { voiceModeRef.current = voiceMode; }, [voiceMode]);
+  useEffect(() => { reviewStateRef.current = reviewState; }, [reviewState]);
+  useEffect(() => { userEditedRef.current = userEdited; }, [userEdited]);
+  useEffect(() => { userMedsRef.current = userMeds; }, [userMeds]);
+  
+  const openReviewWithDefaults = useCallback(() => {
+    if (reviewOpenedRef.current) return;
+    reviewOpenedRef.current = true;
+    setEmptyTranscript(true);
+    setPainDefaultUsed(true);
+    setReviewState({
+      painLevel: 7,
+      selectedMedications: new Map(),
+      notesText: '',
+      occurredAt: {
+        date: new Date().toISOString().slice(0, 10),
+        time: new Date().toTimeString().slice(0, 5),
+      },
+    });
+    setVoiceMode('new');
+    setState('review');
+    stateRef.current = 'review';
+  }, []);
+
   const finishRecording = useCallback(() => {
-    // State wird bereits vom Caller gesetzt (handleFertig),
-    // aber als Sicherheit auch hier nochmal erzwingen
-    setState('processing');
+    // Guard: only finish once
+    if (reviewOpenedRef.current) return;
     
     clearAllTimers();
     intentionalStopRef.current = true;
     
+    // Stop recognition best-effort (no await)
     if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch (e) {
-        // Ignore
-      }
+      try { recognitionRef.current.stop(); } catch (e) { /* ignore */ }
       recognitionRef.current = null;
     }
     
     const currentText = committedTextRef.current.trim();
     
-    // Fallback-Timer: Falls Parsing hängt, nach 1500ms trotzdem Review öffnen
-    const fallbackTimer = setTimeout(() => {
-      if (stateRef.current === 'processing') {
+    // Fallback timer: if parsing hangs, force review after 1800ms
+    fallbackTimerRef.current = setTimeout(() => {
+      if (stateRef.current === 'processing' && !reviewOpenedRef.current) {
         console.warn('[SimpleVoice] Fallback triggered – forcing review');
-        setEmptyTranscript(true);
-        setPainDefaultUsed(true);
-        setReviewState({
-          painLevel: 7,
-          selectedMedications: new Map(),
-          notesText: '',
-          occurredAt: {
-            date: new Date().toISOString().slice(0, 10),
-            time: new Date().toTimeString().slice(0, 5),
-          },
-        });
-        setVoiceMode('new');
-        setState('review');
+        openReviewWithDefaults();
       }
-    }, 1500);
+    }, 1800);
     
-    setTimeout(() => {
-      if (voiceMode === 'append' && baseTranscriptRef.current) {
-        // Append mode: combine transcripts and merge
+    // Parse with small delay for final STT results
+    try {
+      const meds = userMedsRef.current;
+      const mode = voiceModeRef.current;
+      
+      if (mode === 'append' && baseTranscriptRef.current) {
         const combinedTranscript = (baseTranscriptRef.current + ' ' + currentText).trim();
         const result = parseVoiceEntry(
           combinedTranscript,
-          userMeds.map(m => ({ id: m.id, name: m.name, wirkstoff: m.wirkstoff }))
+          meds.map(m => ({ id: m.id, name: m.name, wirkstoff: m.wirkstoff }))
         );
         
-        if (reviewState) {
-          const merged = mergeVoiceAppend(reviewState, result, userEdited);
+        const currentReview = reviewStateRef.current;
+        if (currentReview) {
+          const merged = mergeVoiceAppend(currentReview, result, userEditedRef.current);
+          reviewOpenedRef.current = true;
           setReviewState(merged.state);
           setPainDefaultUsed(merged.painDefaultUsed);
           setEmptyTranscript(!combinedTranscript);
         }
-        
-        // Update base transcript for potential further appends
         baseTranscriptRef.current = combinedTranscript;
       } else {
-        // New mode: fresh parse
         const isEmpty = !currentText;
         setEmptyTranscript(isEmpty);
         
         const result = parseVoiceEntry(
           currentText,
-          userMeds.map(m => ({ id: m.id, name: m.name, wirkstoff: m.wirkstoff }))
+          meds.map(m => ({ id: m.id, name: m.name, wirkstoff: m.wirkstoff }))
         );
         
         const review = buildReviewState(result);
+        reviewOpenedRef.current = true;
         setReviewState(review);
         setPainDefaultUsed(result.pain_intensity.value === null);
-        
-        // Store base transcript for potential appends
         baseTranscriptRef.current = currentText;
       }
       
       setVoiceMode('new');
       setState('review');
-      clearTimeout(fallbackTimer);
-    }, 400);
-  }, [clearAllTimers, userMeds, buildReviewState, voiceMode, reviewState, userEdited]);
+      stateRef.current = 'review';
+      
+      // Clear fallback since we succeeded
+      if (fallbackTimerRef.current) {
+        clearTimeout(fallbackTimerRef.current);
+        fallbackTimerRef.current = null;
+      }
+    } catch (error) {
+      console.error('[SimpleVoice] Parse error, using defaults:', error);
+      openReviewWithDefaults();
+    }
+  }, [clearAllTimers, buildReviewState, openReviewWithDefaults]);
   
   // ============================================
   // Auto-Stop Timer (generous fallback only)
@@ -369,26 +399,15 @@ export function SimpleVoiceOverlay({
     };
     
     recognition.onend = () => {
-      // If the user intentionally stopped or we're past recording, don't restart
+      // NEVER restart if intentionally stopped or past recording state
       if (intentionalStopRef.current) return;
       if (stateRef.current !== 'recording') return;
       
-      // Auto-restart to keep listening
-      try {
-        const newRecognition = new SpeechRecognitionAPI();
-        newRecognition.lang = currentLanguage === 'en' ? 'en-US' : 'de-DE';
-        newRecognition.continuous = true;
-        newRecognition.interimResults = false;
-        newRecognition.onstart = recognition.onstart;
-        newRecognition.onresult = recognition.onresult;
-        newRecognition.onerror = recognition.onerror;
-        newRecognition.onend = recognition.onend;
-        recognitionRef.current = newRecognition;
-        newRecognition.start();
-      } catch (e) {
-        console.warn('[SimpleVoice] Auto-restart failed, showing paused state');
-        setState('paused');
-      }
+      // Instead of auto-restart (which causes infinite loops),
+      // show paused state and let user resume manually
+      console.warn('[SimpleVoice] Recognition ended unexpectedly, showing paused state');
+      setState('paused');
+      stateRef.current = 'paused';
     };
     
     recognitionRef.current = recognition;
@@ -414,12 +433,20 @@ export function SimpleVoiceOverlay({
   }, [clearAllTimers]);
   
   // ============================================
-  // Lifecycle: Auto-start on open
+  // Lifecycle: Auto-start on open (stable deps via refs)
   // ============================================
+  
+  // Keep function refs stable to avoid effect re-fires
+  const startRecordingRef = useRef(startRecording);
+  const stopRecordingRef = useRef(stopRecording);
+  useEffect(() => { startRecordingRef.current = startRecording; }, [startRecording]);
+  useEffect(() => { stopRecordingRef.current = stopRecording; }, [stopRecording]);
   
   useEffect(() => {
     if (open) {
       setState('recording');
+      stateRef.current = 'recording';
+      reviewOpenedRef.current = false;
       setReviewState(null);
       setEmptyTranscript(false);
       setPainDefaultUsed(false);
@@ -435,22 +462,23 @@ export function SimpleVoiceOverlay({
       // Auto-start recording immediately
       const timer = setTimeout(() => {
         if (isSttSupported) {
-          startRecording();
+          startRecordingRef.current();
         }
       }, 200);
       
       return () => clearTimeout(timer);
     } else {
       clearAllTimers();
-      stopRecording();
+      stopRecordingRef.current();
     }
-  }, [open, stopRecording, startRecording, isSttSupported, clearAllTimers]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, isSttSupported, clearAllTimers]);
   
   useEffect(() => {
     return () => {
-      stopRecording();
+      stopRecordingRef.current();
     };
-  }, [stopRecording]);
+  }, []);
   
   // ============================================
   // Review state change tracking (for userEdited flags)
@@ -472,8 +500,12 @@ export function SimpleVoiceOverlay({
   // ============================================
   
   const handleFertig = useCallback(() => {
+    // Guard: prevent double-click
+    if (stateRef.current === 'processing' || stateRef.current === 'review') return;
+    
     // SOFORT: Prevent any auto-restart from onend
     intentionalStopRef.current = true;
+    reviewOpenedRef.current = false;
     // SOFORT: Update ref synchronously so onstart/onend checks work immediately
     stateRef.current = 'processing';
     // SOFORT: React state for UI
@@ -485,24 +517,24 @@ export function SimpleVoiceOverlay({
   
   const handleResumeRecording = useCallback(() => {
     intentionalStopRef.current = false;
-    startRecording();
-  }, [startRecording]);
+    stateRef.current = 'recording';
+    startRecordingRef.current();
+  }, []);
   
   const handleContinueSpeaking = useCallback(() => {
-    // Switch to append mode and reopen recording
     setVoiceMode('append');
     continueSpeakingUsedRef.current = true;
     committedTextRef.current = '';
     hasSpokenRef.current = false;
     intentionalStopRef.current = false;
+    reviewOpenedRef.current = false;
+    stateRef.current = 'recording';
     setState('recording');
     
-    const timer = setTimeout(() => {
-      startRecording();
+    setTimeout(() => {
+      startRecordingRef.current();
     }, 200);
-    
-    return () => clearTimeout(timer);
-  }, [startRecording]);
+  }, []);
   
   const handleSave = useCallback(async () => {
     if (!reviewState) return;
