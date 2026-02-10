@@ -725,7 +725,7 @@ export function SimpleVoiceOverlay({
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col">
       {/* Header with back arrow */}
-      {(state === 'recording' || state === 'paused' || state === 'processing') && (
+      {(state === 'recording' || state === 'paused' || state === 'processing' || state === 'review') && (
         <div className="flex items-center px-4 pt-4 pb-2">
           <button
             onClick={handleClose}
