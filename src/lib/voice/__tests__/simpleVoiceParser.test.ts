@@ -209,8 +209,13 @@ describe('Simple Voice Parser v2', () => {
       expect(result.time.kind).toBe('absolute');
     });
 
-    it('should parse "halb drei" as 14:30', () => {
+    it('should parse "halb drei" as 02:30 (no PM context)', () => {
       const result = parseVoiceEntry('Schmerzen halb drei', userMeds);
+      expect(result.time.time).toBe('02:30');
+    });
+
+    it('should parse "halb drei nachmittags" as 14:30', () => {
+      const result = parseVoiceEntry('Schmerzen halb drei nachmittags', userMeds);
       expect(result.time.time).toBe('14:30');
     });
 
