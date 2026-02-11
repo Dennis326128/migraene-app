@@ -16,9 +16,9 @@ setupServiceWorkerListener();
 
 // CRITICAL: Check app version - this may trigger reload
 if (checkAppVersion()) {
-  // Reload triggered, stop execution
-  throw new Error('App version changed, reloading...');
-}
+  // Reload triggered, skip rendering - page will reload
+  console.log('App version changed, reload in progress...');
+} else {
 
 const container = document.getElementById("root");
 if (!container) throw new Error("Root element not found");
@@ -37,3 +37,4 @@ createRoot(container).render(
     <App />
   </React.StrictMode>
 );
+}
