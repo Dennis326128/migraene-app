@@ -103,6 +103,18 @@ const extractTimeFromDateTime = (dateTime: string): string => {
   }
 };
 
+/**
+ * Convert a local date + time string to an ISO datetime string.
+ * This ensures that the user's local time is correctly preserved
+ * when stored in Supabase's timestamptz column (which interprets
+ * naive datetimes as UTC).
+ */
+const localDateTimeToISO = (dateStr: string, timeStr: string): string => {
+  // new Date("YYYY-MM-DDTHH:mm:ss") interprets as LOCAL time per spec
+  const dt = new Date(`${dateStr}T${timeStr}:00`);
+  return dt.toISOString();
+};
+
 const getTodayDate = (): string => format(new Date(), 'yyyy-MM-dd');
 
 /**
@@ -402,7 +414,7 @@ export const ReminderForm = ({ reminder, groupedReminders, prefill, onSubmit, on
       if (showTimeOfDayPresets && selectedTimeOfDay.length > 0) {
         const reminders: CreateReminderInput[] = selectedTimeOfDay.map((tod) => {
           const time = customTimes[tod];
-          const dateTime = `${data.date}T${time}:00`;
+          const dateTime = localDateTimeToISO(data.date, time);
           return {
             type: data.type,
             title: autoTitle,
@@ -420,7 +432,7 @@ export const ReminderForm = ({ reminder, groupedReminders, prefill, onSubmit, on
 
       // Single time edit
       const effectiveTime = singleTime || '09:00';
-      const dateTime = `${data.date}T${effectiveTime}:00`;
+      const dateTime = localDateTimeToISO(data.date, effectiveTime);
       
       const submitData: UpdateReminderInput = {
         type: data.type,
@@ -449,7 +461,7 @@ export const ReminderForm = ({ reminder, groupedReminders, prefill, onSubmit, on
     if (showTimeOfDayPresets && selectedTimeOfDay.length > 0) {
       const reminders: CreateReminderInput[] = selectedTimeOfDay.map((tod) => {
         const time = customTimes[tod];
-        const dateTime = `${data.date}T${time}:00`;
+        const dateTime = localDateTimeToISO(data.date, time);
         
         return {
           type: data.type,
@@ -469,7 +481,7 @@ export const ReminderForm = ({ reminder, groupedReminders, prefill, onSubmit, on
 
     // CREATE MODE with single time (no time-of-day selected → default 09:00)
     const effectiveTime = showTimeOfDayPresets ? '09:00' : (singleTime || '09:00');
-    const dateTime = `${data.date}T${effectiveTime}:00`;
+    const dateTime = localDateTimeToISO(data.date, effectiveTime);
     
     const submitData: CreateReminderInput = {
       type: data.type,
