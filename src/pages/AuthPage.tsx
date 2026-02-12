@@ -252,56 +252,28 @@ export default function AuthPage() {
           {/* App-Branding Header */}
           <div className="text-center space-y-2 mb-4">
             <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-primary via-primary/80 to-primary/60 bg-clip-text text-transparent pb-2 leading-tight relative z-10">
-              Migräne-App
+              Miary
             </h1>
+            <p className="text-muted-foreground text-sm md:text-base font-medium">
+              Alles Wichtige zu deiner Migräne in einer App
+            </p>
           </div>
 
           <Card className="w-full">
-            <CardHeader className="text-center">
-              <div className="mx-auto mb-4 w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
-                <Mail className="h-7 w-7 text-primary" />
-              </div>
-              <CardTitle className="text-xl">Bestätige deine E-Mail</CardTitle>
-              <CardDescription className="text-base">
-                Wir haben dir eine E-Mail an{" "}
-                <span className="font-medium text-foreground">{pendingEmail}</span>{" "}
-                gesendet.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Alert className="border-primary/30 bg-primary/5">
-                <CheckCircle className="h-4 w-4 text-primary" />
-                <AlertDescription>
-                  Bitte klicke auf den Bestätigungslink in der E-Mail, um dein Konto zu aktivieren.
-                </AlertDescription>
-              </Alert>
-
-              <div className="pt-2 space-y-3">
-                <p className="text-sm text-muted-foreground text-center">
-                  Keine E-Mail erhalten? Prüfe deinen Spam-Ordner oder:
-                </p>
-                
-                <ResendConfirmationButton
-                  email={pendingEmail}
-                  variant="outline"
-                  className="w-full"
-                />
-              </div>
-
-              <div className="pt-4 border-t">
-                <button
-                  onClick={() => {
-                    setShowConfirmationPending(false);
-                    setPendingEmail("");
-                    setEmail("");
-                    setPassword("");
-                    setIsLogin(true);
-                  }}
-                  className="text-sm text-muted-foreground hover:text-foreground w-full text-center"
-                >
-                  ← Zurück zur Anmeldung
-                </button>
-              </div>
+            <CardContent className="pt-6 space-y-4 text-center">
+              <div className="text-5xl mb-2">📧</div>
+              <h2 className="text-xl font-semibold">E-Mail bestätigen</h2>
+              <p className="text-muted-foreground text-sm">
+                Wir haben Ihnen eine Bestätigungs-E-Mail an <strong>{email}</strong> gesendet.
+                Bitte klicken Sie auf den Link in der E-Mail, um Ihr Konto zu aktivieren.
+              </p>
+              <Button
+                variant="outline"
+                className="w-full mt-4"
+                onClick={() => setShowConfirmationPending(false)}
+              >
+                Zurück zum Login
+              </Button>
             </CardContent>
           </Card>
 
@@ -317,7 +289,7 @@ export default function AuthPage() {
         {/* App-Branding Header */}
         <div className="text-center space-y-2 mb-4">
           <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-primary via-primary/80 to-primary/60 bg-clip-text text-transparent pb-2 leading-tight relative z-10">
-            Migräne-App
+            Miary
           </h1>
           <p className="text-muted-foreground text-sm md:text-base font-medium">
             Alles Wichtige zu deiner Migräne in einer App

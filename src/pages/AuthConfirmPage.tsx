@@ -210,7 +210,7 @@ export default function AuthConfirmPage() {
 
           <div className="text-center text-xs text-muted-foreground pt-4 border-t">
             <p>
-              Dieser Link wurde von der Migräne-App gesendet.
+              Dieser Link wurde von Miary gesendet.
               <br />
               Wenn Sie keine E-Mail angefordert haben, ignorieren Sie diese Seite.
             </p>

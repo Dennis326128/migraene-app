@@ -27,7 +27,7 @@
   },
   
   "app": {
-    "name": "Migraine App",
+    "name": "Miary",
     "loading": "Loading...",
     "tagline": "Track your migraines and discover patterns."
   },

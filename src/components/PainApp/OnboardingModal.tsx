@@ -99,7 +99,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ open, onComple
           <div className="text-center space-y-6">
             <div className="text-6xl mb-4">🧠</div>
             <div>
-              <h3 className="text-2xl font-bold mb-2">Willkommen bei Ihrer Migräne-App</h3>
+              <h3 className="text-2xl font-bold mb-2">Willkommen bei Miary</h3>
               <p className="text-muted-foreground">
                 Lassen Sie uns Ihre App personalisieren, um Ihnen die bestmögliche Erfahrung zu bieten.
               </p>

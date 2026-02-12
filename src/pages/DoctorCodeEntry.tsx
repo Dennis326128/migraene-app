@@ -114,7 +114,7 @@ const DoctorCodeEntry: React.FC = () => {
       {/* Header */}
       <header className="border-b">
         <div className="max-w-md mx-auto px-4 py-3 flex items-center justify-between">
-          <h1 className="font-semibold text-lg">Migräne-App</h1>
+          <h1 className="font-semibold text-lg">Miary</h1>
           <a
             href="/"
             className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1"
@@ -228,7 +228,7 @@ const DoctorCodeEntry: React.FC = () => {
           <span>•</span>
           <a href="/imprint" className="hover:underline">Impressum</a>
           <span>•</span>
-          <span>© {new Date().getFullYear()} Migräne-App</span>
+          <span>© {new Date().getFullYear()} Miary</span>
         </div>
       </footer>
     </div>

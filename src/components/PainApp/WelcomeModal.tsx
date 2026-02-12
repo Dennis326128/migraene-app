@@ -115,7 +115,7 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onComplete }) 
 
       toast({ 
         title: "✅ Einrichtung abgeschlossen!", 
-        description: "Willkommen bei Ihrer Migräne-App. Sie können jetzt beginnen." 
+        description: "Willkommen bei Miary. Sie können jetzt beginnen." 
       });
       
       onComplete();
@@ -150,7 +150,7 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onComplete }) 
           <div className="text-center space-y-6">
             <div className="text-5xl mb-4">🧠</div>
             <div className="space-y-4">
-              <h2 className="text-2xl font-bold">Willkommen bei Ihrer Migräne-App!</h2>
+              <h2 className="text-2xl font-bold">Willkommen bei Miary!</h2>
               <p className="text-muted-foreground max-w-md mx-auto leading-relaxed">
                 Diese App hilft Ihnen dabei, Ihre Migräne zu dokumentieren, Muster zu erkennen 
                 und wertvolle Erkenntnisse für Ihre Behandlung zu gewinnen.
@@ -278,7 +278,7 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onComplete }) 
             <div className="space-y-4">
               <h2 className="text-2xl font-bold">Alles bereit!</h2>
               <p className="text-muted-foreground max-w-md mx-auto">
-                Ihre Migräne-App ist jetzt eingerichtet und bereit zur Nutzung.
+                Miary ist jetzt eingerichtet und bereit zur Nutzung.
               </p>
               
               <Card className="p-4 max-w-md mx-auto">
@@ -314,7 +314,7 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onComplete }) 
       <DialogContent className="max-w-md mx-auto" onPointerDownOutside={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="text-center">
-            Migräne-App Setup
+            Miary Setup
           </DialogTitle>
         </DialogHeader>
 
