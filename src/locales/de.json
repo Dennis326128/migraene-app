@@ -29,7 +29,7 @@
   "app": {
     "name": "Miary",
     "loading": "Miary wird geladen...",
-    "tagline": "Dokumentiere deine Migräne und erkenne Muster."
+    "tagline": "Dokumentiere deine Migräne. Erkenne Muster."
   },
   
   "auth": {

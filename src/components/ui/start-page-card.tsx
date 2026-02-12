@@ -164,7 +164,7 @@ interface SectionHeaderProps {
 const SectionHeader: React.FC<SectionHeaderProps> = ({ title, className }) => {
   return (
     <h2 className={cn(
-      "text-xs sm:text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-5 mt-10 first:mt-0",
+      "text-[12px] font-medium text-muted-foreground/80 uppercase tracking-[0.1em] mb-4 mt-8 first:mt-0",
       className
     )}>
       {title}
