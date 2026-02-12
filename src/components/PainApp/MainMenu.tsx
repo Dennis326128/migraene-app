@@ -163,11 +163,11 @@ export const MainMenu: React.FC<MainMenuProps> = ({
       <div className="flex-1 flex flex-col justify-start max-w-md mx-auto w-full">
         
         {/* HEADER */}
-        <header className="text-center pt-6 pb-8 sm:pt-8 sm:pb-10">
-          <h1 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight">
+        <header className="text-center pt-8 pb-10 sm:pt-10 sm:pb-12">
+          <h1 className="text-[32px] sm:text-[36px] md:text-[44px] font-semibold text-foreground leading-[1.1] tracking-[-0.01em]">
             {t('app.name')}
           </h1>
-          <p className="text-muted-foreground text-sm mt-2 max-w-[260px] mx-auto">
+          <p className="text-muted-foreground/80 text-[14px] sm:text-[15px] md:text-[16px] font-light mt-2.5 max-w-[44ch] mx-auto leading-relaxed">
             {t('app.tagline')}
           </p>
         </header>

@@ -29,7 +29,7 @@
   "app": {
     "name": "Miary",
     "loading": "Loading...",
-    "tagline": "Track your migraines and discover patterns."
+    "tagline": "Track your migraines. Discover patterns."
   },
   
   "auth": {
