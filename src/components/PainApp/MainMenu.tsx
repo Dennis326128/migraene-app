@@ -164,7 +164,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         
         {/* HEADER */}
         <header className="text-center pt-6 pb-8 sm:pt-8 sm:pb-10">
-          <h1 className="text-2xl sm:text-3xl font-light text-foreground tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight">
             {t('app.name')}
           </h1>
           <p className="text-muted-foreground text-sm mt-2 max-w-[260px] mx-auto">

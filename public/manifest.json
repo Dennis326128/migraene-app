@@ -1,7 +1,7 @@
 {
-  "name": "Migräne Tagebuch",
-  "short_name": "Migräne",
-  "description": "Intelligentes Tagebuch für Migräne-Tracking mit Wetter-Korrelation",
+  "name": "Miary",
+  "short_name": "Miary",
+  "description": "Miary – Intelligentes Tagebuch für Migräne-Tracking mit Wetter-Korrelation",
   "theme_color": "#14171f",
   "background_color": "#14171f",
   "display": "standalone",

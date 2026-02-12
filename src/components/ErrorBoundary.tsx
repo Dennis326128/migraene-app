@@ -41,7 +41,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
             <div className="text-6xl mb-4">⚠️</div>
             <h1 className="text-2xl font-bold mb-2">Etwas ist schief gelaufen</h1>
             <p className="text-muted-foreground mb-4">
-              Die Migräne-App ist auf einen unerwarteten Fehler gestoßen.
+              Miary ist auf einen unerwarteten Fehler gestoßen.
             </p>
 
             <div className="flex flex-col gap-2">
