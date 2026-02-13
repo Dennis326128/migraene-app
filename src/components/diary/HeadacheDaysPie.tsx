@@ -87,8 +87,8 @@ export const HeadacheDaysPie: React.FC<HeadacheDaysPieProps> = ({
   const size = fullscreen ? 220 : compact ? 100 : 120;
   const fontSize = fullscreen ? 'text-base' : compact ? 'text-xs' : 'text-sm';
   const swatchSize = fullscreen ? 14 : compact ? 10 : 12;
-  const centerFontSize = fullscreen ? 28 : 18;
-  const centerSubFontSize = fullscreen ? 13 : 10;
+  const centerFontSize = fullscreen ? 20 : 18;
+  const centerSubFontSize = fullscreen ? 11 : 10;
   const pct = (v: number) => totalDays > 0 ? Math.round((v / totalDays) * 1000) / 10 : 0;
 
   return (
