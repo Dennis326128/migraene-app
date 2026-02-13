@@ -3,14 +3,13 @@ import { useTranslation } from "react-i18next";
 import { SettingsLayout } from "./Settings/SettingsLayout";
 import { SettingsOverview } from "./Settings/SettingsOverview";
 import { SettingsPrivacy } from "./Settings/SettingsPrivacy";
-import { SettingsHelp } from "./Settings/SettingsHelp";
 import { SettingsAccount } from "./Settings/SettingsAccount";
 import { SettingsDoctorsWithOrigin } from "./Settings/SettingsDoctorsWithOrigin";
 import { SettingsLogout } from "./Settings/SettingsLogout";
 import { SettingsBurdenScreen } from "./Settings/SettingsBurdenScreen";
 import { PWAInstallGuide } from "@/components/PWA";
 
-type SettingsSection = 'overview' | 'privacy' | 'help' | 'account' | 'doctors' | 'logout' | 'install' | 'burden';
+type SettingsSection = 'overview' | 'privacy' | 'account' | 'doctors' | 'logout' | 'install' | 'burden';
 
 const SettingsPage = ({ onBack }: { onBack: () => void }) => {
   const { t } = useTranslation();
@@ -28,8 +27,6 @@ const SettingsPage = ({ onBack }: { onBack: () => void }) => {
     switch (section) {
       case 'privacy':
         return t('settings.privacy');
-      case 'help':
-        return t('settings.help');
       case 'account':
         return t('settings.account');
       case 'doctors':
@@ -51,7 +48,6 @@ const SettingsPage = ({ onBack }: { onBack: () => void }) => {
         <SettingsOverview onNavigate={setSection} />
       )}
       {section === 'privacy' && <SettingsPrivacy />}
-      {section === 'help' && <SettingsHelp />}
       {section === 'account' && <SettingsAccount onReturn={() => setSection('overview')} />}
       {section === 'doctors' && (
         <SettingsDoctorsWithOrigin 
