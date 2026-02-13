@@ -157,9 +157,46 @@ export function PatternCards({ statistics, isLoading = false, overuseInfo, daysI
 
   return (
     <div className="space-y-4 mb-6">
-      
+
+      {/* 1. Medikamente & Wirkung – volle Breite */}
+      <Card>
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Pill className="h-5 w-5 text-primary" />
+              <CardTitle className="text-base">Medikamente & Wirkung</CardTitle>
+            </div>
+            <InfoTooltip content="Wie häufig nimmst du welche Medikamente und wie gut wirken sie?" />
+          </div>
+        </CardHeader>
+        <CardContent>
+          {medicationAndEffect.mostUsed ? (
+            <div className="space-y-1">
+              {medicationAndEffect.topMedications.length < 2 && (
+                <div className="text-xs text-amber-500 mb-2 flex items-center gap-1">
+                  <span className="font-medium">⚠️</span>
+                  <span>Wenige Daten</span>
+                </div>
+              )}
+              {medicationAndEffect.topMedications.slice(0, 3).map((med, idx) => (
+                <MedicationEffectDisplay
+                  key={idx}
+                  med={med}
+                  showLimit={true}
+                  onNavigateToLimits={overuseInfo?.onNavigateToLimits}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Keine Medikamente im Zeitraum
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Schmerzprofil */}
+        {/* 2. Schmerzprofil */}
         <Card>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
@@ -201,7 +238,7 @@ export function PatternCards({ statistics, isLoading = false, overuseInfo, daysI
           </CardContent>
         </Card>
 
-        {/* Schmerzlokalisation */}
+        {/* 3. Schmerzlokalisation */}
         <Card>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
@@ -243,8 +280,7 @@ export function PatternCards({ statistics, isLoading = false, overuseInfo, daysI
                 Keine Lokalisationsdaten im Zeitraum
               </p>
             )}
-            
-            {/* TEIL C: Mini-Info wenn Aura-Card ausgeblendet */}
+
             {!showAuraCard && (
               <div className="mt-3 pt-3 border-t border-border/50 flex items-center gap-2 text-xs text-muted-foreground">
                 <Brain className="h-3.5 w-3.5" />
@@ -254,7 +290,7 @@ export function PatternCards({ statistics, isLoading = false, overuseInfo, daysI
           </CardContent>
         </Card>
 
-        {/* TEIL C: Aura & Symptome - nur wenn echte Daten vorhanden */}
+        {/* Aura & Symptome */}
         {showAuraCard && (
           <Card>
             <CardHeader className="pb-2">
@@ -302,47 +338,7 @@ export function PatternCards({ statistics, isLoading = false, overuseInfo, daysI
             </CardContent>
           </Card>
         )}
-
       </div>
-
-      {/* TEIL E: Medikamente & Wirkung – volle Breite */}
-      <Card>
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Pill className="h-5 w-5 text-primary" />
-              <CardTitle className="text-base">Medikamente & Wirkung</CardTitle>
-            </div>
-            <InfoTooltip content="Wie häufig nimmst du welche Medikamente und wie gut wirken sie?" />
-          </div>
-        </CardHeader>
-        <CardContent>
-          {medicationAndEffect.mostUsed ? (
-            <div className="space-y-1">
-              {medicationAndEffect.topMedications.length < 2 && (
-                <div className="text-xs text-amber-500 mb-2 flex items-center gap-1">
-                  <span className="font-medium">⚠️</span>
-                  <span>Wenige Daten</span>
-                </div>
-              )}
-              
-              {/* All top medications with limit info inline */}
-              {medicationAndEffect.topMedications.slice(0, 3).map((med, idx) => (
-                <MedicationEffectDisplay 
-                  key={idx}
-                  med={med} 
-                  showLimit={true}
-                  onNavigateToLimits={overuseInfo?.onNavigateToLimits}
-                />
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Keine Medikamente im Zeitraum
-            </p>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }
