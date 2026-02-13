@@ -1,8 +1,13 @@
 /**
  * DoctorShareDialog – Zero-Decision-UX
- * Step 1: Single toggle for personal notes
- * Step 2: Calm progress animation during share creation
+ * Step 1: Doctor selection (if >1 active doctor)
+ * Step 2: Single toggle for personal notes
+ * Step 3: Calm progress animation during share creation
  * AI analysis starts automatically, no separate prompt.
+ *
+ * IMPORTANT: Archived doctors (is_active=false) are NEVER used.
+ * If exactly 1 active doctor → auto-selected (smart default).
+ * If >1 active doctor → DoctorSelectionDialog shown first.
  */
 
 import React, { useState, useMemo, useEffect, useCallback } from "react";
@@ -22,6 +27,7 @@ import {
   useActivateDoctorShare,
 } from "@/features/doctor-share";
 import { upsertShareSettings } from "@/features/doctor-share/api/doctorShareSettings.api";
+import { DoctorSelectionDialog, type Doctor } from "../DoctorSelectionDialog";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 
@@ -43,7 +49,7 @@ const PROGRESS_STEPS = [
   "Daten werden aufbereitet …",
 ];
 
-type Phase = "toggle" | "progress";
+type Phase = "doctor-select" | "toggle" | "progress";
 
 export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
   onComplete,
@@ -55,16 +61,40 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
 
   const [phase, setPhase] = useState<Phase>("toggle");
   const [shareNotes, setShareNotes] = useState(false);
+  const [selectedDoctors, setSelectedDoctors] = useState<Doctor[]>([]);
+  const [showDoctorDialog, setShowDoctorDialog] = useState(false);
 
   // Progress state
   const [progress, setProgress] = useState(0);
   const [stepIndex, setStepIndex] = useState(0);
   const [generationDone, setGenerationDone] = useState(false);
 
-  const { data: doctors = [] } = useDoctors();
+  const { data: allDoctors = [] } = useDoctors();
   const { data: medicationCourses = [] } = useMedicationCourses();
   const { data: shareStatus, refetch: refetchShareStatus } = useDoctorShareStatus();
   const activateMutation = useActivateDoctorShare();
+
+  // IMPORTANT: Only use active (non-archived) doctors
+  const activeDoctors = useMemo(
+    () => allDoctors.filter((d) => d.is_active !== false),
+    [allDoctors]
+  );
+
+  // Smart default: if exactly 1 active doctor, auto-select
+  // If >1, we need to show selection dialog first
+  useEffect(() => {
+    if (activeDoctors.length === 1) {
+      setSelectedDoctors(activeDoctors);
+      setPhase("toggle");
+    } else if (activeDoctors.length > 1) {
+      setPhase("doctor-select");
+      setShowDoctorDialog(true);
+    } else {
+      // No active doctors - proceed without doctor data
+      setSelectedDoctors([]);
+      setPhase("toggle");
+    }
+  }, [activeDoctors]);
 
   // Smooth progress animation (visual only, ~4.5s total)
   useEffect(() => {
@@ -104,6 +134,19 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
       return () => clearTimeout(timer);
     }
   }, [progress, resultCode, onComplete]);
+
+  // Handle doctor selection confirm
+  const handleDoctorSelectionConfirm = useCallback((doctors: Doctor[]) => {
+    setSelectedDoctors(doctors);
+    setShowDoctorDialog(false);
+    setPhase("toggle");
+  }, []);
+
+  // Handle doctor selection cancel
+  const handleDoctorSelectionClose = useCallback(() => {
+    setShowDoctorDialog(false);
+    onCancel();
+  }, [onCancel]);
 
   const handleContinue = useCallback(async () => {
     setPhase("progress");
@@ -174,7 +217,7 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
         now: new Date(),
       });
 
-      // 4. Generate PDF
+      // 4. Generate PDF — use ONLY selected (active) doctors
       const medicationStats = reportData.acuteMedicationStats.map((stat) => ({
         name: stat.name,
         count: stat.last30Units,
@@ -198,7 +241,7 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
         includeAnalysis: false,
         includeEntriesList: true,
         includePatientData: true,
-        includeDoctorData: doctors.length > 0,
+        includeDoctorData: selectedDoctors.length > 0,
         includeMedicationCourses: true,
         includePatientNotes: includeNotes,
         freeTextExportMode: includeNotes ? "notes_and_context" : "none",
@@ -238,8 +281,8 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
             }
           : undefined,
         doctors:
-          doctors.length > 0
-            ? doctors.map((d) => ({
+          selectedDoctors.length > 0
+            ? selectedDoctors.map((d) => ({
                 firstName: d.first_name || "",
                 lastName: d.last_name || "",
                 specialty: d.specialty || "",
@@ -286,7 +329,29 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
       setProgress(0);
       setStepIndex(0);
     }
-  }, [shareStatus, shareNotes, from, to, doctors, medicationCourses, activateMutation, refetchShareStatus, onComplete]);
+  }, [shareStatus, shareNotes, from, to, selectedDoctors, medicationCourses, activateMutation, refetchShareStatus, onComplete]);
+
+  // ─── Phase: Doctor Selection (>1 active doctor) ────────
+  if (phase === "doctor-select") {
+    return (
+      <>
+        <div className="flex flex-col min-h-full">
+          <div className="flex-1 flex flex-col justify-center items-center px-4">
+            <p className="text-sm text-muted-foreground">
+              Bitte wählen Sie den behandelnden Arzt aus…
+            </p>
+          </div>
+        </div>
+        <DoctorSelectionDialog
+          open={showDoctorDialog}
+          onClose={handleDoctorSelectionClose}
+          doctors={activeDoctors}
+          onConfirm={handleDoctorSelectionConfirm}
+          title="Arzt für Bericht auswählen"
+        />
+      </>
+    );
+  }
 
   // ─── Phase: Toggle ─────────────────────────────────────
   if (phase === "toggle") {
