@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { SaveButton } from "@/components/ui/save-button";
@@ -25,6 +25,7 @@ import { ContextInputField } from "./ContextInputField";
 import { MedicationDoseList } from "./MedicationDose";
 import { DEFAULT_DOSE_QUARTERS } from "@/lib/utils/doseFormatter";
 import { devLog, devWarn } from "@/lib/utils/devLogger";
+import { groupSymptoms } from "@/lib/symptoms/symptomGroups";
 
 interface NewEntryProps {
   onBack: () => void;
@@ -799,26 +800,36 @@ export const NewEntry = ({
             {loadingSymptoms && entry ? (
               <div className="text-sm text-muted-foreground mt-2">Lade vorhandene Symptome…</div>
             ) : (
-              <div className="flex flex-wrap gap-2 mt-3">
-                {catalog.map((s) => {
-                  const active = selectedSymptoms.includes(s.id);
-                  return (
-                    <Button
-                      key={s.id}
-                      type="button"
-                      variant={active ? "default" : "outline"}
-                      size="sm"
-                      onClick={() =>
-                        setSelectedSymptoms((prev) =>
-                          prev.includes(s.id) ? prev.filter((x) => x !== s.id) : [...prev, s.id]
-                        )
-                      }
-                      aria-pressed={active}
-                    >
-                      {s.name}
-                    </Button>
-                  );
-                })}
+              <div className="mt-3 space-y-4">
+                <p className="text-xs text-muted-foreground">
+                  Optional – verbessert die Auswertung für Arzt und Verlauf
+                </p>
+                {groupSymptoms(catalog).map((group) => (
+                  <div key={group.group}>
+                    <p className="text-xs font-medium text-muted-foreground mb-2">{group.label}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {group.items.map((s) => {
+                        const active = selectedSymptoms.includes(s.id);
+                        return (
+                          <Button
+                            key={s.id}
+                            type="button"
+                            variant={active ? "default" : "outline"}
+                            size="sm"
+                            onClick={() =>
+                              setSelectedSymptoms((prev) =>
+                                prev.includes(s.id) ? prev.filter((x) => x !== s.id) : [...prev, s.id]
+                              )
+                            }
+                            aria-pressed={active}
+                          >
+                            {s.name}
+                          </Button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
                 {catalog.length === 0 && (
                   <div className="text-sm text-muted-foreground">Keine Symptome im Katalog.</div>
                 )}

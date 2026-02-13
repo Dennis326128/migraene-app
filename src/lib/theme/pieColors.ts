@@ -6,13 +6,13 @@
 /** CSS-Farben für React SVG */
 export const PIE_COLORS_CSS = {
   painFree: '#16a34a',       // Grün – schmerzfrei
-  painNoTriptan: '#f59e0b',  // Orange – Schmerz ohne Triptan
-  triptan: '#ef4444',        // Rot – Triptan genommen
+  painNoTriptan: '#f59e0b',  // Orange – Schmerz ohne Akutmedikation
+  triptan: '#ef4444',        // Rot – Akutmedikation genommen
 } as const;
 
 /** Labels auf Deutsch */
 export const PIE_LABELS = {
   painFree: 'Schmerzfrei',
-  painNoTriptan: 'Schmerz ohne Triptan',
-  triptan: 'Tage mit Triptan',
+  painNoTriptan: 'Kopfschmerz ohne Akutmedikation',
+  triptan: 'Kopfschmerz mit Akutmedikation',
 } as const;
