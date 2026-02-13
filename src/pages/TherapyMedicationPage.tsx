@@ -17,7 +17,7 @@ import { useMedicationUsageStats } from "@/features/medication-intakes/hooks/use
 import { useActiveMeds } from "@/features/meds/hooks/useMeds";
 import { useMedicationCourses } from "@/features/medication-courses/hooks/useMedicationCourses";
 import { TimeRangeButtons, TimeRangePreset } from "@/components/PainApp/TimeRangeButtons";
-import { isTriptanMedication } from "@/lib/pdf/reportStructure";
+import { isTriptan as isTriptanMedication } from "@/lib/medications/isTriptan";
 import { normalizePainLevel } from "@/lib/utils/pain";
 import { formatNumberSmart } from "@/lib/formatters/dateRangeFormatter";
 import { subDays, subMonths, format, parseISO, startOfDay, endOfDay, isWithinInterval } from "date-fns";

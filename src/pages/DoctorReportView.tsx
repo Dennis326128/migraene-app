@@ -5,6 +5,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from "react";
+import { HeadacheDaysPie } from "@/components/diary/HeadacheDaysPie";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -444,6 +445,30 @@ const DoctorReportView: React.FC = () => {
                 );
               })()}
             </div>
+
+            {/* Pie Chart: Tagesverteilung */}
+            {(() => {
+              const daysInRange = data.report?.meta?.period?.daysInRange 
+                ?? computeDaysInRange(data.from_date, data.to_date);
+              const headacheDays = data.summary.kpis?.painDays ?? data.summary.headache_days;
+              const triptanDays = data.summary.kpis?.triptanDays ?? data.summary.triptan_days;
+              const painNoTriptan = Math.max(0, headacheDays - triptanDays);
+              const painFree = Math.max(0, daysInRange - headacheDays);
+              
+              return daysInRange > 0 ? (
+                <Card>
+                  <CardContent className="p-4">
+                    <p className="text-sm font-medium text-muted-foreground mb-3">Tagesverteilung</p>
+                    <HeadacheDaysPie
+                      totalDays={daysInRange}
+                      painFreeDays={painFree}
+                      painDaysNoTriptan={painNoTriptan}
+                      triptanDays={triptanDays}
+                    />
+                  </CardContent>
+                </Card>
+              ) : null;
+            })()}
 
             {/* Erweiterte Zusammenfassung mit Normalisierung */}
             {(() => {

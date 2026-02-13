@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
+import { computeDiaryDayBuckets } from "@/lib/diary/dayBuckets";
+import { HeadacheDaysPie } from "@/components/diary/HeadacheDaysPie";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/lib/supabaseClient";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -392,6 +394,20 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
       now: new Date()
     });
   }, [entries, medicationEffects, from, to]);
+
+  // Day buckets für Pie Chart (Single Source of Truth)
+  const dayBuckets = useMemo(() => {
+    return computeDiaryDayBuckets({
+      startDate: from,
+      endDate: to,
+      entries: entries.map(e => ({
+        selected_date: e.selected_date,
+        timestamp_created: e.timestamp_created,
+        pain_level: e.pain_level,
+        medications: e.medications,
+      })),
+    });
+  }, [entries, from, to]);
 
   // Legacy medicationStats für Abwärtskompatibilität, aber mit erweiterten Feldern
   const medicationStats = useMemo(() => {
@@ -1018,6 +1034,19 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
             )}
           </div>
         </Card>
+
+        {/* Pie Chart: Tagesverteilung */}
+        {entries.length > 0 && (
+          <Card className="p-4">
+            <h3 className="text-sm font-semibold text-muted-foreground mb-3">Tagesverteilung</h3>
+            <HeadacheDaysPie
+              totalDays={dayBuckets.totalDays}
+              painFreeDays={dayBuckets.painFreeDays}
+              painDaysNoTriptan={dayBuckets.painDaysNoTriptan}
+              triptanDays={dayBuckets.triptanDays}
+            />
+          </Card>
+        )}
 
         {/* ═══════════════════════════════════════════════════════════════════
             OPTIONEN CARD (Toggle-Listen-Stil) - Priorisiert für chron. Migräne
