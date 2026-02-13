@@ -37,7 +37,7 @@ export const REPORT_SECTION_ORDER = [
   // 4. PROPHYLAXE & THERAPIEVERLAUF
   'therapy_courses',
 
-  // 5. BEGLEITSYMPTOME – KLINISCHE EINORDNUNG
+  // 5. BEGLEITSYMPTOME – KLINISCHE BEWERTUNG
   'symptom_overview',
 
   // 6. AUFFÄLLIGKEITEN & MUSTER
@@ -106,7 +106,7 @@ export const REPORT_SECTIONS: Record<ReportSectionId, {
     id: 'symptom_overview',
     labelDe: 'Begleitsymptome',
     labelEn: 'Accompanying Symptoms',
-    pdfTitle: 'BEGLEITSYMPTOME \u2013 KLINISCHE EINORDNUNG',
+    pdfTitle: 'BEGLEITSYMPTOME \u2013 KLINISCHE BEWERTUNG',
     isRequired: false,
     isPremium: false,
     description: 'H\u00E4ufigkeit und Beeintr\u00E4chtigung der Begleitsymptome',

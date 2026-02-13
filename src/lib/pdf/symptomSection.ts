@@ -181,7 +181,7 @@ export function drawSymptomSection(
   yPos = spaceCheck.yPos;
 
   // ── Section Header ──
-  page.drawText("BEGLEITSYMPTOME \u2013 KLINISCHE EINORDNUNG", {
+  page.drawText("BEGLEITSYMPTOME \u2013 KLINISCHE BEWERTUNG", {
     x: LAYOUT.margin, y: yPos, size: 11, font: fontBold, color: COLORS.primaryLight,
   });
   page.drawLine({
@@ -213,7 +213,7 @@ export function drawSymptomSection(
   // Burden not set hint
   if (!hasBurdenData) {
     page.drawText(
-      "Beeintr\u00E4chtigung: nicht festgelegt",
+      "Belastung: nicht festgelegt",
       { x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight }
     );
     yPos -= 11;
@@ -230,9 +230,8 @@ export function drawSymptomSection(
   // ── Table header ──
   const cols = {
     symptom: LAYOUT.margin,
-    freq: LAYOUT.margin + 170,
-    burden: LAYOUT.margin + 240,
-    note: LAYOUT.margin + 360,
+    freq: LAYOUT.margin + 200,
+    burden: LAYOUT.margin + 280,
   };
 
   page.drawRectangle({
@@ -243,8 +242,7 @@ export function drawSymptomSection(
 
   page.drawText("Symptom", { x: cols.symptom, y: yPos - 11, size: 8, font: fontBold, color: COLORS.text });
   page.drawText("H\u00E4ufigkeit", { x: cols.freq, y: yPos - 11, size: 8, font: fontBold, color: COLORS.text });
-  page.drawText("Beeintr\u00E4chtigung", { x: cols.burden, y: yPos - 11, size: 8, font: fontBold, color: COLORS.text });
-  page.drawText("Einordnung", { x: cols.note, y: yPos - 11, size: 8, font: fontBold, color: COLORS.text });
+  page.drawText("Belastung", { x: cols.burden, y: yPos - 11, size: 8, font: fontBold, color: COLORS.text });
   yPos -= 26;
 
   // ── Top 6 rows ──
@@ -266,9 +264,6 @@ export function drawSymptomSection(
     });
     page.drawText(sanitize(row.burdenLabel), {
       x: cols.burden, y: yPos, size: 8.5, font, color: COLORS.text,
-    });
-    page.drawText(sanitize(row.clinicalNote), {
-      x: cols.note, y: yPos, size: 8, font, color: COLORS.textLight,
     });
     yPos -= 14;
   }
@@ -296,7 +291,7 @@ export function drawSymptomSection(
   // ── Footer note ──
   yPos -= 4;
   page.drawText(
-    "H\u00E4ufigkeit basiert auf dokumentierten Attacken; Beeintr\u00E4chtigung entspricht patientenseitiger Priorisierung.",
+    "H\u00E4ufigkeit basiert auf dokumentierten Attacken; Belastung entspricht patientenseitiger Priorisierung.",
     { x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight }
   );
   yPos -= 10;
