@@ -85,7 +85,7 @@ export const HeadacheDaysPie: React.FC<HeadacheDaysPieProps> = ({
   const pct = (v: number) => totalDays > 0 ? Math.round((v / totalDays) * 1000) / 10 : 0;
 
   return (
-    <div className={`flex ${compact ? 'flex-row items-center gap-3' : 'flex-col sm:flex-row items-center sm:items-start gap-4'}`}>
+    <div className={`flex ${compact ? 'flex-row items-center gap-3' : 'flex-col sm:flex-row items-center sm:items-center gap-4'}`}>
       {/* SVG Pie Chart */}
       <div className="relative shrink-0" style={{ width: size, height: size }}>
         <svg viewBox="0 0 120 120" width={size} height={size}>
