@@ -15,7 +15,8 @@ import { mapTextLevelToScore } from "@/lib/utils/pain";
 import { useMedicationEffectsForEntries } from "@/features/medication-effects/hooks/useMedicationEffects";
 import { usePatientData, useDoctors } from "@/features/account/hooks/useAccount";
 import { useMedicationCourses } from "@/features/medication-courses/hooks/useMedicationCourses";
-import { Loader2, ArrowLeft, FileText, Table, Pill, ChevronDown, ChevronRight, Brain } from "lucide-react";
+import { Loader2, FileText, Table, Pill, ChevronDown, ChevronRight, Brain } from "lucide-react";
+import { AppHeader } from "@/components/ui/app-header";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { TimeRangeButtons, type TimeRangePreset } from "./TimeRangeButtons";
@@ -973,16 +974,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
   return (
     <div className="min-h-screen bg-background pb-28">
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-background border-b border-border px-4 py-3 flex items-center gap-3">
-        <Button 
-          variant="ghost" 
-          onClick={onBack} 
-          className="p-2 hover:bg-secondary/80"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <h1 className="text-lg font-semibold flex-1">Kopfschmerztagebuch (PDF)</h1>
-      </div>
+      <AppHeader title="Kopfschmerztagebuch (PDF)" onBack={onBack} sticky />
 
       <div className="p-4 space-y-4">
 

@@ -1,22 +1,17 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, FileText, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
+import { FileText, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { AppHeader } from "@/components/ui/app-header";
 
 export default function TermsOfService() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-background p-4">
-      <div className="max-w-4xl mx-auto space-y-6">
-        <div className="flex items-center gap-4">
-          <Button variant="outline" onClick={() => navigate(-1)}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Zurück
-          </Button>
-          <h1 className="text-3xl font-bold">Allgemeine Geschäftsbedingungen (AGB)</h1>
-        </div>
+    <div className="min-h-screen bg-background">
+      <AppHeader title="AGB" onBack={() => navigate(-1)} sticky />
+      <div className="p-4 max-w-4xl mx-auto space-y-6">
 
         <div className="bg-yellow-50 dark:bg-yellow-950/20 p-4 rounded-lg flex gap-3">
           <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-500 flex-shrink-0 mt-0.5" />

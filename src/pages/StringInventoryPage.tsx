@@ -11,9 +11,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Copy, Check, Search, ArrowLeft, Languages, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Copy, Check, Search, Languages, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { showSuccessToast } from '@/lib/toastHelpers';
+import { AppHeader } from "@/components/ui/app-header";
 
 import de from '@/locales/de.json';
 import en from '@/locales/en.json';
@@ -138,21 +139,9 @@ export default function StringInventoryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-4 pb-24">
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
-          <ArrowLeft className="w-5 h-5" />
-        </Button>
-        <div className="flex-1">
-          <h1 className="text-xl font-semibold flex items-center gap-2">
-            <Languages className="w-5 h-5 text-primary" />
-            String Inventory
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            All translation keys
-          </p>
-        </div>
+    <div className="min-h-screen bg-background pb-24">
+      <AppHeader title="String Inventory" onBack={() => navigate(-1)} sticky />
+      <div className="p-4">
       </div>
 
       {/* Stats */}

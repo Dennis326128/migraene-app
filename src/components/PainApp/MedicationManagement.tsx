@@ -11,7 +11,8 @@ import { useMedicationsReminderMap, useCoursesReminderMap, type MedicationRemind
 import { useToggleMedicationReminders } from "@/features/reminders/hooks/useToggleMedicationReminder";
 import { parseMedicationInput, parsedToMedInput } from "@/lib/utils/parseMedicationInput";
 import { isPrnMedication } from "@/lib/utils/medicationReminderHeuristic";
-import { Pill, Plus, Pencil, Trash2, Bell, BellOff, ArrowLeft, Clock, AlertTriangle, Download, Loader2, Ban, History, ChevronDown, Mic, MicOff } from "lucide-react";
+import { Pill, Plus, Pencil, Trash2, Bell, BellOff, Clock, AlertTriangle, Download, Loader2, Ban, History, ChevronDown, Mic, MicOff } from "lucide-react";
+import { AppHeader } from "@/components/ui/app-header";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -577,24 +578,16 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
   const totalActive = categorizedMeds.regular.length + categorizedMeds.onDemand.length + activeCourses.length;
 
   return (
-    <div className="space-y-4 p-4">
+    <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onBack}
-          className="shrink-0"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold">Medikamente</h1>
-          <p className="text-sm text-muted-foreground">
-            {totalActive} aktive Medikamente
-          </p>
-        </div>
-      </div>
+      <AppHeader
+        title="Medikamente"
+        subtitle={`${totalActive} aktive Medikamente`}
+        onBack={onBack}
+        sticky
+      />
+
+      <div className="p-4 space-y-4">
 
       {/* PRIMARY ACTION: Neues Medikament hinzufügen - EINZIGE dominante Aktion */}
       <Button 
@@ -1060,6 +1053,7 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
         </AlertDialogContent>
       </AlertDialog>
 
+    </div>
     </div>
   );
 };

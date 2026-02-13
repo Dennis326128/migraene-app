@@ -1,22 +1,17 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, AlertTriangle, Phone, Stethoscope, Heart, Info } from "lucide-react";
+import { AlertTriangle, Phone, Stethoscope, Heart, Info } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { AppHeader } from "@/components/ui/app-header";
 
 export default function MedicalDisclaimerPage() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-background p-4">
-      <div className="max-w-3xl mx-auto space-y-6">
-        <div className="flex items-center gap-4">
-          <Button variant="outline" onClick={() => navigate(-1)}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Zurück
-          </Button>
-          <h1 className="text-2xl font-bold">Medizinischer Hinweis</h1>
-        </div>
+    <div className="min-h-screen bg-background">
+      <AppHeader title="Medizinischer Hinweis" onBack={() => navigate(-1)} sticky />
+      <div className="p-4 max-w-3xl mx-auto space-y-6">
 
         {/* Main Disclaimer */}
         <Card className="border-amber-500/50">

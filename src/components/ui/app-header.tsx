@@ -18,6 +18,8 @@ import { cn } from "@/lib/utils";
 interface AppHeaderProps {
   /** Screen title - displayed centered */
   title: string;
+  /** Optional subtitle below the title */
+  subtitle?: string;
   /** Back handler - always one level back */
   onBack: () => void;
   /** Show spinner on back button (e.g. during save) */
@@ -32,6 +34,7 @@ interface AppHeaderProps {
 
 export const AppHeader = ({
   title,
+  subtitle,
   onBack,
   isBackLoading = false,
   action,
@@ -67,9 +70,16 @@ export const AppHeader = ({
       </div>
 
       {/* Title - centered relative to full width */}
-      <h1 className="flex-1 text-center text-lg font-semibold text-foreground truncate px-14">
-        {title}
-      </h1>
+      <div className="flex-1 text-center px-14">
+        <h1 className="text-lg font-semibold text-foreground truncate">
+          {title}
+        </h1>
+        {subtitle && (
+          <p className="text-xs text-muted-foreground truncate -mt-0.5">
+            {subtitle}
+          </p>
+        )}
+      </div>
 
       {/* Actions - fixed right position */}
       <div className="absolute right-4 flex items-center gap-2">
