@@ -505,18 +505,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({
       {/* Critical medication reminder popup (shown once per day) */}
       <CriticalMedicationPopup />
       
-      {/* Version indicator (click to force refresh) */}
-      <div 
-        className="mt-6 text-center text-xs text-muted-foreground/50 cursor-pointer hover:text-muted-foreground transition-colors"
-        onClick={() => {
-          if (confirm('Cache leeren und App neu laden?')) {
-            forceClearCachesAndReload();
-          }
-        }}
-        title="Klicken zum Cache leeren"
-      >
-        v{APP_VERSION}
-      </div>
     </div>
   );
 };
