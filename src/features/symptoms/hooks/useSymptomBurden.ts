@@ -42,13 +42,13 @@ export function getBurdenWeight(burdenLevel: number | null | undefined): number 
   return BURDEN_WEIGHTS[burdenLevel] ?? 1.0;
 }
 
-/** Burden level labels (DE) */
+/** Burden level labels (DE) – klinisch neutral, keine Ich-Perspektive */
 export const BURDEN_LABELS: Record<number, string> = {
   0: "",
-  1: "stört etwas",
-  2: "stört mittel",
-  3: "stört stark",
-  4: "schränkt mich am meisten ein",
+  1: "geringe Beeintr\u00E4chtigung",
+  2: "moderate Beeintr\u00E4chtigung",
+  3: "ausgepr\u00E4gte Beeintr\u00E4chtigung",
+  4: "f\u00FChrendes Leitsymptom",
 };
 
 /** All selectable burden steps */

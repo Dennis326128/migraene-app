@@ -23,81 +23,37 @@
  * - Arzt-Website (zukünftig)
  */
 export const REPORT_SECTION_ORDER = [
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 1. KOPFBEREICH – KONTEXT & IDENTIFIKATION
-  // ═══════════════════════════════════════════════════════════════════════════
-  'header',           // Titel, Berichtszeitraum, Erstellungsdatum
-  'patient',          // Patientendaten (Name, Geburtsdatum, Krankenkasse, Versicherungsnr.)
-  'doctor',           // Behandelnder Arzt (Name, Fachrichtung, Praxisadresse, Kontakt)
+  // 1. KOPFBEREICH
+  'header',
+  'patient',
+  'doctor',
   
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 2. ÄRZTLICHE KERNÜBERSICHT (höchste Priorität)
-  // ═══════════════════════════════════════════════════════════════════════════
-  'core_kpis',        // Die 3 wichtigsten Kennzahlen (groß, klar):
-                      // - Ø Schmerztage pro Monat (normiert auf 30 Tage)
-                      // - Ø Triptan-EINNAHMEN pro Monat (normiert auf 30 Tage)
-                      // - Ø Schmerzintensität (NRS 0–10)
-                      // Berechnet aus X dokumentierten Tagen
+  // 2. ÄRZTLICHE KERNÜBERSICHT
+  'core_kpis',
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 2b. BEGLEITSYMPTOME (KLINISCHE ÜBERSICHT)
-  // ═══════════════════════════════════════════════════════════════════════════
-  'symptom_overview',  // Top-Relevanz-Tabelle (Häufigkeit × Belastung)
-                       // Basis: geprüfte Einträge (viewed/edited), Fallback: alle
-                       // Subjektive Belastung als Textlabel
+  // 3. AKUTMEDIKATION & WIRKUNG
+  'acute_medication',
+  
+  // 4. PROPHYLAXE & THERAPIEVERLAUF
+  'therapy_courses',
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 3. AUFFÄLLIGKEITEN & MUSTER (sachlich, ohne Warnungen)
-  // ═══════════════════════════════════════════════════════════════════════════
-  'analysis_section',    // EIN konsolidierter Abschnitt:
-                         // - BEI PREMIUM-KI: "Medizinische Gesamtanalyse (KI-gestützt)"
-                         // - OHNE PREMIUM: "Sachliche Auswertung der dokumentierten Daten"
-                         // Keine doppelten Analysen, keine Warnhinweise
+  // 5. BEGLEITSYMPTOME – KLINISCHE EINORDNUNG
+  'symptom_overview',
+
+  // 6. AUFFÄLLIGKEITEN & MUSTER
+  'analysis_section',
   
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 4. AKUTMEDIKATION & WIRKUNG
-  // ═══════════════════════════════════════════════════════════════════════════
-  'acute_medication',  // Pro Medikament:
-                       // - Wirkstoff + Dosierung
-                       // - Ø Einnahmen pro Monat
-                       // - Einnahmen letzte 30 Tage
-                       // - Ø subjektive Wirkung
-                       // + klarer Hinweis bei Grenzwertüberschreitungen
+  // 7. PREMIUM-KI-ANALYSE
+  'premium_ai_report',
   
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 5. PROPHYLAXE & THERAPIEVERLAUF
-  // ═══════════════════════════════════════════════════════════════════════════
-  'therapy_courses',   // Prophylaktische Therapien:
-                       // - Präparat, Dosierung, Zeitraum
-                       // - Subjektive Wirksamkeit
-                       // - Relevante Notizen
+  // 8. STATISTIKEN & DIAGRAMME
+  'charts',
   
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 6. PREMIUM-KI-ANALYSE (klar abgegrenzt, unterstützend)
-  // ═══════════════════════════════════════════════════════════════════════════
-  'premium_ai_report', // Eigener Abschnitt mit klarer Kennzeichnung
-                       // Fokus auf Muster, Trends, Kombinationen
-                       // Kein Wiederholen der Kernkennzahlen
+  // 9. DETAILLIERTE EINTRÄGE
+  'entries_list',
   
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 7. STATISTIKEN & DIAGRAMME (visuelle Vertiefung)
-  // ═══════════════════════════════════════════════════════════════════════════
-  'charts',            // - Intensitätsverlauf
-                       // - Tageszeit-Verteilung
-                       // - Schmerz-/Wetterverlauf
-  
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 8. DETAILLIERTE EINTRÄGE (immer ganz unten)
-  // ═══════════════════════════════════════════════════════════════════════════
-  'entries_list',      // Chronologische Tabelle mit:
-                       // - Datum/Uhrzeit, Schmerzintensität, Medikation
-                       // - Lokalisation, Besonderheiten
-  
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 9. KONTEXT- & SPRACHNOTIZEN (optional, am Ende)
-  // ═══════════════════════════════════════════════════════════════════════════
-  'context_notes',     // Ausführliche Notizen als Rohmaterial
-  
+  // 10. KONTEXT- & SPRACHNOTIZEN
+  'context_notes',
 ] as const;
 
 export type ReportSectionId = typeof REPORT_SECTION_ORDER[number];
@@ -150,10 +106,10 @@ export const REPORT_SECTIONS: Record<ReportSectionId, {
     id: 'symptom_overview',
     labelDe: 'Begleitsymptome',
     labelEn: 'Accompanying Symptoms',
-    pdfTitle: 'BEGLEITSYMPTOME (KLINISCHE UEBERSICHT)',
+    pdfTitle: 'BEGLEITSYMPTOME \u2013 KLINISCHE EINORDNUNG',
     isRequired: false,
     isPremium: false,
-    description: 'Häufigkeit und subjektive Belastung der Begleitsymptome',
+    description: 'H\u00E4ufigkeit und Beeintr\u00E4chtigung der Begleitsymptome',
   },
   analysis_section: {
     id: 'analysis_section',
