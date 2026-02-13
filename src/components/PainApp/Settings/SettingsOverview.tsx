@@ -1,5 +1,5 @@
 import { Card } from "@/components/ui/card";
-import { ChevronRight, Shield, HelpCircle, User, Stethoscope, LogOut, MessageSquare, Smartphone, Globe } from "lucide-react";
+import { ChevronRight, Shield, HelpCircle, User, Stethoscope, LogOut, MessageSquare, Smartphone, Globe, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useState } from "react";
@@ -10,7 +10,7 @@ import { useLanguage } from "@/hooks/useLanguage";
 import { LanguageModal } from "./LanguageModal";
 
 interface SettingsOverviewProps {
-  onNavigate: (section: 'privacy' | 'help' | 'account' | 'doctors' | 'logout' | 'install') => void;
+  onNavigate: (section: 'privacy' | 'help' | 'account' | 'doctors' | 'logout' | 'install' | 'burden') => void;
 }
 
 export const SettingsOverview = ({ onNavigate }: SettingsOverviewProps) => {
@@ -35,6 +35,12 @@ export const SettingsOverview = ({ onNavigate }: SettingsOverviewProps) => {
       icon: Stethoscope,
       titleKey: 'doctor.doctors',
       gradient: 'from-green-500/10 to-green-500/5',
+    },
+    {
+      id: 'burden' as const,
+      icon: Heart,
+      titleKey: 'settings.burden',
+      gradient: 'from-rose-500/10 to-rose-500/5',
     },
     {
       id: 'privacy' as const,

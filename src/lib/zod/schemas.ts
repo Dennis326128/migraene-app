@@ -8,6 +8,9 @@ export const MigraineLevelEnum = z.union([
 export const AuraTypeEnum = z.enum(["keine", "visuell", "sensorisch", "sprachlich", "gemischt"]);
 export const PainLocationEnum = z.enum(["einseitig_links", "einseitig_rechts", "beidseitig", "stirn", "nacken", "schlaefe", "top_of_head_burning"]);
 
+export const SymptomsSourceEnum = z.enum(['copied_from_previous', 'user_selected', 'unknown']);
+export const SymptomsStateEnum = z.enum(['untouched', 'viewed', 'edited']);
+
 export const EntryPayloadSchema = z.object({
   selected_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Ungültiges Datum (YYYY-MM-DD)"),
   selected_time: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/, "Ungültige Uhrzeit (HH:MM oder HH:MM:SS)").transform(val => val.substring(0, 5)),
@@ -23,6 +26,8 @@ export const EntryPayloadSchema = z.object({
   latitude: z.number().min(-90).max(90).nullable().optional(),
   longitude: z.number().min(-180).max(180).nullable().optional(),
   entry_kind: z.enum(['pain', 'lifestyle', 'trigger', 'voice', 'note']).optional(),
+  symptoms_source: SymptomsSourceEnum.optional().default('unknown'),
+  symptoms_state: SymptomsStateEnum.optional().default('untouched'),
 });
 
 export type EntryPayload = z.infer<typeof EntryPayloadSchema>;

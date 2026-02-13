@@ -99,6 +99,10 @@ export const NewEntry = ({
   const [notes, setNotes] = useState<string>("");
   const [contextText, setContextText] = useState<string>("");
 
+  // Symptoms tracking state (for DB persistence)
+  const [symptomsSource, setSymptomsSource] = useState<'copied_from_previous' | 'user_selected' | 'unknown'>('unknown');
+  const [symptomsState, setSymptomsState] = useState<'untouched' | 'viewed' | 'edited'>('untouched');
+
   // Collapsible states (stored in localStorage)
   const [painLocationOpen, setPainLocationOpen] = useState(() => {
     const stored = localStorage.getItem('newEntry_painLocationOpen');
@@ -117,6 +121,14 @@ export const NewEntry = ({
   useEffect(() => {
     localStorage.setItem('newEntry_symptomsOpen', String(symptomsOpen));
   }, [symptomsOpen]);
+
+  // Track symptoms_state when accordion opens
+  const handleSymptomsOpenChange = (open: boolean) => {
+    setSymptomsOpen(open);
+    if (open && symptomsState === 'untouched') {
+      setSymptomsState('viewed');
+    }
+  };
 
   const entryIdNum = entry?.id ? Number(entry.id) : null;
   const { data: catalog = [] } = useSymptomCatalog();
@@ -154,11 +166,13 @@ export const NewEntry = ({
     if (!entry && userDefaults) {
       // Only apply defaults for new entries, not when editing existing ones
       if (userDefaults.default_pain_location) {
-        // Convert legacy single location to array
         setPainLocations([userDefaults.default_pain_location]);
       }
       if (userDefaults.default_symptoms?.length > 0) {
         setSelectedSymptoms(userDefaults.default_symptoms);
+        // Mark as copied from previous (prefilled from defaults)
+        setSymptomsSource('copied_from_previous');
+        setSymptomsState('untouched');
       }
     }
   }, [entry, userDefaults]);
@@ -439,6 +453,8 @@ export const NewEntry = ({
         latitude,
         longitude,
         entry_kind: 'pain' as const,
+        symptoms_source: symptomsSource,
+        symptoms_state: symptomsState,
       };
 
       devLog('Final payload', { context: 'NewEntry', data: payload });
@@ -776,7 +792,7 @@ export const NewEntry = ({
       </Collapsible>
 
       {/* Symptome - Collapsible */}
-      <Collapsible open={symptomsOpen} onOpenChange={setSymptomsOpen}>
+      <Collapsible open={symptomsOpen} onOpenChange={handleSymptomsOpenChange}>
         <Card className="p-6 mb-4">
           <div className="flex items-center justify-between">
             <TouchSafeCollapsibleTrigger className="flex items-center gap-2 hover:opacity-80 transition-opacity">
@@ -801,9 +817,17 @@ export const NewEntry = ({
               <div className="text-sm text-muted-foreground mt-2">Lade vorhandene Symptome…</div>
             ) : (
               <div className="mt-3 space-y-4">
-                <p className="text-xs text-muted-foreground">
-                  Optional – verbessert die Auswertung für Arzt und Verlauf
-                </p>
+                {/* Microcopy hint when prefilled + untouched */}
+                {symptomsSource === 'copied_from_previous' && symptomsState === 'untouched' && (
+                  <p className="text-xs text-muted-foreground/60">
+                    Optional: Öffnen hilft, die Auswertung genauer zu machen.
+                  </p>
+                )}
+                {symptomsSource !== 'copied_from_previous' && (
+                  <p className="text-xs text-muted-foreground">
+                    Optional – verbessert die Auswertung für Arzt und Verlauf
+                  </p>
+                )}
                 {groupSymptoms(catalog).map((group) => (
                   <div key={group.group}>
                     <p className="text-xs font-medium text-muted-foreground mb-2">{group.label}</p>
@@ -816,11 +840,12 @@ export const NewEntry = ({
                             type="button"
                             variant={active ? "default" : "outline"}
                             size="sm"
-                            onClick={() =>
+                            onClick={() => {
+                              setSymptomsState('edited');
                               setSelectedSymptoms((prev) =>
                                 prev.includes(s.id) ? prev.filter((x) => x !== s.id) : [...prev, s.id]
-                              )
-                            }
+                              );
+                            }}
                             aria-pressed={active}
                           >
                             {s.name}
