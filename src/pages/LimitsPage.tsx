@@ -233,8 +233,8 @@ export function LimitsPage({ onBack, onNavigateToMedications }: LimitsPageProps)
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="w-full grid grid-cols-2">
-            <TabsTrigger value="status">Aktueller Stand</TabsTrigger>
             <TabsTrigger value="limits">Limits</TabsTrigger>
+            <TabsTrigger value="status">Aktueller Stand</TabsTrigger>
           </TabsList>
 
           {/* Tab: Aktueller Stand */}
@@ -394,7 +394,7 @@ export function LimitsPage({ onBack, onNavigateToMedications }: LimitsPageProps)
                   </div>
                 </div>
 
-                {localLimits.map((limit) => (
+                {[...localLimits].sort((a, b) => (a.is_active === b.is_active ? 0 : a.is_active ? -1 : 1)).map((limit) => (
                   <Card key={limit.id} className={cn(!limit.is_active && "opacity-60")}>
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between gap-3">
