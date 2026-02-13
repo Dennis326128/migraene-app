@@ -1,6 +1,6 @@
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Activity, MapPin, Brain, Pill, Info, AlertTriangle, Calendar } from "lucide-react";
+import { Activity, MapPin, Brain, Pill, Info, Calendar } from "lucide-react";
 import { formatPainLocation, formatAuraType } from "@/lib/utils/pain";
 import { getEffectLabel } from "@/lib/utils/medicationEffects";
 import type { PatternStatistics, MedicationLimitInfo, MedicationEffectStats } from "@/lib/statistics";
@@ -46,38 +46,41 @@ function InfoTooltip({ content }: { content: string }) {
 // Component for displaying the rolling 30-day limit info
 function Rolling30DayLimitDisplay({ limitInfo }: { limitInfo: MedicationLimitInfo }) {
   const percentage = Math.min(100, (limitInfo.rolling30Count / limitInfo.limit) * 100);
-  const isWarning = percentage >= 80 && percentage < 100;
   const isOver = limitInfo.isOverLimit;
 
   return (
     <div className="mt-2 pt-2 border-t border-border/50">
       <div className="flex items-center gap-1 mb-1.5">
         <span className="text-xs font-medium text-muted-foreground">30-Tage-Limit</span>
+        {isOver && <span className="text-amber-500 text-xs">⚠</span>}
         <InfoTooltip content="Rollierend: zählt die letzten 30 Tage ab heute." />
       </div>
       
       <div className="flex items-center justify-between text-sm mb-1">
-        <span className={`font-medium ${isOver ? 'text-destructive' : isWarning ? 'text-warning' : 'text-foreground'}`}>
+        <span className={`font-medium ${isOver ? 'text-destructive' : 'text-foreground'}`}>
           {limitInfo.rolling30Count} / {limitInfo.limit}
         </span>
-        <span className={`text-xs ${isOver ? 'text-destructive' : isWarning ? 'text-warning' : 'text-muted-foreground'}`}>
-          {isOver 
-            ? `+${limitInfo.overBy} über` 
-            : `${limitInfo.remaining} übrig`
-          }
-        </span>
+        {isOver ? (
+          <span className="text-xs font-semibold text-destructive">
+            +{limitInfo.overBy} über
+          </span>
+        ) : (
+          <span className="text-xs text-muted-foreground">
+            {limitInfo.remaining} übrig
+          </span>
+        )}
       </div>
       
       <Progress 
         value={percentage} 
-        className={`h-1.5 ${isOver ? '[&>div]:bg-destructive' : isWarning ? '[&>div]:bg-warning' : ''}`}
+        className={`h-1.5 ${isOver ? '[&>div]:bg-destructive' : '[&>div]:bg-green-600'}`}
       />
     </div>
   );
 }
 
 // TEIL E: Component for medication effect display
-function MedicationEffectDisplay({ med, showLimit = false }: { med: MedicationEffectStats; showLimit?: boolean }) {
+function MedicationEffectDisplay({ med, showLimit = false, onNavigateToLimits }: { med: MedicationEffectStats; showLimit?: boolean; onNavigateToLimits?: () => void }) {
   return (
     <div className="py-2 border-b border-border/30 last:border-0">
       <div className="flex justify-between items-start">
@@ -107,9 +110,21 @@ function MedicationEffectDisplay({ med, showLimit = false }: { med: MedicationEf
         </div>
       )}
       
-      {/* Rolling 30-day limit */}
+      {/* Rolling 30-day limit - always show when available */}
       {showLimit && med.limitInfo && (
-        <Rolling30DayLimitDisplay limitInfo={med.limitInfo} />
+        <>
+          <Rolling30DayLimitDisplay limitInfo={med.limitInfo} />
+          {med.limitInfo.isOverLimit && onNavigateToLimits && (
+            <Button 
+              variant="outline" 
+              size="sm"
+              className="h-7 text-xs mt-2"
+              onClick={onNavigateToLimits}
+            >
+              Limits-Übersicht
+            </Button>
+          )}
+        </>
       )}
     </div>
   );
@@ -138,20 +153,7 @@ export function PatternCards({ statistics, isLoading = false, overuseInfo, daysI
   // TEIL C: Show Aura Card only if meaningful aura data exists OR symptoms are documented
   const showAuraCard = auraAndSymptoms.hasMeaningfulAura || auraAndSymptoms.hasSymptomDocumentation;
 
-  // Determine if medication card should span full width (when overuse warning is shown)
-  const hasOveruse = overuseInfo?.hasWarning ?? false;
-  const medsWithOveruse = overuseInfo?.medicationsWithWarning ?? [];
   
-  // Determine worst status for display
-  const worstStatus = medsWithOveruse.some(m => m.limitInfo?.isOverLimit) 
-    ? 'exceeded' 
-    : medsWithOveruse.some(m => {
-        if (!m.limitInfo) return false;
-        const pct = (m.limitInfo.rolling30Count / m.limitInfo.limit) * 100;
-        return pct >= 100;
-      })
-    ? 'reached'
-    : 'warning';
 
   return (
     <div className="space-y-4 mb-6">
@@ -301,9 +303,8 @@ export function PatternCards({ statistics, isLoading = false, overuseInfo, daysI
           </Card>
         )}
 
-        {/* TEIL E: Medikamente & Wirkung - mit echtem Wirkungs-Abschnitt */}
-        {/* Spans full width when overuse warning is shown */}
-        <Card className={hasOveruse ? 'md:col-span-2' : ''}>
+        {/* TEIL E: Medikamente & Wirkung */}
+        <Card>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -323,18 +324,13 @@ export function PatternCards({ statistics, isLoading = false, overuseInfo, daysI
                   </div>
                 )}
                 
-                {/* Top medication with full details */}
-                <MedicationEffectDisplay 
-                  med={medicationAndEffect.mostUsed} 
-                  showLimit={true}
-                />
-                
-                {/* Other medications (compact) */}
-                {medicationAndEffect.topMedications.slice(1, 3).map((med, idx) => (
+                {/* All top medications with limit info inline */}
+                {medicationAndEffect.topMedications.slice(0, 3).map((med, idx) => (
                   <MedicationEffectDisplay 
                     key={idx}
                     med={med} 
-                    showLimit={false}
+                    showLimit={true}
+                    onNavigateToLimits={overuseInfo?.onNavigateToLimits}
                   />
                 ))}
               </div>
@@ -342,39 +338,6 @@ export function PatternCards({ statistics, isLoading = false, overuseInfo, daysI
               <p className="text-sm text-muted-foreground">
                 Keine Medikamente im Zeitraum
               </p>
-            )}
-
-            {/* Integrated overuse warning section */}
-            {hasOveruse && medsWithOveruse.length > 0 && (
-              <div className="mt-4 pt-4 border-t border-warning/30 bg-warning/5 -mx-4 px-4 pb-1 rounded-b-lg">
-                <div className="flex items-start gap-3">
-                  <AlertTriangle className="h-5 w-5 text-warning flex-shrink-0 mt-0.5" />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-medium text-sm">Übergebrauch</span>
-                      <span className="text-xs text-warning">
-                        {worstStatus === 'exceeded' ? 'überschritten' : worstStatus === 'reached' ? 'erreicht' : 'droht'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mb-2">
-                      {medsWithOveruse.length <= 2 
-                        ? medsWithOveruse.map(m => m.name).join(", ")
-                        : `${medsWithOveruse.slice(0, 2).map(m => m.name).join(", ")} +${medsWithOveruse.length - 2} weitere`
-                      }
-                    </p>
-                    {overuseInfo?.onNavigateToLimits && (
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        className="h-7 text-xs"
-                        onClick={overuseInfo.onNavigateToLimits}
-                      >
-                        Zur Limits-Übersicht
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </div>
             )}
           </CardContent>
         </Card>
