@@ -1,8 +1,8 @@
-import React from "react";
+import React, { useEffect, useRef, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Pill, Clock, CheckCircle, AlertTriangle, XCircle } from "lucide-react";
+import { Loader2, Pill, Clock, CheckCircle, AlertTriangle, XCircle, RefreshCw } from "lucide-react";
 import {
   useMedicationLimits,
   useCheckMedicationLimits,
@@ -13,6 +13,9 @@ import { cn } from "@/lib/utils";
 interface LimitsStatusOverviewProps {
   onSwitchToLimitsTab?: () => void;
 }
+
+const STATUS_TTL_MS = 120_000; // 2 minutes
+const INVALIDATION_KEY = "miary_med_usage_changed_at";
 
 const periodLabels: Record<string, string> = {
   day: "heute",
@@ -28,6 +31,7 @@ function getStatusConfig(check: LimitCheck) {
       color: "text-red-400",
       bgTint: "bg-red-500/8",
       dotColor: "bg-red-500",
+      barColor: "bg-red-500",
       label: "Überschritten",
       sub: `${Math.abs(remaining)} über Limit`,
       icon: XCircle,
@@ -38,6 +42,7 @@ function getStatusConfig(check: LimitCheck) {
       color: "text-amber-400",
       bgTint: "bg-amber-500/8",
       dotColor: "bg-amber-500",
+      barColor: "bg-amber-500",
       label: "Erreicht",
       sub: "Limit erreicht",
       icon: AlertTriangle,
@@ -48,6 +53,7 @@ function getStatusConfig(check: LimitCheck) {
       color: "text-amber-400",
       bgTint: "bg-amber-500/6",
       dotColor: "bg-amber-400",
+      barColor: "bg-amber-400",
       label: "Nahe am Limit",
       sub: `Noch ${remaining}`,
       icon: AlertTriangle,
@@ -57,28 +63,72 @@ function getStatusConfig(check: LimitCheck) {
     color: "text-emerald-400",
     bgTint: "bg-emerald-500/6",
     dotColor: "bg-emerald-500",
+    barColor: "bg-emerald-500",
     label: "OK",
     sub: `Noch ${remaining}`,
     icon: CheckCircle,
   };
 }
 
+function formatTimeAgo(ts: number): string {
+  const diffMs = Date.now() - ts;
+  const diffSec = Math.floor(diffMs / 1000);
+  if (diffSec < 60) return "gerade eben";
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `vor ${diffMin} Min`;
+  const diffH = Math.floor(diffMin / 60);
+  return `vor ${diffH} Std`;
+}
+
 export function LimitsStatusOverview({ onSwitchToLimitsTab }: LimitsStatusOverviewProps) {
   const { data: limits = [], isLoading: limitsLoading } = useMedicationLimits();
   const { mutate: checkLimits, data: limitChecks, isPending: checking } = useCheckMedicationLimits();
 
+  const lastFetchedAtRef = useRef<number>(0);
+  const cachedChecksRef = useRef<LimitCheck[] | null>(null);
+  const [lastFetchedAt, setLastFetchedAt] = React.useState<number>(0);
+
   const activeLimits = limits.filter((l) => l.is_active);
 
-  // Fetch status on mount + when active limits change
-  React.useEffect(() => {
-    if (activeLimits.length > 0) {
-      const medNames = activeLimits.map((l) => l.medication_name);
-      checkLimits(medNames);
+  const shouldRefetch = useCallback((): boolean => {
+    const now = Date.now();
+    // Check invalidation flag from localStorage
+    const changedAtStr = localStorage.getItem(INVALIDATION_KEY);
+    const changedAt = changedAtStr ? parseInt(changedAtStr, 10) : 0;
+
+    // If intake changed after last fetch → always refetch
+    if (changedAt > lastFetchedAtRef.current) return true;
+
+    // If TTL expired → refetch
+    if (now - lastFetchedAtRef.current > STATUS_TTL_MS) return true;
+
+    return false;
+  }, []);
+
+  const doFetch = useCallback(() => {
+    if (activeLimits.length === 0) return;
+    const medNames = activeLimits.map((l) => l.medication_name);
+    checkLimits(medNames, {
+      onSuccess: (data) => {
+        const now = Date.now();
+        lastFetchedAtRef.current = now;
+        cachedChecksRef.current = data;
+        setLastFetchedAt(now);
+      },
+    });
+  }, [activeLimits, checkLimits]);
+
+  // Fetch on mount / when active limits change, respecting cache
+  useEffect(() => {
+    if (activeLimits.length === 0) return;
+    if (shouldRefetch()) {
+      doFetch();
     }
   }, [activeLimits.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const checks: LimitCheck[] = limitChecks ?? [];
-  const isLoading = limitsLoading || checking;
+  // Use cached data if available, otherwise use fresh data
+  const checks: LimitCheck[] = limitChecks ?? cachedChecksRef.current ?? [];
+  const isLoading = limitsLoading || (checking && checks.length === 0);
 
   // Empty state
   if (!isLoading && activeLimits.length === 0) {
@@ -117,6 +167,23 @@ export function LimitsStatusOverview({ onSwitchToLimitsTab }: LimitsStatusOvervi
 
   return (
     <div className="space-y-4">
+      {/* Last updated + refresh */}
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">
+          Deine Einnahmen im eingestellten Zeitraum.
+        </p>
+        <button
+          onClick={doFetch}
+          disabled={checking}
+          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <RefreshCw className={cn("h-3 w-3", checking && "animate-spin")} />
+          {lastFetchedAt > 0 && (
+            <span>{formatTimeAgo(lastFetchedAt)}</span>
+          )}
+        </button>
+      </div>
+
       {/* Summary banner */}
       <Card className={cn(hasIssues ? "bg-amber-500/5" : "bg-emerald-500/5")}>
         <CardContent className="p-4 flex items-center gap-3">
@@ -175,16 +242,7 @@ export function LimitsStatusOverview({ onSwitchToLimitsTab }: LimitsStatusOvervi
                 {/* Progress bar */}
                 <div className="mt-3 h-1.5 rounded-full bg-muted/40 overflow-hidden">
                   <div
-                    className={cn(
-                      "h-full rounded-full transition-all",
-                      check.status === "exceeded"
-                        ? "bg-red-500"
-                        : check.status === "reached"
-                        ? "bg-amber-500"
-                        : check.status === "warning"
-                        ? "bg-amber-400"
-                        : "bg-emerald-500"
-                    )}
+                    className={cn("h-full rounded-full transition-all", cfg.barColor)}
                     style={{ width: `${Math.min(pct, 100)}%` }}
                   />
                 </div>
