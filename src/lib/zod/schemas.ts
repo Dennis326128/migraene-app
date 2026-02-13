@@ -22,6 +22,7 @@ export const EntryPayloadSchema = z.object({
   weather_id: z.number().int().nullable().optional(),
   latitude: z.number().min(-90).max(90).nullable().optional(),
   longitude: z.number().min(-180).max(180).nullable().optional(),
+  entry_kind: z.enum(['pain', 'lifestyle', 'trigger', 'voice', 'note']).optional(),
 });
 
 export type EntryPayload = z.infer<typeof EntryPayloadSchema>;

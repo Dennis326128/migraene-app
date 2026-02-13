@@ -1,0 +1,1 @@
+ALTER TABLE pain_entries ADD COLUMN entry_kind text NOT NULL DEFAULT 'pain';
