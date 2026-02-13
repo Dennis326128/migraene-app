@@ -934,85 +934,83 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   yPos -= LAYOUT.sectionGap + 5;
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // PATIENTENDATEN (optional)
+  // PATIENTENDATEN + ARZTKONTAKTE (zweispaltig, kompakt)
   // ═══════════════════════════════════════════════════════════════════════════
   
-  if (includePatientData && patientData && (patientData.firstName || patientData.lastName)) {
-    yPos = drawSectionHeader(page, "PATIENT", yPos, fontBold, 12);
-    
-    if (patientData.firstName || patientData.lastName) {
-      const name = [patientData.firstName, patientData.lastName].filter(Boolean).join(" ");
-      yPos = drawKeyValue(page, "Name", name, yPos, font, fontBold);
-    }
-    
-    if (patientData.dateOfBirth) {
-      yPos = drawKeyValue(page, "Geburtsdatum", formatDateGerman(patientData.dateOfBirth), yPos, font, fontBold);
-    }
-    
-    if (patientData.street || patientData.postalCode || patientData.city) {
-      const address = [patientData.street, `${patientData.postalCode || ''} ${patientData.city || ''}`.trim()]
-        .filter(Boolean).join(", ");
-      yPos = drawKeyValue(page, "Adresse", address, yPos, font, fontBold);
-    }
-    
-    if (patientData.phone) {
-      yPos = drawKeyValue(page, "Telefon", patientData.phone, yPos, font, fontBold);
-    }
-    
-    if (patientData.email) {
-      yPos = drawKeyValue(page, "E-Mail", patientData.email, yPos, font, fontBold);
-    }
-    
-    if (patientData.healthInsurance) {
-      yPos = drawKeyValue(page, "Krankenkasse", patientData.healthInsurance, yPos, font, fontBold);
-    }
-    
-    if (patientData.insuranceNumber) {
-      yPos = drawKeyValue(page, "Versicherungsnr.", patientData.insuranceNumber, yPos, font, fontBold);
-    }
-    
-    yPos -= LAYOUT.sectionGap;
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // ARZTKONTAKTE (optional)
-  // ═══════════════════════════════════════════════════════════════════════════
+  const hasPatient = includePatientData && patientData && (patientData.firstName || patientData.lastName);
+  const hasDoctor = includeDoctorData && doctors && doctors.length > 0;
   
-  if (includeDoctorData && doctors && doctors.length > 0) {
-    const doctorLabel = doctors.length === 1 ? "BEHANDELNDER ARZT" : "BEHANDELNDE ÄRZTE";
-    yPos = drawSectionHeader(page, doctorLabel, yPos, fontBold, 12);
+  if (hasPatient || hasDoctor) {
+    const colLeft = LAYOUT.margin;
+    const colRight = LAYOUT.pageWidth / 2 + 10;
+    const valueIndent = 80;
+    const rowH = 12;
+    const kvFontSize = 9;
     
-    for (const doctor of doctors) {
+    const drawCompactKV = (key: string, value: string, x: number, y: number): number => {
+      page.drawText(`${key}:`, { x, y, size: kvFontSize, font: fontBold, color: COLORS.text });
+      page.drawText(sanitizeForPDF(value), { x: x + valueIndent, y, size: kvFontSize, font, color: COLORS.text });
+      return y - rowH;
+    };
+    
+    if (hasPatient) {
+      page.drawText("PATIENT", { x: colLeft, y: yPos, size: 11, font: fontBold, color: COLORS.primaryLight });
+    }
+    if (hasDoctor) {
+      page.drawText("BEHANDELNDER ARZT", { x: colRight, y: yPos, size: 11, font: fontBold, color: COLORS.primaryLight });
+    }
+    page.drawLine({
+      start: { x: LAYOUT.margin, y: yPos - 3 },
+      end: { x: LAYOUT.pageWidth - LAYOUT.margin, y: yPos - 3 },
+      thickness: 1.5,
+      color: COLORS.primaryLight,
+    });
+    yPos -= 18;
+    
+    let leftY = yPos;
+    if (hasPatient && patientData) {
+      if (patientData.firstName || patientData.lastName) {
+        leftY = drawCompactKV("Name", [patientData.firstName, patientData.lastName].filter(Boolean).join(" "), colLeft, leftY);
+      }
+      if (patientData.dateOfBirth) {
+        leftY = drawCompactKV("Geb.-Datum", formatDateGerman(patientData.dateOfBirth), colLeft, leftY);
+      }
+      if (patientData.healthInsurance) {
+        leftY = drawCompactKV("Kasse", patientData.healthInsurance, colLeft, leftY);
+      }
+      if (patientData.insuranceNumber) {
+        leftY = drawCompactKV("Vers.-Nr.", patientData.insuranceNumber, colLeft, leftY);
+      }
+      if (patientData.phone) {
+        leftY = drawCompactKV("Telefon", patientData.phone, colLeft, leftY);
+      }
+    }
+    
+    let rightY = yPos;
+    if (hasDoctor && doctors) {
+      const doctor = doctors[0];
       if (doctor.firstName || doctor.lastName) {
         const name = [doctor.firstName, doctor.lastName].filter(Boolean).join(" ");
-        const nameWithSpecialty = doctor.specialty 
-          ? `${name} (${doctor.specialty})` 
-          : name;
-        yPos = drawKeyValue(page, "Name", nameWithSpecialty, yPos, font, fontBold);
+        const nameWithSpecialty = doctor.specialty ? `${name} (${doctor.specialty})` : name;
+        rightY = drawCompactKV("Name", nameWithSpecialty, colRight, rightY);
       }
-      
       if (doctor.street || doctor.postalCode || doctor.city) {
-        const address = [doctor.street, `${doctor.postalCode || ''} ${doctor.city || ''}`.trim()]
-          .filter(Boolean).join(", ");
-        yPos = drawKeyValue(page, "Praxisadresse", address, yPos, font, fontBold);
+        const address = [doctor.street, `${doctor.postalCode || ''} ${doctor.city || ''}`.trim()].filter(Boolean).join(", ");
+        rightY = drawCompactKV("Praxis", address, colRight, rightY);
       }
-      
       if (doctor.phone) {
-        yPos = drawKeyValue(page, "Telefon", doctor.phone, yPos, font, fontBold);
+        rightY = drawCompactKV("Telefon", doctor.phone, colRight, rightY);
       }
-      
       if (doctor.email) {
-        yPos = drawKeyValue(page, "E-Mail", doctor.email, yPos, font, fontBold);
+        rightY = drawCompactKV("E-Mail", doctor.email, colRight, rightY);
       }
-      
-      yPos -= 10;
     }
     
-    yPos -= LAYOUT.sectionGap - 10;
+    yPos = Math.min(leftY, rightY) - 10;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 2. ÄRZTLICHE KERNÜBERSICHT (höchste Priorität - IMMER ganz oben)
+  // 2. ÄRZTLICHE KERNÜBERSICHT (kompakter)
   // ═══════════════════════════════════════════════════════════════════════════
   
   {
@@ -1021,134 +1019,58 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     
     entries.forEach(entry => {
       const date = entry.selected_date || entry.timestamp_created?.split('T')[0] || '';
-      if (date) {
-        painDaysSet.add(date);
-      }
-      
+      if (date) painDaysSet.add(date);
       if (entry.medications && entry.medications.length > 0) {
-        entry.medications.forEach(med => {
-          if (isTriptan(med)) {
-            triptanIntakesTotal++;
-          }
-        });
+        entry.medications.forEach(med => { if (isTriptan(med)) triptanIntakesTotal++; });
       }
     });
     
     const painDays = painDaysSet.size;
+    const painDaysPerMonth = daysCount > 0 ? Math.round((painDays / daysCount) * 30 * 10) / 10 : 0;
+    const triptanPerMonth = daysCount > 0 ? Math.round((triptanIntakesTotal / daysCount) * 30 * 10) / 10 : 0;
     
-    const painDaysPerMonth = daysCount > 0 
-      ? Math.round((painDays / daysCount) * 30 * 10) / 10
-      : 0;
-    const triptanPerMonth = daysCount > 0 
-      ? Math.round((triptanIntakesTotal / daysCount) * 30 * 10) / 10
-      : 0;
-    
-    const validPainLevels = entries
-      .map(e => painLevelToNumericValue(e.pain_level))
-      .filter(l => l > 0);
+    const validPainLevels = entries.map(e => painLevelToNumericValue(e.pain_level)).filter(l => l > 0);
     const avgIntensity = validPainLevels.length > 0
       ? Math.round(validPainLevels.reduce((a, b) => a + b, 0) / validPainLevels.length * 10) / 10
       : 0;
     
-    yPos = drawSectionHeader(page, "ÄRZTLICHE KERNÜBERSICHT", yPos, fontBold, 13);
+    yPos = drawSectionHeader(page, "ÄRZTLICHE KERNÜBERSICHT", yPos, fontBold, 11);
     
     page.drawText(`Berechnet aus ${daysCount} dokumentierten Tagen, normiert auf 30 Tage/Monat`, {
-      x: LAYOUT.margin,
-      y: yPos,
-      size: 8,
-      font,
-      color: COLORS.textLight,
+      x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight,
     });
-    yPos -= 18;
+    yPos -= 14;
     
-    const kpiBoxHeight = 70;
+    const kpiBoxHeight = 55;
     page.drawRectangle({
-      x: LAYOUT.margin,
-      y: yPos - kpiBoxHeight,
-      width: LAYOUT.pageWidth - 2 * LAYOUT.margin,
-      height: kpiBoxHeight,
-      color: rgb(0.96, 0.98, 1.0),
-      borderColor: COLORS.primary,
-      borderWidth: 1.5,
+      x: LAYOUT.margin, y: yPos - kpiBoxHeight,
+      width: LAYOUT.pageWidth - 2 * LAYOUT.margin, height: kpiBoxHeight,
+      color: rgb(0.96, 0.98, 1.0), borderColor: COLORS.primary, borderWidth: 1.5,
     });
     
-    const boxPadding = 15;
+    const boxPadding = 10;
     const kpiY = yPos - boxPadding;
     const colWidth = (LAYOUT.pageWidth - 2 * LAYOUT.margin - 2 * boxPadding) / 3;
     
-    // KPI 1: Schmerztage pro Monat
-    page.drawText("Ø Schmerztage / Monat", {
-      x: LAYOUT.margin + boxPadding,
-      y: kpiY,
-      size: 9,
-      font: fontBold,
-      color: COLORS.text,
-    });
-    page.drawText(formatGermanDecimal(painDaysPerMonth, 1), {
-      x: LAYOUT.margin + boxPadding,
-      y: kpiY - 25,
-      size: 22,
-      font: fontBold,
-      color: COLORS.primary,
-    });
-    page.drawText(`(${painDays} Tage in ${daysCount} Tagen)`, {
-      x: LAYOUT.margin + boxPadding,
-      y: kpiY - 42,
-      size: 8,
-      font,
-      color: COLORS.textLight,
-    });
+    // KPI 1
+    page.drawText("Ø Schmerztage / Monat", { x: LAYOUT.margin + boxPadding, y: kpiY, size: 8, font: fontBold, color: COLORS.text });
+    page.drawText(formatGermanDecimal(painDaysPerMonth, 1), { x: LAYOUT.margin + boxPadding, y: kpiY - 20, size: 18, font: fontBold, color: COLORS.primary });
+    page.drawText(`(${painDays} Tage in ${daysCount} Tagen)`, { x: LAYOUT.margin + boxPadding, y: kpiY - 34, size: 7, font, color: COLORS.textLight });
     
-    // KPI 2: Triptan-EINNAHMEN pro Monat
-    page.drawText("Ø Triptane / Monat", {
-      x: LAYOUT.margin + boxPadding + colWidth,
-      y: kpiY,
-      size: 9,
-      font: fontBold,
-      color: COLORS.text,
-    });
-    page.drawText(formatGermanDecimal(triptanPerMonth, 1), {
-      x: LAYOUT.margin + boxPadding + colWidth,
-      y: kpiY - 25,
-      size: 22,
-      font: fontBold,
-      color: COLORS.primary,
-    });
-    page.drawText(`(${triptanIntakesTotal} Einnahmen gesamt)`, {
-      x: LAYOUT.margin + boxPadding + colWidth,
-      y: kpiY - 42,
-      size: 8,
-      font,
-      color: COLORS.textLight,
-    });
+    // KPI 2
+    page.drawText("Ø Triptane / Monat", { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY, size: 8, font: fontBold, color: COLORS.text });
+    page.drawText(formatGermanDecimal(triptanPerMonth, 1), { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY - 20, size: 18, font: fontBold, color: COLORS.primary });
+    page.drawText(`(${triptanIntakesTotal} Einnahmen gesamt)`, { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY - 34, size: 7, font, color: COLORS.textLight });
     
-    // KPI 3: Durchschnittliche Intensität
-    page.drawText("Ø Schmerzintensität", {
-      x: LAYOUT.margin + boxPadding + 2 * colWidth,
-      y: kpiY,
-      size: 9,
-      font: fontBold,
-      color: COLORS.text,
-    });
-    page.drawText(`${formatGermanDecimal(avgIntensity, 1)} / 10`, {
-      x: LAYOUT.margin + boxPadding + 2 * colWidth,
-      y: kpiY - 25,
-      size: 22,
-      font: fontBold,
-      color: COLORS.primary,
-    });
-    page.drawText("(NRS-Skala)", {
-      x: LAYOUT.margin + boxPadding + 2 * colWidth,
-      y: kpiY - 42,
-      size: 8,
-      font,
-      color: COLORS.textLight,
-    });
+    // KPI 3
+    page.drawText("Ø Schmerzintensität", { x: LAYOUT.margin + boxPadding + 2 * colWidth, y: kpiY, size: 8, font: fontBold, color: COLORS.text });
+    page.drawText(`${formatGermanDecimal(avgIntensity, 1)} / 10`, { x: LAYOUT.margin + boxPadding + 2 * colWidth, y: kpiY - 20, size: 18, font: fontBold, color: COLORS.primary });
+    page.drawText("(NRS-Skala)", { x: LAYOUT.margin + boxPadding + 2 * colWidth, y: kpiY - 34, size: 7, font, color: COLORS.textLight });
     
-    yPos -= kpiBoxHeight + 10;
+    yPos -= kpiBoxHeight + 8;
 
     // ═══════════════════════════════════════════════════════════════════════
-    // PIE CHART: Tagesverteilung (Schmerzfrei / Schmerz / Triptan)
+    // PIE CHART: Tagesverteilung (kompakter)
     // ═══════════════════════════════════════════════════════════════════════
     {
       const buckets = computeDiaryDayBuckets({
@@ -1162,14 +1084,14 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
         })),
       });
 
-      const pieSpaceCheck = ensureSpace(pdfDoc, page, yPos, 130);
+      const pieSpaceCheck = ensureSpace(pdfDoc, page, yPos, 110);
       page = pieSpaceCheck.page;
       yPos = pieSpaceCheck.yPos;
 
       yPos = drawPieChartWithLegend(page, {
         x: LAYOUT.margin,
         y: yPos,
-        radius: 45,
+        radius: 40,
         totalDays: buckets.totalDays,
         painFreeDays: buckets.painFreeDays,
         painDaysNoTriptan: buckets.painDaysNoTriptan,
@@ -1178,6 +1100,21 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
         fontBold,
       });
 
+      yPos -= 10;
+      
+      // KURZFAZIT (nur wenn noch Platz auf Seite 1)
+      if (yPos > LAYOUT.margin + 40) {
+        page.drawLine({
+          start: { x: LAYOUT.margin, y: yPos },
+          end: { x: LAYOUT.pageWidth - LAYOUT.margin, y: yPos },
+          thickness: 0.5, color: COLORS.border,
+        });
+        yPos -= 12;
+        const fazitText = `Kurzfazit: ${formatGermanDecimal(painDaysPerMonth, 1)} Schmerztage/Monat · ${formatGermanDecimal(triptanPerMonth, 1)} Triptane/Monat · Ø Intensität ${formatGermanDecimal(avgIntensity, 1)}/10`;
+        page.drawText(fazitText, { x: LAYOUT.margin, y: yPos, size: 9, font: fontBold, color: COLORS.text });
+        yPos -= 8;
+      }
+      
       yPos -= LAYOUT.sectionGap;
     }
   }
