@@ -1135,16 +1135,30 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     
     const hasExtendedStats = medicationStats[0]?.totalUnitsInRange !== undefined;
     
+    // ── Relevance-based sorting: total intakes DESC → last30 DESC → alpha ASC ──
+    const sortedMedStats = [...medicationStats].sort((a, b) => {
+      const totalA = a.totalUnitsInRange ?? a.count;
+      const totalB = b.totalUnitsInRange ?? b.count;
+      if (totalB !== totalA) return totalB - totalA;
+      const last30A = a.last30Units ?? 0;
+      const last30B = b.last30Units ?? 0;
+      if (last30B !== last30A) return last30B - last30A;
+      return a.name.localeCompare(b.name, 'de');
+    });
+    
+    // Filter out meds with 0 intakes
+    const filteredMedStats = sortedMedStats.filter(s => (s.totalUnitsInRange ?? s.count) > 0);
+    
     const cols = hasExtendedStats ? {
       name: LAYOUT.margin,
       totalRange: LAYOUT.margin + 140,
-      avgMonth: LAYOUT.margin + 220,
-      last30: LAYOUT.margin + 300,
-      effectiveness: LAYOUT.margin + 380,
+      avgMonth: LAYOUT.margin + 210,
+      last30: LAYOUT.margin + 280,
+      effectiveness: LAYOUT.margin + 350,
     } : {
       name: LAYOUT.margin,
-      count: LAYOUT.margin + 220,
-      effectiveness: LAYOUT.margin + 320,
+      count: LAYOUT.margin + 200,
+      effectiveness: LAYOUT.margin + 290,
       note: LAYOUT.margin + 420,
     };
     
@@ -1159,20 +1173,20 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     if (hasExtendedStats) {
       page.drawText("Medikament", { x: cols.name, y: yPos - 12, size: 8, font: fontBold });
       page.drawText("Einnahmen", { x: cols.totalRange, y: yPos - 12, size: 8, font: fontBold });
-      page.drawText("Ø / Monat", { x: cols.avgMonth, y: yPos - 12, size: 8, font: fontBold });
+      page.drawText("\u00D8 / Monat", { x: cols.avgMonth, y: yPos - 12, size: 8, font: fontBold });
       page.drawText("Letzte 30T", { x: cols.last30, y: yPos - 12, size: 8, font: fontBold });
-      page.drawText("Ø Wirkung", { x: cols.effectiveness, y: yPos - 12, size: 8, font: fontBold });
+      page.drawText("\u00D8 Wirkung (%)", { x: cols.effectiveness, y: yPos - 12, size: 8, font: fontBold });
     } else {
       page.drawText("Medikament", { x: cols.name, y: yPos - 12, size: 9, font: fontBold });
       page.drawText("Einnahmen", { x: cols.count!, y: yPos - 12, size: 9, font: fontBold });
-      page.drawText("Ø Wirksamkeit", { x: cols.effectiveness, y: yPos - 12, size: 9, font: fontBold });
+      page.drawText("\u00D8 Wirkung (%)", { x: cols.effectiveness, y: yPos - 12, size: 9, font: fontBold });
       page.drawText("Bemerkung", { x: cols.note!, y: yPos - 12, size: 9, font: fontBold });
     }
     yPos -= 30;
     
-    // Triptane zusammenfassen + andere separat
-    const triptans = medicationStats.filter(s => isTriptan(s.name));
-    const others = medicationStats.filter(s => !isTriptan(s.name));
+    // Triptane zusammenfassen + andere separat (preserving grouping, but within sorted order)
+    const triptans = filteredMedStats.filter(s => isTriptan(s.name));
+    const others = filteredMedStats.filter(s => !isTriptan(s.name));
     
     // Triptan-Zusammenfassung wenn > 1
     if (triptans.length > 1) {
@@ -1191,7 +1205,17 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       yPos -= 15;
     }
     
-    // Alle Medikamente auflisten
+    // Helper: format effectiveness with rating base
+    const formatEffectiveness = (stat: typeof filteredMedStats[0]): string => {
+      const totalIntakes = stat.totalUnitsInRange ?? stat.count;
+      if (stat.ratedCount > 0 && stat.avgEffect !== null) {
+        const effectPercent = Math.round((stat.avgEffect / 10) * 100);
+        return `${effectPercent} % (${stat.ratedCount}/${totalIntakes})`;
+      }
+      return "keine Bewertung";
+    };
+    
+    // Alle Medikamente auflisten (sorted by relevance)
     const allMeds = [...triptans, ...others].slice(0, 8);
     for (const stat of allMeds) {
       if (yPos < LAYOUT.margin + 50) {
@@ -1200,7 +1224,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       }
       
       const medName = isTriptan(stat.name) && triptans.length > 1 
-        ? `  ${stat.name}` // Eingerückt wenn Teil der Triptan-Gruppe
+        ? `  ${stat.name}`
         : stat.name;
       
       page.drawText(sanitizeForPDF(medName), { x: cols.name, y: yPos, size: 9, font });
@@ -1215,22 +1239,10 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
         page.drawText(formatGermanDecimal(stat.last30Units ?? 0, 1), { 
           x: cols.last30, y: yPos, size: 9, font 
         });
-        
-        if (stat.ratedCount > 0 && stat.avgEffect !== null) {
-          const effectPercent = Math.round((stat.avgEffect / 10) * 100);
-          page.drawText(`${effectPercent}%`, { x: cols.effectiveness, y: yPos, size: 9, font });
-        } else {
-          page.drawText("-", { x: cols.effectiveness, y: yPos, size: 9, font });
-        }
+        page.drawText(formatEffectiveness(stat), { x: cols.effectiveness, y: yPos, size: 9, font });
       } else {
         page.drawText(stat.count.toString(), { x: cols.count!, y: yPos, size: 9, font });
-        
-        if (stat.ratedCount > 0 && stat.avgEffect !== null) {
-          const effectPercent = Math.round((stat.avgEffect / 10) * 100);
-          page.drawText(`${effectPercent}%`, { x: cols.effectiveness, y: yPos, size: 9, font });
-        } else {
-          page.drawText("-", { x: cols.effectiveness, y: yPos, size: 9, font });
-        }
+        page.drawText(formatEffectiveness(stat), { x: cols.effectiveness, y: yPos, size: 9, font });
       }
       
       yPos -= 15;
