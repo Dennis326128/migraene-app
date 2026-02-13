@@ -118,13 +118,25 @@ export function AccompanyingSymptomsCard({
           <p className="text-sm text-muted-foreground">
             Für Begleitsymptome fehlen geprüfte Einträge. Öffne den Bereich beim Eintragen kurz, um die Auswertung zu verbessern.
           </p>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setCheckedOnly(false)}
-          >
-            Alle Einträge einbeziehen
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCheckedOnly(false)}
+            >
+              Alle Einträge einbeziehen
+            </Button>
+            {onNavigateToBurden && (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={onNavigateToBurden}
+              >
+                <Settings2 className="h-3.5 w-3.5 mr-1" />
+                Belastung anpassen
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
     );
