@@ -303,45 +303,46 @@ export function PatternCards({ statistics, isLoading = false, overuseInfo, daysI
           </Card>
         )}
 
-        {/* TEIL E: Medikamente & Wirkung */}
-        <Card>
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Pill className="h-5 w-5 text-primary" />
-                <CardTitle className="text-base">Medikamente & Wirkung</CardTitle>
-              </div>
-              <InfoTooltip content="Wie häufig nimmst du welche Medikamente und wie gut wirken sie?" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            {medicationAndEffect.mostUsed ? (
-              <div className="space-y-1">
-                {medicationAndEffect.topMedications.length < 2 && (
-                  <div className="text-xs text-amber-500 mb-2 flex items-center gap-1">
-                    <span className="font-medium">⚠️</span>
-                    <span>Wenige Daten</span>
-                  </div>
-                )}
-                
-                {/* All top medications with limit info inline */}
-                {medicationAndEffect.topMedications.slice(0, 3).map((med, idx) => (
-                  <MedicationEffectDisplay 
-                    key={idx}
-                    med={med} 
-                    showLimit={true}
-                    onNavigateToLimits={overuseInfo?.onNavigateToLimits}
-                  />
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Keine Medikamente im Zeitraum
-              </p>
-            )}
-          </CardContent>
-        </Card>
       </div>
+
+      {/* TEIL E: Medikamente & Wirkung – volle Breite */}
+      <Card>
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Pill className="h-5 w-5 text-primary" />
+              <CardTitle className="text-base">Medikamente & Wirkung</CardTitle>
+            </div>
+            <InfoTooltip content="Wie häufig nimmst du welche Medikamente und wie gut wirken sie?" />
+          </div>
+        </CardHeader>
+        <CardContent>
+          {medicationAndEffect.mostUsed ? (
+            <div className="space-y-1">
+              {medicationAndEffect.topMedications.length < 2 && (
+                <div className="text-xs text-amber-500 mb-2 flex items-center gap-1">
+                  <span className="font-medium">⚠️</span>
+                  <span>Wenige Daten</span>
+                </div>
+              )}
+              
+              {/* All top medications with limit info inline */}
+              {medicationAndEffect.topMedications.slice(0, 3).map((med, idx) => (
+                <MedicationEffectDisplay 
+                  key={idx}
+                  med={med} 
+                  showLimit={true}
+                  onNavigateToLimits={overuseInfo?.onNavigateToLimits}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Keine Medikamente im Zeitraum
+            </p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
