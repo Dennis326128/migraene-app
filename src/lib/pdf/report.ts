@@ -917,7 +917,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     font: fontBold, 
     color: COLORS.primary 
   });
-  yPos -= 8;
+  yPos -= 16;
   
   // Herkunftszeile: neutral, nicht werblich
   page.drawText("Erstellt mit Miary \u00B7 miary.de", {
