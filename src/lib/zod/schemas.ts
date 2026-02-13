@@ -28,6 +28,8 @@ export const EntryPayloadSchema = z.object({
   entry_kind: z.enum(['pain', 'lifestyle', 'trigger', 'voice', 'note']).optional(),
   symptoms_source: SymptomsSourceEnum.optional().default('unknown'),
   symptoms_state: SymptomsStateEnum.optional().default('untouched'),
+  me_cfs_severity_score: z.number().int().min(0).max(10).optional().default(0),
+  me_cfs_severity_level: z.enum(['none', 'mild', 'moderate', 'severe']).optional().default('none'),
 });
 
 export type EntryPayload = z.infer<typeof EntryPayloadSchema>;

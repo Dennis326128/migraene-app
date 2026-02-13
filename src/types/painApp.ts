@@ -35,6 +35,8 @@ export interface MigraineEntry {
   entry_kind?: string;
   symptoms_state?: string;
   symptoms_source?: string;
+  me_cfs_severity_score?: number;
+  me_cfs_severity_level?: string;
 }
 
 // Backward compatibility
