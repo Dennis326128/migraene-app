@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, BarChart3, Brain, AlertTriangle, Clock } from "lucide-react";
+import { BarChart3, Brain, AlertTriangle, Clock } from "lucide-react";
+import { AppHeader } from "@/components/ui/app-header";
 import { TimeRangeButtons, type TimeRangePreset } from "./TimeRangeButtons";
 import TimeSeriesChart from "@/components/TimeSeriesChart";
 import { useEntries } from "@/features/entries/hooks/useEntries";
@@ -247,15 +248,9 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
   const { data: timeDistribution = [] } = useTimeDistribution({ from, to });
 
   return (
-    <div className="min-h-screen bg-background p-4 pb-20">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-6">
-          <Button variant="ghost" size="icon" onClick={onBack}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <h1 className="text-2xl font-bold">Auswertung & Statistiken</h1>
-        </div>
+    <div className="min-h-screen bg-background pb-20">
+      <AppHeader title="Auswertung & Statistiken" onBack={onBack} sticky />
+      <div className="max-w-4xl mx-auto p-4">
 
         {/* Tabs */}
         <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "statistik" | "ki-analyse")} className="mb-6">

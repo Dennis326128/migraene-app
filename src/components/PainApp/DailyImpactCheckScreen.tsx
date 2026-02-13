@@ -9,8 +9,9 @@
  */
 
 import React, { useState, useMemo, useCallback, useRef } from 'react';
-import { ArrowLeft, FileText, RotateCcw, Loader2, Info } from 'lucide-react';
+import { FileText, RotateCcw, Loader2, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { AppHeader } from "@/components/ui/app-header";
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -167,21 +168,18 @@ export default function DailyImpactCheckScreen({ onBack }: DailyImpactCheckScree
   return (
     <div className="min-h-screen bg-background pb-32">
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border">
-        <div className="flex items-center gap-3 px-4 py-3">
-          <Button variant="ghost" size="icon" onClick={onBack}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div className="flex-1">
-            <h1 className="text-lg font-semibold">Alltagsbelastung</h1>
-            <p className="text-xs text-muted-foreground">{answeredCount}/7 beantwortet</p>
-          </div>
+      <AppHeader
+        title="Alltagsbelastung"
+        subtitle={`${answeredCount}/7 beantwortet`}
+        onBack={onBack}
+        sticky
+        action={
           <Button variant="ghost" size="sm" onClick={handleReset} className="text-muted-foreground">
             <RotateCcw className="h-4 w-4 mr-1" />
             Zurücksetzen
           </Button>
-        </div>
-      </div>
+        }
+      />
 
       <div className="px-4 py-4 space-y-4">
         {/* Info Card */}
