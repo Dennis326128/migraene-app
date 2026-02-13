@@ -134,17 +134,21 @@ export function drawPieChartWithLegend(
     color: rgb(0.4, 0.4, 0.4),
   });
 
-  // Legend - right of pie
+  // Legend - right of pie, vertically centered to pie center
   const legendX = x + (radius * 2) + 30;
-  let legendY = y - 10;
-  const legendLineHeight = 14;
-  const squareSize = 8;
+  const legendLineHeight = 18;
+  const squareSize = 9;
+  const legendFontSize = 10;
+
+  // Calculate total legend block height and center it on cy
+  const totalLegendHeight = slices.length * legendLineHeight;
+  let legendY = cy + totalLegendHeight / 2 - legendLineHeight / 2;
 
   for (const slice of slices) {
     // Color square
     page.drawRectangle({
       x: legendX,
-      y: legendY - squareSize + 2,
+      y: legendY - squareSize / 2,
       width: squareSize,
       height: squareSize,
       color: slice.color,
@@ -155,10 +159,10 @@ export function drawPieChartWithLegend(
     const legendText = `${slice.label}: ${slice.value} Tage (${pct}%)`;
     
     page.drawText(legendText, {
-      x: legendX + squareSize + 6,
-      y: legendY - squareSize + 4,
-      size: 9,
-      font: slice.value > 0 ? font : font,
+      x: legendX + squareSize + 8,
+      y: legendY - squareSize / 2 + 2,
+      size: legendFontSize,
+      font,
       color: slice.value > 0 ? rgb(0.1, 0.1, 0.1) : rgb(0.6, 0.6, 0.6),
     });
 
