@@ -246,10 +246,6 @@ export function LimitsPage({ onBack, onNavigateToMedications }: LimitsPageProps)
 
           {/* Tab: Limits */}
           <TabsContent value="limits" className="mt-4 space-y-4">
-            {/* Explanation */}
-            <p className="text-sm text-muted-foreground">
-              Lege Grenzwerte fest, um Medikamenten-Übergebrauch zu vermeiden.
-            </p>
 
             {/* Add New Limit Button */}
             <Button
