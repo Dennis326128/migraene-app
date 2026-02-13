@@ -28,6 +28,7 @@ import { TimeRangeButtons, type TimeRangePreset } from './TimeRangeButtons';
 import { computeDiaryDayBuckets } from '@/lib/diary/dayBuckets';
 import { HeadacheDaysPie } from '@/components/diary/HeadacheDaysPie';
 import { subMonths, startOfDay, endOfDay } from 'date-fns';
+import { computeDateRange } from '@/lib/dateRange';
 
 // Helper: Filtert technische/ungültige Wetterbedingungen
 const isValidWeatherCondition = (text: string | null | undefined): boolean => {
@@ -137,18 +138,7 @@ function DiaryTimelinePieSection({ entries }: { entries: any[] }) {
   };
 
   const { from, to } = useMemo(() => {
-    const now = new Date();
-    const today = now.toISOString().split('T')[0];
-    if (timeRange === "custom" && customFrom && customTo) {
-      return { from: customFrom, to: customTo };
-    }
-    if (timeRange === "all") {
-      const fallback = new Date(now.getFullYear() - 5, now.getMonth(), now.getDate());
-      return { from: fallback.toISOString().split('T')[0], to: today };
-    }
-    const monthsMap: Record<string, number> = { "1m": 1, "3m": 3, "6m": 6, "12m": 12 };
-    const months = monthsMap[timeRange] || 3;
-    return { from: startOfDay(subMonths(now, months)).toISOString().split('T')[0], to: today };
+    return computeDateRange(timeRange, { customFrom, customTo });
   }, [timeRange, customFrom, customTo]);
 
   const filteredEntries = useMemo(() => {
