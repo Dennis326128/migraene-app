@@ -10,6 +10,7 @@ import type { PainEntry } from "@/types/painApp";
 
 import { fetchAllEntriesForExport, countEntriesInRange } from "@/features/entries/api/entries.api";
 import { buildDiaryPdf } from "@/lib/pdf/report";
+import type { SymptomDataForPdf } from "@/lib/pdf/symptomSection";
 import { buildMedicationPlanPdf } from "@/lib/pdf/medicationPlan";
 import { mapTextLevelToScore } from "@/lib/utils/pain";
 import { useMedicationEffectsForEntries } from "@/features/medication-effects/hooks/useMedicationEffects";
@@ -709,6 +710,53 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         last30Units: stat.last30Units,
       }));
 
+      // ── Begleitsymptome Daten laden ──
+      let symptomData: SymptomDataForPdf | undefined;
+      try {
+        const freshEntryIds = freshEntries.map(e => Number(e.id));
+        
+        // Parallel: catalog, entry_symptoms, burden
+        const [catalogRes, esRes, burdenRes] = await Promise.all([
+          supabase.from('symptom_catalog').select('id, name').eq('is_active', true),
+          freshEntryIds.length > 0
+            ? supabase.from('entry_symptoms').select('entry_id, symptom_id').in('entry_id', freshEntryIds)
+            : Promise.resolve({ data: [], error: null }),
+          user
+            ? supabase.from('user_symptom_burden').select('symptom_key, burden_level').eq('user_id', user.id)
+            : Promise.resolve({ data: [], error: null }),
+        ]);
+
+        const catalog = new Map<string, string>();
+        for (const c of (catalogRes.data || [])) catalog.set(c.id, c.name);
+
+        const burdenMap = new Map<string, number>();
+        for (const b of (burdenRes.data || [])) {
+          if (b.burden_level != null) burdenMap.set(b.symptom_key, b.burden_level);
+        }
+
+        // Determine checked entries (viewed/edited symptoms_state)
+        const checkedEntryIds = new Set<number>();
+        for (const e of freshEntries) {
+          if (e.symptoms_state === 'viewed' || e.symptoms_state === 'edited') {
+            checkedEntryIds.add(Number(e.id));
+          }
+        }
+
+        symptomData = {
+          catalog,
+          entrySymptoms: (esRes.data || []).map(es => ({
+            entry_id: Number(es.entry_id),
+            symptom_id: es.symptom_id,
+          })),
+          burdenMap,
+          totalEntries: freshEntries.length,
+          checkedEntries: checkedEntryIds.size,
+          checkedEntryIds,
+        };
+      } catch (err) {
+        console.warn('[PDF Export] Begleitsymptome konnten nicht geladen werden:', err);
+      }
+
       // PDF mit FRISCHEN Daten generieren
       const pdfBytes = await buildDiaryPdf({
         title: "Kopfschmerztagebuch",
@@ -776,6 +824,8 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         })) : undefined,
         // Premium KI-Analysebericht Daten (wenn vorhanden)
         premiumAIReport: premiumAIReportData || undefined,
+        // Begleitsymptome (klinische Übersicht)
+        symptomData,
       });
 
       // Neuer Blob mit Timestamp für "always fresh"

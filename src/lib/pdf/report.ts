@@ -28,6 +28,7 @@ import { formatPainLocation } from "@/lib/utils/pain";
 import { isTriptan } from "@/lib/medications/isTriptan";
 import { computeDiaryDayBuckets } from "@/lib/diary/dayBuckets";
 import { drawPieChartWithLegend } from "@/lib/pdf/pieChart";
+import { drawSymptomSection, type SymptomDataForPdf } from "@/lib/pdf/symptomSection";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES & CONSTANTS
@@ -153,6 +154,8 @@ type BuildReportParams = {
     }>;
     createdAt: string;
   };
+  // Begleitsymptome Daten für klinische Übersicht
+  symptomData?: SymptomDataForPdf;
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -889,6 +892,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     patientData,
     doctors = [],
     premiumAIReport,
+    symptomData,
   } = params;
 
   const pdfDoc = await PDFDocument.create();
@@ -1100,6 +1104,19 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
 
       yPos -= LAYOUT.sectionGap;
     }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 2b. BEGLEITSYMPTOME (KLINISCHE ÜBERSICHT)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  if (symptomData) {
+    const symptomResult = drawSymptomSection(
+      pdfDoc, page, yPos, font, fontBold, symptomData,
+      formatDateGerman(from), formatDateGerman(to),
+    );
+    page = symptomResult.page;
+    yPos = symptomResult.yPos;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
