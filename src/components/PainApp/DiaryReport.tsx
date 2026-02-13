@@ -7,7 +7,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { PainEntry } from "@/types/painApp";
-import { useEntries } from "@/features/entries/hooks/useEntries";
+
 import { fetchAllEntriesForExport, countEntriesInRange } from "@/features/entries/api/entries.api";
 import { buildDiaryPdf } from "@/lib/pdf/report";
 import { buildMedicationPlanPdf } from "@/lib/pdf/medicationPlan";
@@ -289,7 +289,12 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     return { from: start, to: end };
   }, [preset, customStart, customEnd, today]);
 
-  const { data: entries = [], isLoading } = useEntries({ from, to });
+  const { data: entries = [], isLoading } = useQuery({
+    queryKey: ["allEntriesForReport", from, to],
+    queryFn: () => fetchAllEntriesForExport(from, to),
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
+  });
   const entryIds = useMemo(() => entries.map(e => Number(e.id)), [entries]);
   const { data: medicationEffects = [] } = useMedicationEffectsForEntries(entryIds);
   
