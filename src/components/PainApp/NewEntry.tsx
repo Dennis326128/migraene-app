@@ -201,7 +201,7 @@ export const NewEntry = ({
       const now = new Date();
       
       // Pain level: use prefill or default
-      if (initialPainLevel !== undefined && initialPainLevel >= 1 && initialPainLevel <= 10) {
+      if (initialPainLevel !== undefined && initialPainLevel >= 0 && initialPainLevel <= 10) {
         setPainLevel(initialPainLevel);
       }
       
@@ -301,7 +301,7 @@ export const NewEntry = ({
 // ... keep existing code
 
   const handleSave = async () => {
-    if (painLevel < 1) {
+    if (painLevel === null || painLevel === undefined) {
       toast({ title: "Fehler", description: "Bitte Migräne-Intensität auswählen", variant: "destructive" });
       return;
     }
