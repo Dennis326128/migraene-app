@@ -1219,45 +1219,6 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
             </>
           )}
         </Button>
-
-        {/* Secondary actions - less prominent */}
-        <div className="flex justify-center gap-4">
-          <Button 
-            onClick={exportCSV}
-            disabled={!filteredEntries.length || isGeneratingReport}
-            variant="ghost"
-            size="sm"
-            className="text-xs text-muted-foreground hover:text-foreground"
-          >
-            <Table className="mr-1.5 h-3.5 w-3.5" />
-            CSV exportieren
-          </Button>
-
-          <Button 
-            onClick={generateMedicationPlanPdf}
-            disabled={medicationCourses.length === 0 || isGeneratingMedPlan || isGeneratingReport}
-            variant="ghost"
-            size="sm"
-            className="text-xs text-muted-foreground hover:text-foreground"
-          >
-            {isGeneratingMedPlan ? (
-              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Pill className="mr-1.5 h-3.5 w-3.5" />
-            )}
-            Medikationsplan
-          </Button>
-
-          <Button 
-            onClick={() => onNavigate?.('hit6')}
-            variant="ghost"
-            size="sm"
-            className="text-xs text-muted-foreground hover:text-foreground"
-          >
-            <FileText className="mr-1.5 h-3.5 w-3.5" />
-            HIT-6 (PDF)
-          </Button>
-        </div>
       </div>
 
       {/* Intelligent Reminder Dialog */}
