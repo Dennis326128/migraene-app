@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -24,6 +24,10 @@ import { showSuccessToast, showErrorToast } from '@/lib/toastHelpers';
 import type { ContextMetadata } from '@/lib/voice/saveNote';
 import { CalendarView } from '@/features/diary/calendar';
 import { normalizePainLevel } from '@/lib/utils/pain';
+import { TimeRangeButtons, type TimeRangePreset } from './TimeRangeButtons';
+import { computeDiaryDayBuckets } from '@/lib/diary/dayBuckets';
+import { HeadacheDaysPie } from '@/components/diary/HeadacheDaysPie';
+import { subMonths, startOfDay, endOfDay } from 'date-fns';
 
 // Helper: Filtert technische/ungültige Wetterbedingungen
 const isValidWeatherCondition = (text: string | null | undefined): boolean => {
@@ -113,6 +117,83 @@ function CompactKPISummary({ entries }: { entries: any[] }) {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Pie Chart section with time range selector for DiaryTimeline
+function DiaryTimelinePieSection({ entries }: { entries: any[] }) {
+  const [timeRange, setTimeRange] = useState<TimeRangePreset>("3m");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+
+  const handleTimeRangeChange = (newRange: TimeRangePreset) => {
+    if (newRange === "custom") {
+      const now = new Date();
+      setCustomTo(now.toISOString().split('T')[0]);
+      setCustomFrom(subMonths(now, 3).toISOString().split('T')[0]);
+    }
+    setTimeRange(newRange);
+  };
+
+  const { from, to } = useMemo(() => {
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    if (timeRange === "custom" && customFrom && customTo) {
+      return { from: customFrom, to: customTo };
+    }
+    if (timeRange === "all") {
+      const fallback = new Date(now.getFullYear() - 5, now.getMonth(), now.getDate());
+      return { from: fallback.toISOString().split('T')[0], to: today };
+    }
+    const monthsMap: Record<string, number> = { "1m": 1, "3m": 3, "6m": 6, "12m": 12 };
+    const months = monthsMap[timeRange] || 3;
+    return { from: startOfDay(subMonths(now, months)).toISOString().split('T')[0], to: today };
+  }, [timeRange, customFrom, customTo]);
+
+  const filteredEntries = useMemo(() => {
+    return entries.filter(entry => {
+      const d = entry.selected_date || entry.timestamp_created?.split('T')[0];
+      return d && d >= from && d <= to;
+    });
+  }, [entries, from, to]);
+
+  const dayBuckets = useMemo(() => {
+    return computeDiaryDayBuckets({ startDate: from, endDate: to, entries: filteredEntries });
+  }, [from, to, filteredEntries]);
+
+  return (
+    <div className="max-w-4xl mx-auto px-4 pt-4 space-y-3">
+      <Card>
+        <CardContent className="pt-4 pb-3">
+          <TimeRangeButtons value={timeRange} onChange={handleTimeRangeChange} />
+          {timeRange === "custom" && (
+            <div className="grid grid-cols-2 gap-4 mt-3">
+              <div>
+                <label className="text-sm font-medium">Von</label>
+                <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)}
+                  className="w-full mt-1 px-3 py-2 bg-background border border-input rounded-md text-sm" />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Bis</label>
+                <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)}
+                  className="w-full mt-1 px-3 py-2 bg-background border border-input rounded-md text-sm" />
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+      {filteredEntries.length > 0 && (
+        <Card className="p-4">
+          <h3 className="text-sm font-semibold text-muted-foreground mb-3">Tagesverteilung</h3>
+          <HeadacheDaysPie
+            totalDays={dayBuckets.totalDays}
+            painFreeDays={dayBuckets.painFreeDays}
+            painDaysNoTriptan={dayBuckets.painDaysNoTriptan}
+            triptanDays={dayBuckets.triptanDays}
+          />
+        </Card>
+      )}
     </div>
   );
 }
@@ -461,10 +542,8 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
         </div>
       </div>
 
-      {/* Compact KPI Summary */}
-      <div className="max-w-4xl mx-auto px-4 pt-4">
-        <CompactKPISummary entries={painEntries} />
-      </div>
+      {/* Time Range + Pie Chart */}
+      <DiaryTimelinePieSection entries={painEntries} />
 
       <div className={cn("max-w-4xl mx-auto p-4 space-y-4", isMobile && "px-3")}>
 

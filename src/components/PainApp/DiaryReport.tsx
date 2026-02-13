@@ -1040,18 +1040,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
           </div>
         </Card>
 
-        {/* Pie Chart: Tagesverteilung */}
-        {entries.length > 0 && (
-          <Card className="p-4">
-            <h3 className="text-sm font-semibold text-muted-foreground mb-3">Tagesverteilung</h3>
-            <HeadacheDaysPie
-              totalDays={dayBuckets.totalDays}
-              painFreeDays={dayBuckets.painFreeDays}
-              painDaysNoTriptan={dayBuckets.painDaysNoTriptan}
-              triptanDays={dayBuckets.triptanDays}
-            />
-          </Card>
-        )}
+        {/* Pie Chart entfernt – wird jetzt in Verlauf & Kalender und Auswertung angezeigt */}
 
         {/* ═══════════════════════════════════════════════════════════════════
             OPTIONEN CARD (Toggle-Listen-Stil) - Priorisiert für chron. Migräne
