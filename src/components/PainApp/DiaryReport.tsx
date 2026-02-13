@@ -650,7 +650,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
 
       let aiAnalysis = undefined;
       
-      if (includeAnalysis) {
+      if (includePremiumAI) {
         try {
           const { data, error } = await supabase.functions.invoke('generate-doctor-summary', {
             body: { 
