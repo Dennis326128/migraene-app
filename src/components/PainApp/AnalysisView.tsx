@@ -49,6 +49,8 @@ function getInitialCustomDates(): { start: string; end: string } {
 }
 
 import type { AIReport } from "@/features/ai-reports";
+import { computeDiaryDayBuckets } from "@/lib/diary/dayBuckets";
+import { HeadacheDaysPie } from "@/components/diary/HeadacheDaysPie";
 
 interface AnalysisViewProps {
   onBack: () => void;
@@ -211,6 +213,15 @@ export function AnalysisView({ onBack, onNavigateToLimits, onViewAIReport }: Ana
     return Math.max(1, diffDays);
   }, [from, to]);
 
+  // Day buckets für Pie Chart
+  const dayBuckets = useMemo(() => {
+    return computeDiaryDayBuckets({
+      startDate: from,
+      endDate: to,
+      entries: filteredEntries,
+    });
+  }, [from, to, filteredEntries]);
+
   // TEIL D: Check if any medication has warning/reached/exceeded status
   const hasOveruseWarning = useMemo(() => {
     return patternStats.medicationAndEffect.topMedications.some(med => {
@@ -298,6 +309,19 @@ export function AnalysisView({ onBack, onNavigateToLimits, onViewAIReport }: Ana
                 )}
               </CardContent>
             </Card>
+
+            {/* Pie Chart: Tagesverteilung */}
+            {!entriesLoading && filteredEntries.length > 0 && (
+              <Card className="mb-6 p-4">
+                <h3 className="text-sm font-semibold text-muted-foreground mb-3">Tagesverteilung</h3>
+                <HeadacheDaysPie
+                  totalDays={dayBuckets.totalDays}
+                  painFreeDays={dayBuckets.painFreeDays}
+                  painDaysNoTriptan={dayBuckets.painDaysNoTriptan}
+                  triptanDays={dayBuckets.triptanDays}
+                />
+              </Card>
+            )}
 
             {/* Loading State */}
             {entriesLoading && (
