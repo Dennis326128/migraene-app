@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Activity, ChevronDown, Info, Star, Settings2 } from "lucide-react";
+import { Activity, ChevronDown, Info, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { MIGRAINE_TYPICAL_SYMPTOMS } from "@/lib/symptoms/symptomGroups";
@@ -64,7 +64,6 @@ export function AccompanyingSymptomsCard({
     : 0;
   const isLowDocRate = documentationRate < 30;
 
-  // Check if any burden is set
   const hasBurdenSet = useMemo(() => {
     for (const [, level] of burdenMap) {
       if (level >= 1) return true;
@@ -103,39 +102,21 @@ export function AccompanyingSymptomsCard({
   const displayed = showAll ? sorted : sorted.slice(0, 8);
   const hasMore = sorted.length > 8;
 
-  // Burden CTA section (reused in multiple places)
+  // Burden CTA section
   const burdenCTA = onNavigateToBurden ? (
     <div className="pt-2 border-t border-border/50 space-y-1.5">
-      {hasBurdenSet ? (
-        <div className="flex items-center justify-between">
-          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Star className="h-3 w-3 text-primary fill-current" />
-            Besonders belastende Symptome markiert
-          </span>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-xs text-primary h-7 px-2"
-            onClick={onNavigateToBurden}
-          >
-            Anpassen
-          </Button>
-        </div>
-      ) : (
-        <div className="space-y-1.5">
-          <p className="text-xs text-muted-foreground">
-            Was davon belastet dich besonders?
-          </p>
-          <Button
-            variant="default"
-            size="sm"
-            onClick={onNavigateToBurden}
-          >
-            <Star className="h-3.5 w-3.5 mr-1" />
-            Belastung festlegen
-          </Button>
-        </div>
-      )}
+      <p className="text-xs text-muted-foreground">
+        Häufigkeit zeigt, wie oft ein Symptom auftritt. Hier kannst du festlegen, wie stark es dich einschränkt.
+      </p>
+      <Button
+        variant={hasBurdenSet ? "ghost" : "default"}
+        size="sm"
+        className={hasBurdenSet ? "text-xs text-primary h-7 px-2" : ""}
+        onClick={onNavigateToBurden}
+      >
+        <Settings2 className="h-3.5 w-3.5 mr-1" />
+        Belastung anpassen
+      </Button>
     </div>
   ) : null;
 
@@ -249,15 +230,15 @@ export function AccompanyingSymptomsCard({
         <div className="space-y-2">
           {displayed.map((symptom, idx) => {
             const burden = burdenMap.get(symptom.name) ?? 0;
+            const burdenLabel = burden >= 1 ? BURDEN_LABELS[burden] : null;
             return (
               <div key={idx} className="space-y-0.5">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    {burden === 2 && <Star className="h-3 w-3 text-primary fill-current flex-shrink-0" />}
+                  <div className="flex flex-col min-w-0">
                     <span className="text-sm text-foreground">{symptom.name}</span>
-                    {burden === 1 && (
-                      <span className="text-[10px] text-primary/70 ml-1">
-                        {BURDEN_LABELS[1]}
+                    {burdenLabel && (
+                      <span className="text-[10px] text-primary/70">
+                        ({burdenLabel})
                       </span>
                     )}
                   </div>
