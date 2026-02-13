@@ -113,8 +113,16 @@ export const NewEntry = ({
   });
   const [symptomsOpen, setSymptomsOpen] = useState(() => {
     const stored = localStorage.getItem('newEntry_symptomsOpen');
-    return stored !== null ? stored === 'true' : false; // default closed so user must open → triggers 'viewed'
+    return stored !== null ? stored === 'true' : false;
   });
+
+  // If symptoms accordion starts open (from localStorage), mark as 'viewed'
+  useEffect(() => {
+    if (symptomsOpen && symptomsState === 'untouched' && !entry) {
+      setSymptomsState('viewed');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Save collapsible states to localStorage
   useEffect(() => {
