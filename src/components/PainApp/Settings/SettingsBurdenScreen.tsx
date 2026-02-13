@@ -78,14 +78,11 @@ export function SettingsBurdenScreen() {
           const current = burdenMap.get(symptom.name) ?? 0;
           const freq = freqMap.get(symptom.name);
           return (
-            <Card key={symptom.id} className="p-3">
+            <Card key={symptom.id} className={cn("p-3", current > 0 && "border-border/60")}>
               <div className="space-y-2">
                 {/* Symptom name + frequency hint */}
                 <div className="flex items-center justify-between">
-                  <span className={cn(
-                    "text-sm",
-                    current > 0 ? "font-medium text-foreground" : "text-muted-foreground"
-                  )}>
+                  <span className="text-sm font-medium text-foreground">
                     {symptom.name}
                   </span>
                   {freq !== undefined && freq > 0 && (
