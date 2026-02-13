@@ -246,7 +246,10 @@ export function buildReportData(params: BuildReportDataParams): ReportData {
     effectScores: number[];
   }>();
   
+  const entryIdsInRange = new Set<number>();
+
   entries.forEach(entry => {
+    entryIdsInRange.add(Number(entry.id));
     const entryDateStr = getEntryDate(entry);
     if (!entryDateStr) return;
     
@@ -284,8 +287,9 @@ export function buildReportData(params: BuildReportDataParams): ReportData {
     });
   });
   
-  // Effekte hinzufügen
+  // Effekte hinzufügen – NUR für Entries im Berichtszeitraum
   medicationEffects.forEach(effect => {
+    if (!entryIdsInRange.has(effect.entry_id)) return;
     const stat = medStats.get(effect.med_name);
     if (stat) {
       const score = mapEffectRatingToScore(effect.effect_rating);
