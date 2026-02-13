@@ -778,6 +778,8 @@ export type Database = {
           pain_locations: string[] | null
           selected_date: string | null
           selected_time: string | null
+          symptoms_source: string
+          symptoms_state: string
           timestamp_created: string | null
           user_id: string
           voice_note_id: string | null
@@ -796,6 +798,8 @@ export type Database = {
           pain_locations?: string[] | null
           selected_date?: string | null
           selected_time?: string | null
+          symptoms_source?: string
+          symptoms_state?: string
           timestamp_created?: string | null
           user_id: string
           voice_note_id?: string | null
@@ -814,6 +818,8 @@ export type Database = {
           pain_locations?: string[] | null
           selected_date?: string | null
           selected_time?: string | null
+          symptoms_source?: string
+          symptoms_state?: string
           timestamp_created?: string | null
           user_id?: string
           voice_note_id?: string | null
@@ -1438,6 +1444,9 @@ export type Database = {
           ai_draft_engine: string | null
           ai_enabled: boolean
           ai_unlimited: boolean
+          burden_prompt_disabled: boolean
+          burden_prompt_dismiss_count: number
+          burden_prompt_next_allowed_at: string | null
           custom_medication_reasons: string[] | null
           deactivated_at: string | null
           default_pain_location: string | null
@@ -1461,6 +1470,9 @@ export type Database = {
           ai_draft_engine?: string | null
           ai_enabled?: boolean
           ai_unlimited?: boolean
+          burden_prompt_disabled?: boolean
+          burden_prompt_dismiss_count?: number
+          burden_prompt_next_allowed_at?: string | null
           custom_medication_reasons?: string[] | null
           deactivated_at?: string | null
           default_pain_location?: string | null
@@ -1484,6 +1496,9 @@ export type Database = {
           ai_draft_engine?: string | null
           ai_enabled?: boolean
           ai_unlimited?: boolean
+          burden_prompt_disabled?: boolean
+          burden_prompt_dismiss_count?: number
+          burden_prompt_next_allowed_at?: string | null
           custom_medication_reasons?: string[] | null
           deactivated_at?: string | null
           default_pain_location?: string | null
@@ -1605,6 +1620,33 @@ export type Database = {
           selected_report_medications?: string[] | null
           snapshot_hours?: number[] | null
           updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_symptom_burden: {
+        Row: {
+          burden_level: number | null
+          created_at: string
+          id: string
+          symptom_key: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          burden_level?: number | null
+          created_at?: string
+          id?: string
+          symptom_key: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          burden_level?: number | null
+          created_at?: string
+          id?: string
+          symptom_key?: string
+          updated_at?: string
           user_id?: string
         }
         Relationships: []
@@ -1901,6 +1943,8 @@ export type Database = {
           pain_locations: string[] | null
           selected_date: string | null
           selected_time: string | null
+          symptoms_source: string
+          symptoms_state: string
           timestamp_created: string | null
           user_id: string
           voice_note_id: string | null
