@@ -7,6 +7,7 @@ import { useEntries } from "@/features/entries/hooks/useEntries";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PatternCards } from "./PatternCards";
 import { TimeDistributionChart } from "./TimeDistributionChart";
+import { AccompanyingSymptomsCard } from "./AccompanyingSymptomsCard";
 import { VoiceNotesAIAnalysis } from "./VoiceNotesAIAnalysis";
 import { useTimeDistribution } from "@/features/statistics/hooks/useStatistics";
 import { useMedicationEffectsForEntries } from "@/features/medication-effects/hooks/useMedicationEffects";
@@ -20,6 +21,8 @@ import { useUserDefaults } from "@/features/settings/hooks/useUserSettings";
 import type { AIReport } from "@/features/ai-reports";
 import { computeDiaryDayBuckets } from "@/lib/diary/dayBuckets";
 import { HeadacheDaysPie } from "@/components/diary/HeadacheDaysPie";
+import { supabase } from "@/lib/supabaseClient";
+import { useQuery } from "@tanstack/react-query";
 
 // Session storage keys
 const SESSION_KEY_PRESET = "stats_timeRange_preset";
@@ -47,6 +50,39 @@ function getInitialCustomDates(): { start: string; end: string } {
   } catch {
     return { start: "", end: "" };
   }
+}
+
+/** Fetch entry_symptoms with symptom names for a set of entry IDs */
+function useEntrySymptomsBulk(entryIds: number[]) {
+  return useQuery({
+    queryKey: ['entry-symptoms-bulk', entryIds],
+    queryFn: async () => {
+      if (entryIds.length === 0) return [];
+      // Fetch in chunks to avoid query limits
+      const chunkSize = 200;
+      const results: EntrySymptom[] = [];
+      for (let i = 0; i < entryIds.length; i += chunkSize) {
+        const chunk = entryIds.slice(i, i + chunkSize);
+        const { data, error } = await supabase
+          .from('entry_symptoms')
+          .select('entry_id, symptom_id, symptom_catalog(name)')
+          .in('entry_id', chunk);
+        if (error) throw error;
+        if (data) {
+          for (const row of data) {
+            results.push({
+              entry_id: row.entry_id,
+              symptom_id: row.symptom_id,
+              symptom_name: (row as any).symptom_catalog?.name || undefined,
+            });
+          }
+        }
+      }
+      return results;
+    },
+    enabled: entryIds.length > 0,
+    staleTime: 60_000,
+  });
 }
 
 interface AnalysisViewProps {
@@ -120,17 +156,47 @@ export function AnalysisView({ onBack, onNavigateToLimits, onViewAIReport }: Ana
   const entryIds = useMemo(() => filteredEntries.map(e => Number(e.id)), [filteredEntries]);
   const { data: medicationEffectsData = [] } = useMedicationEffectsForEntries(entryIds);
   const { data: medicationLimits = [] } = useMedicationLimits();
-  const entrySymptoms: EntrySymptom[] = useMemo(() => [], []);
+  
+  // Fetch real entry symptoms with names
+  const { data: entrySymptoms = [] } = useEntrySymptomsBulk(entryIds);
 
   const patternStats = useMemo(() => {
     return computeStatistics(
       filteredEntries,
       medicationEffectsData as MedicationEffect[],
-      entrySymptoms,
+      entrySymptoms as EntrySymptom[],
       medicationLimits as MedicationLimit[],
       allEntries
     );
   }, [filteredEntries, medicationEffectsData, entrySymptoms, medicationLimits, allEntries]);
+
+  // Begleitsymptome stats
+  const symptomStats = useMemo(() => {
+    if (entrySymptoms.length === 0) return { symptoms: [], episodesWithSymptoms: 0 };
+    
+    // Count unique entries that have symptoms
+    const entriesWithSymptoms = new Set(entrySymptoms.map(es => es.entry_id));
+    const episodesWithSymptoms = entriesWithSymptoms.size;
+    
+    // Count each symptom
+    const counts = new Map<string, number>();
+    const totalEpisodes = filteredEntries.length;
+    
+    for (const es of entrySymptoms) {
+      const name = es.symptom_name || es.symptom_id;
+      counts.set(name, (counts.get(name) || 0) + 1);
+    }
+    
+    const symptoms = Array.from(counts.entries())
+      .map(([name, count]) => ({
+        name,
+        count,
+        percentage: totalEpisodes > 0 ? Math.round((count / totalEpisodes) * 100) : 0,
+      }))
+      .sort((a, b) => b.count - a.count);
+    
+    return { symptoms, episodesWithSymptoms };
+  }, [entrySymptoms, filteredEntries.length]);
 
   const daysInRange = useMemo(() => {
     if (!from || !to) return undefined;
@@ -210,19 +276,6 @@ export function AnalysisView({ onBack, onNavigateToLimits, onViewAIReport }: Ana
               </CardContent>
             </Card>
 
-            {/* Pie Chart */}
-            {!entriesLoading && filteredEntries.length > 0 && (
-              <Card className="mb-6 p-4">
-                <h3 className="text-sm font-semibold text-muted-foreground mb-3">Tagesverteilung</h3>
-                <HeadacheDaysPie
-                  totalDays={dayBuckets.totalDays}
-                  painFreeDays={dayBuckets.painFreeDays}
-                  painDaysNoTriptan={dayBuckets.painDaysNoTriptan}
-                  triptanDays={dayBuckets.triptanDays}
-                />
-              </Card>
-            )}
-
             {/* Loading */}
             {entriesLoading && (
               <div className="flex justify-center items-center py-12">
@@ -249,11 +302,43 @@ export function AnalysisView({ onBack, onNavigateToLimits, onViewAIReport }: Ana
               </div>
             )}
 
-            {/* Data sections – new order per TEIL 2 */}
+            {/* Data sections – new order */}
             {!entriesLoading && filteredEntries.length > 0 && (
-              <>
-                {/* 1. Tageszeit-Verteilung */}
-                <Card className="mb-6">
+              <div className="space-y-6">
+                {/* 1. Kopfschmerz- & Behandlungstage (Kreisdiagramm) */}
+                <Card className="p-4">
+                  <h3 className="text-sm font-semibold text-foreground mb-1">Kopfschmerz- & Behandlungstage</h3>
+                  <p className="text-xs text-muted-foreground mb-3">Verteilung der Tage im gewählten Zeitraum</p>
+                  <HeadacheDaysPie
+                    totalDays={dayBuckets.totalDays}
+                    painFreeDays={dayBuckets.painFreeDays}
+                    painDaysNoTriptan={dayBuckets.painDaysNoTriptan}
+                    triptanDays={dayBuckets.triptanDays}
+                  />
+                </Card>
+
+                {/* 2. Schmerzintensität + 3. Begleitsymptome + 5. Medikamente + 4. Lokalisation */}
+                <PatternCards
+                  statistics={patternStats}
+                  isLoading={entriesLoading}
+                  daysInRange={daysInRange}
+                  overuseInfo={{
+                    hasWarning: hasOveruseWarning,
+                    medicationsWithWarning,
+                    onNavigateToLimits,
+                    warningThreshold
+                  }}
+                />
+
+                {/* 3. Begleitsymptome */}
+                <AccompanyingSymptomsCard
+                  symptoms={symptomStats.symptoms}
+                  totalEpisodes={filteredEntries.length}
+                  episodesWithSymptoms={symptomStats.episodesWithSymptoms}
+                />
+
+                {/* 4. Tageszeit-Verteilung */}
+                <Card>
                   <CardHeader className="flex flex-row items-center justify-between pb-2">
                     <div>
                       <CardTitle className="text-base flex items-center gap-2">
@@ -269,21 +354,8 @@ export function AnalysisView({ onBack, onNavigateToLimits, onViewAIReport }: Ana
                   </CardContent>
                 </Card>
 
-                {/* 2–4. PatternCards: Medikamente, Schmerzprofil, Lokalisation */}
-                <PatternCards
-                  statistics={patternStats}
-                  isLoading={entriesLoading}
-                  daysInRange={daysInRange}
-                  overuseInfo={{
-                    hasWarning: hasOveruseWarning,
-                    medicationsWithWarning,
-                    onNavigateToLimits,
-                    warningThreshold
-                  }}
-                />
-
-                {/* 5. Schmerz- & Wetterverlauf */}
-                <Card className="mb-6">
+                {/* 6. Schmerz- & Wetterverlauf */}
+                <Card>
                   <CardHeader className="flex flex-row items-center justify-between pb-2">
                     <CardTitle className="text-base">Schmerz- & Wetterverlauf</CardTitle>
                     <FullscreenChartButton onClick={() => setTimeSeriesFullscreen(true)} />
@@ -293,8 +365,8 @@ export function AnalysisView({ onBack, onNavigateToLimits, onViewAIReport }: Ana
                   </CardContent>
                 </Card>
 
-                {/* 6. Hint to KI tab */}
-                <Card className="mb-6 border-primary/20 bg-primary/5">
+                {/* 7. Hint to KI tab */}
+                <Card className="border-primary/20 bg-primary/5">
                   <CardContent className="p-4">
                     <div className="flex items-start gap-3">
                       <Brain className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
@@ -311,7 +383,7 @@ export function AnalysisView({ onBack, onNavigateToLimits, onViewAIReport }: Ana
                     </div>
                   </CardContent>
                 </Card>
-              </>
+              </div>
             )}
           </TabsContent>
 
