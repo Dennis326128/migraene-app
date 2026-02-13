@@ -51,7 +51,7 @@ const LAYOUT = {
   pageHeight: 841.89,   // A4
   margin: 40,           // Seitenrand
   lineHeight: 14,       // Standard-Zeilenabstand
-  sectionGap: 20,       // Abstand zwischen Abschnitten
+  sectionGap: 14,       // Abstand zwischen Abschnitten (kompakt)
 };
 
 type MedicationCourseForPdf = {
@@ -1561,12 +1561,11 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   // ═══════════════════════════════════════════════════════════════════════════
   
   if (includeMedicationCourses && medicationCourses && medicationCourses.length > 0) {
-    const spaceCheck = ensureSpace(pdfDoc, page, yPos, 150);
+    // Estimate space: header + first course (~80px)
+    const estimatedProphylaxeHeight = 30 + Math.min(medicationCourses.length, 2) * 70;
+    const spaceCheck = ensureSpace(pdfDoc, page, yPos, Math.min(estimatedProphylaxeHeight, 150));
     page = spaceCheck.page;
     yPos = spaceCheck.yPos;
-    
-    // Mehr Abstand vor dem Abschnitt für klare Trennung
-    yPos -= 10;
     
     yPos = drawSectionHeader(page, "PROPHYLAXE & THERAPIEVERLAUF", yPos, fontBold, 12);
     
@@ -1704,11 +1703,11 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
           yPos -= Math.min(noteLines.length, 2) * 12 + 2;
         }
         
-        // Mehr Abstand zwischen Medikamenten
-        yPos -= 12;
+        // Kompakter Abstand zwischen Medikamenten
+        yPos -= 6;
       }
       
-      yPos -= 8;
+      yPos -= 4;
     };
     
     drawCourseGroup(prophylaxe, "Prophylaktische Behandlungen");
@@ -1723,11 +1722,30 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   // ═══════════════════════════════════════════════════════════════════════════
   
   if (includeChart && entries.length > 0) {
-    // Neue Seite für Diagramm
-    page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
-    yPos = LAYOUT.pageHeight - LAYOUT.margin;
+    // Check if entries have weather data - skip section entirely if no weather data
+    const hasWeatherData = entries.some(e => e.weather && (e.weather.temperature_c !== null || e.weather.pressure_mb !== null));
     
-    yPos = drawSectionHeader(page, "SCHMERZ- & WETTERVERLAUF", yPos, fontBold, 13);
+    const defaultChartHeight = 280;
+    const chartHeaderSpace = 50; // header + subtitle + gap
+    const minChartHeight = 220;
+    const totalNeeded = chartHeaderSpace + defaultChartHeight;
+    
+    // Dynamic: try to fit on current page, otherwise page break
+    const availableSpace = yPos - LAYOUT.margin - 30;
+    let chartHeight: number;
+    
+    if (availableSpace >= chartHeaderSpace + minChartHeight) {
+      // Fits on current page - use available space or default, whichever is smaller
+      chartHeight = Math.min(defaultChartHeight, availableSpace - chartHeaderSpace);
+    } else {
+      // Not enough space - page break
+      const spaceCheck = ensureSpace(pdfDoc, page, yPos, totalNeeded);
+      page = spaceCheck.page;
+      yPos = spaceCheck.yPos;
+      chartHeight = defaultChartHeight;
+    }
+    
+    yPos = drawSectionHeader(page, hasWeatherData ? "SCHMERZ- & WETTERVERLAUF" : "SCHMERZVERLAUF", yPos, fontBold, 13);
     
     page.drawText(`Kombiniertes Verlaufsdiagramm für den Berichtszeitraum ${formatDateGerman(from)} - ${formatDateGerman(to)}`, {
       x: LAYOUT.margin,
@@ -1738,7 +1756,6 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     });
     yPos -= 20;
     
-    const chartHeight = 280;
     const chartWidth = LAYOUT.pageWidth - 2 * LAYOUT.margin;
     drawCombinedWeatherPainChart(page, entries, LAYOUT.margin, yPos, chartWidth, chartHeight, font, fontBold);
     yPos -= chartHeight + LAYOUT.sectionGap;
@@ -1804,9 +1821,22 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     });
     
     if (hasTimeData) {
-      // Always new page
-      page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
-      yPos = LAYOUT.pageHeight - LAYOUT.margin;
+      const defaultTimeChartHeight = 200;
+      const timeChartHeaderSpace = 50;
+      const minTimeChartHeight = 160;
+      const totalTimeNeeded = timeChartHeaderSpace + defaultTimeChartHeight + 30; // +30 for note
+      
+      const availableTimeSpace = yPos - LAYOUT.margin - 30;
+      let timeChartHeight: number;
+      
+      if (availableTimeSpace >= timeChartHeaderSpace + minTimeChartHeight + 30) {
+        timeChartHeight = Math.min(defaultTimeChartHeight, availableTimeSpace - timeChartHeaderSpace - 30);
+      } else {
+        const spaceCheck = ensureSpace(pdfDoc, page, yPos, totalTimeNeeded);
+        page = spaceCheck.page;
+        yPos = spaceCheck.yPos;
+        timeChartHeight = defaultTimeChartHeight;
+      }
       
       yPos = drawSectionHeader(page, "SCHMERZVERTEILUNG NACH UHRZEIT", yPos, fontBold, 13);
       
@@ -1818,7 +1848,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       // Bar chart dimensions
       const chartX = LAYOUT.margin + 40;
       const chartWidth = LAYOUT.pageWidth - 2 * LAYOUT.margin - 50;
-      const chartHeight = 200;
+      const chartHeight = timeChartHeight;
       const chartBottom = yPos - chartHeight;
       const maxCount = Math.max(...hourCounts, 1);
       const barWidth = chartWidth / 24 - 2;
