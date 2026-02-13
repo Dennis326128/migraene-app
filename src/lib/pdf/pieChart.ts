@@ -137,8 +137,8 @@ export function drawPieChartWithLegend(
   // Legend - right of pie
   const legendX = x + (radius * 2) + 30;
   let legendY = y - 10;
-  const legendLineHeight = 16;
-  const squareSize = 9;
+  const legendLineHeight = 14;
+  const squareSize = 8;
 
   for (const slice of slices) {
     // Color square
