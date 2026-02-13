@@ -1307,7 +1307,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 3c. BEGLEITSYMPTOME – KLINISCHE EINORDNUNG (nach Medikation)
+  // 3c. BEGLEITSYMPTOME – KLINISCHE BEWERTUNG (nach Medikation)
   // ═══════════════════════════════════════════════════════════════════════════
 
   if (symptomData) {

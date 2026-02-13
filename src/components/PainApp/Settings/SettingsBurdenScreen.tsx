@@ -67,7 +67,7 @@ export function SettingsBurdenScreen() {
   return (
     <div className="space-y-6 pb-24">
       <div className="space-y-1">
-        <h2 className="text-lg font-semibold">Wie stark schränken dich diese Symptome ein?</h2>
+        <h2 className="text-lg font-semibold">Wie stark beeinträchtigen dich diese Symptome im Alltag?</h2>
         <p className="text-sm text-muted-foreground">
           Wähle pro Symptom die passende Stufe – oder lass es leer.
         </p>
