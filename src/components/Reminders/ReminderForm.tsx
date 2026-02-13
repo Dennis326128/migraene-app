@@ -545,7 +545,7 @@ export const ReminderForm = ({ reminder, groupedReminders, prefill, onSubmit, on
   const isMobile = useIsMobile();
 
   return (
-    <div className={isMobile ? "min-h-screen bg-background flex flex-col" : "px-3 sm:px-4 py-4 sm:py-6 pb-safe"}>
+    <div className={isMobile ? "min-h-[100dvh] bg-background flex flex-col" : "px-3 sm:px-4 py-4 sm:py-6 pb-safe"}>
       {/* Header */}
       <div className={isMobile ? "flex items-center gap-3 p-4 sticky top-0 z-10 bg-background border-b border-border" : "flex items-center gap-3 mb-6"}>
         <Button
@@ -563,8 +563,8 @@ export const ReminderForm = ({ reminder, groupedReminders, prefill, onSubmit, on
         </h1>
       </div>
 
-      <div className={isMobile ? "flex-1 overflow-y-auto px-4 pt-4 pb-32" : ""}>
-      <Card className={isMobile ? "p-4 border-0 shadow-none bg-transparent" : "p-4 sm:p-6 max-h-[75vh] overflow-y-auto modern-scrollbar"}>
+      <div className={isMobile ? "flex-1 px-4 pt-4 pb-32" : ""}>
+      <Card className={isMobile ? "p-4 border-0 shadow-none bg-transparent" : "p-4 sm:p-6"}>
         <form onSubmit={handleSubmit(onFormSubmitGuarded)} className="space-y-5">
           
           {/* 1️⃣ TYPE SELECTION */}
