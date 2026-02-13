@@ -917,7 +917,17 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     font: fontBold, 
     color: COLORS.primary 
   });
-  yPos -= 18;
+  yPos -= 8;
+  
+  // Herkunftszeile: neutral, nicht werblich
+  page.drawText("Erstellt mit Miary \u00B7 miary.de", {
+    x: LAYOUT.margin,
+    y: yPos,
+    size: 9,
+    font,
+    color: rgb(0.42, 0.45, 0.50), // #6B7280
+  });
+  yPos -= 14;
   
   page.drawLine({
     start: { x: LAYOUT.margin, y: yPos },
@@ -925,7 +935,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     thickness: 2,
     color: COLORS.primary,
   });
-  yPos -= 20;
+  yPos -= 16;
 
   page.drawText(`Berichtszeitraum: ${formatDateGerman(from)} - ${formatDateGerman(to)}`, 
     { x: LAYOUT.margin, y: yPos, size: 11, font: fontBold, color: COLORS.text });
