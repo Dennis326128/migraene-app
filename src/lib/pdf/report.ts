@@ -282,6 +282,8 @@ function calculateDays(from: string, to: string): number {
 }
 
 function formatGermanDecimal(value: number, decimals: number = 1): string {
+  // Remove trailing ,0 for whole numbers
+  if (value % 1 === 0) return String(Math.round(value));
   return value.toFixed(decimals).replace('.', ',');
 }
 
@@ -934,79 +936,65 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   yPos -= LAYOUT.sectionGap + 5;
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // PATIENTENDATEN + ARZTKONTAKTE (zweispaltig, kompakt)
+  // PATIENTENDATEN (eigener Block, untereinander)
   // ═══════════════════════════════════════════════════════════════════════════
   
   const hasPatient = includePatientData && patientData && (patientData.firstName || patientData.lastName);
   const hasDoctor = includeDoctorData && doctors && doctors.length > 0;
   
-  if (hasPatient || hasDoctor) {
-    const colLeft = LAYOUT.margin;
-    const colRight = LAYOUT.pageWidth / 2 + 10;
-    const valueIndent = 80;
-    const rowH = 12;
-    const kvFontSize = 9;
+  if (hasPatient && patientData) {
+    yPos = drawSectionHeader(page, "PATIENT", yPos, fontBold, 11);
     
-    const drawCompactKV = (key: string, value: string, x: number, y: number): number => {
-      page.drawText(`${key}:`, { x, y, size: kvFontSize, font: fontBold, color: COLORS.text });
-      page.drawText(sanitizeForPDF(value), { x: x + valueIndent, y, size: kvFontSize, font, color: COLORS.text });
-      return y - rowH;
-    };
-    
-    if (hasPatient) {
-      page.drawText("PATIENT", { x: colLeft, y: yPos, size: 11, font: fontBold, color: COLORS.primaryLight });
+    if (patientData.firstName || patientData.lastName) {
+      yPos = drawKeyValue(page, "Name", [patientData.firstName, patientData.lastName].filter(Boolean).join(" "), yPos, font, fontBold);
     }
-    if (hasDoctor) {
-      page.drawText("BEHANDELNDER ARZT", { x: colRight, y: yPos, size: 11, font: fontBold, color: COLORS.primaryLight });
+    if (patientData.dateOfBirth) {
+      yPos = drawKeyValue(page, "Geburtsdatum", formatDateGerman(patientData.dateOfBirth), yPos, font, fontBold);
     }
-    page.drawLine({
-      start: { x: LAYOUT.margin, y: yPos - 3 },
-      end: { x: LAYOUT.pageWidth - LAYOUT.margin, y: yPos - 3 },
-      thickness: 1.5,
-      color: COLORS.primaryLight,
-    });
-    yPos -= 18;
-    
-    let leftY = yPos;
-    if (hasPatient && patientData) {
-      if (patientData.firstName || patientData.lastName) {
-        leftY = drawCompactKV("Name", [patientData.firstName, patientData.lastName].filter(Boolean).join(" "), colLeft, leftY);
-      }
-      if (patientData.dateOfBirth) {
-        leftY = drawCompactKV("Geb.-Datum", formatDateGerman(patientData.dateOfBirth), colLeft, leftY);
-      }
-      if (patientData.healthInsurance) {
-        leftY = drawCompactKV("Kasse", patientData.healthInsurance, colLeft, leftY);
-      }
-      if (patientData.insuranceNumber) {
-        leftY = drawCompactKV("Vers.-Nr.", patientData.insuranceNumber, colLeft, leftY);
-      }
-      if (patientData.phone) {
-        leftY = drawCompactKV("Telefon", patientData.phone, colLeft, leftY);
-      }
+    if (patientData.healthInsurance) {
+      yPos = drawKeyValue(page, "Krankenkasse", patientData.healthInsurance, yPos, font, fontBold);
+    }
+    if (patientData.insuranceNumber) {
+      yPos = drawKeyValue(page, "Vers.-Nr.", patientData.insuranceNumber, yPos, font, fontBold);
+    }
+    if (patientData.phone) {
+      yPos = drawKeyValue(page, "Telefon", patientData.phone, yPos, font, fontBold);
+    }
+    if (patientData.street || patientData.postalCode || patientData.city) {
+      const address = [patientData.street, `${patientData.postalCode || ''} ${patientData.city || ''}`.trim()].filter(Boolean).join(", ");
+      yPos = drawKeyValue(page, "Adresse", address, yPos, font, fontBold);
     }
     
-    let rightY = yPos;
-    if (hasDoctor && doctors) {
-      const doctor = doctors[0];
-      if (doctor.firstName || doctor.lastName) {
-        const name = [doctor.firstName, doctor.lastName].filter(Boolean).join(" ");
-        const nameWithSpecialty = doctor.specialty ? `${name} (${doctor.specialty})` : name;
-        rightY = drawCompactKV("Name", nameWithSpecialty, colRight, rightY);
-      }
-      if (doctor.street || doctor.postalCode || doctor.city) {
-        const address = [doctor.street, `${doctor.postalCode || ''} ${doctor.city || ''}`.trim()].filter(Boolean).join(", ");
-        rightY = drawCompactKV("Praxis", address, colRight, rightY);
-      }
-      if (doctor.phone) {
-        rightY = drawCompactKV("Telefon", doctor.phone, colRight, rightY);
-      }
-      if (doctor.email) {
-        rightY = drawCompactKV("E-Mail", doctor.email, colRight, rightY);
-      }
+    yPos -= LAYOUT.sectionGap;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // BEHANDELNDER ARZT (eigener Block, untereinander)
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  if (hasDoctor && doctors) {
+    yPos = drawSectionHeader(page, "BEHANDELNDER ARZT", yPos, fontBold, 11);
+    
+    const doctor = doctors[0];
+    if (doctor.firstName || doctor.lastName) {
+      const name = [doctor.firstName, doctor.lastName].filter(Boolean).join(" ");
+      yPos = drawKeyValue(page, "Name", name, yPos, font, fontBold);
+    }
+    if (doctor.specialty) {
+      yPos = drawKeyValue(page, "Fachrichtung", doctor.specialty, yPos, font, fontBold);
+    }
+    if (doctor.street || doctor.postalCode || doctor.city) {
+      const address = [doctor.street, `${doctor.postalCode || ''} ${doctor.city || ''}`.trim()].filter(Boolean).join(", ");
+      yPos = drawKeyValue(page, "Praxis", address, yPos, font, fontBold);
+    }
+    if (doctor.phone) {
+      yPos = drawKeyValue(page, "Telefon", doctor.phone, yPos, font, fontBold);
+    }
+    if (doctor.email) {
+      yPos = drawKeyValue(page, "E-Mail", doctor.email, yPos, font, fontBold);
     }
     
-    yPos = Math.min(leftY, rightY) - 10;
+    yPos -= LAYOUT.sectionGap;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1124,7 +1112,12 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   // ═══════════════════════════════════════════════════════════════════════════
   
   if (medicationStats && medicationStats.length > 0) {
-    const spaceCheck = ensureSpace(pdfDoc, page, yPos, 180);
+    // Estimate required space: header (30) + table header (25) + rows (15 each) + triptan summary (15) + padding (20)
+    const hasTriptanSummary = medicationStats.filter(s => isTriptan(s.name)).length > 1;
+    const medRowCount = Math.min(medicationStats.length, 8);
+    const estimatedMedSpace = 30 + 25 + medRowCount * 15 + (hasTriptanSummary ? 15 : 0) + 20;
+    
+    const spaceCheck = ensureSpace(pdfDoc, page, yPos, estimatedMedSpace);
     page = spaceCheck.page;
     yPos = spaceCheck.yPos;
     
@@ -1780,6 +1773,122 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     }
     
     yPos -= LAYOUT.sectionGap;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 7. SCHMERZVERTEILUNG NACH UHRZEIT (neue Seite am Ende)
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  {
+    // Aggregate pain entries by hour of day
+    const hourCounts = new Array(24).fill(0);
+    let hasTimeData = false;
+    
+    entries.forEach(entry => {
+      if (!entry.pain_level || entry.pain_level === 'keine') return;
+      const time = entry.selected_time || (entry.timestamp_created ? new Date(entry.timestamp_created).toTimeString().slice(0, 5) : null);
+      if (time) {
+        const hour = parseInt(time.split(':')[0], 10);
+        if (!isNaN(hour) && hour >= 0 && hour < 24) {
+          hourCounts[hour]++;
+          hasTimeData = true;
+        }
+      }
+    });
+    
+    if (hasTimeData) {
+      // Always new page
+      page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
+      yPos = LAYOUT.pageHeight - LAYOUT.margin;
+      
+      yPos = drawSectionHeader(page, "SCHMERZVERTEILUNG NACH UHRZEIT", yPos, fontBold, 13);
+      
+      page.drawText(`Zeitraum: ${formatDateGerman(from)} - ${formatDateGerman(to)}`, {
+        x: LAYOUT.margin, y: yPos, size: 9, font, color: COLORS.textLight,
+      });
+      yPos -= 30;
+      
+      // Bar chart dimensions
+      const chartX = LAYOUT.margin + 40;
+      const chartWidth = LAYOUT.pageWidth - 2 * LAYOUT.margin - 50;
+      const chartHeight = 200;
+      const chartBottom = yPos - chartHeight;
+      const maxCount = Math.max(...hourCounts, 1);
+      const barWidth = chartWidth / 24 - 2;
+      
+      // Y-axis grid lines and labels
+      const ySteps = Math.min(maxCount, 5);
+      for (let i = 0; i <= ySteps; i++) {
+        const val = Math.round((maxCount / ySteps) * i);
+        const lineY = chartBottom + (i / ySteps) * chartHeight;
+        
+        page.drawLine({
+          start: { x: chartX, y: lineY },
+          end: { x: chartX + chartWidth, y: lineY },
+          thickness: 0.3,
+          color: COLORS.gridLine,
+        });
+        
+        page.drawText(String(val), {
+          x: chartX - 20, y: lineY - 3, size: 7, font, color: COLORS.textLight,
+        });
+      }
+      
+      // Y-axis label
+      page.drawText("Episoden", {
+        x: LAYOUT.margin, y: chartBottom + chartHeight / 2, size: 8, font, color: COLORS.textLight,
+      });
+      
+      // Bars
+      for (let h = 0; h < 24; h++) {
+        const barX = chartX + h * (chartWidth / 24) + 1;
+        const barHeight = maxCount > 0 ? (hourCounts[h] / maxCount) * chartHeight : 0;
+        
+        if (barHeight > 0) {
+          page.drawRectangle({
+            x: barX,
+            y: chartBottom,
+            width: barWidth,
+            height: barHeight,
+            color: COLORS.primary,
+          });
+        }
+        
+        // X-axis label (every 2 hours for readability, always show 0, 6, 12, 18)
+        if (h % 2 === 0) {
+          page.drawText(`${h.toString().padStart(2, '0')}h`, {
+            x: barX + barWidth / 2 - 8,
+            y: chartBottom - 14,
+            size: 7,
+            font,
+            color: COLORS.text,
+          });
+        }
+      }
+      
+      // Bottom axis line
+      page.drawLine({
+        start: { x: chartX, y: chartBottom },
+        end: { x: chartX + chartWidth, y: chartBottom },
+        thickness: 1,
+        color: COLORS.border,
+      });
+      
+      // Left axis line
+      page.drawLine({
+        start: { x: chartX, y: chartBottom },
+        end: { x: chartX, y: chartBottom + chartHeight },
+        thickness: 1,
+        color: COLORS.border,
+      });
+      
+      yPos = chartBottom - 30;
+      
+      // Note
+      page.drawText("Hinweis: Darstellung basiert auf dokumentierten Schmerzeinträgen mit Uhrzeitangabe.", {
+        x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight,
+      });
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
