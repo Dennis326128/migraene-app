@@ -20,13 +20,16 @@ export function useUpsertSymptomBurden() {
   });
 }
 
-/** Burden weight mapping for impact score calculation */
+/**
+ * 3-state burden system:
+ * 0 = neutral (default)
+ * 1 = Belastend
+ * 2 = Besonders belastend (max 3 allowed)
+ */
 export const BURDEN_WEIGHTS: Record<number, number> = {
-  0: 0.25,
-  1: 0.5,
-  2: 0.75,
-  3: 1.0,
-  4: 1.25,
+  0: 1.0,
+  1: 1.2,
+  2: 1.5,
 };
 
 /** Get burden weight; null/undefined burden = neutral 1.0 */
@@ -37,9 +40,23 @@ export function getBurdenWeight(burdenLevel: number | null | undefined): number 
 
 /** Burden level labels (DE) */
 export const BURDEN_LABELS: Record<number, string> = {
-  0: "kaum störend",
-  1: "störend",
-  2: "stark belastend",
-  3: "sehr belastend",
-  4: "schlimmstes Symptom",
+  0: "Neutral",
+  1: "Belastend",
+  2: "Besonders belastend",
 };
+
+/** Max number of symptoms that can be "Besonders belastend" */
+export const MAX_BESONDERS_BELASTEND = 3;
+
+/** Clinical priority order for burden screen */
+export const BURDEN_SYMPTOM_ORDER = [
+  "Lichtempfindlichkeit",
+  "Geräuschempfindlichkeit",
+  "Übelkeit",
+  "Geruchsempfindlichkeit",
+  "Aura",
+  "Wortfindungsstörung",
+  "Konzentrationsstörung",
+  "Gleichgewichtsstörung",
+  "Doppelbilder",
+];
