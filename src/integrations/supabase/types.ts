@@ -771,6 +771,8 @@ export type Database = {
           id: number
           latitude: number | null
           longitude: number | null
+          me_cfs_severity_level: string
+          me_cfs_severity_score: number
           medication_ids: string[] | null
           medications: string[] | null
           notes: string | null
@@ -791,6 +793,8 @@ export type Database = {
           id?: number
           latitude?: number | null
           longitude?: number | null
+          me_cfs_severity_level?: string
+          me_cfs_severity_score?: number
           medication_ids?: string[] | null
           medications?: string[] | null
           notes?: string | null
@@ -811,6 +815,8 @@ export type Database = {
           id?: number
           latitude?: number | null
           longitude?: number | null
+          me_cfs_severity_level?: string
+          me_cfs_severity_score?: number
           medication_ids?: string[] | null
           medications?: string[] | null
           notes?: string | null
@@ -1936,6 +1942,8 @@ export type Database = {
           id: number
           latitude: number | null
           longitude: number | null
+          me_cfs_severity_level: string
+          me_cfs_severity_score: number
           medication_ids: string[] | null
           medications: string[] | null
           notes: string | null

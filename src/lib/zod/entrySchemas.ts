@@ -106,6 +106,8 @@ export const entryFormSchema = z.object({
   longitude: z.number().min(-180).max(180).nullable().optional(),
   weather_id: z.number().int().nullable().optional(),
   entry_kind: z.enum(['pain', 'lifestyle', 'trigger', 'voice', 'note']).optional(),
+  me_cfs_severity_score: z.number().int().min(0).max(10).optional().default(0),
+  me_cfs_severity_level: z.enum(['none', 'mild', 'moderate', 'severe']).optional().default('none'),
 });
 
 export type EntryFormData = z.infer<typeof entryFormSchema>;

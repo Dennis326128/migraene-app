@@ -22,6 +22,8 @@ import { useEntryIntakes, useSyncIntakes } from "@/features/medication-intakes/h
 import { PainSlider } from "@/components/ui/pain-slider";
 import { normalizePainLevel } from "@/lib/utils/pain";
 import { ContextInputField } from "./ContextInputField";
+import { MeCfsSeveritySelector } from "./MeCfsSeveritySelector";
+import { type MeCfsSeverityLevel, scoreToLevel } from "@/lib/mecfs/constants";
 import { MedicationDoseList } from "./MedicationDose";
 import { DEFAULT_DOSE_QUARTERS } from "@/lib/utils/doseFormatter";
 import { devLog, devWarn } from "@/lib/utils/devLogger";
@@ -98,6 +100,8 @@ export const NewEntry = ({
   const [saving, setSaving] = useState(false);
   const [notes, setNotes] = useState<string>("");
   const [contextText, setContextText] = useState<string>("");
+  const [meCfsScore, setMeCfsScore] = useState<number>(0);
+  const [meCfsLevel, setMeCfsLevel] = useState<MeCfsSeverityLevel>('none');
 
   // Symptoms tracking state (for DB persistence)
   // Use a ref to always have the latest value available in handleSave (avoids stale closure)
@@ -196,6 +200,9 @@ export const NewEntry = ({
       setSelectedDate(entry.selected_date || new Date().toISOString().slice(0, 10));
       setSelectedTime(entry.selected_time?.substring(0, 5) || new Date().toTimeString().slice(0, 5));
       setNotes(entry.notes || "");
+      // Load ME/CFS values
+      setMeCfsScore((entry as any).me_cfs_severity_score ?? 0);
+      setMeCfsLevel(((entry as any).me_cfs_severity_level as MeCfsSeverityLevel) || scoreToLevel((entry as any).me_cfs_severity_score ?? 0));
     } else {
       // New entry - apply voice prefill or defaults
       const now = new Date();
@@ -466,6 +473,8 @@ export const NewEntry = ({
         entry_kind: 'pain' as const,
         symptoms_source: symptomsSource,
         symptoms_state: symptomsStateRef.current,
+        me_cfs_severity_score: meCfsScore,
+        me_cfs_severity_level: meCfsLevel,
       };
 
       devLog('Final payload', { context: 'NewEntry', data: payload });
@@ -898,6 +907,16 @@ export const NewEntry = ({
           disabled={saving}
         />
       </Card>
+
+      {/* ME/CFS-Symptomatik */}
+      <MeCfsSeveritySelector
+        value={meCfsScore}
+        onValueChange={(score, level) => {
+          setMeCfsScore(score);
+          setMeCfsLevel(level);
+        }}
+        disabled={saving}
+      />
 
       {/* Aktions-Buttons */}
       <div className="flex gap-3 mt-4">
