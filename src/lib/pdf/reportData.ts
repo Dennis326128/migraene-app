@@ -301,21 +301,26 @@ export function buildReportData(params: BuildReportDataParams): ReportData {
   const acuteMedicationStats: AcuteMedicationStat[] = Array.from(medStats.entries())
     .map(([name, data]) => {
       const avgPerMonth = Math.round((data.totalUnits / monthsEquivalent) * 10) / 10;
+      const totalUnitsInRange = Math.round(data.totalUnits * 10) / 10;
       const avgEffectiveness = data.effectScores.length > 0
         ? Math.round((data.effectScores.reduce((a, b) => a + b, 0) / data.effectScores.length) * 10) / 10
         : null;
       
+      // DEFENSIVE GUARD: ratedCount darf nie > totalUnitsInRange sein
+      const rawRatedCount = data.effectScores.length;
+      const ratedCount = Math.min(rawRatedCount, Math.floor(totalUnitsInRange));
+      
       return {
         name,
-        totalUnitsInRange: Math.round(data.totalUnits * 10) / 10,
+        totalUnitsInRange,
         avgPerMonth,
         last30Units: Math.round(data.last30Units * 10) / 10,
         avgEffectiveness,
-        ratedCount: data.effectScores.length,
+        ratedCount,
         isTriptan: isTriptanMedication(name)
       };
     })
-    .sort((a, b) => b.last30Units - a.last30Units || b.totalUnitsInRange - a.totalUnitsInRange)
+    .sort((a, b) => b.totalUnitsInRange - a.totalUnitsInRange || b.last30Units - a.last30Units || a.name.localeCompare(b.name, 'de'))
     .slice(0, 5); // Top 5
   
   // ═══════════════════════════════════════════════════════════════════════════
