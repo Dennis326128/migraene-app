@@ -1098,21 +1098,6 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
         fontBold,
       });
 
-      yPos -= 10;
-      
-      // KURZFAZIT (nur wenn noch Platz auf Seite 1)
-      if (yPos > LAYOUT.margin + 40) {
-        page.drawLine({
-          start: { x: LAYOUT.margin, y: yPos },
-          end: { x: LAYOUT.pageWidth - LAYOUT.margin, y: yPos },
-          thickness: 0.5, color: COLORS.border,
-        });
-        yPos -= 12;
-        const fazitText = `Kurzfazit: ${formatGermanDecimal(painDaysPerMonth, 1)} Schmerztage/Monat · ${formatGermanDecimal(triptanPerMonth, 1)} Triptane/Monat · Ø Intensität ${formatGermanDecimal(avgIntensity, 1)}/10`;
-        page.drawText(fazitText, { x: LAYOUT.margin, y: yPos, size: 9, font: fontBold, color: COLORS.text });
-        yPos -= 8;
-      }
-      
       yPos -= LAYOUT.sectionGap;
     }
   }
