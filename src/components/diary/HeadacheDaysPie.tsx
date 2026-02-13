@@ -8,6 +8,8 @@ interface HeadacheDaysPieProps {
   triptanDays: number;
   showPercent?: boolean;
   compact?: boolean;
+  /** Render at larger size for fullscreen views */
+  fullscreen?: boolean;
 }
 
 interface SliceData {
@@ -56,6 +58,7 @@ export const HeadacheDaysPie: React.FC<HeadacheDaysPieProps> = ({
   triptanDays,
   showPercent = true,
   compact = false,
+  fullscreen = false,
 }) => {
   const slices = useMemo<SliceData[]>(() => {
     const all: SliceData[] = [
@@ -81,11 +84,15 @@ export const HeadacheDaysPie: React.FC<HeadacheDaysPieProps> = ({
     });
   }, [activeSlices, totalDays]);
 
-  const size = compact ? 100 : 120;
+  const size = fullscreen ? 220 : compact ? 100 : 120;
+  const fontSize = fullscreen ? 'text-base' : compact ? 'text-xs' : 'text-sm';
+  const swatchSize = fullscreen ? 14 : compact ? 10 : 12;
+  const centerFontSize = fullscreen ? 28 : 18;
+  const centerSubFontSize = fullscreen ? 13 : 10;
   const pct = (v: number) => totalDays > 0 ? Math.round((v / totalDays) * 1000) / 10 : 0;
 
   return (
-    <div className={`flex ${compact ? 'flex-row items-center gap-3' : 'flex-col sm:flex-row items-center sm:items-center gap-4'}`}>
+    <div className={`flex ${fullscreen ? 'flex-col sm:flex-row items-center gap-8' : compact ? 'flex-row items-center gap-3' : 'flex-col sm:flex-row items-center sm:items-center gap-4'}`}>
       {/* SVG Pie Chart */}
       <div className="relative shrink-0" style={{ width: size, height: size }}>
         <svg viewBox="0 0 120 120" width={size} height={size}>
@@ -99,17 +106,17 @@ export const HeadacheDaysPie: React.FC<HeadacheDaysPieProps> = ({
           {/* White center circle for donut effect */}
           <circle cx="60" cy="60" r="32" fill="hsl(var(--card))" />
           {/* Center text */}
-          <text x="60" y="56" textAnchor="middle" className="fill-foreground" fontSize="18" fontWeight="bold">
+          <text x="60" y={fullscreen ? 55 : 56} textAnchor="middle" className="fill-foreground" fontSize={centerFontSize} fontWeight="bold">
             {totalDays}
           </text>
-          <text x="60" y="72" textAnchor="middle" className="fill-muted-foreground" fontSize="10">
+          <text x="60" y={fullscreen ? 73 : 72} textAnchor="middle" className="fill-muted-foreground" fontSize={centerSubFontSize}>
             Tage
           </text>
         </svg>
       </div>
 
       {/* Legend */}
-      <div className={`flex flex-col gap-1.5 ${compact ? 'text-xs' : 'text-sm'}`}>
+      <div className={`flex flex-col gap-1.5 ${fontSize}`}>
         {slices.map(slice => {
           const isZero = slice.value === 0;
           return (
@@ -120,8 +127,8 @@ export const HeadacheDaysPie: React.FC<HeadacheDaysPieProps> = ({
               <span
                 className="inline-block shrink-0 rounded-sm"
                 style={{
-                  width: compact ? 10 : 12,
-                  height: compact ? 10 : 12,
+                  width: swatchSize,
+                  height: swatchSize,
                   backgroundColor: slice.color,
                 }}
               />
