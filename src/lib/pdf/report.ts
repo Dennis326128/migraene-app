@@ -25,6 +25,9 @@ import { PDFDocument, StandardFonts, rgb, PDFPage, PDFFont } from "pdf-lib";
 import type { PainEntry, MedicationIntakeInfo } from "@/types/painApp";
 import { formatDoseFromQuarters, DEFAULT_DOSE_QUARTERS } from "@/lib/utils/doseFormatter";
 import { formatPainLocation } from "@/lib/utils/pain";
+import { isTriptan } from "@/lib/medications/isTriptan";
+import { computeDiaryDayBuckets } from "@/lib/diary/dayBuckets";
+import { drawPieChartWithLegend } from "@/lib/pdf/pieChart";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES & CONSTANTS
@@ -856,16 +859,7 @@ function drawTableRow(
   return { yPos: yPos - 3, page, rowHeight };
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// TRIPTAN DETECTION
-// ═══════════════════════════════════════════════════════════════════════════
-
-function isTriptan(name: string): boolean {
-  const lower = name.toLowerCase();
-  if (lower.includes('triptan')) return true;
-  const triptanBrands = ['imigran', 'maxalt', 'ascotop', 'naramig', 'almogran', 'relpax', 'allegro'];
-  return triptanBrands.some(brand => lower.includes(brand));
-}
+// isTriptan importiert aus @/lib/medications/isTriptan (Single Source of Truth)
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MAIN PDF BUILDER FUNCTION
@@ -1151,7 +1145,41 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       color: COLORS.textLight,
     });
     
-    yPos -= kpiBoxHeight + LAYOUT.sectionGap;
+    yPos -= kpiBoxHeight + 10;
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // PIE CHART: Tagesverteilung (Schmerzfrei / Schmerz / Triptan)
+    // ═══════════════════════════════════════════════════════════════════════
+    {
+      const buckets = computeDiaryDayBuckets({
+        startDate: from,
+        endDate: to,
+        entries: entries.map(e => ({
+          selected_date: e.selected_date,
+          timestamp_created: e.timestamp_created,
+          pain_level: e.pain_level,
+          medications: e.medications,
+        })),
+      });
+
+      const pieSpaceCheck = ensureSpace(pdfDoc, page, yPos, 130);
+      page = pieSpaceCheck.page;
+      yPos = pieSpaceCheck.yPos;
+
+      yPos = drawPieChartWithLegend(page, {
+        x: LAYOUT.margin,
+        y: yPos,
+        radius: 45,
+        totalDays: buckets.totalDays,
+        painFreeDays: buckets.painFreeDays,
+        painDaysNoTriptan: buckets.painDaysNoTriptan,
+        triptanDays: buckets.triptanDays,
+        font,
+        fontBold,
+      });
+
+      yPos -= LAYOUT.sectionGap;
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

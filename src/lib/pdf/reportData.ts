@@ -15,7 +15,8 @@
 
 import type { PainEntry, MedicationIntakeInfo } from "@/types/painApp";
 import { parseISO, startOfDay, endOfDay, isWithinInterval, subDays, differenceInDays } from "date-fns";
-import { isTriptanMedication, MEDICATION_THRESHOLDS } from "./reportStructure";
+import { isTriptan as isTriptanMedication } from "@/lib/medications/isTriptan";
+import { MEDICATION_THRESHOLDS } from "./reportStructure";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES

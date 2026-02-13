@@ -280,15 +280,5 @@ export const PAIN_LEVEL_MAP: Record<string, { value: number; label: string }> = 
   'sehr_stark': { value: 9, label: 'Sehr stark' },
 };
 
-export const TRIPTAN_KEYWORDS = [
-  'triptan', 'almotriptan', 'eletriptan', 'frovatriptan',
-  'naratriptan', 'rizatriptan', 'sumatriptan', 'zolmitriptan',
-  'suma', 'riza', 'zolmi', 'nara', 'almo', 'ele', 'frova',
-  'imigran', 'maxalt', 'ascotop', 'naramig', 'almogran',
-  'relpax', 'allegro', 'dolotriptan', 'formigran'
-];
-
-export function isTriptan(medName: string): boolean {
-  const lower = medName.toLowerCase();
-  return TRIPTAN_KEYWORDS.some(kw => lower.includes(kw));
-}
+// Re-export isTriptan from Single Source of Truth
+export { isTriptan } from "@/lib/medications/isTriptan";
