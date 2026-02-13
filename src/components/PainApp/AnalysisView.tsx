@@ -103,6 +103,7 @@ export function AnalysisView({ onBack, onNavigateToLimits, onViewAIReport }: Ana
   const [viewMode, setViewMode] = useState<"statistik" | "ki-analyse">("statistik");
 
   // Fullscreen modals
+  const [pieFullscreen, setPieFullscreen] = useState(false);
   const [timeDistributionFullscreen, setTimeDistributionFullscreen] = useState(false);
   const [timeSeriesFullscreen, setTimeSeriesFullscreen] = useState(false);
 
@@ -307,8 +308,13 @@ export function AnalysisView({ onBack, onNavigateToLimits, onViewAIReport }: Ana
               <div className="space-y-6">
                 {/* 1. Kopfschmerz- & Behandlungstage (Kreisdiagramm) */}
                 <Card className="p-4">
-                  <h3 className="text-sm font-semibold text-foreground mb-1">Kopfschmerz- & Behandlungstage</h3>
-                  <p className="text-xs text-muted-foreground mb-3">Verteilung der Tage im gewählten Zeitraum</p>
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <h3 className="text-sm font-semibold text-foreground mb-1">Kopfschmerz- & Behandlungstage</h3>
+                      <p className="text-xs text-muted-foreground">Verteilung der Tage im gewählten Zeitraum</p>
+                    </div>
+                    <FullscreenChartButton onClick={() => setPieFullscreen(true)} />
+                  </div>
                   <HeadacheDaysPie
                     totalDays={dayBuckets.totalDays}
                     painFreeDays={dayBuckets.painFreeDays}
@@ -394,6 +400,23 @@ export function AnalysisView({ onBack, onNavigateToLimits, onViewAIReport }: Ana
       </div>
 
       {/* Fullscreen Modals */}
+      <FullscreenChartModal
+        open={pieFullscreen}
+        onOpenChange={setPieFullscreen}
+        title="Kopfschmerz- & Behandlungstage"
+        timeRange={timeRange}
+        onTimeRangeChange={handleTimeRangeChange}
+      >
+        <div className="flex items-center justify-center h-full">
+          <HeadacheDaysPie
+            totalDays={dayBuckets.totalDays}
+            painFreeDays={dayBuckets.painFreeDays}
+            painDaysNoTriptan={dayBuckets.painDaysNoTriptan}
+            triptanDays={dayBuckets.triptanDays}
+          />
+        </div>
+      </FullscreenChartModal>
+
       <FullscreenChartModal
         open={timeDistributionFullscreen}
         onOpenChange={setTimeDistributionFullscreen}
