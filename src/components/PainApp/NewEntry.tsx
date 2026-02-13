@@ -100,8 +100,11 @@ export const NewEntry = ({
   const [contextText, setContextText] = useState<string>("");
 
   // Symptoms tracking state (for DB persistence)
+  // Use a ref to always have the latest value available in handleSave (avoids stale closure)
   const [symptomsSource, setSymptomsSource] = useState<'copied_from_previous' | 'user_selected' | 'unknown'>('unknown');
   const [symptomsState, setSymptomsState] = useState<'untouched' | 'viewed' | 'edited'>('untouched');
+  const symptomsStateRef = useRef(symptomsState);
+  symptomsStateRef.current = symptomsState;
 
   // Collapsible states (stored in localStorage)
   const [painLocationOpen, setPainLocationOpen] = useState(() => {
@@ -110,7 +113,7 @@ export const NewEntry = ({
   });
   const [symptomsOpen, setSymptomsOpen] = useState(() => {
     const stored = localStorage.getItem('newEntry_symptomsOpen');
-    return stored !== null ? stored === 'true' : true;
+    return stored !== null ? stored === 'true' : false; // default closed so user must open → triggers 'viewed'
   });
 
   // Save collapsible states to localStorage
@@ -454,7 +457,7 @@ export const NewEntry = ({
         longitude,
         entry_kind: 'pain' as const,
         symptoms_source: symptomsSource,
-        symptoms_state: symptomsState,
+        symptoms_state: symptomsStateRef.current,
       };
 
       devLog('Final payload', { context: 'NewEntry', data: payload });

@@ -32,6 +32,9 @@ export interface MigraineEntry {
   weather?: WeatherData;
   latitude?: number | null;
   longitude?: number | null;
+  entry_kind?: string;
+  symptoms_state?: string;
+  symptoms_source?: string;
 }
 
 // Backward compatibility
