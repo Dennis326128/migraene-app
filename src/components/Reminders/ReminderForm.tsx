@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useIsMobile } from '@/hooks/use-mobile';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import { SaveButton } from '@/components/ui/save-button';
@@ -541,10 +542,12 @@ export const ReminderForm = ({ reminder, groupedReminders, prefill, onSubmit, on
     });
   };
 
+  const isMobile = useIsMobile();
+
   return (
-    <div className="px-3 sm:px-4 py-4 sm:py-6 pb-safe">
+    <div className={isMobile ? "min-h-screen bg-background flex flex-col" : "px-3 sm:px-4 py-4 sm:py-6 pb-safe"}>
       {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
+      <div className={isMobile ? "flex items-center gap-3 p-4 sticky top-0 z-10 bg-background border-b border-border" : "flex items-center gap-3 mb-6"}>
         <Button
           type="button"
           variant="ghost"
@@ -555,12 +558,13 @@ export const ReminderForm = ({ reminder, groupedReminders, prefill, onSubmit, on
           <ArrowLeft className="h-5 w-5" />
         </Button>
         
-        <h1 className="text-2xl font-bold text-foreground">
+        <h1 className={isMobile ? "text-xl font-bold text-foreground" : "text-2xl font-bold text-foreground"}>
           {isEditing ? 'Erinnerung bearbeiten' : prefill ? 'Folgetermin anlegen' : 'Neue Erinnerung'}
         </h1>
       </div>
 
-      <Card className="p-4 sm:p-6 max-h-[75vh] overflow-y-auto modern-scrollbar">
+      <div className={isMobile ? "flex-1 overflow-y-auto px-4 pt-4 pb-32" : ""}>
+      <Card className={isMobile ? "p-4 border-0 shadow-none bg-transparent" : "p-4 sm:p-6 max-h-[75vh] overflow-y-auto modern-scrollbar"}>
         <form onSubmit={handleSubmit(onFormSubmitGuarded)} className="space-y-5">
           
           {/* 1️⃣ TYPE SELECTION */}
@@ -661,50 +665,55 @@ export const ReminderForm = ({ reminder, groupedReminders, prefill, onSubmit, on
             <div className="space-y-3 p-4 bg-muted/30 rounded-lg">
               <Label className="text-base font-medium">Tageszeit</Label>
               
-              <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-2">
                 {TIME_PRESETS.map((preset) => {
                   const isSelected = selectedTimeOfDay.includes(preset.id);
-                  const isEditingTime = editingTimeOfDay === preset.id;
                   
                   return (
-                    <button
+                    <div
                       key={preset.id}
-                      type="button"
-                      onClick={() => toggleTimeOfDay(preset.id)}
-                      className={`flex items-center gap-2 px-3 py-3 rounded-lg text-sm font-medium transition-all touch-manipulation ${
+                      className={`flex items-center rounded-lg transition-all ${
                         isSelected
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-muted/50 text-foreground hover:bg-muted'
+                          ? 'bg-primary/15 ring-1 ring-primary/30'
+                          : 'bg-muted/50'
                       }`}
                     >
-                      {preset.icon}
-                      <span>{preset.label}</span>
-                      {/* Inline time display — only when selected */}
+                      {/* Left: toggle area */}
+                      <button
+                        type="button"
+                        onClick={() => toggleTimeOfDay(preset.id)}
+                        className="flex items-center gap-3 flex-1 min-h-[52px] px-4 py-3 rounded-l-lg touch-manipulation"
+                      >
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
+                          isSelected ? 'border-primary bg-primary' : 'border-muted-foreground/40'
+                        }`}>
+                          {isSelected && (
+                            <svg className="w-3 h-3 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </div>
+                        <span className={`flex items-center gap-2 text-sm font-medium ${isSelected ? 'text-foreground' : 'text-muted-foreground'}`}>
+                          {preset.icon}
+                          {preset.label}
+                        </span>
+                      </button>
+                      
+                      {/* Right: time picker — separate touch target */}
                       {isSelected && (
-                        <span
-                          className="ml-auto flex items-center gap-1 text-xs opacity-80"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingTimeOfDay(preset.id);
-                          }}
-                        >
-                          <Clock className="h-3 w-3" />
-                          {isEditingTime ? (
-                            <Input
+                        <div className="pr-3 shrink-0">
+                          <label className="relative flex items-center gap-1.5 bg-muted/60 hover:bg-muted rounded-md px-3 min-h-[44px] cursor-pointer touch-manipulation">
+                            <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <input
                               type="time"
                               value={customTimes[preset.id]}
                               onChange={(ev) => updateCustomTime(preset.id, ev.target.value)}
-                              onBlur={() => setEditingTimeOfDay(null)}
-                              onClick={(ev) => ev.stopPropagation()}
-                              autoFocus
-                              className="h-6 w-20 text-xs bg-primary-foreground text-primary px-1 touch-manipulation"
+                              className="bg-transparent text-sm font-medium text-foreground w-[5ch] appearance-none border-none outline-none p-0 touch-manipulation [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer"
                             />
-                          ) : (
-                            customTimes[preset.id]
-                          )}
-                        </span>
+                          </label>
+                        </div>
                       )}
-                    </button>
+                    </div>
                   );
                 })}
               </div>
@@ -961,37 +970,72 @@ export const ReminderForm = ({ reminder, groupedReminders, prefill, onSubmit, on
             </div>
           )}
 
-          {/* Action buttons */}
-          <div className="flex gap-3 pt-4 items-center">
-            {isEditing && onDelete && (
+          {/* Action buttons — desktop inline, mobile sticky footer */}
+          {!isMobile && (
+            <div className="flex gap-3 pt-4 items-center">
+              {isEditing && onDelete && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={onDelete}
+                  className="mr-auto text-destructive hover:text-destructive hover:bg-destructive/10"
+                >
+                  Löschen
+                </Button>
+              )}
               <Button
                 type="button"
-                variant="ghost"
-                size="sm"
-                onClick={onDelete}
-                className="mr-auto text-destructive hover:text-destructive hover:bg-destructive/10"
+                variant="outline"
+                onClick={onCancel}
+                disabled={isSubmitting}
+                className="touch-manipulation min-h-11"
               >
-                Löschen
+                Abbrechen
               </Button>
-            )}
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onCancel}
-              disabled={isSubmitting}
-              className="touch-manipulation min-h-11"
-            >
-              Abbrechen
-            </Button>
-            <SaveButton
-              type="submit"
-              loading={isSubmitting}
-              disabled={!canSubmit}
-              className="touch-manipulation min-h-11 min-w-[120px]"
-            />
-          </div>
+              <SaveButton
+                type="submit"
+                loading={isSubmitting}
+                disabled={!canSubmit}
+                className="touch-manipulation min-h-11 min-w-[120px]"
+              />
+            </div>
+          )}
         </form>
       </Card>
+      </div>
+
+      {/* Mobile sticky footer */}
+      {isMobile && (
+        <div className="fixed bottom-0 left-0 right-0 z-20 bg-background border-t border-border p-4 pb-safe flex items-center gap-3">
+          {isEditing && onDelete && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={onDelete}
+              className="mr-auto text-destructive hover:text-destructive hover:bg-destructive/10 min-h-11"
+            >
+              Löschen
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onCancel}
+            disabled={isSubmitting}
+            className="touch-manipulation min-h-12 flex-1"
+          >
+            Abbrechen
+          </Button>
+          <SaveButton
+            loading={isSubmitting}
+            disabled={!canSubmit}
+            className="touch-manipulation min-h-12 flex-1"
+            onClick={handleSubmit(onFormSubmitGuarded)}
+          />
+        </div>
+      )}
 
       {/* Friendly hint dialog when no medication selected */}
       <AlertDialog open={showMedHintDialog} onOpenChange={setShowMedHintDialog}>
