@@ -17,6 +17,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { FullscreenChartModal, FullscreenChartButton } from "./FullscreenChartModal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { subMonths, startOfDay, endOfDay } from "date-fns";
+import { computeDateRange } from "@/lib/dateRange";
 import { useUserDefaults } from "@/features/settings/hooks/useUserSettings";
 
 // Session storage keys
@@ -130,43 +131,11 @@ export function AnalysisView({ onBack, onNavigateToLimits, onViewAIReport }: Ana
   }, [timeRange]);
 
   const { from, to } = useMemo(() => {
-    const now = new Date();
-    const today = now.toISOString().split('T')[0];
-    
-    if (timeRange === "custom") {
-      if (customFrom && customTo) {
-        return { from: customFrom, to: customTo };
-      }
-      // Fallback if custom selected but no dates
-      const from = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-      return {
-        from: from.toISOString().split('T')[0],
-        to: today
-      };
-    }
-    
-    // "Alle" Option - vom ersten Eintrag bis heute
-    if (timeRange === "all") {
-      // Falls noch kein firstEntryDate geladen: 5 Jahre zurück als Fallback
-      const fallbackFrom = new Date(now.getFullYear() - 5, now.getMonth(), now.getDate());
-      return {
-        from: firstEntryDate || fallbackFrom.toISOString().split('T')[0],
-        to: today
-      };
-    }
-    
-    // Calculate months based on preset
-    const monthsMap: Record<string, number> = { "1m": 1, "3m": 3, "6m": 6, "12m": 12 };
-    const months = monthsMap[timeRange] || 3;
-    
-    // Use date-fns for robust month calculation
-    const fromDate = startOfDay(subMonths(now, months));
-    const toDate = endOfDay(now);
-    
-    return {
-      from: fromDate.toISOString().split('T')[0],
-      to: toDate.toISOString().split('T')[0]
-    };
+    return computeDateRange(timeRange, {
+      customFrom,
+      customTo,
+      firstEntryDate,
+    });
   }, [timeRange, customFrom, customTo, firstEntryDate]);
 
   // Use the same entries data for consistency
