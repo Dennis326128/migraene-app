@@ -1,148 +1,90 @@
 
 
-## Problem: Veraltete UI wird angezeigt
+# Plan: Korrektur Kuchendiagramm-Logik + Zukunftssicherung
 
-### Diagnose
+## Analyse-Ergebnis (Fakten aus der DB)
 
-Ich habe die Architektur analysiert und **drei kritische Probleme** identifiziert:
+Die Datenbank wurde geprüft:
 
-1. **Build-ID nicht synchron**: Die `build-id.txt` auf der publizierten Seite (`migraene-app.lovable.app`) zeigt `2025-10-14-01`, während der Code auf `2026-02-01-01` aktualisiert wurde. Die Build-ID wird beim Publish nicht automatisch aktualisiert.
+- **336 Eintraege** existieren, **alle** haben ein gesetztes `pain_level` (Werte: 2-10, leicht, mittel, stark, sehr_stark)
+- **0 Eintraege** mit `pain_level = '-'`, `null`, `'0'` oder leer
+- Es gibt **kein separates "Alltag/Ausloser"-Formular**, das Eintraege ohne Schmerz in `pain_entries` speichert
+- Voice-Eintraege haben ebenfalls immer ein `pain_level` gesetzt
+- ContextTagsView extrahiert Tags aus den Notizen bestehender Schmerz-Eintraege
 
-2. **Doppelte Service Worker Registrierung**: 
-   - `vite-plugin-pwa` generiert einen Workbox-SW
-   - `public/sw.js` ist ein manueller SW
-   - `registerOfflineSupport()` in `useOptimizedCache.ts` registriert den manuellen SW
-   - Diese konkurrieren und erzeugen unvorhersehbares Caching
+**Aktuelle Logik ist korrekt fuer die bestehenden Daten.** Das Problem tritt erst auf, wenn zukuenftig Nicht-Schmerz-Eintraege in `pain_entries` gespeichert werden.
 
-3. **Version-Check hat Lücken**:
-   - Check wird nur einmal ausgeführt (`hasCheckedOnce`)
-   - Wenn SW alte Dateien liefert, hilft auch der Check nicht
-   - `SKIP_WAITING` wird nur an den wartenden SW gesendet, aber nicht erzwungen
+## Was wird gemacht
 
----
+### 1. Schema-Erweiterung: `pain_entries.entry_kind`
 
-## Lösung: Aggressives Auto-Update System
-
-### Schritt 1: Einheitlicher Service Worker
-
-Den manuellen `public/sw.js` entfernen und vollständig auf `vite-plugin-pwa` setzen:
+Neues TEXT-Feld `entry_kind` mit Default `'pain'`:
 
 ```text
-Änderungen:
-- public/sw.js löschen (oder umbenennen zu sw.legacy.js)
-- vite.config.ts: registerType auf 'autoUpdate' ändern
-- useOptimizedCache.ts: registerOfflineSupport() entfernen
+Werte: 'pain' | 'lifestyle' | 'trigger' | 'voice' | 'note'
 ```
 
-### Schritt 2: Automatisches Hard-Reload bei neuer Version
+- Migration: `ALTER TABLE pain_entries ADD COLUMN entry_kind text NOT NULL DEFAULT 'pain'`
+- Alle 336 bestehenden Eintraege erhalten automatisch `'pain'` (korrekt, da alle Schmerz-Eintraege sind)
+- Kein Datenverlust, kein Breaking Change
 
-Statt "Prompt" (User muss klicken) wird automatisch neu geladen, sobald keine Sync-Vorgänge laufen:
+### 2. `isPainEntry()` Utility erstellen
+
+Datei: `src/lib/diary/isPainEntry.ts`
 
 ```text
-src/lib/version.ts anpassen:
-- Neuer Mechanismus: checkAndAutoReload()
-- Prüft pending saves via getPendingCount()
-- Wenn 0: Sofort reload
-- Wenn > 0: Warte auf sync-complete, dann reload
-- Fallback: Nach 30s Timeout trotzdem reload mit Warnung
+Logik:
+1. Wenn entry_kind vorhanden: return entry_kind === 'pain'
+2. Fallback (Abwaertskompatibilitaet): pain_level existiert UND pain_level nicht in ['-', '0', '', null]
 ```
 
-### Schritt 3: Service Worker Controller Change Listener
+### 3. `dayBuckets.ts` aktualisieren
 
-Wenn ein neuer SW die Kontrolle übernimmt, sofort neu laden:
+- `classifyDay()` nutzt `isPainEntry(entry)` statt der direkten `pain_level`-Pruefung
+- Ergebnis: Zukuenftige Nicht-Schmerz-Eintraege werden korrekt als GRUEN klassifiziert
 
-```typescript
-// In main.tsx hinzufügen
-navigator.serviceWorker?.addEventListener('controllerchange', () => {
-  window.location.reload();
-});
+### 4. Create-Flows anpassen
+
+Beim Speichern von Eintraegen `entry_kind` setzen:
+
+| Flow | entry_kind |
+|------|-----------|
+| Schmerz-Eintrag (NewEntry) | `'pain'` |
+| Schnell-Eintrag (QuickEntryModal) | `'pain'` |
+| Voice mit Schmerz (entry_type='new_entry') | `'pain'` |
+| Voice ohne Schmerz (entry_type='context_entry') | `'voice'` |
+
+Da aktuell kein separates Alltag/Ausloser-Formular existiert, das in `pain_entries` schreibt, sind nur die bestehenden Flows relevant.
+
+### 5. Zod-Schema erweitern
+
+`EntryPayloadSchema` um optionales `entry_kind` Feld erweitern.
+
+### 6. Keine UI/PDF-Aenderungen noetig
+
+Die Pie-Chart-Komponenten (`HeadacheDaysPie.tsx`, `pieChart.ts`) und die Integration in DiaryReport/DoctorReportView/PDF bleiben unveraendert - sie nutzen bereits `computeDiaryDayBuckets()` als Single Source of Truth.
+
+## Technische Details
+
+### Dateien die erstellt werden:
+- `src/lib/diary/isPainEntry.ts`
+
+### Dateien die geaendert werden:
+- `src/lib/diary/dayBuckets.ts` - `classifyDay()` nutzt `isPainEntry()`
+- `src/lib/zod/schemas.ts` (oder `entrySchemas.ts`) - `entry_kind` Feld hinzufuegen
+- `src/features/entries/api/entries.api.ts` - `entry_kind` im Insert setzen
+- `src/components/PainApp/QuickEntryModal.tsx` - `entry_kind: 'pain'` setzen
+- `src/components/PainApp/NewEntry.tsx` - `entry_kind` bei Voice-Context auf `'voice'` setzen
+
+### DB-Migration:
+```sql
+ALTER TABLE pain_entries 
+ADD COLUMN entry_kind text NOT NULL DEFAULT 'pain';
 ```
 
-### Schritt 4: Aggressiverer Version-Check
+## Auswirkung
 
-```text
-src/lib/version.ts:
-- hasCheckedOnce Variable entfernen
-- Bei JEDEM Tab-Focus checken (kein 5-Min-Cooldown)
-- Bei SW-Update-Event: Sofort forceClearCachesAndReload()
-```
-
-### Schritt 5: PWA Update Banner entfernen
-
-Da wir auf Auto-Update setzen, brauchen wir kein manuelles Banner mehr.
-
----
-
-## Technische Änderungen im Detail
-
-### 1. vite.config.ts
-
-```typescript
-VitePWA({
-  registerType: 'autoUpdate', // War 'prompt'
-  // ...
-  workbox: {
-    skipWaiting: true,    // War false
-    clientsClaim: true,   // War false
-    // ...
-  }
-})
-```
-
-### 2. src/main.tsx
-
-```typescript
-// Am Ende von main.tsx hinzufügen:
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    console.log('🔄 New SW took control, reloading...');
-    window.location.reload();
-  });
-}
-```
-
-### 3. src/lib/version.ts
-
-```typescript
-// Komplett überarbeitete Version:
-// - Entfernt hasCheckedOnce
-// - Prüft pending saves vor Reload
-// - Aggressiverer Check-Rhythmus
-```
-
-### 4. Dateien entfernen/anpassen
-
-```text
-- public/sw.js → löschen (oder zu .bak umbenennen)
-- src/hooks/useOptimizedCache.ts → registerOfflineSupport entfernen
-- src/components/PWA/PWAUpdateBanner.tsx → entfernen (optional)
-```
-
----
-
-## Sicherheitsmaßnahmen
-
-1. **Kein Datenverlust**: Vor Reload wird geprüft, ob pending saves existieren
-2. **Timeout-Fallback**: Nach 30 Sekunden wird auch bei pending saves neu geladen (mit Toast-Warnung)
-3. **Offline-Erkennung**: Wenn offline, kein Reload-Versuch
-
----
-
-## Wichtig: Build-ID Automatisierung
-
-Damit das langfristig funktioniert, sollte die `build-id.txt` bei jedem Publish automatisch aktualisiert werden. Das kann durch einen GitHub Action oder Lovable Webhook geschehen.
-
-Als Sofortmaßnahme: Nach dem Publish die App erneut publishen oder die `build-id.txt` manuell aktualisieren.
-
----
-
-## Zusammenfassung
-
-| Komponente | Vorher | Nachher |
-|------------|--------|---------|
-| SW Registrierung | Doppelt (Workbox + Manual) | Nur Workbox |
-| Update-Modus | Prompt (User klickt) | AutoUpdate |
-| Version-Check | Einmal + 5min Cooldown | Bei jedem Tab-Focus |
-| Reload | Nach User-Klick | Automatisch (wenn safe) |
-| Pending Saves | Nicht berücksichtigt | Geprüft vor Reload |
+- Bestehende Daten: Keine Aenderung (alle 336 Eintraege = `'pain'`, korrekt)
+- Bestehende Pie-Charts: Identische Zahlen wie bisher
+- Zukunft: Wenn Nicht-Schmerz-Eintraege hinzugefuegt werden, werden diese korrekt als GRUEN klassifiziert
 
