@@ -44,20 +44,20 @@ interface SymptomRow {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function computeClinicalNote(freqPct: number, burdenLevel: number | null): string {
-  const isHigh = freqPct >= 40;
-  const isMedium = freqPct >= 15;
+  const isHigh = freqPct >= 70;
+  const isMedium = freqPct >= 40;
   const burdenHigh = burdenLevel !== null && burdenLevel >= 3;
   const burdenSet = burdenLevel !== null && burdenLevel > 0;
 
-  if (isHigh && burdenHigh) return "h\u00E4ufig und stark einschr\u00E4nkend";
-  if (isHigh && burdenSet) return "h\u00E4ufig, moderate Einschr\u00E4nkung";
-  if (isHigh && !burdenSet) return "h\u00E4ufig (Belastung nicht bewertet)";
-  if (isMedium && burdenHigh) return "regelm\u00E4\u00DFig, stark einschr\u00E4nkend";
-  if (!isMedium && burdenHigh) return "selten, aber stark einschr\u00E4nkend";
-  if (isMedium && burdenSet) return "regelm\u00E4\u00DFig dokumentiert";
-  if (isMedium) return "regelm\u00E4\u00DFig (Belastung nicht bewertet)";
+  if (isHigh && burdenHigh) return "h\u00E4ufig mit ausgepr\u00E4gter Beeintr\u00E4chtigung";
+  if (isHigh && burdenSet) return "h\u00E4ufig, klinisch relevant";
+  if (isHigh && !burdenSet) return "H\u00E4ufigkeit dokumentiert, Beeintr\u00E4chtigung nicht bewertet";
+  if (isMedium && burdenHigh) return "regelm\u00E4\u00DFig, klinisch bedeutsam";
+  if (!isMedium && burdenHigh) return "selten, jedoch klinisch bedeutsam";
+  if (isMedium && burdenSet) return "regelm\u00E4\u00DFig, klinisch relevant";
+  if (isMedium) return "H\u00E4ufigkeit dokumentiert, Beeintr\u00E4chtigung nicht bewertet";
   if (burdenSet) return "gelegentlich";
-  return "gelegentlich (Belastung nicht bewertet)";
+  return "H\u00E4ufigkeit dokumentiert, Beeintr\u00E4chtigung nicht bewertet";
 }
 
 export function computeSymptomRows(data: SymptomDataForPdf): {
@@ -181,7 +181,7 @@ export function drawSymptomSection(
   yPos = spaceCheck.yPos;
 
   // ── Section Header ──
-  page.drawText("BEGLEITSYMPTOME (KLINISCHE \u00DCBERSICHT)", {
+  page.drawText("BEGLEITSYMPTOME \u2013 KLINISCHE EINORDNUNG", {
     x: LAYOUT.margin, y: yPos, size: 11, font: fontBold, color: COLORS.primaryLight,
   });
   page.drawLine({
@@ -213,7 +213,7 @@ export function drawSymptomSection(
   // Burden not set hint
   if (!hasBurdenData) {
     page.drawText(
-      "Belastungsbewertung: nicht festgelegt",
+      "Beeintr\u00E4chtigung: nicht festgelegt",
       { x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight }
     );
     yPos -= 11;
@@ -243,7 +243,7 @@ export function drawSymptomSection(
 
   page.drawText("Symptom", { x: cols.symptom, y: yPos - 11, size: 8, font: fontBold, color: COLORS.text });
   page.drawText("H\u00E4ufigkeit", { x: cols.freq, y: yPos - 11, size: 8, font: fontBold, color: COLORS.text });
-  page.drawText("Belastung", { x: cols.burden, y: yPos - 11, size: 8, font: fontBold, color: COLORS.text });
+  page.drawText("Beeintr\u00E4chtigung", { x: cols.burden, y: yPos - 11, size: 8, font: fontBold, color: COLORS.text });
   page.drawText("Einordnung", { x: cols.note, y: yPos - 11, size: 8, font: fontBold, color: COLORS.text });
   yPos -= 26;
 
@@ -256,10 +256,13 @@ export function drawSymptomSection(
     }
 
     page.drawText(sanitize(row.name), {
-      x: cols.symptom, y: yPos, size: 8.5, font, color: COLORS.text,
+      x: cols.symptom, y: yPos, size: 8.5, font: fontBold, color: COLORS.text,
     });
-    page.drawText(`${row.frequencyPercent} %`, {
-      x: cols.freq, y: yPos, size: 8.5, font, color: COLORS.text,
+    // Right-align frequency percentage
+    const freqText = `${row.frequencyPercent} %`;
+    const freqWidth = font.widthOfTextAtSize(freqText, 8.5);
+    page.drawText(freqText, {
+      x: cols.burden - 10 - freqWidth, y: yPos, size: 8.5, font, color: COLORS.text,
     });
     page.drawText(sanitize(row.burdenLabel), {
       x: cols.burden, y: yPos, size: 8.5, font, color: COLORS.text,
@@ -293,7 +296,7 @@ export function drawSymptomSection(
   // ── Footer note ──
   yPos -= 4;
   page.drawText(
-    "H\u00E4ufigkeit basiert auf dokumentierten Attacken; Belastung ist eine patientenseitige Priorisierung zur klinischen Einordnung.",
+    "H\u00E4ufigkeit basiert auf dokumentierten Attacken; Beeintr\u00E4chtigung entspricht patientenseitiger Priorisierung.",
     { x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight }
   );
   yPos -= 10;
@@ -301,7 +304,7 @@ export function drawSymptomSection(
   // Burden hint if no data
   if (!hasBurdenData) {
     page.drawText(
-      "Tipp: Patient kann in Miary die Einschr\u00E4nkung pro Symptom festlegen (Belastung anpassen).",
+      "Tipp: Patient kann in Miary die Beeintr\u00E4chtigung pro Symptom festlegen.",
       { x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight }
     );
     yPos -= 10;
