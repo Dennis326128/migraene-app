@@ -31,12 +31,9 @@ interface AccompanyingSymptomsCardProps {
   symptoms: SymptomStat[];
   totalEpisodes: number;
   episodesWithSymptoms: number;
-  /** Filtered counts (only viewed/edited entries) */
   checkedEpisodes?: number;
   checkedSymptoms?: SymptomStat[];
-  /** Burden data */
   burdenMap?: Map<string, number>;
-  /** Navigate to burden settings */
   onNavigateToBurden?: () => void;
 }
 
@@ -53,7 +50,6 @@ export function AccompanyingSymptomsCard({
   const [checkedOnly, setCheckedOnly] = useState(true);
   const [sortMode, setSortMode] = useState<SortMode>('relevance');
 
-  // Determine which data to use based on filter
   const hasCheckedData = checkedEpisodes !== undefined && checkedSymptoms !== undefined;
   const useChecked = checkedOnly && hasCheckedData;
   
@@ -66,10 +62,16 @@ export function AccompanyingSymptomsCard({
   const documentationRate = totalEpisodes > 0
     ? Math.round((episodesWithSymptoms / totalEpisodes) * 100)
     : 0;
-
   const isLowDocRate = documentationRate < 30;
 
-  // Migränetypische Symptome
+  // Check if any burden is set
+  const hasBurdenSet = useMemo(() => {
+    for (const [, level] of burdenMap) {
+      if (level >= 1) return true;
+    }
+    return false;
+  }, [burdenMap]);
+
   const migraineTypicalPercent = useMemo(() => {
     if (activeBasis === 0) return null;
     const typicalSymptoms = activeSymptoms.filter(s => MIGRAINE_TYPICAL_SYMPTOMS.has(s.name));
@@ -77,32 +79,65 @@ export function AccompanyingSymptomsCard({
     return Math.max(...typicalSymptoms.map(s => s.percentage));
   }, [activeSymptoms, activeBasis]);
 
-  // Sort symptoms
   const sorted = useMemo(() => {
     const list = [...activeSymptoms];
     switch (sortMode) {
       case 'frequency':
         return list.sort((a, b) => b.count - a.count);
-      case 'burden': {
+      case 'burden':
         return list.sort((a, b) => {
           const bA = burdenMap.get(a.name) ?? -1;
           const bB = burdenMap.get(b.name) ?? -1;
           return bB - bA;
         });
-      }
       case 'relevance':
-      default: {
+      default:
         return list.sort((a, b) => {
           const impactA = a.percentage * getBurdenWeight(burdenMap.get(a.name) ?? null);
           const impactB = b.percentage * getBurdenWeight(burdenMap.get(b.name) ?? null);
           return impactB - impactA;
         });
-      }
     }
   }, [activeSymptoms, sortMode, burdenMap]);
 
   const displayed = showAll ? sorted : sorted.slice(0, 8);
   const hasMore = sorted.length > 8;
+
+  // Burden CTA section (reused in multiple places)
+  const burdenCTA = onNavigateToBurden ? (
+    <div className="pt-2 border-t border-border/50 space-y-1.5">
+      {hasBurdenSet ? (
+        <div className="flex items-center justify-between">
+          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Star className="h-3 w-3 text-primary fill-current" />
+            Besonders belastende Symptome markiert
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs text-primary h-7 px-2"
+            onClick={onNavigateToBurden}
+          >
+            Anpassen
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          <p className="text-xs text-muted-foreground">
+            Was davon belastet dich besonders?
+          </p>
+          <Button
+            variant="default"
+            size="sm"
+            onClick={onNavigateToBurden}
+          >
+            <Star className="h-3.5 w-3.5 mr-1" />
+            Belastung festlegen
+          </Button>
+        </div>
+      )}
+    </div>
+  ) : null;
 
   // Empty state: no checked entries
   if (useChecked && activeBasis === 0 && totalEpisodes > 0) {
@@ -126,17 +161,8 @@ export function AccompanyingSymptomsCard({
             >
               Alle Einträge einbeziehen
             </Button>
-            {onNavigateToBurden && (
-              <Button
-                variant="default"
-                size="sm"
-                onClick={onNavigateToBurden}
-              >
-                <Settings2 className="h-3.5 w-3.5 mr-1" />
-                Belastung anpassen
-              </Button>
-            )}
           </div>
+          {burdenCTA}
         </CardContent>
       </Card>
     );
@@ -151,10 +177,11 @@ export function AccompanyingSymptomsCard({
             <CardTitle className="text-base">Begleitsymptome im Zeitraum</CardTitle>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">
             Keine Symptome dokumentiert. Du kannst Begleitsymptome bei jedem Eintrag erfassen.
           </p>
+          {burdenCTA}
         </CardContent>
       </Card>
     );
@@ -180,7 +207,6 @@ export function AccompanyingSymptomsCard({
           </TooltipProvider>
         </div>
         
-        {/* Basis line */}
         <p className="text-xs text-muted-foreground mt-1">
           {useChecked
             ? `Basis: ${activeBasis} von ${totalEpisodes} Attacken (geprüft)`
@@ -214,7 +240,7 @@ export function AccompanyingSymptomsCard({
         </div>
 
         {isLowDocRate && (
-          <div className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 dark:text-amber-400 rounded-md px-3 py-2">
+          <div className="text-xs text-muted-foreground bg-muted/30 rounded-md px-3 py-2">
             Hinweis: geringe Dokumentationsrate – eingeschränkte Aussagekraft
           </div>
         )}
@@ -222,11 +248,19 @@ export function AccompanyingSymptomsCard({
         {/* Symptom ranking */}
         <div className="space-y-2">
           {displayed.map((symptom, idx) => {
-            const burden = burdenMap.get(symptom.name);
+            const burden = burdenMap.get(symptom.name) ?? 0;
             return (
               <div key={idx} className="space-y-0.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-foreground">{symptom.name}</span>
+                  <div className="flex items-center gap-1.5">
+                    {burden === 2 && <Star className="h-3 w-3 text-primary fill-current flex-shrink-0" />}
+                    <span className="text-sm text-foreground">{symptom.name}</span>
+                    {burden === 1 && (
+                      <span className="text-[10px] text-primary/70 ml-1">
+                        {BURDEN_LABELS[1]}
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2">
                     <div className="w-20 h-1.5 bg-muted rounded-full overflow-hidden">
                       <div 
@@ -239,14 +273,6 @@ export function AccompanyingSymptomsCard({
                     </span>
                   </div>
                 </div>
-                {burden !== undefined && burden >= 1 && (
-                  <div className="flex items-center gap-1 pl-0.5">
-                    {burden >= 3 && <Star className="h-3 w-3 text-amber-500 fill-current" />}
-                    <span className="text-[10px] text-muted-foreground/70">
-                      {BURDEN_LABELS[burden]}
-                    </span>
-                  </div>
-                )}
               </div>
             );
           })}
@@ -264,7 +290,6 @@ export function AccompanyingSymptomsCard({
           </Button>
         )}
 
-        {/* Migränetypische Symptome Kennwert */}
         {migraineTypicalPercent !== null && migraineTypicalPercent > 0 && (
           <div className="pt-2 border-t border-border/50">
             <div className="flex items-center justify-between text-xs">
@@ -274,23 +299,8 @@ export function AccompanyingSymptomsCard({
           </div>
         )}
 
-        {/* Info + link to burden settings */}
-        <div className="pt-2 border-t border-border/50 space-y-2">
-          <p className="text-xs text-muted-foreground/70">
-            Häufigkeit zeigt, wie oft ein Symptom auftritt – Belastung, wie stark es dich einschränkt.
-          </p>
-          {onNavigateToBurden && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-xs text-primary h-7 px-2"
-              onClick={onNavigateToBurden}
-            >
-              <Settings2 className="h-3 w-3 mr-1" />
-              Belastung anpassen
-            </Button>
-          )}
-        </div>
+        {/* Burden CTA */}
+        {burdenCTA}
       </CardContent>
     </Card>
   );
