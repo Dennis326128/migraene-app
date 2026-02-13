@@ -1,40 +1,65 @@
 
-# Fix: Pie Chart zeigt falsche "schmerzfreie Tage" wegen 50-Entry-Limit
+
+# Fix: Medikamenten-Bewertungen auf Berichtszeitraum filtern
 
 ## Problem
 
-Die DiaryReport-Ansicht laedt Eintraege ueber `useEntries({ from, to })`, welches intern `listEntries()` mit einem **Standard-Limit von 50** aufruft. Bei einem 3-Monats-Zeitraum mit z.B. 80+ Eintraegen werden nur die neuesten 50 geladen. Die restlichen Tage haben dann keine Eintraege und werden faelschlicherweise als "schmerzfrei" (gruen) klassifiziert.
+In der PDF-Tabelle "Akutmedikation und Wirkung" wird bei Rizatriptan "10/8" angezeigt -- also 10 Bewertungen bei nur 8 Einnahmen im Zeitraum. Das ist klinisch unsinnig und untergräbt die Glaubwürdigkeit des Berichts.
 
-**Beispiel**: 91 Tage Zeitraum, 80 Eintraege in DB, aber nur 50 geladen. Die aeltesten 30 Eintraege fehlen, deren Tage werden gruen gezaehlt statt orange/rot.
+## Ursache
 
-## Loesung
+In `src/lib/pdf/reportData.ts` werden die Einnahmen korrekt auf den gewählten Berichtszeitraum gefiltert, aber die Bewertungen (`medicationEffects`) werden **ungefiltert** hinzugefügt. Bewertungen aus Entries ausserhalb des Zeitraums fliessen mit ein.
 
-In `DiaryReport.tsx` wird `useEntries` durch `fetchAllEntriesForExport` ersetzt, das bereits existiert und alle Eintraege ohne Limit laedt (mit Batching fuer grosse Datensaetze).
+## Lösung
 
-## Aenderungen
+Die Bewertungen dürfen nur gezählt werden, wenn ihr zugehöriger Entry im Berichtszeitraum liegt.
 
-### Datei: `src/components/PainApp/DiaryReport.tsx`
+## Technische Umsetzung
 
-**Zeile 292 ersetzen**: Statt `useEntries({ from, to })` wird eine eigene `useQuery` mit `fetchAllEntriesForExport(from, to)` verwendet:
+### Datei: `src/lib/pdf/reportData.ts` (ca. Zeile 248-294)
 
-```typescript
-// VORHER (fehlerhaft - nur 50 Eintraege):
-const { data: entries = [], isLoading } = useEntries({ from, to });
+1. Beim Durchlaufen der Entries (Zeile 249-284) eine `Set<number>` der Entry-IDs im Zeitraum aufbauen.
+2. Beim Durchlaufen der `medicationEffects` (Zeile 288-294) prüfen, ob `effect.entry_id` in dieser Set enthalten ist. Nur dann den Score zählen.
 
-// NACHHER (alle Eintraege im Zeitraum):
-const { data: entries = [], isLoading } = useQuery({
-  queryKey: ["allEntriesForReport", from, to],
-  queryFn: () => fetchAllEntriesForExport(from, to),
-  staleTime: 30_000,
-  gcTime: 5 * 60_000,
-});
+```text
+Vorher:
+  entries.forEach(entry => {
+    // ... Medikamente zählen
+  });
+
+  medicationEffects.forEach(effect => {
+    const stat = medStats.get(effect.med_name);
+    if (stat) {
+      stat.effectScores.push(score);  // <-- ALLE Effekte, egal ob im Zeitraum
+    }
+  });
+
+Nachher:
+  const entryIdsInRange = new Set<number>();
+
+  entries.forEach(entry => {
+    entryIdsInRange.add(entry.id);    // <-- Entry-ID merken
+    // ... Medikamente zählen (wie bisher)
+  });
+
+  medicationEffects.forEach(effect => {
+    if (!entryIdsInRange.has(effect.entry_id)) return;  // <-- Zeitraum-Filter
+    const stat = medStats.get(effect.med_name);
+    if (stat) {
+      stat.effectScores.push(score);
+    }
+  });
 ```
 
-Das ist die einzige Aenderung. `fetchAllEntriesForExport` existiert bereits, laedt in 1000er-Batches, und selektiert auch `entry_kind`. Alle nachgelagerten Berechnungen (dayBuckets, reportData, PDF) erhalten dann die vollstaendigen Daten.
+### Ergebnis
 
-### Keine weiteren Dateiaenderungen noetig
+- `ratedCount` kann nie grösser als `totalUnitsInRange` sein
+- Beide Werte beziehen sich auf denselben Zeitraum
+- Gilt automatisch für beide PDF-Flows (manuell und Arztfreigabe), da sie denselben `reportData.ts`-Code verwenden
 
-- `dayBuckets.ts` - Logik ist korrekt, bekommt nur mehr Daten
-- `isPainEntry.ts` - unveraendert
-- `entries.api.ts` - `fetchAllEntriesForExport` existiert bereits
-- PDF-Export - nutzt bereits separat `fetchAllEntriesForExport`
+### Keine weiteren Änderungen nötig
+
+- Die Anzeige-Logik in `report.ts` (`formatEffectiveness`) bleibt unverändert
+- Die Sortierlogik bleibt unverändert
+- Kein Datenbankschema-Änderung erforderlich
+
