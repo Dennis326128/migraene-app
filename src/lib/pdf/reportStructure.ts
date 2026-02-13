@@ -40,6 +40,13 @@ export const REPORT_SECTION_ORDER = [
                       // Berechnet aus X dokumentierten Tagen
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // 2b. BEGLEITSYMPTOME (KLINISCHE ÜBERSICHT)
+  // ═══════════════════════════════════════════════════════════════════════════
+  'symptom_overview',  // Top-Relevanz-Tabelle (Häufigkeit × Belastung)
+                       // Basis: geprüfte Einträge (viewed/edited), Fallback: alle
+                       // Subjektive Belastung als Textlabel
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // 3. AUFFÄLLIGKEITEN & MUSTER (sachlich, ohne Warnungen)
   // ═══════════════════════════════════════════════════════════════════════════
   'analysis_section',    // EIN konsolidierter Abschnitt:
@@ -138,6 +145,15 @@ export const REPORT_SECTIONS: Record<ReportSectionId, {
     isRequired: true,
     isPremium: false,
     description: 'Ø Schmerztage, Ø Triptan-Einnahmen, Ø Schmerzintensität (normiert auf 30 Tage)',
+  },
+  symptom_overview: {
+    id: 'symptom_overview',
+    labelDe: 'Begleitsymptome',
+    labelEn: 'Accompanying Symptoms',
+    pdfTitle: 'BEGLEITSYMPTOME (KLINISCHE UEBERSICHT)',
+    isRequired: false,
+    isPremium: false,
+    description: 'Häufigkeit und subjektive Belastung der Begleitsymptome',
   },
   analysis_section: {
     id: 'analysis_section',
