@@ -223,6 +223,7 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
         weather_id: weatherId,
         latitude,
         longitude,
+        entry_kind: 'pain' as const,
       };
 
       const savedId = await createMut.mutateAsync(payload as any);

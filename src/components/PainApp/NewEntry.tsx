@@ -437,6 +437,7 @@ export const NewEntry = ({
         weather_id: weatherId,
         latitude,
         longitude,
+        entry_kind: 'pain' as const,
       };
 
       devLog('Final payload', { context: 'NewEntry', data: payload });

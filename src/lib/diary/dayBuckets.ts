@@ -10,6 +10,7 @@
  */
 
 import { isTriptan } from '@/lib/medications/isTriptan';
+import { isPainEntry } from '@/lib/diary/isPainEntry';
 
 export type DayClassification = 'painFree' | 'painNoTriptan' | 'triptan';
 
@@ -31,6 +32,7 @@ interface EntryForBuckets {
   timestamp_created?: string | null;
   pain_level?: string | null;
   medications?: string[] | null;
+  entry_kind?: string | null;
 }
 
 /**
@@ -59,8 +61,8 @@ export function classifyDay(entriesForDay: EntryForBuckets[]): DayClassification
   let hasTriptan = false;
 
   for (const entry of entriesForDay) {
-    // Schmerztag: pain_level existiert UND ist nicht "-"
-    if (entry.pain_level && entry.pain_level !== '-') {
+    // Schmerztag: nur wenn Entry tatsächlich Schmerz dokumentiert
+    if (isPainEntry(entry)) {
       hasPain = true;
     }
     // Triptan-Tag: mindestens ein Medikament ist ein Triptan

@@ -72,6 +72,7 @@ export async function listEntries(params: ListParams = {}): Promise<PainEntry[]>
       aura_type,
       medications,
       notes,
+      entry_kind,
       weather:weather_logs!pain_entries_weather_id_fkey (
         id, location, temperature_c, pressure_mb, humidity, condition_text, pressure_change_24h, moon_phase, moonrise, moonset
       ),
@@ -139,6 +140,7 @@ export async function fetchAllEntriesForExport(from: string, to: string): Promis
         aura_type,
         medications,
         notes,
+        entry_kind,
         weather:weather_logs!pain_entries_weather_id_fkey (
           id, location, temperature_c, pressure_mb, humidity, condition_text, pressure_change_24h, moon_phase, moonrise, moonset
         ),
