@@ -1706,8 +1706,11 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
           yPos -= 14;
         }
         
-        const startStr = formatDateGerman(course.start_date);
+        const hasStart = !!course.start_date;
         const endStr = course.end_date ? formatDateGerman(course.end_date) : "laufend";
+        const zeitraumText = hasStart
+          ? `${formatDateGerman(course.start_date)} - ${endStr}`
+          : "laufend";
         page.drawText("Zeitraum:", {
           x: LAYOUT.margin + 15,
           y: yPos,
@@ -1715,7 +1718,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
           font: fontBold,
           color: COLORS.textLight,
         });
-        page.drawText(`${startStr} - ${endStr}`, {
+        page.drawText(zeitraumText, {
           x: LAYOUT.margin + 80,
           y: yPos,
           size: 9,
