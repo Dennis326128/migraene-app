@@ -21,15 +21,19 @@ export function useUpsertSymptomBurden() {
 }
 
 /**
- * 3-state burden system:
- * 0 = neutral (default)
- * 1 = Belastend
- * 2 = Besonders belastend (max 3 allowed)
+ * 4-level burden system:
+ * 0 = neutral (default / no selection)
+ * 1 = stört etwas
+ * 2 = stört mittel
+ * 3 = stört stark
+ * 4 = schränkt mich am meisten ein
  */
 export const BURDEN_WEIGHTS: Record<number, number> = {
   0: 1.0,
-  1: 1.2,
-  2: 1.5,
+  1: 1.1,
+  2: 1.2,
+  3: 1.35,
+  4: 1.5,
 };
 
 /** Get burden weight; null/undefined burden = neutral 1.0 */
@@ -40,23 +44,21 @@ export function getBurdenWeight(burdenLevel: number | null | undefined): number 
 
 /** Burden level labels (DE) */
 export const BURDEN_LABELS: Record<number, string> = {
-  0: "Neutral",
-  1: "Belastend",
-  2: "Besonders belastend",
+  0: "",
+  1: "stört etwas",
+  2: "stört mittel",
+  3: "stört stark",
+  4: "schränkt mich am meisten ein",
 };
 
-/** Max number of symptoms that can be "Besonders belastend" */
-export const MAX_BESONDERS_BELASTEND = 3;
+/** All selectable burden steps */
+export const BURDEN_STEPS = [1, 2, 3, 4] as const;
 
-/** Clinical priority order for burden screen */
-export const BURDEN_SYMPTOM_ORDER = [
+/** Fallback clinical order when user has no data */
+export const BURDEN_SYMPTOM_FALLBACK_ORDER = [
   "Lichtempfindlichkeit",
   "Geräuschempfindlichkeit",
   "Übelkeit",
   "Geruchsempfindlichkeit",
   "Aura",
-  "Wortfindungsstörung",
-  "Konzentrationsstörung",
-  "Gleichgewichtsstörung",
-  "Doppelbilder",
 ];

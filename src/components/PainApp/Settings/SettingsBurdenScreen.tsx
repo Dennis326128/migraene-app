@@ -5,18 +5,16 @@ import {
   useSymptomBurdens,
   useUpsertSymptomBurden,
   BURDEN_LABELS,
-  MAX_BESONDERS_BELASTEND,
-  BURDEN_SYMPTOM_ORDER,
+  BURDEN_STEPS,
+  BURDEN_SYMPTOM_FALLBACK_ORDER,
 } from "@/features/symptoms/hooks/useSymptomBurden";
-import { Star } from "lucide-react";
+import { useSymptomFrequency } from "@/features/symptoms/hooks/useSymptomFrequency";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
-
-const STEPS = [1, 2] as const;
 
 export function SettingsBurdenScreen() {
   const { data: catalog = [] } = useSymptomCatalog();
   const { data: burdens = [] } = useSymptomBurdens();
+  const { data: freqMap = new Map() } = useSymptomFrequency();
   const upsertMut = useUpsertSymptomBurden();
 
   const burdenMap = React.useMemo(() => {
@@ -25,86 +23,91 @@ export function SettingsBurdenScreen() {
     return m;
   }, [burdens]);
 
-  const besondersCount = React.useMemo(() => {
-    let count = 0;
-    for (const b of burdens) {
-      if (b.burden_level === 2) count++;
-    }
-    return count;
-  }, [burdens]);
-
-  // Sort catalog by clinical priority
+  // Smart sort: documented symptoms first by frequency, then fallback/rest alphabetically
   const sortedCatalog = React.useMemo(() => {
-    const orderMap = new Map(BURDEN_SYMPTOM_ORDER.map((name, idx) => [name, idx]));
-    return [...catalog].sort((a, b) => {
-      const idxA = orderMap.get(a.name) ?? 999;
-      const idxB = orderMap.get(b.name) ?? 999;
-      if (idxA !== idxB) return idxA - idxB;
-      return a.name.localeCompare(b.name, "de");
-    });
-  }, [catalog]);
+    const hasFreqData = freqMap.size > 0;
 
-  const handleChange = (symptomKey: string, level: number) => {
+    if (hasFreqData) {
+      // A) Symptoms with frequency data, sorted by frequency desc
+      const withFreq = catalog.filter(s => (freqMap.get(s.name) ?? 0) > 0);
+      withFreq.sort((a, b) => (freqMap.get(b.name) ?? 0) - (freqMap.get(a.name) ?? 0));
+
+      // B) Rest alphabetically
+      const rest = catalog.filter(s => (freqMap.get(s.name) ?? 0) === 0);
+      rest.sort((a, b) => a.name.localeCompare(b.name, "de"));
+
+      return [...withFreq, ...rest];
+    }
+
+    // Fallback: clinical order, then alphabetical
+    const fallbackSet = new Set(BURDEN_SYMPTOM_FALLBACK_ORDER);
+    const fallbackOrder = new Map(BURDEN_SYMPTOM_FALLBACK_ORDER.map((n, i) => [n, i]));
+
+    const inFallback = catalog.filter(s => fallbackSet.has(s.name));
+    inFallback.sort((a, b) => (fallbackOrder.get(a.name) ?? 999) - (fallbackOrder.get(b.name) ?? 999));
+
+    const rest = catalog.filter(s => !fallbackSet.has(s.name));
+    rest.sort((a, b) => a.name.localeCompare(b.name, "de"));
+
+    return [...inFallback, ...rest];
+  }, [catalog, freqMap]);
+
+  const handleToggle = (symptomKey: string, level: number) => {
     const current = burdenMap.get(symptomKey) ?? 0;
-
     // Toggle: clicking active state resets to neutral
-    if (current === level) {
-      upsertMut.mutate({ symptomKey, burdenLevel: 0 });
-      return;
-    }
-
-    // Max 3 "Besonders belastend" check
-    if (level === 2 && current !== 2 && besondersCount >= MAX_BESONDERS_BELASTEND) {
-      toast.info("Maximal 3 besonders belastende Symptome möglich.", { duration: 3000 });
-      return;
-    }
-
-    upsertMut.mutate({ symptomKey, burdenLevel: level });
+    const newLevel = current === level ? 0 : level;
+    upsertMut.mutate({ symptomKey, burdenLevel: newLevel });
   };
 
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h2 className="text-lg font-semibold">Was belastet dich besonders?</h2>
+        <h2 className="text-lg font-semibold">Wie stark schränken dich diese Symptome ein?</h2>
         <p className="text-sm text-muted-foreground">
-          Markiere bis zu 3 Symptome als besonders belastend.
+          Wähle pro Symptom die passende Stufe – oder lass es leer.
         </p>
       </div>
 
       <div className="space-y-2">
         {sortedCatalog.map((symptom) => {
           const current = burdenMap.get(symptom.name) ?? 0;
+          const freq = freqMap.get(symptom.name);
           return (
             <Card key={symptom.id} className="p-3">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  {current === 2 && <Star className="h-4 w-4 text-primary fill-current flex-shrink-0" />}
+              <div className="space-y-2">
+                {/* Symptom name + frequency hint */}
+                <div className="flex items-center justify-between">
                   <span className={cn(
-                    "text-sm truncate",
-                    current === 2 ? "font-medium text-foreground" : 
-                    current === 1 ? "text-foreground" : "text-muted-foreground"
+                    "text-sm",
+                    current > 0 ? "font-medium text-foreground" : "text-muted-foreground"
                   )}>
                     {symptom.name}
                   </span>
+                  {freq !== undefined && freq > 0 && (
+                    <span className="text-[10px] text-muted-foreground/60 tabular-nums">
+                      {freq}×
+                    </span>
+                  )}
                 </div>
-                <div className="flex gap-1.5 flex-shrink-0">
-                  {STEPS.map((level) => {
+                {/* Burden level buttons */}
+                <div className="flex gap-1">
+                  {BURDEN_STEPS.map((level) => {
                     const isActive = current === level;
                     return (
                       <button
                         key={level}
-                        onClick={() => handleChange(symptom.name, level)}
+                        onClick={() => handleToggle(symptom.name, level)}
                         className={cn(
-                          "py-1.5 px-3 text-xs rounded-lg transition-colors",
+                          "flex-1 py-1.5 text-[11px] rounded-lg transition-colors leading-tight",
                           isActive
-                            ? level === 2
-                              ? "bg-primary text-primary-foreground font-medium"
-                              : "bg-primary/15 text-primary border border-primary/30 font-medium"
+                            ? level >= 3
+                              ? "bg-primary/25 text-primary border border-primary/40 font-medium"
+                              : "bg-primary/10 text-primary border border-primary/25 font-medium"
                             : "border border-border/40 text-muted-foreground hover:bg-muted/50"
                         )}
                         disabled={upsertMut.isPending}
                       >
-                        {level === 2 ? "⭐" : BURDEN_LABELS[level]}
+                        {BURDEN_LABELS[level]}
                       </button>
                     );
                   })}
