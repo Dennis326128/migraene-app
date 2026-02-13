@@ -1,5 +1,7 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { useSymptomCatalog } from "@/features/symptoms/hooks/useSymptoms";
 import {
   useSymptomBurdens,
@@ -12,10 +14,12 @@ import { useSymptomFrequency } from "@/features/symptoms/hooks/useSymptomFrequen
 import { cn } from "@/lib/utils";
 
 export function SettingsBurdenScreen() {
+  const navigate = useNavigate();
   const { data: catalog = [] } = useSymptomCatalog();
   const { data: burdens = [] } = useSymptomBurdens();
   const { data: freqMap = new Map() } = useSymptomFrequency();
   const upsertMut = useUpsertSymptomBurden();
+  const [hasChanged, setHasChanged] = React.useState(false);
 
   const burdenMap = React.useMemo(() => {
     const m = new Map<string, number>();
@@ -57,10 +61,11 @@ export function SettingsBurdenScreen() {
     // Toggle: clicking active state resets to neutral
     const newLevel = current === level ? 0 : level;
     upsertMut.mutate({ symptomKey, burdenLevel: newLevel });
+    setHasChanged(true);
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-24">
       <div className="space-y-1">
         <h2 className="text-lg font-semibold">Wie stark schränken dich diese Symptome ein?</h2>
         <p className="text-sm text-muted-foreground">
@@ -116,6 +121,25 @@ export function SettingsBurdenScreen() {
             </Card>
           );
         })}
+      </div>
+
+      {/* Sticky footer with "Fertig" button */}
+      <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-border/40 bg-background/95 backdrop-blur-sm pb-safe">
+        <div className="mx-auto max-w-lg px-4 py-3 flex flex-col items-end gap-1">
+          {hasChanged && (
+            <span className="text-[11px] text-muted-foreground/70">
+              Änderungen werden automatisch gespeichert.
+            </span>
+          )}
+          <Button
+            variant="default"
+            size="mobile"
+            className="w-full"
+            onClick={() => navigate(-1)}
+          >
+            Fertig
+          </Button>
+        </div>
       </div>
     </div>
   );
