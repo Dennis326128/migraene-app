@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Maximize2, Smartphone } from "lucide-react";
+import { Maximize2, X, Smartphone } from "lucide-react";
 import { TimeRangeButtons, type TimeRangePreset } from "./TimeRangeButtons";
 
 interface FullscreenChartModalProps {
@@ -9,7 +9,6 @@ interface FullscreenChartModalProps {
   onOpenChange: (open: boolean) => void;
   title: string;
   children: React.ReactNode;
-  /** Optional: show time range controls in fullscreen */
   timeRange?: TimeRangePreset;
   onTimeRangeChange?: (range: TimeRangePreset) => void;
 }
@@ -30,6 +29,23 @@ function useIsLandscape() {
   return isLandscape;
 }
 
+function useSwipeDown(onSwipeDown: () => void) {
+  const startY = useRef<number | null>(null);
+
+  const onTouchStart = useCallback((e: React.TouchEvent) => {
+    startY.current = e.touches[0].clientY;
+  }, []);
+
+  const onTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (startY.current === null) return;
+    const delta = e.changedTouches[0].clientY - startY.current;
+    if (delta > 80) onSwipeDown();
+    startY.current = null;
+  }, [onSwipeDown]);
+
+  return { onTouchStart, onTouchEnd };
+}
+
 export function FullscreenChartModal({
   open,
   onOpenChange,
@@ -39,32 +55,40 @@ export function FullscreenChartModal({
   onTimeRangeChange,
 }: FullscreenChartModalProps) {
   const isLandscape = useIsLandscape();
+  const close = useCallback(() => onOpenChange(false), [onOpenChange]);
+  const swipe = useSwipeDown(close);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[100vw] w-full h-[100dvh] p-0 border-0 rounded-none bg-background flex flex-col [&>button]:hidden">
+      <DialogContent
+        className="max-w-[100vw] w-full h-[100dvh] p-0 border-0 rounded-none bg-background flex flex-col [&>button]:hidden animate-fade-in"
+        onTouchStart={swipe.onTouchStart}
+        onTouchEnd={swipe.onTouchEnd}
+      >
         {/* Top bar */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
+          <h2 className="text-sm font-semibold truncate">{title}</h2>
+          {/* Time range controls inline on desktop */}
+          {timeRange && onTimeRangeChange && (
+            <div className="hidden sm:block mx-4">
+              <TimeRangeButtons value={timeRange} onChange={onTimeRangeChange} />
+            </div>
+          )}
           <Button
             variant="ghost"
-            size="sm"
-            onClick={() => onOpenChange(false)}
-            className="flex items-center gap-2"
+            size="icon"
+            onClick={close}
+            className="shrink-0 h-8 w-8"
+            aria-label="Schließen"
           >
-            <ArrowLeft className="h-4 w-4" />
-            Zurück
+            <X className="h-5 w-5" />
           </Button>
-          <h2 className="text-sm font-semibold truncate mx-4">{title}</h2>
-          <div className="w-20" /> {/* spacer for centering */}
         </div>
 
-        {/* Time range controls */}
+        {/* Time range controls on mobile */}
         {timeRange && onTimeRangeChange && (
-          <div className="px-4 py-2 border-b border-border shrink-0">
-            <TimeRangeButtons
-              value={timeRange}
-              onChange={onTimeRangeChange}
-            />
+          <div className="px-4 py-2 border-b border-border shrink-0 sm:hidden">
+            <TimeRangeButtons value={timeRange} onChange={onTimeRangeChange} />
           </div>
         )}
 
@@ -94,13 +118,16 @@ export function FullscreenChartModal({
 export function FullscreenChartButton({ onClick }: { onClick: () => void }) {
   return (
     <Button
-      variant="outline"
-      size="sm"
-      onClick={onClick}
-      className="flex items-center gap-2 h-7 text-xs"
+      variant="ghost"
+      size="icon"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+      aria-label="Vollbild"
     >
-      <Maximize2 className="h-3.5 w-3.5" />
-      Vollbild
+      <Maximize2 className="h-4 w-4" />
     </Button>
   );
 }
