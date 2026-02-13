@@ -23,6 +23,7 @@ import { computeDiaryDayBuckets } from "@/lib/diary/dayBuckets";
 import { HeadacheDaysPie } from "@/components/diary/HeadacheDaysPie";
 import { supabase } from "@/lib/supabaseClient";
 import { useQuery } from "@tanstack/react-query";
+import { useSymptomBurdens } from "@/features/symptoms/hooks/useSymptomBurden";
 
 // Session storage keys
 const SESSION_KEY_PRESET = "stats_timeRange_preset";
@@ -88,10 +89,11 @@ function useEntrySymptomsBulk(entryIds: number[]) {
 interface AnalysisViewProps {
   onBack: () => void;
   onNavigateToLimits?: () => void;
+  onNavigateToBurden?: () => void;
   onViewAIReport?: (report: AIReport) => void;
 }
 
-export function AnalysisView({ onBack, onNavigateToLimits, onViewAIReport }: AnalysisViewProps) {
+export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, onViewAIReport }: AnalysisViewProps) {
   // Time range state
   const [timeRange, setTimeRange] = useState<TimeRangePreset>(getInitialTimeRange);
   const initialCustom = getInitialCustomDates();
@@ -160,6 +162,14 @@ export function AnalysisView({ onBack, onNavigateToLimits, onViewAIReport }: Ana
   
   // Fetch real entry symptoms with names
   const { data: entrySymptoms = [] } = useEntrySymptomsBulk(entryIds);
+  
+  // Burden data
+  const { data: burdenData = [] } = useSymptomBurdens();
+  const burdenMap = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const b of burdenData) m.set(b.symptom_key, b.burden_level);
+    return m;
+  }, [burdenData]);
 
   const patternStats = useMemo(() => {
     return computeStatistics(
@@ -171,33 +181,45 @@ export function AnalysisView({ onBack, onNavigateToLimits, onViewAIReport }: Ana
     );
   }, [filteredEntries, medicationEffectsData, entrySymptoms, medicationLimits, allEntries]);
 
-  // Begleitsymptome stats
+  // Begleitsymptome stats (all entries)
   const symptomStats = useMemo(() => {
-    if (entrySymptoms.length === 0) return { symptoms: [], episodesWithSymptoms: 0 };
+    if (entrySymptoms.length === 0) return { symptoms: [], episodesWithSymptoms: 0, checkedEpisodes: 0, checkedSymptoms: [] as { name: string; count: number; percentage: number }[] };
     
-    // Count unique entries that have symptoms
     const entriesWithSymptoms = new Set(entrySymptoms.map(es => es.entry_id));
     const episodesWithSymptoms = entriesWithSymptoms.size;
-    
-    // Count each symptom
-    const counts = new Map<string, number>();
     const totalEpisodes = filteredEntries.length;
     
+    // All entries stats
+    const counts = new Map<string, number>();
     for (const es of entrySymptoms) {
       const name = es.symptom_name || es.symptom_id;
       counts.set(name, (counts.get(name) || 0) + 1);
     }
-    
     const symptoms = Array.from(counts.entries())
-      .map(([name, count]) => ({
-        name,
-        count,
-        percentage: totalEpisodes > 0 ? Math.round((count / totalEpisodes) * 100) : 0,
-      }))
+      .map(([name, count]) => ({ name, count, percentage: totalEpisodes > 0 ? Math.round((count / totalEpisodes) * 100) : 0 }))
       .sort((a, b) => b.count - a.count);
     
-    return { symptoms, episodesWithSymptoms };
-  }, [entrySymptoms, filteredEntries.length]);
+    // Checked-only stats (viewed/edited entries)
+    const checkedEntryIds = new Set(
+      filteredEntries
+        .filter((e: any) => e.symptoms_state === 'viewed' || e.symptoms_state === 'edited')
+        .map(e => Number(e.id))
+    );
+    const checkedEpisodes = checkedEntryIds.size;
+    
+    const checkedCounts = new Map<string, number>();
+    for (const es of entrySymptoms) {
+      if (checkedEntryIds.has(es.entry_id)) {
+        const name = es.symptom_name || es.symptom_id;
+        checkedCounts.set(name, (checkedCounts.get(name) || 0) + 1);
+      }
+    }
+    const checkedSymptoms = Array.from(checkedCounts.entries())
+      .map(([name, count]) => ({ name, count, percentage: checkedEpisodes > 0 ? Math.round((count / checkedEpisodes) * 100) : 0 }))
+      .sort((a, b) => b.count - a.count);
+    
+    return { symptoms, episodesWithSymptoms, checkedEpisodes, checkedSymptoms };
+  }, [entrySymptoms, filteredEntries]);
 
   const daysInRange = useMemo(() => {
     if (!from || !to) return undefined;
@@ -341,6 +363,10 @@ export function AnalysisView({ onBack, onNavigateToLimits, onViewAIReport }: Ana
                   symptoms={symptomStats.symptoms}
                   totalEpisodes={filteredEntries.length}
                   episodesWithSymptoms={symptomStats.episodesWithSymptoms}
+                  checkedEpisodes={symptomStats.checkedEpisodes}
+                  checkedSymptoms={symptomStats.checkedSymptoms}
+                  burdenMap={burdenMap}
+                  onNavigateToBurden={onNavigateToBurden}
                 />
 
                 {/* 4. Tageszeit-Verteilung */}

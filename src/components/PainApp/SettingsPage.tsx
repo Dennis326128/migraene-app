@@ -7,10 +7,10 @@ import { SettingsHelp } from "./Settings/SettingsHelp";
 import { SettingsAccount } from "./Settings/SettingsAccount";
 import { SettingsDoctorsWithOrigin } from "./Settings/SettingsDoctorsWithOrigin";
 import { SettingsLogout } from "./Settings/SettingsLogout";
+import { SettingsBurdenScreen } from "./Settings/SettingsBurdenScreen";
 import { PWAInstallGuide } from "@/components/PWA";
 
-// Medications removed from settings - now only accessible from main app area (Single Source of Truth)
-type SettingsSection = 'overview' | 'privacy' | 'help' | 'account' | 'doctors' | 'logout' | 'install';
+type SettingsSection = 'overview' | 'privacy' | 'help' | 'account' | 'doctors' | 'logout' | 'install' | 'burden';
 
 const SettingsPage = ({ onBack }: { onBack: () => void }) => {
   const { t } = useTranslation();
@@ -38,6 +38,8 @@ const SettingsPage = ({ onBack }: { onBack: () => void }) => {
         return t('auth.logout');
       case 'install':
         return t('settings.installApp');
+      case 'burden':
+        return 'Belastendste Symptome';
       default:
         return t('settings.title');
     }
@@ -58,6 +60,7 @@ const SettingsPage = ({ onBack }: { onBack: () => void }) => {
       )}
       {section === 'logout' && <SettingsLogout />}
       {section === 'install' && <PWAInstallGuide />}
+      {section === 'burden' && <SettingsBurdenScreen />}
     </SettingsLayout>
   );
 };
