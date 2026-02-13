@@ -1,5 +1,5 @@
 import { Card } from "@/components/ui/card";
-import { ChevronRight, Shield, HelpCircle, User, Stethoscope, LogOut, MessageSquare, Smartphone, Globe, Heart } from "lucide-react";
+import { ChevronRight, Shield, User, Stethoscope, LogOut, MessageSquare, Smartphone, Globe, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useState } from "react";
@@ -10,7 +10,7 @@ import { useLanguage } from "@/hooks/useLanguage";
 import { LanguageModal } from "./LanguageModal";
 
 interface SettingsOverviewProps {
-  onNavigate: (section: 'privacy' | 'help' | 'account' | 'doctors' | 'logout' | 'install' | 'burden') => void;
+  onNavigate: (section: 'privacy' | 'account' | 'doctors' | 'logout' | 'install' | 'burden') => void;
 }
 
 export const SettingsOverview = ({ onNavigate }: SettingsOverviewProps) => {
@@ -48,12 +48,7 @@ export const SettingsOverview = ({ onNavigate }: SettingsOverviewProps) => {
       titleKey: 'settings.privacy',
       gradient: 'from-secondary/10 to-secondary/5',
     },
-    {
-      id: 'help' as const,
-      icon: HelpCircle,
-      titleKey: 'settings.help',
-      gradient: 'from-accent/10 to-accent/5',
-    },
+    // PWA Install - only show if iOS Safari and not already installed
     // PWA Install - only show if iOS Safari and not already installed
     ...(canShowInstallPrompt ? [{
       id: 'install' as const,
