@@ -434,6 +434,7 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
             painFreeDays={dayBuckets.painFreeDays}
             painDaysNoTriptan={dayBuckets.painDaysNoTriptan}
             triptanDays={dayBuckets.triptanDays}
+            fullscreen
           />
         </div>
       </FullscreenChartModal>
@@ -445,7 +446,9 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
         timeRange={timeRange}
         onTimeRangeChange={handleTimeRangeChange}
       >
-        <TimeDistributionChart data={timeDistribution} />
+        <div className="h-full min-h-[400px]">
+          <TimeDistributionChart data={timeDistribution} />
+        </div>
       </FullscreenChartModal>
 
       <FullscreenChartModal
@@ -455,7 +458,9 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
         timeRange={timeRange}
         onTimeRangeChange={handleTimeRangeChange}
       >
-        <TimeSeriesChart entries={filteredEntries} dateRange={{ from, to }} />
+        <div className="h-full min-h-[400px]">
+          <TimeSeriesChart entries={filteredEntries} dateRange={{ from, to }} />
+        </div>
       </FullscreenChartModal>
     </div>
   );

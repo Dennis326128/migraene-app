@@ -1,7 +1,8 @@
-import React, { useEffect, useState, useRef, useCallback } from "react";
+import React, { useCallback, useRef } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Maximize2, X, Smartphone } from "lucide-react";
+import { Maximize2 } from "lucide-react";
+import { AppHeader } from "@/components/ui/app-header";
 import { TimeRangeButtons, type TimeRangePreset } from "./TimeRangeButtons";
 
 interface FullscreenChartModalProps {
@@ -11,22 +12,6 @@ interface FullscreenChartModalProps {
   children: React.ReactNode;
   timeRange?: TimeRangePreset;
   onTimeRangeChange?: (range: TimeRangePreset) => void;
-}
-
-function useIsLandscape() {
-  const [isLandscape, setIsLandscape] = useState(
-    typeof window !== "undefined" ? window.innerWidth > window.innerHeight : true
-  );
-  useEffect(() => {
-    const check = () => setIsLandscape(window.innerWidth > window.innerHeight);
-    window.addEventListener("resize", check);
-    window.addEventListener("orientationchange", check);
-    return () => {
-      window.removeEventListener("resize", check);
-      window.removeEventListener("orientationchange", check);
-    };
-  }, []);
-  return isLandscape;
 }
 
 function useSwipeDown(onSwipeDown: () => void) {
@@ -54,7 +39,6 @@ export function FullscreenChartModal({
   timeRange,
   onTimeRangeChange,
 }: FullscreenChartModalProps) {
-  const isLandscape = useIsLandscape();
   const close = useCallback(() => onOpenChange(false), [onOpenChange]);
   const swipe = useSwipeDown(close);
 
@@ -65,50 +49,24 @@ export function FullscreenChartModal({
         onTouchStart={swipe.onTouchStart}
         onTouchEnd={swipe.onTouchEnd}
       >
-        {/* Top bar */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
-          <h2 className="text-sm font-semibold truncate">{title}</h2>
-          {/* Time range controls inline on desktop */}
-          {timeRange && onTimeRangeChange && (
-            <div className="hidden sm:block mx-4">
-              <TimeRangeButtons value={timeRange} onChange={onTimeRangeChange} />
-            </div>
-          )}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={close}
-            className="shrink-0 h-8 w-8"
-            aria-label="Schließen"
-          >
-            <X className="h-5 w-5" />
-          </Button>
-        </div>
+        {/* Unified AppHeader */}
+        <AppHeader
+          title={title}
+          onBack={close}
+          sticky
+          className="border-b border-border shrink-0"
+        />
 
-        {/* Time range controls on mobile */}
+        {/* Time range controls */}
         {timeRange && onTimeRangeChange && (
-          <div className="px-4 py-2 border-b border-border shrink-0 sm:hidden">
+          <div className="px-4 py-2 border-b border-border shrink-0">
             <TimeRangeButtons value={timeRange} onChange={onTimeRangeChange} />
           </div>
         )}
 
-        {/* Chart area or landscape prompt */}
-        <div className="flex-1 overflow-hidden relative">
-          {!isLandscape ? (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/90 z-10 text-center px-6">
-              <Smartphone className="h-10 w-10 text-muted-foreground mb-4 rotate-90" />
-              <p className="text-base font-medium mb-1">
-                Für optimale Darstellung bitte Gerät drehen.
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Das Diagramm wird im Querformat angezeigt.
-              </p>
-            </div>
-          ) : (
-            <div className="w-full h-full p-4">
-              {children}
-            </div>
-          )}
+        {/* Chart area - uses full remaining space */}
+        <div className="flex-1 overflow-auto p-4 min-h-0">
+          {children}
         </div>
       </DialogContent>
     </Dialog>
