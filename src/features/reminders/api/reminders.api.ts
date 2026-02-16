@@ -1,5 +1,20 @@
 import { supabase } from '@/lib/supabaseClient';
 import type { Reminder, CreateReminderInput, UpdateReminderInput } from '@/types/reminder.types';
+import { computeDedupeKey, type DedupeInput } from '../helpers/dedupeKey';
+
+/**
+ * Build DedupeInput from a CreateReminderInput
+ */
+function toDedupeInput(input: CreateReminderInput): DedupeInput {
+  return {
+    type: input.type,
+    title: input.title,
+    medication_id: (input as any).medication_id || undefined,
+    date_time: input.date_time,
+    repeat: input.repeat || 'none',
+    time_of_day: input.time_of_day || undefined,
+  };
+}
 
 export const remindersApi = {
   async getAll(): Promise<Reminder[]> {
@@ -98,12 +113,18 @@ export const remindersApi = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
+    const dedupe_key = await computeDedupeKey(toDedupeInput(input));
+
     const { data, error } = await supabase
       .from('reminders')
-      .insert({
-        user_id: user.id,
-        ...input,
-      })
+      .upsert(
+        {
+          user_id: user.id,
+          dedupe_key,
+          ...input,
+        },
+        { onConflict: 'user_id,dedupe_key' }
+      )
       .select()
       .single();
 
@@ -115,14 +136,20 @@ export const remindersApi = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
-    const reminders = inputs.map(input => ({
-      user_id: user.id,
-      ...input,
-    }));
+    const reminders = await Promise.all(
+      inputs.map(async (input) => {
+        const dedupe_key = await computeDedupeKey(toDedupeInput(input));
+        return {
+          user_id: user.id,
+          dedupe_key,
+          ...input,
+        };
+      })
+    );
 
     const { data, error } = await supabase
       .from('reminders')
-      .insert(reminders)
+      .upsert(reminders, { onConflict: 'user_id,dedupe_key' })
       .select();
 
     if (error) throw error;

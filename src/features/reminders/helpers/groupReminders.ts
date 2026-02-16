@@ -1,6 +1,7 @@
 import { format, isToday, isTomorrow } from 'date-fns';
 import { de } from 'date-fns/locale';
 import type { Reminder } from '@/types/reminder.types';
+import { deduplicateReminders } from './dedupeKey';
 
 /**
  * A grouped reminder represents one "series" in the list.
@@ -93,9 +94,11 @@ export function formatNextOccurrence(date: Date, type: string): string {
  * Non-repeating reminders remain as individual entries.
  */
 export function groupReminders(reminders: Reminder[]): GroupedReminder[] {
+  // Client-side dedup: remove duplicates by dedupe_key before grouping
+  const dedupedReminders = deduplicateReminders(reminders);
   const groups = new Map<string, Reminder[]>();
 
-  for (const reminder of reminders) {
+  for (const reminder of dedupedReminders) {
     const key = getGroupKey(reminder);
     const existing = groups.get(key);
     if (existing) {
