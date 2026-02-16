@@ -1000,6 +1000,7 @@ export type Database = {
         Row: {
           created_at: string
           date_time: string
+          dedupe_key: string
           follow_up_enabled: boolean
           follow_up_interval_unit: string | null
           follow_up_interval_value: number | null
@@ -1026,6 +1027,7 @@ export type Database = {
         Insert: {
           created_at?: string
           date_time: string
+          dedupe_key: string
           follow_up_enabled?: boolean
           follow_up_interval_unit?: string | null
           follow_up_interval_value?: number | null
@@ -1052,6 +1054,7 @@ export type Database = {
         Update: {
           created_at?: string
           date_time?: string
+          dedupe_key?: string
           follow_up_enabled?: boolean
           follow_up_interval_unit?: string | null
           follow_up_interval_value?: number | null

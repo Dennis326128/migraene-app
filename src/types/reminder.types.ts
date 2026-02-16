@@ -15,6 +15,7 @@ export interface NotificationChannels {
 export interface Reminder {
   id: string;
   user_id: string;
+  dedupe_key?: string | null;
   type: ReminderType;
   title: string;
   date_time: string;
