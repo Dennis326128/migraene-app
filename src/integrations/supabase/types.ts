@@ -1179,6 +1179,7 @@ export type Database = {
           id: string
           ip_address: unknown
           medical_disclaimer_accepted_at: string | null
+          medical_disclaimer_version: string | null
           privacy_accepted_at: string
           privacy_version: string
           terms_accepted_at: string
@@ -1196,6 +1197,7 @@ export type Database = {
           id?: string
           ip_address?: unknown
           medical_disclaimer_accepted_at?: string | null
+          medical_disclaimer_version?: string | null
           privacy_accepted_at?: string
           privacy_version?: string
           terms_accepted_at?: string
@@ -1213,6 +1215,7 @@ export type Database = {
           id?: string
           ip_address?: unknown
           medical_disclaimer_accepted_at?: string | null
+          medical_disclaimer_version?: string | null
           privacy_accepted_at?: string
           privacy_version?: string
           terms_accepted_at?: string

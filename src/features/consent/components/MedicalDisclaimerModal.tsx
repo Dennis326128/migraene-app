@@ -21,48 +21,72 @@ export const MedicalDisclaimerModal: React.FC<MedicalDisclaimerModalProps> = ({
 }) => {
   return (
     <Dialog open={open} onOpenChange={() => {}}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <div className="flex items-center gap-2 text-amber-600 mb-2">
-            <AlertTriangle className="h-6 w-6" />
+      <DialogContent
+        className="max-w-lg flex flex-col p-0 gap-0"
+        style={{
+          maxHeight: 'min(80vh, 560px)',
+        }}
+        // Prevent close via ESC or overlay click (legal requirement)
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+        onInteractOutside={(e) => e.preventDefault()}
+      >
+        {/* Header */}
+        <DialogHeader className="px-6 pt-6 pb-3 flex-shrink-0">
+          <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 mb-1">
+            <AlertTriangle className="h-5 w-5 flex-shrink-0" />
             <span className="text-sm font-medium">Wichtiger Hinweis</span>
           </div>
-          <DialogTitle className="text-xl">
+          <DialogTitle className="text-lg">
             Medizinischer Hinweis
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="sr-only">
             Bitte lesen Sie diesen Hinweis sorgfältig durch.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
-          <p className="text-sm text-muted-foreground">
-            Diese App führt eine <strong>automatisierte statistische Auswertung</strong> Ihrer 
-            Angaben durch (Trends, Häufigkeiten, mögliche Zusammenhänge). Es werden keine 
-            Diagnosen gestellt und keine Therapie- oder Medikamentenempfehlungen gegeben.
-          </p>
-          
-          <p className="text-sm text-muted-foreground">
-            Die App ersetzt keine ärztliche Beratung, Diagnose oder Behandlung. 
-            Bei akuten oder ungewöhnlichen Beschwerden holen Sie bitte medizinische Hilfe.
-          </p>
+        {/* Scrollable body */}
+        <div
+          className="flex-1 overflow-y-auto px-6 pb-4"
+          style={{ minHeight: 0 }}
+        >
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Miary dient der persönlichen Dokumentation von Beschwerden und Medikamenten.
+            </p>
 
-          <p className="text-xs text-muted-foreground text-center pt-2">
-            <Link 
-              to="/medical-disclaimer" 
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Die App ersetzt keine ärztliche Beratung, Diagnose oder Behandlung.
+            </p>
+
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Bei anhaltenden oder schweren Beschwerden wenden Sie sich bitte an
+              medizinisches Fachpersonal.
+            </p>
+          </div>
+        </div>
+
+        {/* Sticky footer */}
+        <div className="flex-shrink-0 px-6 pb-6 pt-3 border-t border-border/50 space-y-2 bg-background rounded-b-lg"
+          style={{
+            paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom, 0px))',
+          }}
+        >
+          <Button onClick={onAccept} className="w-full">
+            Verstanden
+          </Button>
+          <p className="text-xs text-muted-foreground text-center">
+            <Link
+              to="/medical-disclaimer"
               target="_blank"
               rel="noopener noreferrer"
               className="text-primary underline hover:no-underline inline-flex items-center gap-1"
             >
-              Ausführliche Informationen
+              Rechtliche Hinweise
               <ExternalLink className="h-3 w-3" />
             </Link>
           </p>
         </div>
-
-        <Button onClick={onAccept} className="w-full">
-          Ich habe verstanden
-        </Button>
       </DialogContent>
     </Dialog>
   );

@@ -1,5 +1,12 @@
 import { supabase } from "@/integrations/supabase/client";
 
+/**
+ * Current disclaimer version — bump this to re-show the modal.
+ */
+export const DISCLAIMER_VERSION = "2026-02-16";
+
+const LS_KEY = "miary_disclaimer_accepted_version";
+
 export interface UserConsent {
   user_id: string;
   terms_version: string;
@@ -10,6 +17,7 @@ export interface UserConsent {
   health_data_consent_at: string | null;
   health_data_consent_version: string;
   medical_disclaimer_accepted_at: string | null;
+  medical_disclaimer_version: string | null;
   consent_withdrawn_at: string | null;
   withdrawal_reason: string | null;
   created_at: string;
@@ -28,6 +36,13 @@ export async function getUserConsent(): Promise<UserConsent | null> {
   if (error) {
     console.error("Error fetching consent:", error);
     return null;
+  }
+
+  // Sync server→local for flicker prevention
+  if (data?.medical_disclaimer_version) {
+    try {
+      localStorage.setItem(LS_KEY, data.medical_disclaimer_version);
+    } catch { /* ignore */ }
   }
 
   return data as UserConsent | null;
@@ -63,7 +78,7 @@ export async function saveHealthDataConsent(consent: boolean): Promise<void> {
 }
 
 /**
- * Speichert Medical Disclaimer Akzeptanz via UPSERT
+ * Speichert Medical Disclaimer Akzeptanz mit Version
  */
 export async function saveMedicalDisclaimerAccepted(): Promise<void> {
   const { data: { user } } = await supabase.auth.getUser();
@@ -86,12 +101,18 @@ export async function saveMedicalDisclaimerAccepted(): Promise<void> {
       health_data_consent_at: existing?.health_data_consent_at || null,
       health_data_consent_version: existing?.health_data_consent_version || "1.1",
       medical_disclaimer_accepted_at: now,
+      medical_disclaimer_version: DISCLAIMER_VERSION,
     }, { 
       onConflict: "user_id",
       ignoreDuplicates: false 
     });
 
   if (error) throw error;
+
+  // Persist locally for flicker prevention
+  try {
+    localStorage.setItem(LS_KEY, DISCLAIMER_VERSION);
+  } catch { /* ignore */ }
 }
 
 /**
@@ -125,11 +146,15 @@ export async function hasValidHealthDataConsent(): Promise<boolean> {
 }
 
 /**
- * Prüft ob Medical Disclaimer akzeptiert wurde
+ * Prüft ob Medical Disclaimer in aktueller Version akzeptiert wurde.
+ * Uses localStorage as fast initial check to avoid flicker.
  */
-export async function hasMedicalDisclaimerAccepted(): Promise<boolean> {
-  const consent = await getUserConsent();
-  return consent?.medical_disclaimer_accepted_at !== null;
+export function isDisclaimerAcceptedLocally(): boolean {
+  try {
+    return localStorage.getItem(LS_KEY) === DISCLAIMER_VERSION;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -157,7 +182,9 @@ export async function getConsentStatus(): Promise<Omit<ConsentStatus, 'isLoading
 
   const isWithdrawn = consent.consent_withdrawn_at !== null;
   const needsHealthDataConsent = !consent.health_data_consent || isWithdrawn;
-  const needsMedicalDisclaimer = !consent.medical_disclaimer_accepted_at;
+  
+  // Version-based check: needs disclaimer if version doesn't match current
+  const needsMedicalDisclaimer = consent.medical_disclaimer_version !== DISCLAIMER_VERSION;
 
   return {
     hasConsent: !needsHealthDataConsent && !needsMedicalDisclaimer,
