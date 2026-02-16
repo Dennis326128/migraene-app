@@ -4,6 +4,7 @@ import { HealthDataConsentModal } from "./HealthDataConsentModal";
 import { MedicalDisclaimerModal } from "./MedicalDisclaimerModal";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { isDisclaimerAcceptedLocally } from "../api/consent.api";
 
 interface ConsentGateProps {
   children: React.ReactNode;
@@ -37,6 +38,9 @@ export const ConsentGate: React.FC<ConsentGateProps> = ({ children }) => {
   const [loadingTimedOut, setLoadingTimedOut] = useState(false);
   const [consentError, setConsentError] = useState(false);
 
+  // Fast local check: skip disclaimer modal if already accepted locally
+  const [localDisclaimerOk] = useState(() => isDisclaimerAcceptedLocally());
+
   // KRITISCH: Timeout - App darf nicht hängen
   useEffect(() => {
     if (!isLoading) {
@@ -63,14 +67,14 @@ export const ConsentGate: React.FC<ConsentGateProps> = ({ children }) => {
   }, [error]);
 
   // KRITISCHE REGEL: Bei Timeout oder Fehler → App rendern
-  // Consent-Modals können später gezeigt werden, aber App muss funktionieren
   if (loadingTimedOut || consentError) {
     console.warn('[ConsentGate] Bypassing consent gate due to timeout/error');
     return <>{children}</>;
   }
 
   // Kurzes Loading (max 3 Sekunden) - dann Fallback
-  if (isLoading) {
+  // If local check says OK, skip loading spinner entirely
+  if (isLoading && !localDisclaimerOk) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
@@ -79,6 +83,11 @@ export const ConsentGate: React.FC<ConsentGateProps> = ({ children }) => {
         </div>
       </div>
     );
+  }
+
+  // If still loading but local says OK → render children (server will confirm later)
+  if (isLoading && localDisclaimerOk) {
+    return <>{children}</>;
   }
 
   // Wenn alle Consents vorhanden → App rendern
@@ -94,13 +103,14 @@ export const ConsentGate: React.FC<ConsentGateProps> = ({ children }) => {
         <MedicalDisclaimerModal
           open={true}
           onAccept={async () => {
+            // Close modal immediately (optimistic)
+            setShowMedicalDisclaimer(false);
             try {
               await saveMedicalDisclaimer.mutateAsync();
             } catch (e) {
               console.error('[ConsentGate] Error saving medical disclaimer:', e);
               // Bei Fehler trotzdem fortfahren - App darf nicht blockiert werden
             }
-            setShowMedicalDisclaimer(false);
           }}
         />
       </>
@@ -131,6 +141,6 @@ export const ConsentGate: React.FC<ConsentGateProps> = ({ children }) => {
     );
   }
 
-  // Default: App rendern (sollte nach Consent-Abschluss erreicht werden)
+  // Default: App rendern
   return <>{children}</>;
 };
