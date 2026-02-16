@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/ui/page-header';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ReminderCard } from './ReminderCard';
-import { groupReminders } from '@/features/reminders/helpers/groupReminders';
+import { groupReminders, type GroupedReminder } from '@/features/reminders/helpers/groupReminders';
 import { ReminderForm } from './ReminderForm';
 import { EmptyState } from '@/components/ui/empty-state';
 import {
@@ -215,18 +215,17 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
     return reminders;
   };
 
-  const getTypeCounts = () => {
-    const reminders = activeTab === 'active' ? activeReminders : historyReminders;
-    const grouped = groupReminders(reminders);
-    
+  const getTypeCounts = (grouped: GroupedReminder[]) => {
     return {
       all: grouped.length,
-      medication: groupReminders(reminders.filter(r => r.type === 'medication')).length,
-      appointment: groupReminders(reminders.filter(r => r.type === 'appointment')).length,
+      medication: grouped.filter(g => g.reminder.type === 'medication').length,
+      appointment: grouped.filter(g => g.reminder.type === 'appointment').length,
     };
   };
 
-  const typeCounts = getTypeCounts();
+  const baseReminders = activeTab === 'active' ? activeReminders : historyReminders;
+  const allGrouped = groupReminders(baseReminders);
+  const typeCounts = getTypeCounts(allGrouped);
   const filteredReminders = getFilteredReminders();
 
   const handleEdit = (reminder: Reminder, allReminders: Reminder[] = []) => {
