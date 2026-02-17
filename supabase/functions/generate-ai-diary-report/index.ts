@@ -536,9 +536,32 @@ serve(async (req) => {
       return entry;
     }).join('\n');
 
-    // ── ME/CFS aggregierter Featureblock ──
+    // ── ME/CFS aggregierter Featureblock (gefiltert nach Tracking-Start) ──
+    // Fetch mecfs_tracking_started_at from user_profiles
+    let mecfsStartDate: string | null = null;
+    {
+      const { data: profileData } = await supabase
+        .from('user_profiles')
+        .select('mecfs_tracking_started_at')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      mecfsStartDate = profileData?.mecfs_tracking_started_at ?? null;
+    }
+
+    // If no persisted start date, derive from entries
+    if (!mecfsStartDate) {
+      for (const d of structuredEntries) {
+        if (d.me_cfs_score === undefined || d.me_cfs_score === null) continue;
+        if (d.date && (!mecfsStartDate || d.date < mecfsStartDate)) mecfsStartDate = d.date;
+      }
+    }
+
+    const mecfsFilteredEntries = mecfsStartDate
+      ? structuredEntries.filter(d => d.date && d.date >= mecfsStartDate!)
+      : structuredEntries;
+
     const meCfsDayMap = new Map<string, number>();
-    for (const d of structuredEntries) {
+    for (const d of mecfsFilteredEntries) {
       if (!d.date) continue;
       meCfsDayMap.set(d.date, Math.max(meCfsDayMap.get(d.date) ?? 0, d.me_cfs_score));
     }
@@ -552,7 +575,7 @@ serve(async (req) => {
       const meCfsAvg = meCfsScores.reduce((a, b) => a + b, 0) / documentedDays;
       const burdenPer30 = Math.round(((meCfsDaysWithBurden / documentedDays) * 30) * 10) / 10;
       const levelLabel = (s: number) => s <= 0 ? 'keine' : s <= 4 ? 'leicht' : s <= 7 ? 'mittel' : 'schwer';
-      meCfsFeatureBlock = `\n\nME/CFS (aggregiert, Basis: ${documentedDays} dokumentierte Tage): Belastete Tage: ${burdenPer30}/30 (hochgerechnet), ${meCfsPct}%, Ø Tages-MAX: ${(Math.round(meCfsAvg * 10) / 10)}/10 (${levelLabel(meCfsAvg)}).`;
+      meCfsFeatureBlock = `\n\nME/CFS (aggregiert, Basis: ${documentedDays} dokumentierte Tage seit Beginn der ME/CFS-Erfassung): Belastete Tage: ${burdenPer30}/30 (hochgerechnet), ${meCfsPct}%, Ø Tages-MAX: ${(Math.round(meCfsAvg * 10) / 10)}/10 (${levelLabel(meCfsAvg)}).`;
     }
 
     const prophylaxeCourses = (medicationCourses || []).filter(c => c.type === 'prophylaxe');

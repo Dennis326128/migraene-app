@@ -1467,6 +1467,7 @@ export type Database = {
           deletion_scheduled_for: string | null
           latitude: number | null
           longitude: number | null
+          mecfs_tracking_started_at: string | null
           medication_limit_warning_threshold_pct: number
           notes_layout: string | null
           quick_entry_mode: boolean | null
@@ -1493,6 +1494,7 @@ export type Database = {
           deletion_scheduled_for?: string | null
           latitude?: number | null
           longitude?: number | null
+          mecfs_tracking_started_at?: string | null
           medication_limit_warning_threshold_pct?: number
           notes_layout?: string | null
           quick_entry_mode?: boolean | null
@@ -1519,6 +1521,7 @@ export type Database = {
           deletion_scheduled_for?: string | null
           latitude?: number | null
           longitude?: number | null
+          mecfs_tracking_started_at?: string | null
           medication_limit_warning_threshold_pct?: number
           notes_layout?: string | null
           quick_entry_mode?: boolean | null

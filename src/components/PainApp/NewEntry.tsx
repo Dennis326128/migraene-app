@@ -492,6 +492,13 @@ export const NewEntry = ({
       
       try {
         savedId = await createMut.mutateAsync(payload as any);
+
+        // Auto-set ME/CFS tracking start date (fire-and-forget)
+        if (payload.me_cfs_severity_score !== undefined) {
+          import('@/lib/mecfs/trackingStart').then(({ ensureMeCfsTrackingStartDate }) => {
+            ensureMeCfsTrackingStartDate(payload.selected_date).catch(() => {});
+          });
+        }
       } catch (error: any) {
         // Bei Netzwerkfehler: In Queue
         if (error.message?.includes('network') || error.message?.includes('fetch') || !navigator.onLine) {
