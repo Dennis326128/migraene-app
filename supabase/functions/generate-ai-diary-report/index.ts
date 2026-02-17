@@ -391,6 +391,8 @@ serve(async (req) => {
         pain_locations,
         medications,
         notes,
+        me_cfs_severity_score,
+        me_cfs_severity_level,
         weather:weather_logs!pain_entries_weather_id_fkey (
           temperature_c,
           pressure_mb,
@@ -420,6 +422,8 @@ serve(async (req) => {
         pain_locations,
         medications,
         notes,
+        me_cfs_severity_score,
+        me_cfs_severity_level,
         weather:weather_logs!pain_entries_weather_id_fkey (
           temperature_c,
           pressure_mb,
@@ -478,12 +482,13 @@ serve(async (req) => {
         aura_type: entry.aura_type,
         medications: entry.medications?.join(', ') || 'keine',
         notes: entry.notes || '',
+        me_cfs_score: (entry as any).me_cfs_severity_score ?? 0,
+        me_cfs_level: (entry as any).me_cfs_severity_level ?? 'none',
         weather: weather ? {
           temp: weather.temperature_c,
           pressure: weather.pressure_mb,
           humidity: weather.humidity,
         } : null,
-        // Keep weather created_at for dedupe calculation
         _weatherCreatedAt: weather?.created_at
       };
     });
@@ -521,6 +526,9 @@ serve(async (req) => {
     // Build prompt data
     const dataText = structuredEntries.slice(-150).map(d => {
       let entry = `[${d.date} ${d.time}] Schmerz=${d.pain_level}, Aura=${d.aura_type}, Medikamente=${d.medications}`;
+      if (d.me_cfs_score > 0) {
+        entry += `, ME/CFS=${d.me_cfs_level}(${d.me_cfs_score}/9)`;
+      }
       if (d.weather) {
         entry += ` | Wetter: ${d.weather.temp}°C, ${d.weather.pressure}hPa`;
       }
@@ -571,7 +579,8 @@ Erstelle eine strukturierte Zusammenfassung als JSON. Fokus auf:
 1. Häufigkeit und Intensität der Kopfschmerzen
 2. Zeitliche Muster (Tageszeit, Wochentage)
 3. Medikamentennutzung
-4. Auffällige Zusammenhänge (falls erkennbar)
+4. ME/CFS-Belastung (falls ME/CFS-Daten vorhanden: Häufigkeit, Zusammenhang mit Schmerzintensität - KEINE Kausalität behaupten, nur Assoziation)
+5. Auffällige Zusammenhänge (falls erkennbar)
 
 Antworte NUR mit dem JSON-Objekt.`;
 

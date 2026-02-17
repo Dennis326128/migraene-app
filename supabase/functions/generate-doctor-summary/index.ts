@@ -79,6 +79,8 @@ Deno.serve(async (req) => {
         pain_locations,
         medications,
         notes,
+        me_cfs_severity_score,
+        me_cfs_severity_level,
         weather:weather_logs!pain_entries_weather_id_fkey (
           pressure_mb,
           pressure_change_24h,
@@ -223,6 +225,11 @@ STRUKTUR (nur auffällige Punkte erwähnen, irrelevante Abschnitte komplett wegl
    Beispiel: "Besondere Auffälligkeiten: Auffällig sind die hohe Attackenfrequenz und wiederholte Mehrfacheinnahmen von Akutmedikation an einzelnen Tagen."
    Maximal 2-3 Sätze.
 
+8. ME/CFS-Belastung: Falls ME/CFS-Daten vorhanden sind (me_cfs_severity_score > 0), kurz erwähnen.
+   Beispiel: "ME/CFS-Belastung: An 45% der Tage wurde eine ME/CFS-Beeinträchtigung dokumentiert, überwiegend leicht bis mittel. An Tagen mit höherer ME/CFS-Belastung war die Schmerzintensität tendenziell erhöht."
+   Wenn keine ME/CFS-Daten vorhanden: diesen Abschnitt KOMPLETT WEGLASSEN.
+   KEINE Kausalitätsbehauptungen, nur sachliche Beschreibung der Assoziation.
+
 WICHTIG: Beende den Text direkt nach den "Besonderen Auffälligkeiten". Fuege KEINEN Hinweis, Disclaimer oder "Hinweis:" Absatz hinzu - dieser wird separat im PDF eingefuegt.
 
 DATEN:
@@ -245,6 +252,7 @@ ${entries.map(e => {
   const weather = Array.isArray(e.weather) ? e.weather[0] : e.weather;
   const pressure = weather?.pressure_mb ? `${weather.pressure_mb}hPa` : '';
   const pressureChange = weather?.pressure_change_24h ? `(${weather.pressure_change_24h > 0 ? '+' : ''}${weather.pressure_change_24h}hPa/24h)` : '';
+  const cfs = e.me_cfs_severity_score > 0 ? `, ME/CFS ${e.me_cfs_severity_level}(${e.me_cfs_severity_score}/9)` : '';
   
   // Finde Effekte für diesen Eintrag
   const entryEffects = effects?.filter(eff => eff.entry_id === e.id) || [];
@@ -252,7 +260,7 @@ ${entries.map(e => {
     ? entryEffects.map(eff => `${eff.med_name}:${eff.effect_rating}`).join(', ')
     : 'keine Bewertung';
   
-  return `${date} ${time}: Schmerz ${pain}, Aura ${e.aura_type || 'keine'}, Ort ${locations}, Meds ${meds}, Wirkung ${effectsText}${pressure ? `, Druck ${pressure}${pressureChange}` : ''}`;
+  return `${date} ${time}: Schmerz ${pain}, Aura ${e.aura_type || 'keine'}, Ort ${locations}, Meds ${meds}, Wirkung ${effectsText}${cfs}${pressure ? `, Druck ${pressure}${pressureChange}` : ''}`;
 }).join('\n')}
 
 Gib NUR den fertig formatierten Text zurück, KEIN Markdown.`;
