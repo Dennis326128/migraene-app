@@ -758,7 +758,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
       }
 
       // ── ME/CFS-Belastungsdaten berechnen ──
-      let meCfsData: { avgScore: number; avgLabel: string; burdenPct: number; daysWithBurden: number; documentedDays: number; iqrLabel: string; dataQualityNote?: string } | undefined = undefined;
+      let meCfsData: { avgScore: number; avgLabel: string; burdenPct: number; burdenPer30: number; daysWithBurden: number; documentedDays: number; iqrLabel: string; dataQualityNote?: string } | undefined = undefined;
       {
         const dayMap = new Map<string, number>();
         for (const e of freshEntries) {
@@ -774,7 +774,6 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
           const avg = scores.reduce((a, b) => a + b, 0) / documentedDays;
           const { scoreToLevel, levelToLabelDe } = await import("@/lib/mecfs/constants");
           const avgLevel = scoreToLevel(avg);
-          // IQR
           const sorted = [...scores].sort((a, b) => a - b);
           const pIdx = (p: number) => {
             const i = (p / 100) * (sorted.length - 1);
@@ -784,10 +783,12 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
           const p25 = Math.round(pIdx(25) * 10) / 10;
           const p75 = Math.round(pIdx(75) * 10) / 10;
           const iqrLabel = p25 === p75 ? `${p25}/10` : `${p25}–${p75}/10`;
+          const burdenPer30 = Math.round(((daysWithBurden / documentedDays) * 30) * 10) / 10;
           meCfsData = {
             avgScore: Math.round(avg * 10) / 10,
             avgLabel: levelToLabelDe(avgLevel),
             burdenPct: Math.round((daysWithBurden / documentedDays) * 100),
+            burdenPer30,
             daysWithBurden,
             documentedDays,
             iqrLabel,

@@ -550,8 +550,9 @@ serve(async (req) => {
       const documentedDays = meCfsScores.length;
       const meCfsPct = Math.round((meCfsDaysWithBurden / documentedDays) * 100);
       const meCfsAvg = meCfsScores.reduce((a, b) => a + b, 0) / documentedDays;
+      const burdenPer30 = Math.round(((meCfsDaysWithBurden / documentedDays) * 30) * 10) / 10;
       const levelLabel = (s: number) => s <= 0 ? 'keine' : s <= 4 ? 'leicht' : s <= 7 ? 'mittel' : 'schwer';
-      meCfsFeatureBlock = `\n\nME/CFS (aggregiert, Basis: ${documentedDays} dokumentierte Tage): Belastete Tage: ${meCfsPct}%, durchschnittliche Stufe: ${levelLabel(meCfsAvg)}.`;
+      meCfsFeatureBlock = `\n\nME/CFS (aggregiert, Basis: ${documentedDays} dokumentierte Tage): Belastete Tage: ${burdenPer30}/30 (hochgerechnet), ${meCfsPct}%, Ø Tages-MAX: ${(Math.round(meCfsAvg * 10) / 10)}/10 (${levelLabel(meCfsAvg)}).`;
     }
 
     const prophylaxeCourses = (medicationCourses || []).filter(c => c.type === 'prophylaxe');
