@@ -149,7 +149,7 @@ function DiaryTimelinePieSection({ entries }: { entries: any[] }) {
   }, [entries, from, to]);
 
   const dayBuckets = useMemo(() => {
-    return computeDiaryDayBuckets({ startDate: from, endDate: to, entries: filteredEntries });
+    return computeDiaryDayBuckets({ startDate: from, endDate: to, entries: filteredEntries, documentedDaysOnly: true });
   }, [from, to, filteredEntries]);
 
   return (

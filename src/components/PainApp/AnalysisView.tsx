@@ -19,7 +19,6 @@ import { computeStatistics } from "@/lib/statistics";
 import type { MedicationEffect, MedicationLimit, EntrySymptom } from "@/lib/statistics";
 import { FullscreenChartModal, FullscreenChartButton } from "./FullscreenChartModal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { computeDateRange } from "@/lib/dateRange";
 import { useUserDefaults } from "@/features/settings/hooks/useUserSettings";
 import type { AIReport } from "@/features/ai-reports";
 import { computeDiaryDayBuckets } from "@/lib/diary/dayBuckets";
@@ -28,6 +27,13 @@ import { supabase } from "@/lib/supabaseClient";
 import { useQuery } from "@tanstack/react-query";
 import { useSymptomBurdens } from "@/features/symptoms/hooks/useSymptomBurden";
 import { getMeCfsTrackingStartDate, filterEntriesForMeCfs } from "@/lib/mecfs/trackingStart";
+import {
+  computeEffectiveDateRange,
+  getDocumentationSpanDays,
+  getDocumentedDays,
+  validatePreset,
+} from "@/lib/dateRange/rangeResolver";
+import { getFirstEntryDate } from "@/features/entries/api/entries.api";
 
 // Session storage keys
 const SESSION_KEY_PRESET = "stats_timeRange_preset";
@@ -43,7 +49,7 @@ function getInitialTimeRange(): TimeRangePreset {
       return stored as TimeRangePreset;
     }
   } catch { /* noop */ }
-  return "3m";
+  return "all";
 }
 
 function getInitialCustomDates(): { start: string; end: string } {
@@ -63,7 +69,6 @@ function useEntrySymptomsBulk(entryIds: number[]) {
     queryKey: ['entry-symptoms-bulk', entryIds],
     queryFn: async () => {
       if (entryIds.length === 0) return [];
-      // Fetch in chunks to avoid query limits
       const chunkSize = 200;
       const results: EntrySymptom[] = [];
       for (let i = 0; i < entryIds.length; i += chunkSize) {
@@ -123,6 +128,27 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
   const { data: userDefaults } = useUserDefaults();
   const warningThreshold = userDefaults?.medication_limit_warning_threshold_pct ?? 80;
 
+  // Load firstEntryDate once
+  useEffect(() => {
+    getFirstEntryDate().then(setFirstEntryDate);
+  }, []);
+
+  // Documentation span for dynamic presets
+  const documentationSpanDays = useMemo(
+    () => getDocumentationSpanDays(firstEntryDate),
+    [firstEntryDate]
+  );
+
+  // Validate preset against available span
+  useEffect(() => {
+    if (firstEntryDate) {
+      const validated = validatePreset(timeRange, documentationSpanDays);
+      if (validated !== timeRange) {
+        setTimeRange(validated);
+      }
+    }
+  }, [firstEntryDate, documentationSpanDays]);
+
   // Persist timeRange
   useEffect(() => {
     try { sessionStorage.setItem(SESSION_KEY_PRESET, timeRange); } catch { /* noop */ }
@@ -140,23 +166,26 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
   const handleTimeRangeChange = (newRange: TimeRangePreset) => {
     if (newRange === "custom") {
       const now = new Date();
-      setCustomTo(now.toISOString().split('T')[0]);
-      setCustomFrom(new Date(now.getFullYear(), now.getMonth() - 3, now.getDate()).toISOString().split('T')[0]);
+      const todayS = now.toISOString().split('T')[0];
+      setCustomTo(todayS);
+      const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+      let startStr = threeMonthsAgo.toISOString().split('T')[0];
+      // Clamp to firstEntryDate
+      if (firstEntryDate && startStr < firstEntryDate) startStr = firstEntryDate;
+      setCustomFrom(startStr);
     }
     setTimeRange(newRange);
   };
 
+  // Compute effective range (clamped)
+  const { from, to, wasClamped } = useMemo(
+    () => computeEffectiveDateRange(timeRange, firstEntryDate, { customFrom, customTo }),
+    [timeRange, firstEntryDate, customFrom, customTo]
+  );
+
   // Entries
   const entriesLimit = timeRange === "all" ? 5000 : 1000;
   const { data: allEntries = [], isLoading: entriesLoading, error: entriesError, refetch } = useEntries({ limit: entriesLimit });
-
-  useEffect(() => {
-    if (timeRange === "all") {
-      import("@/features/entries/api/entries.api").then(m => m.getFirstEntryDate()).then(setFirstEntryDate);
-    }
-  }, [timeRange]);
-
-  const { from, to } = useMemo(() => computeDateRange(timeRange, { customFrom, customTo, firstEntryDate }), [timeRange, customFrom, customTo, firstEntryDate]);
 
   const filteredEntries = useMemo(() => {
     return allEntries.filter(entry => {
@@ -165,12 +194,18 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
     });
   }, [allEntries, from, to]);
 
+  // Documented days (for denominator)
+  const documentedDaysSet = useMemo(
+    () => getDocumentedDays(filteredEntries, from, to),
+    [filteredEntries, from, to]
+  );
+  const documentedDaysCount = documentedDaysSet.size;
+
   // Pattern stats
   const entryIds = useMemo(() => filteredEntries.map(e => Number(e.id)), [filteredEntries]);
   const { data: medicationEffectsData = [] } = useMedicationEffectsForEntries(entryIds);
   const { data: medicationLimits = [] } = useMedicationLimits();
   
-  // Fetch real entry symptoms with names
   const { data: entrySymptoms = [] } = useEntrySymptomsBulk(entryIds);
   
   // Burden data
@@ -191,7 +226,7 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
     );
   }, [filteredEntries, medicationEffectsData, entrySymptoms, medicationLimits, allEntries]);
 
-  // Begleitsymptome stats (all entries)
+  // Begleitsymptome stats
   const symptomStats = useMemo(() => {
     if (entrySymptoms.length === 0) return { symptoms: [], episodesWithSymptoms: 0, checkedEpisodes: 0, checkedSymptoms: [] as { name: string; count: number; percentage: number }[] };
     
@@ -199,7 +234,6 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
     const episodesWithSymptoms = entriesWithSymptoms.size;
     const totalEpisodes = filteredEntries.length;
     
-    // All entries stats
     const counts = new Map<string, number>();
     for (const es of entrySymptoms) {
       const name = es.symptom_name || es.symptom_id;
@@ -209,7 +243,6 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
       .map(([name, count]) => ({ name, count, percentage: totalEpisodes > 0 ? Math.round((count / totalEpisodes) * 100) : 0 }))
       .sort((a, b) => b.count - a.count);
     
-    // Checked-only stats (viewed/edited entries)
     const checkedEntryIds = new Set(
       filteredEntries
         .filter((e: any) => e.symptoms_state === 'viewed' || e.symptoms_state === 'edited')
@@ -231,12 +264,13 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
     return { symptoms, episodesWithSymptoms, checkedEpisodes, checkedSymptoms };
   }, [entrySymptoms, filteredEntries]);
 
-  const daysInRange = useMemo(() => {
-    if (!from || !to) return undefined;
-    return Math.max(1, Math.round((new Date(to).getTime() - new Date(from).getTime()) / 86400000) + 1);
-  }, [from, to]);
+  // Use documented days as the denominator for day buckets
+  const dayBuckets = useMemo(
+    () => computeDiaryDayBuckets({ startDate: from, endDate: to, entries: filteredEntries, documentedDaysOnly: true }),
+    [from, to, filteredEntries]
+  );
 
-  const dayBuckets = useMemo(() => computeDiaryDayBuckets({ startDate: from, endDate: to, entries: filteredEntries }), [from, to, filteredEntries]);
+  const daysInRange = dayBuckets.totalDays;
 
   const hasOveruseWarning = useMemo(() => {
     return patternStats.medicationAndEffect.topMedications.some(med => {
@@ -255,6 +289,9 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
   }, [patternStats, warningThreshold]);
 
   const { data: timeDistribution = [] } = useTimeDistribution({ from, to });
+
+  // Today string for date input max
+  const todayS = useMemo(() => new Date().toISOString().split('T')[0], []);
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -287,18 +324,41 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
                 <CardTitle className="text-base">Zeitraum</CardTitle>
               </CardHeader>
               <CardContent className="pt-0">
-                <TimeRangeButtons value={timeRange} onChange={handleTimeRangeChange} />
+                <TimeRangeButtons
+                  value={timeRange}
+                  onChange={handleTimeRangeChange}
+                  documentationSpanDays={documentationSpanDays}
+                />
                 {timeRange === "custom" && (
                   <div className="grid grid-cols-2 gap-4 mt-4">
                     <div>
                       <label className="text-sm font-medium">Von</label>
-                      <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="w-full mt-1 px-3 py-2 bg-background border border-input rounded-md" />
+                      <input
+                        type="date"
+                        value={customFrom}
+                        min={firstEntryDate || undefined}
+                        max={customTo || todayS}
+                        onChange={(e) => setCustomFrom(e.target.value)}
+                        className="w-full mt-1 px-3 py-2 bg-background border border-input rounded-md"
+                      />
                     </div>
                     <div>
                       <label className="text-sm font-medium">Bis</label>
-                      <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="w-full mt-1 px-3 py-2 bg-background border border-input rounded-md" />
+                      <input
+                        type="date"
+                        value={customTo}
+                        min={customFrom || firstEntryDate || undefined}
+                        max={todayS}
+                        onChange={(e) => setCustomTo(e.target.value)}
+                        className="w-full mt-1 px-3 py-2 bg-background border border-input rounded-md"
+                      />
                     </div>
                   </div>
+                )}
+                {wasClamped && (
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Zeitraum wurde an verfügbare Daten angepasst.
+                  </p>
                 )}
               </CardContent>
             </Card>
@@ -329,7 +389,7 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
               </div>
             )}
 
-            {/* Data sections – new order */}
+            {/* Data sections */}
             {!entriesLoading && filteredEntries.length > 0 && (
               <div className="space-y-6">
                 {/* 1. Kopfschmerz- & Behandlungstage (Kreisdiagramm) */}
@@ -337,7 +397,9 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
                   <div className="flex items-start justify-between mb-3">
                     <div>
                       <h3 className="text-sm font-semibold text-foreground mb-1">Kopfschmerz- & Behandlungstage</h3>
-                      <p className="text-xs text-muted-foreground">Verteilung der Tage im gewählten Zeitraum</p>
+                      <p className="text-xs text-muted-foreground">
+                        Verteilung der {documentedDaysCount} dokumentierten Tage
+                      </p>
                     </div>
                     <FullscreenChartButton onClick={() => setPieFullscreen(true)} />
                   </div>
