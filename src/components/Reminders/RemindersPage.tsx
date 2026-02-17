@@ -226,22 +226,55 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
     return reminders;
   };
 
-  // SINGLE SOURCE OF TRUTH: Counter and rendered list use the same pipeline.
-  // Counter counts groups per type from range-filtered (but not type-filtered) data.
+  // Rendered list uses getFilteredReminders() which includes type + range + appointment-special logic
   const filteredReminders = getFilteredReminders();
 
-  const getTypeCounts = () => {
-    const base = activeTab === 'active' ? activeReminders : historyReminders;
-    const rangeFiltered = applyRangeFilter(base);
-    const grouped = groupReminders(rangeFiltered);
-    return {
-      all: grouped.length,
-      medication: grouped.filter(g => g.reminder.type === 'medication').length,
-      appointment: grouped.filter(g => g.reminder.type === 'appointment').length,
-    };
+  /**
+   * SINGLE SOURCE OF TRUTH: Counter uses the EXACT same visibility logic as the rendered list.
+   * Each type count is computed by running getFilteredReminders-equivalent logic per type,
+   * then grouping, so badge = visible card count. Always.
+   */
+  const getVisibleRemindersForType = (type: FilterType): Reminder[] => {
+    let reminders = activeTab === 'active' ? activeReminders : historyReminders;
+
+    // Type filter (same as getFilteredReminders)
+    if (type !== 'all') {
+      reminders = reminders.filter(r => r.type === type);
+    }
+
+    // Appointment-special range modes (same as getFilteredReminders)
+    if (type === 'appointment') {
+      const now = new Date();
+      const futureAppointments = reminders
+        .filter(r => new Date(r.date_time) >= now)
+        .sort((a, b) => new Date(a.date_time).getTime() - new Date(b.date_time).getTime());
+
+      if (rangeFilter === 'next-appointment') {
+        return futureAppointments.slice(0, 1);
+      }
+      if (rangeFilter === 'next-3-appointments') {
+        return futureAppointments.slice(0, 3);
+      }
+      // 'all-appointments' or other appointment modes: return all future
+      return futureAppointments;
+    }
+
+    // Standard date range filter for non-appointment types
+    reminders = applyRangeFilter(reminders);
+    return reminders;
   };
 
-  const typeCounts = getTypeCounts();
+  const typeCounts = (() => {
+    // Counter uses same filtered+grouped dataset as rendered list per type
+    const allVisible = groupReminders(getVisibleRemindersForType('all'));
+    const medVisible = groupReminders(getVisibleRemindersForType('medication'));
+    const aptVisible = groupReminders(getVisibleRemindersForType('appointment'));
+    return {
+      all: allVisible.length,
+      medication: medVisible.length,
+      appointment: aptVisible.length,
+    };
+  })();
 
   const handleEdit = (reminder: Reminder, allReminders: Reminder[] = []) => {
     setEditingReminder(reminder);
