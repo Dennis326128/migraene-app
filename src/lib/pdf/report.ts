@@ -160,12 +160,13 @@ type BuildReportParams = {
   symptomData?: SymptomDataForPdf;
   // ME/CFS-Belastungsdaten
   meCfsData?: {
+    avgScore: number;        // Ø Tages-MAX 0–10
     avgLabel: string;        // z.B. "leicht"
     burdenPct: number;       // Anteil Tage mit Belastung in %
-    peakLabel: string;       // Spitzenbelastung
     daysWithBurden: number;
-    totalDays: number;
-    dataQualityNote?: string; // optional Hinweis
+    documentedDays: number;  // nur dokumentierte Tage
+    iqrLabel: string;        // z.B. "0–3/10"
+    dataQualityNote?: string;
   };
   // Optional: Pre-rendered chart image (PNG bytes from html2canvas)
   chartImageBytes?: Uint8Array;
@@ -1340,9 +1341,9 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
 
   if (meCfsData) {
     const meCfsLines = [
-      `Anteil Tage mit Belastung: ${meCfsData.burdenPct}% (${meCfsData.daysWithBurden} von ${meCfsData.totalDays} Tagen)`,
-      `Durchschnittliche Belastung: ${sanitizeForPDF(meCfsData.avgLabel)}`,
-      `Spitzenbelastung: ${sanitizeForPDF(meCfsData.peakLabel)}`,
+      `Belastete Tage: ${meCfsData.burdenPct}% (${meCfsData.daysWithBurden} von ${meCfsData.documentedDays} dokumentierten Tagen)`,
+      `Durchschnittliche Tagesbelastung: ${meCfsData.avgScore}/10 (${sanitizeForPDF(meCfsData.avgLabel)})`,
+      `Typischer Bereich: ${sanitizeForPDF(meCfsData.iqrLabel)}`,
     ];
     const hasNote = !!meCfsData.dataQualityNote;
     const blockHeight = LAYOUT.lineHeight * 2 + meCfsLines.length * LAYOUT.lineHeight + (hasNote ? LAYOUT.lineHeight + 2 : 0) + LAYOUT.sectionGap;

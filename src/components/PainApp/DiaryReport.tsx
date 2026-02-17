@@ -758,7 +758,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
       }
 
       // ── ME/CFS-Belastungsdaten berechnen ──
-      let meCfsData: { avgLabel: string; burdenPct: number; peakLabel: string; daysWithBurden: number; totalDays: number; dataQualityNote?: string } | undefined = undefined;
+      let meCfsData: { avgScore: number; avgLabel: string; burdenPct: number; daysWithBurden: number; documentedDays: number; iqrLabel: string; dataQualityNote?: string } | undefined = undefined;
       {
         const dayMap = new Map<string, number>();
         for (const e of freshEntries) {
@@ -768,20 +768,29 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
           dayMap.set(date, Math.max(dayMap.get(date) ?? 0, score));
         }
         const scores = Array.from(dayMap.values());
-        const totalDays = freshReportData.kpis.daysInRange;
-        // Always provide meCfsData if we have day data (even all-zero is relevant info)
-        if (scores.length > 0) {
+        const documentedDays = scores.length;
+        if (documentedDays > 0) {
           const daysWithBurden = scores.filter(s => s > 0).length;
-          const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+          const avg = scores.reduce((a, b) => a + b, 0) / documentedDays;
           const { scoreToLevel, levelToLabelDe } = await import("@/lib/mecfs/constants");
           const avgLevel = scoreToLevel(avg);
-          const peakLevel = scoreToLevel(Math.max(...scores));
+          // IQR
+          const sorted = [...scores].sort((a, b) => a - b);
+          const pIdx = (p: number) => {
+            const i = (p / 100) * (sorted.length - 1);
+            const lo = Math.floor(i); const hi = Math.ceil(i);
+            return lo === hi ? sorted[lo] : sorted[lo] + (sorted[hi] - sorted[lo]) * (i - lo);
+          };
+          const p25 = Math.round(pIdx(25) * 10) / 10;
+          const p75 = Math.round(pIdx(75) * 10) / 10;
+          const iqrLabel = p25 === p75 ? `${p25}/10` : `${p25}–${p75}/10`;
           meCfsData = {
+            avgScore: Math.round(avg * 10) / 10,
             avgLabel: levelToLabelDe(avgLevel),
-            burdenPct: totalDays > 0 ? Math.round((daysWithBurden / totalDays) * 100) : 0,
-            peakLabel: levelToLabelDe(peakLevel),
+            burdenPct: Math.round((daysWithBurden / documentedDays) * 100),
             daysWithBurden,
-            totalDays,
+            documentedDays,
+            iqrLabel,
           };
         }
       }
