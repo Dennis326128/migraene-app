@@ -22,11 +22,11 @@ export function usePWAUpdate(): PWAUpdateState {
     onRegisteredSW(swUrl, registration) {
       console.log('[PWA] Service Worker registered:', swUrl);
       
-      // Periodic update check every 60 seconds
+      // Periodic update check every 30 seconds
       if (registration) {
         setInterval(() => {
           registration.update().catch(console.error);
-        }, 60 * 1000);
+        }, 30 * 1000);
       }
     },
     onRegisterError(error) {
