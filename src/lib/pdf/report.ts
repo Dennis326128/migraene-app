@@ -29,6 +29,8 @@ import { isTriptan } from "@/lib/medications/isTriptan";
 import { computeDiaryDayBuckets } from "@/lib/diary/dayBuckets";
 import { drawPieChartWithLegend } from "@/lib/pdf/pieChart";
 import { drawSymptomSection, type SymptomDataForPdf } from "@/lib/pdf/symptomSection";
+import { buildPainWeatherSeries, normalizePainLevel as sharedNormalizePainLevel, type PainWeatherDataPoint } from "@/lib/charts/painWeatherData";
+import { drawSmoothPainWeatherChart } from "@/lib/charts/painWeatherPdfChart";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES & CONSTANTS
@@ -156,6 +158,8 @@ type BuildReportParams = {
   };
   // Begleitsymptome Daten für klinische Übersicht
   symptomData?: SymptomDataForPdf;
+  // Optional: Pre-rendered chart image (PNG bytes from html2canvas)
+  chartImageBytes?: Uint8Array;
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -893,6 +897,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     doctors = [],
     premiumAIReport,
     symptomData,
+    chartImageBytes,
   } = params;
 
   const pdfDoc = await PDFDocument.create();
@@ -1646,23 +1651,55 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   // ═══════════════════════════════════════════════════════════════════════════
   
   if (includeChart && entries.length > 0) {
-    // Check if entries have weather data - skip section entirely if no weather data
-    const hasWeatherData = entries.some(e => e.weather && (e.weather.temperature_c !== null || e.weather.pressure_mb !== null));
+    // Build chart data using shared data builder (SINGLE SOURCE OF TRUTH)
+    const weatherByDate = new Map<string, { temp: number | null; pressure: number | null }>();
+    entries.forEach(entry => {
+      const date = entry.selected_date || entry.timestamp_created?.split('T')[0] || '';
+      if (entry.weather && date) {
+        const existing = weatherByDate.get(date);
+        if (!existing) {
+          weatherByDate.set(date, {
+            temp: entry.weather.temperature_c ?? null,
+            pressure: entry.weather.pressure_mb ?? null,
+          });
+        }
+      }
+    });
+
+    // Find earliest entry date
+    const entryDates = entries
+      .map(e => e.selected_date || e.timestamp_created?.split('T')[0])
+      .filter((d): d is string => !!d)
+      .map(d => new Date(d));
+    const earliestEntryDate = entryDates.length > 0
+      ? new Date(Math.min(...entryDates.map(d => d.getTime())))
+      : null;
+
+    const chartData = buildPainWeatherSeries({
+      entries: entries.map(e => ({
+        selected_date: e.selected_date,
+        timestamp_created: e.timestamp_created,
+        pain_level: e.pain_level,
+      })),
+      weatherByDate,
+      from: new Date(from),
+      to: new Date(to),
+      earliestEntryDate,
+    });
+
+    const hasWeatherData = chartData.some(d => d.temperature !== null || d.pressure !== null);
     
-    const defaultChartHeight = 224;  // 280 * 0.8 = -20%
+    const defaultChartHeight = 224;
     const chartHeaderSpace = 50;
-    const minChartHeight = 176;     // 220 * 0.8 = -20%
+    const minChartHeight = 176;
     const totalNeeded = chartHeaderSpace + defaultChartHeight;
     
-    // Dynamic: try to fit on current page, otherwise page break
     const availableSpace = yPos - LAYOUT.margin - 30;
     let chartHeight: number;
     
     if (availableSpace >= chartHeaderSpace + minChartHeight) {
-      // Fits on current page - use available space or default, whichever is smaller
       chartHeight = Math.min(defaultChartHeight, availableSpace - chartHeaderSpace);
     } else {
-      // Not enough space - page break
       const spaceCheck = ensureSpace(pdfDoc, page, yPos, totalNeeded);
       page = spaceCheck.page;
       yPos = spaceCheck.yPos;
@@ -1681,7 +1718,28 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     yPos -= 20;
     
     const chartWidth = LAYOUT.pageWidth - 2 * LAYOUT.margin;
-    drawCombinedWeatherPainChart(page, entries, LAYOUT.margin, yPos, chartWidth, chartHeight, font, fontBold);
+    
+    // Use chart image if provided (html2canvas capture), otherwise Bézier fallback
+    if (chartImageBytes) {
+      try {
+        const chartImage = await pdfDoc.embedPng(chartImageBytes);
+        const scaledDims = chartImage.scaleToFit(chartWidth, chartHeight);
+        const imgX = LAYOUT.margin + (chartWidth - scaledDims.width) / 2;
+        page.drawImage(chartImage, {
+          x: imgX,
+          y: yPos - scaledDims.height,
+          width: scaledDims.width,
+          height: scaledDims.height,
+        });
+      } catch (imgError) {
+        console.warn('[PDF] Chart image embedding failed, using Bézier fallback:', imgError);
+        drawSmoothPainWeatherChart(page, chartData, LAYOUT.margin, yPos, chartWidth, chartHeight, font, fontBold);
+      }
+    } else {
+      // Bézier vector fallback — smooth curves matching App look
+      drawSmoothPainWeatherChart(page, chartData, LAYOUT.margin, yPos, chartWidth, chartHeight, font, fontBold);
+    }
+    
     yPos -= chartHeight + LAYOUT.sectionGap;
   }
 
