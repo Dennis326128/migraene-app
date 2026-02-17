@@ -30,17 +30,18 @@ export function MeCfsStatisticsCard({ entries, daysInRange }: MeCfsStatisticsCar
   const stats = useMemo(() => {
     const dayMap = dailyMax(entries);
     const scores = Array.from(dayMap.values());
+    // Render card if we have any day data at all (even if all 0)
     if (scores.length === 0) return null;
 
     const totalDays = daysInRange ?? scores.length;
     const daysWithBurden = scores.filter(s => s > 0).length;
     const burdenPct = totalDays > 0 ? Math.round((daysWithBurden / totalDays) * 100) : 0;
     const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
-    const avgLevel = scoreToLevel(Math.round(avg));
+    const avgLevel = scoreToLevel(avg);
     const peakScore = Math.max(...scores);
     const peakLevel = scoreToLevel(peakScore);
 
-    // Distribution for mini bar chart
+    // Distribution via bucket mapping (works for slider 0–10 too)
     const dist = { none: 0, mild: 0, moderate: 0, severe: 0 };
     for (const s of scores) {
       dist[scoreToLevel(s)]++;
@@ -49,8 +50,8 @@ export function MeCfsStatisticsCard({ entries, daysInRange }: MeCfsStatisticsCar
     return { avgLevel, burdenPct, daysWithBurden, totalDays, peakLevel, dist, avgScore: Math.round(avg * 10) / 10 };
   }, [entries, daysInRange]);
 
-  // Don't render if no ME/CFS data at all
-  if (!stats || stats.daysWithBurden === 0 && stats.avgScore === 0) {
+  // Only hide if truly no data points at all
+  if (!stats) {
     return null;
   }
 

@@ -527,7 +527,7 @@ serve(async (req) => {
     const dataText = structuredEntries.slice(-150).map(d => {
       let entry = `[${d.date} ${d.time}] Schmerz=${d.pain_level}, Aura=${d.aura_type}, Medikamente=${d.medications}`;
       if (d.me_cfs_score > 0) {
-        entry += `, ME/CFS=${d.me_cfs_level}(${d.me_cfs_score}/9)`;
+        entry += `, ME/CFS=${d.me_cfs_level}`;
       }
       if (d.weather) {
         entry += ` | Wetter: ${d.weather.temp}°C, ${d.weather.pressure}hPa`;
@@ -535,6 +535,24 @@ serve(async (req) => {
       if (d.notes) entry += ` | Notiz: ${d.notes.substring(0, 80)}`;
       return entry;
     }).join('\n');
+
+    // ── ME/CFS aggregierter Featureblock ──
+    const meCfsDayMap = new Map<string, number>();
+    for (const d of structuredEntries) {
+      if (!d.date) continue;
+      meCfsDayMap.set(d.date, Math.max(meCfsDayMap.get(d.date) ?? 0, d.me_cfs_score));
+    }
+    const meCfsScores = Array.from(meCfsDayMap.values());
+    const meCfsDaysWithBurden = meCfsScores.filter(s => s > 0).length;
+
+    let meCfsFeatureBlock = '';
+    if (meCfsDaysWithBurden > 0) {
+      const meCfsPct = Math.round((meCfsDaysWithBurden / meCfsScores.length) * 100);
+      const meCfsAvg = meCfsScores.reduce((a, b) => a + b, 0) / meCfsScores.length;
+      const levelLabel = (s: number) => s <= 0 ? 'keine' : s <= 4 ? 'leicht' : s <= 7 ? 'mittel' : 'schwer';
+      const meCfsPeak = Math.max(...meCfsScores);
+      meCfsFeatureBlock = `\n\nME/CFS (aggregiert): Anteil Tage mit Belastung: ${meCfsPct}%, durchschnittliche Stufe: ${levelLabel(meCfsAvg)}, Spitze: ${levelLabel(meCfsPeak)}.`;
+    }
 
     const prophylaxeCourses = (medicationCourses || []).filter(c => c.type === 'prophylaxe');
     let coursesSummary = '';
@@ -562,6 +580,9 @@ REGELN:
 - 2-4 thematische Abschnitte mit je 2-4 Bulletpoints
 - Deutsche Sprache
 - Jede Aussage mit Daten belegen
+- ME/CFS nur erwähnen, wenn ein ME/CFS-Featureblock in den Daten vorhanden ist
+- Keine Kausalitätsbehauptungen bei ME/CFS, nur Assoziationen ("im Mittel", "tendenziell")
+- Keine einzelnen Datumsnennungen für ME/CFS
 
 JSON-SCHEMA:
 ${jsonSchema}`;
@@ -572,14 +593,14 @@ ZEITRAUM: ${fromDate.split('T')[0]} bis ${toDate.split('T')[0]}
 EINTRÄGE: ${structuredEntries.length}
 
 DATEN:
-${dataText}${coursesSummary}
+${dataText}${coursesSummary}${meCfsFeatureBlock}
 
 AUFGABE:
 Erstelle eine strukturierte Zusammenfassung als JSON. Fokus auf:
 1. Häufigkeit und Intensität der Kopfschmerzen
 2. Zeitliche Muster (Tageszeit, Wochentage)
 3. Medikamentennutzung
-4. ME/CFS-Belastung (falls ME/CFS-Daten vorhanden: Häufigkeit, Zusammenhang mit Schmerzintensität - KEINE Kausalität behaupten, nur Assoziation)
+4. ME/CFS-Belastung (NUR wenn ME/CFS-Featureblock oben vorhanden: Häufigkeit, Zusammenhang mit Schmerzintensität - KEINE Kausalität, nur Assoziation)
 5. Auffällige Zusammenhänge (falls erkennbar)
 
 Antworte NUR mit dem JSON-Objekt.`;
