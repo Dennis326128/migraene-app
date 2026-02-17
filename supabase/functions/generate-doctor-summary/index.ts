@@ -179,6 +179,26 @@ Deno.serve(async (req) => {
       ? `\n\nKONTEXTNOTIZEN (Sprachnotizen/Zusatzinformationen):\n${contextNotesText}\n\nWichtig: Berücksichtige die Kontextnotizen bei der Analyse der "Besonderen Auffälligkeiten". Falls relevante Muster oder Trigger in den Kontextnotizen erwähnt werden (z.B. Stress, Schlaf, Ernährung, Hormone), erwähne diese im Bericht.`
       : '';
 
+    // ── ME/CFS aggregierter Featureblock ──
+    const meCfsDayMap = new Map<string, number>();
+    for (const e of entries) {
+      const date = e.selected_date || e.timestamp_created?.split('T')[0];
+      if (!date) continue;
+      const score = e.me_cfs_severity_score ?? 0;
+      meCfsDayMap.set(date, Math.max(meCfsDayMap.get(date) ?? 0, score));
+    }
+    const meCfsScores = Array.from(meCfsDayMap.values());
+    const meCfsDaysWithBurden = meCfsScores.filter(s => s > 0).length;
+
+    let meCfsFeatureBlock = '';
+    if (meCfsDaysWithBurden > 0) {
+      const meCfsPct = Math.round((meCfsDaysWithBurden / meCfsScores.length) * 100);
+      const meCfsAvg = meCfsScores.reduce((a, b) => a + b, 0) / meCfsScores.length;
+      const levelLabel = (s: number): string => s <= 0 ? 'keine' : s <= 4 ? 'leicht' : s <= 7 ? 'mittel' : 'schwer';
+      const meCfsPeak = Math.max(...meCfsScores);
+      meCfsFeatureBlock = `\nME/CFS (aggregiert): Anteil Tage mit Belastung: ${meCfsPct}%, durchschnittliche Stufe: ${levelLabel(meCfsAvg)}, Spitze: ${levelLabel(meCfsPeak)}.`;
+    }
+
     // Prompt für strukturierten Arztbericht
     const prompt = `Du bist eine medizinisch neutrale KI. Werte Migräne-Tagebuchdaten aus und erstelle einen sehr kurzen, sachlichen Kurzbericht für Ärzt:innen.
 
@@ -192,6 +212,8 @@ WICHTIGE VORGABEN:
 - Maximal 6-7 kurze Absätze, jeder 1-2 Sätze
 - Jeder Absatz beginnt mit fett hervorgehobener Überschrift gefolgt von Doppelpunkt (Format: "Überschrift: Text")
 - Einheitlich "Attacken" statt "Episoden" verwenden
+- ME/CFS nur erwähnen, wenn ein ME/CFS-Featureblock in den Daten vorhanden ist
+- Keine Kausalitätsbehauptungen bei ME/CFS, nur Assoziationen ("tendenziell", "im Mittel")
 
 ZEITRAUM:
 Auswertungszeitraum: ${fromFormatted} – ${toFormatted} (${daysCount} Tage)
@@ -225,9 +247,9 @@ STRUKTUR (nur auffällige Punkte erwähnen, irrelevante Abschnitte komplett wegl
    Beispiel: "Besondere Auffälligkeiten: Auffällig sind die hohe Attackenfrequenz und wiederholte Mehrfacheinnahmen von Akutmedikation an einzelnen Tagen."
    Maximal 2-3 Sätze.
 
-8. ME/CFS-Belastung: Falls ME/CFS-Daten vorhanden sind (me_cfs_severity_score > 0), kurz erwähnen.
+8. ME/CFS-Belastung: NUR wenn ME/CFS-Featureblock in den Daten vorhanden ist, kurz erwähnen.
    Beispiel: "ME/CFS-Belastung: An 45% der Tage wurde eine ME/CFS-Beeinträchtigung dokumentiert, überwiegend leicht bis mittel. An Tagen mit höherer ME/CFS-Belastung war die Schmerzintensität tendenziell erhöht."
-   Wenn keine ME/CFS-Daten vorhanden: diesen Abschnitt KOMPLETT WEGLASSEN.
+   Wenn kein ME/CFS-Featureblock vorhanden: diesen Abschnitt KOMPLETT WEGLASSEN.
    KEINE Kausalitätsbehauptungen, nur sachliche Beschreibung der Assoziation.
 
 WICHTIG: Beende den Text direkt nach den "Besonderen Auffälligkeiten". Fuege KEINEN Hinweis, Disclaimer oder "Hinweis:" Absatz hinzu - dieser wird separat im PDF eingefuegt.
@@ -252,9 +274,8 @@ ${entries.map(e => {
   const weather = Array.isArray(e.weather) ? e.weather[0] : e.weather;
   const pressure = weather?.pressure_mb ? `${weather.pressure_mb}hPa` : '';
   const pressureChange = weather?.pressure_change_24h ? `(${weather.pressure_change_24h > 0 ? '+' : ''}${weather.pressure_change_24h}hPa/24h)` : '';
-  const cfs = e.me_cfs_severity_score > 0 ? `, ME/CFS ${e.me_cfs_severity_level}(${e.me_cfs_severity_score}/9)` : '';
+  const cfs = e.me_cfs_severity_score > 0 ? `, ME/CFS ${e.me_cfs_severity_level}` : '';
   
-  // Finde Effekte für diesen Eintrag
   const entryEffects = effects?.filter(eff => eff.entry_id === e.id) || [];
   const effectsText = entryEffects.length > 0 
     ? entryEffects.map(eff => `${eff.med_name}:${eff.effect_rating}`).join(', ')
@@ -262,6 +283,7 @@ ${entries.map(e => {
   
   return `${date} ${time}: Schmerz ${pain}, Aura ${e.aura_type || 'keine'}, Ort ${locations}, Meds ${meds}, Wirkung ${effectsText}${cfs}${pressure ? `, Druck ${pressure}${pressureChange}` : ''}`;
 }).join('\n')}
+${meCfsFeatureBlock}
 
 Gib NUR den fertig formatierten Text zurück, KEIN Markdown.`;
 

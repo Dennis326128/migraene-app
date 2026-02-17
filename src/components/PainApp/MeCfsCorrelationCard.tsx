@@ -5,6 +5,8 @@
 import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TrendingUp } from "lucide-react";
+import { scoreToLevel } from "@/lib/mecfs/constants";
+import { isTriptan } from "@/lib/medications/isTriptan";
 import type { PainEntry } from "@/types/painApp";
 
 interface MeCfsCorrelationCardProps {
@@ -22,21 +24,36 @@ function painToNumeric(level: string): number {
   return isNaN(n) ? 0 : n;
 }
 
+/** Check if any medication in the list is an acute medication (Triptan/NSAID/Analgetika) */
+function hasAcuteMedication(meds: string[] | undefined | null): boolean {
+  if (!meds || meds.length === 0) return false;
+  const ACUTE_KEYWORDS = [
+    'ibuprofen', 'aspirin', 'paracetamol', 'novaminsulfon', 'metamizol',
+    'diclofenac', 'naproxen', 'acetylsalicyl',
+  ];
+  return meds.some(m => {
+    if (!m || m === '-') return false;
+    if (isTriptan(m)) return true;
+    const lower = m.toLowerCase();
+    return ACUTE_KEYWORDS.some(kw => lower.includes(kw));
+  });
+}
+
 export function MeCfsCorrelationCard({ entries }: MeCfsCorrelationCardProps) {
   const correlation = useMemo(() => {
     // Group by day, take MAX ME/CFS and MAX pain per day
-    const dayMap = new Map<string, { maxCfs: number; maxPain: number; hasMed: boolean }>();
+    const dayMap = new Map<string, { maxCfs: number; maxPain: number; hasAcuteMed: boolean }>();
     for (const e of entries) {
       const date = e.selected_date || e.timestamp_created?.split('T')[0];
       if (!date) continue;
       const cfs = (e as any).me_cfs_severity_score ?? 0;
       const pain = painToNumeric(e.pain_level);
-      const hasMed = (e.medications?.length ?? 0) > 0 && e.medications?.[0] !== '-';
+      const acuteMed = hasAcuteMedication(e.medications);
       const prev = dayMap.get(date);
       dayMap.set(date, {
         maxCfs: Math.max(prev?.maxCfs ?? 0, cfs),
         maxPain: Math.max(prev?.maxPain ?? 0, pain),
-        hasMed: (prev?.hasMed ?? false) || hasMed,
+        hasAcuteMed: (prev?.hasAcuteMed ?? false) || acuteMed,
       });
     }
 
@@ -51,8 +68,8 @@ export function MeCfsCorrelationCard({ entries }: MeCfsCorrelationCardProps) {
 
     const avgPainA = groupA.reduce((s, d) => s + d.maxPain, 0) / groupA.length;
     const avgPainB = groupB.reduce((s, d) => s + d.maxPain, 0) / groupB.length;
-    const medPctA = Math.round((groupA.filter(d => d.hasMed).length / groupA.length) * 100);
-    const medPctB = Math.round((groupB.filter(d => d.hasMed).length / groupB.length) * 100);
+    const medPctA = Math.round((groupA.filter(d => d.hasAcuteMed).length / groupA.length) * 100);
+    const medPctB = Math.round((groupB.filter(d => d.hasAcuteMed).length / groupB.length) * 100);
 
     return {
       nA: groupA.length,
@@ -93,7 +110,7 @@ export function MeCfsCorrelationCard({ entries }: MeCfsCorrelationCardProps) {
         </div>
         {correlation.painDiff !== 0 && (
           <p className="text-xs text-muted-foreground mt-3 italic">
-            An Tagen mit ME/CFS-Belastung war die Schmerzintensität im Mittel {correlation.painDiff > 0 ? 'um' : 'um'} {Math.abs(correlation.painDiff)} Punkte {correlation.painDiff > 0 ? 'höher' : 'niedriger'}.
+            An Tagen mit ME/CFS-Belastung war die Schmerzintensität im Mittel um {Math.abs(correlation.painDiff)} Punkte {correlation.painDiff > 0 ? 'höher' : 'niedriger'}.
           </p>
         )}
       </CardContent>

@@ -768,12 +768,13 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
           dayMap.set(date, Math.max(dayMap.get(date) ?? 0, score));
         }
         const scores = Array.from(dayMap.values());
-        const daysWithBurden = scores.filter(s => s > 0).length;
         const totalDays = freshReportData.kpis.daysInRange;
-        if (daysWithBurden > 0) {
+        // Always provide meCfsData if we have day data (even all-zero is relevant info)
+        if (scores.length > 0) {
+          const daysWithBurden = scores.filter(s => s > 0).length;
           const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
           const { scoreToLevel, levelToLabelDe } = await import("@/lib/mecfs/constants");
-          const avgLevel = scoreToLevel(Math.round(avg));
+          const avgLevel = scoreToLevel(avg);
           const peakLevel = scoreToLevel(Math.max(...scores));
           meCfsData = {
             avgLabel: levelToLabelDe(avgLevel),

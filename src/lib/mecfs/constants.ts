@@ -35,12 +35,14 @@ export const ME_CFS_LEVEL_TO_SCORE: Record<MeCfsSeverityLevel, number> = {
 
 /**
  * Derive the closest severity level from any 0–10 score.
- * Used for future slider support.
+ * Bucket-based: works for both 4-step selector AND future slider.
+ * Clamps input to 0..10.
  */
 export function scoreToLevel(score: number): MeCfsSeverityLevel {
-  if (score <= 1) return 'none';
-  if (score <= 4) return 'mild';
-  if (score <= 7) return 'moderate';
+  const clamped = Math.max(0, Math.min(10, score));
+  if (clamped <= 0) return 'none';
+  if (clamped <= 4) return 'mild';
+  if (clamped <= 7) return 'moderate';
   return 'severe';
 }
 
@@ -51,12 +53,9 @@ export function levelToLabelDe(level: MeCfsSeverityLevel): string {
 }
 
 /**
- * Derive label (DE) from score.
+ * Derive label (DE) from score via bucket mapping.
+ * Works for any 0–10 value (not just {0,3,6,9}).
  */
 export function scoreToLabel(score: number): string {
-  const opt = ME_CFS_OPTIONS.find(o => o.score === score);
-  if (opt) return opt.label;
-  // Fallback for future slider values
-  const level = scoreToLevel(score);
-  return ME_CFS_OPTIONS.find(o => o.level === level)?.label ?? 'keine';
+  return levelToLabelDe(scoreToLevel(score));
 }

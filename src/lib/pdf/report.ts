@@ -1338,18 +1338,20 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   // 3d. ME/CFS-SYMPTOMATIK (kompakter Block)
   // ═══════════════════════════════════════════════════════════════════════════
 
-  if (meCfsData && meCfsData.daysWithBurden > 0) {
-    const meCfsCheck = ensureSpace(pdfDoc, page, yPos, 80);
+  if (meCfsData) {
+    const meCfsLines = [
+      `Anteil Tage mit Belastung: ${meCfsData.burdenPct}% (${meCfsData.daysWithBurden} von ${meCfsData.totalDays} Tagen)`,
+      `Durchschnittliche Belastung: ${sanitizeForPDF(meCfsData.avgLabel)}`,
+      `Spitzenbelastung: ${sanitizeForPDF(meCfsData.peakLabel)}`,
+    ];
+    const hasNote = !!meCfsData.dataQualityNote;
+    const blockHeight = LAYOUT.lineHeight * 2 + meCfsLines.length * LAYOUT.lineHeight + (hasNote ? LAYOUT.lineHeight + 2 : 0) + LAYOUT.sectionGap;
+
+    const meCfsCheck = ensureSpace(pdfDoc, page, yPos, blockHeight);
     page = meCfsCheck.page;
     yPos = meCfsCheck.yPos;
 
     yPos = drawSectionHeader(page, "ME/CFS-SYMPTOMATIK", yPos, fontBold, 10);
-
-    const meCfsLines = [
-      `Anteil Tage mit Belastung: ${meCfsData.burdenPct}% (${meCfsData.daysWithBurden} von ${meCfsData.totalDays} Tagen)`,
-      `Haeufigste Stufe: ${sanitizeForPDF(meCfsData.avgLabel)}`,
-      `Spitzenbelastung: ${sanitizeForPDF(meCfsData.peakLabel)}`,
-    ];
 
     for (const line of meCfsLines) {
       page.drawText(line, {
