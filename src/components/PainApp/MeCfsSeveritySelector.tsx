@@ -42,7 +42,9 @@ export function MeCfsSeveritySelector({ value, onValueChange, disabled }: MeCfsS
               className={cn(
                 "rounded-lg py-3 px-2 text-sm font-medium transition-all",
                 "border min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                isSelected
+                isSelected && opt.score === 0
+                  ? "bg-muted text-foreground border-border shadow-sm"
+                  : isSelected
                   ? "bg-primary text-primary-foreground border-primary shadow-sm"
                   : "bg-background text-foreground border-border hover:bg-muted",
                 disabled && "opacity-50 cursor-not-allowed"

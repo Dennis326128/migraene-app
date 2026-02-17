@@ -757,6 +757,34 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         console.warn('[PDF Export] Begleitsymptome konnten nicht geladen werden:', err);
       }
 
+      // ── ME/CFS-Belastungsdaten berechnen ──
+      let meCfsData: { avgLabel: string; burdenPct: number; peakLabel: string; daysWithBurden: number; totalDays: number; dataQualityNote?: string } | undefined = undefined;
+      {
+        const dayMap = new Map<string, number>();
+        for (const e of freshEntries) {
+          const date = e.selected_date || e.timestamp_created?.split('T')[0];
+          if (!date) continue;
+          const score = (e as any).me_cfs_severity_score ?? 0;
+          dayMap.set(date, Math.max(dayMap.get(date) ?? 0, score));
+        }
+        const scores = Array.from(dayMap.values());
+        const daysWithBurden = scores.filter(s => s > 0).length;
+        const totalDays = freshReportData.kpis.daysInRange;
+        if (daysWithBurden > 0) {
+          const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+          const { scoreToLevel, levelToLabelDe } = await import("@/lib/mecfs/constants");
+          const avgLevel = scoreToLevel(Math.round(avg));
+          const peakLevel = scoreToLevel(Math.max(...scores));
+          meCfsData = {
+            avgLabel: levelToLabelDe(avgLevel),
+            burdenPct: totalDays > 0 ? Math.round((daysWithBurden / totalDays) * 100) : 0,
+            peakLabel: levelToLabelDe(peakLevel),
+            daysWithBurden,
+            totalDays,
+          };
+        }
+      }
+
       // PDF mit FRISCHEN Daten generieren
       const pdfBytes = await buildDiaryPdf({
         title: "Kopfschmerztagebuch",
@@ -826,6 +854,8 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         premiumAIReport: premiumAIReportData || undefined,
         // Begleitsymptome (klinische Übersicht)
         symptomData,
+        // ME/CFS-Belastung
+        meCfsData,
       });
 
       // Neuer Blob mit Timestamp für "always fresh"

@@ -158,6 +158,15 @@ type BuildReportParams = {
   };
   // Begleitsymptome Daten für klinische Übersicht
   symptomData?: SymptomDataForPdf;
+  // ME/CFS-Belastungsdaten
+  meCfsData?: {
+    avgLabel: string;        // z.B. "leicht"
+    burdenPct: number;       // Anteil Tage mit Belastung in %
+    peakLabel: string;       // Spitzenbelastung
+    daysWithBurden: number;
+    totalDays: number;
+    dataQualityNote?: string; // optional Hinweis
+  };
   // Optional: Pre-rendered chart image (PNG bytes from html2canvas)
   chartImageBytes?: Uint8Array;
 };
@@ -897,6 +906,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     doctors = [],
     premiumAIReport,
     symptomData,
+    meCfsData,
     chartImageBytes,
   } = params;
 
@@ -1325,6 +1335,48 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // 3d. ME/CFS-SYMPTOMATIK (kompakter Block)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  if (meCfsData && meCfsData.daysWithBurden > 0) {
+    const meCfsCheck = ensureSpace(pdfDoc, page, yPos, 80);
+    page = meCfsCheck.page;
+    yPos = meCfsCheck.yPos;
+
+    yPos = drawSectionHeader(page, "ME/CFS-SYMPTOMATIK", yPos, fontBold, 10);
+
+    const meCfsLines = [
+      `Anteil Tage mit Belastung: ${meCfsData.burdenPct}% (${meCfsData.daysWithBurden} von ${meCfsData.totalDays} Tagen)`,
+      `Haeufigste Stufe: ${sanitizeForPDF(meCfsData.avgLabel)}`,
+      `Spitzenbelastung: ${sanitizeForPDF(meCfsData.peakLabel)}`,
+    ];
+
+    for (const line of meCfsLines) {
+      page.drawText(line, {
+        x: LAYOUT.margin + 8,
+        y: yPos,
+        size: 9,
+        font,
+        color: COLORS.text,
+      });
+      yPos -= LAYOUT.lineHeight;
+    }
+
+    if (meCfsData.dataQualityNote) {
+      yPos -= 2;
+      page.drawText(sanitizeForPDF(meCfsData.dataQualityNote), {
+        x: LAYOUT.margin + 8,
+        y: yPos,
+        size: 7,
+        font,
+        color: COLORS.textLight,
+      });
+      yPos -= LAYOUT.lineHeight;
+    }
+
+    yPos -= LAYOUT.sectionGap;
+  }
+
   // 4. BERICHT / ANALYSE
   // KRITISCHE LOGIK:
   // - Wenn isPremiumAIRequested = true UND hasPremiumAIData = true → KI-Bericht

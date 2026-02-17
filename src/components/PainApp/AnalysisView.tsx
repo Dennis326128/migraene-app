@@ -9,6 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PatternCards } from "./PatternCards";
 import { TimeDistributionChart } from "./TimeDistributionChart";
 import { AccompanyingSymptomsCard } from "./AccompanyingSymptomsCard";
+import { MeCfsStatisticsCard } from "./MeCfsStatisticsCard";
+import { MeCfsCorrelationCard } from "./MeCfsCorrelationCard";
 import { VoiceNotesAIAnalysis } from "./VoiceNotesAIAnalysis";
 import { useTimeDistribution } from "@/features/statistics/hooks/useStatistics";
 import { useMedicationEffectsForEntries } from "@/features/medication-effects/hooks/useMedicationEffects";
@@ -391,6 +393,12 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
                     <TimeSeriesChart entries={filteredEntries} dateRange={{ from, to }} />
                   </CardContent>
                 </Card>
+
+                {/* ME/CFS-Belastung */}
+                <MeCfsStatisticsCard entries={filteredEntries} daysInRange={daysInRange} />
+                
+                {/* ME/CFS ↔ Migräne Korrelation */}
+                <MeCfsCorrelationCard entries={filteredEntries} />
 
                 {/* 7. Hint to KI tab */}
                 <Card className="border-primary/20 bg-primary/5">
