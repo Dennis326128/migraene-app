@@ -1,5 +1,6 @@
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
 import { toast } from 'sonner';
+import { supabase } from '@/lib/supabaseClient';
 
 interface OfflineQueueDB extends DBSchema {
   'pending-entries': {
@@ -118,8 +119,6 @@ export async function syncPendingEntries() {
     for (const entry of pending) {
       try {
         if (entry.type === 'pain_entry') {
-          const { supabase } = await import('@/lib/supabaseClient');
-          
           // UPSERT um Duplikate zu vermeiden
           const { error } = await supabase
             .from('pain_entries')
@@ -130,13 +129,11 @@ export async function syncPendingEntries() {
           
           if (error) throw error;
         } else if (entry.type === 'medication') {
-          const { supabase } = await import('@/lib/supabaseClient');
           const { error } = await supabase
             .from('user_medications')
             .insert(entry.data);
           if (error) throw error;
         } else if (entry.type === 'reminder') {
-          const { supabase } = await import('@/lib/supabaseClient');
           const { error } = await supabase
             .from('reminders')
             .insert(entry.data);
