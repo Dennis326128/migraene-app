@@ -10,8 +10,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -19,14 +17,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
 import type { Reminder, CreateReminderInput, UpdateReminderInput, ReminderPrefill, TimeOfDay } from '@/types/reminder.types';
 import { format, parseISO } from 'date-fns';
-import { ArrowLeft, Clock, Plus, X, CalendarPlus, Info, Bell, ChevronDown, ListTodo, Pill, Calendar, Sunrise, Sun, Sunset, Moon } from 'lucide-react';
+import { ArrowLeft, Clock, Plus, CalendarPlus, Info, Bell, ListTodo, Pill, Calendar, Sunrise, Sun, Sunset, Moon } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -216,7 +209,7 @@ export const ReminderForm = ({ reminder, groupedReminders, prefill, onSubmit, on
     const existing = (reminder as any)?.notify_offsets_minutes;
     return existing && existing.length > 0 ? existing : DEFAULT_APPOINTMENT_OFFSETS;
   });
-  const [notifyOffsetsOpen, setNotifyOffsetsOpen] = useState(false);
+  
 
   // Weekdays for weekday repeat
   const [selectedWeekdays, setSelectedWeekdays] = useState<Weekday[]>([]);
@@ -565,7 +558,7 @@ export const ReminderForm = ({ reminder, groupedReminders, prefill, onSubmit, on
 
       <div className={isMobile ? "flex-1 px-4 pt-4 pb-32" : ""}>
       <Card className={isMobile ? "p-4 border-0 shadow-none bg-transparent" : "p-4 sm:p-6"}>
-        <form onSubmit={handleSubmit(onFormSubmitGuarded)} className="space-y-5">
+        <form onSubmit={handleSubmit(onFormSubmitGuarded)} className="space-y-4">
           
           {/* 1️⃣ TYPE SELECTION */}
           <div className="space-y-2">
@@ -785,142 +778,60 @@ export const ReminderForm = ({ reminder, groupedReminders, prefill, onSubmit, on
 
           {/* Title is auto-generated internally — no UI field */}
 
-          {/* 6️⃣ FOLLOW-UP FOR APPOINTMENTS */}
+          {/* 6️⃣ NOTIFICATION OFFSETS FOR APPOINTMENTS */}
           {isAppointmentType && (
-            <div className="space-y-4 p-4 bg-muted/30 rounded-lg">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="follow-up" className="cursor-pointer font-medium">
-                    Folgetermin vorschlagen
-                  </Label>
-                  <p className="text-xs text-muted-foreground">
-                    Erinnerung für den nächsten Termin
-                  </p>
-                </div>
-                <Switch
-                  id="follow-up"
-                  checked={followUpEnabled}
-                  onCheckedChange={setFollowUpEnabled}
-                />
+            <div className="space-y-3">
+              <div>
+                <Label className="text-base font-medium">Hinweise</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Bis zu 4 Zeitpunkte auswählbar.
+                </p>
               </div>
-
-              {followUpEnabled && (
-                <div className="flex items-center gap-2 pt-2">
-                  <span className="text-sm text-muted-foreground whitespace-nowrap">Nach</span>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={24}
-                    value={followUpValue}
-                    onChange={(e) => setFollowUpValue(parseInt(e.target.value) || 3)}
-                    className="w-20 touch-manipulation"
-                  />
-                  <Select
-                    value={followUpUnit}
-                    onValueChange={(v) => setFollowUpUnit(v as 'weeks' | 'months')}
-                  >
-                    <SelectTrigger className="w-28">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="weeks">Wochen</SelectItem>
-                      <SelectItem value="months">Monaten</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="grid grid-cols-2 gap-2">
+                {NOTIFY_OFFSET_PRESETS.map((preset) => {
+                  const isSelected = notifyOffsets.includes(preset.value);
+                  const canSelect = isSelected || notifyOffsets.length < 4;
+                  
+                  return (
+                    <button
+                      key={preset.value}
+                      type="button"
+                      onClick={() => {
+                        if (isSelected) {
+                          setNotifyOffsets(notifyOffsets.filter(v => v !== preset.value));
+                        } else if (canSelect) {
+                          setNotifyOffsets([...notifyOffsets, preset.value].sort((a, b) => b - a));
+                        }
+                      }}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all touch-manipulation ${
+                        isSelected
+                          ? 'bg-primary text-primary-foreground'
+                          : canSelect
+                            ? 'bg-muted/50 text-foreground hover:bg-muted'
+                            : 'bg-muted/50 text-foreground opacity-50 cursor-not-allowed'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  );
+                })}
+              </div>
+              {notifyOffsets.length >= 4 && (
+                <p className="text-xs text-muted-foreground">
+                  Maximal 4 Zeitpunkte möglich.
+                </p>
               )}
             </div>
-          )}
-
-          {/* 7️⃣ NOTIFICATION OFFSETS FOR APPOINTMENTS */}
-          {isAppointmentType && (
-            <Collapsible open={notifyOffsetsOpen} onOpenChange={setNotifyOffsetsOpen}>
-              <CollapsibleTrigger asChild>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full justify-between touch-manipulation"
-                >
-                  <div className="flex items-center gap-2">
-                    <Bell className="h-4 w-4" />
-                    <span className="font-medium">Hinweise</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground max-w-[180px] truncate">
-                      {formatNotifyOffsets(notifyOffsets)}
-                    </span>
-                    <ChevronDown className={`h-4 w-4 transition-transform ${notifyOffsetsOpen ? 'rotate-180' : ''}`} />
-                  </div>
-                </Button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="pt-3">
-                <div className="p-4 bg-muted/50 rounded-lg border space-y-3">
-                  <p className="text-xs text-muted-foreground">
-                    Wähle bis zu 4 Erinnerungszeitpunkte
-                  </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {NOTIFY_OFFSET_PRESETS.map((preset) => {
-                      const isSelected = notifyOffsets.includes(preset.value);
-                      const canSelect = isSelected || notifyOffsets.length < 4;
-                      
-                      return (
-                        <div
-                          key={preset.value}
-                          className={`flex items-center gap-2 p-2 rounded-md border cursor-pointer transition-colors ${
-                            isSelected 
-                              ? 'bg-primary/10 border-primary' 
-                              : canSelect 
-                                ? 'hover:bg-muted' 
-                                : 'opacity-50 cursor-not-allowed'
-                          }`}
-                          onClick={() => {
-                            if (isSelected) {
-                              setNotifyOffsets(notifyOffsets.filter(v => v !== preset.value));
-                            } else if (canSelect) {
-                              setNotifyOffsets([...notifyOffsets, preset.value].sort((a, b) => b - a));
-                            }
-                          }}
-                        >
-                          <Checkbox 
-                            checked={isSelected} 
-                            disabled={!canSelect && !isSelected}
-                            className="pointer-events-none"
-                          />
-                          <span className="text-sm">{preset.label}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  {notifyOffsets.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 pt-2">
-                      {notifyOffsets.sort((a, b) => b - a).map((offset) => {
-                        const preset = NOTIFY_OFFSET_PRESETS.find(p => p.value === offset);
-                        return (
-                          <Badge 
-                            key={offset} 
-                            variant="secondary"
-                            className="gap-1 cursor-pointer hover:bg-destructive/10 hover:text-destructive"
-                            onClick={() => setNotifyOffsets(notifyOffsets.filter(v => v !== offset))}
-                          >
-                            {preset?.label || `${offset} Min`}
-                            <X className="h-3 w-3" />
-                          </Badge>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
           )}
 
           {/* Create another appointment button */}
           {canCreateAnother && (
             <Button
               type="button"
-              variant="outline"
+              variant="ghost"
+              size="sm"
               onClick={handleCreateAnotherAppointment}
-              className="w-full touch-manipulation gap-2"
+              className="text-muted-foreground touch-manipulation gap-2"
             >
               <CalendarPlus className="h-4 w-4" />
               Weiteren Termin anlegen
