@@ -192,11 +192,11 @@ Deno.serve(async (req) => {
 
     let meCfsFeatureBlock = '';
     if (meCfsDaysWithBurden > 0) {
-      const meCfsPct = Math.round((meCfsDaysWithBurden / meCfsScores.length) * 100);
-      const meCfsAvg = meCfsScores.reduce((a, b) => a + b, 0) / meCfsScores.length;
+      const documentedDays = meCfsScores.length;
+      const meCfsPct = Math.round((meCfsDaysWithBurden / documentedDays) * 100);
+      const meCfsAvg = meCfsScores.reduce((a, b) => a + b, 0) / documentedDays;
       const levelLabel = (s: number): string => s <= 0 ? 'keine' : s <= 4 ? 'leicht' : s <= 7 ? 'mittel' : 'schwer';
-      const meCfsPeak = Math.max(...meCfsScores);
-      meCfsFeatureBlock = `\nME/CFS (aggregiert): Anteil Tage mit Belastung: ${meCfsPct}%, durchschnittliche Stufe: ${levelLabel(meCfsAvg)}, Spitze: ${levelLabel(meCfsPeak)}.`;
+      meCfsFeatureBlock = `\nME/CFS (aggregiert, Basis: ${documentedDays} dokumentierte Tage): Belastete Tage: ${meCfsPct}%, durchschnittliche Stufe: ${levelLabel(meCfsAvg)}.`;
     }
 
     // Prompt für strukturierten Arztbericht
@@ -252,7 +252,7 @@ STRUKTUR (nur auffällige Punkte erwähnen, irrelevante Abschnitte komplett wegl
    Wenn kein ME/CFS-Featureblock vorhanden: diesen Abschnitt KOMPLETT WEGLASSEN.
    KEINE Kausalitätsbehauptungen, nur sachliche Beschreibung der Assoziation.
 
-WICHTIG: Beende den Text direkt nach den "Besonderen Auffälligkeiten". Fuege KEINEN Hinweis, Disclaimer oder "Hinweis:" Absatz hinzu - dieser wird separat im PDF eingefuegt.
+WICHTIG: Beende den Text direkt nach dem letzten zutreffenden Abschnitt. Fuege KEINEN Hinweis, Disclaimer oder "Hinweis:" Absatz hinzu - dieser wird separat im PDF eingefuegt.
 
 DATEN:
 Anzahl Attacken: ${entries.length}
