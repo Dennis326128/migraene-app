@@ -158,64 +158,82 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
       .sort((a, b) => new Date(a.date_time).getTime() - new Date(b.date_time).getTime());
   };
 
+  /**
+   * Apply range filter to reminders (without type filter).
+   * Shared between counter calculation and list rendering.
+   */
+  const applyRangeFilter = (reminders: Reminder[]): Reminder[] => {
+    if (activeTab !== 'active' || rangeFilter === 'all' || rangeFilter === 'all-appointments') {
+      return reminders;
+    }
+
+    // Appointment-specific range filters don't apply as date ranges
+    if (rangeFilter === 'next-appointment' || rangeFilter === 'next-3-appointments') {
+      return reminders;
+    }
+
+    const now = new Date();
+    const startOfToday = new Date(now);
+    startOfToday.setHours(0, 0, 0, 0);
+    const endDate = new Date(now);
+
+    switch (rangeFilter) {
+      case 'today':
+        endDate.setHours(23, 59, 59, 999);
+        break;
+      case '7days':
+        endDate.setDate(endDate.getDate() + 7);
+        break;
+      case '30days':
+        endDate.setDate(endDate.getDate() + 30);
+        break;
+    }
+
+    return reminders.filter(r => {
+      const reminderDate = new Date(r.date_time);
+      const isOverdue = reminderDate < startOfToday;
+      const isInRange = reminderDate <= endDate;
+      return isOverdue || isInRange;
+    });
+  };
+
   const getFilteredReminders = () => {
     let reminders = activeTab === 'active' ? activeReminders : historyReminders;
-    
+
     // Type filter
     if (filterType !== 'all') {
       reminders = reminders.filter(r => r.type === filterType);
     }
-    
-    // Termine-Tab: unterscheide zwischen Termin-Modi
+
+    // Termine-Tab: special appointment range modes
     if (filterType === 'appointment') {
       const now = new Date();
       const futureAppointments = reminders
         .filter(r => new Date(r.date_time) >= now)
         .sort((a, b) => new Date(a.date_time).getTime() - new Date(b.date_time).getTime());
-      
+
       if (rangeFilter === 'next-appointment') {
         return futureAppointments.slice(0, 1);
       }
-      
       if (rangeFilter === 'next-3-appointments') {
         return futureAppointments.slice(0, 3);
       }
-      
-      // "Alle Termine": zeige alle zukünftigen
       return futureAppointments;
     }
-    
-    // Für andere Filter: wende rangeFilter normal an
-    if (activeTab === 'active' && rangeFilter !== 'all') {
-      const now = new Date();
-      const startOfToday = new Date(now);
-      startOfToday.setHours(0, 0, 0, 0);
-      const endDate = new Date(now);
-      
-      switch (rangeFilter) {
-        case 'today':
-          endDate.setHours(23, 59, 59, 999);
-          break;
-        case '7days':
-          endDate.setDate(endDate.getDate() + 7);
-          break;
-        case '30days':
-          endDate.setDate(endDate.getDate() + 30);
-          break;
-      }
-      
-      reminders = reminders.filter(r => {
-        const reminderDate = new Date(r.date_time);
-        const isOverdue = reminderDate < startOfToday;
-        const isInRange = reminderDate <= endDate;
-        return isOverdue || isInRange;
-      });
-    }
-    
+
+    // Apply shared range filter
+    reminders = applyRangeFilter(reminders);
     return reminders;
   };
 
-  const getTypeCounts = (grouped: GroupedReminder[]) => {
+  // SINGLE SOURCE OF TRUTH: Counter and rendered list use the same pipeline.
+  // Counter counts groups per type from range-filtered (but not type-filtered) data.
+  const filteredReminders = getFilteredReminders();
+
+  const getTypeCounts = () => {
+    const base = activeTab === 'active' ? activeReminders : historyReminders;
+    const rangeFiltered = applyRangeFilter(base);
+    const grouped = groupReminders(rangeFiltered);
     return {
       all: grouped.length,
       medication: grouped.filter(g => g.reminder.type === 'medication').length,
@@ -223,10 +241,7 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
     };
   };
 
-  const baseReminders = activeTab === 'active' ? activeReminders : historyReminders;
-  const allGrouped = groupReminders(baseReminders);
-  const typeCounts = getTypeCounts(allGrouped);
-  const filteredReminders = getFilteredReminders();
+  const typeCounts = getTypeCounts();
 
   const handleEdit = (reminder: Reminder, allReminders: Reminder[] = []) => {
     setEditingReminder(reminder);
