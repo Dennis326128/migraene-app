@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { isToday, isTomorrow } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import type { Reminder, ReminderPrefill } from '@/types/reminder.types';
-import { formatDistance, format, parseISO } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { hasFollowUpConfigured, formatFollowUpDate, cloneReminderForCreate } from '@/features/reminders/helpers/reminderHelpers';
@@ -36,10 +36,7 @@ export const ReminderCard = ({ grouped, onEdit, onMarkDone, onPlanFollowUp }: Re
   const showFollowUp = hasFollowUpConfigured(reminder) && onPlanFollowUp;
   const nextFollowUpDate = (reminder as any).next_follow_up_date;
   
-  const relative = formatDistance(nextOccurrence, new Date(), { 
-    addSuffix: true, 
-    locale: de 
-  });
+  // Relative time removed for cleaner medical UX
 
   const handlePlanFollowUp = () => {
     if (!onPlanFollowUp) return;
@@ -132,9 +129,7 @@ export const ReminderCard = ({ grouped, onEdit, onMarkDone, onPlanFollowUp }: Re
                     })()
                 }
               </div>
-              <div className="text-xs text-muted-foreground">
-                {relative}
-              </div>
+              {/* Relative time removed — cleaner medical UX */}
             </div>
 
             {reminder.notes && (

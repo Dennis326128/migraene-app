@@ -32,11 +32,48 @@ import { toast } from '@/hooks/use-toast';
 
 type ViewMode = 'list' | 'form';
 type ActiveTab = 'active' | 'history';
-type FilterType = 'all' | 'medication' | 'appointment';
+type FilterType = 'aktuell' | 'medication' | 'appointment';
 type RangeFilter = 'today' | '7days' | '30days' | 'all' | 'next-appointment' | 'next-3-appointments' | 'all-appointments';
 
 interface RemindersPageProps {
   onBack?: () => void;
+}
+
+/**
+ * Relevance window check: determines if a reminder is relevant for the "Aktuell" tab.
+ * - Overdue: always visible
+ * - Today: always visible
+ * - Medication: visible if next trigger <= now + 24h
+ * - Appointment: visible if date_time <= now + 2 days
+ */
+function isRelevantForAktuell(reminder: Reminder, now: Date): boolean {
+  const reminderDate = new Date(reminder.date_time);
+
+  // Overdue: always relevant
+  if (reminderDate < now && reminder.status === 'pending') {
+    return true;
+  }
+
+  // Today: always relevant
+  const endOfToday = new Date(now);
+  endOfToday.setHours(23, 59, 59, 999);
+  if (reminderDate <= endOfToday) {
+    return true;
+  }
+
+  // Medication: 24h rolling window
+  if (reminder.type === 'medication') {
+    const in24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    return reminderDate <= in24h;
+  }
+
+  // Appointment: 2 days rolling window
+  if (reminder.type === 'appointment') {
+    const in2Days = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000);
+    return reminderDate <= in2Days;
+  }
+
+  return false;
 }
 
 export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
@@ -45,11 +82,12 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
   const [editingGroupReminders, setEditingGroupReminders] = useState<Reminder[]>([]);
   const [prefillData, setPrefillData] = useState<ReminderPrefill | null>(null);
   const [activeTab, setActiveTab] = useState<ActiveTab>('active');
-  const [filterType, setFilterType] = useState<FilterType>('all');
+  // Default filter type is "aktuell" (was "all")
+  const [filterType, setFilterType] = useState<FilterType>('aktuell');
   const [rangeFilter, setRangeFilter] = useState<RangeFilter>('all');
   const [lastNonAppointmentFilter, setLastNonAppointmentFilter] = useState<RangeFilter>('all');
   const [hasNotificationPermission, setHasNotificationPermission] = useState(false);
-  const [formKey, setFormKey] = useState(0); // Force re-mount on new reminder
+  const [formKey, setFormKey] = useState(0);
 
   const queryClient = useQueryClient();
   const { data: activeReminders = [], isLoading: loadingActive } = useActiveReminders();
@@ -62,7 +100,6 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
   const markDoneMutation = useMarkReminderDone();
   const toggleAllMutation = useToggleAllReminders();
 
-  // Compute global notifications status (all active reminders have notification_enabled)
   const allNotificationsEnabled = activeReminders.length > 0 && 
     activeReminders.every(r => r.notification_enabled);
   const someNotificationsEnabled = activeReminders.some(r => r.notification_enabled);
@@ -70,66 +107,6 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
   useEffect(() => {
     setHasNotificationPermission(notificationService.hasPermission());
   }, []);
-
-  // Konsistenz-Check: Warnung wenn aktive Erinnerungen nicht angezeigt werden
-  useEffect(() => {
-    if (!loadingActive && activeReminders.length > 0) {
-      const filtered = getFilteredReminders();
-      if (activeTab === 'active' && filtered.length < activeReminders.length) {
-        const hiddenCount = activeReminders.length - filtered.length;
-        console.warn(
-          `[RemindersPage] ${hiddenCount} aktive Erinnerungen werden durch Filter ausgeblendet. ` +
-          `Gesamt: ${activeReminders.length}, Angezeigt: ${filtered.length}`
-        );
-      }
-    }
-  }, [activeReminders, filterType, rangeFilter, activeTab, loadingActive]);
-
-  // Intelligente Zeitraum-Auswahl basierend auf vorhandenen Erinnerungen
-  // WICHTIG: Nur für Nicht-Termine-Tabs — Termine haben eigene Logik in handleFilterTypeChange
-  useEffect(() => {
-    if (activeTab === 'active' && filterType !== 'appointment' && activeReminders.length > 0) {
-      const now = new Date();
-      const startOfToday = new Date(now);
-      startOfToday.setHours(0, 0, 0, 0);
-      
-      const hasOverdue = activeReminders.some(r => new Date(r.date_time) < startOfToday);
-      
-      if (hasOverdue) {
-        setRangeFilter('all');
-        return;
-      }
-      
-      const todayEnd = new Date(now);
-      todayEnd.setHours(23, 59, 59, 999);
-      const hasToday = activeReminders.some(r => new Date(r.date_time) <= todayEnd);
-      
-      if (hasToday) {
-        setRangeFilter('today');
-        return;
-      }
-      
-      const in7Days = new Date(now);
-      in7Days.setDate(in7Days.getDate() + 7);
-      const has7Days = activeReminders.some(r => new Date(r.date_time) <= in7Days);
-      
-      if (has7Days) {
-        setRangeFilter('7days');
-        return;
-      }
-      
-      const in30Days = new Date(now);
-      in30Days.setDate(in30Days.getDate() + 30);
-      const has30Days = activeReminders.some(r => new Date(r.date_time) <= in30Days);
-      
-      if (has30Days) {
-        setRangeFilter('30days');
-        return;
-      }
-      
-      setRangeFilter('all');
-    }
-  }, [activeReminders, activeTab, filterType]);
 
   const requestNotificationPermission = async () => {
     const granted = await notificationService.requestPermission();
@@ -159,16 +136,63 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
   };
 
   /**
-   * Apply range filter to reminders (without type filter).
-   * Shared between counter calculation and list rendering.
+   * SINGLE SOURCE OF TRUTH: Returns visible reminders for a given tab type.
+   * Counter and rendered list both use this function.
+   *
+   * Tab semantics:
+   * - "aktuell": relevance-based (overdue + today + 24h meds + 2d appointments)
+   * - "medication": all active medication reminders (with optional range filter)
+   * - "appointment": all future appointments (with optional special modes)
    */
-  const applyRangeFilter = (reminders: Reminder[]): Reminder[] => {
-    if (activeTab !== 'active' || rangeFilter === 'all' || rangeFilter === 'all-appointments') {
+  const getVisibleRemindersForTab = (tab: FilterType): Reminder[] => {
+    let reminders = activeTab === 'active' ? activeReminders : historyReminders;
+
+    const now = new Date();
+
+    // TAB: AKTUELL — relevance-based, no range dropdown
+    if (tab === 'aktuell') {
+      // Only pending/active reminders that are relevant now
+      return reminders.filter(r => isRelevantForAktuell(r, now));
+    }
+
+    // TAB: MEDIKAMENTE — all active medication reminders with range filter
+    if (tab === 'medication') {
+      reminders = reminders.filter(r => r.type === 'medication');
+      // Apply range filter for medication tab
+      return applyDateRangeFilter(reminders);
+    }
+
+    // TAB: TERMINE — all future appointments with special modes
+    if (tab === 'appointment') {
+      reminders = reminders.filter(r => r.type === 'appointment');
+      const futureAppointments = reminders
+        .filter(r => new Date(r.date_time) >= now)
+        .sort((a, b) => new Date(a.date_time).getTime() - new Date(b.date_time).getTime());
+
+      if (rangeFilter === 'next-appointment') {
+        return futureAppointments.slice(0, 1);
+      }
+      if (rangeFilter === 'next-3-appointments') {
+        return futureAppointments.slice(0, 3);
+      }
+      // 'all-appointments' or default: all future
+      return futureAppointments;
+    }
+
+    return reminders;
+  };
+
+  /**
+   * Date range filter for medication tab only.
+   * Includes overdue items always.
+   */
+  const applyDateRangeFilter = (reminders: Reminder[]): Reminder[] => {
+    if (activeTab !== 'active' || rangeFilter === 'all') {
       return reminders;
     }
 
-    // Appointment-specific range filters don't apply as date ranges
-    if (rangeFilter === 'next-appointment' || rangeFilter === 'next-3-appointments') {
+    // Appointment-specific filters don't apply as date ranges
+    if (rangeFilter === 'next-appointment' || rangeFilter === 'next-3-appointments' || rangeFilter === 'all-appointments') {
       return reminders;
     }
 
@@ -197,82 +221,21 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
     });
   };
 
-  const getFilteredReminders = () => {
-    let reminders = activeTab === 'active' ? activeReminders : historyReminders;
-
-    // Type filter
-    if (filterType !== 'all') {
-      reminders = reminders.filter(r => r.type === filterType);
-    }
-
-    // Termine-Tab: special appointment range modes
-    if (filterType === 'appointment') {
-      const now = new Date();
-      const futureAppointments = reminders
-        .filter(r => new Date(r.date_time) >= now)
-        .sort((a, b) => new Date(a.date_time).getTime() - new Date(b.date_time).getTime());
-
-      if (rangeFilter === 'next-appointment') {
-        return futureAppointments.slice(0, 1);
-      }
-      if (rangeFilter === 'next-3-appointments') {
-        return futureAppointments.slice(0, 3);
-      }
-      return futureAppointments;
-    }
-
-    // Apply shared range filter
-    reminders = applyRangeFilter(reminders);
-    return reminders;
-  };
-
-  // Rendered list uses getFilteredReminders() which includes type + range + appointment-special logic
-  const filteredReminders = getFilteredReminders();
+  // Rendered list: uses the active tab's visibility logic
+  const visibleReminders = getVisibleRemindersForTab(filterType);
 
   /**
-   * SINGLE SOURCE OF TRUTH: Counter uses the EXACT same visibility logic as the rendered list.
-   * Each type count is computed by running getFilteredReminders-equivalent logic per type,
-   * then grouping, so badge = visible card count. Always.
+   * Counter uses same filtered+grouped dataset as rendered list per type.
+   * badge = visible card count. Always.
    */
-  const getVisibleRemindersForType = (type: FilterType): Reminder[] => {
-    let reminders = activeTab === 'active' ? activeReminders : historyReminders;
-
-    // Type filter (same as getFilteredReminders)
-    if (type !== 'all') {
-      reminders = reminders.filter(r => r.type === type);
-    }
-
-    // Appointment-special range modes (same as getFilteredReminders)
-    if (type === 'appointment') {
-      const now = new Date();
-      const futureAppointments = reminders
-        .filter(r => new Date(r.date_time) >= now)
-        .sort((a, b) => new Date(a.date_time).getTime() - new Date(b.date_time).getTime());
-
-      if (rangeFilter === 'next-appointment') {
-        return futureAppointments.slice(0, 1);
-      }
-      if (rangeFilter === 'next-3-appointments') {
-        return futureAppointments.slice(0, 3);
-      }
-      // 'all-appointments' or other appointment modes: return all future
-      return futureAppointments;
-    }
-
-    // Standard date range filter for non-appointment types
-    reminders = applyRangeFilter(reminders);
-    return reminders;
-  };
-
   const typeCounts = (() => {
-    // Counter uses same filtered+grouped dataset as rendered list per type
-    const allVisible = groupReminders(getVisibleRemindersForType('all'));
-    const medVisible = groupReminders(getVisibleRemindersForType('medication'));
-    const aptVisible = groupReminders(getVisibleRemindersForType('appointment'));
+    const aktuellGroups = groupReminders(getVisibleRemindersForTab('aktuell'));
+    const medGroups = groupReminders(getVisibleRemindersForTab('medication'));
+    const aptGroups = groupReminders(getVisibleRemindersForTab('appointment'));
     return {
-      all: allVisible.length,
-      medication: medVisible.length,
-      appointment: aptVisible.length,
+      aktuell: aktuellGroups.length,
+      medication: medGroups.length,
+      appointment: aptGroups.length,
     };
   })();
 
@@ -290,10 +253,8 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
   };
 
   const handleCreateAnother = (prefill: ReminderPrefill) => {
-    // Reset form to create mode with prefilled data
     setEditingReminder(null);
     setPrefillData(prefill);
-    // Form will re-render with new prefill data
   };
 
   const handleMarkDone = async (id: string) => {
@@ -333,19 +294,14 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
   const handleUpdate = async (data: CreateReminderInput | CreateReminderInput[] | UpdateReminderInput) => {
     if (!editingReminder) return;
 
-    // Group reconciliation: form returned array of desired reminders
     if (Array.isArray(data)) {
       try {
-        // Delete all old reminders in the group
         const deletePromises = editingGroupReminders.map(r => remindersApi.delete(r.id));
         await Promise.all(deletePromises);
-        // Create new ones
         const newReminders = await remindersApi.createMultiple(data);
-        // Invalidate queries to refetch
         queryClient.invalidateQueries({ queryKey: ['reminders'] });
         queryClient.invalidateQueries({ queryKey: ['reminder-badge'] });
         queryClient.invalidateQueries({ queryKey: ['due-reminders'] });
-        // Schedule notifications
         if (hasNotificationPermission) {
           newReminders.forEach((r) => {
             if (r.notification_enabled) {
@@ -397,49 +353,45 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
 
   const getRangeLabel = () => {
     switch (rangeFilter) {
-      case 'today':
-        return 'Heute';
-      case '7days':
-        return 'Nächste 7 Tage';
-      case '30days':
-        return 'Nächste 30 Tage';
-      case 'all':
-        return 'Alle';
-      case 'next-appointment':
-        return 'Nächster Termin';
-      case 'next-3-appointments':
-        return 'Nächste 3 Termine';
-      case 'all-appointments':
-        return 'Alle Termine';
-      default:
-        return 'Nächste 7 Tage';
+      case 'today': return 'Heute';
+      case '7days': return 'Nächste 7 Tage';
+      case '30days': return 'Nächste 30 Tage';
+      case 'all': return 'Alle';
+      case 'next-appointment': return 'Nächster Termin';
+      case 'next-3-appointments': return 'Nächste 3 Termine';
+      case 'all-appointments': return 'Alle Termine';
+      default: return 'Alle';
     }
   };
 
-  // Tab-Wechsel-Logik: Bei Termine-Tab automatisch "Nächste 3 Termine" anzeigen
+  // Tab-Wechsel-Logik
   const handleFilterTypeChange = (newFilterType: FilterType) => {
     if (newFilterType === 'appointment') {
-      // Merke den aktuellen Filter, bevor wir auf Termine wechseln
       if (rangeFilter !== 'next-appointment' && rangeFilter !== 'next-3-appointments' && rangeFilter !== 'all-appointments') {
         setLastNonAppointmentFilter(rangeFilter);
       }
-      // Smart default: "Nächste 3 Termine" wenn genug vorhanden, sonst "Alle Termine"
       const futureCount = getAllFutureAppointments().length;
       if (futureCount >= 3) {
         setRangeFilter('next-3-appointments');
-      } else if (futureCount > 0) {
-        setRangeFilter('all-appointments');
       } else {
         setRangeFilter('all-appointments');
       }
     } else if (filterType === 'appointment') {
-      // Wechsel von Termine weg: stelle den letzten Filter wieder her
       setRangeFilter(lastNonAppointmentFilter);
     }
     setFilterType(newFilterType);
   };
 
   const getEmptyStateForActive = () => {
+    // Spezifischer Empty-State für "Aktuell" Tab
+    if (filterType === 'aktuell') {
+      return {
+        icon: <Clock className="w-12 h-12" />,
+        title: 'Aktuell ist nichts fällig',
+        description: 'Medikamente und Termine findest du in den jeweiligen Tabs.',
+      };
+    }
+
     // Spezifischer Empty-State für "Termine" Tab
     if (filterType === 'appointment') {
       const futureAppts = getAllFutureAppointments();
@@ -469,7 +421,6 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
           ),
         };
       }
-      // Should not happen with smart defaults, but safety net
       return {
         icon: <Calendar className="w-12 h-12" />,
         title: 'Keine Termine im gewählten Zeitraum',
@@ -487,25 +438,27 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
       };
     }
 
+    // Medikamente empty state
+    if (filterType === 'medication') {
+      if (activeReminders.filter(r => r.type === 'medication').length === 0) {
+        return {
+          icon: <Bell className="w-12 h-12" />,
+          title: 'Keine Medikamenten-Erinnerungen',
+          description: 'Nutze "Neue Erinnerung", um eine hinzuzufügen.',
+        };
+      }
+      return {
+        icon: <Clock className="w-12 h-12" />,
+        title: `Keine Erinnerungen ${rangeFilter === 'today' ? 'für heute' : getRangeLabel().toLowerCase()}`,
+        description: 'Ändere den Zeitraum oben rechts.',
+      };
+    }
+
     if (activeReminders.length === 0) {
       return {
         icon: <Bell className="w-12 h-12" />,
         title: 'Keine aktiven Erinnerungen',
         description: 'Nutze "Neue Erinnerung", um Medikamente oder Termine hinzuzufügen.',
-      };
-    }
-    
-    if (filteredReminders.length === 0 && rangeFilter !== 'all') {
-      const nextRangeHint = rangeFilter === 'today' 
-        ? 'in den nächsten Tagen' 
-        : rangeFilter === '7days'
-        ? 'in den nächsten 30 Tagen'
-        : 'später';
-        
-      return {
-        icon: <Clock className="w-12 h-12" />,
-        title: `Keine Erinnerungen ${rangeFilter === 'today' ? 'für heute' : getRangeLabel().toLowerCase()}`,
-        description: `Du hast noch Erinnerungen ${nextRangeHint}. Ändere den Zeitraum oben rechts.`,
       };
     }
     
@@ -532,6 +485,9 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
       />
     );
   }
+
+  // Whether to show the range dropdown (hidden for "Aktuell" tab)
+  const showRangeDropdown = filterType !== 'aktuell';
 
   return (
     <div className="min-h-screen bg-background">
@@ -574,7 +530,7 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
             onClick={() => {
               setPrefillData(null);
               setEditingReminder(null);
-              setFormKey(prev => prev + 1); // Force form re-mount with fresh date
+              setFormKey(prev => prev + 1);
               setViewMode('form');
             }}
             className="w-full touch-manipulation min-h-14 text-lg font-semibold shadow-md"
@@ -605,14 +561,15 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
           </TabsList>
 
           <TabsContent value="active" className="mt-0">
+            {/* Tab-Reihenfolge: Aktuell (Default) | Medikamente | Termine */}
             <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
               <Button
                 size="sm"
-                variant={filterType === 'all' ? 'default' : 'outline'}
-                onClick={() => handleFilterTypeChange('all')}
+                variant={filterType === 'aktuell' ? 'default' : 'outline'}
+                onClick={() => handleFilterTypeChange('aktuell')}
                 className="whitespace-nowrap touch-manipulation"
               >
-                Alle {typeCounts.all > 0 && `(${typeCounts.all})`}
+                Aktuell {typeCounts.aktuell > 0 && `(${typeCounts.aktuell})`}
               </Button>
               <Button
                 size="sm"
@@ -632,44 +589,46 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
               </Button>
             </div>
 
-            <div className="flex justify-end mb-4">
-              <Select 
-                value={rangeFilter} 
-                onValueChange={(v) => {
-                  const newRange = v as RangeFilter;
-                  setRangeFilter(newRange);
-                  // Merke den Filter für Nicht-Termine-Tabs
-                  if (filterType !== 'appointment') {
-                    setLastNonAppointmentFilter(newRange);
-                  }
-                }}
-              >
-                <SelectTrigger className="w-[200px]">
-                  <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4" />
-                    <SelectValue placeholder="Zeitraum wählen">
-                      {getRangeLabel()}
-                    </SelectValue>
-                  </div>
-                </SelectTrigger>
-                <SelectContent>
-                  {filterType === 'appointment' ? (
-                    <>
-                      <SelectItem value="next-appointment">Nächster Termin</SelectItem>
-                      <SelectItem value="next-3-appointments">Nächste 3 Termine</SelectItem>
-                      <SelectItem value="all-appointments">Alle Termine</SelectItem>
-                    </>
-                  ) : (
-                    <>
-                      <SelectItem value="today">Heute</SelectItem>
-                      <SelectItem value="7days">Nächste 7 Tage</SelectItem>
-                      <SelectItem value="30days">Nächste 30 Tage</SelectItem>
-                      <SelectItem value="all">Alle</SelectItem>
-                    </>
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Range dropdown: hidden for "Aktuell" tab, shown for Medikamente/Termine */}
+            {showRangeDropdown && (
+              <div className="flex justify-end mb-4">
+                <Select 
+                  value={rangeFilter} 
+                  onValueChange={(v) => {
+                    const newRange = v as RangeFilter;
+                    setRangeFilter(newRange);
+                    if (filterType !== 'appointment') {
+                      setLastNonAppointmentFilter(newRange);
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-[200px]">
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4" />
+                      <SelectValue placeholder="Zeitraum wählen">
+                        {getRangeLabel()}
+                      </SelectValue>
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {filterType === 'appointment' ? (
+                      <>
+                        <SelectItem value="next-appointment">Nächster Termin</SelectItem>
+                        <SelectItem value="next-3-appointments">Nächste 3 Termine</SelectItem>
+                        <SelectItem value="all-appointments">Alle Termine</SelectItem>
+                      </>
+                    ) : (
+                      <>
+                        <SelectItem value="today">Heute</SelectItem>
+                        <SelectItem value="7days">Nächste 7 Tage</SelectItem>
+                        <SelectItem value="30days">Nächste 30 Tage</SelectItem>
+                        <SelectItem value="all">Alle</SelectItem>
+                      </>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {isLoading ? (
               <div className="space-y-3">
@@ -677,9 +636,9 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
                 <div className="h-24 bg-muted animate-pulse rounded-lg" />
                 <div className="h-24 bg-muted animate-pulse rounded-lg" />
               </div>
-            ) : filteredReminders.length > 0 ? (
+            ) : visibleReminders.length > 0 ? (
               <div className="space-y-3">
-                {groupReminders(filteredReminders).map((grouped) => (
+                {groupReminders(visibleReminders).map((grouped) => (
                   <ReminderCard
                     key={grouped.reminder.id}
                     grouped={grouped}
@@ -731,11 +690,11 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
             <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
               <Button
                 size="sm"
-                variant={filterType === 'all' ? 'default' : 'outline'}
-                onClick={() => setFilterType('all')}
+                variant={filterType === 'aktuell' ? 'default' : 'outline'}
+                onClick={() => setFilterType('aktuell')}
                 className="whitespace-nowrap touch-manipulation"
               >
-                Alle {typeCounts.all > 0 && `(${typeCounts.all})`}
+                Alle {typeCounts.aktuell > 0 && `(${typeCounts.aktuell})`}
               </Button>
               <Button
                 size="sm"
@@ -761,9 +720,9 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
                 <div className="h-24 bg-muted animate-pulse rounded-lg" />
                 <div className="h-24 bg-muted animate-pulse rounded-lg" />
               </div>
-            ) : filteredReminders.length > 0 ? (
+            ) : visibleReminders.length > 0 ? (
               <div className="space-y-3">
-                {groupReminders(filteredReminders).map((grouped) => (
+                {groupReminders(visibleReminders).map((grouped) => (
                   <ReminderCard
                     key={grouped.reminder.id}
                     grouped={grouped}
