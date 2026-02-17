@@ -465,10 +465,12 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
 
                 {/* ME/CFS-Belastung */}
                 {(() => {
+                  const mecfsStart = mecfsStartDate ? (mecfsStartDate > from ? mecfsStartDate : from) : null;
+                  const mecfsEnd = to;
                   const mecfsEntries = filterEntriesForMeCfs(filteredEntries, mecfsStartDate);
                   return (
                     <>
-                      <MeCfsStatisticsCard entries={mecfsEntries} daysInRange={daysInRange} />
+                      <MeCfsStatisticsCard entries={mecfsEntries} mecfsStart={mecfsStart} mecfsEnd={mecfsEnd} />
                       <MeCfsCorrelationCard entries={mecfsEntries} />
                     </>
                   );
