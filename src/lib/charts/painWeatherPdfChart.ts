@@ -314,20 +314,15 @@ export function drawSmoothPainWeatherChart(
     }
   });
 
-  // ─── Draw smooth curves ───
-  drawSmoothLine(page, painPoints, CHART_COLORS.pain, 1.8);
+  // ─── Draw smooth curves (unified stroke width, no dominant line) ───
+  drawSmoothLine(page, painPoints, CHART_COLORS.pain, 1.4);
   if (tempPoints.length >= 2) {
-    drawSmoothLine(page, tempPoints, CHART_COLORS.temp, 1.3, [4, 2]);
+    drawSmoothLine(page, tempPoints, CHART_COLORS.temp, 1.2, [4, 2]);
   }
   if (pressurePoints.length >= 2) {
-    drawSmoothLine(page, pressurePoints, CHART_COLORS.pressure, 1.3, [6, 3]);
+    drawSmoothLine(page, pressurePoints, CHART_COLORS.pressure, 1.2, [6, 3]);
   }
-
-  // ─── Subtle dot markers (matching App's r:1 dots) ───
-  painPoints.forEach(p => {
-    page.drawCircle({ x: p.x, y: p.y, size: 1.5, color: CHART_COLORS.pain });
-  });
-  // No dots for weather lines (matching App behavior — dots are very small r:1)
+  // No dot markers — cleaner medical look, focus on trend lines
 
   // ─── X-Axis labels ───
   const maxLabels = 8;
