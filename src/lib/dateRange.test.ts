@@ -12,18 +12,17 @@ describe('computeDateRange', () => {
     vi.useRealTimers();
   });
 
-  it('1m = exactly 30 days, excluding today', () => {
+  it('1m = exactly 30 days, ending today', () => {
     const { from, to } = computeDateRange('1m');
-    expect(to).toBe('2026-02-12'); // yesterday
-    expect(from).toBe('2026-01-14'); // 30 days: Jan 14 – Feb 12
-    // Verify exactly 30 days
+    expect(to).toBe('2026-02-13'); // today
+    expect(from).toBe('2026-01-15'); // 30 days: Jan 15 – Feb 13
     const diff = (new Date(to).getTime() - new Date(from).getTime()) / (1000 * 60 * 60 * 24) + 1;
     expect(diff).toBe(30);
   });
 
   it('3m = exactly 90 days', () => {
     const { from, to } = computeDateRange('3m');
-    expect(to).toBe('2026-02-12');
+    expect(to).toBe('2026-02-13');
     const diff = (new Date(to).getTime() - new Date(from).getTime()) / (1000 * 60 * 60 * 24) + 1;
     expect(diff).toBe(90);
   });
@@ -52,6 +51,6 @@ describe('computeDateRange', () => {
   it('all uses firstEntryDate when provided', () => {
     const { from, to } = computeDateRange('all', { firstEntryDate: '2024-05-01' });
     expect(from).toBe('2024-05-01');
-    expect(to).toBe('2026-02-12');
+    expect(to).toBe('2026-02-13'); // today
   });
 });

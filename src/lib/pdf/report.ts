@@ -1101,6 +1101,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
           pain_level: e.pain_level,
           medications: e.medications,
         })),
+        documentedDaysOnly: true,
       });
 
       const pieSpaceCheck = ensureSpace(pdfDoc, page, yPos, 110);

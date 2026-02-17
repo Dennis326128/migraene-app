@@ -94,14 +94,12 @@ export function computeDiaryDayBuckets(args: {
   startDate: string;
   endDate: string;
   entries: EntryForBuckets[];
+  /** If true, only count days that have at least one entry (documented days). */
+  documentedDaysOnly?: boolean;
 }): DayBucketsResult {
-  const { startDate, endDate, entries } = args;
+  const { startDate, endDate, entries, documentedDaysOnly = false } = args;
   
-  // 1. Alle Tage im Zeitraum aufzählen
-  const allDates = enumerateDatesInclusive(startDate, endDate);
-  const totalDays = allDates.length;
-  
-  // 2. Entries nach Datum gruppieren
+  // 1. Entries nach Datum gruppieren
   const entriesByDate = new Map<string, EntryForBuckets[]>();
   for (const entry of entries) {
     const date = entry.selected_date || entry.timestamp_created?.split('T')[0] || '';
@@ -114,13 +112,26 @@ export function computeDiaryDayBuckets(args: {
     }
   }
   
+  // 2. Determine which dates to classify
+  let datesToClassify: string[];
+  if (documentedDaysOnly) {
+    // Only dates that have entries (within range)
+    datesToClassify = Array.from(entriesByDate.keys())
+      .filter(d => d >= startDate && d <= endDate)
+      .sort();
+  } else {
+    datesToClassify = enumerateDatesInclusive(startDate, endDate);
+  }
+
+  const totalDays = datesToClassify.length;
+  
   // 3. Jeden Tag klassifizieren
   const byDate: Record<string, DayClassification> = {};
   let painFreeDays = 0;
   let painDaysNoTriptan = 0;
   let triptanDays = 0;
   
-  for (const date of allDates) {
+  for (const date of datesToClassify) {
     const dayEntries = entriesByDate.get(date) || [];
     const classification = classifyDay(dayEntries);
     byDate[date] = classification;

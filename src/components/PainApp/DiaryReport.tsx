@@ -413,6 +413,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         pain_level: e.pain_level,
         medications: e.medications,
       })),
+      documentedDaysOnly: true,
     });
   }, [entries, from, to]);
 
