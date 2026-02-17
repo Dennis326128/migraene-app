@@ -27,6 +27,7 @@ import { HeadacheDaysPie } from "@/components/diary/HeadacheDaysPie";
 import { supabase } from "@/lib/supabaseClient";
 import { useQuery } from "@tanstack/react-query";
 import { useSymptomBurdens } from "@/features/symptoms/hooks/useSymptomBurden";
+import { getMeCfsTrackingStartDate, filterEntriesForMeCfs } from "@/lib/mecfs/trackingStart";
 
 // Session storage keys
 const SESSION_KEY_PRESET = "stats_timeRange_preset";
@@ -106,6 +107,12 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
 
   // View mode
   const [viewMode, setViewMode] = useState<"statistik" | "ki-analyse">("statistik");
+
+  // ME/CFS tracking start date
+  const [mecfsStartDate, setMecfsStartDate] = useState<string | null>(null);
+  useEffect(() => {
+    getMeCfsTrackingStartDate().then(setMecfsStartDate);
+  }, []);
 
   // Fullscreen modals
   const [pieFullscreen, setPieFullscreen] = useState(false);
@@ -395,10 +402,15 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
                 </Card>
 
                 {/* ME/CFS-Belastung */}
-                <MeCfsStatisticsCard entries={filteredEntries} daysInRange={daysInRange} />
-                
-                {/* ME/CFS ↔ Migräne Korrelation */}
-                <MeCfsCorrelationCard entries={filteredEntries} />
+                {(() => {
+                  const mecfsEntries = filterEntriesForMeCfs(filteredEntries, mecfsStartDate);
+                  return (
+                    <>
+                      <MeCfsStatisticsCard entries={mecfsEntries} daysInRange={daysInRange} />
+                      <MeCfsCorrelationCard entries={mecfsEntries} />
+                    </>
+                  );
+                })()}
 
                 {/* 7. Hint to KI tab */}
                 <Card className="border-primary/20 bg-primary/5">

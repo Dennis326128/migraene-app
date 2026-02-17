@@ -179,9 +179,36 @@ Deno.serve(async (req) => {
       ? `\n\nKONTEXTNOTIZEN (Sprachnotizen/Zusatzinformationen):\n${contextNotesText}\n\nWichtig: Berücksichtige die Kontextnotizen bei der Analyse der "Besonderen Auffälligkeiten". Falls relevante Muster oder Trigger in den Kontextnotizen erwähnt werden (z.B. Stress, Schlaf, Ernährung, Hormone), erwähne diese im Bericht.`
       : '';
 
-    // ── ME/CFS aggregierter Featureblock ──
+    // ── ME/CFS aggregierter Featureblock (gefiltert nach Tracking-Start) ──
+    // Fetch mecfs_tracking_started_at from user_profiles
+    let mecfsStartDate: string | null = null;
+    {
+      const { data: profileData } = await supabaseClient
+        .from('user_profiles')
+        .select('mecfs_tracking_started_at')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      mecfsStartDate = profileData?.mecfs_tracking_started_at ?? null;
+    }
+
+    // If no persisted start date, derive from entries
+    if (!mecfsStartDate) {
+      for (const e of entries) {
+        if (e.me_cfs_severity_score === undefined || e.me_cfs_severity_score === null) continue;
+        const d = e.selected_date || e.timestamp_created?.split('T')[0];
+        if (d && (!mecfsStartDate || d < mecfsStartDate)) mecfsStartDate = d;
+      }
+    }
+
+    const mecfsEntries = mecfsStartDate
+      ? entries.filter(e => {
+          const d = e.selected_date || e.timestamp_created?.split('T')[0];
+          return d && d >= mecfsStartDate!;
+        })
+      : entries;
+
     const meCfsDayMap = new Map<string, number>();
-    for (const e of entries) {
+    for (const e of mecfsEntries) {
       const date = e.selected_date || e.timestamp_created?.split('T')[0];
       if (!date) continue;
       const score = e.me_cfs_severity_score ?? 0;
@@ -197,7 +224,7 @@ Deno.serve(async (req) => {
       const meCfsAvg = meCfsScores.reduce((a, b) => a + b, 0) / documentedDays;
       const burdenPer30 = Math.round(((meCfsDaysWithBurden / documentedDays) * 30) * 10) / 10;
       const levelLabel = (s: number): string => s <= 0 ? 'keine' : s <= 4 ? 'leicht' : s <= 7 ? 'mittel' : 'schwer';
-      meCfsFeatureBlock = `\nME/CFS (aggregiert, Basis: ${documentedDays} dokumentierte Tage): Belastete Tage: ${burdenPer30}/30 (hochgerechnet), ${meCfsPct}%, Ø Tages-MAX: ${(Math.round(meCfsAvg * 10) / 10)}/10 (${levelLabel(meCfsAvg)}).`;
+      meCfsFeatureBlock = `\nME/CFS (aggregiert, Basis: ${documentedDays} dokumentierte Tage seit Beginn der ME/CFS-Erfassung): Belastete Tage: ${burdenPer30}/30 (hochgerechnet), ${meCfsPct}%, Ø Tages-MAX: ${(Math.round(meCfsAvg * 10) / 10)}/10 (${levelLabel(meCfsAvg)}).`;
     }
 
     // Prompt für strukturierten Arztbericht

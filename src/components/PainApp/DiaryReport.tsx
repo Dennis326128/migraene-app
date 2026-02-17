@@ -757,11 +757,15 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         console.warn('[PDF Export] Begleitsymptome konnten nicht geladen werden:', err);
       }
 
-      // ── ME/CFS-Belastungsdaten berechnen ──
+      // ── ME/CFS-Belastungsdaten berechnen (gefiltert nach Tracking-Start) ──
       let meCfsData: { avgScore: number; avgLabel: string; burdenPct: number; burdenPer30: number; daysWithBurden: number; documentedDays: number; iqrLabel: string; dataQualityNote?: string } | undefined = undefined;
       {
+        const { getMeCfsTrackingStartDate, filterEntriesForMeCfs } = await import("@/lib/mecfs/trackingStart");
+        const mecfsStart = await getMeCfsTrackingStartDate();
+        const mecfsEntries = filterEntriesForMeCfs(freshEntries, mecfsStart);
+
         const dayMap = new Map<string, number>();
-        for (const e of freshEntries) {
+        for (const e of mecfsEntries) {
           const date = e.selected_date || e.timestamp_created?.split('T')[0];
           if (!date) continue;
           const score = (e as any).me_cfs_severity_score ?? 0;
