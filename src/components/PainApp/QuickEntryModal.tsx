@@ -14,6 +14,8 @@ import { logAndSaveWeatherAt, logAndSaveWeatherAtCoords } from "@/utils/weatherL
 import { useCheckMedicationLimits } from "@/features/medication-limits/hooks/useMedicationLimits";
 import { MedicationDoseList } from "./MedicationDose";
 import { DEFAULT_DOSE_QUARTERS } from "@/lib/utils/doseFormatter";
+import { Geolocation } from '@capacitor/geolocation';
+import { supabase } from "@/integrations/supabase/client";
 
 interface QuickEntryModalProps {
   open: boolean;
@@ -168,7 +170,6 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
       let longitude = null;
       
       try {
-        const { Geolocation } = await import('@capacitor/geolocation');
         const pos = await Geolocation.getCurrentPosition({ 
           enableHighAccuracy: true, 
           timeout: 8000 
@@ -181,7 +182,6 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
         
         // Fallback to user profile coordinates
         try {
-          const { supabase } = await import('@/integrations/supabase/client');
           const { data: profile } = await supabase
             .from('user_profiles')
             .select('latitude, longitude')

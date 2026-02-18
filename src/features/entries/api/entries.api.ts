@@ -2,6 +2,7 @@ import { supabase } from "@/lib/supabaseClient";
 import type { PainEntry } from "@/types/painApp";
 import { EntryPayloadSchema, type EntryPayload } from "@/lib/zod/schemas";
 import { addToOfflineQueue, syncPendingEntries } from "@/lib/offlineQueue";
+import { triggerVersionCheckFromAPI } from "@/lib/version";
 
 export type ListParams = { 
   from?: string; 
@@ -258,7 +259,7 @@ export async function createEntry(payload: PainEntryPayload): Promise<string> {
       // Bei Date/Timestamp-Fehlern: Version-Check triggern
       if (error.code === '23505' || /timestamp|date/i.test(error.message)) {
         console.warn('⚠️ Potential version mismatch detected');
-        import('@/lib/version').then(m => m.triggerVersionCheckFromAPI()).catch(() => {});
+        triggerVersionCheckFromAPI();
       }
       
       console.error('Entry save failed:', {
