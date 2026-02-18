@@ -28,6 +28,9 @@ import { MedicationDoseList } from "./MedicationDose";
 import { DEFAULT_DOSE_QUARTERS } from "@/lib/utils/doseFormatter";
 import { devLog, devWarn } from "@/lib/utils/devLogger";
 import { groupSymptoms } from "@/lib/symptoms/symptomGroups";
+import { Geolocation } from '@capacitor/geolocation';
+import { supabase } from "@/integrations/supabase/client";
+import { addToOfflineQueue } from "@/lib/offlineQueue";
 
 interface NewEntryProps {
   onBack: () => void;
@@ -368,12 +371,10 @@ export const NewEntry = ({
     const isRetroactive = entryDateTime < now && (now.getTime() - entryDateTime.getTime()) > 3600000; // 1 hour buffer
     
     try {
-      const { Geolocation } = await import('@capacitor/geolocation');
+      const geo = Geolocation;
       
       if (isRetroactive) {
-        // For retroactive entries, try to use fallback coordinates from user profile
         devLog('Retroactive entry detected, checking for stored coordinates...', { context: 'NewEntry' });
-        const { supabase } = await import('@/integrations/supabase/client');
         const { data: profile } = await supabase
           .from('user_profiles')
           .select('latitude, longitude')
@@ -385,7 +386,7 @@ export const NewEntry = ({
           devLog('Using stored profile coordinates for retroactive entry', { context: 'NewEntry' });
         } else {
           // Fallback to current GPS if no stored coordinates
-          const pos = await Geolocation.getCurrentPosition({ 
+          const pos = await geo.getCurrentPosition({ 
             enableHighAccuracy: true, 
             timeout: 10000 
           });
@@ -395,7 +396,7 @@ export const NewEntry = ({
         }
       } else {
         // For current entries, always use fresh GPS
-        const pos = await Geolocation.getCurrentPosition({ 
+        const pos = await geo.getCurrentPosition({ 
           enableHighAccuracy: true, 
           timeout: 10000 
         });
@@ -484,7 +485,6 @@ export const NewEntry = ({
       
       // Offline-Support: Check if online
       if (!navigator.onLine) {
-        const { addToOfflineQueue } = await import('@/lib/offlineQueue');
         await addToOfflineQueue('pain_entry', payload);
         onBack();
         return;
@@ -502,7 +502,6 @@ export const NewEntry = ({
       } catch (error: any) {
         // Bei Netzwerkfehler: In Queue
         if (error.message?.includes('network') || error.message?.includes('fetch') || !navigator.onLine) {
-          const { addToOfflineQueue } = await import('@/lib/offlineQueue');
           await addToOfflineQueue('pain_entry', payload);
           onBack();
           return;
@@ -544,7 +543,7 @@ export const NewEntry = ({
       // Process context text with AI (fire-and-forget, non-blocking)
       if (contextText.trim()) {
         console.log('🧠 Processing context text with AI...');
-        import('@/integrations/supabase/client').then(async ({ supabase }) => {
+        (async () => {
           try {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
@@ -595,7 +594,7 @@ export const NewEntry = ({
           } catch (err) {
             console.warn('⚠️ Context processing error:', err);
           }
-        });
+        })();
       }
 
       // Update user profile with latest coordinates (for future fallback)

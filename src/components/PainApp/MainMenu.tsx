@@ -28,6 +28,7 @@
 import React, { useState, useEffect } from "react";
 import { APP_VERSION, forceClearCachesAndReload } from "@/lib/version";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 import { useTranslation } from "react-i18next";
 import { WelcomeModal } from "./WelcomeModal";
 import { QuickEntryModal } from "./QuickEntryModal";
@@ -470,9 +471,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             // Sync medication intakes with doses
             const numericId = Number(savedId);
             if (Number.isFinite(numericId) && data.medications && data.medications.length > 0) {
-              const { useSyncIntakes } = await import('@/features/medication-intakes/hooks/useMedicationIntakes');
-              // We need to call the sync inline since we can't use hooks here
-              const { supabase } = await import('@/integrations/supabase/client');
               const { data: { user } } = await supabase.auth.getUser();
               if (user) {
                 for (const med of data.medications) {
