@@ -652,9 +652,10 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
       }
 
       // ── ME/CFS-Belastungsdaten ──
-      let meCfsData: { avgScore: number; avgLabel: string; burdenPct: number; burdenPer30: number; daysWithBurden: number; documentedDays: number; iqrLabel: string; dataQualityNote?: string } | undefined = undefined;
+      let meCfsData: { avgScore: number; avgLabel: string; peakLabel: string; burdenPct: number; burdenPer30: number; daysWithBurden: number; documentedDays: number; calendarDays: number; iqrLabel: string; dataQualityNote?: string } | undefined = undefined;
       {
         const { getMeCfsTrackingStartDate, filterEntriesForMeCfs } = await import("@/lib/mecfs/trackingStart");
+        const { daysBetweenInclusive } = await import("@/lib/dateRange/rangeResolver");
         const mecfsStart = await getMeCfsTrackingStartDate();
         const mecfsEntries = filterEntriesForMeCfs(freshEntries, mecfsStart);
 
@@ -667,11 +668,16 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         }
         const scores = Array.from(dayMap.values());
         const documentedDays = scores.length;
+        // Calculate calendarDays from mecfs-clamped range
+        const effectiveStart = mecfsStart && mecfsStart > from ? mecfsStart : from;
+        const calendarDays = daysBetweenInclusive(effectiveStart, to);
         if (documentedDays > 0) {
           const daysWithBurden = scores.filter(s => s > 0).length;
           const avg = scores.reduce((a, b) => a + b, 0) / documentedDays;
           const { scoreToLevel, levelToLabelDe } = await import("@/lib/mecfs/constants");
           const avgLevel = scoreToLevel(avg);
+          const peakScore = Math.max(...scores);
+          const peakLabel = levelToLabelDe(scoreToLevel(peakScore));
           const sorted = [...scores].sort((a, b) => a - b);
           const pIdx = (p: number) => {
             const i = (p / 100) * (sorted.length - 1);
@@ -685,10 +691,12 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
           meCfsData = {
             avgScore: Math.round(avg * 10) / 10,
             avgLabel: levelToLabelDe(avgLevel),
+            peakLabel,
             burdenPct: Math.round((daysWithBurden / documentedDays) * 100),
             burdenPer30,
             daysWithBurden,
             documentedDays,
+            calendarDays,
             iqrLabel,
           };
         }
