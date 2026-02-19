@@ -79,7 +79,7 @@ export function NotesField({
         {/* Label + Dictation button */}
         <div className="flex items-center justify-between">
           <Label htmlFor="notes-input" className="text-base font-medium">
-            Notizen (optional)
+            Notizen
           </Label>
           <div className="flex items-center gap-2">
             {state.isRecording && (
@@ -159,6 +159,14 @@ export function NotesField({
               disabled={disabled}
             />
           </div>
+        )}
+
+        {/* Quiet private indicator */}
+        {isPrivate && hasContent && (
+          <p className="text-xs text-muted-foreground flex items-center gap-1.5 pt-0.5">
+            <Lock className="h-3 w-3" />
+            Nur für dich sichtbar
+          </p>
         )}
 
         {/* Error display */}
