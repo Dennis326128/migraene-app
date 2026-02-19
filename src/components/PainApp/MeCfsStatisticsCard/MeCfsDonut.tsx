@@ -49,11 +49,11 @@ export function MeCfsDonut({ slices, totalDays }: MeCfsDonutProps) {
           <path key={p.segment} d={p.d} fill={p.color} />
         ))}
         <circle cx="60" cy="60" r="32" fill="hsl(var(--card))" />
-        <text x="60" y="56" textAnchor="middle" className="fill-foreground" fontSize={18} fontWeight="bold">
+        <text x="60" y="54" textAnchor="middle" className="fill-foreground" fontSize={18} fontWeight="bold">
           {totalDays}
         </text>
-        <text x="60" y="72" textAnchor="middle" className="fill-muted-foreground" fontSize={10}>
-          Tage
+        <text x="60" y="68" textAnchor="middle" className="fill-muted-foreground" fontSize={8}>
+          dokumentiert
         </text>
       </svg>
     </div>

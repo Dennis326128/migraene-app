@@ -29,4 +29,4 @@ export const SEGMENT_LABELS: Record<MeCfsDonutSegment, string> = {
 };
 
 /** Display order for donut segments (undocumented kept for data model compatibility) */
-export const SEGMENT_ORDER: MeCfsDonutSegment[] = ['none', 'mild', 'moderate', 'severe', 'undocumented'];
+export const SEGMENT_ORDER: MeCfsDonutSegment[] = ['severe', 'moderate', 'mild', 'none', 'undocumented'];
