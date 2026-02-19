@@ -38,19 +38,19 @@ function getDateRange(preset: TimeRangePreset): { from: Date; to: Date; days: nu
   
   switch (preset) {
     case "1m":
-      from = startOfDay(subDays(new Date(), 30));
+      from = startOfDay(subDays(new Date(), 29));
       days = 30;
       break;
     case "3m":
-      from = startOfDay(subMonths(new Date(), 3));
+      from = startOfDay(subDays(new Date(), 89));
       days = 90;
       break;
     case "6m":
-      from = startOfDay(subMonths(new Date(), 6));
+      from = startOfDay(subDays(new Date(), 179));
       days = 180;
       break;
     case "12m":
-      from = startOfDay(subMonths(new Date(), 12));
+      from = startOfDay(subDays(new Date(), 364));
       days = 365;
       break;
     case "all":

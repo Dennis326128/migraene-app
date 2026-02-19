@@ -58,11 +58,13 @@ interface PremiumAIReportResult {
 
 type Preset = TimeRangePreset;
 
-function addMonths(d: Date, m: number) {
+/** Subtract fixed days from a date (for rolling-window presets). */
+function subFixedDays(d: Date, days: number): Date {
   const dd = new Date(d);
-  dd.setMonth(dd.getMonth() + m);
+  dd.setDate(dd.getDate() - days);
   return dd;
 }
+const PRESET_DAYS: Record<string, number> = { '1m': 29, '3m': 89, '6m': 179, '12m': 364 };
 function fmt(d: Date) { return d.toISOString().slice(0,10); }
 
 function mapEffectToNumber(rating: string): number {
@@ -114,7 +116,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
   
   // Core state
   const [preset, setPreset] = useState<Preset>("3m");
-  const [customStart, setCustomStart] = useState<string>(fmt(addMonths(today, -3)));
+  const [customStart, setCustomStart] = useState<string>(fmt(subFixedDays(today, 89)));
   const [customEnd, setCustomEnd] = useState<string>(fmt(today));
   
   // Essentials toggles
@@ -267,7 +269,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
   // Handle preset change - set custom dates when switching to custom
   const handlePresetChange = useCallback((newPreset: Preset) => {
     if (newPreset === 'custom' && preset !== 'custom') {
-      setCustomStart(fmt(addMonths(today, -3)));
+      setCustomStart(fmt(subFixedDays(today, 89)));
       setCustomEnd(fmt(today));
     }
     setPreset(newPreset);
@@ -280,13 +282,11 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     }
     const end = fmt(today);
     let start: string;
-    switch (preset) {
-      case "1m": start = fmt(addMonths(today, -1)); break;
-      case "3m": start = fmt(addMonths(today, -3)); break;
-      case "6m": start = fmt(addMonths(today, -6)); break;
-      case "12m": start = fmt(addMonths(today, -12)); break;
-      case "all": start = "2000-01-01"; break;
-      default: start = fmt(addMonths(today, -3));
+    if (preset === "all") {
+      start = "2000-01-01";
+    } else {
+      const daysBack = PRESET_DAYS[preset] ?? 89;
+      start = fmt(subFixedDays(today, daysBack));
     }
     return { from: start, to: end };
   }, [preset, customStart, customEnd, today]);
