@@ -78,17 +78,14 @@ export interface EffectiveRange {
 export function resolveEffectiveRange(
   selectedStart: string,
   selectedEnd: string,
-  firstEntryDate: string | null
+  _firstEntryDate: string | null
 ): EffectiveRange {
   const today = todayStr();
   let start = selectedStart;
   let end = selectedEnd;
   let wasClamped = false;
 
-  if (firstEntryDate && start < firstEntryDate) {
-    start = firstEntryDate;
-    wasClamped = true;
-  }
+  // Do NOT clamp start to firstEntryDate — days before first entry count as pain-free.
 
   if (end > today) {
     end = today;
