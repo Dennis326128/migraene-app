@@ -19,6 +19,7 @@ export default defineConfig(({ mode }) => ({
       manifest: false, // Wir nutzen public/manifest.json
       workbox: {
         // Precache App Shell
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, // 3 MiB (main bundle ~2.1 MiB)
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
         // Runtime Caching Strategien
         runtimeCaching: [
