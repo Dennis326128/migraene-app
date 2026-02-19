@@ -768,6 +768,7 @@ export type Database = {
         Row: {
           aura_type: string
           entry_kind: string
+          entry_note_is_private: boolean
           id: number
           latitude: number | null
           longitude: number | null
@@ -790,6 +791,7 @@ export type Database = {
         Insert: {
           aura_type?: string
           entry_kind?: string
+          entry_note_is_private?: boolean
           id?: number
           latitude?: number | null
           longitude?: number | null
@@ -812,6 +814,7 @@ export type Database = {
         Update: {
           aura_type?: string
           entry_kind?: string
+          entry_note_is_private?: boolean
           id?: number
           latitude?: number | null
           longitude?: number | null
@@ -1948,6 +1951,7 @@ export type Database = {
         Returns: {
           aura_type: string
           entry_kind: string
+          entry_note_is_private: boolean
           id: number
           latitude: number | null
           longitude: number | null

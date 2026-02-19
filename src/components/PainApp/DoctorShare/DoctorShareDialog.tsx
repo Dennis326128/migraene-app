@@ -176,7 +176,7 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
         custom_from: null,
         custom_to: null,
         include_entry_notes: shareNotes,
-        include_context_notes: shareNotes,
+        include_context_notes: false, // Private notes never shared by default
         include_ai_analysis: true, // auto-enabled
       });
 
@@ -244,7 +244,7 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
         includeDoctorData: selectedDoctors.length > 0,
         includeMedicationCourses: true,
         includePatientNotes: includeNotes,
-        freeTextExportMode: includeNotes ? "notes_and_context" : "none",
+        freeTextExportMode: includeNotes ? "short_notes" : "none",
         isPremiumAIRequested: false,
         analysisReport: undefined,
         patientNotes: "",

@@ -73,6 +73,7 @@ export async function listEntries(params: ListParams = {}): Promise<PainEntry[]>
       aura_type,
       medications,
       notes,
+      entry_note_is_private,
       entry_kind,
       me_cfs_severity_score,
       me_cfs_severity_level,
