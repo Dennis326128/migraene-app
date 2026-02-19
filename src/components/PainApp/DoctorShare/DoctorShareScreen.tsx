@@ -1,15 +1,19 @@
 /**
  * DoctorShareScreen – "Per Code teilen"
  *
+ * Minimal screen: Code + Toggle + Link
  * State machine: idle → generating → success | error
  * - No intermediate confirm step – generation starts immediately
  * - 20s timeout prevents infinite loading
- * - Left-aligned layout matching the rest of the app
+ * - Skeleton UI while generating for psychological comfort
+ * - Toggle controls 24h share window
  */
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { Button } from "@/components/ui/button";
 import { Copy, Check, ExternalLink, AlertCircle, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import {
   useDoctorShareStatus,
@@ -17,17 +21,6 @@ import {
   useRevokeDoctorShare,
 } from "@/features/doctor-share";
 import { AppHeader } from "@/components/ui/app-header";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import { supabase } from "@/lib/supabaseClient";
 import { buildDiaryPdf } from "@/lib/pdf/report";
 import { buildReportData } from "@/lib/pdf/reportData";
@@ -45,6 +38,7 @@ interface DoctorShareScreenProps {
 type FlowState = "idle" | "generating" | "success" | "error";
 
 const GENERATION_TIMEOUT_MS = 20_000;
+const SHARE_HINT_KEY = "migraina_share_auto_expire_hint_seen";
 
 function addMonths(d: Date, m: number) {
   const dd = new Date(d);
@@ -53,19 +47,6 @@ function addMonths(d: Date, m: number) {
 }
 function fmt(d: Date) {
   return d.toISOString().slice(0, 10);
-}
-
-function formatActiveUntil(dateStr: string | null): string {
-  if (!dateStr) return "";
-  const date = new Date(dateStr);
-  const now = new Date();
-  const tomorrow = new Date(now);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const timeStr = date.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
-  if (date.toDateString() === now.toDateString()) return `heute ${timeStr} Uhr`;
-  if (date.toDateString() === tomorrow.toDateString()) return `morgen ${timeStr} Uhr`;
-  const dayStr = date.toLocaleDateString("de-DE", { weekday: "short" });
-  return `${dayStr} ${timeStr} Uhr`;
 }
 
 export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) => {
@@ -77,13 +58,17 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
   const [flowState, setFlowState] = useState<FlowState>("idle");
   const [justCreatedCode, setJustCreatedCode] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [showHint, setShowHint] = useState(false);
   const abortRef = useRef(false);
 
   const today = useMemo(() => new Date(), []);
   const from = useMemo(() => fmt(addMonths(today, -3)), [today]);
   const to = useMemo(() => fmt(today), [today]);
 
-  // Determine if we should auto-start generation (no active share, not revoked today)
+  // Check if 24h hint was already shown
+  const hintSeen = useRef(localStorage.getItem(SHARE_HINT_KEY) === "true");
+
+  // Determine if we should auto-start generation
   const shouldAutoGenerate =
     !isLoading &&
     !fetchError &&
@@ -105,6 +90,13 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
     if (flowState === "generating") return;
     abortRef.current = false;
     setFlowState("generating");
+
+    // Show 24h hint on first use
+    if (!hintSeen.current) {
+      setShowHint(true);
+      hintSeen.current = true;
+      localStorage.setItem(SHARE_HINT_KEY, "true");
+    }
 
     const timeoutId = setTimeout(() => {
       if (!abortRef.current) {
@@ -292,7 +284,7 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
     }
   }, [flowState, shareStatus, from, to, medicationCourses, activateMutation, refetch]);
 
-  // Back handler – abort generation if in progress
+  // Back handler
   const handleBack = useCallback(() => {
     if (flowState === "generating") {
       abortRef.current = true;
@@ -315,45 +307,59 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
     }
   };
 
-  // Reactivate (after revoke same day)
-  const handleActivate = () => {
-    activateMutation.mutate(undefined, {
-      onSuccess: () => refetch(),
-      onError: () => toast.error("Freigabe konnte nicht aktiviert werden"),
-    });
-  };
-
-  // Revoke share
-  const handleRevoke = () => {
-    revokeMutation.mutate(undefined, {
-      onSuccess: () => refetch(),
-      onError: () => toast.error("Freigabe konnte nicht beendet werden"),
-    });
+  // Toggle handler
+  const handleToggle = (checked: boolean) => {
+    if (checked) {
+      // Reactivate
+      if (!hintSeen.current) {
+        setShowHint(true);
+        hintSeen.current = true;
+        localStorage.setItem(SHARE_HINT_KEY, "true");
+      }
+      activateMutation.mutate(undefined, {
+        onSuccess: () => refetch(),
+        onError: () => toast.error("Freigabe konnte nicht aktiviert werden"),
+      });
+    } else {
+      // Revoke
+      revokeMutation.mutate(undefined, {
+        onSuccess: () => {
+          refetch();
+          setShowHint(false);
+        },
+        onError: () => toast.error("Freigabe konnte nicht beendet werden"),
+      });
+    }
   };
 
   const isPending = activateMutation.isPending || revokeMutation.isPending;
   const isShareActive = shareStatus?.is_share_active ?? false;
+  const displayCode = justCreatedCode || shareStatus?.code_display;
+  const isGenerating = flowState === "generating";
+  const isReady = !isLoading && !fetchError && flowState !== "generating" && flowState !== "error" && (isShareActive || justCreatedCode || shareStatus?.was_revoked_today);
+
+  // Check if share expired (auto-off)
+  const isExpired = shareStatus && !isShareActive && shareStatus.share_active_until && !shareStatus.was_revoked_today;
 
   return (
     <div className="flex flex-col h-full bg-background">
       <AppHeader title="Per Code teilen" onBack={handleBack} sticky />
 
       <div className="flex-1 overflow-auto p-4">
-        <div className="max-w-md mx-auto space-y-6">
+        <div className="max-w-md space-y-5">
 
-          {/* Loading initial data */}
+          {/* Initial loading */}
           {isLoading && (
-            <div className="py-8">
-              <div className="flex items-center gap-3">
-                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">Wird geladen…</p>
-              </div>
+            <div className="space-y-5">
+              <Skeleton className="h-20 w-full rounded-xl" />
+              <Skeleton className="h-10 w-full rounded-lg" />
+              <Skeleton className="h-10 w-48 rounded-lg" />
             </div>
           )}
 
           {/* Fetch error */}
           {!isLoading && fetchError && (
-            <div className="py-8 space-y-4">
+            <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
                 Der Code kann gerade nicht angezeigt werden.
               </p>
@@ -363,24 +369,40 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
             </div>
           )}
 
-          {/* GENERATING state */}
-          {flowState === "generating" && (
-            <div className="py-8">
+          {/* GENERATING state – skeleton with spinner */}
+          {isGenerating && (
+            <div className="space-y-5">
+              {/* Loading indicator */}
               <div className="flex items-center gap-3">
                 <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
                 <div>
                   <p className="text-sm text-foreground">Freigabe wird erstellt…</p>
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <p className="text-xs text-muted-foreground mt-0.5">
                     Das kann einen Moment dauern.
                   </p>
                 </div>
               </div>
+
+              {/* Skeleton code box */}
+              <Skeleton className="h-20 w-full rounded-xl" />
+
+              {/* Skeleton toggle row */}
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Freigabe aktiv</span>
+                <Switch disabled checked={false} />
+              </div>
+
+              {/* Skeleton link button */}
+              <Button variant="outline" size="sm" disabled className="gap-2">
+                <ExternalLink className="w-4 h-4" />
+                Miary.de öffnen
+              </Button>
             </div>
           )}
 
           {/* ERROR state */}
           {flowState === "error" && (
-            <div className="py-8 space-y-4">
+            <div className="space-y-4">
               <div className="flex items-start gap-3">
                 <AlertCircle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
                 <div>
@@ -410,119 +432,62 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
             </div>
           )}
 
-          {/* SUCCESS / ACTIVE share */}
-          {!isLoading && !fetchError && flowState !== "generating" && flowState !== "error" &&
-            (isShareActive || justCreatedCode) && (
-            <div className="space-y-6">
-              {/* Success banner after creation */}
-              {justCreatedCode && (
-                <div className="bg-primary/5 border border-primary/20 rounded-lg p-3">
-                  <p className="text-sm text-foreground font-medium">
-                    ✓ Freigabe erstellt & Bericht gespeichert
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Das PDF findest du unter „Verlauf"
-                  </p>
-                </div>
+          {/* READY state – Code + Toggle + Link */}
+          {isReady && (
+            <div className="space-y-5">
+              {/* Expired hint */}
+              {isExpired && (
+                <p className="text-sm text-muted-foreground">
+                  Freigabe ist abgelaufen. Du kannst sie jederzeit erneut aktivieren.
+                </p>
               )}
 
-              {/* Code – tappable to copy */}
-              <button
-                onClick={handleCopyCode}
-                className="bg-primary/5 border border-primary/20 rounded-xl px-8 py-6 cursor-pointer hover:bg-primary/10 active:scale-[0.98] transition-all duration-150 flex items-center gap-4"
-                aria-label="Code kopieren"
-              >
-                <div className="font-mono text-4xl font-bold tracking-widest text-foreground">
-                  {justCreatedCode || shareStatus?.code_display}
-                </div>
-                {copied ? (
-                  <Check className="w-5 h-5 text-primary shrink-0" />
-                ) : (
-                  <Copy className="w-5 h-5 text-muted-foreground/60 shrink-0" />
-                )}
-              </button>
+              {/* Code box – tappable to copy */}
+              {displayCode && (
+                <button
+                  onClick={handleCopyCode}
+                  className="bg-primary/5 border border-primary/20 rounded-xl px-8 py-6 cursor-pointer hover:bg-primary/10 active:scale-[0.98] transition-all duration-150 flex items-center gap-4 w-full"
+                  aria-label="Code kopieren"
+                >
+                  <div className="font-mono text-4xl font-bold tracking-widest text-foreground">
+                    {displayCode}
+                  </div>
+                  {copied ? (
+                    <Check className="w-5 h-5 text-primary shrink-0" />
+                  ) : (
+                    <Copy className="w-5 h-5 text-muted-foreground/60 shrink-0" />
+                  )}
+                </button>
+              )}
 
-              {/* Expiry info */}
-              {shareStatus?.share_active_until && (
-                <p className="text-sm text-muted-foreground">
-                  Zugriff möglich bis {formatActiveUntil(shareStatus.share_active_until)}
+              {/* Toggle row */}
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-foreground">Freigabe aktiv</span>
+                <Switch
+                  checked={isShareActive}
+                  onCheckedChange={handleToggle}
+                  disabled={isPending}
+                />
+              </div>
+
+              {/* 24h hint – first use only */}
+              {showHint && (
+                <p className="text-xs text-muted-foreground">
+                  Die Freigabe endet automatisch nach 24 Stunden.
                 </p>
               )}
 
               {/* Link to share website */}
               <a
-                href="https://migraina.lovable.app/doctor"
+                href="https://miary.de"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 w-full py-2.5 px-4 rounded-lg border border-border hover:bg-muted/50 transition-colors text-sm"
+                className={`flex items-center gap-2 w-fit py-2.5 px-4 rounded-lg border border-border hover:bg-muted/50 transition-colors text-sm ${!isShareActive ? "pointer-events-none opacity-50" : ""}`}
+                aria-disabled={!isShareActive}
               >
                 <ExternalLink className="w-4 h-4" />
-                Freigabe-Website öffnen
+                Miary.de öffnen
               </a>
-
-              {/* Privacy hint */}
-              <p className="text-xs text-muted-foreground/60">
-                Private Notizen werden nicht geteilt.
-              </p>
-
-              {/* Revoke – subtle */}
-              <div className="pt-2">
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <button
-                      className="text-sm text-muted-foreground/60 hover:text-muted-foreground transition-colors"
-                      disabled={isPending}
-                    >
-                      Freigabe beenden
-                    </button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Freigabe beenden?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Der Zugriff auf Ihre Daten wird sofort beendet. Sie können die Freigabe jederzeit erneut starten.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-                      <AlertDialogAction onClick={handleRevoke}>Beenden</AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </div>
-            </div>
-          )}
-
-          {/* REVOKED TODAY – reactivate option */}
-          {!isLoading && !fetchError && shareStatus && !isShareActive &&
-            shareStatus.was_revoked_today && !justCreatedCode &&
-            flowState !== "generating" && flowState !== "error" && (
-            <div className="space-y-6">
-              <div className="font-mono text-4xl font-bold tracking-widest text-muted-foreground/40">
-                {shareStatus.code_display}
-              </div>
-
-              <p className="text-sm text-muted-foreground">Zugriff nicht aktiv</p>
-
-              <Button
-                onClick={handleActivate}
-                variant="outline"
-                size="sm"
-                disabled={isPending}
-              >
-                {activateMutation.isPending ? "Wird aktiviert…" : "Für 24 Stunden freigeben"}
-              </Button>
-
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setFlowState("idle");
-                  startGeneration();
-                }}
-              >
-                Neue Freigabe einrichten
-              </Button>
             </div>
           )}
         </div>
