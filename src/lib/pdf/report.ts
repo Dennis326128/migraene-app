@@ -1346,9 +1346,11 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
 
   if (meCfsData) {
     const meCfsLines = [
-      `Belastete Tage: ${meCfsData.burdenPer30} / 30 (hochgerechnet) - ${meCfsData.burdenPct}% (${meCfsData.daysWithBurden}/${meCfsData.documentedDays} dok. Tage)`,
-      `Durchschnittl. Tagesbelastung: ${meCfsData.avgScore}/10 (${sanitizeForPDF(meCfsData.avgLabel)}) - Tages-MAX`,
-      `Typischer Bereich: ${sanitizeForPDF(meCfsData.iqrLabel)} (25.-75. Perzentil)`,
+      `Belastete Tage: ${meCfsData.burdenPer30} / 30 (${meCfsData.burdenPct} %)`,
+      `Ø Belastung (0–10): ${meCfsData.avgScore} (${sanitizeForPDF(meCfsData.avgLabel)})`,
+      `Höchste Belastung: ${sanitizeForPDF(meCfsData.avgLabel)}`,
+      `Üblicher Bereich: ${meCfsData.iqrLabel !== '0/10' ? sanitizeForPDF(meCfsData.iqrLabel) : 'noch nicht ausreichend Daten'}`,
+      `Dokumentationsquote: ${meCfsData.documentedDays > 0 ? Math.round((meCfsData.daysWithBurden / meCfsData.documentedDays) * 100) : 0} %`,
     ];
     const hasNote = !!meCfsData.dataQualityNote;
     const blockHeight = LAYOUT.lineHeight * 2 + meCfsLines.length * LAYOUT.lineHeight + (hasNote ? LAYOUT.lineHeight + 2 : 0) + LAYOUT.sectionGap;

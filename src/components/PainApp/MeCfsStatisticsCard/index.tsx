@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Activity } from "lucide-react";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { buildMecfsDonutData } from "@/lib/mecfs/donutData";
+import { scoreToLevel, levelToLabelDe } from "@/lib/mecfs/constants";
 import type { PainEntry } from "@/types/painApp";
 import { DONUT_COLORS, SEGMENT_LABELS, SEGMENT_ORDER } from "./types";
 import { MeCfsDonut } from "./MeCfsDonut";
@@ -62,8 +63,7 @@ export function MeCfsStatisticsCard({ entries, mecfsStart, mecfsEnd }: MeCfsStat
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">Datengrundlage: keine Dokumentation</p>
-          <p className="text-sm text-muted-foreground mt-2">Keine Daten im Zeitraum.</p>
+          <p className="text-sm text-muted-foreground">Keine Daten im Zeitraum.</p>
         </CardContent>
       </Card>
     );
@@ -73,7 +73,6 @@ export function MeCfsStatisticsCard({ entries, mecfsStart, mecfsEnd }: MeCfsStat
   const days = data.calendarDays;
   const tooFewDays = days < MIN_DAYS_FOR_PROJECTION;
   const showProjection = days >= MIN_DAYS_FOR_PROJECTION && days < MIN_DAYS_FOR_STABLE;
-  const showRealValues = days >= MIN_DAYS_FOR_STABLE;
   const showPercent = days >= MIN_DAYS_FOR_PROJECTION;
   const showRange = days >= MIN_DAYS_FOR_PROJECTION;
 
@@ -82,6 +81,15 @@ export function MeCfsStatisticsCard({ entries, mecfsStart, mecfsEnd }: MeCfsStat
     data.p25 === data.p75
       ? `${data.p25}/10`
       : `${data.p25}–${data.p75}/10`;
+
+  // ── Peak severity label ──
+  const peakScore = Math.max(
+    ...(data.distribution.severe > 0 ? [9] : []),
+    ...(data.distribution.moderate > 0 ? [6] : []),
+    ...(data.distribution.mild > 0 ? [3] : []),
+    0,
+  );
+  const peakLabel = levelToLabelDe(scoreToLevel(peakScore));
 
   // ── Slices for donut ──
   const slices = SEGMENT_ORDER.map(seg => ({
@@ -100,33 +108,16 @@ export function MeCfsStatisticsCard({ entries, mecfsStart, mecfsEnd }: MeCfsStat
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Data basis */}
-        <div className="flex items-center gap-1.5">
-          <div className="text-xs text-muted-foreground">
-            <span>Datengrundlage: {data.calendarDays} Kalendertage</span>
-            <br />
-            <span>davon {data.documentedDays} dokumentiert</span>
-          </div>
-          <InfoTooltip
-            content={'Tageswert = höchste Belastung des Tages. Details findest du unter "Details anzeigen".'}
-            side="top"
-          />
-        </div>
 
-        {/* Primary KPI */}
+        {/* ── (1) Primary KPI ── */}
         <div className="text-center space-y-1">
           {tooFewDays ? (
-            <>
-              <p className="text-2xl font-bold text-foreground">
-                {data.daysWithBurden}{' '}
-                <span className="text-base font-normal text-muted-foreground">
-                  von {data.calendarDays} Tagen belastet
-                </span>
-              </p>
-              <p className="text-[11px] text-muted-foreground">
-                Zu wenig Daten für eine belastbare Hochrechnung
-              </p>
-            </>
+            <p className="text-2xl font-bold text-foreground">
+              {data.daysWithBurden}{' '}
+              <span className="text-base font-normal text-muted-foreground">
+                von {data.calendarDays} Tagen belastet
+              </span>
+            </p>
           ) : showProjection ? (
             <>
               <p className="text-2xl font-bold text-foreground">
@@ -144,35 +135,46 @@ export function MeCfsStatisticsCard({ entries, mecfsStart, mecfsEnd }: MeCfsStat
               </div>
             </>
           ) : (
-            <>
-              <p className="text-2xl font-bold text-foreground">
-                {data.daysWithBurden}{' '}
-                <span className="text-base font-normal text-muted-foreground">
-                  von {data.calendarDays} Tagen belastet
-                </span>
-              </p>
-              <p className="text-[11px] text-muted-foreground">im Zeitraum</p>
-            </>
+            <p className="text-2xl font-bold text-foreground">
+              {data.daysWithBurden}{' '}
+              <span className="text-base font-normal text-muted-foreground">
+                von {data.calendarDays} Tagen belastet
+              </span>
+            </p>
           )}
         </div>
 
-        {/* Secondary KPIs */}
+        {/* ── (2) Secondary KPIs ── */}
         <div className="flex justify-center gap-6 text-center">
           <div>
             <p className="text-xs text-muted-foreground">Ø Belastung</p>
             <p className="text-base font-semibold text-foreground">{data.avgDailyMax}/10</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Üblicher Bereich</p>
-            {showRange ? (
-              <p className="text-base font-semibold text-foreground">{rangeLabel}</p>
-            ) : (
-              <p className="text-xs text-muted-foreground italic">Noch keine stabile Spannbreite</p>
-            )}
+            <p className="text-xs text-muted-foreground">Höchste Belastung</p>
+            <p className="text-base font-semibold text-foreground capitalize">{peakLabel}</p>
           </div>
         </div>
 
-        {/* Donut + Legend */}
+        {/* ── (3) Tertiary: Data basis + stability hint ── */}
+        <div className="flex items-center gap-1.5">
+          <div className="text-xs text-muted-foreground space-y-0.5">
+            <p className="font-medium text-muted-foreground">Datengrundlage</p>
+            <p>{data.calendarDays} Kalendertage</p>
+            <p>{data.documentedDays} dokumentiert</p>
+          </div>
+          <InfoTooltip
+            content={'Tageswert = höchste Belastung des Tages. Weitere Infos unter „Details".'}
+            side="top"
+          />
+        </div>
+        {tooFewDays && (
+          <p className="text-[11px] text-muted-foreground">
+            Für eine stabile Trendbewertung werden mindestens 14 Tage empfohlen.
+          </p>
+        )}
+
+        {/* ── Donut + Legend ── */}
         <div className="flex flex-row items-center gap-4">
           <MeCfsDonut slices={slices} totalDays={data.calendarDays} />
           <MeCfsLegend
@@ -182,7 +184,7 @@ export function MeCfsStatisticsCard({ entries, mecfsStart, mecfsEnd }: MeCfsStat
           />
         </div>
 
-        {/* Collapsible details */}
+        {/* ── Collapsible details ── */}
         <MeCfsDetails data={data} />
       </CardContent>
     </Card>
