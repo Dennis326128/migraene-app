@@ -6,7 +6,7 @@ import './index.css'
 // Initialize i18n before app renders
 import '@/lib/i18n/i18n';
 
-// Version Watcher für Auto-Reload bei neuen Deployments
+// Version management
 import { initVersionWatcher, checkAppVersion, setupServiceWorkerListener } from './lib/version';
 // QA Error Capture
 import { initErrorCapture, loadPersistedErrors } from './lib/qa/errorCapture';
@@ -16,7 +16,6 @@ setupServiceWorkerListener();
 
 // CRITICAL: Check app version - this may trigger reload
 if (checkAppVersion()) {
-  // Reload triggered, skip rendering - page will reload
   console.log('App version changed, reload in progress...');
 } else {
 
@@ -29,7 +28,7 @@ if (import.meta.env.DEV) {
   loadPersistedErrors();
 }
 
-// Version-Check initialisieren (aggressive checks on tab focus)
+// Version watcher (SW message listener)
 initVersionWatcher();
 
 createRoot(container).render(

@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react';
+import { useCallback } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 
 interface PWAUpdateState {
@@ -8,9 +8,9 @@ interface PWAUpdateState {
 }
 
 /**
- * PWA Update hook for autoUpdate mode
- * In autoUpdate mode, the new SW activates automatically.
- * This hook provides status info and a manual trigger if needed.
+ * PWA Update hook for autoUpdate mode.
+ * The new SW activates automatically via skipWaiting + clientsClaim.
+ * The controllerchange listener in main.tsx triggers the reload.
  */
 export function usePWAUpdate(): PWAUpdateState {
   const {
@@ -18,24 +18,22 @@ export function usePWAUpdate(): PWAUpdateState {
     offlineReady: [offlineReady],
     updateServiceWorker,
   } = useRegisterSW({
-    immediate: true, // Register SW immediately
+    immediate: true,
     onRegisteredSW(swUrl, registration) {
       console.log('[PWA] Service Worker registered:', swUrl);
       
-      // Periodic update check every 30 seconds
+      // Periodic update check every 60 seconds
       if (registration) {
         setInterval(() => {
           registration.update().catch(console.error);
-        }, 30 * 1000);
+        }, 60 * 1000);
       }
     },
     onRegisterError(error) {
       console.error('[PWA] Service Worker registration error:', error);
     },
     onNeedRefresh() {
-      console.log('[PWA] New content available - will auto-update');
-      // In autoUpdate mode, the SW will skipWaiting automatically
-      // The controllerchange listener in main.tsx will trigger reload
+      console.log('[PWA] New content available — auto-update will apply via controllerchange');
     },
     onOfflineReady() {
       console.log('[PWA] App ready to work offline');
