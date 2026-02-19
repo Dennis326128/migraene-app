@@ -376,12 +376,14 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
   
   useEffect(() => {
     proceedWithPdfGenerationRef.current = async () => {
-      if (includeDoctorData && activeDoctors.length > 1) {
-        setPendingPdfType("diary");
-        setShowDoctorSelection(true);
-        return;
+      // Doctor selection is now inline (dropdown) – no popup needed
+      let doctorsToExport: Doctor[] = [];
+      if (includeDoctorData && activeDoctors.length === 1) {
+        doctorsToExport = activeDoctors;
+      } else if (includeDoctorData && activeDoctors.length > 1) {
+        doctorsToExport = activeDoctors.filter(d => d.id && selectedDoctorIds.includes(d.id));
+        if (doctorsToExport.length === 0) doctorsToExport = [activeDoctors[0]];
       }
-      const doctorsToExport = activeDoctors.length === 1 ? activeDoctors : selectedDoctorsForExport;
       await actuallyGenerateDiaryPDF(doctorsToExport);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -885,13 +887,13 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
       return;
     }
 
-    if (doctors.length > 1) {
-      setPendingPdfType("medplan");
-      setShowDoctorSelection(true);
-      return;
+    if (activeDoctors.length > 1) {
+      // Use inline-selected doctor
+      const selected = activeDoctors.filter(d => d.id && selectedDoctorIds.includes(d.id));
+      await actuallyGenerateMedPlanPDF(selected.length > 0 ? selected : [activeDoctors[0]]);
+    } else {
+      await actuallyGenerateMedPlanPDF(activeDoctors);
     }
-
-    await actuallyGenerateMedPlanPDF(doctors);
   };
 
   const exportCSV = () => {
@@ -1014,16 +1016,51 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
             Stats, Analyse, Medikamente, Therapien sind IMMER enthalten.
         ═══════════════════════════════════════════════════════════════════ */}
         <Card className="divide-y divide-border/50">
-          {/* Arztdaten einbinden – nur wenn aktive Ärzte existieren */}
-          {activeDoctors.length > 0 && (
-            <div className="p-4">
-              <ToggleRow
-                label="Arztdaten einbinden"
-                checked={includeDoctorData}
-                onCheckedChange={setIncludeDoctorData}
-              />
-            </div>
-          )}
+          {/* Arztdaten einbinden */}
+          <div className="p-4">
+            <ToggleRow
+              label="Arztdaten einbinden"
+              checked={includeDoctorData && activeDoctors.length > 0}
+              onCheckedChange={setIncludeDoctorData}
+              disabled={activeDoctors.length === 0}
+            />
+            {activeDoctors.length === 0 && (
+              <div className="mt-2 flex items-center gap-2">
+                <p className="text-xs text-muted-foreground">Kein Arzt hinterlegt.</p>
+                {onNavigate && (
+                  <button
+                    className="text-xs text-primary hover:underline"
+                    onClick={() => onNavigate('settings-doctors')}
+                  >
+                    Arzt hinzufügen
+                  </button>
+                )}
+              </div>
+            )}
+            {includeDoctorData && activeDoctors.length === 1 && (
+              <p className="text-xs text-muted-foreground mt-1">
+                {activeDoctors[0].title ? `${activeDoctors[0].title} ` : ''}
+                {activeDoctors[0].first_name} {activeDoctors[0].last_name}
+                {activeDoctors[0].specialty ? ` · ${activeDoctors[0].specialty}` : ''}
+              </p>
+            )}
+            {includeDoctorData && activeDoctors.length > 1 && (
+              <div className="mt-2">
+                <select
+                  className="w-full border border-border/40 rounded-md px-3 h-9 bg-background text-foreground text-sm"
+                  value={selectedDoctorIds[0] || ''}
+                  onChange={(e) => setSelectedDoctorIds([e.target.value])}
+                >
+                  {activeDoctors.map(d => (
+                    <option key={d.id} value={d.id || ''}>
+                      {d.title ? `${d.title} ` : ''}{d.first_name} {d.last_name}
+                      {d.specialty ? ` · ${d.specialty}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
 
           {/* Notizen einbeziehen */}
           <div className="p-4">

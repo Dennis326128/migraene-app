@@ -1,6 +1,6 @@
 /**
  * DoctorShareScreen
- * "Mit Arzt teilen" - Vollständiger Flow mit Settings und Code-Anzeige
+ * "Per Code teilen" - Vollständiger Flow mit Code-Anzeige
  * 
  * Zustände:
  * A) Keine aktive Freigabe → Dialog zum Einrichten
@@ -133,11 +133,11 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
     return (
       <div className="flex flex-col h-full bg-background">
         <AppHeader 
-          title="Mit Arzt teilen" 
+          title="Per Code teilen" 
           onBack={() => {
             setShowSetupDialog(false);
             onBack();
-          }} 
+          }}
           sticky 
         />
         <div className="flex-1 overflow-auto p-4">
@@ -157,7 +157,7 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
 
   return (
     <div className="flex flex-col h-full bg-background">
-      <AppHeader title="Mit Arzt teilen" onBack={onBack} sticky />
+      <AppHeader title="Per Code teilen" onBack={onBack} sticky />
 
       <div className="flex-1 overflow-auto p-4">
         <div className="max-w-md mx-auto pt-4">
@@ -196,7 +196,7 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
                     ✓ Freigabe erstellt & Bericht gespeichert
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Das PDF findest du unter „Gespeicherte Berichte"
+                    Das PDF findest du unter „Verlauf"
                   </p>
                 </div>
               )}
@@ -233,7 +233,7 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
                   className="flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-lg border border-muted hover:bg-muted/50 transition-colors text-sm"
                 >
                   <ExternalLink className="w-4 h-4" />
-                  Website für Ihren Arzt öffnen
+                  Freigabe-Website öffnen
                 </a>
               </div>
 

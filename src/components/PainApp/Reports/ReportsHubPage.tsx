@@ -34,7 +34,7 @@ export const ReportsHubPage: React.FC<ReportsHubPageProps> = ({
               </div>
               <div className="flex-1 min-w-0">
                 <span className="font-medium text-base block">
-                  Mit Arzt teilen
+                  Per Code teilen
                 </span>
               </div>
             </CardContent>
