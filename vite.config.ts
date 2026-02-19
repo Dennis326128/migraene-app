@@ -5,25 +5,43 @@ import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => ({
+export default defineConfig(({ mode }) => {
+  // Auto-generate unique build ID at compile time
+  const buildId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+
+  return {
   server: {
     host: "::",
     port: 8080,
+  },
+  define: {
+    'import.meta.env.VITE_BUILD_ID': JSON.stringify(buildId),
   },
   plugins: [
     react(),
     mode === 'development' && componentTagger(),
     VitePWA({
-      registerType: 'autoUpdate', // Automatisches Update ohne User-Klick
+      registerType: 'autoUpdate',
       includeAssets: ['apple-touch-icon.png', 'pwa-icons/*.png', 'offline.html'],
-      manifest: false, // Wir nutzen public/manifest.json
+      manifest: false,
       workbox: {
-        // Precache App Shell
-        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, // 3 MiB (main bundle ~2.1 MiB)
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
-        // Runtime Caching Strategien
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
+        // NO html in precache — index.html must always come from network
+        globPatterns: ['**/*.{js,css,ico,png,svg,woff,woff2}'],
         runtimeCaching: [
-          // Supabase API - NetworkOnly (kein Caching von Nutzerdaten!)
+          // Navigation requests (index.html) — NetworkFirst with offline fallback
+          {
+            urlPattern: ({ request }) => request.mode === 'navigate',
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'html-cache',
+              networkTimeoutSeconds: 3,
+              expiration: {
+                maxAgeSeconds: 86400,
+              },
+            },
+          },
+          // Supabase API - NetworkOnly (no caching of user data!)
           {
             urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
             handler: 'NetworkOnly',
@@ -39,7 +57,7 @@ export default defineConfig(({ mode }) => ({
               cacheName: 'google-fonts-stylesheets',
               expiration: {
                 maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 365, // 1 Jahr
+                maxAgeSeconds: 60 * 60 * 24 * 365,
               },
             },
           },
@@ -57,7 +75,7 @@ export default defineConfig(({ mode }) => ({
               },
             },
           },
-          // Externe Images
+          // External images
           {
             urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/i,
             handler: 'CacheFirst',
@@ -65,25 +83,23 @@ export default defineConfig(({ mode }) => ({
               cacheName: 'images-cache',
               expiration: {
                 maxEntries: 100,
-                maxAgeSeconds: 60 * 60 * 24 * 30, // 30 Tage
+                maxAgeSeconds: 60 * 60 * 24 * 30,
               },
             },
           },
         ],
-        // Navigation Fallback für SPA
-        navigateFallback: '/index.html',
+        // No navigateFallback — NetworkFirst handles it above
         navigateFallbackDenylist: [
           /^\/api\//,
           /^\/auth\/callback/,
+          /^\/~oauth/,
         ],
-        // Alte Caches aufräumen
         cleanupOutdatedCaches: true,
-        // Sofort aktivieren bei neuem SW
         skipWaiting: true,
         clientsClaim: true,
       },
       devOptions: {
-        enabled: false, // Nur in Production
+        enabled: false,
       },
     }),
   ].filter(Boolean),
@@ -95,4 +111,5 @@ export default defineConfig(({ mode }) => ({
   optimizeDeps: {
     exclude: ["@tanstack/react-query", "@tanstack/react-query-devtools"],
   },
-}));
+  };
+});
