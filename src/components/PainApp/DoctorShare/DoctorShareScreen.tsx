@@ -342,11 +342,10 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
   const isExpired = shareStatus && !isShareActive && shareStatus.share_active_until && !shareStatus.was_revoked_today;
 
   return (
-    <div className="flex flex-col h-full bg-background">
+    <div className="min-h-screen bg-background">
       <AppHeader title="Per Code teilen" onBack={handleBack} sticky />
 
-      <div className="flex-1 overflow-auto p-4">
-        <div className="max-w-md space-y-5">
+      <div className="p-4 max-w-2xl mx-auto space-y-5">
 
           {/* Initial loading */}
           {isLoading && (
@@ -492,7 +491,6 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
           )}
         </div>
       </div>
-    </div>
   );
 };
 
