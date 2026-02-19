@@ -16,14 +16,13 @@ import { mapTextLevelToScore } from "@/lib/utils/pain";
 import { useMedicationEffectsForEntries } from "@/features/medication-effects/hooks/useMedicationEffects";
 import { usePatientData, useDoctors } from "@/features/account/hooks/useAccount";
 import { useMedicationCourses } from "@/features/medication-courses/hooks/useMedicationCourses";
-import { Loader2, FileText, Table, Pill, ChevronDown, ChevronRight, Brain } from "lucide-react";
+import { Loader2, FileText, Brain } from "lucide-react";
 import { AppHeader } from "@/components/ui/app-header";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { TimeRangeButtons, type TimeRangePreset } from "./TimeRangeButtons";
 import { DoctorSelectionDialog, type Doctor } from "./DoctorSelectionDialog";
 import { Switch } from "@/components/ui/switch";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { devLog, devWarn } from "@/lib/utils/devLogger";
 import { buildReportData, type ReportData, getEntryDate } from "@/lib/pdf/reportData";
 
@@ -78,34 +77,27 @@ function mapEffectToNumber(rating: string): number {
   return map[rating] || 0;
 }
 
-// Persisted settings interface
+// Privacy is decided at entry level.
+// Private notes are never included in exports or sharing.
+// Sharing is one-click and frictionless.
+// No runtime privacy decisions during sharing.
+
+// Simplified settings – stats, analysis, meds, therapies always included
 interface ReportSettingsState {
   preset: Preset;
   customStart: string;
   customEnd: string;
-  includeStats: boolean;
   includeEntriesList: boolean;
-  includeAnalysis: boolean;
-  includeTherapies: boolean;
   includeDoctorData: boolean;
-  allMedications: boolean;
-  selectedMedIds: string[];
   includeNotes: boolean;
-  includePrivateNotes: boolean;
   lastDoctorIds: string[];
 }
 
 const DEFAULT_SETTINGS: Omit<ReportSettingsState, 'customStart' | 'customEnd'> = {
   preset: "3m",
-  includeStats: true,
   includeEntriesList: true,
-  includeAnalysis: true,
-  includeTherapies: true,
   includeDoctorData: true,
-  allMedications: true,
-  selectedMedIds: [],
   includeNotes: true,
-  includePrivateNotes: false,
   lastDoctorIds: [],
 };
 
@@ -119,24 +111,12 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
   const [customStart, setCustomStart] = useState<string>(fmt(subFixedDays(today, 89)));
   const [customEnd, setCustomEnd] = useState<string>(fmt(today));
   
-  // Essentials toggles
-  const [includeStats, setIncludeStats] = useState<boolean>(true);
+  // Simplified toggles – stats, analysis, meds, therapies are ALWAYS included
   const [includeEntriesList, setIncludeEntriesList] = useState<boolean>(true);
-  const [includeAnalysis, setIncludeAnalysis] = useState<boolean>(true);
-  const [includeTherapies, setIncludeTherapies] = useState<boolean>(true);
   
-  // Medications
-  const [allMedications, setAllMedications] = useState<boolean>(true);
-  const [selectedMedIds, setSelectedMedIds] = useState<string[]>([]);
-  const [medOptions, setMedOptions] = useState<string[]>([]);
-  
-  // Notes & Advanced
+  // Notes (only non-private notes; private notes are NEVER exported)
   const [includeNotes, setIncludeNotes] = useState<boolean>(true);
-  const [includePrivateNotes, setIncludePrivateNotes] = useState<boolean>(false);
   const [includeDoctorData, setIncludeDoctorData] = useState<boolean>(true);
-  
-  // Advanced section
-  const [advancedOpen, setAdvancedOpen] = useState<boolean>(false);
   
   // Doctor selection
   const [selectedDoctorIds, setSelectedDoctorIds] = useState<string[]>([]);
@@ -186,7 +166,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     });
   }, []);
 
-  // Load all report settings from database
+  // Load report settings from database
   useEffect(() => {
     (async () => {
       try {
@@ -200,42 +180,20 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
           .maybeSingle();
         
         if (settings) {
-          // Time range
           if (settings.default_report_preset && ["1m","3m","6m","12m","all","custom"].includes(settings.default_report_preset)) {
             setPreset(settings.default_report_preset as Preset);
           }
-          
-          // Essentials
-          if (settings.include_statistics !== null) setIncludeStats(settings.include_statistics);
           if (settings.include_entries_list !== null) setIncludeEntriesList(settings.include_entries_list);
-          if (settings.include_ai_analysis !== null) setIncludeAnalysis(settings.include_ai_analysis);
-          if (settings.include_medication_summary !== null) setIncludeTherapies(settings.include_medication_summary);
-          
-          // Doctor data
           if (settings.include_doctor_data !== null) setIncludeDoctorData(settings.include_doctor_data);
           
-          // Medications
-          if (settings.include_all_medications !== null) setAllMedications(settings.include_all_medications);
-          if (settings.selected_medications && Array.isArray(settings.selected_medications)) {
-            setSelectedMedIds(settings.selected_medications);
-          }
-          
-          // Notes settings - cast to any since columns may not be in types yet
           const s = settings as any;
-          // Load unified notes settings (backward compatible with old field names)
           if (s.include_entry_notes !== undefined && s.include_entry_notes !== null) {
             setIncludeNotes(s.include_entry_notes);
           }
-          if (s.include_context_notes !== undefined && s.include_context_notes !== null) {
-            setIncludePrivateNotes(s.include_context_notes);
-          }
-          
-          // Premium AI setting
           if (settings.include_ai_analysis !== undefined && settings.include_ai_analysis !== null) {
             setIncludePremiumAI(settings.include_ai_analysis);
           }
           
-          // Doctor IDs
           const lastDoctorIds = (settings as any).last_doctor_export_ids;
           if (Array.isArray(lastDoctorIds) && lastDoctorIds.length > 0) {
             setSelectedDoctorIds(lastDoctorIds);
@@ -267,7 +225,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     }
   }, [doctors, doctorPreferencesLoaded]);
 
-  // Handle preset change - set custom dates when switching to custom
+  // Handle preset change
   const handlePresetChange = useCallback((newPreset: Preset) => {
     if (newPreset === 'custom' && preset !== 'custom') {
       setCustomStart(fmt(subFixedDays(today, 89)));
@@ -301,7 +259,6 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
   const entryIds = useMemo(() => entries.map(e => Number(e.id)), [entries]);
   const { data: medicationEffects = [] } = useMedicationEffectsForEntries(entryIds);
   
-  // Fetch the ACTUAL total count of entries (no limit) for accurate display
   const { data: totalEntryCount = 0, isLoading: isCountLoading } = useQuery({
     queryKey: ["entriesCount", from, to],
     queryFn: () => countEntriesInRange(from, to),
@@ -326,19 +283,19 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
           .upsert({
             user_id: user.id,
             default_report_preset: preset,
-            include_statistics: includeStats,
-            include_chart: includeStats,
-            include_ai_analysis: includePremiumAI, // Now saves Premium AI toggle state
+            include_statistics: true,
+            include_chart: true,
+            include_ai_analysis: includePremiumAI,
             include_entries_list: includeEntriesList,
-            include_medication_summary: includeTherapies,
-            include_patient_data: true, // Always included
+            include_medication_summary: true,
+            include_patient_data: true,
             include_doctor_data: includeDoctorData,
-            include_all_medications: allMedications,
-            selected_medications: selectedMedIds,
+            include_all_medications: true,
+            selected_medications: [],
             last_include_doctors_flag: includeDoctorData,
             last_doctor_export_ids: selectedDoctorIds,
             include_entry_notes: includeNotes,
-            include_context_notes: includePrivateNotes,
+            include_context_notes: false,
           } as any, { onConflict: "user_id" });
       } catch (error) {
         console.error("Error saving report settings:", error);
@@ -350,47 +307,14 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [settingsLoaded, preset, includeStats, includePremiumAI, includeEntriesList, includeTherapies, includeDoctorData, allMedications, selectedMedIds, selectedDoctorIds, includeNotes, includePrivateNotes]);
+  }, [settingsLoaded, preset, includePremiumAI, includeEntriesList, includeDoctorData, selectedDoctorIds, includeNotes]);
 
-  // Load medication options
-  useEffect(() => {
-    (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data, error } = await supabase
-        .from("user_medications")
-        .select("name")
-        .eq("user_id", user.id);
-      if (!error && data?.length) {
-        setMedOptions(Array.from(new Set(data.map(d => d.name))).sort());
-      } else {
-        const uniq = new Set<string>();
-        entries.forEach(e => (e.medications || []).forEach(m => uniq.add(m)));
-        setMedOptions(Array.from(uniq).sort());
-      }
-    })();
-  }, [entries]);
-
-  // Filter entries based on medication selection
-  const filteredEntries = useMemo(() => {
-    if (allMedications || selectedMedIds.length === 0) {
-      return entries;
-    }
-    const medsSet = new Set(selectedMedIds);
-    return entries.filter(e => {
-      const meds = e.medications || [];
-      return meds.some(m => medsSet.has(m)) || meds.length === 0;
-    });
-  }, [entries, allMedications, selectedMedIds]);
-
-  // Build central report data for consistency (Single Source of Truth)
+  // Build central report data (Single Source of Truth) – always ALL entries
   const reportData = useMemo<ReportData | null>(() => {
     if (entries.length === 0) return null;
     
-    // WICHTIG: Für KPIs und Attackenzahl verwenden wir ALLE entries im Zeitraum (nicht gefiltert)
-    // Die Medikamenten-Statistik basiert ebenfalls auf allen entries
     return buildReportData({
-      entries: entries, // Alle entries, nicht filteredEntries
+      entries,
       medicationEffects: medicationEffects.map(e => ({
         entry_id: e.entry_id,
         med_name: e.med_name,
@@ -418,16 +342,15 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     });
   }, [entries, from, to]);
 
-  // Legacy medicationStats für Abwärtskompatibilität, aber mit erweiterten Feldern
+  // Medication stats from report data
   const medicationStats = useMemo(() => {
     if (!reportData) return [];
     
     return reportData.acuteMedicationStats.map(stat => ({
       name: stat.name,
-      count: Math.round(stat.totalUnitsInRange), // Legacy: count = totalUnitsInRange
+      count: Math.round(stat.totalUnitsInRange),
       avgEffect: stat.avgEffectiveness,
       ratedCount: stat.ratedCount,
-      // Neue erweiterte Felder
       totalUnitsInRange: stat.totalUnitsInRange,
       avgPerMonth: stat.avgPerMonth,
       last30Units: stat.last30Units
@@ -451,17 +374,13 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
   // Intelligent reminder for missing data before PDF generation
   const proceedWithPdfGenerationRef = useRef<() => Promise<void>>();
   
-  // Update the ref when dependencies change
   useEffect(() => {
     proceedWithPdfGenerationRef.current = async () => {
-      // Only show selection dialog if MORE than 1 active doctor
-      // If exactly 1 active doctor, auto-select and proceed
       if (includeDoctorData && activeDoctors.length > 1) {
         setPendingPdfType("diary");
         setShowDoctorSelection(true);
         return;
       }
-      // Auto-select the only active doctor if exactly 1 exists
       const doctorsToExport = activeDoctors.length === 1 ? activeDoctors : selectedDoctorsForExport;
       await actuallyGenerateDiaryPDF(doctorsToExport);
     };
@@ -486,20 +405,6 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     handleReminderNavigate
   );
 
-  // Check if all medications are selected
-  const allMedsSelected = useMemo(() => {
-    return medOptions.length > 0 && medOptions.every(m => selectedMedIds.includes(m));
-  }, [medOptions, selectedMedIds]);
-
-  // Toggle all medications
-  const handleToggleAllMeds = () => {
-    if (allMedsSelected) {
-      setSelectedMedIds([]);
-    } else {
-      setSelectedMedIds([...medOptions]);
-    }
-  };
-
   // ============== PREMIUM KI-ANALYSEBERICHT ==============
   const generatePremiumAIReport = async (): Promise<PremiumAIReportResult | null> => {
     if (!includePremiumAI) return null;
@@ -508,15 +413,14 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     setPremiumAIError(null);
     
     try {
-      // Send date-only format (YYYY-MM-DD) - edge function handles timezone interpretation
       const { data, error } = await supabase.functions.invoke('generate-ai-diary-report', {
         body: {
-          fromDate: from,  // YYYY-MM-DD
-          toDate: to,      // YYYY-MM-DD
-          includeStats,
-          includeTherapies,
+          fromDate: from,
+          toDate: to,
+          includeStats: true,
+          includeTherapies: true,
           includeEntryNotes: includeNotes,
-          includeContextNotes: includePrivateNotes,
+          includeContextNotes: false, // Private notes never shared
         }
       });
       
@@ -540,7 +444,6 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         setPremiumAIError(message);
         
         if (data.errorCode === 'QUOTA_EXCEEDED') {
-          // Refresh quota to update UI
           refetchQuota();
           toast.error(message, {
             action: onNavigate ? {
@@ -559,7 +462,6 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
       
       if (data?.success && data?.report) {
         setPremiumAIReport(data.report);
-        // Refresh quota after successful generation
         refetchQuota();
         toast.success("KI-Analysebericht erstellt und gespeichert.", {
           description: "Du findest ihn auch unter KI-Berichte."
@@ -578,12 +480,11 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     }
   };
 
-  // PDF Generation - ALWAYS fetches fresh data (including patient/doctor data)
+  // PDF Generation - ALWAYS fetches fresh data
   const actuallyGenerateDiaryPDF = async (selectedDoctors: Doctor[]) => {
     setIsGeneratingReport(true);
     
     try {
-      // FRISCHE Patientendaten laden
       const { data: { user } } = await supabase.auth.getUser();
       let freshPatientData = patientData;
       
@@ -599,21 +500,17 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         }
       }
       
-      // KRITISCH: Lade ALLE Einträge frisch aus der DB - NICHT aus dem UI-Cache!
       console.log(`[PDF Export] Lade frische Daten für Zeitraum ${from} bis ${to}...`);
       const freshEntries = await fetchAllEntriesForExport(from, to);
       
       console.log(`[PDF Export] ${freshEntries.length} Einträge geladen (UI hatte: ${entries.length})`);
       
-      // Warnung wenn UI-Daten abweichen (= UI war unvollständig)
       if (freshEntries.length !== entries.length) {
         console.warn(`[PDF Export] ACHTUNG: UI zeigte ${entries.length} Einträge, aber DB hat ${freshEntries.length}!`);
       }
       
-      // Berechne Report-Daten aus den FRISCHEN Einträgen
       const freshEntryIds = freshEntries.map(e => Number(e.id));
       
-      // Lade auch frische Medikamenteneffekte
       const { data: freshEffects } = await supabase
         .from('medication_effects')
         .select('*')
@@ -632,7 +529,6 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         now: new Date(),
       });
       
-      // SANITY CHECK: Konsistenz prüfen
       console.log('[PDF Export] Sanity Check:', {
         freshEntriesCount: freshEntries.length,
         reportDataAttacks: freshReportData.kpis.totalAttacks,
@@ -658,8 +554,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
             body: { 
               fromDate: `${from}T00:00:00Z`, 
               toDate: `${to}T23:59:59Z`,
-              includeContextNotes: includePrivateNotes,
-              // Konsistente Daten aus frischem Report
+              includeContextNotes: false, // Private notes never shared
               totalAttacks: freshReportData.kpis.totalAttacks,
               daysInRange: freshReportData.kpis.daysInRange
             }
@@ -692,19 +587,16 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
             sectionsCount: premiumAIReportData.sections?.length || 0
           });
         } else {
-          // PDF wird mit Fallback-Hinweis erstellt (NICHT mit statischer Analyse!)
           console.warn('[PDF Export] Premium-KI fehlgeschlagen - PDF erhält Fallback-Hinweis');
           devWarn('Premium-KI-Bericht fehlgeschlagen, PDF erhält Fallback-Hinweis', { context: 'DiaryReport' });
         }
       }
 
-      // Determine freeTextExportMode based on toggle
       const freeTextMode = includeNotes ? 'short_notes' : 'none';
 
-      // Medikamenten-Statistik aus frischen Daten - korrekt gemappt
       const freshMedicationStats = freshReportData.acuteMedicationStats.map(stat => ({
         name: stat.name,
-        count: stat.last30Units, // Für Abwärtskompatibilität
+        count: stat.last30Units,
         avgEffect: stat.avgEffectiveness ?? 0,
         ratedCount: stat.ratedCount,
         totalUnitsInRange: stat.totalUnitsInRange,
@@ -717,7 +609,6 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
       try {
         const freshEntryIds = freshEntries.map(e => Number(e.id));
         
-        // Parallel: catalog, entry_symptoms, burden
         const [catalogRes, esRes, burdenRes] = await Promise.all([
           supabase.from('symptom_catalog').select('id, name').eq('is_active', true),
           freshEntryIds.length > 0
@@ -736,7 +627,6 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
           if (b.burden_level != null) burdenMap.set(b.symptom_key, b.burden_level);
         }
 
-        // Determine checked entries (viewed/edited symptoms_state)
         const checkedEntryIds = new Set<number>();
         for (const e of freshEntries) {
           if (e.symptoms_state === 'viewed' || e.symptoms_state === 'edited') {
@@ -759,7 +649,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         console.warn('[PDF Export] Begleitsymptome konnten nicht geladen werden:', err);
       }
 
-      // ── ME/CFS-Belastungsdaten berechnen (gefiltert nach Tracking-Start) ──
+      // ── ME/CFS-Belastungsdaten ──
       let meCfsData: { avgScore: number; avgLabel: string; burdenPct: number; burdenPer30: number; daysWithBurden: number; documentedDays: number; iqrLabel: string; dataQualityNote?: string } | undefined = undefined;
       {
         const { getMeCfsTrackingStartDate, filterEntriesForMeCfs } = await import("@/lib/mecfs/trackingStart");
@@ -802,33 +692,31 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         }
       }
 
-      // PDF mit FRISCHEN Daten generieren
+      // PDF mit FRISCHEN Daten generieren – alle Kernabschnitte immer enthalten
       const pdfBytes = await buildDiaryPdf({
         title: "Kopfschmerztagebuch",
         from,
         to,
-        entries: freshEntries, // FRISCHE entries, nicht UI-cache
-        selectedMeds: allMedications ? [] : selectedMedIds,
+        entries: freshEntries,
+        selectedMeds: [], // No medication filtering – always all
         
-        includeStats,
-        includeChart: includeStats,
-        // KRITISCH: Statische Analyse nur wenn NICHT Premium gewählt
-        includeAnalysis: !includePremiumAI && includeAnalysis && !!aiAnalysis,
+        includeStats: true, // Always included
+        includeChart: true, // Always included
+        includeAnalysis: !includePremiumAI && !!aiAnalysis, // Static analysis if not premium
         includeEntriesList,
-        includePatientData: true, // Always include
+        includePatientData: true,
         includeDoctorData: includeDoctorData && selectedDoctors.length > 0,
-        includeMedicationCourses: includeTherapies,
+        includeMedicationCourses: true, // Therapies always included
         includePatientNotes: false,
         freeTextExportMode: freeTextMode as any,
-        includePrivateNotes: false, // Private notes are never included in exports
+        includePrivateNotes: false, // Private notes are NEVER included
         
-        // KRITISCH: Explizites Flag ob User Premium-KI ausgewählt hat
         isPremiumAIRequested: includePremiumAI,
         
         analysisReport: aiAnalysis,
         patientNotes: "",
         medicationStats: freshMedicationStats,
-        medicationCourses: includeTherapies ? medicationCourses.map(c => ({
+        medicationCourses: medicationCourses.map(c => ({
           medication_name: c.medication_name,
           type: c.type,
           dose_text: c.dose_text || undefined,
@@ -843,7 +731,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
           baseline_migraine_days: c.baseline_migraine_days || undefined,
           baseline_impairment_level: c.baseline_impairment_level || undefined,
           note_for_physician: c.note_for_physician || undefined,
-        })) : undefined,
+        })),
         patientData: freshPatientData ? {
           firstName: freshPatientData.first_name || "",
           lastName: freshPatientData.last_name || "",
@@ -868,15 +756,11 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
           fax: d.fax || "",
           email: d.email || ""
         })) : undefined,
-        // Premium KI-Analysebericht Daten (wenn vorhanden)
         premiumAIReport: premiumAIReportData || undefined,
-        // Begleitsymptome (klinische Übersicht)
         symptomData,
-        // ME/CFS-Belastung
         meCfsData,
       });
 
-      // Neuer Blob mit Timestamp für "always fresh"
       const timestamp = Date.now();
       const blob = new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
@@ -887,14 +771,11 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
       const toDate = typeof to === 'string' ? new Date(to) : to;
       const fromStr = `${fromDate.getFullYear()}-${String(fromDate.getMonth() + 1).padStart(2, '0')}-${String(fromDate.getDate()).padStart(2, '0')}`;
       const toStr = `${toDate.getFullYear()}-${String(toDate.getMonth() + 1).padStart(2, '0')}-${String(toDate.getDate()).padStart(2, '0')}`;
-      
-      // Timestamp im Dateinamen für garantiert frischen Download
-      link.download = `Kopfschmerztagebuch_${fromStr}_bis_${toStr}_${timestamp}.pdf`;
+      link.download = `Kopfschmerztagebuch_${fromStr}_bis_${toStr}.pdf`;
       link.click();
-      URL.revokeObjectURL(url); // Sofort aufräumen
+      URL.revokeObjectURL(url);
       
       toast.success("PDF erfolgreich erstellt");
-      
     } catch (error) {
       console.error("PDF-Generierung fehlgeschlagen:", error);
       const errorMessage = error instanceof Error ? error.message : "Unbekannter Fehler";
@@ -906,11 +787,10 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
 
   // Entry point: Check for missing data before PDF generation
   const generatePDF = async () => {
-    if (!filteredEntries.length) {
+    if (!entries.length) {
       toast.error("Keine Einträge im ausgewählten Zeitraum");
       return;
     }
-    // Run intelligent reminder check - shows dialog max 1x per day
     const shouldProceed = reminder.runCheck();
     if (shouldProceed) {
       proceedWithPdfGenerationRef.current?.();
@@ -1015,12 +895,12 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
   };
 
   const exportCSV = () => {
-    if (!filteredEntries.length) {
+    if (!entries.length) {
       toast.error("Keine Einträge im ausgewählten Zeitraum");
       return;
     }
     const header = ["Datum/Zeit","Schmerzlevel","Medikamente","Notiz"];
-    const rows = filteredEntries.map(e => {
+    const rows = entries.map(e => {
       const dt = e.selected_date && e.selected_time
         ? `${e.selected_date} ${e.selected_time}`
         : new Date(e.timestamp_created).toLocaleString();
@@ -1077,12 +957,11 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
       <div className="p-4 space-y-4">
 
         {/* ═══════════════════════════════════════════════════════════════════
-            ZEITRAUM CARD - Compact horizontal scroll
+            ZEITRAUM CARD
         ═══════════════════════════════════════════════════════════════════ */}
         <Card className="p-4 space-y-3">
           <h3 className="text-sm font-semibold text-muted-foreground">Zeitraum für den Bericht</h3>
           
-          {/* Clarification hint */}
           <p className="text-xs text-muted-foreground/80 -mt-1">
             Dies betrifft nur den Bericht – deine gespeicherten Daten bleiben vollständig erhalten.
           </p>
@@ -1112,7 +991,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
             </div>
           )}
 
-          {/* Entry count - shows REAL total, not limited UI preview */}
+          {/* Entry count */}
           <div className="text-sm text-muted-foreground pt-1">
             {isLoading || isCountLoading ? (
               <span className="flex items-center gap-2">
@@ -1130,113 +1009,45 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
           </div>
         </Card>
 
-        {/* Pie Chart entfernt – wird jetzt in Verlauf & Kalender und Auswertung angezeigt */}
-
         {/* ═══════════════════════════════════════════════════════════════════
-            OPTIONEN CARD (Toggle-Listen-Stil) - Priorisiert für chron. Migräne
+            OPTIONEN CARD – Vereinfacht: nur essenzielle Entscheidungen
+            Stats, Analyse, Medikamente, Therapien sind IMMER enthalten.
         ═══════════════════════════════════════════════════════════════════ */}
         <Card className="divide-y divide-border/50">
-          {/* Section 1: Medikamente im PDF (höchste Priorität) */}
-          <div className="p-4 space-y-2">
-            <ToggleRow
-              label="Medikamente im PDF"
-              checked={allMedications}
-              onCheckedChange={setAllMedications}
-            />
-            
-            {!allMedications && medOptions.length > 0 && (
-              <div className="pt-2 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">
-                    Ausgewählt: {selectedMedIds.length}
-                  </span>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {/* "Alle" chip at the front */}
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={allMedsSelected ? "default" : "outline"}
-                    onClick={handleToggleAllMeds}
-                    className="text-xs h-7 px-2.5 font-medium"
-                  >
-                    Alle
-                  </Button>
-                  {medOptions.map(m => {
-                    const isSelected = selectedMedIds.includes(m);
-                    return (
-                      <Button
-                        key={m}
-                        type="button"
-                        size="sm"
-                        variant={isSelected ? "default" : "outline"}
-                        onClick={() => {
-                          setSelectedMedIds(prev => 
-                            isSelected ? prev.filter(x => x !== m) : [...prev, m]
-                          );
-                        }}
-                        className="text-xs h-7 px-2"
-                      >
-                        {m}
-                      </Button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
+          {/* Arztdaten einbinden – nur wenn aktive Ärzte existieren */}
+          {activeDoctors.length > 0 && (
+            <div className="p-4">
+              <ToggleRow
+                label="Arztdaten einbinden"
+                checked={includeDoctorData}
+                onCheckedChange={setIncludeDoctorData}
+              />
+            </div>
+          )}
 
-          {/* Section 2: Arztdaten einbinden */}
+          {/* Notizen einbeziehen */}
           <div className="p-4">
             <ToggleRow
-              label="Arztdaten einbinden"
-              checked={includeDoctorData}
-              onCheckedChange={setIncludeDoctorData}
+              label="Notizen einbeziehen"
+              checked={includeNotes}
+              onCheckedChange={setIncludeNotes}
             />
+            {/* Privacy is decided at entry level – private notes are always excluded */}
+            <p className="text-xs text-muted-foreground/60 mt-1">
+              Private Notizen werden nicht exportiert.
+            </p>
           </div>
 
-          {/* Section 3: Einträge */}
+          {/* Dokumentierte Tage (Liste) */}
           <div className="p-4">
             <ToggleRow
-              label="Einträge"
+              label="Dokumentierte Tage (Liste)"
               checked={includeEntriesList}
               onCheckedChange={setIncludeEntriesList}
             />
           </div>
 
-          {/* Section: Weitere Optionen (Accordion) - standardmäßig eingeklappt */}
-          <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
-            <CollapsibleTrigger className="flex items-center justify-between w-full p-4 text-sm text-muted-foreground hover:text-foreground transition-colors">
-              <span>Weitere Optionen</span>
-              {advancedOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-            </CollapsibleTrigger>
-            <CollapsibleContent className="px-4 pb-4 space-y-0.5">
-              <ToggleRow
-                label="Statistiken & Diagramme"
-                checked={includeStats}
-                onCheckedChange={setIncludeStats}
-              />
-              <ToggleRow
-                label="Auswertung"
-                checked={includeAnalysis}
-                onCheckedChange={setIncludeAnalysis}
-              />
-              <ToggleRow
-                label="Therapien"
-                checked={includeTherapies}
-                onCheckedChange={setIncludeTherapies}
-                disabled={medicationCourses.length === 0}
-              />
-              <ToggleRow
-                label="Notizen einbeziehen"
-                checked={includeNotes}
-                onCheckedChange={setIncludeNotes}
-              />
-              {/* Privacy is decided at entry level – private notes are always excluded from exports */}
-            </CollapsibleContent>
-          </Collapsible>
-
-          {/* Premium Section: KI-Analysebericht - Ruhig & migränefreundlich */}
+          {/* Premium Section: KI-Analysebericht */}
           <div className="p-4 border-t border-border/30 bg-gradient-to-r from-amber-500/5 to-amber-600/5">
             <div className="flex items-center justify-between py-1">
               <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -1256,7 +1067,6 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
               />
             </div>
             
-            {/* Status Display - Minimal */}
             {(isGeneratingAIReport || isAIDisabled || isQuotaExhausted || premiumAIError) && (
               <div className="mt-2 pl-6">
                 {isGeneratingAIReport ? (
@@ -1287,7 +1097,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
       <div className="fixed bottom-0 left-0 right-0 bg-background border-t border-border p-4 space-y-2">
         <Button 
           onClick={generatePDF}
-          disabled={!filteredEntries.length || isGeneratingReport}
+          disabled={!entries.length || isGeneratingReport}
           size="lg"
           className="w-full"
         >
