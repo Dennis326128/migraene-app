@@ -16,7 +16,6 @@ interface MeCfsDetailsProps {
 export function MeCfsDetails({ data }: MeCfsDetailsProps) {
   const [open, setOpen] = useState(false);
 
-  // Find the peak severity across all documented days
   const peakScore = Math.max(
     ...(data.distribution.severe > 0 ? [9] : []),
     ...(data.distribution.moderate > 0 ? [6] : []),
@@ -56,7 +55,9 @@ export function MeCfsDetails({ data }: MeCfsDetailsProps) {
             <ul className="list-disc pl-4 space-y-0.5">
               <li>Tageswert = höchste Belastung des Tages.</li>
               <li>Belastete Tage = Tage mit Belastung &gt; 0.</li>
-              <li>30-Tage-Projektion basiert auf dem Verhältnis belasteter Tage in der Datengrundlage.</li>
+              <li>Hochrechnungen werden erst ab 14 Kalendertagen berechnet.</li>
+              <li>Bei kürzerem Zeitraum werden nur absolute Werte angezeigt.</li>
+              <li>Ab 30 Kalendertagen werden reale Werte statt Projektionen verwendet.</li>
             </ul>
           </div>
         </div>

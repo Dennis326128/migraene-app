@@ -1,12 +1,10 @@
 /**
  * ME/CFS-Belastung – Statistik-Kachel für AnalysisView.
  *
- * Low-cognitive-load redesign:
- *  - Primary KPI: burden days / 30
- *  - Secondary: avg burden
- *  - Typical range (no "Perzentil" wording)
- *  - Donut + legend (% only when documentedDays >= 14)
- *  - Collapsible details for methodology
+ * Statistical stability rules:
+ *  - calendarDays < 14: no projection, no %, no range
+ *  - 14 ≤ calendarDays < 30: projection (preliminary), % shown
+ *  - calendarDays ≥ 30: real values only, % shown, no projection
  */
 import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,6 +16,9 @@ import { DONUT_COLORS, SEGMENT_LABELS, SEGMENT_ORDER } from "./types";
 import { MeCfsDonut } from "./MeCfsDonut";
 import { MeCfsLegend } from "./MeCfsLegend";
 import { MeCfsDetails } from "./MeCfsDetails";
+
+const MIN_DAYS_FOR_PROJECTION = 14;
+const MIN_DAYS_FOR_STABLE = 30;
 
 interface MeCfsStatisticsCardProps {
   entries: PainEntry[];
@@ -68,12 +69,13 @@ export function MeCfsStatisticsCard({ entries, mecfsStart, mecfsEnd }: MeCfsStat
     );
   }
 
-  // ── Projection logic ──
-  // Use projection when period < 30 days or documented < calendarDays
-  const useProjection = data.calendarDays < 30 || data.documentedDays < data.calendarDays;
-  const burdenDisplay = useProjection
-    ? { value: data.burdenPer30, total: 30, sublabel: '30-Tage-Projektion' }
-    : { value: data.daysWithBurden, total: data.calendarDays, sublabel: 'im Zeitraum' };
+  // ── Statistical stability tiers ──
+  const days = data.calendarDays;
+  const tooFewDays = days < MIN_DAYS_FOR_PROJECTION;
+  const showProjection = days >= MIN_DAYS_FOR_PROJECTION && days < MIN_DAYS_FOR_STABLE;
+  const showRealValues = days >= MIN_DAYS_FOR_STABLE;
+  const showPercent = days >= MIN_DAYS_FOR_PROJECTION;
+  const showRange = days >= MIN_DAYS_FOR_PROJECTION;
 
   // ── Typical range label ──
   const rangeLabel =
@@ -98,11 +100,13 @@ export function MeCfsStatisticsCard({ entries, mecfsStart, mecfsEnd }: MeCfsStat
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Data basis – single line + info icon */}
+        {/* Data basis */}
         <div className="flex items-center gap-1.5">
-          <p className="text-xs text-muted-foreground">
-            Datengrundlage: {data.documentedDays} Tage
-          </p>
+          <div className="text-xs text-muted-foreground">
+            <span>Datengrundlage: {data.calendarDays} Kalendertage</span>
+            <br />
+            <span>davon {data.documentedDays} dokumentiert</span>
+          </div>
           <InfoTooltip
             content={'Tageswert = höchste Belastung des Tages. Details findest du unter "Details anzeigen".'}
             side="top"
@@ -111,10 +115,45 @@ export function MeCfsStatisticsCard({ entries, mecfsStart, mecfsEnd }: MeCfsStat
 
         {/* Primary KPI */}
         <div className="text-center space-y-1">
-          <p className="text-2xl font-bold text-foreground">
-            {burdenDisplay.value} <span className="text-base font-normal text-muted-foreground">von {burdenDisplay.total} Tagen belastet</span>
-          </p>
-          <p className="text-[11px] text-muted-foreground">{burdenDisplay.sublabel}</p>
+          {tooFewDays ? (
+            <>
+              <p className="text-2xl font-bold text-foreground">
+                {data.daysWithBurden}{' '}
+                <span className="text-base font-normal text-muted-foreground">
+                  von {data.calendarDays} Tagen belastet
+                </span>
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                Zu wenig Daten für eine belastbare Hochrechnung
+              </p>
+            </>
+          ) : showProjection ? (
+            <>
+              <p className="text-2xl font-bold text-foreground">
+                {data.burdenPer30}{' '}
+                <span className="text-base font-normal text-muted-foreground">
+                  von 30 Tagen belastet
+                </span>
+              </p>
+              <div className="flex items-center justify-center gap-1">
+                <p className="text-[11px] text-muted-foreground">30-Tage-Projektion (vorläufig)</p>
+                <InfoTooltip
+                  content="Die Projektion basiert auf weniger als 30 Kalendertagen und kann sich mit zunehmender Datenbasis stabilisieren."
+                  side="top"
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-2xl font-bold text-foreground">
+                {data.daysWithBurden}{' '}
+                <span className="text-base font-normal text-muted-foreground">
+                  von {data.calendarDays} Tagen belastet
+                </span>
+              </p>
+              <p className="text-[11px] text-muted-foreground">im Zeitraum</p>
+            </>
+          )}
         </div>
 
         {/* Secondary KPIs */}
@@ -125,7 +164,11 @@ export function MeCfsStatisticsCard({ entries, mecfsStart, mecfsEnd }: MeCfsStat
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Üblicher Bereich</p>
-            <p className="text-base font-semibold text-foreground">{rangeLabel}</p>
+            {showRange ? (
+              <p className="text-base font-semibold text-foreground">{rangeLabel}</p>
+            ) : (
+              <p className="text-xs text-muted-foreground italic">Noch keine stabile Spannbreite</p>
+            )}
           </div>
         </div>
 
@@ -135,7 +178,7 @@ export function MeCfsStatisticsCard({ entries, mecfsStart, mecfsEnd }: MeCfsStat
           <MeCfsLegend
             slices={slices}
             totalDays={data.calendarDays}
-            documentedDays={data.documentedDays}
+            showPercent={showPercent}
           />
         </div>
 

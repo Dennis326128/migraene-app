@@ -1,6 +1,6 @@
 /**
  * Legend for ME/CFS donut chart.
- * Shows counts only when documentedDays < 14, counts + % when >= 14.
+ * Shows counts only when showPercent is false, counts + % when true.
  * Hides "Keine Dokumentation" row if count is 0.
  */
 import type { MeCfsSlice } from "./types";
@@ -8,16 +8,13 @@ import type { MeCfsSlice } from "./types";
 interface MeCfsLegendProps {
   slices: MeCfsSlice[];
   totalDays: number;
-  documentedDays: number;
+  showPercent: boolean;
 }
 
-export function MeCfsLegend({ slices, totalDays, documentedDays }: MeCfsLegendProps) {
-  const showPercent = documentedDays >= 14;
-
+export function MeCfsLegend({ slices, totalDays, showPercent }: MeCfsLegendProps) {
   return (
     <div className="flex flex-col gap-1 text-xs">
       {slices.map(slice => {
-        // Hide "undocumented" row if 0
         if (slice.segment === 'undocumented' && slice.count === 0) return null;
         const isZero = slice.count === 0;
         const pct = totalDays > 0 ? Math.round((slice.count / totalDays) * 100) : 0;
