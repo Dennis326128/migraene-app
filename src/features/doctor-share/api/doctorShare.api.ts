@@ -1,6 +1,6 @@
 /**
  * Doctor Share API
- * API calls for the "Mit Arzt teilen" feature
+ * API calls for the "Per Code teilen" feature
  * 
  * NEU: 24h-Freigabe-Fenster Logik
  * - Code ist permanent

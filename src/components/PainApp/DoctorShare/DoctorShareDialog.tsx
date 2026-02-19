@@ -1,13 +1,9 @@
 /**
  * DoctorShareDialog – Zero-Decision-UX
- * Step 1: Doctor selection (if >1 active doctor)
- * Step 2: Single toggle for personal notes
- * Step 3: Calm progress animation during share creation
- * AI analysis starts automatically, no separate prompt.
- *
- * IMPORTANT: Archived doctors (is_active=false) are NEVER used.
- * If exactly 1 active doctor → auto-selected (smart default).
- * If >1 active doctor → DoctorSelectionDialog shown first.
+ * Code-Share is neutral and frictionless.
+ * No doctor selection – that belongs in the PDF flow.
+ * Privacy is decided at entry level.
+ * No duplicate decision points.
  */
 
 import React, { useState, useMemo, useEffect, useCallback } from "react";
@@ -18,7 +14,6 @@ import { supabase } from "@/lib/supabaseClient";
 import { buildDiaryPdf } from "@/lib/pdf/report";
 import { buildReportData } from "@/lib/pdf/reportData";
 import { fetchAllEntriesForExport } from "@/features/entries/api/entries.api";
-import { useDoctors } from "@/features/account/hooks/useAccount";
 import { useMedicationCourses } from "@/features/medication-courses/hooks/useMedicationCourses";
 import { saveGeneratedReport } from "@/features/reports/api/generatedReports.api";
 import {
@@ -26,7 +21,6 @@ import {
   useActivateDoctorShare,
 } from "@/features/doctor-share";
 import { upsertShareSettings } from "@/features/doctor-share/api/doctorShareSettings.api";
-import { DoctorSelectionDialog, type Doctor } from "../DoctorSelectionDialog";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 
@@ -48,11 +42,11 @@ const PROGRESS_STEPS = [
   "Daten werden aufbereitet …",
 ];
 
+// Code-Share is neutral and frictionless.
 // Privacy is decided at entry level.
-// Private notes are never included in exports or sharing.
-// Sharing is one-click and frictionless.
-// No runtime privacy decisions during sharing.
-type Phase = "doctor-select" | "confirm" | "progress";
+// Doctor selection exists only in the PDF flow.
+// No duplicate decision points.
+type Phase = "confirm" | "progress";
 
 export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
   onComplete,
@@ -63,40 +57,15 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
   const to = useMemo(() => fmt(today), [today]);
 
   const [phase, setPhase] = useState<Phase>("confirm");
-  const [selectedDoctors, setSelectedDoctors] = useState<Doctor[]>([]);
-  const [showDoctorDialog, setShowDoctorDialog] = useState(false);
 
   // Progress state
   const [progress, setProgress] = useState(0);
   const [stepIndex, setStepIndex] = useState(0);
   const [generationDone, setGenerationDone] = useState(false);
 
-  const { data: allDoctors = [] } = useDoctors();
   const { data: medicationCourses = [] } = useMedicationCourses();
   const { data: shareStatus, refetch: refetchShareStatus } = useDoctorShareStatus();
   const activateMutation = useActivateDoctorShare();
-
-  // IMPORTANT: Only use active (non-archived) doctors
-  const activeDoctors = useMemo(
-    () => allDoctors.filter((d) => d.is_active !== false),
-    [allDoctors]
-  );
-
-  // Smart default: if exactly 1 active doctor, auto-select
-  // If >1, we need to show selection dialog first
-  useEffect(() => {
-    if (activeDoctors.length === 1) {
-      setSelectedDoctors(activeDoctors);
-      setPhase("confirm");
-    } else if (activeDoctors.length > 1) {
-      setPhase("doctor-select");
-      setShowDoctorDialog(true);
-    } else {
-      // No active doctors - proceed without doctor data
-      setSelectedDoctors([]);
-      setPhase("confirm");
-    }
-  }, [activeDoctors]);
 
   // Smooth progress animation (visual only, ~4.5s total)
   useEffect(() => {
@@ -137,18 +106,6 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
     }
   }, [progress, resultCode, onComplete]);
 
-  // Handle doctor selection confirm
-  const handleDoctorSelectionConfirm = useCallback((doctors: Doctor[]) => {
-    setSelectedDoctors(doctors);
-    setShowDoctorDialog(false);
-    setPhase("confirm");
-  }, []);
-
-  // Handle doctor selection cancel
-  const handleDoctorSelectionClose = useCallback(() => {
-    setShowDoctorDialog(false);
-    onCancel();
-  }, [onCancel]);
 
   const handleContinue = useCallback(async () => {
     setPhase("progress");
@@ -233,7 +190,7 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
 
       // Always include non-private notes; private notes are excluded in PDF automatically
       const pdfBytes = await buildDiaryPdf({
-        title: "Kopfschmerztagebuch (Arztfreigabe)",
+        title: "Kopfschmerztagebuch (Freigabe)",
         from,
         to,
         entries,
@@ -243,7 +200,7 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
         includeAnalysis: false,
         includeEntriesList: true,
         includePatientData: true,
-        includeDoctorData: selectedDoctors.length > 0,
+        includeDoctorData: false, // No doctor data in code share
         includeMedicationCourses: true,
         includePatientNotes: true,
         freeTextExportMode: "short_notes",
@@ -283,20 +240,7 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
               insuranceNumber: freshPatientData.insurance_number || "",
             }
           : undefined,
-        doctors:
-          selectedDoctors.length > 0
-            ? selectedDoctors.map((d) => ({
-                firstName: d.first_name || "",
-                lastName: d.last_name || "",
-                specialty: d.specialty || "",
-                street: d.street || "",
-                postalCode: d.postal_code || "",
-                city: d.city || "",
-                phone: d.phone || "",
-                fax: d.fax || "",
-                email: d.email || "",
-              }))
-            : undefined,
+        doctors: undefined, // No doctor data in code share flow
         premiumAIReport: undefined,
       });
 
@@ -305,7 +249,7 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
 
       const savedReport = await saveGeneratedReport({
         report_type: "diary",
-        title: `Kopfschmerztagebuch (Arztfreigabe) – ${rangeLabel}`,
+        title: `Kopfschmerztagebuch (Freigabe) – ${rangeLabel}`,
         from_date: from,
         to_date: to,
         pdf_bytes: pdfBytes,
@@ -332,29 +276,7 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
       setProgress(0);
       setStepIndex(0);
     }
-  }, [shareStatus, from, to, selectedDoctors, medicationCourses, activateMutation, refetchShareStatus, onComplete]);
-
-  // ─── Phase: Doctor Selection (>1 active doctor) ────────
-  if (phase === "doctor-select") {
-    return (
-      <>
-        <div className="flex flex-col min-h-full">
-          <div className="flex-1 flex flex-col justify-center items-center px-4">
-            <p className="text-sm text-muted-foreground">
-              Bitte wählen Sie den behandelnden Arzt aus…
-            </p>
-          </div>
-        </div>
-        <DoctorSelectionDialog
-          open={showDoctorDialog}
-          onClose={handleDoctorSelectionClose}
-          doctors={activeDoctors}
-          onConfirm={handleDoctorSelectionConfirm}
-          title="Arzt für Bericht auswählen"
-        />
-      </>
-    );
-  }
+  }, [shareStatus, from, to, medicationCourses, activateMutation, refetchShareStatus, onComplete]);
 
   // ─── Phase: Confirm (one-click share) ───────────────────
   if (phase === "confirm") {
@@ -362,10 +284,10 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
       <div className="flex flex-col min-h-full">
         <div className="flex-1 flex flex-col justify-center items-center px-4 pb-28">
           <h2 className="text-lg font-semibold text-foreground mb-2">
-            Mit Arzt teilen
+            Per Code teilen
           </h2>
           <p className="text-sm text-muted-foreground text-center mb-8">
-            Dein Kopfschmerztagebuch wird für deinen Arzt freigegeben.
+            Erstelle einen Code, mit dem andere dein Kopfschmerztagebuch ansehen können.
           </p>
 
           {/* Subtle privacy hint – no toggle, no interaction */}

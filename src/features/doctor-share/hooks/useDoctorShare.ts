@@ -1,6 +1,6 @@
 /**
  * Doctor Share Hooks
- * React Query hooks for the "Mit Arzt teilen" feature
+ * React Query hooks for the "Per Code teilen" feature
  * 
  * NEU: 24h-Freigabe-Fenster Logik
  */
