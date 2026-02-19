@@ -21,7 +21,7 @@ import { useUserDefaults, useUpsertUserDefaults } from "@/features/settings/hook
 import { useEntryIntakes, useSyncIntakes } from "@/features/medication-intakes/hooks/useMedicationIntakes";
 import { PainSlider } from "@/components/ui/pain-slider";
 import { normalizePainLevel } from "@/lib/utils/pain";
-import { ContextInputField } from "./ContextInputField";
+import { NotesField } from "./NotesField";
 import { MeCfsSeveritySelector } from "./MeCfsSeveritySelector";
 import { type MeCfsSeverityLevel, scoreToLevel } from "@/lib/mecfs/constants";
 import { MedicationDoseList } from "./MedicationDose";
@@ -102,7 +102,7 @@ export const NewEntry = ({
   const [showAddMedication, setShowAddMedication] = useState(false);
   const [saving, setSaving] = useState(false);
   const [notes, setNotes] = useState<string>("");
-  const [contextText, setContextText] = useState<string>("");
+  const [noteIsPrivate, setNoteIsPrivate] = useState(false);
   const [meCfsScore, setMeCfsScore] = useState<number>(0);
   const [meCfsLevel, setMeCfsLevel] = useState<MeCfsSeverityLevel>('none');
 
@@ -327,10 +327,10 @@ export const NewEntry = ({
     }
 
     // Validate notes length
-    if (notes && notes.length > 2000) {
+    if (notes && notes.length > 5000) {
       toast({
         title: "Notizen zu lang",
-        description: "Notizen dürfen maximal 2000 Zeichen enthalten",
+        description: "Notizen dürfen maximal 5000 Zeichen enthalten",
         variant: "destructive",
       });
       return;
@@ -452,10 +452,8 @@ export const NewEntry = ({
     try {
       devLog('Building payload with selectedMedications', { context: 'NewEntry', data: selectedMedications });
       
-      // Combine notes with context text for storage
-      const combinedNotes = [notes.trim(), contextText.trim()]
-        .filter(Boolean)
-        .join('\n\n---\n\n');
+      // Use notes directly (no more separate context field)
+      const finalNotes = notes.trim() || null;
       
       // Convert Map to medications array for legacy field
       const medicationsArray = Array.from(selectedMedications.keys());
@@ -467,8 +465,8 @@ export const NewEntry = ({
         aura_type: "keine" as const,
         pain_locations: painLocations,
         medications: medicationsArray,
-        notes: combinedNotes || null,
-        weather_id: weatherId,
+        notes: finalNotes,
+        entry_note_is_private: noteIsPrivate,
         latitude,
         longitude,
         entry_kind: 'pain' as const,
@@ -540,20 +538,20 @@ export const NewEntry = ({
         await syncIntakesMut.mutateAsync({ entryId: numericId, medications });
       }
 
-      // Process context text with AI (fire-and-forget, non-blocking)
-      if (contextText.trim()) {
-        console.log('🧠 Processing context text with AI...');
+      // Process notes with AI (fire-and-forget, non-blocking)
+      if (notes.trim()) {
+        console.log('🧠 Processing notes with AI...');
         (async () => {
           try {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            // First save as voice_note for context analysis
+            // Save as voice_note for NLP context analysis
             const { data: voiceNote, error: vnError } = await supabase
               .from('voice_notes')
               .insert([{
                 user_id: user.id,
-                text: contextText.trim(),
+                text: notes.trim(),
                 occurred_at: new Date(`${selectedDate}T${selectedTime}:00`).toISOString(),
                 source: 'typed',
                 context_type: 'entry_context',
@@ -563,10 +561,8 @@ export const NewEntry = ({
               .single();
 
             if (vnError) {
-              console.warn('⚠️ Failed to save context as voice_note:', vnError);
+              console.warn('⚠️ Failed to save notes as voice_note:', vnError);
             } else if (voiceNote?.id) {
-              console.log('✅ Saved context as voice_note:', voiceNote.id);
-              
               // Link to pain_entry
               await supabase
                 .from('pain_entries')
@@ -578,21 +574,15 @@ export const NewEntry = ({
               supabase.functions.invoke('extract-context-segments', {
                 body: {
                   voiceNoteId: voiceNote.id,
-                  text: contextText.trim(),
+                  text: notes.trim(),
                   userMeds: medNames,
-                }
-              }).then(result => {
-                if (result.error) {
-                  console.warn('⚠️ Context NLP processing failed:', result.error);
-                } else {
-                  console.log('✅ Context NLP processed:', result.data?.segment_count, 'segments');
                 }
               }).catch(err => {
                 console.warn('⚠️ Context NLP invocation failed:', err);
               });
             }
           } catch (err) {
-            console.warn('⚠️ Context processing error:', err);
+            console.warn('⚠️ Notes processing error:', err);
           }
         })();
       }
@@ -890,29 +880,14 @@ export const NewEntry = ({
         </Card>
       </Collapsible>
 
-      {/* Kurze Notizen */}
-      <Card className="p-6 mb-4">
-        <Label htmlFor="notes-input" className="text-base font-medium mb-3 block">
-          Kurze Notizen
-        </Label>
-        <Input
-          id="notes-input"
-          type="text"
-          placeholder="z.B. Stress, Stimmung, Schlafqualität..."
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          aria-label="Kurze Notizen zum Eintrag"
-        />
-      </Card>
-
-      {/* Zusätzlicher Kontext (Spracheingabe) */}
-      <Card className="p-6 mb-4">
-        <ContextInputField
-          value={contextText}
-          onChange={setContextText}
-          disabled={saving}
-        />
-      </Card>
+      {/* Notizen (vereinheitlicht: ehemals "Kurze Notizen" + "Zusätzlicher Kontext") */}
+      <NotesField
+        notes={notes}
+        onNotesChange={setNotes}
+        isPrivate={noteIsPrivate}
+        onPrivateChange={setNoteIsPrivate}
+        disabled={saving}
+      />
 
       {/* ME/CFS-Symptomatik */}
       <MeCfsSeveritySelector

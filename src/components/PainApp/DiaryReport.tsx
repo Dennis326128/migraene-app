@@ -90,8 +90,8 @@ interface ReportSettingsState {
   includeDoctorData: boolean;
   allMedications: boolean;
   selectedMedIds: string[];
-  includeEntryNotes: boolean;
-  includeContextNotes: boolean;
+  includeNotes: boolean;
+  includePrivateNotes: boolean;
   lastDoctorIds: string[];
 }
 
@@ -104,8 +104,8 @@ const DEFAULT_SETTINGS: Omit<ReportSettingsState, 'customStart' | 'customEnd'> =
   includeDoctorData: true,
   allMedications: true,
   selectedMedIds: [],
-  includeEntryNotes: true,
-  includeContextNotes: false,
+  includeNotes: true,
+  includePrivateNotes: false,
   lastDoctorIds: [],
 };
 
@@ -131,9 +131,9 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
   const [medOptions, setMedOptions] = useState<string[]>([]);
   
   // Notes & Advanced
-  const [includeEntryNotes, setIncludeEntryNotes] = useState<boolean>(true);
+  const [includeNotes, setIncludeNotes] = useState<boolean>(true);
+  const [includePrivateNotes, setIncludePrivateNotes] = useState<boolean>(false);
   const [includeDoctorData, setIncludeDoctorData] = useState<boolean>(true);
-  const [includeContextNotes, setIncludeContextNotes] = useState<boolean>(false);
   
   // Advanced section
   const [advancedOpen, setAdvancedOpen] = useState<boolean>(false);
@@ -222,11 +222,12 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
           
           // Notes settings - cast to any since columns may not be in types yet
           const s = settings as any;
+          // Load unified notes settings (backward compatible with old field names)
           if (s.include_entry_notes !== undefined && s.include_entry_notes !== null) {
-            setIncludeEntryNotes(s.include_entry_notes);
+            setIncludeNotes(s.include_entry_notes);
           }
           if (s.include_context_notes !== undefined && s.include_context_notes !== null) {
-            setIncludeContextNotes(s.include_context_notes);
+            setIncludePrivateNotes(s.include_context_notes);
           }
           
           // Premium AI setting
@@ -336,8 +337,8 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
             selected_medications: selectedMedIds,
             last_include_doctors_flag: includeDoctorData,
             last_doctor_export_ids: selectedDoctorIds,
-            include_entry_notes: includeEntryNotes,
-            include_context_notes: includeContextNotes,
+            include_entry_notes: includeNotes,
+            include_context_notes: includePrivateNotes,
           } as any, { onConflict: "user_id" });
       } catch (error) {
         console.error("Error saving report settings:", error);
@@ -349,7 +350,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [settingsLoaded, preset, includeStats, includePremiumAI, includeEntriesList, includeTherapies, includeDoctorData, allMedications, selectedMedIds, selectedDoctorIds, includeEntryNotes, includeContextNotes]);
+  }, [settingsLoaded, preset, includeStats, includePremiumAI, includeEntriesList, includeTherapies, includeDoctorData, allMedications, selectedMedIds, selectedDoctorIds, includeNotes, includePrivateNotes]);
 
   // Load medication options
   useEffect(() => {
@@ -514,8 +515,8 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
           toDate: to,      // YYYY-MM-DD
           includeStats,
           includeTherapies,
-          includeEntryNotes,
-          includeContextNotes,
+          includeEntryNotes: includeNotes,
+          includeContextNotes: includePrivateNotes,
         }
       });
       
@@ -657,7 +658,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
             body: { 
               fromDate: `${from}T00:00:00Z`, 
               toDate: `${to}T23:59:59Z`,
-              includeContextNotes: includeContextNotes,
+              includeContextNotes: includePrivateNotes,
               // Konsistente Daten aus frischem Report
               totalAttacks: freshReportData.kpis.totalAttacks,
               daysInRange: freshReportData.kpis.daysInRange
@@ -698,7 +699,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
       }
 
       // Determine freeTextExportMode based on toggle
-      const freeTextMode = includeContextNotes ? 'notes_and_context' : (includeEntryNotes ? 'short_notes' : 'none');
+      const freeTextMode = includeNotes ? 'short_notes' : 'none';
 
       // Medikamenten-Statistik aus frischen Daten - korrekt gemappt
       const freshMedicationStats = freshReportData.acuteMedicationStats.map(stat => ({
@@ -1226,17 +1227,19 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
                 disabled={medicationCourses.length === 0}
               />
               <ToggleRow
-                label="Notizen aus Schmerzeinträgen"
-                checked={includeEntryNotes}
-                onCheckedChange={setIncludeEntryNotes}
+                label="Notizen einbeziehen"
+                checked={includeNotes}
+                onCheckedChange={setIncludeNotes}
               />
-              <div className="border-t border-border/30 pt-2 mt-2">
-                <ToggleRow
-                  label="Kontextnotizen"
-                  checked={includeContextNotes}
-                  onCheckedChange={setIncludeContextNotes}
-                />
-              </div>
+              {includeNotes && (
+                <div className="border-t border-border/30 pt-2 mt-2">
+                  <ToggleRow
+                    label="Private Notizen ebenfalls einbeziehen"
+                    checked={includePrivateNotes}
+                    onCheckedChange={setIncludePrivateNotes}
+                  />
+                </div>
+              )}
             </CollapsibleContent>
           </Collapsible>
 

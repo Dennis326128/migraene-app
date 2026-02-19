@@ -28,6 +28,7 @@ export interface MigraineEntry {
   medications: string[];
   medication_intakes?: MedicationIntakeInfo[];
   notes?: string | null;
+  entry_note_is_private?: boolean;
   weather_id?: number | null;
   weather?: WeatherData;
   latitude?: number | null;
