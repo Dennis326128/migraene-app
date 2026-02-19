@@ -37,17 +37,50 @@ export interface MeCfsDonutData {
 }
 
 /**
- * Build daily MAX score map from entries.
+ * Determine whether an entry has an explicit ME/CFS documentation.
+ *
+ * "Documented" means the user actively set a value (including 'none'/0).
+ * "Undocumented" means the field was never touched (null/undefined).
+ *
+ * NOTE: DB defaults are score=0, level='none'. Within the ME/CFS tracking
+ * range (after mecfs_tracking_started_at), these defaults represent a valid
+ * user choice. Entries outside the range are pre-filtered and never reach here.
  */
-function dailyMaxMap(entries: PainEntry[]): Map<string, number> {
-  const map = new Map<string, number>();
+function hasMeCfsDocumentation(entry: PainEntry): boolean {
+  // Explicit null/undefined check – score=0 is a VALID documented value ('keine')
+  return entry.me_cfs_severity_score !== null && entry.me_cfs_severity_score !== undefined;
+}
+
+/**
+ * Build daily MAX score map from entries.
+ *
+ * Returns two maps:
+ *  - maxScores: date → highest ME/CFS score for documented entries
+ *  - hasEntry: set of dates that have any entry (documented or not)
+ *
+ * A day is "documented" if at least one entry on that day has an explicit
+ * ME/CFS value (including score=0 / level='none').
+ */
+function buildDailyMaps(entries: PainEntry[]): {
+  maxScores: Map<string, number>;
+  datesWithEntries: Set<string>;
+} {
+  const maxScores = new Map<string, number>();
+  const datesWithEntries = new Set<string>();
+
   for (const e of entries) {
     const date = e.selected_date || e.timestamp_created?.split('T')[0];
     if (!date) continue;
-    const score = e.me_cfs_severity_score ?? 0;
-    map.set(date, Math.max(map.get(date) ?? 0, score));
+
+    datesWithEntries.add(date);
+
+    if (hasMeCfsDocumentation(e)) {
+      const score = e.me_cfs_severity_score!;
+      maxScores.set(date, Math.max(maxScores.get(date) ?? 0, score));
+    }
   }
-  return map;
+
+  return { maxScores, datesWithEntries };
 }
 
 /**
@@ -93,7 +126,7 @@ export function buildMecfsDonutData(
     return d && d >= mecfsStart && d <= mecfsEnd;
   });
 
-  const maxMap = dailyMaxMap(rangeEntries);
+  const { maxScores, datesWithEntries } = buildDailyMaps(rangeEntries);
   const allDates = allDatesInRange(mecfsStart, mecfsEnd);
 
   const dist: Record<MeCfsDonutSegment, number> = {
@@ -104,19 +137,27 @@ export function buildMecfsDonutData(
     severe: 0,
   };
 
+  // Classify each calendar day:
+  // - Has ME/CFS score in maxScores → documented (none/mild/moderate/severe)
+  // - Has entries but no ME/CFS score → undocumented (entries exist but ME/CFS not set)
+  // - No entries at all → undocumented (no data for that day)
   for (const date of allDates) {
-    const score = maxMap.get(date);
-    if (score === undefined) {
-      dist.undocumented++;
-    } else if (score === 0) {
-      dist.none++;
+    const score = maxScores.get(date);
+    if (score !== undefined) {
+      // Documented: user set ME/CFS value (including score=0 = 'keine')
+      if (score === 0) {
+        dist.none++;
+      } else {
+        dist[scoreToLevel(score)]++;
+      }
     } else {
-      dist[scoreToLevel(score)]++;
+      // No explicit ME/CFS documentation for this day
+      dist.undocumented++;
     }
   }
 
-  const documentedDays = maxMap.size;
-  const scores = Array.from(maxMap.values());
+  const documentedDays = maxScores.size;
+  const scores: number[] = Array.from(maxScores.values());
   const daysWithBurden = scores.filter(s => s > 0).length;
   const avgDailyMax = documentedDays > 0
     ? Math.round((scores.reduce((a, b) => a + b, 0) / documentedDays) * 10) / 10
