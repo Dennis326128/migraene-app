@@ -27,7 +27,7 @@ import { normalizePainLevel } from '@/lib/utils/pain';
 import { TimeRangeButtons, type TimeRangePreset } from './TimeRangeButtons';
 import { computeDiaryDayBuckets } from '@/lib/diary/dayBuckets';
 import { HeadacheDaysPie } from '@/components/diary/HeadacheDaysPie';
-import { subMonths, startOfDay, endOfDay } from 'date-fns';
+import { startOfDay, endOfDay } from 'date-fns';
 import { computeDateRange } from '@/lib/dateRange';
 
 // Helper: Filtert technische/ungültige Wetterbedingungen
@@ -132,7 +132,8 @@ function DiaryTimelinePieSection({ entries }: { entries: any[] }) {
     if (newRange === "custom") {
       const now = new Date();
       setCustomTo(now.toISOString().split('T')[0]);
-      setCustomFrom(subMonths(now, 3).toISOString().split('T')[0]);
+      const from89 = new Date(now); from89.setDate(from89.getDate() - 89);
+      setCustomFrom(from89.toISOString().split('T')[0]);
     }
     setTimeRange(newRange);
   };
