@@ -161,12 +161,14 @@ type BuildReportParams = {
   symptomData?: SymptomDataForPdf;
   // ME/CFS-Belastungsdaten
   meCfsData?: {
-    avgScore: number;         // Ø Tages-MAX 0–10
+    avgScore: number;         // Ø Belastung 0–10
     avgLabel: string;         // z.B. "leicht"
+    peakLabel: string;        // Höchste Belastung label
     burdenPct: number;        // Anteil Tage mit Belastung in %
     burdenPer30: number;      // Belastete Tage / 30 (hochgerechnet)
     daysWithBurden: number;
     documentedDays: number;   // nur dokumentierte Tage
+    calendarDays: number;     // Kalendertage im Zeitraum
     iqrLabel: string;         // z.B. "0–3/10"
     dataQualityNote?: string;
   };
@@ -1345,13 +1347,19 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   // ═══════════════════════════════════════════════════════════════════════════
 
   if (meCfsData) {
+    const docQuote = meCfsData.calendarDays > 0 ? Math.round((meCfsData.documentedDays / meCfsData.calendarDays) * 100) : 0;
     const meCfsLines = [
-      `Belastete Tage: ${meCfsData.burdenPer30} / 30 (${meCfsData.burdenPct} %)`,
-      `Ø Belastung (0–10): ${meCfsData.avgScore} (${sanitizeForPDF(meCfsData.avgLabel)})`,
-      `Höchste Belastung: ${sanitizeForPDF(meCfsData.avgLabel)}`,
+      `Belastete Tage (dokumentiert): ${meCfsData.daysWithBurden} / ${meCfsData.documentedDays}`,
+      `Dokumentiert: ${meCfsData.documentedDays} / ${meCfsData.calendarDays} Tage`,
+      `Ø Belastung (0–10): ${meCfsData.avgScore}`,
+      `Höchste Belastung: ${sanitizeForPDF(meCfsData.peakLabel)}`,
       `Üblicher Bereich: ${meCfsData.iqrLabel !== '0/10' ? sanitizeForPDF(meCfsData.iqrLabel) : 'noch nicht ausreichend Daten'}`,
-      `Dokumentationsquote: ${meCfsData.documentedDays > 0 ? Math.round((meCfsData.daysWithBurden / meCfsData.documentedDays) * 100) : 0} %`,
+      `Dokumentationsquote: ${docQuote} %`,
     ];
+    // Add projection line only for 14–29 calendar days
+    if (meCfsData.calendarDays >= 14 && meCfsData.calendarDays < 30) {
+      meCfsLines.splice(2, 0, `Schätzung pro 30 Tage: ${meCfsData.burdenPer30} belastete Tage`);
+    }
     const hasNote = !!meCfsData.dataQualityNote;
     const blockHeight = LAYOUT.lineHeight * 2 + meCfsLines.length * LAYOUT.lineHeight + (hasNote ? LAYOUT.lineHeight + 2 : 0) + LAYOUT.sectionGap;
 

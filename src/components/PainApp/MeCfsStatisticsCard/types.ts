@@ -28,5 +28,5 @@ export const SEGMENT_LABELS: Record<MeCfsDonutSegment, string> = {
   severe: 'schwer',
 };
 
-/** Display order for donut segments */
+/** Display order for donut segments (undocumented kept for data model compatibility) */
 export const SEGMENT_ORDER: MeCfsDonutSegment[] = ['none', 'mild', 'moderate', 'severe', 'undocumented'];

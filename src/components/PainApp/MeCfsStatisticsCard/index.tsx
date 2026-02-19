@@ -1,10 +1,11 @@
 /**
  * ME/CFS-Belastung – Statistik-Kachel für AnalysisView.
  *
- * Statistical stability rules:
- *  - calendarDays < 14: no projection, no %, no range
- *  - 14 ≤ calendarDays < 30: projection (preliminary), % shown
- *  - calendarDays ≥ 30: real values only, % shown, no projection
+ * Hybrid-Darstellung:
+ *  - Primary KPI: "Belastete Tage (dokumentiert): x von y"
+ *  - Burden donut based on documented days only
+ *  - Separate documentation ring (documented vs undocumented)
+ *  - Projection only as secondary (14–29 days)
  */
 import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +17,7 @@ import type { PainEntry } from "@/types/painApp";
 import { DONUT_COLORS, SEGMENT_LABELS, SEGMENT_ORDER } from "./types";
 import { MeCfsDonut } from "./MeCfsDonut";
 import { MeCfsLegend } from "./MeCfsLegend";
+import { MeCfsDocRing } from "./MeCfsDocRing";
 import { MeCfsDetails } from "./MeCfsDetails";
 
 const MIN_DAYS_FOR_PROJECTION = 14;
@@ -73,14 +75,6 @@ export function MeCfsStatisticsCard({ entries, mecfsStart, mecfsEnd }: MeCfsStat
   const days = data.calendarDays;
   const tooFewDays = days < MIN_DAYS_FOR_PROJECTION;
   const showProjection = days >= MIN_DAYS_FOR_PROJECTION && days < MIN_DAYS_FOR_STABLE;
-  const showPercent = days >= MIN_DAYS_FOR_PROJECTION;
-  const showRange = days >= MIN_DAYS_FOR_PROJECTION;
-
-  // ── Typical range label ──
-  const rangeLabel =
-    data.p25 === data.p75
-      ? `${data.p25}/10`
-      : `${data.p25}–${data.p75}/10`;
 
   // ── Peak severity label ──
   const peakScore = Math.max(
@@ -91,8 +85,9 @@ export function MeCfsStatisticsCard({ entries, mecfsStart, mecfsEnd }: MeCfsStat
   );
   const peakLabel = levelToLabelDe(scoreToLevel(peakScore));
 
-  // ── Slices for donut ──
-  const slices = SEGMENT_ORDER.map(seg => ({
+  // ── Burden-only slices (exclude undocumented) ──
+  const burdenSegments = SEGMENT_ORDER.filter(s => s !== 'undocumented');
+  const slices = burdenSegments.map(seg => ({
     segment: seg,
     count: data.distribution[seg],
     color: DONUT_COLORS[seg],
@@ -109,39 +104,14 @@ export function MeCfsStatisticsCard({ entries, mecfsStart, mecfsEnd }: MeCfsStat
       </CardHeader>
       <CardContent className="space-y-4">
 
-        {/* ── (1) Primary KPI ── */}
+        {/* ── (1) Primary KPI: always same format ── */}
         <div className="text-center space-y-1">
-          {tooFewDays ? (
-            <p className="text-2xl font-bold text-foreground">
-              {data.daysWithBurden}{' '}
-              <span className="text-base font-normal text-muted-foreground">
-                von {data.calendarDays} Tagen belastet
-              </span>
-            </p>
-          ) : showProjection ? (
-            <>
-              <p className="text-2xl font-bold text-foreground">
-                {data.burdenPer30}{' '}
-                <span className="text-base font-normal text-muted-foreground">
-                  von 30 Tagen belastet
-                </span>
-              </p>
-              <div className="flex items-center justify-center gap-1">
-                <p className="text-[11px] text-muted-foreground">30-Tage-Projektion (vorläufig)</p>
-                <InfoTooltip
-                  content="Die Projektion basiert auf weniger als 30 Kalendertagen und kann sich mit zunehmender Datenbasis stabilisieren."
-                  side="top"
-                />
-              </div>
-            </>
-          ) : (
-            <p className="text-2xl font-bold text-foreground">
-              {data.daysWithBurden}{' '}
-              <span className="text-base font-normal text-muted-foreground">
-                von {data.calendarDays} Tagen belastet
-              </span>
-            </p>
-          )}
+          <p className="text-2xl font-bold text-foreground">
+            {data.daysWithBurden}{' '}
+            <span className="text-base font-normal text-muted-foreground">
+              von {data.documentedDays} dokumentierten Tagen belastet
+            </span>
+          </p>
         </div>
 
         {/* ── (2) Secondary KPIs ── */}
@@ -156,15 +126,21 @@ export function MeCfsStatisticsCard({ entries, mecfsStart, mecfsEnd }: MeCfsStat
           </div>
         </div>
 
-        {/* ── (3) Tertiary: Data basis + stability hint ── */}
+        {/* ── (2b) Projection – secondary, only 14–29 days ── */}
+        {showProjection && (
+          <p className="text-xs text-muted-foreground text-center">
+            Schätzung pro 30 Tage: {data.burdenPer30} belastete Tage
+          </p>
+        )}
+
+        {/* ── (3) Tertiary: Documentation basis ── */}
         <div className="flex items-center gap-1.5">
           <div className="text-xs text-muted-foreground space-y-0.5">
             <p className="font-medium text-muted-foreground">Datengrundlage</p>
-            <p>{data.calendarDays} Kalendertage</p>
-            <p>{data.documentedDays} dokumentiert</p>
+            <p>Dokumentiert: {data.documentedDays} von {data.calendarDays} Tagen</p>
           </div>
           <InfoTooltip
-            content={'Tageswert = höchste Belastung des Tages. Weitere Infos unter „Details".'}
+            content="Tageswert = höchste Belastung des Tages. Nicht dokumentierte Tage werden nicht als symptomfrei gewertet."
             side="top"
           />
         </div>
@@ -174,15 +150,24 @@ export function MeCfsStatisticsCard({ entries, mecfsStart, mecfsEnd }: MeCfsStat
           </p>
         )}
 
-        {/* ── Donut + Legend ── */}
-        <div className="flex flex-row items-center gap-4">
-          <MeCfsDonut slices={slices} totalDays={data.calendarDays} />
-          <MeCfsLegend
-            slices={slices}
-            totalDays={data.calendarDays}
-            showPercent={showPercent}
-          />
+        {/* ── Burden Donut (documented days only) + Legend ── */}
+        <div className="space-y-1">
+          <p className="text-[11px] text-muted-foreground">Verteilung basiert auf dokumentierten Tagen.</p>
+          <div className="flex flex-row items-center gap-4">
+            <MeCfsDonut slices={slices} totalDays={data.documentedDays} />
+            <MeCfsLegend
+              slices={slices}
+              totalDays={data.documentedDays}
+              showPercent={!tooFewDays}
+            />
+          </div>
         </div>
+
+        {/* ── Documentation Ring (small, secondary) ── */}
+        <MeCfsDocRing
+          documentedDays={data.documentedDays}
+          calendarDays={data.calendarDays}
+        />
 
         {/* ── Collapsible details ── */}
         <MeCfsDetails data={data} />
