@@ -144,8 +144,8 @@ export function MeCfsStatisticsCard({ entries, mecfsStart, mecfsEnd }: MeCfsStat
             side="top"
           />
         </div>
-        {tooFewDays && (
-          <p className="text-[11px] text-muted-foreground">
+      {tooFewDays && (
+          <p className="text-[10px] text-muted-foreground/70 leading-tight">
             Für eine stabile Trendbewertung werden mindestens 14 Tage empfohlen.
           </p>
         )}
