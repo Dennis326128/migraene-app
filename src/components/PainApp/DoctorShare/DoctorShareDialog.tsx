@@ -12,7 +12,6 @@
 
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 
 import { supabase } from "@/lib/supabaseClient";
@@ -49,7 +48,11 @@ const PROGRESS_STEPS = [
   "Daten werden aufbereitet …",
 ];
 
-type Phase = "doctor-select" | "toggle" | "progress";
+// Privacy is decided at entry level.
+// Private notes are never included in exports or sharing.
+// Sharing is one-click and frictionless.
+// No runtime privacy decisions during sharing.
+type Phase = "doctor-select" | "confirm" | "progress";
 
 export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
   onComplete,
@@ -59,8 +62,7 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
   const from = useMemo(() => fmt(addMonths(today, -3)), [today]);
   const to = useMemo(() => fmt(today), [today]);
 
-  const [phase, setPhase] = useState<Phase>("toggle");
-  const [shareNotes, setShareNotes] = useState(false);
+  const [phase, setPhase] = useState<Phase>("confirm");
   const [selectedDoctors, setSelectedDoctors] = useState<Doctor[]>([]);
   const [showDoctorDialog, setShowDoctorDialog] = useState(false);
 
@@ -85,14 +87,14 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
   useEffect(() => {
     if (activeDoctors.length === 1) {
       setSelectedDoctors(activeDoctors);
-      setPhase("toggle");
+      setPhase("confirm");
     } else if (activeDoctors.length > 1) {
       setPhase("doctor-select");
       setShowDoctorDialog(true);
     } else {
       // No active doctors - proceed without doctor data
       setSelectedDoctors([]);
-      setPhase("toggle");
+      setPhase("confirm");
     }
   }, [activeDoctors]);
 
@@ -139,7 +141,7 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
   const handleDoctorSelectionConfirm = useCallback((doctors: Doctor[]) => {
     setSelectedDoctors(doctors);
     setShowDoctorDialog(false);
-    setPhase("toggle");
+    setPhase("confirm");
   }, []);
 
   // Handle doctor selection cancel
@@ -171,12 +173,13 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
       const shareCode = freshShare.code_display;
 
       // 2. Save settings
+      // Privacy is decided at entry level – private notes are always excluded.
       await upsertShareSettings(shareId, {
         range_preset: "3m",
         custom_from: null,
         custom_to: null,
-        include_entry_notes: shareNotes,
-        include_context_notes: false, // Private notes never shared by default
+        include_entry_notes: true, // Always share non-private notes
+        include_context_notes: false, // Private notes never shared
         include_ai_analysis: true, // auto-enabled
       });
 
@@ -228,8 +231,7 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
         last30Units: stat.last30Units,
       }));
 
-      const includeNotes = shareNotes;
-
+      // Always include non-private notes; private notes are excluded in PDF automatically
       const pdfBytes = await buildDiaryPdf({
         title: "Kopfschmerztagebuch (Arztfreigabe)",
         from,
@@ -243,8 +245,9 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
         includePatientData: true,
         includeDoctorData: selectedDoctors.length > 0,
         includeMedicationCourses: true,
-        includePatientNotes: includeNotes,
-        freeTextExportMode: includeNotes ? "short_notes" : "none",
+        includePatientNotes: true,
+        freeTextExportMode: "short_notes",
+        includePrivateNotes: false, // Private notes are NEVER shared
         isPremiumAIRequested: false,
         analysisReport: undefined,
         patientNotes: "",
@@ -309,7 +312,7 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
         metadata: {
           share_id: shareId,
           range_preset: "3m",
-          include_notes: shareNotes,
+          include_notes: true,
           include_ai_analysis: true,
           ai_used: false,
           generated_for: "doctor_share",
@@ -325,11 +328,11 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
     } catch (error) {
       console.error("Share-Erstellung fehlgeschlagen:", error);
       // On error, go back to toggle phase
-      setPhase("toggle");
+      setPhase("confirm");
       setProgress(0);
       setStepIndex(0);
     }
-  }, [shareStatus, shareNotes, from, to, selectedDoctors, medicationCourses, activateMutation, refetchShareStatus, onComplete]);
+  }, [shareStatus, from, to, selectedDoctors, medicationCourses, activateMutation, refetchShareStatus, onComplete]);
 
   // ─── Phase: Doctor Selection (>1 active doctor) ────────
   if (phase === "doctor-select") {
@@ -353,31 +356,22 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
     );
   }
 
-  // ─── Phase: Toggle ─────────────────────────────────────
-  if (phase === "toggle") {
+  // ─── Phase: Confirm (one-click share) ───────────────────
+  if (phase === "confirm") {
     return (
       <div className="flex flex-col min-h-full">
         <div className="flex-1 flex flex-col justify-center items-center px-4 pb-28">
           <h2 className="text-lg font-semibold text-foreground mb-2">
-            Persönliche Notizen teilen?
+            Mit Arzt teilen
           </h2>
           <p className="text-sm text-muted-foreground text-center mb-8">
-            Freie Anmerkungen, die du selbst ergänzt hast.
+            Dein Kopfschmerztagebuch wird für deinen Arzt freigegeben.
           </p>
 
-          {/* Toggle row */}
-          <div className="flex items-center gap-4">
-            <span className={`text-sm transition-colors ${!shareNotes ? "text-foreground font-medium" : "text-muted-foreground"}`}>
-              Nicht teilen
-            </span>
-            <Switch
-              checked={shareNotes}
-              onCheckedChange={setShareNotes}
-            />
-            <span className={`text-sm transition-colors ${shareNotes ? "text-foreground font-medium" : "text-muted-foreground"}`}>
-              Teilen
-            </span>
-          </div>
+          {/* Subtle privacy hint – no toggle, no interaction */}
+          <p className="text-xs text-muted-foreground/60 text-center">
+            Private Notizen werden nicht geteilt.
+          </p>
         </div>
 
         {/* Sticky action bar */}
@@ -387,7 +381,7 @@ export const DoctorShareDialog: React.FC<DoctorShareDialogProps> = ({
             size="lg"
             className="w-full"
           >
-            Weiter
+            Freigabe starten
           </Button>
         </div>
       </div>

@@ -820,7 +820,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         includeMedicationCourses: includeTherapies,
         includePatientNotes: false,
         freeTextExportMode: freeTextMode as any,
-        includePrivateNotes,
+        includePrivateNotes: false, // Private notes are never included in exports
         
         // KRITISCH: Explizites Flag ob User Premium-KI ausgewählt hat
         isPremiumAIRequested: includePremiumAI,
@@ -1232,15 +1232,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
                 checked={includeNotes}
                 onCheckedChange={setIncludeNotes}
               />
-              {includeNotes && (
-                <div className="border-t border-border/30 pt-2 mt-2">
-                  <ToggleRow
-                    label="Private Notizen ebenfalls einbeziehen"
-                    checked={includePrivateNotes}
-                    onCheckedChange={setIncludePrivateNotes}
-                  />
-                </div>
-              )}
+              {/* Privacy is decided at entry level – private notes are always excluded from exports */}
             </CollapsibleContent>
           </Collapsible>
 
