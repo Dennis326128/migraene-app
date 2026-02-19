@@ -220,6 +220,7 @@ serve(async (req) => {
         pain_locations,
         medications,
         notes,
+        entry_note_is_private,
         weather:weather_logs!pain_entries_weather_id_fkey (
           temperature_c,
           pressure_mb,
@@ -266,6 +267,7 @@ serve(async (req) => {
         pain_location: painLocationDisplay,
         medications: entry.medications?.join(', ') || 'keine',
         notes: entry.notes || '',
+        note_is_private: entry.entry_note_is_private || false,
         weather: weather ? {
           temp: weather.temperature_c,
           pressure: weather.pressure_mb,
@@ -285,7 +287,11 @@ serve(async (req) => {
       }
       
       if (d.notes) {
-        entry += `, Notiz: ${d.notes}`;
+        if (d.note_is_private) {
+          entry += `, Notiz [PRIVAT]: ${d.notes}`;
+        } else {
+          entry += `, Notiz: ${d.notes}`;
+        }
       }
       
       return entry;
@@ -360,7 +366,7 @@ Formatieren Sie die Antwort in gut strukturiertem Markdown mit klaren Überschri
       body: JSON.stringify({
         model: 'google/gemini-2.5-flash',
         messages: [
-          { role: 'system', content: 'Sie sind ein medizinischer Fachassistent, der professionelle Analyseberichte für Migränepatienten erstellt. Ihre Berichte sind präzise, faktenbasiert und folgen medizinischen Standards. Wenn Prophylaxe-Einnahmedaten vorliegen, analysieren Sie gezielt die zeitliche Beziehung zwischen Prophylaxe-Gaben und Kopfschmerzhäufigkeit/-intensität.' },
+          { role: 'system', content: 'Sie sind ein medizinischer Fachassistent, der professionelle Analyseberichte für Migränepatienten erstellt. Ihre Berichte sind präzise, faktenbasiert und folgen medizinischen Standards. Wenn Prophylaxe-Einnahmedaten vorliegen, analysieren Sie gezielt die zeitliche Beziehung zwischen Prophylaxe-Gaben und Kopfschmerzhäufigkeit/-intensität.\n\nWICHTIG – Datenschutz bei privaten Notizen:\nEinige Notizen sind mit [PRIVAT] gekennzeichnet. Für diese gelten strenge Regeln:\n- Inhalte NICHT wörtlich zitieren oder reproduzieren\n- Keine konkreten Personen, Orte oder Situationen nennen\n- Nur abstrakte Kategorien verwenden (z.B. „privater Stress", „emotionale Belastung", „psychosozialer Stressfaktor")\n- Trends und Häufigkeiten dürfen aggregiert dargestellt werden\n- Formulierungen wie „Streit mit Partner" → „privater Stress"\nNicht-private Notizen dürfen normal analysiert und zitiert werden.' },
           { role: 'user', content: prompt }
         ],
       }),

@@ -91,6 +91,7 @@ type BuildReportParams = {
   includeDoctorData?: boolean;
   includePatientNotes?: boolean;
   includeMedicationCourses?: boolean;
+  includePrivateNotes?: boolean;
   freeTextExportMode?: FreeTextExportMode;
   
   // KRITISCH: Explizites Flag ob User Premium-KI ausgewählt hat
@@ -765,7 +766,7 @@ function drawTableHeader(page: PDFPage, yPos: number, font: PDFFont, includeNote
   return yPos - 25;
 }
 
-function generateSpecialNotesText(entry: PainEntry): string {
+function generateSpecialNotesText(entry: PainEntry, includePrivateNotes: boolean = false): string {
   const parts: string[] = [];
   
   if (entry.aura_type && entry.aura_type !== 'keine' && entry.aura_type !== '-') {
@@ -777,7 +778,7 @@ function generateSpecialNotesText(entry: PainEntry): string {
     parts.push(formattedLocations);
   }
   
-  if (entry.notes) {
+  if (entry.notes && !(entry.entry_note_is_private && !includePrivateNotes)) {
     const shortNote = entry.notes.length > 50 
       ? entry.notes.substring(0, 47) + '...'
       : entry.notes;
@@ -793,7 +794,8 @@ function drawTableRow(
   yPos: number,
   font: PDFFont,
   pdfDoc: any,
-  includeNotes: boolean = true
+  includeNotes: boolean = true,
+  includePrivateNotes: boolean = false
 ): { yPos: number; page: PDFPage; rowHeight: number } {
   const cols = includeNotes ? {
     date: LAYOUT.margin,
@@ -826,7 +828,7 @@ function drawTableRow(
   const painText = formatPainLevel(entry.pain_level);
   const medsText = formatMedicationsWithDose(entry.medications, entry.medication_intakes);
   const medsLines = wrapText(medsText, colWidths.meds, 8, font);
-  const specialText = generateSpecialNotesText(entry);
+  const specialText = generateSpecialNotesText(entry, includePrivateNotes);
   const specialLines = wrapText(specialText, colWidths.special, 8, font);
   
   const maxLines = Math.max(medsLines.length, specialLines.length, 1);
@@ -898,6 +900,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     includeDoctorData = false,
     includePatientNotes = true,
     includeMedicationCourses = false,
+    includePrivateNotes = false,
     freeTextExportMode = 'none',
     isPremiumAIRequested = false, // KRITISCH: User hat Premium-KI ausgewählt
     analysisReport = "",
@@ -1830,7 +1833,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     });
     
     for (const entry of sortedEntries) {
-      const result = drawTableRow(page, entry, yPos, font, pdfDoc, includeNotesInTable);
+      const result = drawTableRow(page, entry, yPos, font, pdfDoc, includeNotesInTable, includePrivateNotes);
       page = result.page;
       yPos = result.yPos;
     }

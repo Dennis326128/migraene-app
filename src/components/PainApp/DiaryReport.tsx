@@ -820,6 +820,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         includeMedicationCourses: includeTherapies,
         includePatientNotes: false,
         freeTextExportMode: freeTextMode as any,
+        includePrivateNotes,
         
         // KRITISCH: Explizites Flag ob User Premium-KI ausgewählt hat
         isPremiumAIRequested: includePremiumAI,
