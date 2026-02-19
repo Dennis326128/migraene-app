@@ -264,9 +264,9 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
     return { symptoms, episodesWithSymptoms, checkedEpisodes, checkedSymptoms };
   }, [entrySymptoms, filteredEntries]);
 
-  // Use documented days as the denominator for day buckets
+  // Use ALL calendar days as denominator — days without entries = pain-free
   const dayBuckets = useMemo(
-    () => computeDiaryDayBuckets({ startDate: from, endDate: to, entries: filteredEntries, documentedDaysOnly: true }),
+    () => computeDiaryDayBuckets({ startDate: from, endDate: to, entries: filteredEntries, documentedDaysOnly: false }),
     [from, to, filteredEntries]
   );
 
@@ -398,7 +398,7 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
                     <div>
                       <h3 className="text-sm font-semibold text-foreground mb-1">Kopfschmerz- & Behandlungstage</h3>
                       <p className="text-xs text-muted-foreground">
-                        Verteilung der {documentedDaysCount} dokumentierten Tage
+                        Verteilung der {dayBuckets.totalDays} Kalendertage
                       </p>
                     </div>
                     <FullscreenChartButton onClick={() => setPieFullscreen(true)} />
