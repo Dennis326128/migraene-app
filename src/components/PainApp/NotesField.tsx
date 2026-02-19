@@ -161,14 +161,6 @@ export function NotesField({
           </div>
         )}
 
-        {/* Quiet private indicator */}
-        {isPrivate && hasContent && (
-          <p className="text-xs text-muted-foreground flex items-center gap-1.5 pt-0.5">
-            <Lock className="h-3 w-3" />
-            Nur für dich sichtbar
-          </p>
-        )}
-
         {/* Error display */}
         {state.error && (
           <p className="text-sm text-destructive">{state.error}</p>
