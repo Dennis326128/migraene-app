@@ -4,6 +4,7 @@ import { Activity, MapPin, Pill, Info } from "lucide-react";
 import { formatPainLocation } from "@/lib/utils/pain";
 import { getEffectLabel } from "@/lib/utils/medicationEffects";
 import type { PatternStatistics, MedicationLimitInfo, MedicationEffectStats } from "@/lib/statistics";
+import type { ReportKPIsV2 } from "@/lib/report-v2/types";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,6 +26,8 @@ interface PatternCardsProps {
   isLoading?: boolean;
   overuseInfo?: OveruseInfo;
   daysInRange?: number;
+  /** SSOT V2 KPIs — when provided, used for avgPain display */
+  reportKpis?: ReportKPIsV2;
 }
 
 function InfoTooltip({ content }: { content: string }) {
@@ -108,7 +111,7 @@ function MedicationEffectDisplay({ med, showLimit = false, onNavigateToLimits }:
   );
 }
 
-export function PatternCards({ statistics, isLoading = false, overuseInfo, daysInRange }: PatternCardsProps) {
+export function PatternCards({ statistics, isLoading = false, overuseInfo, daysInRange, reportKpis }: PatternCardsProps) {
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -125,6 +128,9 @@ export function PatternCards({ statistics, isLoading = false, overuseInfo, daysI
   }
 
   const { painProfile, painLocation, medicationAndEffect } = statistics;
+
+  // Use SSOT avgPain if available, else fallback to legacy
+  const displayAvgPain = reportKpis?.avgPain ?? painProfile.average;
 
   return (
     <div className="space-y-4">
@@ -143,7 +149,7 @@ export function PatternCards({ statistics, isLoading = false, overuseInfo, daysI
           <div className="flex justify-between items-center pb-2 border-b border-border">
             <span className="text-sm font-medium">Durchschnitt:</span>
             <span className="text-lg font-bold text-primary">
-              {painProfile.average.toFixed(1)} / 10
+              {(typeof displayAvgPain === 'number' ? displayAvgPain : 0).toFixed(1)} / 10
             </span>
           </div>
           <div className="space-y-1.5 text-sm">
