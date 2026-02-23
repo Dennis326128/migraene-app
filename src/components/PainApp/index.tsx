@@ -47,7 +47,7 @@ type View = "menu" | "new" | "list" | "analysis" | "settings" | "settings-doctor
 type DiaryReportOrigin = 'home' | 'diary-timeline' | null;
 
 // Track origin for doctors page navigation
-type DoctorsOrigin = { origin?: 'export_migraine_diary'; editDoctorId?: string } | null;
+type DoctorsOrigin = { origin?: 'export_migraine_diary'; editDoctorId?: string; returnView?: View } | null;
 
 // Import VoicePrefillData type from MainMenu
 import type { VoicePrefillData } from "./MainMenu";
@@ -299,11 +299,10 @@ export const PainApp: React.FC = () => {
             if (target === 'settings-account') {
               setView('settings');
             } else if (target.startsWith('settings-doctors')) {
-              // Parse query parameters from target
               const params = new URLSearchParams(target.split('?')[1] || '');
               const origin = params.get('origin') as 'export_migraine_diary' | undefined;
               const editId = params.get('id') || undefined;
-              setDoctorsOrigin(origin ? { origin, editDoctorId: editId } : null);
+              setDoctorsOrigin(origin ? { origin, editDoctorId: editId, returnView: 'diary-report' } : null);
               setView('settings-doctors');
             }
           }} 
@@ -323,7 +322,7 @@ export const PainApp: React.FC = () => {
         <LazySettingsDoctorsPage 
           onBack={() => {
             if (doctorsOrigin?.origin === 'export_migraine_diary') {
-              setView('diary-report');
+              setView(doctorsOrigin.returnView || 'diary-report');
               setDoctorsOrigin(null);
             } else {
               setView('settings');
@@ -333,8 +332,8 @@ export const PainApp: React.FC = () => {
           editDoctorId={doctorsOrigin?.editDoctorId}
           onSaveSuccess={() => {
             if (doctorsOrigin?.origin === 'export_migraine_diary') {
-              toast.success('Arztdaten aktualisiert. Diese werden im PDF entsprechend angezeigt.');
-              setView('diary-report');
+              toast.success('Arztdaten aktualisiert.');
+              setView(doctorsOrigin.returnView || 'diary-report');
               setDoctorsOrigin(null);
             }
           }}
@@ -408,6 +407,14 @@ export const PainApp: React.FC = () => {
       {view === "doctor-share" && withSuspense(
         <LazyDoctorShareScreen 
           onBack={() => setView('reports-hub')}
+          onNavigate={(target: string) => {
+            if (target.startsWith('settings-doctors')) {
+              const params = new URLSearchParams(target.split('?')[1] || '');
+              const origin = params.get('origin') as 'export_migraine_diary' | undefined;
+              setDoctorsOrigin(origin ? { origin, returnView: 'doctor-share' } : null);
+              setView('settings-doctors');
+            }
+          }}
         />,
         "Freigabe laden..."
       )}

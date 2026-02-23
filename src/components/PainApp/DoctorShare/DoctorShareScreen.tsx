@@ -1,16 +1,17 @@
 /**
  * DoctorShareScreen – "Per Code teilen"
  *
- * Minimal screen: Code + Toggle + Link
+ * Minimal screen: Code + Toggle + Link + Doctor selection
  * State machine: idle → generating → success | error
  * - No intermediate confirm step – generation starts immediately
  * - 20s timeout prevents infinite loading
  * - Skeleton UI while generating for psychological comfort
  * - Toggle controls 24h share window
+ * - Doctor data: auto-select if 1, radio if multiple, "add" CTA if none
  */
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { Copy, Check, ExternalLink, AlertCircle, Loader2 } from "lucide-react";
+import { Copy, Check, ExternalLink, AlertCircle, Loader2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -26,6 +27,7 @@ import { buildDiaryPdf } from "@/lib/pdf/report";
 import { buildReportData } from "@/lib/pdf/reportData";
 import { fetchAllEntriesForExport } from "@/features/entries/api/entries.api";
 import { useMedicationCourses } from "@/features/medication-courses/hooks/useMedicationCourses";
+import { useDoctors } from "@/features/account/hooks/useAccount";
 import { saveGeneratedReport } from "@/features/reports/api/generatedReports.api";
 import { upsertShareSettings } from "@/features/doctor-share/api/doctorShareSettings.api";
 import { format } from "date-fns";
@@ -33,6 +35,7 @@ import { de } from "date-fns/locale";
 
 interface DoctorShareScreenProps {
   onBack: () => void;
+  onNavigate?: (target: string) => void;
 }
 
 type FlowState = "idle" | "generating" | "success" | "error";
@@ -49,16 +52,18 @@ function fmt(d: Date) {
   return d.toISOString().slice(0, 10);
 }
 
-export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) => {
+export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack, onNavigate }) => {
   const { data: shareStatus, isLoading, error: fetchError, refetch } = useDoctorShareStatus();
   const activateMutation = useActivateDoctorShare();
   const revokeMutation = useRevokeDoctorShare();
   const { data: medicationCourses = [] } = useMedicationCourses();
+  const { data: doctors = [], refetch: refetchDoctors } = useDoctors();
 
   const [flowState, setFlowState] = useState<FlowState>("idle");
   const [justCreatedCode, setJustCreatedCode] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [showHint, setShowHint] = useState(false);
+  const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(null);
   const abortRef = useRef(false);
 
   const today = useMemo(() => new Date(), []);
@@ -67,6 +72,24 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
 
   // Check if 24h hint was already shown
   const hintSeen = useRef(localStorage.getItem(SHARE_HINT_KEY) === "true");
+
+  // Active (non-archived) doctors
+  const activeDoctors = useMemo(() => 
+    doctors.filter(d => d.is_active !== false),
+    [doctors]
+  );
+
+  // Auto-select doctor when doctors load
+  useEffect(() => {
+    if (activeDoctors.length === 1 && !selectedDoctorId) {
+      setSelectedDoctorId(activeDoctors[0].id || null);
+    }
+  }, [activeDoctors, selectedDoctorId]);
+
+  // Refresh doctors when returning from add-doctor flow
+  useEffect(() => {
+    refetchDoctors();
+  }, [refetchDoctors]);
 
   // Determine if we should auto-start generation
   const shouldAutoGenerate =
@@ -179,7 +202,12 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
       });
       if (abortRef.current) return;
 
-      // 4. Generate PDF
+      // 4. Resolve doctor for PDF
+      const selectedDoctor = activeDoctors.length === 1
+        ? activeDoctors[0]
+        : activeDoctors.find(d => d.id === selectedDoctorId) || null;
+
+      // 5. Generate PDF – always complete clinical report, no med filtering
       const medicationStats = reportData.acuteMedicationStats.map((stat) => ({
         name: stat.name,
         count: stat.last30Units,
@@ -201,9 +229,9 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
         includeAnalysis: false,
         includeEntriesList: true,
         includePatientData: true,
-        includeDoctorData: false,
+        includeDoctorData: !!selectedDoctor,
         includeMedicationCourses: true,
-        includePatientNotes: true,
+        includePatientNotes: false,
         freeTextExportMode: "short_notes",
         includePrivateNotes: false,
         isPremiumAIRequested: false,
@@ -241,12 +269,22 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
               insuranceNumber: freshPatientData.insurance_number || "",
             }
           : undefined,
-        doctors: undefined,
+        doctors: selectedDoctor ? [{
+          firstName: selectedDoctor.first_name || "",
+          lastName: selectedDoctor.last_name || "",
+          specialty: selectedDoctor.specialty || "",
+          street: selectedDoctor.street || "",
+          postalCode: selectedDoctor.postal_code || "",
+          city: selectedDoctor.city || "",
+          phone: selectedDoctor.phone || "",
+          fax: selectedDoctor.fax || "",
+          email: selectedDoctor.email || "",
+        }] : undefined,
         premiumAIReport: undefined,
       });
       if (abortRef.current) return;
 
-      // 5. Save report
+      // 6. Save report
       const rangeLabel = `${format(new Date(from), "dd.MM.yyyy", { locale: de })} – ${format(new Date(to), "dd.MM.yyyy", { locale: de })}`;
 
       const savedReport = await saveGeneratedReport({
@@ -282,7 +320,7 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
         setFlowState("error");
       }
     }
-  }, [flowState, shareStatus, from, to, medicationCourses, activateMutation, refetch]);
+  }, [flowState, shareStatus, from, to, medicationCourses, activeDoctors, selectedDoctorId, activateMutation, refetch]);
 
   // Back handler
   const handleBack = useCallback(() => {
@@ -346,6 +384,73 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack }) 
       <AppHeader title="Per Code teilen" onBack={handleBack} sticky />
 
       <div className="p-4 max-w-2xl mx-auto space-y-5">
+
+          {/* Doctor data section – shown before generation */}
+          {!isLoading && !fetchError && flowState !== "generating" && (
+            <div className="space-y-3">
+              {/* No active doctors: show add CTA */}
+              {activeDoctors.length === 0 && (
+                <div className="rounded-lg border border-border/50 p-4 space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    Für das Teilen mit dem Arzt kannst du Arztdaten hinterlegen.
+                  </p>
+                  <div className="flex items-center gap-3">
+                    {onNavigate && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onNavigate('settings-doctors?origin=export_migraine_diary')}
+                      >
+                        <Plus className="h-4 w-4 mr-1.5" />
+                        Arzt hinzufügen
+                      </Button>
+                    )}
+                    <span className="text-xs text-muted-foreground">
+                      oder ohne Arztdaten fortfahren
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Single doctor: auto-selected, show info */}
+              {activeDoctors.length === 1 && (
+                <p className="text-xs text-muted-foreground">
+                  Arztdaten: {activeDoctors[0].title ? `${activeDoctors[0].title} ` : ''}
+                  {activeDoctors[0].first_name} {activeDoctors[0].last_name}
+                  {activeDoctors[0].specialty ? ` · ${activeDoctors[0].specialty}` : ''}
+                </p>
+              )}
+
+              {/* Multiple doctors: radio selection */}
+              {activeDoctors.length > 1 && (
+                <div className="rounded-lg border border-border/50 p-4 space-y-2">
+                  <p className="text-sm text-foreground">Welchen Arzt einbinden?</p>
+                  <div className="space-y-1.5">
+                    {activeDoctors.map(d => (
+                      <label
+                        key={d.id}
+                        className={`flex items-center gap-3 p-2 rounded-md cursor-pointer transition-colors ${
+                          selectedDoctorId === d.id ? 'bg-primary/5' : 'hover:bg-muted/50'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="share-doctor"
+                          checked={selectedDoctorId === d.id}
+                          onChange={() => setSelectedDoctorId(d.id || null)}
+                          className="accent-primary"
+                        />
+                        <span className="text-sm">
+                          {d.title ? `${d.title} ` : ''}{d.first_name} {d.last_name}
+                          {d.specialty ? ` · ${d.specialty}` : ''}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Initial loading */}
           {isLoading && (
