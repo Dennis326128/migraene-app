@@ -141,7 +141,12 @@
         "sumatriptan_avgEffect": 7.5,
         "ibuprofen_daysUsed": 3,
         "ibuprofen_avgEffect": 5.5
-      }
+      },
+      "legacyHeadacheDaysPie": [
+        { "key": "painFree", "days": 5 },
+        { "key": "painNoTriptan", "days": 3 },
+        { "key": "triptan", "days": 2 }
+      ]
     }
   }
 }

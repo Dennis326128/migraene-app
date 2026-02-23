@@ -16,6 +16,8 @@ export interface ReportRange {
   endISO: string;     // YYYY-MM-DD
   timezone: string;   // e.g. "Europe/Berlin"
   mode: RangeMode;
+  /** If provided, used as totalDaysInRange instead of counting distinct entry dates */
+  totalDaysInRange?: number;
 }
 
 export interface ReportOptions {
@@ -82,6 +84,13 @@ export interface MeCfsDonutSegment {
   days: number;
 }
 
+export type LegacyPieKey = 'painFree' | 'painNoTriptan' | 'triptan';
+
+export interface LegacyPieSegment {
+  key: LegacyPieKey;
+  days: number;
+}
+
 export interface ReportCharts {
   headacheDaysDonut: {
     segments: DonutSegment[];
@@ -98,6 +107,10 @@ export interface ReportCharts {
   meCfs?: {
     donut: MeCfsDonutSegment[];
   };
+  /** Legacy 3-bucket pie for HeadacheDaysPie (painFree/painNoTriptan/triptan) */
+  legacyHeadacheDaysPie?: {
+    segments: LegacyPieSegment[];
+  };
 }
 
 // ─── Raw Day-Level Data ──────────────────────────────────────────────────
@@ -109,6 +122,10 @@ export interface DayCountRecord {
   treatment: boolean;
   painMax: number | null;
   meCfsMax?: MeCfsSeverity | null;
+  /** Whether triptan was used on this day */
+  triptanUsed?: boolean;
+  /** Whether any acute medication was used on this day */
+  acuteMedUsed?: boolean;
 }
 
 // ─── Report Meta ─────────────────────────────────────────────────────────

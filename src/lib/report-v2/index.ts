@@ -29,6 +29,8 @@ export type {
   MeCfsDonutSegment,
   MeCfsDonutKey,
   RangeMode,
+  LegacyPieKey,
+  LegacyPieSegment,
 } from './types';
 
 // Definitions (for testing & direct use)
