@@ -1,0 +1,147 @@
+{
+  "range": {
+    "startISO": "2026-02-01",
+    "endISO": "2026-02-10",
+    "timezone": "Europe/Berlin",
+    "mode": "CUSTOM"
+  },
+  "entries": [
+    {
+      "dateISO": "2026-02-01",
+      "painMax": 7,
+      "acuteMedUsed": true,
+      "triptanUsed": true,
+      "documented": true,
+      "meCfsLevels": ["moderate", "mild"],
+      "medications": [
+        { "medicationId": "med-triptan", "name": "Sumatriptan 50mg", "effect": 8 }
+      ]
+    },
+    {
+      "dateISO": "2026-02-02",
+      "painMax": 3,
+      "acuteMedUsed": true,
+      "triptanUsed": false,
+      "documented": true,
+      "meCfsLevels": ["mild"],
+      "medications": [
+        { "medicationId": "med-ibu", "name": "Ibuprofen 400", "effect": 6 }
+      ]
+    },
+    {
+      "dateISO": "2026-02-03",
+      "painMax": 0,
+      "acuteMedUsed": false,
+      "triptanUsed": false,
+      "documented": true,
+      "meCfsLevels": ["none"],
+      "medications": []
+    },
+    {
+      "dateISO": "2026-02-04",
+      "painMax": 5,
+      "acuteMedUsed": false,
+      "triptanUsed": false,
+      "documented": true,
+      "meCfsLevels": ["severe"],
+      "medications": []
+    },
+    {
+      "dateISO": "2026-02-05",
+      "painMax": null,
+      "acuteMedUsed": false,
+      "triptanUsed": false,
+      "documented": false,
+      "meCfsLevels": [],
+      "medications": []
+    },
+    {
+      "dateISO": "2026-02-06",
+      "painMax": 9,
+      "acuteMedUsed": true,
+      "triptanUsed": true,
+      "documented": true,
+      "meCfsLevels": ["severe", "moderate"],
+      "medications": [
+        { "medicationId": "med-triptan", "name": "Sumatriptan 50mg", "effect": 7 },
+        { "medicationId": "med-ibu", "name": "Ibuprofen 400", "effect": null }
+      ]
+    },
+    {
+      "dateISO": "2026-02-07",
+      "painMax": null,
+      "acuteMedUsed": false,
+      "triptanUsed": false,
+      "documented": false,
+      "meCfsLevels": [],
+      "medications": []
+    },
+    {
+      "dateISO": "2026-02-08",
+      "painMax": 2,
+      "acuteMedUsed": false,
+      "triptanUsed": false,
+      "documented": true,
+      "meCfsLevels": [null],
+      "medications": []
+    },
+    {
+      "dateISO": "2026-02-09",
+      "painMax": null,
+      "acuteMedUsed": false,
+      "triptanUsed": false,
+      "documented": false,
+      "meCfsLevels": [],
+      "medications": []
+    },
+    {
+      "dateISO": "2026-02-10",
+      "painMax": 0,
+      "acuteMedUsed": false,
+      "triptanUsed": false,
+      "documented": true,
+      "meCfsLevels": ["mild", "none"],
+      "medications": [
+        { "medicationId": "med-ibu", "name": "Ibuprofen 400", "effect": 5 }
+      ]
+    }
+  ],
+  "expected": {
+    "meta": {
+      "basis": {
+        "totalDaysInRange": 10,
+        "documentedDays": 7,
+        "undocumentedDays": 3
+      }
+    },
+    "kpis": {
+      "headacheDays": 5,
+      "treatmentDays": 3,
+      "triptanDays": 2,
+      "acuteMedDays": 3,
+      "avgPain": 5.2,
+      "maxPain": 9,
+      "mohRiskFlag": "none"
+    },
+    "charts": {
+      "headacheDaysDonut": [
+        { "key": "headache", "days": 5 },
+        { "key": "no_headache", "days": 2 },
+        { "key": "undocumented", "days": 3 }
+      ],
+      "meCfsDonut": [
+        { "key": "none", "days": 1 },
+        { "key": "mild", "days": 2 },
+        { "key": "moderate", "days": 1 },
+        { "key": "severe", "days": 2 },
+        { "key": "undocumented", "days": 4 }
+      ],
+      "medications": {
+        "sumatriptan_daysUsed": 2,
+        "sumatriptan_avgEffect": 7.5,
+        "ibuprofen_daysUsed": 3,
+        "ibuprofen_avgEffect": 5.5
+      }
+    }
+  }
+}
