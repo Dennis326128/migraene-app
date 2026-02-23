@@ -63,10 +63,18 @@ export function checkAppVersion() {
     localStorage.setItem('app_version', BUILD_ID);
     
     // Only force reload if there was a previous version (not first visit)
-    if (storedVersion) {
+    // and BUILD_ID is not 'dev' (development mode)
+    if (storedVersion && BUILD_ID !== 'dev') {
       forceClearCachesAndReload();
       return true;
     }
+  }
+  
+  // Also check if URL has stale cache-bust param and clean it
+  const url = new URL(window.location.href);
+  if (url.searchParams.has('_cb')) {
+    url.searchParams.delete('_cb');
+    window.history.replaceState({}, '', url.pathname + url.search + url.hash);
   }
   
   return false;
@@ -137,6 +145,11 @@ export function triggerVersionCheckFromAPI() {
  */
 export function setupServiceWorkerListener() {
   if ('serviceWorker' in navigator) {
+    // Force check for SW updates on every page load
+    navigator.serviceWorker.ready.then((registration) => {
+      registration.update().catch(console.error);
+    });
+
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (!isReloading) {
         console.log('🔄 New Service Worker took control, reloading...');
