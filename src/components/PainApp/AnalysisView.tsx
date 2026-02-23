@@ -22,6 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useUserDefaults } from "@/features/settings/hooks/useUserSettings";
 import type { AIReport } from "@/features/ai-reports";
 import { computeDiaryDayBuckets } from "@/lib/diary/dayBuckets";
+import { buildAppAnalysisReport } from "@/lib/report-v2/adapters/buildAppAnalysisReport";
 import { HeadacheDaysPie } from "@/components/diary/HeadacheDaysPie";
 import { supabase } from "@/lib/supabaseClient";
 import { useQuery } from "@tanstack/react-query";
@@ -272,6 +273,22 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
 
   const daysInRange = dayBuckets.totalDays;
 
+  // ─── SSOT Report (V2) ─────────────────────────────────────────────
+  const ssotReport = useMemo(() => {
+    if (filteredEntries.length === 0) return null;
+    const { report } = buildAppAnalysisReport({
+      range: {
+        startISO: from,
+        endISO: to,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Berlin',
+        mode: timeRange === '1m' ? 'LAST_30_DAYS' : timeRange === 'custom' ? 'CUSTOM' : 'CALENDAR_MONTH',
+      },
+      painEntries: filteredEntries as any[],
+      medicationEffects: medicationEffectsData as any[],
+    });
+    return report;
+  }, [filteredEntries, from, to, timeRange, medicationEffectsData]);
+
   const hasOveruseWarning = useMemo(() => {
     return patternStats.medicationAndEffect.topMedications.some(med => {
       if (!med.limitInfo) return false;
@@ -416,6 +433,7 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
                   statistics={patternStats}
                   isLoading={entriesLoading}
                   daysInRange={daysInRange}
+                  reportKpis={ssotReport?.kpis}
                   overuseInfo={{
                     hasWarning: hasOveruseWarning,
                     medicationsWithWarning,
