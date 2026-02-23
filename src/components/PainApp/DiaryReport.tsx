@@ -1033,15 +1033,26 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
               disabled={activeDoctors.length === 0}
             />
             {activeDoctors.length === 0 && (
-              <div className="mt-2 flex items-center gap-2">
-                <p className="text-xs text-muted-foreground">Kein Arzt hinterlegt.</p>
+              <div className="mt-3 space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  Für den Arztbericht kannst du Arztdaten hinterlegen.
+                </p>
                 {onNavigate && (
-                  <button
-                    className="text-xs text-primary hover:underline"
-                    onClick={() => onNavigate('settings-doctors')}
-                  >
-                    Arzt hinzufügen
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onNavigate('settings-doctors?origin=export_migraine_diary')}
+                    >
+                      Arzt hinzufügen
+                    </Button>
+                    <button
+                      className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      onClick={() => setIncludeDoctorData(false)}
+                    >
+                      Überspringen
+                    </button>
+                  </div>
                 )}
               </div>
             )}
