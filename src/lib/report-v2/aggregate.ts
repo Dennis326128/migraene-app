@@ -95,6 +95,8 @@ export function computeMiaryReport(input: ComputeReportInput): MiaryReportV2 {
       treatment,
       painMax: day.painMax,
       meCfsMax,
+      triptanUsed: day.triptanUsed,
+      acuteMedUsed: day.acuteMedUsed,
     });
 
     if (day.documented) {
@@ -115,8 +117,9 @@ export function computeMiaryReport(input: ComputeReportInput): MiaryReportV2 {
     }
   }
 
-  const totalDaysInRange = dayMap.size;
-  const undocumentedDays = totalDaysInRange - documentedDays;
+  // totalDaysInRange: prefer explicit from range, fallback to distinct dates
+  const totalDaysInRange = input.range.totalDaysInRange ?? dayMap.size;
+  const undocumentedDays = Math.max(0, totalDaysInRange - documentedDays);
 
   // ─── KPIs ──────────────────────────────────────────────────────────
   const avgPain = painCount > 0
@@ -142,6 +145,7 @@ export function computeMiaryReport(input: ComputeReportInput): MiaryReportV2 {
   // ─── Charts ────────────────────────────────────────────────────────
   const charts = buildCharts({
     countsByDay,
+    totalDaysInRange,
     documentedDays,
     undocumentedDays,
     headacheDays,

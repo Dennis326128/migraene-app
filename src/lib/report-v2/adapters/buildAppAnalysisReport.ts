@@ -3,18 +3,15 @@
  * App Analysis Adapter — Maps App data structures to SSOT report
  * ═══════════════════════════════════════════════════════════════════════════
  * 
- * Bridges the gap between existing App data (pain_entries, medication_intakes)
- * and the SSOT computeMiaryReport() function.
- * 
- * NO DB calls. Pure mapping + aggregation delegation.
+ * NO DB calls. NO Date-Math. Pure mapping + aggregation delegation.
+ * totalDaysInRange must be provided by the caller (from dayBuckets or UI).
  */
 
-import type { ComputeReportInput, ReportEntryInput, MiaryReportV2 } from '../types';
+import type { ReportEntryInput, MiaryReportV2 } from '../types';
 import { computeMiaryReport } from '../aggregate';
 import { isPainEntry } from '@/lib/diary/isPainEntry';
 import { normalizePainLevel } from '@/lib/utils/pain';
 import { isTriptan } from '@/lib/medications/isTriptan';
-import { enumerateDatesInclusive } from '@/lib/diary/dayBuckets';
 
 // ─── Input Types (loose, matching what AnalysisView already has) ──────────
 
@@ -48,6 +45,8 @@ export interface AppAnalysisReportArgs {
     endISO: string;
     timezone: string;
     mode: 'LAST_30_DAYS' | 'CUSTOM' | 'CALENDAR_MONTH';
+    /** Total calendar days in range (from dayBuckets or upstream) */
+    totalDaysInRange?: number;
   };
   painEntries: RawPainEntry[];
   medicationEffects?: RawMedicationEffect[];
@@ -93,8 +92,11 @@ function mapMeCfsLevel(entry: RawPainEntry): Array<MeCfsSev | null> {
  * Maps existing App data structures into SSOT ComputeReportInput,
  * calls computeMiaryReport(), and returns the result.
  * 
- * IMPORTANT: "documented" = an entry exists for that day, regardless of pain_level.
- * A day with pain_level=0 or entry_kind='lifestyle' IS documented.
+ * IMPORTANT:
+ * - "documented" = an entry exists for that day, regardless of pain_level.
+ * - NO Date-Math here. Caller provides totalDaysInRange.
+ * - Does NOT generate undocumented day entries; aggregate handles the gap
+ *   via totalDaysInRange - documentedDays.
  */
 export function buildAppAnalysisReport(args: AppAnalysisReportArgs): AppAnalysisResult {
   const { range, painEntries, medicationEffects = [] } = args;
@@ -109,13 +111,10 @@ export function buildAppAnalysisReport(args: AppAnalysisReportArgs): AppAnalysis
       medMap = new Map();
       effectsByEntry.set(eff.entry_id, medMap);
     }
-    // Keep last (or could average — but last is simpler and matches existing behavior)
     medMap.set(eff.med_name, score);
   }
 
-  // Group entries by date, build ReportEntryInput per entry
-  // We produce one ReportEntryInput per raw entry; aggregate.ts merges by day.
-  const documentedDates = new Set<string>();
+  // Build ReportEntryInput per raw entry; aggregate.ts merges by day.
   const reportEntries: ReportEntryInput[] = [];
 
   for (const entry of painEntries) {
@@ -123,17 +122,20 @@ export function buildAppAnalysisReport(args: AppAnalysisReportArgs): AppAnalysis
     if (!dateISO) continue;
     if (dateISO < range.startISO || dateISO > range.endISO) continue;
 
-    documentedDates.add(dateISO);
-
-    // Pain: only count if it's actually a pain entry with pain > 0
+    // Pain: only if isPainEntry(entry) true
     const hasPain = isPainEntry(entry);
     const painNumeric = hasPain && entry.pain_level != null
       ? normalizePainLevel(entry.pain_level as string | number)
-      : 0;
+      : null; // null for non-pain entries (lifestyle, trigger, etc.)
+
+    // painMax:
+    // - isPainEntry true → normalizePainLevel (can be 0 for "leicht"=0 or explicit 0)
+    // - isPainEntry false → null (not a pain documentation)
+    const painMax = hasPain ? (painNumeric ?? 0) : null;
 
     // Medications
     const meds = entry.medications || [];
-    let acuteMedUsed = meds.length > 0;
+    const acuteMedUsed = meds.length > 0;
     let triptanUsed = false;
 
     const entryEffects = effectsByEntry.get(Number(entry.id));
@@ -141,7 +143,6 @@ export function buildAppAnalysisReport(args: AppAnalysisReportArgs): AppAnalysis
     const medications = meds.map(medName => {
       if (isTriptan(medName)) triptanUsed = true;
       const effect = entryEffects?.get(medName) ?? null;
-      // Use medication_name as ID if no dedicated medication_id
       const intake = entry.medication_intakes?.find(i => i.medication_name === medName);
       return {
         medicationId: intake?.medication_id || medName,
@@ -155,7 +156,7 @@ export function buildAppAnalysisReport(args: AppAnalysisReportArgs): AppAnalysis
 
     reportEntries.push({
       dateISO,
-      painMax: hasPain ? painNumeric : 0,
+      painMax,
       acuteMedUsed,
       triptanUsed,
       meCfsLevels: meCfsLevels.length > 0 ? meCfsLevels : undefined,
@@ -164,22 +165,14 @@ export function buildAppAnalysisReport(args: AppAnalysisReportArgs): AppAnalysis
     });
   }
 
-  // Add undocumented days (days in range with no entries)
-  const allDatesInRange = enumerateDatesInclusive(range.startISO, range.endISO);
-  for (const dateISO of allDatesInRange) {
-    if (!documentedDates.has(dateISO)) {
-      reportEntries.push({
-        dateISO,
-        painMax: null,
-        acuteMedUsed: false,
-        triptanUsed: false,
-        documented: false,
-      });
-    }
-  }
-
   const report = computeMiaryReport({
-    range,
+    range: {
+      startISO: range.startISO,
+      endISO: range.endISO,
+      timezone: range.timezone,
+      mode: range.mode,
+      totalDaysInRange: range.totalDaysInRange,
+    },
     entries: reportEntries,
   });
 

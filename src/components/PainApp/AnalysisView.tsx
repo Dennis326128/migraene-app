@@ -280,14 +280,15 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
       range: {
         startISO: from,
         endISO: to,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Berlin',
+        timezone: 'Europe/Berlin',
         mode: timeRange === '1m' ? 'LAST_30_DAYS' : timeRange === 'custom' ? 'CUSTOM' : 'CALENDAR_MONTH',
+        totalDaysInRange: daysInRange,
       },
       painEntries: filteredEntries as any[],
       medicationEffects: medicationEffectsData as any[],
     });
     return report;
-  }, [filteredEntries, from, to, timeRange, medicationEffectsData]);
+  }, [filteredEntries, from, to, timeRange, medicationEffectsData, daysInRange]);
 
   const hasOveruseWarning = useMemo(() => {
     return patternStats.medicationAndEffect.topMedications.some(med => {
@@ -425,6 +426,7 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
                     painFreeDays={dayBuckets.painFreeDays}
                     painDaysNoTriptan={dayBuckets.painDaysNoTriptan}
                     triptanDays={dayBuckets.triptanDays}
+                    reportLegacySegments={ssotReport?.charts.legacyHeadacheDaysPie?.segments}
                   />
                 </Card>
 
@@ -536,6 +538,7 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
             painFreeDays={dayBuckets.painFreeDays}
             painDaysNoTriptan={dayBuckets.painDaysNoTriptan}
             triptanDays={dayBuckets.triptanDays}
+            reportLegacySegments={ssotReport?.charts.legacyHeadacheDaysPie?.segments}
             fullscreen
           />
         </div>

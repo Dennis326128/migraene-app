@@ -15,10 +15,12 @@ import type {
   MeCfsDonutKey,
   ReportEntryInput,
   ReportOptions,
+  LegacyPieSegment,
 } from './types';
 
 export interface ChartInput {
   countsByDay: DayCountRecord[];
+  totalDaysInRange: number;
   documentedDays: number;
   undocumentedDays: number;
   headacheDays: number;
@@ -27,7 +29,7 @@ export interface ChartInput {
 }
 
 export function buildCharts(input: ChartInput): ReportCharts {
-  const { countsByDay, documentedDays, undocumentedDays, headacheDays, entries, options } = input;
+  const { countsByDay, totalDaysInRange, documentedDays, undocumentedDays, headacheDays, entries, options } = input;
 
   // ─── Headache Days Donut ─────────────────────────────────────────────
   const headacheDaysDonut: { segments: DonutSegment[] } = {
@@ -124,11 +126,40 @@ export function buildCharts(input: ChartInput): ReportCharts {
     };
   }
 
+  // ─── Legacy 3-Bucket Pie (painFree / painNoTriptan / triptan) ─────
+  // Matches dayBuckets.ts logic:
+  //   triptan = day has triptanUsed (highest priority)
+  //   painNoTriptan = day has headache but no triptan
+  //   painFree = everything else (including undocumented)
+  let legacyTriptan = 0;
+  let legacyPainNoTriptan = 0;
+
+  for (const day of countsByDay) {
+    if (day.triptanUsed) {
+      legacyTriptan++;
+    } else if (day.headache) {
+      legacyPainNoTriptan++;
+    }
+  }
+
+  // painFree = totalDaysInRange - (triptan + painNoTriptan)
+  // This includes undocumented days as "painFree" (matches existing UI behavior)
+  const legacyPainFree = totalDaysInRange - legacyTriptan - legacyPainNoTriptan;
+
+  const legacyHeadacheDaysPie: { segments: LegacyPieSegment[] } = {
+    segments: [
+      { key: 'painFree', days: legacyPainFree },
+      { key: 'painNoTriptan', days: legacyPainNoTriptan },
+      { key: 'triptan', days: legacyTriptan },
+    ],
+  };
+
   return {
     headacheDaysDonut,
     painIntensityTrend,
     timeOfDayDistribution,
     medications,
     ...(meCfs ? { meCfs } : {}),
+    legacyHeadacheDaysPie,
   };
 }

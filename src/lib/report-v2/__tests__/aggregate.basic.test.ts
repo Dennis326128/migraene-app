@@ -67,6 +67,20 @@ describe('computeMiaryReport — basic fixture', () => {
     }
   });
 
+  // ─── Charts: Legacy Pie ──────────────────────────────────────────
+  it('computes legacyHeadacheDaysPie segments', () => {
+    expect(report.charts.legacyHeadacheDaysPie).toBeDefined();
+    const segments = report.charts.legacyHeadacheDaysPie!.segments;
+    for (const exp of fixture.expected.charts.legacyHeadacheDaysPie) {
+      const seg = segments.find(s => s.key === exp.key);
+      expect(seg, `legacy segment ${exp.key} should exist`).toBeDefined();
+      expect(seg!.days).toBe(exp.days);
+    }
+    // Sum must equal totalDaysInRange
+    const sum = segments.reduce((acc, s) => acc + s.days, 0);
+    expect(sum).toBe(report.meta.basis.totalDaysInRange);
+  });
+
   // ─── Charts: ME/CFS Donut ───────────────────────────────────────
   it('computes meCfs donut', () => {
     expect(report.charts.meCfs).toBeDefined();
@@ -102,5 +116,42 @@ describe('computeMiaryReport — basic fixture', () => {
     for (let i = 1; i < report.raw.countsByDay.length; i++) {
       expect(report.raw.countsByDay[i].dateISO >= report.raw.countsByDay[i - 1].dateISO).toBe(true);
     }
+  });
+
+  it('raw countsByDay includes triptanUsed and acuteMedUsed', () => {
+    const day1 = report.raw.countsByDay.find(d => d.dateISO === '2026-02-01');
+    expect(day1?.triptanUsed).toBe(true);
+    expect(day1?.acuteMedUsed).toBe(true);
+    const day3 = report.raw.countsByDay.find(d => d.dateISO === '2026-02-03');
+    expect(day3?.triptanUsed).toBe(false);
+    expect(day3?.acuteMedUsed).toBe(false);
+  });
+});
+
+// ─── range.totalDaysInRange override ─────────────────────────────
+describe('computeMiaryReport — totalDaysInRange from range', () => {
+  it('uses range.totalDaysInRange when provided', () => {
+    const report = computeMiaryReport({
+      range: {
+        ...fixture.range,
+        totalDaysInRange: 30,
+      },
+      entries: fixture.entries,
+    });
+    expect(report.meta.basis.totalDaysInRange).toBe(30);
+    expect(report.meta.basis.documentedDays).toBe(7);
+    expect(report.meta.basis.undocumentedDays).toBe(23);
+  });
+
+  it('legacyPie sums to totalDaysInRange override', () => {
+    const report = computeMiaryReport({
+      range: {
+        ...fixture.range,
+        totalDaysInRange: 30,
+      },
+      entries: fixture.entries,
+    });
+    const sum = report.charts.legacyHeadacheDaysPie!.segments.reduce((a, s) => a + s.days, 0);
+    expect(sum).toBe(30);
   });
 });

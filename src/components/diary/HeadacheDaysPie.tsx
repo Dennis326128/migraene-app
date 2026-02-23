@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { PIE_COLORS_CSS, PIE_LABELS } from '@/lib/theme/pieColors';
+import type { LegacyPieSegment } from '@/lib/report-v2/types';
 
 interface HeadacheDaysPieProps {
   totalDays: number;
@@ -10,6 +11,8 @@ interface HeadacheDaysPieProps {
   compact?: boolean;
   /** Render at larger size for fullscreen views */
   fullscreen?: boolean;
+  /** SSOT V2 legacy pie segments — when provided, overrides individual day props */
+  reportLegacySegments?: LegacyPieSegment[];
 }
 
 interface SliceData {
@@ -52,14 +55,26 @@ function describeArc(cx: number, cy: number, r: number, startAngle: number, endA
 }
 
 export const HeadacheDaysPie: React.FC<HeadacheDaysPieProps> = ({
-  totalDays,
-  painFreeDays,
-  painDaysNoTriptan,
-  triptanDays,
+  totalDays: totalDaysProp,
+  painFreeDays: painFreeDaysProp,
+  painDaysNoTriptan: painDaysNoTriptanProp,
+  triptanDays: triptanDaysProp,
   showPercent = true,
   compact = false,
   fullscreen = false,
+  reportLegacySegments,
 }) => {
+  // If SSOT segments provided, use them; else use legacy props
+  const { totalDays, painFreeDays, painDaysNoTriptan, triptanDays } = useMemo(() => {
+    if (reportLegacySegments) {
+      const pf = reportLegacySegments.find(s => s.key === 'painFree')?.days ?? 0;
+      const pnt = reportLegacySegments.find(s => s.key === 'painNoTriptan')?.days ?? 0;
+      const t = reportLegacySegments.find(s => s.key === 'triptan')?.days ?? 0;
+      return { totalDays: pf + pnt + t, painFreeDays: pf, painDaysNoTriptan: pnt, triptanDays: t };
+    }
+    return { totalDays: totalDaysProp, painFreeDays: painFreeDaysProp, painDaysNoTriptan: painDaysNoTriptanProp, triptanDays: triptanDaysProp };
+  }, [reportLegacySegments, totalDaysProp, painFreeDaysProp, painDaysNoTriptanProp, triptanDaysProp]);
+
   const slices = useMemo<SliceData[]>(() => {
     const all: SliceData[] = [
       { key: 'painFree', value: painFreeDays, color: PIE_COLORS_CSS.painFree, label: PIE_LABELS.painFree },
