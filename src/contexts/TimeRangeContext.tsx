@@ -15,26 +15,37 @@ import {
 } from '@/lib/dateRange/rangeResolver';
 import { fetchFirstEntryDate } from '@/features/entries/api/documentedDates.api';
 
-// ─── Session Storage Keys ──────────────────────────────────────────────
-const SESSION_KEY_PRESET = 'global_timeRange_preset';
-const SESSION_KEY_CUSTOM_START = 'global_timeRange_customStart';
-const SESSION_KEY_CUSTOM_END = 'global_timeRange_customEnd';
+// ─── LocalStorage Keys (v2 — persistent across tabs/sessions) ─────────
+const LS_KEY_PRESET = 'miary_timerange_preset_v2';
+const LS_KEY_CUSTOM_START = 'miary_timerange_custom_from_v2';
+const LS_KEY_CUSTOM_END = 'miary_timerange_custom_to_v2';
 
 const VALID_PRESETS: TimeRangePreset[] = ['1m', '3m', '6m', '12m', 'all', 'custom'];
 
-function readSessionPreset(): TimeRangePreset | null {
+/** Read persisted preset from localStorage (with v1 migration fallback). */
+function readPersistedPreset(): TimeRangePreset | null {
   try {
-    const v = sessionStorage.getItem(SESSION_KEY_PRESET);
-    if (v && VALID_PRESETS.includes(v as TimeRangePreset)) return v as TimeRangePreset;
+    // v2 key
+    const v2 = localStorage.getItem(LS_KEY_PRESET);
+    if (v2 && VALID_PRESETS.includes(v2 as TimeRangePreset)) return v2 as TimeRangePreset;
+
+    // v1 / legacy migration (sessionStorage)
+    const legacy = sessionStorage.getItem('global_timeRange_preset');
+    if (legacy && VALID_PRESETS.includes(legacy as TimeRangePreset)) {
+      // Migrate once: write to v2, clean up legacy
+      localStorage.setItem(LS_KEY_PRESET, legacy);
+      sessionStorage.removeItem('global_timeRange_preset');
+      return legacy as TimeRangePreset;
+    }
   } catch { /* noop */ }
   return null;
 }
 
-function readSessionCustom(): { start: string; end: string } {
+function readPersistedCustom(): { start: string; end: string } {
   try {
     return {
-      start: sessionStorage.getItem(SESSION_KEY_CUSTOM_START) || '',
-      end: sessionStorage.getItem(SESSION_KEY_CUSTOM_END) || '',
+      start: localStorage.getItem(LS_KEY_CUSTOM_START) || '',
+      end: localStorage.getItem(LS_KEY_CUSTOM_END) || '',
     };
   } catch {
     return { start: '', end: '' };
@@ -73,8 +84,8 @@ const TimeRangeContext = createContext<TimeRangeContextValue | null>(null);
 export function TimeRangeProvider({ children }: { children: React.ReactNode }) {
   const [firstEntryDate, setFirstEntryDate] = useState<string | null>(null);
   const [isReady, setIsReady] = useState(false);
-  const [timeRange, setTimeRangeRaw] = useState<TimeRangePreset>(() => readSessionPreset() || 'all');
-  const initCustom = readSessionCustom();
+  const [timeRange, setTimeRangeRaw] = useState<TimeRangePreset>(() => readPersistedPreset() || 'all');
+  const initCustom = readPersistedCustom();
   const [customFrom, setCustomFrom] = useState(initCustom.start);
   const [customTo, setCustomTo] = useState(initCustom.end);
 
@@ -96,16 +107,21 @@ export function TimeRangeProvider({ children }: { children: React.ReactNode }) {
     console.debug('[TimeRange] firstEntryDate:', firstEntryDate, '| spanDays:', documentationSpanDays);
   }
 
-  // Once data is loaded: apply default if no session-stored preset,
-  // or validate the stored preset.
+  // Once data is loaded: restore persisted preset if valid, else smart default.
   useEffect(() => {
     if (!isReady) return;
-    const stored = readSessionPreset();
-    if (!stored) {
-      setTimeRangeRaw(getDefaultPreset(documentationSpanDays));
+    const persisted = readPersistedPreset();
+    if (persisted) {
+      // Persisted exists — validate it's still available
+      const validated = validatePreset(persisted, documentationSpanDays);
+      if (validated !== persisted) {
+        // Persisted no longer valid → clear and use smart default
+        try { localStorage.removeItem(LS_KEY_PRESET); } catch { /* noop */ }
+      }
+      setTimeRangeRaw(validated);
     } else {
-      const validated = validatePreset(stored, documentationSpanDays);
-      if (validated !== stored) setTimeRangeRaw(validated);
+      // No persisted value → smart default (first run)
+      setTimeRangeRaw(getDefaultPreset(documentationSpanDays));
     }
   }, [isReady, documentationSpanDays]);
 
@@ -123,16 +139,16 @@ export function TimeRangeProvider({ children }: { children: React.ReactNode }) {
     setTimeRangeRaw(newPreset);
   }, [firstEntryDate]);
 
-  // Persist to session storage
+  // Persist to localStorage
   useEffect(() => {
-    try { sessionStorage.setItem(SESSION_KEY_PRESET, timeRange); } catch { /* noop */ }
+    try { localStorage.setItem(LS_KEY_PRESET, timeRange); } catch { /* noop */ }
   }, [timeRange]);
 
   useEffect(() => {
     try {
       if (timeRange === 'custom') {
-        sessionStorage.setItem(SESSION_KEY_CUSTOM_START, customFrom);
-        sessionStorage.setItem(SESSION_KEY_CUSTOM_END, customTo);
+        localStorage.setItem(LS_KEY_CUSTOM_START, customFrom);
+        localStorage.setItem(LS_KEY_CUSTOM_END, customTo);
       }
     } catch { /* noop */ }
   }, [timeRange, customFrom, customTo]);
