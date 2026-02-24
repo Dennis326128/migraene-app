@@ -227,7 +227,7 @@ export function validatePreset(
   if (preset === 'all' || preset === 'custom') return preset;
   const requiredDays = PRESET_DAYS[preset];
   if (!requiredDays) return preset;
-  if (documentationSpanDays < requiredDays) return 'all';
+  if (documentationSpanDays < requiredDays) return getDefaultPreset(documentationSpanDays);
   return preset;
 }
 

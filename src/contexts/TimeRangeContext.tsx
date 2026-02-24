@@ -8,12 +8,12 @@ import React, { createContext, useContext, useState, useEffect, useMemo, useCall
 import type { TimeRangePreset } from '@/components/PainApp/TimeRangeButtons';
 import {
   computeEffectiveDateRange,
-  computeConsecutiveDocumentedDays,
+  daysBetweenInclusive,
   validatePreset,
   getDefaultPreset,
   todayStr,
 } from '@/lib/dateRange/rangeResolver';
-import { fetchDocumentedDates } from '@/features/entries/api/documentedDates.api';
+import { fetchFirstEntryDate } from '@/features/entries/api/documentedDates.api';
 
 // ─── Session Storage Keys ──────────────────────────────────────────────
 const SESSION_KEY_PRESET = 'global_timeRange_preset';
@@ -60,17 +60,7 @@ interface TimeRangeContextValue {
   wasClamped: boolean;
   /** First documented entry date */
   firstEntryDate: string | null;
-  /** Last documented entry date */
-  lastDocDate: string | null;
-  /**
-   * Consecutive gap-free documented days backwards from lastDocDate.
-   * This is the SSOT for preset availability.
-   */
-  consecutiveDocumentedDays: number;
-  /**
-   * @deprecated Use consecutiveDocumentedDays for preset logic.
-   * Kept for backward compat in components that still reference it.
-   */
+  /** Days from firstEntryDate to today (inclusive). SSOT for preset availability. */
   documentationSpanDays: number;
   /** Whether the provider has finished initializing */
   isReady: boolean;
@@ -82,27 +72,29 @@ const TimeRangeContext = createContext<TimeRangeContextValue | null>(null);
 
 export function TimeRangeProvider({ children }: { children: React.ReactNode }) {
   const [firstEntryDate, setFirstEntryDate] = useState<string | null>(null);
-  const [lastDocDate, setLastDocDate] = useState<string | null>(null);
-  const [consecutiveDocumentedDays, setConsecutiveDocumentedDays] = useState(0);
   const [isReady, setIsReady] = useState(false);
   const [timeRange, setTimeRangeRaw] = useState<TimeRangePreset>(() => readSessionPreset() || 'all');
   const initCustom = readSessionCustom();
   const [customFrom, setCustomFrom] = useState(initCustom.start);
   const [customTo, setCustomTo] = useState(initCustom.end);
 
-  // Load documented dates once
+  // Load first entry date once
   useEffect(() => {
-    fetchDocumentedDates().then(({ dates, firstDocDate, lastDocDate: last }) => {
-      setFirstEntryDate(firstDocDate);
-      setLastDocDate(last);
-      const consecutive = computeConsecutiveDocumentedDays(dates, last);
-      setConsecutiveDocumentedDays(consecutive);
+    fetchFirstEntryDate().then((first) => {
+      setFirstEntryDate(first);
       setIsReady(true);
     });
   }, []);
 
-  // backward compat alias
-  const documentationSpanDays = consecutiveDocumentedDays;
+  // Span = days from firstEntryDate to today (inclusive)
+  const documentationSpanDays = firstEntryDate
+    ? daysBetweenInclusive(firstEntryDate, todayStr())
+    : 0;
+
+  // Dev logging
+  if (import.meta.env.DEV && isReady) {
+    console.debug('[TimeRange] firstEntryDate:', firstEntryDate, '| spanDays:', documentationSpanDays);
+  }
 
   // Once data is loaded: apply default if no session-stored preset,
   // or validate the stored preset.
@@ -110,18 +102,17 @@ export function TimeRangeProvider({ children }: { children: React.ReactNode }) {
     if (!isReady) return;
     const stored = readSessionPreset();
     if (!stored) {
-      setTimeRangeRaw(getDefaultPreset(consecutiveDocumentedDays));
+      setTimeRangeRaw(getDefaultPreset(documentationSpanDays));
     } else {
-      const validated = validatePreset(stored, consecutiveDocumentedDays);
+      const validated = validatePreset(stored, documentationSpanDays);
       if (validated !== stored) setTimeRangeRaw(validated);
     }
-  }, [isReady, consecutiveDocumentedDays]);
+  }, [isReady, documentationSpanDays]);
 
   // Handle preset change (including custom date initialization)
   const setTimeRange = useCallback((newPreset: TimeRangePreset) => {
     if (newPreset === 'custom') {
-      // Custom bounds: firstDocDate..lastDocDate
-      const endDate = lastDocDate || todayStr();
+      const endDate = todayStr();
       setCustomTo(endDate);
       const threeMonthsAgo = new Date(endDate + 'T00:00:00');
       threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
@@ -130,7 +121,7 @@ export function TimeRangeProvider({ children }: { children: React.ReactNode }) {
       setCustomFrom(startStr);
     }
     setTimeRangeRaw(newPreset);
-  }, [firstEntryDate, lastDocDate]);
+  }, [firstEntryDate]);
 
   // Persist to session storage
   useEffect(() => {
@@ -163,11 +154,9 @@ export function TimeRangeProvider({ children }: { children: React.ReactNode }) {
     to,
     wasClamped,
     firstEntryDate,
-    lastDocDate,
-    consecutiveDocumentedDays,
     documentationSpanDays,
     isReady,
-  }), [timeRange, setTimeRange, customFrom, customTo, from, to, wasClamped, firstEntryDate, lastDocDate, consecutiveDocumentedDays, documentationSpanDays, isReady]);
+  }), [timeRange, setTimeRange, customFrom, customTo, from, to, wasClamped, firstEntryDate, documentationSpanDays, isReady]);
 
   return (
     <TimeRangeContext.Provider value={value}>
