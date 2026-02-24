@@ -1,8 +1,8 @@
 /**
  * MedicationHistoryView
- * Shows medication selection, 30-day count, and paginated intake list.
- * List is filtered by global TimeRange. Dose is always shown.
- * Uses taken_at/taken_date for correct event time display.
+ * Shows medication selection, status block (last intake, 30-day count, limit),
+ * and paginated intake list filtered by global TimeRange.
+ * Dose chip only shown when ≠ 1 tablet.
  */
 
 import React from "react";
@@ -11,13 +11,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Pill, ArrowDown, Loader2 } from "lucide-react";
-import { format, parseISO } from "date-fns";
+import { Pill, ArrowDown, Loader2, AlertTriangle } from "lucide-react";
+import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { toZonedTime } from "date-fns-tz";
 import { useMeds } from "@/features/meds/hooks/useMeds";
 import { useMedicationHistory } from "@/features/medication-intakes/hooks/useMedicationHistory";
 import { useTimeRange } from "@/contexts/TimeRangeContext";
+import { useMedicationLimits } from "@/features/medication-limits/hooks/useMedicationLimits";
 import { formatDoseWithUnit } from "@/lib/utils/doseFormatter";
 import { cn } from "@/lib/utils";
 
@@ -26,12 +27,23 @@ interface MedicationHistoryViewProps {
   onSelectMedication: (name: string | null) => void;
 }
 
+/** Map period_type to German label */
+function periodLabel(type: string): string {
+  switch (type) {
+    case "day": return "Tag";
+    case "week": return "Woche";
+    case "month": return "30 Tage";
+    default: return type;
+  }
+}
+
 export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
   selectedMedication,
   onSelectMedication,
 }) => {
   const { data: allMeds = [] } = useMeds();
   const { from: rangeFrom, to: rangeTo } = useTimeRange();
+  const { data: allLimits = [] } = useMedicationLimits();
 
   const {
     items,
@@ -41,12 +53,6 @@ export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
     isLoading,
     isFetchingMore,
     last30DaysCount,
-    last30From,
-    last30To,
-    effectiveToday,
-    offset,
-    rangeFrom: usedFrom,
-    rangeTo: usedTo,
   } = useMedicationHistory(selectedMedication, rangeFrom, rangeTo);
 
   // Build sorted medication list (active first, then alphabetical)
@@ -59,6 +65,17 @@ export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
   }, [allMeds]);
 
   const selectedMedData = allMeds.find((m) => m.name === selectedMedication);
+
+  // Find active limit for this medication
+  const activeLimit = React.useMemo(() => {
+    if (!selectedMedication) return null;
+    return allLimits.find(
+      (l) => l.medication_name === selectedMedication && l.is_active
+    ) ?? null;
+  }, [allLimits, selectedMedication]);
+
+  // Last intake = first item (sorted DESC)
+  const lastIntake = items.length > 0 ? items[0] : null;
 
   return (
     <div className="space-y-3">
@@ -100,26 +117,62 @@ export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
         />
       )}
 
-      {/* Selected medication: Summary + List */}
+      {/* Selected medication: Status Block + List */}
       {selectedMedication && (
         <>
-          {/* 30-Day Summary */}
+          {/* Status Block */}
           <Card>
-            <CardContent className="pt-4 pb-4">
+            <CardContent className="pt-4 pb-4 space-y-3">
+              {/* Name + Strength */}
+              <h3 className="text-sm font-semibold">
+                {selectedMedication}
+                {selectedMedData?.staerke ? ` ${selectedMedData.staerke}` : ""}
+              </h3>
+
+              {/* Last Intake */}
               <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-semibold">
-                    {selectedMedication}
-                    {selectedMedData?.staerke ? ` ${selectedMedData.staerke}` : ""}
-                  </h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Letzte 30 Tage
-                  </p>
-                </div>
-                <Badge variant="secondary" className="text-base font-semibold px-3 py-1">
+                <span className="text-xs text-muted-foreground">Letzte Einnahme</span>
+                <span className="text-sm font-medium">
+                  {isLoading ? (
+                    "…"
+                  ) : lastIntake ? (
+                    (() => {
+                      const t = toZonedTime(new Date(lastIntake.taken_at), "Europe/Berlin");
+                      return `${format(t, "EEEE, d. MMMM yyyy", { locale: de })} – ${format(t, "HH:mm")}`;
+                    })()
+                  ) : (
+                    "Keine im Zeitraum"
+                  )}
+                </span>
+              </div>
+
+              {/* 30-Day Count */}
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Letzte 30 Tage</span>
+                <Badge variant="secondary" className="text-sm font-semibold px-2.5 py-0.5">
                   {last30DaysCount}×
                 </Badge>
               </div>
+
+              {/* Limit (only if exists) */}
+              {activeLimit && (
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">
+                    Limit ({periodLabel(activeLimit.period_type)})
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className={cn(
+                      "text-sm font-semibold",
+                      last30DaysCount >= activeLimit.limit_count && "text-destructive"
+                    )}>
+                      {last30DaysCount} / {activeLimit.limit_count}
+                    </span>
+                    {last30DaysCount >= activeLimit.limit_count && (
+                      <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
+                    )}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -135,11 +188,10 @@ export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
           ) : (
             <div className="space-y-1.5">
               {items.map((intake) => {
-                // Use taken_at for display (already backfilled correctly)
                 const berlinTime = toZonedTime(new Date(intake.taken_at), "Europe/Berlin");
                 const dateStr = format(berlinTime, "EEEE, d. MMMM yyyy", { locale: de });
                 const timeStr = format(berlinTime, "HH:mm");
-                const doseLabel = formatDoseWithUnit(intake.dose_quarters);
+                const showDose = intake.dose_quarters !== 4;
 
                 return (
                   <Card key={intake.id} className="hover:bg-accent/5 transition-colors">
@@ -148,9 +200,11 @@ export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
                         <span className="text-sm font-medium capitalize">{dateStr}</span>
                         <span className="text-sm text-muted-foreground ml-2">– {timeStr}</span>
                       </div>
-                      <Badge variant="outline" className="text-xs shrink-0 ml-2">
-                        {doseLabel}
-                      </Badge>
+                      {showDose && (
+                        <Badge variant="outline" className="text-xs shrink-0 ml-2">
+                          {formatDoseWithUnit(intake.dose_quarters)}
+                        </Badge>
+                      )}
                     </CardContent>
                   </Card>
                 );
@@ -174,19 +228,6 @@ export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
                 )}
                 Mehr anzeigen ({totalCount - items.length} weitere)
               </Button>
-            </div>
-          )}
-
-          {/* DEV Debug */}
-          {import.meta.env.DEV && (
-            <div className="text-[10px] text-muted-foreground/50 p-2 font-mono space-y-0.5">
-              <div>effectiveToday: {effectiveToday}</div>
-              <div>timeRange: {usedFrom} → {usedTo}</div>
-              <div>last30: {last30From} → {last30To}</div>
-              <div>totalCount: {totalCount}</div>
-              <div>loadedCount: {items.length}</div>
-              <div>offset: {offset}</div>
-              <div>count30d: {last30DaysCount}</div>
             </div>
           )}
         </>
