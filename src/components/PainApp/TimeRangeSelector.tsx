@@ -31,18 +31,17 @@ export function TimeRangeSelector({
     setCustomTo,
     wasClamped,
     firstEntryDate,
-    lastDocDate,
-    consecutiveDocumentedDays,
+    documentationSpanDays,
   } = useTimeRange();
 
-  const maxDate = lastDocDate || todayStr();
+  const maxDate = todayStr();
 
   return (
     <div className={className}>
       <TimeRangeButtons
         value={timeRange}
         onChange={setTimeRange}
-        documentationSpanDays={consecutiveDocumentedDays}
+        documentationSpanDays={documentationSpanDays}
         compact={compact}
       />
 
