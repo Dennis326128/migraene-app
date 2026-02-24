@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
-import { computeDiaryDayBuckets } from "@/lib/diary/dayBuckets";
+import { useHeadacheTreatmentDays } from '@/lib/analytics/headacheDays';
 import { HeadacheDaysPie } from "@/components/diary/HeadacheDaysPie";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/lib/supabaseClient";
@@ -296,20 +296,8 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     });
   }, [entries, medicationEffects, from, to]);
 
-  // Day buckets für Pie Chart (Single Source of Truth)
-  const dayBuckets = useMemo(() => {
-    return computeDiaryDayBuckets({
-      startDate: from,
-      endDate: to,
-      entries: entries.map(e => ({
-        selected_date: e.selected_date,
-        timestamp_created: e.timestamp_created,
-        pain_level: e.pain_level,
-        medications: e.medications,
-      })),
-      documentedDaysOnly: false,
-    });
-  }, [entries, from, to]);
+  // Day buckets für Pie Chart (SSOT — central hook)
+  const { data: dayBuckets } = useHeadacheTreatmentDays();
 
   // Medication stats from report data
   const medicationStats = useMemo(() => {
