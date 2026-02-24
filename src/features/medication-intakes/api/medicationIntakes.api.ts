@@ -13,6 +13,9 @@ export interface MedicationIntake {
   medication_id: string | null;
   medication_name: string;
   dose_quarters: number;
+  taken_at: string | null;
+  taken_date: string | null;
+  taken_time: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -22,6 +25,9 @@ export interface CreateIntakeInput {
   medication_name: string;
   medication_id?: string | null;
   dose_quarters?: number;
+  taken_at?: string;
+  taken_date?: string;
+  taken_time?: string;
 }
 
 export interface UpdateIntakeInput {
@@ -80,6 +86,9 @@ export async function createIntake(input: CreateIntakeInput): Promise<Medication
       medication_name: input.medication_name,
       medication_id: input.medication_id || null,
       dose_quarters: input.dose_quarters ?? DEFAULT_DOSE_QUARTERS,
+      ...(input.taken_at && { taken_at: input.taken_at }),
+      ...(input.taken_date && { taken_date: input.taken_date }),
+      ...(input.taken_time && { taken_time: input.taken_time }),
     })
     .select()
     .single();
@@ -103,6 +112,9 @@ export async function createIntakes(inputs: CreateIntakeInput[]): Promise<Medica
     medication_name: input.medication_name,
     medication_id: input.medication_id || null,
     dose_quarters: input.dose_quarters ?? DEFAULT_DOSE_QUARTERS,
+    ...(input.taken_at && { taken_at: input.taken_at }),
+    ...(input.taken_date && { taken_date: input.taken_date }),
+    ...(input.taken_time && { taken_time: input.taken_time }),
   }));
 
   const { data, error } = await supabase

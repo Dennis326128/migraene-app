@@ -473,6 +473,10 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             if (Number.isFinite(numericId) && data.medications && data.medications.length > 0) {
               const { data: { user } } = await supabase.auth.getUser();
               if (user) {
+                const entryDate = payload.selected_date;
+                const entryTime = payload.selected_time;
+                const takenAt = new Date(`${entryDate}T${entryTime}:00`).toISOString();
+
                 for (const med of data.medications) {
                   await supabase.from('medication_intakes').insert({
                     entry_id: numericId,
@@ -480,6 +484,9 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                     medication_id: med.medicationId || null,
                     dose_quarters: med.doseQuarters,
                     user_id: user.id,
+                    taken_at: takenAt,
+                    taken_date: entryDate,
+                    taken_time: entryTime,
                   });
                 }
               }

@@ -1,6 +1,6 @@
 /**
  * Medication History API
- * Paginated intake history for a specific medication
+ * Paginated intake history using taken_at/taken_date (no join needed for count/sort)
  */
 
 import { supabase } from "@/integrations/supabase/client";
@@ -10,11 +10,9 @@ export interface MedicationHistoryEntry {
   entry_id: number;
   medication_name: string;
   dose_quarters: number;
-  created_at: string;
-  selected_date: string | null;
-  selected_time: string | null;
-  timestamp_created: string | null;
-  pain_level: string;
+  taken_at: string;
+  taken_date: string;
+  taken_time: string;
 }
 
 export interface MedicationHistoryResult {
@@ -23,45 +21,39 @@ export interface MedicationHistoryResult {
 }
 
 /**
- * Fetch paginated intake history for a specific medication.
- * Joins pain_entries to get date/time context.
+ * Fetch paginated intake history for a specific medication within a date range.
+ * Uses taken_at for sorting and taken_date for range filtering (no join needed).
  */
 export async function getMedicationHistory(
   medicationName: string,
+  from: string,
+  to: string,
   offset: number = 0,
   limit: number = 10
 ): Promise<MedicationHistoryResult> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
 
-  // Get total count (independent of pagination)
+  // Total count within date range (no join, uses taken_date directly)
   const { count, error: countError } = await supabase
     .from("medication_intakes")
     .select("id", { count: "exact", head: true })
     .eq("user_id", user.id)
-    .eq("medication_name", medicationName);
+    .eq("medication_name", medicationName)
+    .gte("taken_date", from)
+    .lte("taken_date", to);
 
   if (countError) throw countError;
 
-  // Get paginated items with entry data
+  // Paginated items sorted by taken_at DESC
   const { data, error } = await supabase
     .from("medication_intakes")
-    .select(`
-      id,
-      entry_id,
-      medication_name,
-      dose_quarters,
-      created_at,
-      pain_entries!inner (
-        selected_date,
-        selected_time,
-        timestamp_created,
-        pain_level
-      )
-    `)
+    .select("id, entry_id, medication_name, dose_quarters, taken_at, taken_date, taken_time")
     .eq("user_id", user.id)
     .eq("medication_name", medicationName)
-    .order("created_at", { ascending: false })
+    .gte("taken_date", from)
+    .lte("taken_date", to)
+    .order("taken_at", { ascending: false })
     .range(offset, offset + limit - 1);
 
   if (error) throw error;
@@ -71,11 +63,9 @@ export async function getMedicationHistory(
     entry_id: row.entry_id,
     medication_name: row.medication_name,
     dose_quarters: row.dose_quarters,
-    created_at: row.created_at,
-    selected_date: row.pain_entries?.selected_date ?? null,
-    selected_time: row.pain_entries?.selected_time ?? null,
-    timestamp_created: row.pain_entries?.timestamp_created ?? null,
-    pain_level: row.pain_entries?.pain_level ?? '-',
+    taken_at: row.taken_at,
+    taken_date: row.taken_date,
+    taken_time: row.taken_time,
   }));
 
   return { items, totalCount: count ?? 0 };
@@ -83,7 +73,7 @@ export async function getMedicationHistory(
 
 /**
  * Count intakes for a medication in a date range.
- * Uses selected_date from pain_entries for accurate day-based counting.
+ * Uses taken_date directly (no join to pain_entries needed).
  */
 export async function countMedicationIntakesInRange(
   medicationName: string,
@@ -95,11 +85,11 @@ export async function countMedicationIntakesInRange(
 
   const { count, error } = await supabase
     .from("medication_intakes")
-    .select("id, pain_entries!inner(selected_date)", { count: "exact", head: true })
+    .select("id", { count: "exact", head: true })
     .eq("user_id", user.id)
     .eq("medication_name", medicationName)
-    .gte("pain_entries.selected_date", from)
-    .lte("pain_entries.selected_date", to);
+    .gte("taken_date", from)
+    .lte("taken_date", to);
 
   if (error) throw error;
   return count ?? 0;
