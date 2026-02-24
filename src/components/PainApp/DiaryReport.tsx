@@ -20,7 +20,9 @@ import { Loader2, FileText, Brain } from "lucide-react";
 import { AppHeader } from "@/components/ui/app-header";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { TimeRangeButtons, type TimeRangePreset } from "./TimeRangeButtons";
+import { TimeRangeSelector } from "./TimeRangeSelector";
+import type { TimeRangePreset } from "./TimeRangeButtons";
+import { useTimeRange } from "@/contexts/TimeRangeContext";
 import { DoctorSelectionDialog, type Doctor } from "./DoctorSelectionDialog";
 import { Switch } from "@/components/ui/switch";
 import { devLog, devWarn } from "@/lib/utils/devLogger";
@@ -57,14 +59,7 @@ interface PremiumAIReportResult {
 
 type Preset = TimeRangePreset;
 
-/** Subtract fixed days from a date (for rolling-window presets). */
-function subFixedDays(d: Date, days: number): Date {
-  const dd = new Date(d);
-  dd.setDate(dd.getDate() - days);
-  return dd;
-}
-const PRESET_DAYS: Record<string, number> = { '1m': 29, '3m': 89, '6m': 179, '12m': 364 };
-function fmt(d: Date) { return d.toISOString().slice(0,10); }
+// Legacy helpers removed — now uses global useTimeRange()
 
 function mapEffectToNumber(rating: string): number {
   const map: Record<string, number> = {
@@ -103,13 +98,10 @@ const DEFAULT_SETTINGS: Omit<ReportSettingsState, 'customStart' | 'customEnd'> =
 
 export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void; onNavigate?: (target: string) => void }) {
   const { t } = useTranslation();
-  const today = useMemo(() => new Date(), []);
   const queryClient = useQueryClient();
   
-  // Core state
-  const [preset, setPreset] = useState<Preset>("3m");
-  const [customStart, setCustomStart] = useState<string>(fmt(subFixedDays(today, 89)));
-  const [customEnd, setCustomEnd] = useState<string>(fmt(today));
+  // Global time range (SSOT)
+  const { timeRange: preset, setTimeRange: setPreset, from, to, customFrom: customStart, customTo: customEnd, setCustomFrom: setCustomStart, setCustomTo: setCustomEnd } = useTimeRange();
   
   // Simplified toggles – stats, analysis, meds, therapies are ALWAYS included
   const [includeEntriesList, setIncludeEntriesList] = useState<boolean>(true);
@@ -225,30 +217,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
     }
   }, [doctors, doctorPreferencesLoaded]);
 
-  // Handle preset change
-  const handlePresetChange = useCallback((newPreset: Preset) => {
-    if (newPreset === 'custom' && preset !== 'custom') {
-      setCustomStart(fmt(subFixedDays(today, 89)));
-      setCustomEnd(fmt(today));
-    }
-    setPreset(newPreset);
-  }, [preset, today]);
-
-  // Compute date range
-  const { from, to } = useMemo(() => {
-    if (preset === "custom" && customStart && customEnd) {
-      return { from: customStart, to: customEnd };
-    }
-    const end = fmt(today);
-    let start: string;
-    if (preset === "all") {
-      start = "2000-01-01";
-    } else {
-      const daysBack = PRESET_DAYS[preset] ?? 89;
-      start = fmt(subFixedDays(today, daysBack));
-    }
-    return { from: start, to: end };
-  }, [preset, customStart, customEnd, today]);
+  // handlePresetChange and date range computation removed — uses global useTimeRange()
 
   const { data: entries = [], isLoading } = useQuery({
     queryKey: ["allEntriesForReport", from, to],
@@ -976,30 +945,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
             Dies betrifft nur den Bericht – deine gespeicherten Daten bleiben vollständig erhalten.
           </p>
           
-          <TimeRangeButtons value={preset} onChange={handlePresetChange} compact />
-
-          {preset === "custom" && (
-            <div className="grid grid-cols-2 gap-3 pt-1">
-              <div>
-                <label className="block text-xs text-muted-foreground mb-1">Start</label>
-                <input 
-                  className="border-border/40 border rounded-md px-3 h-10 w-full bg-background text-foreground text-sm" 
-                  type="date" 
-                  value={customStart} 
-                  onChange={e => setCustomStart(e.target.value)} 
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-muted-foreground mb-1">Ende</label>
-                <input 
-                  className="border-border/40 border rounded-md px-3 h-10 w-full bg-background text-foreground text-sm" 
-                  type="date" 
-                  value={customEnd} 
-                  onChange={e => setCustomEnd(e.target.value)} 
-                />
-              </div>
-            </div>
-          )}
+          <TimeRangeSelector compact />
 
           {/* Entry count */}
           <div className="text-sm text-muted-foreground pt-1">

@@ -6,7 +6,7 @@
  * 2. Medication Overview (grouped by role: Prophylaxis, Triptans, Other)
  * 3. Entry List with inline notes (chronological, context as secondary info)
  */
-import React, { useState, useMemo } from "react";
+import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,54 +16,23 @@ import { useEntries } from "@/features/entries/hooks/useEntries";
 import { useMedicationUsageStats } from "@/features/medication-intakes/hooks/useMedicationIntakes";
 import { useActiveMeds } from "@/features/meds/hooks/useMeds";
 import { useMedicationCourses } from "@/features/medication-courses/hooks/useMedicationCourses";
-import { TimeRangeButtons, TimeRangePreset } from "@/components/PainApp/TimeRangeButtons";
+import { TimeRangeSelector } from "@/components/PainApp/TimeRangeSelector";
 import { isTriptan as isTriptanMedication } from "@/lib/medications/isTriptan";
 import { normalizePainLevel } from "@/lib/utils/pain";
 import { formatNumberSmart } from "@/lib/formatters/dateRangeFormatter";
-import { subDays, subMonths, format, parseISO, startOfDay, endOfDay, isWithinInterval } from "date-fns";
+import { format, parseISO, isWithinInterval } from "date-fns";
 import { de } from "date-fns/locale";
 import { Activity, Pill, TrendingUp, Calendar, ChevronDown, ChevronUp, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useTimeRange } from "@/contexts/TimeRangeContext";
+import { daysBetweenInclusive } from "@/lib/dateRange/rangeResolver";
 
 interface TherapyMedicationPageProps {
   onBack: () => void;
   onEditEntry?: (entry: any) => void;
 }
 
-// Calculate date range from preset
-function getDateRange(preset: TimeRangePreset): { from: Date; to: Date; days: number } {
-  const to = endOfDay(new Date());
-  let from: Date;
-  let days: number;
-  
-  switch (preset) {
-    case "1m":
-      from = startOfDay(subDays(new Date(), 29));
-      days = 30;
-      break;
-    case "3m":
-      from = startOfDay(subDays(new Date(), 89));
-      days = 90;
-      break;
-    case "6m":
-      from = startOfDay(subDays(new Date(), 179));
-      days = 180;
-      break;
-    case "12m":
-      from = startOfDay(subDays(new Date(), 364));
-      days = 365;
-      break;
-    case "all":
-      from = new Date(2020, 0, 1); // Far past
-      days = Math.ceil((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24));
-      break;
-    default:
-      from = startOfDay(subDays(new Date(), 30));
-      days = 30;
-  }
-  
-  return { from, to, days };
-}
+// getDateRange removed — uses global useTimeRange() now
 
 // KPI Card component
 function KPICard({ 
@@ -157,7 +126,7 @@ function EntryRow({
   entry: any;
   onClick?: () => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = React.useState(false);
   const painLevel = normalizePainLevel(entry.pain_level) ?? 0;
   const hasNotes = entry.notes && entry.notes.trim().length > 0;
   
@@ -240,12 +209,12 @@ function EntryRow({
 
 export function TherapyMedicationPage({ onBack, onEditEntry }: TherapyMedicationPageProps) {
   const { t } = useTranslation();
-  const [timeRange, setTimeRange] = useState<TimeRangePreset>("1m");
-  const [showAllMeds, setShowAllMeds] = useState(false);
+  const { from, to } = useTimeRange();
+  const [showAllMeds, setShowAllMeds] = React.useState(false);
   
-  const { from, to, days } = getDateRange(timeRange);
-  const fromStr = format(from, 'yyyy-MM-dd');
-  const toStr = format(to, 'yyyy-MM-dd');
+  const days = daysBetweenInclusive(from, to);
+  const fromStr = from;
+  const toStr = to;
   
   // Fetch data
   const { data: allEntries = [], isLoading: entriesLoading } = useEntries({ limit: 500 });
@@ -258,12 +227,7 @@ export function TherapyMedicationPage({ onBack, onEditEntry }: TherapyMedication
     return allEntries.filter(entry => {
       const dateStr = entry.selected_date || entry.timestamp_created?.split('T')[0];
       if (!dateStr) return false;
-      try {
-        const entryDate = parseISO(dateStr);
-        return isWithinInterval(entryDate, { start: from, end: to });
-      } catch {
-        return false;
-      }
+      return dateStr >= from && dateStr <= to;
     }).sort((a, b) => {
       const dateA = a.selected_date || a.timestamp_created;
       const dateB = b.selected_date || b.timestamp_created;
@@ -411,10 +375,7 @@ export function TherapyMedicationPage({ onBack, onEditEntry }: TherapyMedication
       
       <div className="container mx-auto p-4 max-w-2xl space-y-6">
         {/* Time Range Selector */}
-        <TimeRangeButtons 
-          value={timeRange} 
-          onChange={(v) => v !== "custom" && setTimeRange(v)}
-        />
+        <TimeRangeSelector />
         
         {/* Section 1: Medical KPI Overview */}
         <section>
