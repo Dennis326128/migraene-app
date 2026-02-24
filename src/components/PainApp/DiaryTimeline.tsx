@@ -122,6 +122,8 @@ interface DiaryTimelineProps {
   onBack: () => void;
   onNavigate?: (target: 'diary-report') => void;
   onEdit?: (entry: MigraineEntry) => void;
+  /** Deep-link: pre-select medication mode with this medication */
+  initialMedication?: string | null;
 }
 
 type TimelineItemType = {
@@ -135,12 +137,12 @@ type TimelineItemType = {
 
 const DIARY_VIEW_MODE_KEY = 'diaryViewMode';
 
-export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate, onEdit }) => {
+export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate, onEdit, initialMedication }) => {
   const { t } = useTranslation();
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
-  const [filterType, setFilterType] = useState<'all' | 'pain_entry' | 'context_note' | 'medication'>('all');
-  const [selectedMedication, setSelectedMedication] = useState<string | null>(null);
+  const [filterType, setFilterType] = useState<'all' | 'pain_entry' | 'context_note' | 'medication'>(initialMedication ? 'medication' : 'all');
+  const [selectedMedication, setSelectedMedication] = useState<string | null>(initialMedication ?? null);
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>(() => {
     const saved = localStorage.getItem(DIARY_VIEW_MODE_KEY);
     return (saved === 'list' || saved === 'calendar') ? saved : 'list';
