@@ -36,6 +36,16 @@ export function todayStr(): string {
 }
 
 /**
+ * Get yesterday as YYYY-MM-DD (local time).
+ * Used as the effective end date for all presets — today is not yet complete.
+ */
+export function yesterdayStr(): string {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return d.toISOString().split('T')[0];
+}
+
+/**
  * How many calendar days of documentation the user has (span-based, legacy).
  * @deprecated Use computeConsecutiveDocumentedDays for preset availability.
  */
@@ -100,22 +110,22 @@ export interface EffectiveRange {
 }
 
 /**
- * Clamp a user-selected range to [firstEntryDate, today].
+ * Clamp a user-selected range to [_, effectiveToday].
+ * effectiveToday = yesterday (today is not yet complete).
  */
 export function resolveEffectiveRange(
   selectedStart: string,
   selectedEnd: string,
   _firstEntryDate: string | null
 ): EffectiveRange {
-  const today = todayStr();
+  const effective = yesterdayStr();
   let start = selectedStart;
   let end = selectedEnd;
   let wasClamped = false;
 
-  // Do NOT clamp start to firstEntryDate — days before first entry count as pain-free.
-
-  if (end > today) {
-    end = today;
+  // Clamp end to yesterday (today not complete)
+  if (end > effective) {
+    end = effective;
     wasClamped = true;
   }
 
@@ -135,6 +145,7 @@ export function resolveEffectiveRange(
 
 /**
  * Compute raw start/end for a preset (before clamping).
+ * All presets end at yesterday (effectiveToday), not today.
  */
 export function computeRawRange(
   preset: TimeRangePreset,
@@ -144,26 +155,26 @@ export function computeRawRange(
     firstEntryDate?: string | null;
   }
 ): { from: string; to: string } {
-  const today = todayStr();
+  const effective = yesterdayStr();
 
   if (preset === 'custom') {
     return {
-      from: opts?.customFrom || today,
-      to: opts?.customTo || today,
+      from: opts?.customFrom || effective,
+      to: opts?.customTo || effective,
     };
   }
 
   if (preset === 'all') {
     return {
-      from: opts?.firstEntryDate || today,
-      to: today,
+      from: opts?.firstEntryDate || effective,
+      to: effective,
     };
   }
 
-  // Fixed day presets
+  // Fixed day presets: end at yesterday, count backwards
   const days = PRESET_DAYS[preset] ?? 90;
-  const endDate = new Date();
-  const startDate = new Date();
+  const endDate = new Date(effective + 'T00:00:00');
+  const startDate = new Date(effective + 'T00:00:00');
   startDate.setDate(startDate.getDate() - (days - 1));
 
   return {

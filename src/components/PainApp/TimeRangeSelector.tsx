@@ -7,7 +7,7 @@
 import React from 'react';
 import { TimeRangeButtons } from './TimeRangeButtons';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
-import { todayStr } from '@/lib/dateRange/rangeResolver';
+import { yesterdayStr } from '@/lib/dateRange/rangeResolver';
 
 interface TimeRangeSelectorProps {
   /** Compact mode for PDF export page */
@@ -34,7 +34,7 @@ export function TimeRangeSelector({
     documentationSpanDays,
   } = useTimeRange();
 
-  const maxDate = todayStr();
+  const maxDate = yesterdayStr();
 
   return (
     <div className={className}>

@@ -25,7 +25,7 @@ import type { ContextMetadata } from '@/lib/voice/saveNote';
 import { CalendarView } from '@/features/diary/calendar';
 import { normalizePainLevel } from '@/lib/utils/pain';
 import { TimeRangeSelector } from './TimeRangeSelector';
-import { computeDiaryDayBuckets } from '@/lib/diary/dayBuckets';
+import { useHeadacheTreatmentDays } from '@/lib/analytics/headacheDays';
 import { HeadacheDaysPie } from '@/components/diary/HeadacheDaysPie';
 import { startOfDay, endOfDay } from 'date-fns';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
@@ -122,20 +122,9 @@ function CompactKPISummary({ entries }: { entries: any[] }) {
   );
 }
 
-// Pie Chart section with time range selector for DiaryTimeline
-function DiaryTimelinePieSection({ entries }: { entries: any[] }) {
-  const { from, to } = useTimeRange();
-
-  const filteredEntries = useMemo(() => {
-    return entries.filter(entry => {
-      const d = entry.selected_date || entry.timestamp_created?.split('T')[0];
-      return d && d >= from && d <= to;
-    });
-  }, [entries, from, to]);
-
-  const dayBuckets = useMemo(() => {
-    return computeDiaryDayBuckets({ startDate: from, endDate: to, entries: filteredEntries, documentedDaysOnly: false });
-  }, [from, to, filteredEntries]);
+// Pie Chart section — uses central SSOT hook
+function DiaryTimelinePieSection() {
+  const { data: dayBuckets } = useHeadacheTreatmentDays();
 
   return (
     <div className="max-w-4xl mx-auto px-4 pt-4 space-y-3">
@@ -144,7 +133,7 @@ function DiaryTimelinePieSection({ entries }: { entries: any[] }) {
           <TimeRangeSelector />
         </CardContent>
       </Card>
-      {filteredEntries.length > 0 && (
+      {dayBuckets && dayBuckets.totalDays > 0 && (
         <Card className="p-4">
           <h3 className="text-sm font-semibold text-muted-foreground mb-3">Tagesverteilung</h3>
           <HeadacheDaysPie
@@ -158,7 +147,6 @@ function DiaryTimelinePieSection({ entries }: { entries: any[] }) {
     </div>
   );
 }
-
 interface DiaryTimelineProps {
   onBack: () => void;
   onNavigate?: (target: 'diary-report') => void;
@@ -504,7 +492,7 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
       </div>
 
       {/* Time Range + Pie Chart */}
-      <DiaryTimelinePieSection entries={painEntries} />
+      <DiaryTimelinePieSection />
 
       <div className={cn("max-w-4xl mx-auto p-4 space-y-4", isMobile && "px-3")}>
 

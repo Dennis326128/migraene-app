@@ -21,7 +21,7 @@ import { FullscreenChartModal, FullscreenChartButton } from "./FullscreenChartMo
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useUserDefaults } from "@/features/settings/hooks/useUserSettings";
 import type { AIReport } from "@/features/ai-reports";
-import { computeDiaryDayBuckets } from "@/lib/diary/dayBuckets";
+import { useHeadacheTreatmentDays } from '@/lib/analytics/headacheDays';
 import { buildAppAnalysisReport } from "@/lib/report-v2/adapters/buildAppAnalysisReport";
 import { HeadacheDaysPie } from "@/components/diary/HeadacheDaysPie";
 import { supabase } from "@/lib/supabaseClient";
@@ -173,13 +173,9 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
     return { symptoms, episodesWithSymptoms, checkedEpisodes, checkedSymptoms };
   }, [entrySymptoms, filteredEntries]);
 
-  // Use ALL calendar days as denominator — days without entries = pain-free
-  const dayBuckets = useMemo(
-    () => computeDiaryDayBuckets({ startDate: from, endDate: to, entries: filteredEntries, documentedDaysOnly: false }),
-    [from, to, filteredEntries]
-  );
-
-  const daysInRange = dayBuckets.totalDays;
+  // SSOT: Headache & Treatment Days (central hook)
+  const { data: dayBuckets } = useHeadacheTreatmentDays();
+  const daysInRange = dayBuckets?.totalDays ?? 0;
 
   // ─── SSOT Report (V2) ─────────────────────────────────────────────
   const ssotReport = useMemo(() => {
@@ -287,16 +283,16 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
                     <div>
                       <h3 className="text-sm font-semibold text-foreground mb-1">Kopfschmerz- & Behandlungstage</h3>
                       <p className="text-xs text-muted-foreground">
-                        Verteilung der {dayBuckets.totalDays} Kalendertage
+                        Verteilung der {dayBuckets?.totalDays ?? 0} Kalendertage
                       </p>
                     </div>
                     <FullscreenChartButton onClick={() => setPieFullscreen(true)} />
                   </div>
                   <HeadacheDaysPie
-                    totalDays={dayBuckets.totalDays}
-                    painFreeDays={dayBuckets.painFreeDays}
-                    painDaysNoTriptan={dayBuckets.painDaysNoTriptan}
-                    triptanDays={dayBuckets.triptanDays}
+                    totalDays={dayBuckets?.totalDays ?? 0}
+                    painFreeDays={dayBuckets?.painFreeDays ?? 0}
+                    painDaysNoTriptan={dayBuckets?.painDaysNoTriptan ?? 0}
+                    triptanDays={dayBuckets?.triptanDays ?? 0}
                     reportLegacySegments={ssotReport?.charts.legacyHeadacheDaysPie?.segments}
                   />
                 </Card>
@@ -405,10 +401,10 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
       >
         <div className="flex items-center justify-center h-full">
           <HeadacheDaysPie
-            totalDays={dayBuckets.totalDays}
-            painFreeDays={dayBuckets.painFreeDays}
-            painDaysNoTriptan={dayBuckets.painDaysNoTriptan}
-            triptanDays={dayBuckets.triptanDays}
+            totalDays={dayBuckets?.totalDays ?? 0}
+            painFreeDays={dayBuckets?.painFreeDays ?? 0}
+            painDaysNoTriptan={dayBuckets?.painDaysNoTriptan ?? 0}
+            triptanDays={dayBuckets?.triptanDays ?? 0}
             reportLegacySegments={ssotReport?.charts.legacyHeadacheDaysPie?.segments}
             fullscreen
           />

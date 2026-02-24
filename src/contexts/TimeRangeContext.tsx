@@ -1,8 +1,9 @@
 /**
  * Global TimeRange Context — Single Source of Truth for time range across the entire app.
  *
- * Uses consecutiveDocumentedDays (gap-free backwards from lastDocDate)
+ * Uses documentationSpanDays (firstEntryDate → yesterday, inclusive)
  * to determine which presets are available.
+ * Today is NEVER included — only fully completed days count.
  */
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import type { TimeRangePreset } from '@/components/PainApp/TimeRangeButtons';
@@ -11,7 +12,7 @@ import {
   daysBetweenInclusive,
   validatePreset,
   getDefaultPreset,
-  todayStr,
+  yesterdayStr,
 } from '@/lib/dateRange/rangeResolver';
 import { fetchFirstEntryDate } from '@/features/entries/api/documentedDates.api';
 
@@ -71,7 +72,7 @@ interface TimeRangeContextValue {
   wasClamped: boolean;
   /** First documented entry date */
   firstEntryDate: string | null;
-  /** Days from firstEntryDate to today (inclusive). SSOT for preset availability. */
+  /** Days from firstEntryDate to yesterday (inclusive). SSOT for preset availability. */
   documentationSpanDays: number;
   /** Whether the provider has finished initializing */
   isReady: boolean;
@@ -97,9 +98,9 @@ export function TimeRangeProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  // Span = days from firstEntryDate to today (inclusive)
+  // Span = days from firstEntryDate to yesterday (inclusive) — today not yet complete
   const documentationSpanDays = firstEntryDate
-    ? daysBetweenInclusive(firstEntryDate, todayStr())
+    ? daysBetweenInclusive(firstEntryDate, yesterdayStr())
     : 0;
 
   // Dev logging
@@ -128,7 +129,7 @@ export function TimeRangeProvider({ children }: { children: React.ReactNode }) {
   // Handle preset change (including custom date initialization)
   const setTimeRange = useCallback((newPreset: TimeRangePreset) => {
     if (newPreset === 'custom') {
-      const endDate = todayStr();
+      const endDate = yesterdayStr();
       setCustomTo(endDate);
       const threeMonthsAgo = new Date(endDate + 'T00:00:00');
       threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);

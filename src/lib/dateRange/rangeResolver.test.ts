@@ -3,10 +3,18 @@ import {
   getAvailablePresets,
   getDefaultPreset,
   validatePreset,
+  yesterdayStr,
+  todayStr,
 } from './rangeResolver';
 
+describe('yesterdayStr', () => {
+  it('returns a date before todayStr', () => {
+    expect(yesterdayStr() < todayStr()).toBe(true);
+  });
+});
+
 describe('getDefaultPreset', () => {
-  it('returns 3m when consecutiveDocumentedDays >= 90', () => {
+  it('returns 3m when spanDays >= 90', () => {
     expect(getDefaultPreset(100)).toBe('3m');
     expect(getDefaultPreset(90)).toBe('3m');
     expect(getDefaultPreset(365)).toBe('3m');
