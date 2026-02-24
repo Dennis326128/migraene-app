@@ -55,6 +55,12 @@ function readPersistedCustom(): { start: string; end: string } {
 
 // ─── Context Shape ─────────────────────────────────────────────────────
 
+interface OneShotRange {
+  preset: TimeRangePreset;
+  customFrom?: string;
+  customTo?: string;
+}
+
 interface TimeRangeContextValue {
   /** Current preset */
   timeRange: TimeRangePreset;
@@ -76,6 +82,8 @@ interface TimeRangeContextValue {
   documentationSpanDays: number;
   /** Whether the provider has finished initializing */
   isReady: boolean;
+  /** Apply a one-shot range override (used once, then auto-cleared) */
+  applyOneShotRange: (range: OneShotRange) => void;
 }
 
 const TimeRangeContext = createContext<TimeRangeContextValue | null>(null);
@@ -90,6 +98,9 @@ export function TimeRangeProvider({ children }: { children: React.ReactNode }) {
   const [customFrom, setCustomFrom] = useState(initCustom.start);
   const [customTo, setCustomTo] = useState(initCustom.end);
 
+  // One-shot range: applied once on next render, then cleared
+  const [pendingOneShot, setPendingOneShot] = useState<OneShotRange | null>(null);
+
   // Load first entry date once
   useEffect(() => {
     fetchFirstEntryDate().then((first) => {
@@ -97,6 +108,19 @@ export function TimeRangeProvider({ children }: { children: React.ReactNode }) {
       setIsReady(true);
     });
   }, []);
+
+  // Apply pending one-shot range
+  useEffect(() => {
+    if (!pendingOneShot || !isReady) return;
+    const { preset, customFrom: cf, customTo: ct } = pendingOneShot;
+    setTimeRangeRaw(preset);
+    if (preset === 'custom' && cf && ct) {
+      setCustomFrom(cf);
+      setCustomTo(ct);
+    }
+    setPendingOneShot(null);
+    // Don't persist one-shot to localStorage — it's temporary
+  }, [pendingOneShot, isReady]);
 
   // Span = days from firstEntryDate to yesterday (inclusive) — today not yet complete
   const documentationSpanDays = firstEntryDate
@@ -111,17 +135,16 @@ export function TimeRangeProvider({ children }: { children: React.ReactNode }) {
   // Once data is loaded: restore persisted preset if valid, else smart default.
   useEffect(() => {
     if (!isReady) return;
+    // Skip if we have a pending one-shot (it will be applied next)
+    if (pendingOneShot) return;
     const persisted = readPersistedPreset();
     if (persisted) {
-      // Persisted exists — validate it's still available
       const validated = validatePreset(persisted, documentationSpanDays);
       if (validated !== persisted) {
-        // Persisted no longer valid → clear and use smart default
         try { localStorage.removeItem(LS_KEY_PRESET); } catch { /* noop */ }
       }
       setTimeRangeRaw(validated);
     } else {
-      // No persisted value → smart default (first run)
       setTimeRangeRaw(getDefaultPreset(documentationSpanDays));
     }
   }, [isReady, documentationSpanDays]);
@@ -140,8 +163,13 @@ export function TimeRangeProvider({ children }: { children: React.ReactNode }) {
     setTimeRangeRaw(newPreset);
   }, [firstEntryDate]);
 
+  const applyOneShotRange = useCallback((range: OneShotRange) => {
+    setPendingOneShot(range);
+  }, []);
+
   // Persist to localStorage
   useEffect(() => {
+    // Don't persist if we just applied a one-shot
     try { localStorage.setItem(LS_KEY_PRESET, timeRange); } catch { /* noop */ }
   }, [timeRange]);
 
@@ -173,7 +201,8 @@ export function TimeRangeProvider({ children }: { children: React.ReactNode }) {
     firstEntryDate,
     documentationSpanDays,
     isReady,
-  }), [timeRange, setTimeRange, customFrom, customTo, from, to, wasClamped, firstEntryDate, documentationSpanDays, isReady]);
+    applyOneShotRange,
+  }), [timeRange, setTimeRange, customFrom, customTo, from, to, wasClamped, firstEntryDate, documentationSpanDays, isReady, applyOneShotRange]);
 
   return (
     <TimeRangeContext.Provider value={value}>

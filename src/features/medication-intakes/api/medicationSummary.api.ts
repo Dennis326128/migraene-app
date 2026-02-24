@@ -1,6 +1,6 @@
 /**
  * Medication Summary API
- * Aggregated overview: last intake, 7d/30d counts per medication.
+ * Aggregated overview: last intake (global), 7d/30d counts per medication.
  * Uses taken_date/taken_at as SSOT (no join to pain_entries).
  */
 
@@ -10,6 +10,7 @@ import { subDays, format } from "date-fns";
 
 export interface MedicationSummary {
   medication_name: string;
+  /** Global last intake (max taken_at across ALL time) */
   last_intake_at: string | null;
   count_7d: number;
   count_30d: number;
@@ -28,7 +29,7 @@ export function getSummaryRanges() {
 
 /**
  * Fetch aggregated medication summaries for all medications the user has taken.
- * Single efficient query approach: fetch all intakes in 30d window, aggregate client-side.
+ * Two queries: (1) 30d window for counts, (2) global last intake per medication.
  */
 export async function fetchMedicationSummaries(): Promise<MedicationSummary[]> {
   const { data: { user } } = await supabase.auth.getUser();
@@ -36,50 +37,69 @@ export async function fetchMedicationSummaries(): Promise<MedicationSummary[]> {
 
   const { effectiveToday, from7d, from30d } = getSummaryRanges();
 
-  // 1. Get all intakes in the 30d window (covers both 7d and 30d)
-  const { data: intakes, error } = await supabase
-    .from("medication_intakes")
-    .select("medication_name, taken_at, taken_date")
-    .eq("user_id", user.id)
-    .gte("taken_date", from30d)
-    .lte("taken_date", effectiveToday)
-    .order("taken_at", { ascending: false });
+  // Run both queries in parallel
+  const [windowResult, globalLastResult] = await Promise.all([
+    // 1. All intakes in the 30d window (covers both 7d and 30d counts)
+    supabase
+      .from("medication_intakes")
+      .select("medication_name, taken_at, taken_date")
+      .eq("user_id", user.id)
+      .gte("taken_date", from30d)
+      .lte("taken_date", effectiveToday)
+      .order("taken_at", { ascending: false }),
 
-  if (error) throw error;
+    // 2. Global last intake per medication (most recent per med, limit reasonable)
+    supabase
+      .from("medication_intakes")
+      .select("medication_name, taken_at")
+      .eq("user_id", user.id)
+      .order("taken_at", { ascending: false })
+      .limit(500),
+  ]);
 
-  // 2. Also get last intake globally (for meds that might not have 30d intakes)
-  // We use max(taken_at) from the 30d data; for truly global "last", we'd need another query.
-  // But since the statistics view is range-bound, 30d data is sufficient.
+  if (windowResult.error) throw windowResult.error;
+  if (globalLastResult.error) throw globalLastResult.error;
 
-  // 3. Aggregate client-side
-  const medMap = new Map<string, {
-    last_intake_at: string | null;
-    count_7d: number;
-    count_30d: number;
-  }>();
+  // Build global last map from query 2
+  const globalLastMap = new Map<string, string>();
+  for (const row of (globalLastResult.data || [])) {
+    if (!globalLastMap.has(row.medication_name)) {
+      globalLastMap.set(row.medication_name, row.taken_at!);
+    }
+  }
 
-  for (const intake of (intakes || [])) {
+  // Aggregate 30d window counts
+  const medMap = new Map<string, { count_7d: number; count_30d: number }>();
+
+  for (const intake of (windowResult.data || [])) {
     const name = intake.medication_name;
     if (!medMap.has(name)) {
-      medMap.set(name, { last_intake_at: null, count_7d: 0, count_30d: 0 });
+      medMap.set(name, { count_7d: 0, count_30d: 0 });
     }
     const entry = medMap.get(name)!;
-
-    // Last intake (first in descending order)
-    if (!entry.last_intake_at) {
-      entry.last_intake_at = intake.taken_at;
-    }
-
-    // 30d count
     entry.count_30d++;
-
-    // 7d count
-    if (intake.taken_date >= from7d) {
+    if (intake.taken_date! >= from7d) {
       entry.count_7d++;
     }
   }
 
+  // Merge: include meds from global that may not be in 30d window
+  for (const name of globalLastMap.keys()) {
+    if (!medMap.has(name)) {
+      medMap.set(name, { count_7d: 0, count_30d: 0 });
+    }
+  }
+
   return Array.from(medMap.entries())
-    .map(([medication_name, stats]) => ({ medication_name, ...stats }))
-    .sort((a, b) => b.count_30d - a.count_30d);
+    .map(([medication_name, stats]) => ({
+      medication_name,
+      last_intake_at: globalLastMap.get(medication_name) || null,
+      ...stats,
+    }))
+    .sort((a, b) => {
+      // Sort by 30d count desc, then by last intake desc
+      if (b.count_30d !== a.count_30d) return b.count_30d - a.count_30d;
+      if (a.last_intake_at && b.last_intake_at) return b.last_intake_at.localeCompare(a.last_intake_at);
+      return a.last_intake_at ? -1 : 1;
+    });
 }

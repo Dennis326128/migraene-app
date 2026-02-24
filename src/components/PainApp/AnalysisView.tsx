@@ -68,7 +68,7 @@ interface AnalysisViewProps {
   onBack: () => void;
   onNavigateToLimits?: () => void;
   onNavigateToBurden?: () => void;
-  onNavigateToMedicationHistory?: (medicationName: string) => void;
+  onNavigateToMedicationHistory?: (medicationName: string, rangeOverride?: { preset: string; from?: string; to?: string }) => void;
   onViewAIReport?: (report: AIReport) => void;
 }
 

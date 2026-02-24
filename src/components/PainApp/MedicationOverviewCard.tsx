@@ -1,7 +1,8 @@
 /**
  * MedicationOverviewCard
  * Compact clinical medication overview for Auswertung & Statistiken.
- * Shows per medication: last intake, 7d/30d counts, limit status.
+ * Shows per medication: last intake (global), 7d/30d counts, limit status.
+ * CTA deep-links to diary medication mode with correct time range.
  */
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Pill, ChevronRight, AlertTriangle } from "lucide-react";
 import { useMedicationSummary } from "@/features/medication-intakes/hooks/useMedicationSummary";
+import { getSummaryRanges } from "@/features/medication-intakes/api/medicationSummary.api";
 import { useMedicationLimits, type MedicationLimit } from "@/features/medication-limits/hooks/useMedicationLimits";
 import { useMeds } from "@/features/meds/hooks/useMeds";
 import { format } from "date-fns";
@@ -26,10 +28,9 @@ function getPeriodLabel(periodType: string): string {
 }
 
 function getUsedForPeriod(periodType: string, count7d: number, count30d: number): number {
-  // month period_type is rolling 30 days in this app
   switch (periodType) {
     case 'month': return count30d;
-    case 'week': return count7d; // approximate; week ≈ 7d
+    case 'week': return count7d;
     default: return count30d;
   }
 }
@@ -44,7 +45,7 @@ function formatLastIntake(takenAt: string): string {
 }
 
 interface MedicationOverviewCardProps {
-  onNavigateToMedicationHistory?: (medicationName: string) => void;
+  onNavigateToMedicationHistory?: (medicationName: string, rangeOverride?: { preset: string; from?: string; to?: string }) => void;
   warningThreshold?: number;
 }
 
@@ -83,6 +84,27 @@ export function MedicationOverviewCard({
     }
   }
 
+  // Compute 30d range for deep-link
+  const { effectiveToday, from30d } = getSummaryRanges();
+
+  const handleDetailsClick = (medicationName: string, count30d: number) => {
+    if (!onNavigateToMedicationHistory) return;
+
+    if (count30d > 0) {
+      // Deep-link with custom 30d range matching the overview data
+      onNavigateToMedicationHistory(medicationName, {
+        preset: 'custom',
+        from: from30d,
+        to: effectiveToday,
+      });
+    } else {
+      // No 30d data → open with "all" range
+      onNavigateToMedicationHistory(medicationName, {
+        preset: 'all',
+      });
+    }
+  };
+
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -106,12 +128,16 @@ export function MedicationOverviewCard({
             : null;
           const showWarning = limitStatus ? isWarningStatus(limitStatus) : false;
 
+          const ctaLabel = med.count_30d > 0
+            ? "Einnahmen ansehen"
+            : "Verlauf öffnen";
+
           return (
             <div
               key={med.medication_name}
               className="py-3 border-b border-border/30 last:border-0"
             >
-              {/* Header: Name + Strength + Details */}
+              {/* Header: Name + Strength + CTA */}
               <div className="flex items-start justify-between mb-1.5">
                 <div className="min-w-0 flex-1">
                   <span className="font-medium text-sm">
@@ -128,9 +154,9 @@ export function MedicationOverviewCard({
                     variant="ghost"
                     size="sm"
                     className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground shrink-0"
-                    onClick={() => onNavigateToMedicationHistory(med.medication_name)}
+                    onClick={() => handleDetailsClick(med.medication_name, med.count_30d)}
                   >
-                    Details
+                    {ctaLabel}
                     <ChevronRight className="h-3.5 w-3.5 ml-0.5" />
                   </Button>
                 )}
@@ -138,12 +164,12 @@ export function MedicationOverviewCard({
 
               {/* Stats row */}
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                {/* Last intake */}
+                {/* Last intake (global) */}
                 <span>
-                  <span className="font-medium text-foreground/70">Letzte: </span>
+                  <span className="font-medium text-foreground/70">Letzte Einnahme: </span>
                   {med.last_intake_at
                     ? formatLastIntake(med.last_intake_at)
-                    : "–"}
+                    : "Keine dokumentiert"}
                 </span>
               </div>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground mt-1">
