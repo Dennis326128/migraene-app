@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { BarChart3, Brain, AlertTriangle, Clock } from "lucide-react";
 import { AppHeader } from "@/components/ui/app-header";
-import { TimeRangeButtons, type TimeRangePreset } from "./TimeRangeButtons";
+import { TimeRangeSelector } from "./TimeRangeSelector";
 import TimeSeriesChart from "@/components/TimeSeriesChart";
 import { useEntries } from "@/features/entries/hooks/useEntries";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,41 +28,8 @@ import { supabase } from "@/lib/supabaseClient";
 import { useQuery } from "@tanstack/react-query";
 import { useSymptomBurdens } from "@/features/symptoms/hooks/useSymptomBurden";
 import { getMeCfsTrackingStartDate, filterEntriesForMeCfs } from "@/lib/mecfs/trackingStart";
-import {
-  computeEffectiveDateRange,
-  getDocumentationSpanDays,
-  getDocumentedDays,
-  validatePreset,
-} from "@/lib/dateRange/rangeResolver";
-import { getFirstEntryDate } from "@/features/entries/api/entries.api";
-
-// Session storage keys
-const SESSION_KEY_PRESET = "stats_timeRange_preset";
-const SESSION_KEY_CUSTOM_START = "stats_timeRange_customStart";
-const SESSION_KEY_CUSTOM_END = "stats_timeRange_customEnd";
-
-const VALID_PRESETS: TimeRangePreset[] = ["1m", "3m", "6m", "12m", "all", "custom"];
-
-function getInitialTimeRange(): TimeRangePreset {
-  try {
-    const stored = sessionStorage.getItem(SESSION_KEY_PRESET);
-    if (stored && VALID_PRESETS.includes(stored as TimeRangePreset)) {
-      return stored as TimeRangePreset;
-    }
-  } catch { /* noop */ }
-  return "all";
-}
-
-function getInitialCustomDates(): { start: string; end: string } {
-  try {
-    return {
-      start: sessionStorage.getItem(SESSION_KEY_CUSTOM_START) || "",
-      end: sessionStorage.getItem(SESSION_KEY_CUSTOM_END) || "",
-    };
-  } catch {
-    return { start: "", end: "" };
-  }
-}
+import { getDocumentedDays } from "@/lib/dateRange/rangeResolver";
+import { useTimeRange } from "@/contexts/TimeRangeContext";
 
 /** Fetch entry_symptoms with symptom names for a set of entry IDs */
 function useEntrySymptomsBulk(entryIds: number[]) {
@@ -104,12 +71,8 @@ interface AnalysisViewProps {
 }
 
 export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, onViewAIReport }: AnalysisViewProps) {
-  // Time range state
-  const [timeRange, setTimeRange] = useState<TimeRangePreset>(getInitialTimeRange);
-  const initialCustom = getInitialCustomDates();
-  const [customFrom, setCustomFrom] = useState(initialCustom.start);
-  const [customTo, setCustomTo] = useState(initialCustom.end);
-  const [firstEntryDate, setFirstEntryDate] = useState<string | null>(null);
+  // Global time range (Single Source of Truth)
+  const { timeRange, setTimeRange, from, to, wasClamped, firstEntryDate, documentationSpanDays } = useTimeRange();
 
   // View mode
   const [viewMode, setViewMode] = useState<"statistik" | "ki-analyse">("statistik");
@@ -128,61 +91,6 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
   // User settings
   const { data: userDefaults } = useUserDefaults();
   const warningThreshold = userDefaults?.medication_limit_warning_threshold_pct ?? 80;
-
-  // Load firstEntryDate once
-  useEffect(() => {
-    getFirstEntryDate().then(setFirstEntryDate);
-  }, []);
-
-  // Documentation span for dynamic presets
-  const documentationSpanDays = useMemo(
-    () => getDocumentationSpanDays(firstEntryDate),
-    [firstEntryDate]
-  );
-
-  // Validate preset against available span
-  useEffect(() => {
-    if (firstEntryDate) {
-      const validated = validatePreset(timeRange, documentationSpanDays);
-      if (validated !== timeRange) {
-        setTimeRange(validated);
-      }
-    }
-  }, [firstEntryDate, documentationSpanDays]);
-
-  // Persist timeRange
-  useEffect(() => {
-    try { sessionStorage.setItem(SESSION_KEY_PRESET, timeRange); } catch { /* noop */ }
-  }, [timeRange]);
-
-  useEffect(() => {
-    try {
-      if (timeRange === "custom") {
-        sessionStorage.setItem(SESSION_KEY_CUSTOM_START, customFrom);
-        sessionStorage.setItem(SESSION_KEY_CUSTOM_END, customTo);
-      }
-    } catch { /* noop */ }
-  }, [timeRange, customFrom, customTo]);
-
-  const handleTimeRangeChange = (newRange: TimeRangePreset) => {
-    if (newRange === "custom") {
-      const now = new Date();
-      const todayS = now.toISOString().split('T')[0];
-      setCustomTo(todayS);
-      const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
-      let startStr = threeMonthsAgo.toISOString().split('T')[0];
-      // Clamp to firstEntryDate
-      if (firstEntryDate && startStr < firstEntryDate) startStr = firstEntryDate;
-      setCustomFrom(startStr);
-    }
-    setTimeRange(newRange);
-  };
-
-  // Compute effective range (clamped)
-  const { from, to, wasClamped } = useMemo(
-    () => computeEffectiveDateRange(timeRange, firstEntryDate, { customFrom, customTo }),
-    [timeRange, firstEntryDate, customFrom, customTo]
-  );
 
   // Entries
   const entriesLimit = timeRange === "all" ? 5000 : 1000;
@@ -308,8 +216,6 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
 
   const { data: timeDistribution = [] } = useTimeDistribution({ from, to });
 
-  // Today string for date input max
-  const todayS = useMemo(() => new Date().toISOString().split('T')[0], []);
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -342,42 +248,7 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
                 <CardTitle className="text-base">Zeitraum</CardTitle>
               </CardHeader>
               <CardContent className="pt-0">
-                <TimeRangeButtons
-                  value={timeRange}
-                  onChange={handleTimeRangeChange}
-                  documentationSpanDays={documentationSpanDays}
-                />
-                {timeRange === "custom" && (
-                  <div className="grid grid-cols-2 gap-4 mt-4">
-                    <div>
-                      <label className="text-sm font-medium">Von</label>
-                      <input
-                        type="date"
-                        value={customFrom}
-                        min={firstEntryDate || undefined}
-                        max={customTo || todayS}
-                        onChange={(e) => setCustomFrom(e.target.value)}
-                        className="w-full mt-1 px-3 py-2 bg-background border border-input rounded-md"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium">Bis</label>
-                      <input
-                        type="date"
-                        value={customTo}
-                        min={customFrom || firstEntryDate || undefined}
-                        max={todayS}
-                        onChange={(e) => setCustomTo(e.target.value)}
-                        className="w-full mt-1 px-3 py-2 bg-background border border-input rounded-md"
-                      />
-                    </div>
-                  </div>
-                )}
-                {wasClamped && (
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Zeitraum wurde an verfügbare Daten angepasst.
-                  </p>
-                )}
+                <TimeRangeSelector />
               </CardContent>
             </Card>
 
@@ -530,7 +401,7 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
         onOpenChange={setPieFullscreen}
         title="Kopfschmerz- & Behandlungstage"
         timeRange={timeRange}
-        onTimeRangeChange={handleTimeRangeChange}
+        onTimeRangeChange={setTimeRange}
       >
         <div className="flex items-center justify-center h-full">
           <HeadacheDaysPie
@@ -549,7 +420,7 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
         onOpenChange={setTimeDistributionFullscreen}
         title="Tageszeit-Verteilung"
         timeRange={timeRange}
-        onTimeRangeChange={handleTimeRangeChange}
+        onTimeRangeChange={setTimeRange}
       >
         <div className="h-full min-h-[400px]">
           <TimeDistributionChart data={timeDistribution} />
@@ -561,7 +432,7 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
         onOpenChange={setTimeSeriesFullscreen}
         title="Schmerz- & Wetterverlauf"
         timeRange={timeRange}
-        onTimeRangeChange={handleTimeRangeChange}
+        onTimeRangeChange={setTimeRange}
       >
         <div className="h-full min-h-[400px]">
           <TimeSeriesChart entries={filteredEntries} dateRange={{ from, to }} />

@@ -4,16 +4,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Brain, Loader2, Calendar as CalendarIcon, RefreshCw, ChevronDown, ChevronRight, Activity, Cloud, Pill, Database, Clock, Tag, Info, FileText, TrendingUp, Sparkles, ExternalLink, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { subMonths, format } from 'date-fns';
+import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { logError } from '@/lib/utils/errorMessages';
+import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { formatDateRangeDE, formatDateDE, formatNumberSmart, formatLastUpdated } from '@/lib/formatters';
+import { TimeRangeSelector } from './TimeRangeSelector';
 import { useAIReports, useDeleteAIReport, type AIReport } from '@/features/ai-reports';
 import { DeleteConfirmation } from '@/components/ui/delete-confirmation';
 import { toast } from 'sonner';
@@ -512,11 +512,8 @@ export function VoiceNotesAIAnalysis({ onViewReport }: VoiceNotesAIAnalysisProps
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [analysisError, setAnalysisError] = useState<AnalysisErrorState | null>(null);
-  const [dateRange, setDateRange] = useState<{from: Date, to: Date}>({
-    from: subMonths(new Date(), 3),
-    to: new Date()
-  });
-  const [isLoadingFirstEntry, setIsLoadingFirstEntry] = useState(false);
+  const { from, to } = useTimeRange();
+  const dateRange = { from: new Date(from + 'T00:00:00'), to: new Date(to + 'T23:59:59') };
   const [lastAnalysisTime, setLastAnalysisTime] = useState<Date | null>(null);
   const [buttonCooldown, setButtonCooldown] = useState(0);
 
@@ -531,43 +528,7 @@ export function VoiceNotesAIAnalysis({ onViewReport }: VoiceNotesAIAnalysisProps
   // Get quota display info
   const quotaInfo = analysisResult?.quota || analysisError?.quota;
 
-  const loadFirstEntryDate = async () => {
-    setIsLoadingFirstEntry(true);
-    try {
-      const { data: oldestEntry } = await supabase
-        .from('pain_entries')
-        .select('timestamp_created, selected_date')
-        .order('timestamp_created', { ascending: true })
-        .limit(1)
-        .single();
-
-      const { data: oldestVoiceNote } = await supabase
-        .from('voice_notes')
-        .select('occurred_at')
-        .order('occurred_at', { ascending: true })
-        .limit(1)
-        .single();
-
-      let earliestDate = new Date();
-      
-      if (oldestEntry) {
-        const entryDate = new Date(oldestEntry.selected_date || oldestEntry.timestamp_created);
-        if (entryDate < earliestDate) earliestDate = entryDate;
-      }
-
-      if (oldestVoiceNote) {
-        const voiceNoteDate = new Date(oldestVoiceNote.occurred_at);
-        if (voiceNoteDate < earliestDate) earliestDate = voiceNoteDate;
-      }
-
-      setDateRange({ from: earliestDate, to: new Date() });
-    } catch (error) {
-      logError('VoiceNotesAIAnalysis.loadFirstEntryDate', error);
-      // Silently fail - user can still manually select dates
-    } finally {
-      setIsLoadingFirstEntry(false);
-    }
-  };
+  // loadFirstEntryDate removed — uses global TimeRangeProvider
 
   /**
    * Handles all error scenarios and sets user-friendly error state.
@@ -666,8 +627,7 @@ export function VoiceNotesAIAnalysis({ onViewReport }: VoiceNotesAIAnalysisProps
     runAnalysis();
   };
 
-  // Format the currently selected date range for display
-  const formattedCurrentRange = formatDateRangeDE(dateRange.from, dateRange.to);
+  // formattedCurrentRange removed — TimeRangeSelector handles display
 
   // Check if quota is exhausted
   const isQuotaExhausted = quotaInfo && !quotaInfo.isUnlimited && quotaInfo.remaining <= 0;
@@ -697,75 +657,10 @@ export function VoiceNotesAIAnalysis({ onViewReport }: VoiceNotesAIAnalysisProps
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Date Range Selection */}
+          {/* Date Range Selection — unified TimeRangeSelector */}
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label>Zeitraum</Label>
-              <span className="text-sm text-muted-foreground">{formattedCurrentRange}</span>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground">Von</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !dateRange.from && "text-muted-foreground")}>
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {formatDateDE(dateRange.from)}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={dateRange.from}
-                      onSelect={(d) => d && setDateRange(prev => ({ ...prev, from: d }))}
-                      locale={de}
-                      disabled={(date) => date > dateRange.to}
-                      initialFocus
-                      className="pointer-events-auto"
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-              
-              <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground">Bis</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !dateRange.to && "text-muted-foreground")}>
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {formatDateDE(dateRange.to)}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={dateRange.to}
-                      onSelect={(d) => d && setDateRange(prev => ({ ...prev, to: d }))}
-                      locale={de}
-                      disabled={(date) => date < dateRange.from || date > new Date()}
-                      initialFocus
-                      className="pointer-events-auto"
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-            </div>
-
-            {/* Quick Select Buttons */}
-            <div className="flex gap-2 flex-wrap">
-              <Button size="sm" variant="outline" onClick={() => setDateRange({ from: subMonths(new Date(), 1), to: new Date() })}>
-                Letzter Monat
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => setDateRange({ from: subMonths(new Date(), 3), to: new Date() })}>
-                3 Monate
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => setDateRange({ from: subMonths(new Date(), 12), to: new Date() })}>
-                1 Jahr
-              </Button>
-              <Button size="sm" variant="outline" onClick={loadFirstEntryDate} disabled={isLoadingFirstEntry}>
-                {isLoadingFirstEntry ? <><Loader2 className="h-3 w-3 animate-spin mr-1" /> Lade...</> : 'Alle Daten'}
-              </Button>
-            </div>
+            <Label>Zeitraum</Label>
+            <TimeRangeSelector />
           </div>
 
           {/* User-friendly Error Display */}

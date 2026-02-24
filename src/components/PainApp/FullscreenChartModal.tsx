@@ -3,14 +3,17 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Maximize2 } from "lucide-react";
 import { AppHeader } from "@/components/ui/app-header";
-import { TimeRangeButtons, type TimeRangePreset } from "./TimeRangeButtons";
+import { TimeRangeSelector } from "./TimeRangeSelector";
+import type { TimeRangePreset } from "./TimeRangeButtons";
 
 interface FullscreenChartModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
   children: React.ReactNode;
+  /** @deprecated — kept for backwards compat but TimeRangeSelector uses global context */
   timeRange?: TimeRangePreset;
+  /** @deprecated */
   onTimeRangeChange?: (range: TimeRangePreset) => void;
 }
 
@@ -57,10 +60,10 @@ export function FullscreenChartModal({
           className="border-b border-border shrink-0"
         />
 
-        {/* Time range controls */}
-        {timeRange && onTimeRangeChange && (
+        {/* Time range controls — uses global context */}
+        {(timeRange || onTimeRangeChange) && (
           <div className="px-4 py-2 border-b border-border shrink-0">
-            <TimeRangeButtons value={timeRange} onChange={onTimeRangeChange} />
+            <TimeRangeSelector />
           </div>
         )}
 

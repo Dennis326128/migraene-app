@@ -1,4 +1,5 @@
 import React, { useState, useEffect, Suspense } from "react";
+import { TimeRangeProvider } from "@/contexts/TimeRangeContext";
 import { NewEntry } from "./NewEntry";
 import { EntriesList } from "./EntriesList";
 import { MainMenu } from "./MainMenu";
@@ -121,6 +122,7 @@ export const PainApp: React.FC = () => {
   );
 
   return (
+    <TimeRangeProvider>
     <div className="min-h-screen">
       {/* Global Components */}
       <MedicalDisclaimerAlert />
@@ -445,6 +447,7 @@ export const PainApp: React.FC = () => {
         onOpenChange={setDueRemindersOpen}
       />
     </div>
+    </TimeRangeProvider>
   );
 };
 export default PainApp;

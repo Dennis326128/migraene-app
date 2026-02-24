@@ -24,11 +24,11 @@ import { showSuccessToast, showErrorToast } from '@/lib/toastHelpers';
 import type { ContextMetadata } from '@/lib/voice/saveNote';
 import { CalendarView } from '@/features/diary/calendar';
 import { normalizePainLevel } from '@/lib/utils/pain';
-import { TimeRangeButtons, type TimeRangePreset } from './TimeRangeButtons';
+import { TimeRangeSelector } from './TimeRangeSelector';
 import { computeDiaryDayBuckets } from '@/lib/diary/dayBuckets';
 import { HeadacheDaysPie } from '@/components/diary/HeadacheDaysPie';
 import { startOfDay, endOfDay } from 'date-fns';
-import { computeDateRange } from '@/lib/dateRange';
+import { useTimeRange } from '@/contexts/TimeRangeContext';
 
 // Helper: Filtert technische/ungültige Wetterbedingungen
 const isValidWeatherCondition = (text: string | null | undefined): boolean => {
@@ -124,23 +124,7 @@ function CompactKPISummary({ entries }: { entries: any[] }) {
 
 // Pie Chart section with time range selector for DiaryTimeline
 function DiaryTimelinePieSection({ entries }: { entries: any[] }) {
-  const [timeRange, setTimeRange] = useState<TimeRangePreset>("3m");
-  const [customFrom, setCustomFrom] = useState("");
-  const [customTo, setCustomTo] = useState("");
-
-  const handleTimeRangeChange = (newRange: TimeRangePreset) => {
-    if (newRange === "custom") {
-      const now = new Date();
-      setCustomTo(now.toISOString().split('T')[0]);
-      const from89 = new Date(now); from89.setDate(from89.getDate() - 89);
-      setCustomFrom(from89.toISOString().split('T')[0]);
-    }
-    setTimeRange(newRange);
-  };
-
-  const { from, to } = useMemo(() => {
-    return computeDateRange(timeRange, { customFrom, customTo });
-  }, [timeRange, customFrom, customTo]);
+  const { from, to } = useTimeRange();
 
   const filteredEntries = useMemo(() => {
     return entries.filter(entry => {
@@ -157,21 +141,7 @@ function DiaryTimelinePieSection({ entries }: { entries: any[] }) {
     <div className="max-w-4xl mx-auto px-4 pt-4 space-y-3">
       <Card>
         <CardContent className="pt-4 pb-3">
-          <TimeRangeButtons value={timeRange} onChange={handleTimeRangeChange} />
-          {timeRange === "custom" && (
-            <div className="grid grid-cols-2 gap-4 mt-3">
-              <div>
-                <label className="text-sm font-medium">Von</label>
-                <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)}
-                  className="w-full mt-1 px-3 py-2 bg-background border border-input rounded-md text-sm" />
-              </div>
-              <div>
-                <label className="text-sm font-medium">Bis</label>
-                <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)}
-                  className="w-full mt-1 px-3 py-2 bg-background border border-input rounded-md text-sm" />
-              </div>
-            </div>
-          )}
+          <TimeRangeSelector />
         </CardContent>
       </Card>
       {filteredEntries.length > 0 && (
