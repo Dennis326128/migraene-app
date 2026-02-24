@@ -24,11 +24,7 @@ import { showSuccessToast, showErrorToast } from '@/lib/toastHelpers';
 import type { ContextMetadata } from '@/lib/voice/saveNote';
 import { CalendarView } from '@/features/diary/calendar';
 import { normalizePainLevel } from '@/lib/utils/pain';
-import { TimeRangeSelector } from './TimeRangeSelector';
-import { useHeadacheTreatmentDays } from '@/lib/analytics/headacheDays';
-import { HeadacheDaysPie } from '@/components/diary/HeadacheDaysPie';
-import { startOfDay, endOfDay } from 'date-fns';
-import { useTimeRange } from '@/contexts/TimeRangeContext';
+import { MedicationHistoryView } from '@/components/diary/MedicationHistoryView';
 
 // Helper: Filtert technische/ungültige Wetterbedingungen
 const isValidWeatherCondition = (text: string | null | undefined): boolean => {
@@ -122,31 +118,6 @@ function CompactKPISummary({ entries }: { entries: any[] }) {
   );
 }
 
-// Pie Chart section — uses central SSOT hook
-function DiaryTimelinePieSection() {
-  const { data: dayBuckets } = useHeadacheTreatmentDays();
-
-  return (
-    <div className="max-w-4xl mx-auto px-4 pt-4 space-y-3">
-      <Card>
-        <CardContent className="pt-4 pb-3">
-          <TimeRangeSelector />
-        </CardContent>
-      </Card>
-      {dayBuckets && dayBuckets.totalDays > 0 && (
-        <Card className="p-4">
-          <h3 className="text-sm font-semibold text-muted-foreground mb-3">Tagesverteilung</h3>
-          <HeadacheDaysPie
-            totalDays={dayBuckets.totalDays}
-            painFreeDays={dayBuckets.painFreeDays}
-            painDaysNoTriptan={dayBuckets.painDaysNoTriptan}
-            triptanDays={dayBuckets.triptanDays}
-          />
-        </Card>
-      )}
-    </div>
-  );
-}
 interface DiaryTimelineProps {
   onBack: () => void;
   onNavigate?: (target: 'diary-report') => void;
@@ -168,7 +139,8 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
   const { t } = useTranslation();
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
-  const [filterType, setFilterType] = useState<'all' | 'pain_entry' | 'context_note'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'pain_entry' | 'context_note' | 'medication'>('all');
+  const [selectedMedication, setSelectedMedication] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>(() => {
     const saved = localStorage.getItem(DIARY_VIEW_MODE_KEY);
     return (saved === 'list' || saved === 'calendar') ? saved : 'list';
@@ -491,8 +463,6 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
         </div>
       </div>
 
-      {/* Time Range + Pie Chart */}
-      <DiaryTimelinePieSection />
 
       <div className={cn("max-w-4xl mx-auto p-4 space-y-4", isMobile && "px-3")}>
 
@@ -508,7 +478,7 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
                 type="single" 
                 value={filterType} 
                 onValueChange={(value) => value && setFilterType(value as typeof filterType)}
-                className="justify-start"
+                className="justify-start flex-wrap"
               >
                 <ToggleGroupItem value="all" className="flex-1">
                   {t('diary.all')} ({timelineItems.length})
@@ -519,9 +489,21 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
                 <ToggleGroupItem value="context_note" className="flex-1">
                   {t('diary.context')} ({contextNotes.length})
                 </ToggleGroupItem>
+                <ToggleGroupItem value="medication" className="flex-1">
+                  <Pill className="h-3.5 w-3.5 mr-1" />
+                  Medikamente
+                </ToggleGroupItem>
               </ToggleGroup>
             </CardContent>
           </Card>
+        )}
+
+        {/* Medication History View */}
+        {viewMode === 'list' && filterType === 'medication' && (
+          <MedicationHistoryView
+            selectedMedication={selectedMedication}
+            onSelectMedication={setSelectedMedication}
+          />
         )}
 
         {/* Calendar View */}
@@ -536,8 +518,8 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
           />
         )}
 
-        {/* List View / Timeline */}
-        {viewMode === 'list' && (
+        {/* List View / Timeline (hidden when medication filter is active) */}
+        {viewMode === 'list' && filterType !== 'medication' && (
           <>
             {isLoading ? (
               <div className="text-center py-8 text-muted-foreground">Lädt...</div>
@@ -827,7 +809,7 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
       </div>
 
       {/* Mehr laden Button */}
-      {hasMore && !loadingEntries && !loadingNotes && (
+      {hasMore && !loadingEntries && !loadingNotes && filterType !== 'medication' && (
         <div className="flex justify-center py-8">
           <Button 
             variant="outline" 
