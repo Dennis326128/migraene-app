@@ -1,20 +1,24 @@
 /**
  * MedicationHistoryView
  * Shows medication selection, 30-day count, and paginated intake list.
+ * List is filtered by global TimeRange. Dose is always shown.
+ * Uses taken_at/taken_date for correct event time display.
  */
 
-import React, { useEffect } from "react";
+import React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Pill, ArrowDown, CalendarIcon } from "lucide-react";
-import { format } from "date-fns";
+import { Pill, ArrowDown, Loader2 } from "lucide-react";
+import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
 import { toZonedTime } from "date-fns-tz";
 import { useMeds } from "@/features/meds/hooks/useMeds";
 import { useMedicationHistory } from "@/features/medication-intakes/hooks/useMedicationHistory";
+import { useTimeRange } from "@/contexts/TimeRangeContext";
+import { formatDoseWithUnit } from "@/lib/utils/doseFormatter";
 import { cn } from "@/lib/utils";
 
 interface MedicationHistoryViewProps {
@@ -27,39 +31,34 @@ export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
   onSelectMedication,
 }) => {
   const { data: allMeds = [] } = useMeds();
+  const { from: rangeFrom, to: rangeTo } = useTimeRange();
+
   const {
     items,
     totalCount,
     hasMore,
     loadMore,
-    resetPagination,
     isLoading,
+    isFetchingMore,
     last30DaysCount,
     last30From,
     last30To,
     effectiveToday,
-    visibleCount,
-  } = useMedicationHistory(selectedMedication);
+    offset,
+    rangeFrom: usedFrom,
+    rangeTo: usedTo,
+  } = useMedicationHistory(selectedMedication, rangeFrom, rangeTo);
 
-  // Reset pagination when medication changes
-  useEffect(() => {
-    resetPagination();
-  }, [selectedMedication, resetPagination]);
-
-  // Build sorted medication list (alphabetical, active first)
+  // Build sorted medication list (active first, then alphabetical)
   const medicationOptions = React.useMemo(() => {
-    const sorted = [...allMeds].sort((a, b) => {
-      // Active first
+    return [...allMeds].sort((a, b) => {
       if (a.is_active && !b.is_active) return -1;
       if (!a.is_active && b.is_active) return 1;
       return a.name.localeCompare(b.name, "de");
     });
-    return sorted;
   }, [allMeds]);
 
-  const selectedMedData = allMeds.find(
-    (m) => m.name === selectedMedication
-  );
+  const selectedMedData = allMeds.find((m) => m.name === selectedMedication);
 
   return (
     <div className="space-y-3">
@@ -117,11 +116,9 @@ export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
                     Letzte 30 Tage
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className="text-base font-semibold px-3 py-1">
-                    {last30DaysCount}×
-                  </Badge>
-                </div>
+                <Badge variant="secondary" className="text-base font-semibold px-3 py-1">
+                  {last30DaysCount}×
+                </Badge>
               </div>
             </CardContent>
           </Card>
@@ -138,10 +135,11 @@ export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
           ) : (
             <div className="space-y-1.5">
               {items.map((intake) => {
-                const ts = intake.timestamp_created || intake.created_at;
-                const berlinTime = toZonedTime(new Date(ts), "Europe/Berlin");
+                // Use taken_at for display (already backfilled correctly)
+                const berlinTime = toZonedTime(new Date(intake.taken_at), "Europe/Berlin");
                 const dateStr = format(berlinTime, "EEEE, d. MMMM yyyy", { locale: de });
                 const timeStr = format(berlinTime, "HH:mm");
+                const doseLabel = formatDoseWithUnit(intake.dose_quarters);
 
                 return (
                   <Card key={intake.id} className="hover:bg-accent/5 transition-colors">
@@ -150,11 +148,9 @@ export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
                         <span className="text-sm font-medium capitalize">{dateStr}</span>
                         <span className="text-sm text-muted-foreground ml-2">– {timeStr}</span>
                       </div>
-                      {intake.dose_quarters !== 4 && (
-                        <Badge variant="outline" className="text-xs">
-                          {intake.dose_quarters / 4} Tbl.
-                        </Badge>
-                      )}
+                      <Badge variant="outline" className="text-xs shrink-0 ml-2">
+                        {doseLabel}
+                      </Badge>
                     </CardContent>
                   </Card>
                 );
@@ -168,9 +164,14 @@ export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
               <Button
                 variant="outline"
                 onClick={loadMore}
+                disabled={isFetchingMore}
                 className="gap-2"
               >
-                <ArrowDown className="h-4 w-4" />
+                {isFetchingMore ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ArrowDown className="h-4 w-4" />
+                )}
                 Mehr anzeigen ({totalCount - items.length} weitere)
               </Button>
             </div>
@@ -180,10 +181,12 @@ export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
           {import.meta.env.DEV && (
             <div className="text-[10px] text-muted-foreground/50 p-2 font-mono space-y-0.5">
               <div>effectiveToday: {effectiveToday}</div>
-              <div>last30From: {last30From}</div>
+              <div>timeRange: {usedFrom} → {usedTo}</div>
+              <div>last30: {last30From} → {last30To}</div>
               <div>totalCount: {totalCount}</div>
-              <div>pageSize: 10 | loadedCount: {items.length}</div>
-              <div>last30DaysCount: {last30DaysCount}</div>
+              <div>loadedCount: {items.length}</div>
+              <div>offset: {offset}</div>
+              <div>count30d: {last30DaysCount}</div>
             </div>
           )}
         </>

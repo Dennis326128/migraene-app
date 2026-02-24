@@ -680,6 +680,9 @@ export type Database = {
           id: string
           medication_id: string | null
           medication_name: string
+          taken_at: string | null
+          taken_date: string | null
+          taken_time: string | null
           updated_at: string
           user_id: string
         }
@@ -690,6 +693,9 @@ export type Database = {
           id?: string
           medication_id?: string | null
           medication_name: string
+          taken_at?: string | null
+          taken_date?: string | null
+          taken_time?: string | null
           updated_at?: string
           user_id: string
         }
@@ -700,6 +706,9 @@ export type Database = {
           id?: string
           medication_id?: string | null
           medication_name?: string
+          taken_at?: string | null
+          taken_date?: string | null
+          taken_time?: string | null
           updated_at?: string
           user_id?: string
         }
