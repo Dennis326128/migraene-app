@@ -31,17 +31,18 @@ export function TimeRangeSelector({
     setCustomTo,
     wasClamped,
     firstEntryDate,
-    documentationSpanDays,
+    lastDocDate,
+    consecutiveDocumentedDays,
   } = useTimeRange();
 
-  const todayS = todayStr();
+  const maxDate = lastDocDate || todayStr();
 
   return (
     <div className={className}>
       <TimeRangeButtons
         value={timeRange}
         onChange={setTimeRange}
-        documentationSpanDays={documentationSpanDays}
+        documentationSpanDays={consecutiveDocumentedDays}
         compact={compact}
       />
 
@@ -53,7 +54,7 @@ export function TimeRangeSelector({
               type="date"
               value={customFrom}
               min={firstEntryDate || undefined}
-              max={customTo || todayS}
+              max={customTo || maxDate}
               onChange={(e) => setCustomFrom(e.target.value)}
               className="w-full mt-1 px-3 py-2 bg-background border border-input rounded-md text-sm"
             />
@@ -64,7 +65,7 @@ export function TimeRangeSelector({
               type="date"
               value={customTo}
               min={customFrom || firstEntryDate || undefined}
-              max={todayS}
+              max={maxDate}
               onChange={(e) => setCustomTo(e.target.value)}
               className="w-full mt-1 px-3 py-2 bg-background border border-input rounded-md text-sm"
             />
