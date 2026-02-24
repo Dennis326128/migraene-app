@@ -12,6 +12,7 @@ import { AccompanyingSymptomsCard } from "./AccompanyingSymptomsCard";
 import { MeCfsStatisticsCard } from "./MeCfsStatisticsCard";
 import { MeCfsCorrelationCard } from "./MeCfsCorrelationCard";
 import { VoiceNotesAIAnalysis } from "./VoiceNotesAIAnalysis";
+import { MedicationOverviewCard } from "./MedicationOverviewCard";
 import { useTimeDistribution } from "@/features/statistics/hooks/useStatistics";
 import { useMedicationEffectsForEntries } from "@/features/medication-effects/hooks/useMedicationEffects";
 import { useMedicationLimits } from "@/features/medication-limits/hooks/useMedicationLimits";
@@ -67,10 +68,11 @@ interface AnalysisViewProps {
   onBack: () => void;
   onNavigateToLimits?: () => void;
   onNavigateToBurden?: () => void;
+  onNavigateToMedicationHistory?: (medicationName: string) => void;
   onViewAIReport?: (report: AIReport) => void;
 }
 
-export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, onViewAIReport }: AnalysisViewProps) {
+export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, onNavigateToMedicationHistory, onViewAIReport }: AnalysisViewProps) {
   // Global time range (Single Source of Truth)
   const { timeRange, setTimeRange, from, to, wasClamped, firstEntryDate, documentationSpanDays } = useTimeRange();
 
@@ -309,6 +311,12 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
                     onNavigateToLimits,
                     warningThreshold
                   }}
+                />
+
+                {/* Medikamenten-Übersicht (7/30 Tage + Limit + Deep-Link) */}
+                <MedicationOverviewCard
+                  onNavigateToMedicationHistory={onNavigateToMedicationHistory}
+                  warningThreshold={warningThreshold}
                 />
 
                 {/* 3. Begleitsymptome */}

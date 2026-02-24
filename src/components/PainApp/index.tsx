@@ -60,6 +60,7 @@ export const PainApp: React.FC = () => {
   const [diaryReportOrigin, setDiaryReportOrigin] = useState<DiaryReportOrigin>(null);
   const [doctorsOrigin, setDoctorsOrigin] = useState<DoctorsOrigin>(null);
   const [selectedAIReport, setSelectedAIReport] = useState<AIReport | null>(null);
+  const [diaryInitialMedication, setDiaryInitialMedication] = useState<string | null>(null);
   const { needsOnboarding, isLoading, completeOnboarding } = useOnboarding();
   const { 
     showTutorial, 
@@ -204,6 +205,10 @@ export const PainApp: React.FC = () => {
         <LazyAnalysisView 
           onBack={goHome}
           onNavigateToLimits={handleNavigateToLimits}
+          onNavigateToMedicationHistory={(medicationName) => {
+            setDiaryInitialMedication(medicationName);
+            setView('diary-timeline');
+          }}
           onViewAIReport={(report) => {
             setSelectedAIReport(report);
             setView('ai-report-detail');
@@ -261,7 +266,8 @@ export const PainApp: React.FC = () => {
 
       {view === "diary-timeline" && withSuspense(
         <LazyDiaryTimeline 
-          onBack={goHome} 
+          onBack={() => { setDiaryInitialMedication(null); goHome(); }}
+          initialMedication={diaryInitialMedication}
           onNavigate={(target) => {
             if (target === 'diary-report') {
               setDiaryReportOrigin('diary-timeline');
