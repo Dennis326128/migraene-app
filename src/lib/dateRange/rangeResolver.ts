@@ -36,11 +36,38 @@ export function todayStr(): string {
 }
 
 /**
- * How many calendar days of documentation the user has.
+ * How many calendar days of documentation the user has (span-based, legacy).
+ * @deprecated Use computeConsecutiveDocumentedDays for preset availability.
  */
 export function getDocumentationSpanDays(firstEntryDate: string | null): number {
   if (!firstEntryDate) return 0;
   return daysBetweenInclusive(firstEntryDate, todayStr());
+}
+
+/**
+ * Compute the number of consecutively documented days counting backwards
+ * from lastDocDate. A day is "documented" if it exists in the Set.
+ */
+export function computeConsecutiveDocumentedDays(
+  documentedDatesSet: Set<string>,
+  lastDocDate: string | null
+): number {
+  if (!lastDocDate || documentedDatesSet.size === 0) return 0;
+  
+  let count = 0;
+  const cursor = new Date(lastDocDate + 'T00:00:00');
+  if (isNaN(cursor.getTime())) return 0;
+
+  while (true) {
+    const dateStr = cursor.toISOString().split('T')[0];
+    if (!documentedDatesSet.has(dateStr)) break;
+    count++;
+    cursor.setDate(cursor.getDate() - 1);
+    // Safety: don't loop more than 400 days
+    if (count > 400) break;
+  }
+
+  return count;
 }
 
 /**
