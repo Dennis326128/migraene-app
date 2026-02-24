@@ -25,6 +25,7 @@ import type { ContextMetadata } from '@/lib/voice/saveNote';
 import { CalendarView } from '@/features/diary/calendar';
 import { normalizePainLevel } from '@/lib/utils/pain';
 import { MedicationHistoryView } from '@/components/diary/MedicationHistoryView';
+import { useTimeRange } from '@/contexts/TimeRangeContext';
 
 // Helper: Filtert technische/ungültige Wetterbedingungen
 const isValidWeatherCondition = (text: string | null | undefined): boolean => {
@@ -124,6 +125,8 @@ interface DiaryTimelineProps {
   onEdit?: (entry: MigraineEntry) => void;
   /** Deep-link: pre-select medication mode with this medication */
   initialMedication?: string | null;
+  /** Deep-link: one-shot range override from statistics */
+  initialRangeOverride?: { preset: string; from?: string; to?: string } | null;
 }
 
 type TimelineItemType = {
@@ -137,16 +140,30 @@ type TimelineItemType = {
 
 const DIARY_VIEW_MODE_KEY = 'diaryViewMode';
 
-export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate, onEdit, initialMedication }) => {
+export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate, onEdit, initialMedication, initialRangeOverride }) => {
   const { t } = useTranslation();
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
+  const { applyOneShotRange } = useTimeRange();
   const [filterType, setFilterType] = useState<'all' | 'pain_entry' | 'context_note' | 'medication'>(initialMedication ? 'medication' : 'all');
   const [selectedMedication, setSelectedMedication] = useState<string | null>(initialMedication ?? null);
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>(() => {
+    // Force list mode when deep-linking to medication
+    if (initialMedication) return 'list';
     const saved = localStorage.getItem(DIARY_VIEW_MODE_KEY);
     return (saved === 'list' || saved === 'calendar') ? saved : 'list';
   });
+
+  // Apply one-shot range override from statistics deep-link
+  useEffect(() => {
+    if (initialRangeOverride) {
+      applyOneShotRange({
+        preset: initialRangeOverride.preset as any,
+        customFrom: initialRangeOverride.from,
+        customTo: initialRangeOverride.to,
+      });
+    }
+  }, []); // Only on mount
 
   const handleViewModeChange = (value: string | undefined) => {
     if (value === 'list' || value === 'calendar') {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense } from "react";
+import React, { useState, useEffect, useRef, Suspense } from "react";
 import { TimeRangeProvider } from "@/contexts/TimeRangeContext";
 import { NewEntry } from "./NewEntry";
 import { EntriesList } from "./EntriesList";
@@ -61,6 +61,7 @@ export const PainApp: React.FC = () => {
   const [doctorsOrigin, setDoctorsOrigin] = useState<DoctorsOrigin>(null);
   const [selectedAIReport, setSelectedAIReport] = useState<AIReport | null>(null);
   const [diaryInitialMedication, setDiaryInitialMedication] = useState<string | null>(null);
+  const [diaryOneShotRange, setDiaryOneShotRange] = useState<{ preset: string; from?: string; to?: string } | null>(null);
   const { needsOnboarding, isLoading, completeOnboarding } = useOnboarding();
   const { 
     showTutorial, 
@@ -205,8 +206,9 @@ export const PainApp: React.FC = () => {
         <LazyAnalysisView 
           onBack={goHome}
           onNavigateToLimits={handleNavigateToLimits}
-          onNavigateToMedicationHistory={(medicationName) => {
+          onNavigateToMedicationHistory={(medicationName, rangeOverride) => {
             setDiaryInitialMedication(medicationName);
+            setDiaryOneShotRange(rangeOverride || null);
             setView('diary-timeline');
           }}
           onViewAIReport={(report) => {
@@ -266,8 +268,9 @@ export const PainApp: React.FC = () => {
 
       {view === "diary-timeline" && withSuspense(
         <LazyDiaryTimeline 
-          onBack={() => { setDiaryInitialMedication(null); goHome(); }}
+          onBack={() => { setDiaryInitialMedication(null); setDiaryOneShotRange(null); goHome(); }}
           initialMedication={diaryInitialMedication}
+          initialRangeOverride={diaryOneShotRange}
           onNavigate={(target) => {
             if (target === 'diary-report') {
               setDiaryReportOrigin('diary-timeline');
