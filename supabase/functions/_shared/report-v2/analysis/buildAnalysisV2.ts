@@ -15,6 +15,7 @@ import type {
   Finding,
   InsightsForLLM,
   ConfidenceLevel,
+  WeatherDayFeature,
 } from "./types.ts";
 import { ANALYSIS_V2_VERSION } from "./types.ts";
 import { ANALYSIS_DEFINITIONS } from "./definitions.ts";
@@ -22,6 +23,7 @@ import { computeCoreMetrics, type CoreMetricsInput } from "./coreMetrics.ts";
 import { computeMOH } from "./moh.ts";
 import { computeCoverage, type CoverageInput } from "./coverage.ts";
 import { computeMecfsSummary, type MeCfsInput } from "./mecfs.ts";
+import { computeWeatherAssociation } from "./weatherAssociation.ts";
 
 // ─── Input ───────────────────────────────────────────────────────────────
 
@@ -39,6 +41,8 @@ export interface BuildAnalysisV2Input {
   totalIntakesTriptan?: number | null;
   /** Optional: ME/CFS day-level data */
   mecfsData?: MeCfsInput["dayMeCfsLevels"] | null;
+  /** Optional: weather day features for association analysis */
+  weatherDayFeatures?: WeatherDayFeature[] | null;
   /** Optional: weather days available count */
   weatherDaysAvailable?: number | null;
   /** Optional: notes days count */
@@ -85,10 +89,15 @@ export function buildAnalysisV2(input: BuildAnalysisV2Input): AnalysisV2 {
       })
     : null;
 
-  // 5. Build Findings for LLM
-  const insightsForLLM = buildInsights(core, moh, coverage, mecfs);
+  // 5. Weather Association (Phase 3)
+  const weather = input.weatherDayFeatures?.length
+    ? computeWeatherAssociation(input.weatherDayFeatures)
+    : null;
 
-  // 6. Assemble
+  // 6. Build Findings for LLM
+  const insightsForLLM = buildInsights(core, moh, coverage, mecfs, weather);
+
+  // 7. Assemble
   const diaryCoverage = coverage.diary.ratio;
   const mecfsDaysDocumented = mecfs?.documentedDaysMecfs ?? null;
   const mecfsCoverage = coverage.mecfs?.ratio ?? null;
@@ -115,8 +124,8 @@ export function buildAnalysisV2(input: BuildAnalysisV2Input): AnalysisV2 {
     moh,
     coverage,
     mecfs,
-    weather: null, // Phase 3
-    prophylaxis: null, // Phase 3
+    weather,
+    prophylaxis: null, // Phase 3 (prophylaxis TBD)
     insightsForLLM,
   };
 }
@@ -127,7 +136,8 @@ function buildInsights(
   core: ReturnType<typeof computeCoreMetrics>,
   moh: ReturnType<typeof computeMOH>,
   coverage: ReturnType<typeof computeCoverage>,
-  mecfs: ReturnType<typeof computeMecfsSummary> | null
+  mecfs: ReturnType<typeof computeMecfsSummary> | null,
+  weather: ReturnType<typeof computeWeatherAssociation> | null
 ): InsightsForLLM {
   const findings: Finding[] = [];
 
@@ -210,6 +220,47 @@ function buildInsights(
     });
   }
 
+  // Weather association finding (Phase 3)
+  if (weather && weather.pressureDelta24h.enabled) {
+    const delta = weather.pressureDelta24h;
+    const stableBucket = delta.buckets.find((b) => b.label.includes("Stabil"));
+    const dropBuckets = delta.buckets.filter(
+      (b) => !b.label.includes("Stabil") && b.nDays >= 5
+    );
+    const strongestDrop = dropBuckets.length > 0 ? dropBuckets[0] : null;
+
+    let statement = `Wetter-Kopfschmerz-Assoziation auf Basis von ${weather.coverage.daysWithDelta24h} Tagen mit Δ24h-Daten.`;
+    if (strongestDrop && stableBucket && stableBucket.nDays >= 5) {
+      const dropPct = Math.round(strongestDrop.headacheRate * 100);
+      const stablePct = Math.round(stableBucket.headacheRate * 100);
+      statement += ` ${strongestDrop.label}: Kopfschmerzrate ${dropPct}% vs. ${stablePct}% bei stabilem Druck.`;
+    }
+    if (delta.relativeRisk?.rr != null) {
+      statement += ` Relatives Risiko: ${delta.relativeRisk.rr}×.`;
+    }
+
+    findings.push({
+      id: "weather_pressure_delta",
+      category: "Weather",
+      title: "Luftdruck & Kopfschmerz",
+      statement,
+      metricsUsed: [
+        "weather.coverage.daysWithDelta24h",
+        "weather.pressureDelta24h.buckets",
+        "weather.pressureDelta24h.relativeRisk",
+      ],
+      basis: {
+        nDays: weather.coverage.daysWithDelta24h,
+        coverage: weather.coverage.ratioDelta24h,
+      },
+      confidence: delta.confidence === "high" ? "high" : delta.confidence === "medium" ? "medium" : "low",
+      limitations: [
+        weather.disclaimer,
+        ...delta.notes,
+      ],
+    });
+  }
+
   return {
     findings,
     doNotDo: [
@@ -218,6 +269,7 @@ function buildInsights(
       "Do not claim weather causality — only associations with stated confidence.",
       "Do not infer migraine days — migraineDays is null because no diagnostic flag exists.",
       "Do not use alarmist language — use 'orientierender Hinweis' and 'keine Diagnose'.",
+      "Do not invent weather statistics — use only the pre-computed buckets and relative risk values.",
     ],
   };
 }
