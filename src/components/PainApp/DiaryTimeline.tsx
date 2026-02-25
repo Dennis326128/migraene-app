@@ -122,7 +122,7 @@ function CompactKPISummary({ entries }: { entries: any[] }) {
 interface DiaryTimelineProps {
   onBack: () => void;
   onNavigate?: (target: 'diary-report') => void;
-  onNavigateToLimitEdit?: (medicationName: string) => void;
+  onNavigateToLimitEdit?: (medicationName: string, mode: 'create' | 'edit') => void;
   onEdit?: (entry: MigraineEntry) => void;
   /** Deep-link: pre-select medication mode with this medication */
   initialMedication?: string | null;
