@@ -122,6 +122,7 @@ function CompactKPISummary({ entries }: { entries: any[] }) {
 interface DiaryTimelineProps {
   onBack: () => void;
   onNavigate?: (target: 'diary-report') => void;
+  onNavigateToLimitEdit?: (medicationName: string) => void;
   onEdit?: (entry: MigraineEntry) => void;
   /** Deep-link: pre-select medication mode with this medication */
   initialMedication?: string | null;
@@ -140,7 +141,7 @@ type TimelineItemType = {
 
 const DIARY_VIEW_MODE_KEY = 'diaryViewMode';
 
-export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate, onEdit, initialMedication, initialRangeOverride }) => {
+export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate, onNavigateToLimitEdit, onEdit, initialMedication, initialRangeOverride }) => {
   const { t } = useTranslation();
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
@@ -522,6 +523,7 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
           <MedicationHistoryView
             selectedMedication={selectedMedication}
             onSelectMedication={setSelectedMedication}
+            onNavigateToLimitEdit={onNavigateToLimitEdit}
           />
         )}
 
