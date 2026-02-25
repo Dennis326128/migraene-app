@@ -24,6 +24,13 @@ export type {
   FindingCategory,
   ConfidenceLevel,
   WeatherAnalysisV2,
+  WeatherDayFeature,
+  WeatherConfidence,
+  WeatherBucketResult,
+  WeatherPressureDelta24h,
+  WeatherAbsolutePressure,
+  WeatherCoverageInfo,
+  RelativeRiskResult,
   ProphylaxisAnalysisV2,
 } from "./types.ts";
 
@@ -50,6 +57,18 @@ export type { CoverageInput } from "./coverage.ts";
 
 export { computeMecfsSummary } from "./mecfs.ts";
 export type { MeCfsInput } from "./mecfs.ts";
+
+// Weather Association
+export { computeWeatherAssociation } from "./weatherAssociation.ts";
+export {
+  MIN_DAYS_FOR_STATEMENT,
+  MIN_DAYS_PER_BUCKET,
+  DELTA_STRONG_DROP,
+  DELTA_MODERATE_DROP,
+  PRESSURE_LOW,
+  PRESSURE_HIGH,
+  WEATHER_DISCLAIMER,
+} from "./weatherAssociation.ts";
 
 // Orchestrator
 export { buildAnalysisV2 } from "./buildAnalysisV2.ts";

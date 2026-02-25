@@ -154,14 +154,67 @@ export interface InsightsForLLM {
   doNotDo: string[];
 }
 
-// ─── Weather (Phase 3 placeholder) ──────────────────────────────────────
+// ─── Weather Day Feature (input for weather association) ─────────────────
+
+export interface WeatherDayFeature {
+  date: string;
+  painMax: number;
+  hadHeadache: boolean;
+  hadAcuteMed: boolean;
+  pressureMb: number | null;
+  pressureChange24h: number | null;
+  temperatureC: number | null;
+  humidity: number | null;
+  weatherCoverage: "entry" | "snapshot" | "none";
+}
+
+// ─── Weather Association Analysis ────────────────────────────────────────
+
+export type WeatherConfidence = "high" | "medium" | "low" | "insufficient";
+
+export interface WeatherBucketResult {
+  label: string;
+  nDays: number;
+  headacheRate: number;
+  meanPainMax: number | null;
+  acuteMedRate: number;
+}
+
+export interface RelativeRiskResult {
+  referenceLabel: string;
+  compareLabel: string;
+  rr: number | null;
+  absDiff: number | null;
+}
+
+export interface WeatherPressureDelta24h {
+  enabled: boolean;
+  confidence: WeatherConfidence;
+  buckets: WeatherBucketResult[];
+  relativeRisk: RelativeRiskResult | null;
+  notes: string[];
+}
+
+export interface WeatherAbsolutePressure {
+  enabled: boolean;
+  confidence: WeatherConfidence;
+  buckets: WeatherBucketResult[];
+  notes: string[];
+}
+
+export interface WeatherCoverageInfo {
+  daysDocumented: number;
+  daysWithWeather: number;
+  daysWithDelta24h: number;
+  ratioWeather: number;
+  ratioDelta24h: number;
+}
 
 export interface WeatherAnalysisV2 {
-  source: { providerName: string; locationGranularity: string; timezone: string } | null;
-  features: Record<string, unknown> | null;
-  associations: Record<string, unknown> | null;
-  signal: "none" | "weak" | "moderate" | null;
-  limitations: string[];
+  coverage: WeatherCoverageInfo;
+  pressureDelta24h: WeatherPressureDelta24h;
+  absolutePressure: WeatherAbsolutePressure | null;
+  disclaimer: string;
 }
 
 // ─── Prophylaxis (Phase 3 placeholder) ──────────────────────────────────
