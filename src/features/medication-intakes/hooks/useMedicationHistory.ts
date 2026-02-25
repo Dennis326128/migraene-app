@@ -1,16 +1,17 @@
 /**
  * Medication History Hook
- * True offset-based append pagination + rolling 7d/30d counts INCLUDING today.
- * List is filtered by global TimeRange (from/to).
- *
- * IMPORTANT: History/Limits use rollingToday (today inclusive) for safety.
- * Statistics use effectiveToday (yesterday) for stable retrospective analysis.
+ * 
+ * LIST: Shows latest N intakes (no date range filter) — always consistent.
+ * COUNTS: Rolling 7d/30d INCLUDING today (safety mode for limits).
+ * 
+ * IMPORTANT: The list is NOT coupled to the global TimeRange.
+ * This prevents the bug where counts show "4×" but the list shows "no entries".
  */
 
 import { useQuery } from "@tanstack/react-query";
 import { useState, useCallback, useRef } from "react";
 import {
-  getMedicationHistory,
+  getMedicationHistoryLatest,
   countMedicationIntakesInRange,
   type MedicationHistoryEntry,
 } from "../api/medicationHistory.api";
@@ -29,18 +30,19 @@ function getRollingRanges() {
   return { today, from7d, from30d };
 }
 
-export function useMedicationHistory(
-  medicationName: string | null,
-  rangeFrom: string,
-  rangeTo: string
-) {
+/**
+ * Hook for medication history view.
+ * - List: latest N intakes (no date range), paginated
+ * - Counts: rolling 7d/30d incl. today
+ */
+export function useMedicationHistory(medicationName: string | null) {
   const [offset, setOffset] = useState(0);
   const [allItems, setAllItems] = useState<MedicationHistoryEntry[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const prevKeyRef = useRef<string>("");
 
-  // Reset when medication or range changes
-  const currentKey = `${medicationName}|${rangeFrom}|${rangeTo}`;
+  // Reset when medication changes
+  const currentKey = `${medicationName}`;
   if (currentKey !== prevKeyRef.current) {
     prevKeyRef.current = currentKey;
     setOffset(0);
@@ -48,12 +50,12 @@ export function useMedicationHistory(
     setTotalCount(0);
   }
 
-  // Paginated history (loads current page only)
+  // Paginated history — latest N, NO date range filter
   const historyQuery = useQuery({
-    queryKey: ["medication-history", medicationName, rangeFrom, rangeTo, offset],
+    queryKey: ["medication-history-latest", medicationName, offset],
     queryFn: async () => {
       if (!medicationName) return { items: [], totalCount: 0 };
-      const result = await getMedicationHistory(medicationName, rangeFrom, rangeTo, offset, PAGE_SIZE);
+      const result = await getMedicationHistoryLatest(medicationName, offset, PAGE_SIZE);
 
       // Append new items (no duplicates)
       setAllItems((prev) => {
@@ -93,6 +95,17 @@ export function useMedicationHistory(
     staleTime: 30_000,
   });
 
+  // Count today only (for day-period limits)
+  const countTodayQuery = useQuery({
+    queryKey: ["medication-today-count", medicationName, rollingToday],
+    queryFn: () =>
+      medicationName
+        ? countMedicationIntakesInRange(medicationName, rollingToday, rollingToday)
+        : Promise.resolve(0),
+    enabled: !!medicationName,
+    staleTime: 30_000,
+  });
+
   const loadMore = useCallback(() => {
     setOffset((prev) => prev + PAGE_SIZE);
   }, []);
@@ -110,10 +123,10 @@ export function useMedicationHistory(
     rolling7dCount: count7dQuery.data ?? 0,
     /** Rolling 30d count INCLUDING today */
     rolling30dCount: count30dQuery.data ?? 0,
+    /** Today-only count (for day-period limits) */
+    rollingTodayCount: countTodayQuery.data ?? 0,
     rollingToday,
     from30d,
     offset,
-    rangeFrom,
-    rangeTo,
   };
 }

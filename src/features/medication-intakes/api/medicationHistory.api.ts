@@ -72,6 +72,51 @@ export async function getMedicationHistory(
 }
 
 /**
+ * Fetch the latest N intakes for a medication (no date range filter).
+ * Used in medication history mode to always show the most recent entries.
+ */
+export async function getMedicationHistoryLatest(
+  medicationName: string,
+  offset: number = 0,
+  limit: number = 10
+): Promise<MedicationHistoryResult> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  // Total count (all time, no date filter)
+  const { count, error: countError } = await supabase
+    .from("medication_intakes")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", user.id)
+    .eq("medication_name", medicationName);
+
+  if (countError) throw countError;
+
+  // Paginated items sorted by taken_at DESC
+  const { data, error } = await supabase
+    .from("medication_intakes")
+    .select("id, entry_id, medication_name, dose_quarters, taken_at, taken_date, taken_time")
+    .eq("user_id", user.id)
+    .eq("medication_name", medicationName)
+    .order("taken_at", { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (error) throw error;
+
+  const items: MedicationHistoryEntry[] = (data || []).map((row: any) => ({
+    id: row.id,
+    entry_id: row.entry_id,
+    medication_name: row.medication_name,
+    dose_quarters: row.dose_quarters,
+    taken_at: row.taken_at,
+    taken_date: row.taken_date,
+    taken_time: row.taken_time,
+  }));
+
+  return { items, totalCount: count ?? 0 };
+}
+
+/**
  * Count intakes for a medication in a date range.
  * Uses taken_date directly (no join to pain_entries needed).
  */
