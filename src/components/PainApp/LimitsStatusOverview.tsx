@@ -54,8 +54,8 @@ function getStatusConfig(check: LimitCheck) {
       bgTint: "bg-amber-500/6",
       dotColor: "bg-amber-400",
       barColor: "bg-amber-400",
-      label: "Nahe am Limit",
-      sub: `Noch ${remaining}`,
+      label: "Achtung",
+      sub: `Noch ${remaining} Einnahme`,
       icon: AlertTriangle,
     };
   }

@@ -4,13 +4,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { AlertTriangle, Plus, Trash2, Check, Loader2, Info } from "lucide-react";
+import { Plus, Trash2, Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabaseClient";
 import {
   useMedicationLimits,
   useCreateMedicationLimit,
@@ -20,7 +17,7 @@ import {
   type CreateMedicationLimitPayload,
 } from "@/features/medication-limits/hooks/useMedicationLimits";
 import { useMeds } from "@/features/meds/hooks/useMeds";
-import { useUserDefaults } from "@/features/settings/hooks/useUserSettings";
+
 import { LimitsStatusOverview } from "@/components/PainApp/LimitsStatusOverview";
 import { cn } from "@/lib/utils";
 
@@ -42,16 +39,13 @@ const periodLabels: Record<string, string> = {
 };
 
 export function LimitsPage({ onBack, onNavigateToMedications, initialTab, prefillMedicationName, initialMode }: LimitsPageProps) {
-  const queryClient = useQueryClient();
   const { data: serverLimits = [], isLoading: limitsLoading } = useMedicationLimits();
   const { data: medications = [], isLoading: medsLoading } = useMeds();
-  const { data: userDefaults } = useUserDefaults();
   const createLimit = useCreateMedicationLimit();
   const updateLimit = useUpdateMedicationLimit();
   const deleteLimit = useDeleteMedicationLimit();
 
   const [activeTab, setActiveTab] = useState(initialTab || "status");
-  const [warningThreshold, setWarningThreshold] = useState<string>("90");
   
   // Local limits state for optimistic updates
   const [localLimits, setLocalLimits] = useState<MedicationLimit[]>([]);
@@ -79,35 +73,12 @@ export function LimitsPage({ onBack, onNavigateToMedications, initialTab, prefil
     }
   }, [initialMode, prefillMedicationName, limitsLoading]);
 
-  // Initialize warning threshold from user defaults
-  useEffect(() => {
-    if (userDefaults?.medication_limit_warning_threshold_pct) {
-      setWarningThreshold(String(userDefaults.medication_limit_warning_threshold_pct));
-    }
-  }, [userDefaults]);
 
   // Available medications (not yet having a limit)
   const availableMedications = medications.filter(
     (med) => med.is_active && !localLimits.some((l) => l.medication_name === med.name)
   );
 
-  // Handle warning threshold change
-  const handleThresholdChange = async (value: string) => {
-    setWarningThreshold(value);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      
-      await supabase.from('user_profiles').upsert({
-        user_id: user.id,
-        medication_limit_warning_threshold_pct: parseInt(value, 10),
-      }, { onConflict: 'user_id' });
-      
-      queryClient.invalidateQueries({ queryKey: ['user_defaults'] });
-    } catch (error) {
-      console.error('Failed to save threshold:', error);
-    }
-  };
 
   // Handle creating a new limit
   const handleCreateLimit = async () => {
@@ -184,21 +155,6 @@ export function LimitsPage({ onBack, onNavigateToMedications, initialTab, prefil
     }
   };
 
-  // Toggle all limits
-  const toggleAllLimits = async (enabled: boolean) => {
-    setLocalLimits(prev => prev.map(l => ({ ...l, is_active: enabled })));
-
-    try {
-      await Promise.all(
-        localLimits.map(l => 
-          updateLimit.mutateAsync({ id: l.id, payload: { is_active: enabled } })
-        )
-      );
-    } catch (error) {
-      setLocalLimits(serverLimits);
-      toast.error("Fehler beim Speichern");
-    }
-  };
 
   const isLoading = limitsLoading || medsLoading;
 
@@ -357,52 +313,11 @@ export function LimitsPage({ onBack, onNavigateToMedications, initialTab, prefil
               </Card>
             )}
 
-            {/* Warning Threshold */}
-            <Card>
-              <CardContent className="p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Info className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">Warnung bei</span>
-                  </div>
-                </div>
-                <ToggleGroup 
-                  type="single" 
-                  value={warningThreshold}
-                  onValueChange={(v) => v && handleThresholdChange(v)}
-                  className="justify-start"
-                >
-                  <ToggleGroupItem value="80" className="flex-1">80%</ToggleGroupItem>
-                  <ToggleGroupItem value="90" className="flex-1">90%</ToggleGroupItem>
-                  <ToggleGroupItem value="100" className="flex-1">100%</ToggleGroupItem>
-                </ToggleGroup>
-              </CardContent>
-            </Card>
 
             {/* Limits List */}
             {localLimits.length > 0 ? (
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-base font-semibold">Deine Limits</h2>
-                  <div className="flex gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => toggleAllLimits(true)}
-                      className="text-xs h-7 px-2"
-                    >
-                      Alle an
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => toggleAllLimits(false)}
-                      className="text-xs h-7 px-2"
-                    >
-                      Alle aus
-                    </Button>
-                  </div>
-                </div>
+                <h2 className="text-base font-semibold">Deine Limits</h2>
 
                 {[...localLimits].sort((a, b) => (a.is_active === b.is_active ? 0 : a.is_active ? -1 : 1)).map((limit) => (
                   <Card key={limit.id} className={cn(!limit.is_active && "opacity-60")}>

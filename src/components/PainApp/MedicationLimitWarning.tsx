@@ -9,6 +9,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { AlertTriangle } from "lucide-react";
+import { buildLimitMessage, type LimitStatus } from "@/lib/utils/medicationLimitStatus";
 
 interface LimitCheck {
   medication_name: string;
@@ -16,7 +17,7 @@ interface LimitCheck {
   limit_count: number;
   period_type: string;
   percentage: number;
-  status: 'safe' | 'warning' | 'reached' | 'exceeded';
+  status: LimitStatus;
   period_start: string;
 }
 
@@ -26,23 +27,13 @@ interface MedicationLimitWarningProps {
   limitChecks: LimitCheck[];
 }
 
-const getTimeWindowLabel = (periodType: string): string => {
-  switch (periodType) {
-    case 'day': return 'heute';
-    case 'week': return '7 Tagen';
-    case 'month': return '30 Tagen';
-    default: return periodType;
-  }
-};
-
-const getTimeWindowPrefix = (periodType: string): string => {
-  if (periodType === 'day') return 'Heute';
-  return `In den letzten ${getTimeWindowLabel(periodType)}`;
-};
-
-const pluralizeIntake = (count: number): string => {
-  return count === 1 ? '1 Einnahme' : `${count} Einnahmen`;
-};
+function getDialogTitle(checks: LimitCheck[]): string {
+  const hasExceeded = checks.some(c => c.status === 'exceeded');
+  const hasReached = checks.some(c => c.status === 'reached');
+  if (hasExceeded) return 'Dein gesetztes Limit wurde überschritten';
+  if (hasReached) return 'Dein gesetztes Limit wurde erreicht';
+  return 'Achtung: Du bist nahe an deinem Limit';
+}
 
 export function MedicationLimitWarning({
   isOpen,
@@ -65,22 +56,24 @@ export function MedicationLimitWarning({
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2 text-base font-semibold">
             <AlertTriangle className="h-5 w-5 text-warning" />
-            Dein gesetztes Limit wurde überschritten
+            {getDialogTitle(criticalChecks)}
           </AlertDialogTitle>
           <AlertDialogDescription asChild>
             <div className="space-y-3 pt-1">
-              {criticalChecks.map((check, index) => (
-                <div key={index} className="p-3 rounded-lg bg-muted/50">
-                  <p className="text-sm text-foreground">
-                    {getTimeWindowPrefix(check.period_type)} wurden{' '}
-                    {pluralizeIntake(check.current_count)} von {check.medication_name}{' '}
-                    eingenommen.
-                  </p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Dein gesetztes Limit liegt bei {check.limit_count}.
-                  </p>
-                </div>
-              ))}
+              {criticalChecks.map((check, index) => {
+                const msg = buildLimitMessage(
+                  check.status,
+                  check.current_count,
+                  check.limit_count,
+                  check.period_type,
+                  check.medication_name,
+                );
+                return (
+                  <div key={index} className="p-3 rounded-lg bg-muted/50">
+                    <p className="text-sm text-foreground">{msg}</p>
+                  </div>
+                );
+              })}
 
               {hasExceeded && (
                 <div className="p-3 rounded-lg bg-warning/10 border border-warning/20">

@@ -31,20 +31,20 @@ describe("getSummaryRanges logic", () => {
 });
 
 describe("getLimitStatus", () => {
-  it("returns 'safe' when usage is below warning threshold", () => {
-    expect(getLimitStatus(3, 10, 80)).toBe("safe");
+  it("returns 'safe' when usage is well below limit", () => {
+    expect(getLimitStatus(3, 10)).toBe("safe");
   });
 
-  it("returns 'warning' at threshold", () => {
-    expect(getLimitStatus(8, 10, 80)).toBe("warning");
+  it("returns 'warning' one before limit", () => {
+    expect(getLimitStatus(9, 10)).toBe("warning");
   });
 
   it("returns 'reached' at limit", () => {
-    expect(getLimitStatus(10, 10, 80)).toBe("reached");
+    expect(getLimitStatus(10, 10)).toBe("reached");
   });
 
   it("returns 'exceeded' above limit", () => {
-    expect(getLimitStatus(12, 10, 80)).toBe("exceeded");
+    expect(getLimitStatus(12, 10)).toBe("exceeded");
   });
 });
 
@@ -61,7 +61,7 @@ describe("getStatusLabel", () => {
   it("returns German labels", () => {
     expect(getStatusLabel("exceeded")).toBe("Überschritten");
     expect(getStatusLabel("reached")).toBe("Erreicht");
-    expect(getStatusLabel("warning")).toBe("Warnung");
+    expect(getStatusLabel("warning")).toBe("Achtung");
     expect(getStatusLabel("safe")).toBe("OK");
   });
 });
