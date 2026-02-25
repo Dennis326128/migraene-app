@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Filter, Calendar as CalendarIcon, Edit, Trash2, ChevronDown, ChevronUp, ArrowDown, Heart, MessageSquare, List, LayoutGrid, Pill, Activity } from 'lucide-react';
+import { Filter, Calendar as CalendarIcon, Edit, Trash2, ChevronDown, ChevronUp, ArrowDown, Heart, MessageSquare, List, LayoutGrid, Pill, Activity, Thermometer, Droplets, Gauge, Cloud } from 'lucide-react';
 import { AppHeader } from '@/components/ui/app-header';
 import { format, subDays } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -27,15 +27,21 @@ import { normalizePainLevel } from '@/lib/utils/pain';
 import { MedicationHistoryView } from '@/components/diary/MedicationHistoryView';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 
-// Helper: Prüft ob condition_text ein sinnvoller Wert ist (nicht leer, nicht technischer Müll)
-const isValidWeatherCondition = (text: string | null | undefined): boolean => {
-  if (!text || typeof text !== 'string') return false;
+// Helper: Sanitize weather text — removes technical garbage like "Historical data …"
+function sanitizeWeatherText(text: string | null | undefined): string | null {
+  if (!text || typeof text !== 'string') return null;
   const trimmed = text.trim();
-  if (trimmed.length === 0) return false;
-  // Nur offensichtlich kaputte Werte filtern
-  const invalidPatterns = [/^null$/i, /^undefined$/i, /^no data$/i];
-  return !invalidPatterns.some(pattern => pattern.test(trimmed));
-};
+  if (trimmed.length === 0) return null;
+  const invalidPatterns = [
+    /historical data/i,
+    /no data/i,
+    /^null$/i,
+    /^undefined$/i,
+    /^\(\d{2}:\d{2}\)/,  // timestamp junk like "(21:00)"
+  ];
+  if (invalidPatterns.some(p => p.test(trimmed))) return null;
+  return trimmed;
+}
 
 // Helper: Normalisiert Wetterdaten aus verschiedenen Quellformaten
 function normalizeWeatherForTimeline(raw: any): {
@@ -49,18 +55,14 @@ function normalizeWeatherForTimeline(raw: any): {
   const w = Array.isArray(raw) ? raw[0] : raw;
   if (!w) return null;
   const result = {
-    temperature_c: w.temperature_c ?? null,
-    pressure_mb: w.pressure_mb ?? null,
+    temperature_c: w.temperature_c ?? w.temp_c ?? w.temperature ?? null,
+    pressure_mb: w.pressure_mb ?? w.pressureMb ?? null,
     pressure_change_24h: w.pressure_change_24h ?? w.pressureChange24h ?? w.pressure_delta_24h ?? null,
-    humidity: w.humidity ?? null,
-    condition_text: w.condition_text ?? w.conditionText ?? w.condition ?? null,
+    humidity: w.humidity ?? w.humidity_percent ?? null,
+    condition_text: sanitizeWeatherText(w.condition_text ?? w.conditionText ?? w.condition ?? null),
   };
-  // Leere Strings → null
-  if (typeof result.condition_text === 'string' && result.condition_text.trim().length === 0) {
-    result.condition_text = null;
-  }
-  // Mindestens ein Wert vorhanden?
-  if (result.temperature_c === null && result.pressure_mb === null && result.humidity === null && result.condition_text === null) {
+  // Mindestens ein Wert vorhanden? (inkl. pressure_change_24h allein)
+  if (result.temperature_c === null && result.pressure_mb === null && result.humidity === null && result.condition_text === null && result.pressure_change_24h === null) {
     return null;
   }
   return result;
@@ -664,10 +666,10 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
                               {/* Medikamente (einfache Textliste, keine Icons/Badges) */}
                               {item.data.medications && item.data.medications.length > 0 && (
                                 <div>
-                                  <h4 className="text-xs font-semibold text-muted-foreground mb-1">Medikamente</h4>
+                                  <h4 className="text-xs font-medium text-muted-foreground mb-1">Medikamente</h4>
                                   <div className="space-y-0.5">
                                     {item.data.medications.map((med: string, i: number) => (
-                                      <p key={i} className="text-sm">{med}</p>
+                                      <p key={i} className="text-sm font-medium">{med}</p>
                                     ))}
                                   </div>
                                 </div>
@@ -676,28 +678,28 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
                               {/* Schmerzlokalisation (kapitalisiert, kein Icon) */}
                               {item.data.pain_locations && item.data.pain_locations.length > 0 && (
                                 <div>
-                                  <h4 className="text-xs font-semibold text-muted-foreground mb-1">Lokalisation</h4>
-                                  <p className="text-sm">{item.data.pain_locations.map(formatLocationLabel).join(', ')}</p>
+                                  <h4 className="text-xs font-medium text-muted-foreground mb-1">Lokalisation</h4>
+                                  <p className="text-sm font-medium">{item.data.pain_locations.map(formatLocationLabel).join(', ')}</p>
                                 </div>
                               )}
 
                               {/* Aura */}
                               {item.data.aura_type && item.data.aura_type !== 'keine' && (
                                 <div>
-                                  <h4 className="text-xs font-semibold text-muted-foreground mb-1">Aura</h4>
-                                  <p className="text-sm">{item.data.aura_type}</p>
+                                  <h4 className="text-xs font-medium text-muted-foreground mb-1">Aura</h4>
+                                  <p className="text-sm font-medium">{item.data.aura_type}</p>
                                 </div>
                               )}
                               
                               {/* Notizen */}
                               {item.data.notes && (
                                 <div>
-                                  <h4 className="text-xs font-semibold text-muted-foreground mb-1">Notizen</h4>
-                                  <p className="text-sm bg-muted/50 rounded p-2">{item.data.notes}</p>
+                                  <h4 className="text-xs font-medium text-muted-foreground mb-1">Notizen</h4>
+                                  <p className="text-sm font-medium bg-muted/50 rounded p-2">{item.data.notes}</p>
                                 </div>
                               )}
                               
-                              {/* Wetterdaten (normalisiert) */}
+                              {/* Wetterdaten (normalisiert, Icon-Zeilen) */}
                               {(() => {
                                 const weather = normalizeWeatherForTimeline(item.data.weather);
                                 if (import.meta.env.DEV) {
@@ -712,41 +714,47 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
                                 if (!weather) return null;
                                 return (
                                   <div>
-                                    <h4 className="text-xs font-semibold text-muted-foreground mb-1">Wetter</h4>
-                                    <div className="text-sm space-y-0.5">
-                                      {/* Zeile 1: Condition + Temp */}
-                                      {(isValidWeatherCondition(weather.condition_text) || weather.temperature_c !== null) && (
-                                        <p>
-                                          {isValidWeatherCondition(weather.condition_text) && (
-                                            <span>{weather.condition_text}</span>
-                                          )}
-                                          {isValidWeatherCondition(weather.condition_text) && weather.temperature_c !== null && (
-                                            <span className="text-muted-foreground"> · </span>
-                                          )}
-                                          {weather.temperature_c !== null && (
-                                            <span>{weather.temperature_c}°C</span>
-                                          )}
-                                        </p>
+                                    <h4 className="text-xs font-medium text-muted-foreground mb-1.5">Wetter</h4>
+                                    <div className="space-y-1">
+                                      {/* Wetterzustand */}
+                                      {weather.condition_text && (
+                                        <div className="flex items-center gap-2">
+                                          <Cloud className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                          <span className="text-sm font-medium">{weather.condition_text}</span>
+                                        </div>
                                       )}
-                                      {/* Zeile 2: Luftdruck + Δ24h */}
-                                      {weather.pressure_mb !== null && (
-                                        <p>
-                                          <span>{weather.pressure_mb} hPa</span>
-                                          {weather.pressure_change_24h != null && (
-                                            <span className={cn(
-                                              "text-xs ml-1.5",
-                                              weather.pressure_change_24h > 0 ? "text-green-400" :
-                                              weather.pressure_change_24h < 0 ? "text-red-400" :
-                                              "text-muted-foreground"
-                                            )}>
-                                              (Δ {weather.pressure_change_24h > 0 ? '+' : ''}{Math.round(weather.pressure_change_24h)} hPa / 24h)
-                                            </span>
-                                          )}
-                                        </p>
+                                      {/* Temperatur */}
+                                      {weather.temperature_c !== null && (
+                                        <div className="flex items-center gap-2">
+                                          <Thermometer className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                          <span className="text-sm font-medium">{weather.temperature_c}°C</span>
+                                        </div>
                                       )}
-                                      {/* Zeile 3: Luftfeuchte */}
+                                      {/* Luftdruck + Δ24h */}
+                                      {(weather.pressure_mb !== null || weather.pressure_change_24h != null) && (
+                                        <div className="flex items-center gap-2">
+                                          <Gauge className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                          <span className="text-sm font-medium">
+                                            {weather.pressure_mb !== null && <>{weather.pressure_mb} hPa</>}
+                                            {weather.pressure_change_24h != null && (
+                                              <span className={cn(
+                                                "text-xs ml-1.5",
+                                                weather.pressure_change_24h > 0 ? "text-green-400" :
+                                                weather.pressure_change_24h < 0 ? "text-red-400" :
+                                                "text-muted-foreground"
+                                              )}>
+                                                (Δ {weather.pressure_change_24h > 0 ? '+' : ''}{Math.round(weather.pressure_change_24h)} hPa/24h)
+                                              </span>
+                                            )}
+                                          </span>
+                                        </div>
+                                      )}
+                                      {/* Luftfeuchte */}
                                       {weather.humidity !== null && (
-                                        <p className="text-muted-foreground">Luftfeuchte: {weather.humidity}%</p>
+                                        <div className="flex items-center gap-2">
+                                          <Droplets className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                          <span className="text-sm font-medium">{weather.humidity}%</span>
+                                        </div>
                                       )}
                                     </div>
                                   </div>
@@ -756,15 +764,15 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
                               {/* Mondphase */}
                               {item.data.weather?.moon_phase !== null && item.data.weather?.moon_phase !== undefined && (
                                 <div>
-                                  <h4 className="text-xs font-semibold text-muted-foreground mb-1">Mondphase</h4>
-                                  <p className="text-sm">{item.data.weather.moon_phase}</p>
+                                  <h4 className="text-xs font-medium text-muted-foreground mb-1">Mondphase</h4>
+                                  <p className="text-sm font-medium">{item.data.weather.moon_phase}</p>
                                 </div>
                               )}
                               
                               {/* Koordinaten */}
                               {item.data.latitude && item.data.longitude && (
                                 <div>
-                                  <h4 className="text-xs font-semibold text-muted-foreground mb-1">Standort</h4>
+                                  <h4 className="text-xs font-medium text-muted-foreground mb-1">Standort</h4>
                                   <span className="text-xs text-muted-foreground">
                                     {item.data.latitude.toFixed(4)}, {item.data.longitude.toFixed(4)}
                                   </span>
