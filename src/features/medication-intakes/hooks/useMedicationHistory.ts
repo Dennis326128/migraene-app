@@ -1,7 +1,10 @@
 /**
  * Medication History Hook
- * True offset-based append pagination + 30-day count (effectiveToday-based)
+ * True offset-based append pagination + rolling 7d/30d counts INCLUDING today.
  * List is filtered by global TimeRange (from/to).
+ *
+ * IMPORTANT: History/Limits use rollingToday (today inclusive) for safety.
+ * Statistics use effectiveToday (yesterday) for stable retrospective analysis.
  */
 
 import { useQuery } from "@tanstack/react-query";
@@ -11,18 +14,19 @@ import {
   countMedicationIntakesInRange,
   type MedicationHistoryEntry,
 } from "../api/medicationHistory.api";
-import { yesterdayStr } from "@/lib/dateRange/rangeResolver";
+import { todayStr } from "@/lib/dateRange/rangeResolver";
 import { subDays, format } from "date-fns";
 
 const PAGE_SIZE = 10;
 
 /**
- * Get the last-30-completed-days range (effectiveToday - 29 → effectiveToday).
+ * Rolling today-based ranges (includes today for safety/limits).
  */
-function getLast30DaysRange() {
-  const effective = yesterdayStr();
-  const fromDate = format(subDays(new Date(effective + "T00:00:00"), 29), "yyyy-MM-dd");
-  return { from: fromDate, to: effective };
+function getRollingRanges() {
+  const today = todayStr();
+  const from7d = format(subDays(new Date(today + "T00:00:00"), 6), "yyyy-MM-dd");
+  const from30d = format(subDays(new Date(today + "T00:00:00"), 29), "yyyy-MM-dd");
+  return { today, from7d, from30d };
 }
 
 export function useMedicationHistory(
@@ -66,17 +70,27 @@ export function useMedicationHistory(
     staleTime: 30_000,
   });
 
-  // 30-day count (independent of pagination & TimeRange)
-  const { from: last30From, to: last30To } = getLast30DaysRange();
+  // Rolling 7d and 30d counts INCLUDING today (for safety/limits)
+  const { today: rollingToday, from7d, from30d } = getRollingRanges();
 
-  const countQuery = useQuery({
-    queryKey: ["medication-30d-count", medicationName, last30From, last30To],
+  const count7dQuery = useQuery({
+    queryKey: ["medication-7d-count", medicationName, from7d, rollingToday],
     queryFn: () =>
       medicationName
-        ? countMedicationIntakesInRange(medicationName, last30From, last30To)
+        ? countMedicationIntakesInRange(medicationName, from7d, rollingToday)
         : Promise.resolve(0),
     enabled: !!medicationName,
-    staleTime: 60_000,
+    staleTime: 30_000,
+  });
+
+  const count30dQuery = useQuery({
+    queryKey: ["medication-30d-count", medicationName, from30d, rollingToday],
+    queryFn: () =>
+      medicationName
+        ? countMedicationIntakesInRange(medicationName, from30d, rollingToday)
+        : Promise.resolve(0),
+    enabled: !!medicationName,
+    staleTime: 30_000,
   });
 
   const loadMore = useCallback(() => {
@@ -92,10 +106,12 @@ export function useMedicationHistory(
     loadMore,
     isLoading: historyQuery.isLoading,
     isFetchingMore: historyQuery.isFetching && offset > 0,
-    last30DaysCount: countQuery.data ?? 0,
-    last30From,
-    last30To,
-    effectiveToday: last30To,
+    /** Rolling 7d count INCLUDING today */
+    rolling7dCount: count7dQuery.data ?? 0,
+    /** Rolling 30d count INCLUDING today */
+    rolling30dCount: count30dQuery.data ?? 0,
+    rollingToday,
+    from30d,
     offset,
     rangeFrom,
     rangeTo,

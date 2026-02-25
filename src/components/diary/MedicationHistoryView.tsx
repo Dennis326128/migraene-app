@@ -1,7 +1,9 @@
 /**
  * MedicationHistoryView
- * Shows medication selection, status block (last intake, 30-day count, limit),
+ * Shows medication selection, status block (7d/30d counts incl. today, limit),
  * and paginated intake list filtered by global TimeRange.
+ *
+ * SAFETY MODE: All counts include today (rolling window).
  * Dose chip only shown when ≠ 1 tablet.
  */
 
@@ -11,20 +13,23 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Pill, ArrowDown, Loader2, AlertTriangle } from "lucide-react";
+import { Pill, ArrowDown, Loader2, AlertTriangle, Settings } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { toZonedTime } from "date-fns-tz";
+import { todayStr } from "@/lib/dateRange/rangeResolver";
 import { useMeds } from "@/features/meds/hooks/useMeds";
 import { useMedicationHistory } from "@/features/medication-intakes/hooks/useMedicationHistory";
 import { useTimeRange } from "@/contexts/TimeRangeContext";
 import { useMedicationLimits } from "@/features/medication-limits/hooks/useMedicationLimits";
 import { formatDoseWithUnit } from "@/lib/utils/doseFormatter";
+import { getLimitStatus, isWarningStatus } from "@/lib/utils/medicationLimitStatus";
 import { cn } from "@/lib/utils";
 
 interface MedicationHistoryViewProps {
   selectedMedication: string | null;
   onSelectMedication: (name: string | null) => void;
+  onNavigateToLimitEdit?: (medicationName: string) => void;
 }
 
 /** Map period_type to German label */
@@ -40,6 +45,7 @@ function periodLabel(type: string): string {
 export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
   selectedMedication,
   onSelectMedication,
+  onNavigateToLimitEdit,
 }) => {
   const { data: allMeds = [] } = useMeds();
   const { from: rangeFrom, to: rangeTo } = useTimeRange();
@@ -52,7 +58,8 @@ export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
     loadMore,
     isLoading,
     isFetchingMore,
-    last30DaysCount,
+    rolling7dCount,
+    rolling30dCount,
   } = useMedicationHistory(selectedMedication, rangeFrom, rangeTo);
 
   // Build sorted medication list (active first, then alphabetical)
@@ -74,8 +81,17 @@ export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
     ) ?? null;
   }, [allLimits, selectedMedication]);
 
-  // Last intake = first item (sorted DESC)
-  const lastIntake = items.length > 0 ? items[0] : null;
+  // Limit status (uses rolling 30d count incl. today)
+  const limitUsed = activeLimit
+    ? (activeLimit.period_type === 'week' ? rolling7dCount : rolling30dCount)
+    : null;
+  const limitStatus = activeLimit && limitUsed !== null
+    ? getLimitStatus(limitUsed, activeLimit.limit_count)
+    : null;
+  const showLimitWarning = limitStatus ? isWarningStatus(limitStatus) : false;
+
+  // Today string for "Heute" label
+  const today = todayStr();
 
   return (
     <div className="space-y-3">
@@ -122,40 +138,31 @@ export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
         <>
           {/* Status Block */}
           <Card>
-            <CardContent className="pt-4 pb-4 space-y-3">
+            <CardContent className="pt-4 pb-4 space-y-2.5">
               {/* Name + Strength */}
               <h3 className="text-sm font-semibold">
                 {selectedMedication}
                 {selectedMedData?.staerke ? ` ${selectedMedData.staerke}` : ""}
               </h3>
 
-              {/* Last Intake */}
+              {/* 7-Day Count (incl. today) */}
               <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">Letzte Einnahme</span>
-                <span className="text-sm font-medium">
-                  {isLoading ? (
-                    "…"
-                  ) : lastIntake ? (
-                    (() => {
-                      const t = toZonedTime(new Date(lastIntake.taken_at), "Europe/Berlin");
-                      return `${format(t, "EEEE, d. MMMM yyyy", { locale: de })} – ${format(t, "HH:mm")}`;
-                    })()
-                  ) : (
-                    "Keine im Zeitraum"
-                  )}
-                </span>
+                <span className="text-xs text-muted-foreground">7 Tage (inkl. heute)</span>
+                <Badge variant="secondary" className="text-sm font-semibold px-2.5 py-0.5">
+                  {rolling7dCount}×
+                </Badge>
               </div>
 
-              {/* 30-Day Count */}
+              {/* 30-Day Count (incl. today) */}
               <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">Letzte 30 Tage</span>
+                <span className="text-xs text-muted-foreground">30 Tage (inkl. heute)</span>
                 <Badge variant="secondary" className="text-sm font-semibold px-2.5 py-0.5">
-                  {last30DaysCount}×
+                  {rolling30dCount}×
                 </Badge>
               </div>
 
               {/* Limit (only if exists) */}
-              {activeLimit && (
+              {activeLimit && limitUsed !== null && (
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-muted-foreground">
                     Limit ({periodLabel(activeLimit.period_type)})
@@ -163,14 +170,51 @@ export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
                   <div className="flex items-center gap-1.5">
                     <span className={cn(
                       "text-sm font-semibold",
-                      last30DaysCount >= activeLimit.limit_count && "text-destructive"
+                      limitStatus === 'exceeded' && "text-destructive",
+                      limitStatus === 'reached' && "text-destructive",
+                      limitStatus === 'warning' && "text-amber-500"
                     )}>
-                      {last30DaysCount} / {activeLimit.limit_count}
+                      {limitUsed} / {activeLimit.limit_count}
                     </span>
-                    {last30DaysCount >= activeLimit.limit_count && (
+                    {limitStatus === 'warning' && (
+                      <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                    )}
+                    {(limitStatus === 'reached' || limitStatus === 'exceeded') && (
                       <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
                     )}
+                    {limitStatus === 'reached' && (
+                      <Badge variant="outline" className="text-[10px] h-4 px-1 border-destructive text-destructive">
+                        Erreicht
+                      </Badge>
+                    )}
+                    {limitStatus === 'exceeded' && (
+                      <Badge variant="destructive" className="text-[10px] h-4 px-1">
+                        Überschritten
+                      </Badge>
+                    )}
+                    {/* Edit limit icon */}
+                    {onNavigateToLimitEdit && (
+                      <button
+                        onClick={() => onNavigateToLimitEdit(selectedMedication)}
+                        className="ml-1 text-muted-foreground hover:text-foreground transition-colors"
+                        title="Limit bearbeiten"
+                      >
+                        <Settings className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                   </div>
+                </div>
+              )}
+
+              {/* No limit → offer to set one */}
+              {!activeLimit && onNavigateToLimitEdit && (
+                <div className="flex items-center justify-end">
+                  <button
+                    onClick={() => onNavigateToLimitEdit(selectedMedication)}
+                    className="text-xs text-muted-foreground hover:text-foreground underline transition-colors"
+                  >
+                    Limit festlegen
+                  </button>
                 </div>
               )}
             </CardContent>
@@ -188,16 +232,23 @@ export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
           ) : (
             <div className="space-y-1.5">
               {items.map((intake) => {
+                const isToday = intake.taken_date === today;
                 const berlinTime = toZonedTime(new Date(intake.taken_at), "Europe/Berlin");
-                const dateStr = format(berlinTime, "EEEE, d. MMMM yyyy", { locale: de });
                 const timeStr = format(berlinTime, "HH:mm");
                 const showDose = intake.dose_quarters !== 4;
+
+                // "Heute – 14:43" vs "Montag, 12. Februar 2026 – 08:41"
+                const dateDisplay = isToday
+                  ? "Heute"
+                  : format(berlinTime, "EEEE, d. MMMM yyyy", { locale: de });
 
                 return (
                   <Card key={intake.id} className="hover:bg-accent/5 transition-colors">
                     <CardContent className="py-3 px-4 flex items-center justify-between">
                       <div>
-                        <span className="text-sm font-medium capitalize">{dateStr}</span>
+                        <span className={cn("text-sm font-medium", isToday ? "" : "capitalize")}>
+                          {dateDisplay}
+                        </span>
                         <span className="text-sm text-muted-foreground ml-2">– {timeStr}</span>
                       </div>
                       {showDose && (
