@@ -26,9 +26,43 @@ import { formatDoseWithUnit } from "@/lib/utils/doseFormatter";
 import { getLimitStatus, isWarningStatus } from "@/lib/utils/medicationLimitStatus";
 import { cn } from "@/lib/utils";
 
-/** Normalize medication name for robust matching */
+/** Normalize medication name for robust matching (handles "10mg" vs "10 mg") */
 function normalizeMedName(name: string): string {
-  return name.trim().toLowerCase().replace(/\s+/g, ' ');
+  return (name ?? "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/(\d)\s*(mg|ml|g|µg|mcg)\b/gi, "$1 $2");
+}
+
+/**
+ * Find active limit for a medication — robust matching with fallbacks.
+ * SSOT: LimitExistence = return value != null (never based on usage counts).
+ */
+function findActiveLimitForMedication<T extends { is_active: boolean; medication_name: string }>(
+  selectedMedication: string | null,
+  limits: T[]
+): T | null {
+  if (!selectedMedication) return null;
+  const sel = normalizeMedName(selectedMedication);
+
+  // 1) exact normalized match
+  const exact = limits.find(
+    (l) => l.is_active && normalizeMedName(l.medication_name) === sel
+  );
+  if (exact) return exact;
+
+  // 2) base-name fallback (strip strength) — only if single match to avoid ambiguity
+  const baseOf = (s: string) => s.replace(/\b\d+\s*(mg|ml|g|µg|mcg)\b/gi, "").trim();
+  const selBase = baseOf(sel);
+  if (selBase.length > 2) {
+    const candidates = limits.filter(
+      (l) => l.is_active && baseOf(normalizeMedName(l.medication_name)) === selBase
+    );
+    if (candidates.length === 1) return candidates[0];
+  }
+
+  return null;
 }
 
 interface MedicationHistoryViewProps {
@@ -81,13 +115,10 @@ export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
 
   // Find active limit for this medication — robust normalized matching
   // SSOT: LimitExistence = activeLimit != null (never based on usage counts)
-  const activeLimit = React.useMemo(() => {
-    if (!selectedMedication) return null;
-    const normalizedSelected = normalizeMedName(selectedMedication);
-    return allLimits.find(
-      (l) => l.is_active && normalizeMedName(l.medication_name) === normalizedSelected
-    ) ?? null;
-  }, [allLimits, selectedMedication]);
+  const activeLimit = React.useMemo(
+    () => findActiveLimitForMedication(selectedMedication, allLimits),
+    [allLimits, selectedMedication]
+  );
 
   // Limit used count — period-dependent
   const limitUsed = React.useMemo(() => {
