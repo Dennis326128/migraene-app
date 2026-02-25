@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Filter, Calendar as CalendarIcon, Edit, Trash2, ChevronDown, ChevronUp, ArrowDown, Heart, MessageSquare, List, LayoutGrid, Pill, Activity, Thermometer, Droplets, Gauge, Cloud, TrendingUp, TrendingDown } from 'lucide-react';
+import { Filter, Calendar as CalendarIcon, Edit, Trash2, ChevronDown, ChevronUp, ArrowDown, Heart, MessageSquare, List, LayoutGrid, Pill, Activity, Thermometer, Droplets, Gauge, Cloud, TrendingUp, TrendingDown, Info } from 'lucide-react';
 import { AppHeader } from '@/components/ui/app-header';
 import { format, subDays } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -776,11 +776,13 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
                                             </div>
                                           );
                                         }
-                                        // Nicht verfügbar — transparent anzeigen
                                         return (
                                           <div className="flex items-center gap-2">
                                             <Gauge className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
-                                            <span className="text-sm text-muted-foreground/70">Δ 24h: nicht verfügbar</span>
+                                            <span className="text-sm text-muted-foreground/50">Δ 24h: –</span>
+                                            <span title="Für diesen Zeitpunkt ist keine 24h-Änderung verfügbar.">
+                                              <Info className="h-3 w-3 text-muted-foreground/40 cursor-help" />
+                                            </span>
                                           </div>
                                         );
                                       })()}
