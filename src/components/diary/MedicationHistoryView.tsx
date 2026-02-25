@@ -1,9 +1,10 @@
 /**
  * MedicationHistoryView
  * Shows medication selection, status block (7d/30d counts incl. today, limit),
- * and paginated intake list filtered by global TimeRange.
+ * and paginated intake list of LATEST entries (not filtered by global TimeRange).
  *
  * SAFETY MODE: All counts include today (rolling window).
+ * LIST: Shows latest 10 entries regardless of global range selection.
  * Dose chip only shown when ≠ 1 tablet.
  */
 
@@ -20,7 +21,6 @@ import { toZonedTime } from "date-fns-tz";
 import { todayStr } from "@/lib/dateRange/rangeResolver";
 import { useMeds } from "@/features/meds/hooks/useMeds";
 import { useMedicationHistory } from "@/features/medication-intakes/hooks/useMedicationHistory";
-import { useTimeRange } from "@/contexts/TimeRangeContext";
 import { useMedicationLimits } from "@/features/medication-limits/hooks/useMedicationLimits";
 import { formatDoseWithUnit } from "@/lib/utils/doseFormatter";
 import { getLimitStatus, isWarningStatus } from "@/lib/utils/medicationLimitStatus";
@@ -53,9 +53,9 @@ export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
   onNavigateToLimitEdit,
 }) => {
   const { data: allMeds = [] } = useMeds();
-  const { from: rangeFrom, to: rangeTo } = useTimeRange();
-  const { data: allLimits = [] } = useMedicationLimits();
+  const { data: allLimits = [], isLoading: limitsLoading } = useMedicationLimits();
 
+  // Hook no longer depends on global TimeRange — shows latest N entries
   const {
     items,
     totalCount,
@@ -65,7 +65,8 @@ export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
     isFetchingMore,
     rolling7dCount,
     rolling30dCount,
-  } = useMedicationHistory(selectedMedication, rangeFrom, rangeTo);
+    rollingTodayCount,
+  } = useMedicationHistory(selectedMedication);
 
   // Build sorted medication list (active first, then alphabetical)
   const medicationOptions = React.useMemo(() => {
@@ -79,6 +80,7 @@ export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
   const selectedMedData = allMeds.find((m) => m.name === selectedMedication);
 
   // Find active limit for this medication — robust normalized matching
+  // SSOT: LimitExistence = activeLimit != null (never based on usage counts)
   const activeLimit = React.useMemo(() => {
     if (!selectedMedication) return null;
     const normalizedSelected = normalizeMedName(selectedMedication);
@@ -87,10 +89,17 @@ export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
     ) ?? null;
   }, [allLimits, selectedMedication]);
 
-  // Limit status (uses rolling 30d count incl. today)
-  const limitUsed = activeLimit
-    ? (activeLimit.period_type === 'week' ? rolling7dCount : rolling30dCount)
-    : null;
+  // Limit used count — period-dependent
+  const limitUsed = React.useMemo(() => {
+    if (!activeLimit) return null;
+    switch (activeLimit.period_type) {
+      case 'day': return rollingTodayCount;
+      case 'week': return rolling7dCount;
+      case 'month': return rolling30dCount;
+      default: return rolling30dCount;
+    }
+  }, [activeLimit, rollingTodayCount, rolling7dCount, rolling30dCount]);
+
   const limitStatus = activeLimit && limitUsed !== null
     ? getLimitStatus(limitUsed, activeLimit.limit_count)
     : null;
@@ -172,7 +181,7 @@ export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
                   </span>
                 </div>
 
-                {/* Limit (only if exists) */}
+                {/* Limit (only if activeLimit exists — NEVER based on usage) */}
                 {activeLimit && limitUsed !== null && (
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">
@@ -218,8 +227,8 @@ export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
                   </div>
                 )}
 
-                {/* No limit → offer to set one */}
-                {!activeLimit && onNavigateToLimitEdit && (
+                {/* No limit → offer to set one (ONLY when no active limit exists) */}
+                {!activeLimit && !limitsLoading && onNavigateToLimitEdit && (
                   <div className="flex items-center justify-end">
                     <button
                       onClick={() => onNavigateToLimitEdit(selectedMedication, 'create')}
@@ -233,14 +242,14 @@ export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
             </CardContent>
           </Card>
 
-          {/* Intake List */}
+          {/* Intake List — shows latest entries, not filtered by global TimeRange */}
           {isLoading ? (
             <div className="text-center py-8 text-muted-foreground">Lädt...</div>
-          ) : items.length === 0 ? (
+          ) : totalCount === 0 ? (
             <EmptyState
               icon="📋"
               title="Keine Einnahmen"
-              description="Keine Einnahmen im gewählten Zeitraum."
+              description="Für dieses Medikament wurden noch keine Einnahmen erfasst."
             />
           ) : (
             <div className="space-y-1.5">
