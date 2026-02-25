@@ -8,6 +8,9 @@
  *
  * Pure function. No DB, no I/O, no side effects. Isomorphic (Browser + Deno).
  *
+ * IMPORTANT: Only documented days (documented=true) are used as analysis basis.
+ * Undocumented days are excluded entirely to avoid bias.
+ *
  * pressure_change_24h was historically NULL for hourly-archive weather logs
  * because the external API does not provide it for historical data.
  * Since the fetch-weather-hybrid fix (2026-02), new logs compute Δ server-side.
@@ -117,13 +120,14 @@ function computeRelativeRisk(
 export function computeWeatherAssociation(
   features: WeatherDayFeature[]
 ): WeatherAnalysisV2 {
-  // 1. Coverage
-  const documented = features.filter((f) => f.weatherCoverage !== "none");
-  const daysDocumented = features.length;
-  const daysWithWeather = features.filter(
-    (f) => f.pressureMb != null || f.temperatureC != null
+  // 1. Filter to documented days only (undocumented → bias)
+  const documented = features.filter((f) => f.documented);
+
+  const daysDocumented = documented.length;
+  const daysWithWeather = documented.filter(
+    (f) => f.pressureMb != null || f.temperatureC != null || f.humidity != null || f.pressureChange24h != null
   ).length;
-  const daysWithDelta = features.filter(
+  const daysWithDelta = documented.filter(
     (f) => f.pressureChange24h != null
   ).length;
 
@@ -135,11 +139,11 @@ export function computeWeatherAssociation(
     ratioDelta24h: daysDocumented > 0 ? round2(daysWithDelta / daysDocumented) : 0,
   };
 
-  // 2. Primary: Pressure Delta 24h
-  const pressureDelta24h = analyzePressureDelta(features, coverage);
+  // 2. Primary: Pressure Delta 24h (only documented days)
+  const pressureDelta24h = analyzePressureDelta(documented, coverage);
 
-  // 3. Secondary: Absolute Pressure (only if enough data)
-  const absolutePressure = analyzeAbsolutePressure(features);
+  // 3. Secondary: Absolute Pressure (only if enough documented data)
+  const absolutePressure = analyzeAbsolutePressure(documented);
 
   return {
     coverage,
@@ -152,13 +156,13 @@ export function computeWeatherAssociation(
 // ─── Pressure Delta 24h ─────────────────────────────────────────────────
 
 function analyzePressureDelta(
-  features: WeatherDayFeature[],
+  documentedDays: WeatherDayFeature[],
   coverage: WeatherCoverageInfo
 ): WeatherPressureDelta24h {
   const notes: string[] = [];
 
-  // Filter to days with both documentation and Δ value
-  const paired = features.filter((f) => f.pressureChange24h != null);
+  // Filter to documented days with Δ value
+  const paired = documentedDays.filter((f) => f.pressureChange24h != null);
   const confidence = determineConfidence(paired.length);
 
   if (confidence === "insufficient") {
@@ -248,9 +252,9 @@ function analyzePressureDelta(
 // ─── Absolute Pressure ──────────────────────────────────────────────────
 
 function analyzeAbsolutePressure(
-  features: WeatherDayFeature[]
+  documentedDays: WeatherDayFeature[]
 ): WeatherAbsolutePressure | null {
-  const paired = features.filter((f) => f.pressureMb != null);
+  const paired = documentedDays.filter((f) => f.pressureMb != null);
 
   if (paired.length < MIN_DAYS_ABSOLUTE_PRESSURE) {
     return null;

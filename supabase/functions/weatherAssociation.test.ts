@@ -1,6 +1,6 @@
 /**
  * Unit tests for weatherAssociation.ts
- * Covers: bucket assignment, headache rates, RR, guardrails, confidence
+ * Covers: bucket assignment, headache rates, RR, guardrails, confidence, documented filter
  */
 
 import { assertEquals, assertExists } from "https://deno.land/std@0.224.0/assert/mod.ts";
@@ -15,6 +15,7 @@ function makeDay(
 ): WeatherDayFeature {
   return {
     date,
+    documented: true,
     painMax: 0,
     hadHeadache: false,
     hadAcuteMed: false,
@@ -143,20 +144,38 @@ Deno.test("absolute pressure analysis only with >= 60 days", () => {
   assertEquals(enough.absolutePressure!.buckets.length, 3);
 });
 
-Deno.test("coverage ratios calculated correctly", () => {
+Deno.test("coverage ratios based on documented days only", () => {
   const features: WeatherDayFeature[] = [
-    ...makeDays(20, { pressureMb: 1013, pressureChange24h: -2 }),
-    ...makeDays(10, { pressureMb: null, pressureChange24h: null, temperatureC: null, humidity: null, weatherCoverage: "none" }),
+    ...makeDays(20, { documented: true, pressureMb: 1013, pressureChange24h: -2 }),
+    ...makeDays(10, { documented: true, pressureMb: null, pressureChange24h: null, temperatureC: null, humidity: null, weatherCoverage: "none" }),
+    ...makeDays(5, { documented: false, pressureMb: 1013, pressureChange24h: -1 }), // undocumented → excluded
   ];
 
   const result = computeWeatherAssociation(features);
 
+  // Only 30 documented days count (not 35)
   assertEquals(result.coverage.daysDocumented, 30);
   assertEquals(result.coverage.daysWithWeather, 20);
   assertEquals(result.coverage.daysWithDelta24h, 20);
   // 20/30 ≈ 0.67
   assertEquals(result.coverage.ratioWeather, 0.67);
   assertEquals(result.coverage.ratioDelta24h, 0.67);
+});
+
+Deno.test("undocumented days are excluded from analysis entirely", () => {
+  const features: WeatherDayFeature[] = [
+    // 15 documented with delta
+    ...makeDays(15, { documented: true, pressureChange24h: -10, hadHeadache: true, painMax: 7 }),
+    // 20 undocumented with delta (should NOT count)
+    ...makeDays(20, { documented: false, pressureChange24h: -10, hadHeadache: true, painMax: 7 }),
+  ];
+
+  const result = computeWeatherAssociation(features);
+
+  // Only 15 documented days → insufficient
+  assertEquals(result.coverage.daysDocumented, 15);
+  assertEquals(result.pressureDelta24h.confidence, "insufficient");
+  assertEquals(result.pressureDelta24h.enabled, false);
 });
 
 Deno.test("meanPainMax only from headache days", () => {
@@ -206,4 +225,32 @@ Deno.test("zero headache rate in reference: RR is null, absDiff computed", () =>
   assertExists(rr);
   assertEquals(rr!.rr, null); // cannot divide by 0
   assertEquals(rr!.absDiff, 1.0); // 1.0 - 0.0
+});
+
+// ─── Integration: buildWeatherDayFeatures-like mock → non-insufficient ──
+
+Deno.test("integration: realistic mixed data produces enabled analysis", () => {
+  const features: WeatherDayFeature[] = [
+    // 15 days strong drop, 12 headache
+    ...makeDays(12, { documented: true, pressureChange24h: -10, hadHeadache: true, painMax: 8, hadAcuteMed: true }),
+    ...makeDays(3, { documented: true, pressureChange24h: -9, hadHeadache: false }),
+    // 10 days moderate drop, 4 headache
+    ...makeDays(4, { documented: true, pressureChange24h: -5, hadHeadache: true, painMax: 5 }),
+    ...makeDays(6, { documented: true, pressureChange24h: -4, hadHeadache: false }),
+    // 25 days stable, 5 headache
+    ...makeDays(5, { documented: true, pressureChange24h: 1, hadHeadache: true, painMax: 3 }),
+    ...makeDays(20, { documented: true, pressureChange24h: 2, hadHeadache: false }),
+  ];
+
+  const result = computeWeatherAssociation(features);
+
+  assertEquals(result.pressureDelta24h.enabled, true);
+  assertEquals(result.pressureDelta24h.confidence, "medium"); // 50 days
+  assertEquals(result.coverage.daysDocumented, 50);
+
+  // RR should exist
+  assertExists(result.pressureDelta24h.relativeRisk);
+  const rr = result.pressureDelta24h.relativeRisk!;
+  // Strong drop: 12/15 = 0.8, Stable: 5/25 = 0.2, RR = 4.0
+  assertEquals(rr.rr, 4.0);
 });
