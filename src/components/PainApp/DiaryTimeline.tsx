@@ -283,24 +283,24 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
 
   const getPainLevelDisplay = (level: string) => {
     const mapping: Record<string, { label: string; numeric: string; color: string }> = {
-      // Text-Werte
-      'keine': { label: 'Keine Schmerzen', numeric: '0/10', color: 'bg-green-500/20 text-green-700 dark:bg-green-500/30 dark:text-green-300' },
-      'leicht': { label: 'Leicht', numeric: '1-3/10', color: 'bg-yellow-500/20 text-yellow-700 dark:bg-yellow-500/30 dark:text-yellow-300' },
-      'mittel': { label: 'Mittel', numeric: '4-6/10', color: 'bg-orange-500/20 text-orange-700 dark:bg-orange-500/30 dark:text-orange-300' },
-      'stark': { label: 'Stark', numeric: '7-8/10', color: 'bg-red-500/20 text-red-700 dark:bg-red-500/30 dark:text-red-300' },
-      'sehr_stark': { label: 'Sehr stark', numeric: '9-10/10', color: 'bg-purple-500/20 text-purple-700 dark:bg-purple-500/30 dark:text-purple-300' },
+      // Text-Werte — consistent orange→red scale, NO purple
+      'keine': { label: 'Keine Schmerzen', numeric: '0/10', color: 'bg-green-500/20 text-green-300' },
+      'leicht': { label: 'Leicht', numeric: '1-3/10', color: 'bg-amber-500/20 text-amber-300' },
+      'mittel': { label: 'Mittel', numeric: '4-6/10', color: 'bg-orange-500/20 text-orange-300' },
+      'stark': { label: 'Stark', numeric: '7-8/10', color: 'bg-red-500/20 text-red-300' },
+      'sehr_stark': { label: 'Sehr stark', numeric: '9-10/10', color: 'bg-red-600/25 text-red-300' },
       // Numerische Werte (0-10)
-      '0': { label: 'Keine Schmerzen', numeric: '0/10', color: 'bg-green-500/20 text-green-700 dark:bg-green-500/30 dark:text-green-300' },
-      '1': { label: 'Leicht', numeric: '1/10', color: 'bg-yellow-500/20 text-yellow-700 dark:bg-yellow-500/30 dark:text-yellow-300' },
-      '2': { label: 'Leicht', numeric: '2/10', color: 'bg-yellow-500/20 text-yellow-700 dark:bg-yellow-500/30 dark:text-yellow-300' },
-      '3': { label: 'Leicht', numeric: '3/10', color: 'bg-yellow-500/20 text-yellow-700 dark:bg-yellow-500/30 dark:text-yellow-300' },
-      '4': { label: 'Mittel', numeric: '4/10', color: 'bg-orange-500/20 text-orange-700 dark:bg-orange-500/30 dark:text-orange-300' },
-      '5': { label: 'Mittel', numeric: '5/10', color: 'bg-orange-500/20 text-orange-700 dark:bg-orange-500/30 dark:text-orange-300' },
-      '6': { label: 'Mittel', numeric: '6/10', color: 'bg-orange-500/20 text-orange-700 dark:bg-orange-500/30 dark:text-orange-300' },
-      '7': { label: 'Stark', numeric: '7/10', color: 'bg-red-500/20 text-red-700 dark:bg-red-500/30 dark:text-red-300' },
-      '8': { label: 'Stark', numeric: '8/10', color: 'bg-red-500/20 text-red-700 dark:bg-red-500/30 dark:text-red-300' },
-      '9': { label: 'Sehr stark', numeric: '9/10', color: 'bg-purple-500/20 text-purple-700 dark:bg-purple-500/30 dark:text-purple-300' },
-      '10': { label: 'Sehr stark', numeric: '10/10', color: 'bg-purple-500/20 text-purple-700 dark:bg-purple-500/30 dark:text-purple-300' },
+      '0': { label: 'Keine Schmerzen', numeric: '0/10', color: 'bg-green-500/20 text-green-300' },
+      '1': { label: 'Leicht', numeric: '1/10', color: 'bg-amber-500/20 text-amber-300' },
+      '2': { label: 'Leicht', numeric: '2/10', color: 'bg-amber-500/20 text-amber-300' },
+      '3': { label: 'Leicht', numeric: '3/10', color: 'bg-amber-500/20 text-amber-300' },
+      '4': { label: 'Mittel', numeric: '4/10', color: 'bg-orange-500/20 text-orange-300' },
+      '5': { label: 'Mittel', numeric: '5/10', color: 'bg-orange-500/20 text-orange-300' },
+      '6': { label: 'Mittel', numeric: '6/10', color: 'bg-orange-500/20 text-orange-300' },
+      '7': { label: 'Stark', numeric: '7/10', color: 'bg-red-500/20 text-red-300' },
+      '8': { label: 'Stark', numeric: '8/10', color: 'bg-red-500/20 text-red-300' },
+      '9': { label: 'Sehr stark', numeric: '9/10', color: 'bg-red-600/25 text-red-300' },
+      '10': { label: 'Sehr stark', numeric: '10/10', color: 'bg-red-600/25 text-red-300' },
     };
     return mapping[level] || { label: 'Unbekannt', numeric: '-', color: 'bg-muted' };
   };
@@ -450,11 +450,6 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
         <AppHeader 
           title={t('mainMenu.historyAndCalendar')} 
           onBack={onBack}
-          action={
-            <Badge variant="outline" className="text-xs">
-              {filteredItems.length}
-            </Badge>
-          }
         />
         
         {/* Segmented Control - Always Visible */}
@@ -501,13 +496,13 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
                 className="justify-start flex-wrap"
               >
                 <ToggleGroupItem value="all" className="flex-1">
-                  {t('diary.all')} ({timelineItems.length})
+                  {t('diary.all')}
                 </ToggleGroupItem>
                 <ToggleGroupItem value="pain_entry" className="flex-1">
-                  {t('diary.pain')} ({painEntries.length})
+                  {t('diary.pain')}
                 </ToggleGroupItem>
                 <ToggleGroupItem value="context_note" className="flex-1">
-                  {t('diary.context')} ({contextNotes.length})
+                  {t('diary.context')}
                 </ToggleGroupItem>
                 <ToggleGroupItem value="medication" className="flex-1">
                   <Pill className="h-3.5 w-3.5 mr-1" />
@@ -543,8 +538,17 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
         {viewMode === 'list' && filterType !== 'medication' && (
           <>
             {isLoading ? (
-              <div className="text-center py-8 text-muted-foreground">Lädt...</div>
-            ) : Object.keys(groupedByDate).length === 0 ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map(i => (
+                  <Card key={i}><CardContent className="p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-16 h-4 rounded bg-muted animate-pulse" />
+                      <div className="w-24 h-5 rounded bg-muted animate-pulse" />
+                    </div>
+                  </CardContent></Card>
+                ))}
+              </div>
+            ) : Object.keys(groupedByDate).length === 0 && !loadingEntries && !loadingNotes ? (
               <EmptyState
                 icon="📖"
                 title="Noch keine Einträge"
@@ -586,15 +590,9 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
                               {/* Zeit + Schmerzstärke (prominent) */}
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-sm font-medium">{item.time} Uhr</span>
-                  <span className="text-sm text-muted-foreground">Schmerzstärke:</span>
                   <Badge className={getPainLevelDisplay(item.data.pain_level).color}>
                     {getPainLevelDisplay(item.data.pain_level).label} ({getPainLevelDisplay(item.data.pain_level).numeric})
                   </Badge>
-                  {item.data.pain_locations && item.data.pain_locations.length > 0 && (
-                    <Badge variant="outline" className="text-xs">
-                      📍 {item.data.pain_locations.join(', ')}
-                    </Badge>
-                  )}
                 </div>
                               
                               {/* Medikamente als Liste (kompakt wenn zugeklappt) */}
@@ -648,7 +646,21 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
                                   </div>
                                 </div>
                               )}
-                              
+                               
+                              {/* Schmerzlokalisation (nur in Details) */}
+                              {item.data.pain_locations && item.data.pain_locations.length > 0 && (
+                                <div>
+                                  <h4 className="text-xs font-semibold text-muted-foreground mb-1">Lokalisation</h4>
+                                  <div className="flex flex-wrap gap-1">
+                                    {item.data.pain_locations.map((loc: string, i: number) => (
+                                      <Badge key={i} variant="outline" className="text-xs">
+                                        📍 {loc}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
                               {/* Aura */}
                               {item.data.aura_type && item.data.aura_type !== 'keine' && (
                                 <div>
@@ -670,17 +682,36 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
                                 <div>
                                   <h4 className="text-xs font-semibold text-muted-foreground mb-1">Wetter</h4>
                                   <div className="text-sm space-y-1">
-                                    {item.data.weather.temperature_c !== null && (
+                                    {item.data.weather.condition_text && isValidWeatherCondition(item.data.weather.condition_text) && (
+                                      <div className="flex items-center gap-1.5">
+                                        <span>☁️</span>
+                                        <span>{item.data.weather.condition_text}</span>
+                                        {item.data.weather.temperature_c !== null && (
+                                          <span className="text-muted-foreground">· {item.data.weather.temperature_c}°C</span>
+                                        )}
+                                      </div>
+                                    )}
+                                    {!isValidWeatherCondition(item.data.weather.condition_text) && item.data.weather.temperature_c !== null && (
                                       <div>🌡️ {item.data.weather.temperature_c}°C</div>
                                     )}
                                     {item.data.weather.pressure_mb !== null && (
-                                      <div>📊 {item.data.weather.pressure_mb} hPa</div>
+                                      <div className="flex items-center gap-1.5">
+                                        <span>📊</span>
+                                        <span>{item.data.weather.pressure_mb} hPa</span>
+                                        {item.data.weather.pressure_change_24h != null && (
+                                          <span className={cn(
+                                            "text-xs",
+                                            item.data.weather.pressure_change_24h > 0 ? "text-green-400" :
+                                            item.data.weather.pressure_change_24h < 0 ? "text-red-400" :
+                                            "text-muted-foreground"
+                                          )}>
+                                            (Δ {item.data.weather.pressure_change_24h > 0 ? '+' : ''}{Math.round(item.data.weather.pressure_change_24h)} hPa / 24h)
+                                          </span>
+                                        )}
+                                      </div>
                                     )}
                                     {item.data.weather.humidity !== null && (
                                       <div>💧 {item.data.weather.humidity}%</div>
-                                    )}
-                                    {item.data.weather.condition_text && isValidWeatherCondition(item.data.weather.condition_text) && (
-                                      <div>☁️ {item.data.weather.condition_text}</div>
                                     )}
                                   </div>
                                 </div>
@@ -747,6 +778,7 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex-1 space-y-2">
                               <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-sm font-medium">{item.time} Uhr</span>
                                 {(() => {
                                   const typeInfo = getContextTypeInfo(item.data);
                                   const IconComponent = typeInfo.icon;
@@ -757,7 +789,6 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
                                     </Badge>
                                   );
                                 })()}
-                                <span className="text-xs text-muted-foreground">{item.time} Uhr</span>
                               </div>
                               
                               {/* Text (gekürzt wenn zugeklappt) */}
