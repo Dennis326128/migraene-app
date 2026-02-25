@@ -1,7 +1,7 @@
 /**
  * MedicationOverviewCard
  * Compact clinical medication overview for Auswertung & Statistiken.
- * Shows per medication: last intake (global), 7d/30d counts, limit status.
+ * Shows per medication: 7d/30d counts (without today), limit status.
  * CTA deep-links to diary medication mode with correct time range.
  */
 
@@ -13,10 +13,7 @@ import { useMedicationSummary } from "@/features/medication-intakes/hooks/useMed
 import { getSummaryRanges } from "@/features/medication-intakes/api/medicationSummary.api";
 import { useMedicationLimits, type MedicationLimit } from "@/features/medication-limits/hooks/useMedicationLimits";
 import { useMeds } from "@/features/meds/hooks/useMeds";
-import { format } from "date-fns";
-import { de } from "date-fns/locale";
-import { toZonedTime } from "date-fns-tz";
-import { getLimitStatus, isWarningStatus, getStatusLabel } from "@/lib/utils/medicationLimitStatus";
+import { getLimitStatus, isWarningStatus } from "@/lib/utils/medicationLimitStatus";
 
 function getPeriodLabel(periodType: string): string {
   switch (periodType) {
@@ -35,14 +32,6 @@ function getUsedForPeriod(periodType: string, count7d: number, count30d: number)
   }
 }
 
-function formatLastIntake(takenAt: string): string {
-  try {
-    const berlinTime = toZonedTime(new Date(takenAt), "Europe/Berlin");
-    return format(berlinTime, "EE, dd. MMM yyyy – HH:mm", { locale: de });
-  } catch {
-    return takenAt;
-  }
-}
 
 interface MedicationOverviewCardProps {
   onNavigateToMedicationHistory?: (medicationName: string, rangeOverride?: { preset: string; from?: string; to?: string }) => void;
@@ -113,7 +102,7 @@ export function MedicationOverviewCard({
           <CardTitle className="text-base">Medikamenten-Übersicht</CardTitle>
         </div>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Letzte Einnahmen & Häufigkeit (heute nicht gezählt)
+          Häufigkeit ohne heute · Limit informativ
         </p>
       </CardHeader>
       <CardContent className="space-y-0">
@@ -129,7 +118,7 @@ export function MedicationOverviewCard({
           const showWarning = limitStatus ? isWarningStatus(limitStatus) : false;
 
           const ctaLabel = med.count_30d > 0
-            ? "Einnahmen ansehen"
+            ? "Im Verlauf ansehen"
             : "Verlauf öffnen";
 
           return (
@@ -164,15 +153,6 @@ export function MedicationOverviewCard({
 
               {/* Stats row */}
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                {/* Last intake (global) */}
-                <span>
-                  <span className="font-medium text-foreground/70">Letzte Einnahme: </span>
-                  {med.last_intake_at
-                    ? formatLastIntake(med.last_intake_at)
-                    : "Keine dokumentiert"}
-                </span>
-              </div>
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground mt-1">
                 {/* 7d */}
                 <span>
                   <span className="font-medium text-foreground/70">7 Tage: </span>
