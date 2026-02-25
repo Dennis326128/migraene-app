@@ -13,9 +13,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Pill, ArrowDown, Loader2, AlertTriangle, Settings } from "lucide-react";
-import { format } from "date-fns";
+import { format, differenceInCalendarDays } from "date-fns";
 import { de } from "date-fns/locale";
 import { toZonedTime } from "date-fns-tz";
 import { todayStr } from "@/lib/dateRange/rangeResolver";
@@ -26,7 +27,9 @@ import { formatDoseWithUnit } from "@/lib/utils/doseFormatter";
 import { getLimitStatus, isWarningStatus } from "@/lib/utils/medicationLimitStatus";
 import { cn } from "@/lib/utils";
 
-/** Normalize medication name for robust matching (handles "10mg" vs "10 mg") */
+// ─── Helpers ────────────────────────────────────────────────────────
+
+/** Normalize medication name for robust matching */
 function normalizeMedName(name: string): string {
   return (name ?? "")
     .toLowerCase()
@@ -35,10 +38,7 @@ function normalizeMedName(name: string): string {
     .replace(/(\d)\s*(mg|ml|g|µg|mcg)\b/gi, "$1 $2");
 }
 
-/**
- * Find active limit for a medication — robust matching with fallbacks.
- * SSOT: LimitExistence = return value != null (never based on usage counts).
- */
+/** Find active limit for a medication — robust matching with fallbacks. */
 function findActiveLimitForMedication<T extends { is_active: boolean; medication_name: string }>(
   selectedMedication: string | null,
   limits: T[]
@@ -52,7 +52,7 @@ function findActiveLimitForMedication<T extends { is_active: boolean; medication
   );
   if (exact) return exact;
 
-  // 2) base-name fallback (strip strength) — only if single match to avoid ambiguity
+  // 2) base-name fallback (strip strength) — only if single match
   const baseOf = (s: string) => s.replace(/\b\d+\s*(mg|ml|g|µg|mcg)\b/gi, "").trim();
   const selBase = baseOf(sel);
   if (selBase.length > 2) {
@@ -65,12 +65,6 @@ function findActiveLimitForMedication<T extends { is_active: boolean; medication
   return null;
 }
 
-interface MedicationHistoryViewProps {
-  selectedMedication: string | null;
-  onSelectMedication: (name: string | null) => void;
-  onNavigateToLimitEdit?: (medicationName: string, mode: 'create' | 'edit') => void;
-}
-
 /** Map period_type to German label */
 function periodLabel(type: string): string {
   switch (type) {
@@ -81,6 +75,28 @@ function periodLabel(type: string): string {
   }
 }
 
+/** Build relative date label: "Heute", "Gestern", "vor X Tagen" */
+function relativeDateLabel(intakeDate: string, todayDate: string): string | null {
+  const diff = differenceInCalendarDays(
+    new Date(todayDate + "T00:00:00"),
+    new Date(intakeDate + "T00:00:00")
+  );
+  if (diff === 0) return "Heute";
+  if (diff === 1) return "Gestern";
+  if (diff >= 2) return `vor ${diff} Tagen`;
+  return null;
+}
+
+// ─── Props ──────────────────────────────────────────────────────────
+
+interface MedicationHistoryViewProps {
+  selectedMedication: string | null;
+  onSelectMedication: (name: string | null) => void;
+  onNavigateToLimitEdit?: (medicationName: string, mode: 'create' | 'edit') => void;
+}
+
+// ─── Component ──────────────────────────────────────────────────────
+
 export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
   selectedMedication,
   onSelectMedication,
@@ -89,7 +105,6 @@ export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
   const { data: allMeds = [] } = useMeds();
   const { data: allLimits = [], isLoading: limitsLoading } = useMedicationLimits();
 
-  // Hook no longer depends on global TimeRange — shows latest N entries
   const {
     items,
     totalCount,
@@ -113,8 +128,7 @@ export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
 
   const selectedMedData = allMeds.find((m) => m.name === selectedMedication);
 
-  // Find active limit for this medication — robust normalized matching
-  // SSOT: LimitExistence = activeLimit != null (never based on usage counts)
+  // SSOT: LimitExistence = activeLimit != null
   const activeLimit = React.useMemo(
     () => findActiveLimitForMedication(selectedMedication, allLimits),
     [allLimits, selectedMedication]
@@ -136,7 +150,6 @@ export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
     : null;
   const showLimitWarning = limitStatus ? isWarningStatus(limitStatus) : false;
 
-  // Today string for "Heute" label
   const today = todayStr();
 
   return (
@@ -212,14 +225,13 @@ export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
                   </span>
                 </div>
 
-                {/* Limit (only if activeLimit exists — NEVER based on usage) */}
+                {/* Limit row — ONLY if activeLimit exists (SSOT: DB record) */}
                 {activeLimit && limitUsed !== null && (
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">
                       Limit ({periodLabel(activeLimit.period_type)})
                     </span>
                     <div className="flex items-center gap-1.5">
-                      {/* used / limit — used is prominent, /limit is secondary */}
                       <span className="text-base tabular-nums">
                         <span className={cn(
                           "font-semibold",
@@ -244,7 +256,7 @@ export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
                           Überschritten
                         </span>
                       )}
-                      {/* Edit limit — dezent, aber gut tappbar */}
+                      {/* Edit limit icon */}
                       {onNavigateToLimitEdit && (
                         <button
                           onClick={() => onNavigateToLimitEdit(selectedMedication, 'edit')}
@@ -273,14 +285,22 @@ export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
             </CardContent>
           </Card>
 
-          {/* Intake List — shows latest entries, not filtered by global TimeRange */}
+          {/* Intake List */}
           {isLoading ? (
-            <div className="text-center py-8 text-muted-foreground">Lädt...</div>
+            <div className="space-y-1.5">
+              {[...Array(3)].map((_, i) => (
+                <Card key={i}>
+                  <CardContent className="py-3 px-4">
+                    <Skeleton className="h-5 w-3/4" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           ) : totalCount === 0 ? (
             <EmptyState
               icon="📋"
-              title="Keine Einnahmen"
-              description="Für dieses Medikament wurden noch keine Einnahmen erfasst."
+              title="Noch keine Einnahmen erfasst"
+              description="Sobald du eine Einnahme dokumentierst, erscheint sie hier."
             />
           ) : (
             <div className="space-y-1.5">
@@ -289,8 +309,9 @@ export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
                 const berlinTime = toZonedTime(new Date(intake.taken_at), "Europe/Berlin");
                 const timeStr = format(berlinTime, "HH:mm");
                 const showDose = intake.dose_quarters !== 4;
+                const relLabel = relativeDateLabel(intake.taken_date, today);
 
-                // "Heute – 14:43" vs "Montag, 12. Februar 2026 – 08:41"
+                // Full date display
                 const dateDisplay = isToday
                   ? "Heute"
                   : format(berlinTime, "EEEE, d. MMMM yyyy", { locale: de });
@@ -298,11 +319,17 @@ export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
                 return (
                   <Card key={intake.id} className="hover:bg-accent/5 transition-colors">
                     <CardContent className="py-3 px-4 flex items-center justify-between">
-                      <div>
-                        <span className={cn("text-sm font-medium", isToday ? "" : "capitalize")}>
+                      <div className="flex items-baseline gap-1.5 min-w-0">
+                        <span className={cn("text-sm font-medium truncate", isToday ? "" : "capitalize")}>
                           {dateDisplay}
                         </span>
-                        <span className="text-sm text-muted-foreground ml-2">– {timeStr}</span>
+                        <span className="text-sm text-muted-foreground shrink-0">– {timeStr}</span>
+                        {/* Relative label (subtle secondary info) */}
+                        {relLabel && !isToday && (
+                          <span className="text-xs text-muted-foreground/60 shrink-0">
+                            · {relLabel}
+                          </span>
+                        )}
                       </div>
                       {showDose && (
                         <Badge variant="outline" className="text-xs shrink-0 ml-2">
