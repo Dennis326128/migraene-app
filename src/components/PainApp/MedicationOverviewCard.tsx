@@ -35,12 +35,10 @@ function getUsedForPeriod(periodType: string, count7d: number, count30d: number)
 
 interface MedicationOverviewCardProps {
   onNavigateToMedicationHistory?: (medicationName: string, rangeOverride?: { preset: string; from?: string; to?: string }) => void;
-  warningThreshold?: number;
 }
 
 export function MedicationOverviewCard({
   onNavigateToMedicationHistory,
-  warningThreshold = 80,
 }: MedicationOverviewCardProps) {
   const { data: summaries = [], isLoading } = useMedicationSummary();
   const { data: limits = [] } = useMedicationLimits();
@@ -113,7 +111,7 @@ export function MedicationOverviewCard({
             ? getUsedForPeriod(activeLimit.period_type, med.count_7d, med.count_30d)
             : null;
           const limitStatus = activeLimit && used !== null
-            ? getLimitStatus(used, activeLimit.limit_count, warningThreshold)
+            ? getLimitStatus(used, activeLimit.limit_count)
             : null;
           const showWarning = limitStatus ? isWarningStatus(limitStatus) : false;
 

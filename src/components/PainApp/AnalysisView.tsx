@@ -92,7 +92,6 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
 
   // User settings
   const { data: userDefaults } = useUserDefaults();
-  const warningThreshold = userDefaults?.medication_limit_warning_threshold_pct ?? 80;
 
   // Entries
   const entriesLimit = timeRange === "all" ? 5000 : 1000;
@@ -199,18 +198,17 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
   const hasOveruseWarning = useMemo(() => {
     return patternStats.medicationAndEffect.topMedications.some(med => {
       if (!med.limitInfo) return false;
-      const pct = (med.limitInfo.rolling30Count / med.limitInfo.limit) * 100;
-      return pct >= warningThreshold || med.limitInfo.isOverLimit;
+      // Fixed threshold: warning at limit-1, reached at limit, exceeded above
+      return med.limitInfo.rolling30Count >= med.limitInfo.limit - 1;
     });
-  }, [patternStats, warningThreshold]);
+  }, [patternStats]);
 
   const medicationsWithWarning = useMemo(() => {
     return patternStats.medicationAndEffect.topMedications.filter(med => {
       if (!med.limitInfo) return false;
-      const pct = (med.limitInfo.rolling30Count / med.limitInfo.limit) * 100;
-      return pct >= warningThreshold || med.limitInfo.isOverLimit;
+      return med.limitInfo.rolling30Count >= med.limitInfo.limit - 1;
     });
-  }, [patternStats, warningThreshold]);
+  }, [patternStats]);
 
   const { data: timeDistribution = [] } = useTimeDistribution({ from, to });
 
@@ -309,14 +307,12 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
                     hasWarning: hasOveruseWarning,
                     medicationsWithWarning,
                     onNavigateToLimits,
-                    warningThreshold
                   }}
                 />
 
                 {/* Medikamenten-Übersicht (7/30 Tage + Limit + Deep-Link) */}
                 <MedicationOverviewCard
                   onNavigateToMedicationHistory={onNavigateToMedicationHistory}
-                  warningThreshold={warningThreshold}
                 />
 
                 {/* 3. Begleitsymptome */}

@@ -18,7 +18,6 @@ interface OveruseInfo {
   hasWarning: boolean;
   medicationsWithWarning: MedicationEffectStats[];
   onNavigateToLimits?: () => void;
-  warningThreshold: number;
 }
 
 interface PatternCardsProps {
