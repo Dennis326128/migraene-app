@@ -27,20 +27,51 @@ import { normalizePainLevel } from '@/lib/utils/pain';
 import { MedicationHistoryView } from '@/components/diary/MedicationHistoryView';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 
-// Helper: Filtert technische/ungültige Wetterbedingungen
+// Helper: Prüft ob condition_text ein sinnvoller Wert ist (nicht leer, nicht technischer Müll)
 const isValidWeatherCondition = (text: string | null | undefined): boolean => {
-  if (!text) return false;
-  
-  const invalidPatterns = [
-    /historical data/i,
-    /no data/i,
-    /undefined/i,
-    /null/i,
-    /\(\d{1,2}:\d{2}\)/ // Zeitstempel wie (5:00)
-  ];
-  
-  return !invalidPatterns.some(pattern => pattern.test(text));
+  if (!text || typeof text !== 'string') return false;
+  const trimmed = text.trim();
+  if (trimmed.length === 0) return false;
+  // Nur offensichtlich kaputte Werte filtern
+  const invalidPatterns = [/^null$/i, /^undefined$/i, /^no data$/i];
+  return !invalidPatterns.some(pattern => pattern.test(trimmed));
 };
+
+// Helper: Normalisiert Wetterdaten aus verschiedenen Quellformaten
+function normalizeWeatherForTimeline(raw: any): {
+  temperature_c: number | null;
+  pressure_mb: number | null;
+  pressure_change_24h: number | null;
+  humidity: number | null;
+  condition_text: string | null;
+} | null {
+  if (!raw) return null;
+  const w = Array.isArray(raw) ? raw[0] : raw;
+  if (!w) return null;
+  const result = {
+    temperature_c: w.temperature_c ?? null,
+    pressure_mb: w.pressure_mb ?? null,
+    pressure_change_24h: w.pressure_change_24h ?? w.pressureChange24h ?? w.pressure_delta_24h ?? null,
+    humidity: w.humidity ?? null,
+    condition_text: w.condition_text ?? w.conditionText ?? w.condition ?? null,
+  };
+  // Leere Strings → null
+  if (typeof result.condition_text === 'string' && result.condition_text.trim().length === 0) {
+    result.condition_text = null;
+  }
+  // Mindestens ein Wert vorhanden?
+  if (result.temperature_c === null && result.pressure_mb === null && result.humidity === null && result.condition_text === null) {
+    return null;
+  }
+  return result;
+}
+
+// Helper: Lokalisation label kapitalisieren
+function formatLocationLabel(loc: string): string {
+  const trimmed = loc.trim();
+  if (trimmed.length === 0) return trimmed;
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+}
 
 // Compact Rolling 30d KPI Summary - Info only, not a filter
 // This shows a quick snapshot of the last 30 days while the full list shows ALL entries
@@ -599,20 +630,13 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
                   </Badge>
                 </div>
                               
-                              {/* Medikamente als Liste (kompakt wenn zugeklappt) */}
+                              {/* Medikamente kompakt: plain text */}
                               {item.data.medications && item.data.medications.length > 0 && !expandedEntries.has(item.id) && (
-                                <div className="flex flex-wrap gap-1">
-                                  {item.data.medications.slice(0, 3).map((med: string, i: number) => (
-                                    <Badge key={i} variant="secondary" className="text-xs">
-                                      💊 {med}
-                                    </Badge>
-                                  ))}
-                                  {item.data.medications.length > 3 && (
-                                    <Badge variant="secondary" className="text-xs">
-                                      +{item.data.medications.length - 3}
-                                    </Badge>
-                                  )}
-                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                  {item.data.medications.length === 1
+                                    ? item.data.medications[0]
+                                    : `${item.data.medications.length} Medikamente`}
+                                </p>
                               )}
                             </div>
                             
@@ -637,25 +661,23 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
                           {/* ERWEITERTE ANSICHT (ausgeklappt) */}
                           {expandedEntries.has(item.id) && (
                             <div className="mt-4 pt-4 border-t space-y-3 animate-in slide-in-from-top-2">
-                              {/* Medikamente (detailliert) */}
+                              {/* Medikamente (einfache Textliste, keine Icons/Badges) */}
                               {item.data.medications && item.data.medications.length > 0 && (
                                 <div>
                                   <h4 className="text-xs font-semibold text-muted-foreground mb-1">Medikamente</h4>
-                                  <div className="flex flex-wrap gap-1">
+                                  <div className="space-y-0.5">
                                     {item.data.medications.map((med: string, i: number) => (
-                                      <Badge key={i} variant="secondary" className="text-xs">
-                                        💊 {med}
-                                      </Badge>
+                                      <p key={i} className="text-sm">{med}</p>
                                     ))}
                                   </div>
                                 </div>
                               )}
                                
-                              {/* Schmerzlokalisation (nur in Details, schlicht) */}
+                              {/* Schmerzlokalisation (kapitalisiert, kein Icon) */}
                               {item.data.pain_locations && item.data.pain_locations.length > 0 && (
                                 <div>
                                   <h4 className="text-xs font-semibold text-muted-foreground mb-1">Lokalisation</h4>
-                                  <p className="text-sm">{item.data.pain_locations.join(', ')}</p>
+                                  <p className="text-sm">{item.data.pain_locations.map(formatLocationLabel).join(', ')}</p>
                                 </div>
                               )}
 
@@ -663,7 +685,7 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
                               {item.data.aura_type && item.data.aura_type !== 'keine' && (
                                 <div>
                                   <h4 className="text-xs font-semibold text-muted-foreground mb-1">Aura</h4>
-                                  <Badge variant="outline">✨ {item.data.aura_type}</Badge>
+                                  <p className="text-sm">{item.data.aura_type}</p>
                                 </div>
                               )}
                               
@@ -675,51 +697,67 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
                                 </div>
                               )}
                               
-                              {/* Wetterdaten */}
-                              {item.data.weather && (
-                                <div>
-                                  <h4 className="text-xs font-semibold text-muted-foreground mb-1">Wetter</h4>
-                                  <div className="text-sm space-y-1">
-                                    {item.data.weather.condition_text && isValidWeatherCondition(item.data.weather.condition_text) && (
-                                      <div className="flex items-center gap-1.5">
-                                        <span>☁️</span>
-                                        <span>{item.data.weather.condition_text}</span>
-                                        {item.data.weather.temperature_c !== null && (
-                                          <span className="text-muted-foreground">· {item.data.weather.temperature_c}°C</span>
-                                        )}
-                                      </div>
-                                    )}
-                                    {!isValidWeatherCondition(item.data.weather.condition_text) && item.data.weather.temperature_c !== null && (
-                                      <div>🌡️ {item.data.weather.temperature_c}°C</div>
-                                    )}
-                                    {item.data.weather.pressure_mb !== null && (
-                                      <div className="flex items-center gap-1.5">
-                                        <span>📊</span>
-                                        <span>{item.data.weather.pressure_mb} hPa</span>
-                                        {item.data.weather.pressure_change_24h != null && (
-                                          <span className={cn(
-                                            "text-xs",
-                                            item.data.weather.pressure_change_24h > 0 ? "text-green-400" :
-                                            item.data.weather.pressure_change_24h < 0 ? "text-red-400" :
-                                            "text-muted-foreground"
-                                          )}>
-                                            (Δ {item.data.weather.pressure_change_24h > 0 ? '+' : ''}{Math.round(item.data.weather.pressure_change_24h)} hPa / 24h)
-                                          </span>
-                                        )}
-                                      </div>
-                                    )}
-                                    {item.data.weather.humidity !== null && (
-                                      <div>💧 {item.data.weather.humidity}%</div>
-                                    )}
+                              {/* Wetterdaten (normalisiert) */}
+                              {(() => {
+                                const weather = normalizeWeatherForTimeline(item.data.weather);
+                                if (import.meta.env.DEV) {
+                                  console.debug('[DiaryTimeline] Weather debug', {
+                                    entry_id: item.data.id,
+                                    raw_weather_keys: item.data.weather ? Object.keys(item.data.weather) : null,
+                                    condition_text: weather?.condition_text,
+                                    pressure_mb: weather?.pressure_mb,
+                                    pressure_change_24h: weather?.pressure_change_24h,
+                                  });
+                                }
+                                if (!weather) return null;
+                                return (
+                                  <div>
+                                    <h4 className="text-xs font-semibold text-muted-foreground mb-1">Wetter</h4>
+                                    <div className="text-sm space-y-0.5">
+                                      {/* Zeile 1: Condition + Temp */}
+                                      {(isValidWeatherCondition(weather.condition_text) || weather.temperature_c !== null) && (
+                                        <p>
+                                          {isValidWeatherCondition(weather.condition_text) && (
+                                            <span>{weather.condition_text}</span>
+                                          )}
+                                          {isValidWeatherCondition(weather.condition_text) && weather.temperature_c !== null && (
+                                            <span className="text-muted-foreground"> · </span>
+                                          )}
+                                          {weather.temperature_c !== null && (
+                                            <span>{weather.temperature_c}°C</span>
+                                          )}
+                                        </p>
+                                      )}
+                                      {/* Zeile 2: Luftdruck + Δ24h */}
+                                      {weather.pressure_mb !== null && (
+                                        <p>
+                                          <span>{weather.pressure_mb} hPa</span>
+                                          {weather.pressure_change_24h != null && (
+                                            <span className={cn(
+                                              "text-xs ml-1.5",
+                                              weather.pressure_change_24h > 0 ? "text-green-400" :
+                                              weather.pressure_change_24h < 0 ? "text-red-400" :
+                                              "text-muted-foreground"
+                                            )}>
+                                              (Δ {weather.pressure_change_24h > 0 ? '+' : ''}{Math.round(weather.pressure_change_24h)} hPa / 24h)
+                                            </span>
+                                          )}
+                                        </p>
+                                      )}
+                                      {/* Zeile 3: Luftfeuchte */}
+                                      {weather.humidity !== null && (
+                                        <p className="text-muted-foreground">Luftfeuchte: {weather.humidity}%</p>
+                                      )}
+                                    </div>
                                   </div>
-                                </div>
-                              )}
+                                );
+                              })()}
                               
                               {/* Mondphase */}
                               {item.data.weather?.moon_phase !== null && item.data.weather?.moon_phase !== undefined && (
                                 <div>
                                   <h4 className="text-xs font-semibold text-muted-foreground mb-1">Mondphase</h4>
-                                  <span className="text-sm">🌙 {item.data.weather.moon_phase}</span>
+                                  <p className="text-sm">{item.data.weather.moon_phase}</p>
                                 </div>
                               )}
                               
@@ -728,7 +766,7 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
                                 <div>
                                   <h4 className="text-xs font-semibold text-muted-foreground mb-1">Standort</h4>
                                   <span className="text-xs text-muted-foreground">
-                                    📍 {item.data.latitude.toFixed(4)}, {item.data.longitude.toFixed(4)}
+                                    {item.data.latitude.toFixed(4)}, {item.data.longitude.toFixed(4)}
                                   </span>
                                 </div>
                               )}
