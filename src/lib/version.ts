@@ -40,8 +40,8 @@ export async function forceClearCachesAndReload() {
     localStorage.removeItem('build_id');
     localStorage.removeItem('app_version');
     
-    // 4. Wait for SW cleanup to complete
-    await new Promise(r => setTimeout(r, 100));
+    // 4. Wait for SW cleanup to complete (300ms for reliable deactivation)
+    await new Promise(r => setTimeout(r, 300));
     
     // 5. Navigate with cache-bust parameter (bypasses any lingering SW)
     window.location.replace(window.location.pathname + '?_cb=' + Date.now());
@@ -116,8 +116,28 @@ async function safeReload() {
 }
 
 /**
- * Initialize version watcher.
- * No more build-id.txt fetch — BUILD_ID is compile-time embedded.
+ * Fetch /build-id.json from network (bypassing SW + HTTP cache)
+ * and compare against the compile-time BUILD_ID.
+ */
+async function checkVersionFromNetwork() {
+  if (isReloading || BUILD_ID === 'dev') return;
+
+  try {
+    const res = await fetch('/build-id.json', { cache: 'no-store' });
+    if (!res.ok) return;
+
+    const { id: serverId } = await res.json();
+    if (serverId && serverId !== BUILD_ID) {
+      console.log(`🔄 Network version mismatch: local=${BUILD_ID} server=${serverId}`);
+      await forceClearCachesAndReload();
+    }
+  } catch {
+    // Network error — skip silently (offline, etc.)
+  }
+}
+
+/**
+ * Initialize version watcher with network-based checks.
  */
 export function initVersionWatcher() {
   // 1. Service Worker message listener
@@ -129,6 +149,19 @@ export function initVersionWatcher() {
       }
     });
   }
+
+  // 2. Network check after 3s (gives build time to finish)
+  setTimeout(checkVersionFromNetwork, 3000);
+
+  // 3. Periodic check every 60s
+  setInterval(checkVersionFromNetwork, 60_000);
+
+  // 4. Check when tab becomes visible again
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      checkVersionFromNetwork();
+    }
+  });
 }
 
 /**

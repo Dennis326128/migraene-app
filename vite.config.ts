@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
+import fs from "fs";
 import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
 
@@ -39,6 +40,14 @@ export default defineConfig(({ mode }) => {
               expiration: {
                 maxAgeSeconds: 86400,
               },
+            },
+          },
+          // build-id.json — NEVER cache (version check file)
+          {
+            urlPattern: /\/build-id\.json$/,
+            handler: 'NetworkOnly',
+            options: {
+              cacheName: 'version-check',
             },
           },
           // Supabase API - NetworkOnly (no caching of user data!)
@@ -102,6 +111,19 @@ export default defineConfig(({ mode }) => {
         enabled: false,
       },
     }),
+    // Generate build-id.json for network-based version checking
+    {
+      name: 'generate-build-id',
+      writeBundle({ dir }: { dir?: string }) {
+        const outDir = dir || 'dist';
+        fs.mkdirSync(outDir, { recursive: true });
+        fs.writeFileSync(
+          path.join(outDir, 'build-id.json'),
+          JSON.stringify({ id: buildId })
+        );
+        console.log(`✅ build-id.json written with id: ${buildId}`);
+      },
+    },
   ].filter(Boolean),
   resolve: {
     alias: {
