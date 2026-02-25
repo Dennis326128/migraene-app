@@ -6,10 +6,13 @@
  * 
  * IMPORTANT: The list is NOT coupled to the global TimeRange.
  * This prevents the bug where counts show "4×" but the list shows "no entries".
+ * 
+ * STATE RESET: Uses useEffect (not render-scope setState) to avoid
+ * React warnings and ensure deterministic behavior on navigation/remount.
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   getMedicationHistoryLatest,
   countMedicationIntakesInRange,
@@ -39,16 +42,13 @@ export function useMedicationHistory(medicationName: string | null) {
   const [offset, setOffset] = useState(0);
   const [allItems, setAllItems] = useState<MedicationHistoryEntry[]>([]);
   const [totalCount, setTotalCount] = useState(0);
-  const prevKeyRef = useRef<string>("");
 
-  // Reset when medication changes
-  const currentKey = `${medicationName}`;
-  if (currentKey !== prevKeyRef.current) {
-    prevKeyRef.current = currentKey;
+  // Reset pagination when medication changes — in useEffect, NOT render scope
+  useEffect(() => {
     setOffset(0);
     setAllItems([]);
     setTotalCount(0);
-  }
+  }, [medicationName]);
 
   // Paginated history — latest N, NO date range filter
   const historyQuery = useQuery({
@@ -56,21 +56,29 @@ export function useMedicationHistory(medicationName: string | null) {
     queryFn: async () => {
       if (!medicationName) return { items: [], totalCount: 0 };
       const result = await getMedicationHistoryLatest(medicationName, offset, PAGE_SIZE);
-
-      // Append new items (no duplicates)
-      setAllItems((prev) => {
-        if (offset === 0) return result.items;
-        const existingIds = new Set(prev.map((i) => i.id));
-        const newItems = result.items.filter((i) => !existingIds.has(i.id));
-        return [...prev, ...newItems];
-      });
-      setTotalCount(result.totalCount);
-
       return result;
     },
     enabled: !!medicationName,
-    staleTime: 30_000,
+    staleTime: 60_000,
+    gcTime: 5 * 60_000, // Keep cache for 5 min to survive navigation
+    refetchOnWindowFocus: false,
+    // Keep previous data visible while refetching to prevent empty flashes
+    placeholderData: (prev) => prev,
   });
+
+  // Sync query result into accumulated items state
+  useEffect(() => {
+    if (!historyQuery.data) return;
+    const result = historyQuery.data;
+
+    setTotalCount(result.totalCount);
+    setAllItems((prev) => {
+      if (offset === 0) return result.items;
+      const existingIds = new Set(prev.map((i) => i.id));
+      const newItems = result.items.filter((i) => !existingIds.has(i.id));
+      return [...prev, ...newItems];
+    });
+  }, [historyQuery.data, offset]);
 
   // Rolling 7d and 30d counts INCLUDING today (for safety/limits)
   const { today: rollingToday, from7d, from30d } = getRollingRanges();
@@ -82,7 +90,9 @@ export function useMedicationHistory(medicationName: string | null) {
         ? countMedicationIntakesInRange(medicationName, from7d, rollingToday)
         : Promise.resolve(0),
     enabled: !!medicationName,
-    staleTime: 30_000,
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
   });
 
   const count30dQuery = useQuery({
@@ -92,7 +102,9 @@ export function useMedicationHistory(medicationName: string | null) {
         ? countMedicationIntakesInRange(medicationName, from30d, rollingToday)
         : Promise.resolve(0),
     enabled: !!medicationName,
-    staleTime: 30_000,
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
   });
 
   // Count today only (for day-period limits)
@@ -103,7 +115,9 @@ export function useMedicationHistory(medicationName: string | null) {
         ? countMedicationIntakesInRange(medicationName, rollingToday, rollingToday)
         : Promise.resolve(0),
     enabled: !!medicationName,
-    staleTime: 30_000,
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
   });
 
   const loadMore = useCallback(() => {
