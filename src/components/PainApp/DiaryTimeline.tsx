@@ -9,6 +9,7 @@ import { format, subDays } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { toZonedTime } from 'date-fns-tz';
 import { useEntries } from '@/features/entries/hooks/useEntries';
+import { usePressureDelta24h } from '@/features/entries/hooks/usePressureDelta24h';
 import { useDeleteEntry } from '@/features/entries/hooks/useEntryMutations';
 import { supabase } from '@/integrations/supabase/client';
 import type { MigraineEntry } from '@/types/painApp';
@@ -73,6 +74,130 @@ function normalizeWeatherForTimeline(raw: any): {
     return null;
   }
   return result;
+}
+
+/**
+ * Weather detail sub-component for a single expanded diary entry.
+ * Extracted as a component so it can use the usePressureDelta24h hook.
+ *
+ * Δ 24h is often NULL because the weather API only provides it for "current"
+ * requests, not for historical backfills. This component calculates it on-demand.
+ */
+function WeatherDetail({ entryData, userId }: { entryData: any; userId: string | undefined }) {
+  const weather = normalizeWeatherForTimeline(entryData.weather);
+
+  // Determine stored delta
+  const storedDelta = weather?.pressure_change_24h ?? null;
+
+  // On-demand fallback calculation via React Query
+  const deltaResult = usePressureDelta24h({
+    entryId: entryData.id,
+    userId,
+    occurredAt: entryData.timestamp_created,
+    currentPressureMb: weather?.pressure_mb ?? null,
+    currentWeatherLogId: entryData.weather?.id,
+    storedDelta,
+    enabled: true,
+  });
+
+  if (import.meta.env.DEV) {
+    const rawW = entryData.weather;
+    console.debug('[DiaryTimeline] Weather Δ debug', {
+      entryId: entryData.id,
+      occurredAt: entryData.timestamp_created,
+      rawWeather: rawW,
+      rawDeltaCandidates: {
+        pressure_change_24h: rawW?.pressure_change_24h,
+        pressureChange24h: rawW?.pressureChange24h,
+        pressure_delta_24h: rawW?.pressure_delta_24h,
+        delta_24h: rawW?.delta_24h,
+      },
+      normalizedWeather: weather,
+      deltaResult,
+      deltaMissingReasonCandidate: !weather
+        ? 'no weather data'
+        : weather.pressure_mb === null
+          ? 'missing pressure_mb'
+          : storedDelta === null
+            ? 'pressure_change_24h NULL in DB (historical backfill)'
+            : 'stored delta available',
+    });
+  }
+
+  if (!weather) return null;
+
+  const delta = deltaResult.delta;
+  const hasDelta = delta !== null && delta !== undefined && !Number.isNaN(delta);
+  const isCalculated = deltaResult.source === 'calculated';
+
+  return (
+    <div>
+      <h4 className="text-xs font-medium text-muted-foreground mb-1.5">Wetter</h4>
+      <div className="space-y-1">
+        {weather.condition_text && (
+          <div className="flex items-center gap-2">
+            <Cloud className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <span className="text-sm font-medium">{weather.condition_text}</span>
+          </div>
+        )}
+        {weather.temperature_c !== null && (
+          <div className="flex items-center gap-2">
+            <Thermometer className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <span className="text-sm font-medium">{weather.temperature_c}°C</span>
+          </div>
+        )}
+        {weather.pressure_mb !== null && (
+          <div className="flex items-center gap-2">
+            <Gauge className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <span className="text-sm font-medium">{weather.pressure_mb} hPa</span>
+          </div>
+        )}
+        {/* Δ 24h — always show: value or "–" */}
+        {hasDelta ? (() => {
+          const DeltaIcon = delta > 0 ? TrendingUp : delta < 0 ? TrendingDown : Gauge;
+          return (
+            <div className="flex items-center gap-2">
+              <DeltaIcon className={cn(
+                "h-3.5 w-3.5 shrink-0",
+                delta > 0 ? "text-green-400" :
+                delta < 0 ? "text-red-400" :
+                "text-muted-foreground"
+              )} />
+              <span className="text-sm font-medium">
+                Δ 24h:{' '}
+                <span className={cn(
+                  delta > 0 ? "text-green-400" :
+                  delta < 0 ? "text-red-400" :
+                  "text-muted-foreground"
+                )}>
+                  {delta > 0 ? '+' : ''}{Math.round(delta)} hPa
+                </span>
+              </span>
+              {isCalculated && (
+                <span title="Berechnet aus Luftdruckwerten vor 24h">
+                  <Info className="h-3 w-3 text-muted-foreground/40 cursor-help" />
+                </span>
+              )}
+            </div>
+          );
+        })() : (
+          <div className="flex items-center gap-2">
+            <Gauge className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
+            <span className="text-sm text-muted-foreground/50">Δ 24h: –</span>
+            <span title="Für diesen Zeitpunkt ist keine 24h-Änderung verfügbar.">
+              <Info className="h-3 w-3 text-muted-foreground/40 cursor-help" />
+            </span>
+          </div>
+        )}
+        {weather.humidity !== null && (
+          <div className="flex items-center gap-2">
+            <Droplets className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <span className="text-sm font-medium">{weather.humidity}%</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 // Helper: Lokalisation label kapitalisieren
@@ -186,6 +311,16 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
   const { applyOneShotRange } = useTimeRange();
+
+  // Get current user ID for weather delta calculations
+  const { data: currentUserId } = useQuery({
+    queryKey: ['current-user-id'],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      return user?.id ?? null;
+    },
+    staleTime: 60 * 60 * 1000,
+  });
   const [filterType, setFilterType] = useState<'all' | 'pain_entry' | 'context_note' | 'medication'>(initialMedication ? 'medication' : 'all');
   const [selectedMedication, setSelectedMedication] = useState<string | null>(initialMedication ?? null);
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>(() => {
@@ -706,97 +841,8 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
                                 </div>
                               )}
                               
-                              {/* Wetterdaten (normalisiert, Icon-Zeilen) */}
-                              {(() => {
-                                const weather = normalizeWeatherForTimeline(item.data.weather);
-                                if (import.meta.env.DEV) {
-                                  console.debug('[DiaryTimeline] Weather Δ debug', {
-                                    entryId: item.data.id,
-                                    rawWeather: item.data.weather,
-                                    rawDeltaCandidates: {
-                                      pressure_change_24h: item.data.weather?.pressure_change_24h,
-                                      pressureChange24h: item.data.weather?.pressureChange24h,
-                                      pressure_delta_24h: item.data.weather?.pressure_delta_24h,
-                                      pressure_delta24h: item.data.weather?.pressure_delta24h,
-                                      delta_24h: item.data.weather?.delta_24h,
-                                    },
-                                    normalizedWeather: weather,
-                                  });
-                                }
-                                if (!weather) return null;
-                                return (
-                                  <div>
-                                    <h4 className="text-xs font-medium text-muted-foreground mb-1.5">Wetter</h4>
-                                    <div className="space-y-1">
-                                      {/* Wetterzustand */}
-                                      {weather.condition_text && (
-                                        <div className="flex items-center gap-2">
-                                          <Cloud className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                                          <span className="text-sm font-medium">{weather.condition_text}</span>
-                                        </div>
-                                      )}
-                                      {/* Temperatur */}
-                                      {weather.temperature_c !== null && (
-                                        <div className="flex items-center gap-2">
-                                          <Thermometer className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                                          <span className="text-sm font-medium">{weather.temperature_c}°C</span>
-                                        </div>
-                                      )}
-                                      {/* Luftdruck */}
-                                      {weather.pressure_mb !== null && (
-                                        <div className="flex items-center gap-2">
-                                          <Gauge className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                                          <span className="text-sm font-medium">{weather.pressure_mb} hPa</span>
-                                        </div>
-                                      )}
-                                      {/* Δ 24h — IMMER anzeigen: Wert oder "nicht verfügbar" */}
-                                      {(() => {
-                                        const delta = weather.pressure_change_24h;
-                                        const hasDelta = delta !== null && delta !== undefined && !Number.isNaN(delta);
-                                        if (hasDelta) {
-                                          const DeltaIcon = delta > 0 ? TrendingUp : delta < 0 ? TrendingDown : Gauge;
-                                          return (
-                                            <div className="flex items-center gap-2">
-                                              <DeltaIcon className={cn(
-                                                "h-3.5 w-3.5 shrink-0",
-                                                delta > 0 ? "text-green-400" :
-                                                delta < 0 ? "text-red-400" :
-                                                "text-muted-foreground"
-                                              )} />
-                                              <span className="text-sm font-medium">
-                                                Δ 24h:{' '}
-                                                <span className={cn(
-                                                  delta > 0 ? "text-green-400" :
-                                                  delta < 0 ? "text-red-400" :
-                                                  "text-muted-foreground"
-                                                )}>
-                                                  {delta > 0 ? '+' : ''}{Math.round(delta)} hPa
-                                                </span>
-                                              </span>
-                                            </div>
-                                          );
-                                        }
-                                        return (
-                                          <div className="flex items-center gap-2">
-                                            <Gauge className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
-                                            <span className="text-sm text-muted-foreground/50">Δ 24h: –</span>
-                                            <span title="Für diesen Zeitpunkt ist keine 24h-Änderung verfügbar.">
-                                              <Info className="h-3 w-3 text-muted-foreground/40 cursor-help" />
-                                            </span>
-                                          </div>
-                                        );
-                                      })()}
-                                      {/* Luftfeuchte */}
-                                      {weather.humidity !== null && (
-                                        <div className="flex items-center gap-2">
-                                          <Droplets className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                                          <span className="text-sm font-medium">{weather.humidity}%</span>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                );
-                              })()}
+                              {/* Wetterdaten */}
+                              <WeatherDetail entryData={item.data} userId={currentUserId ?? undefined} />
                               
                               {/* Mondphase */}
                               {item.data.weather?.moon_phase !== null && item.data.weather?.moon_phase !== undefined && (
