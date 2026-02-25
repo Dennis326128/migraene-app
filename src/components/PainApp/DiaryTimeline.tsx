@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Filter, Calendar as CalendarIcon, Edit, Trash2, ChevronDown, ChevronUp, ArrowDown, Heart, MessageSquare, List, LayoutGrid, Pill, Activity, Thermometer, Droplets, Gauge, Cloud } from 'lucide-react';
+import { Filter, Calendar as CalendarIcon, Edit, Trash2, ChevronDown, ChevronUp, ArrowDown, Heart, MessageSquare, List, LayoutGrid, Pill, Activity, Thermometer, Droplets, Gauge, Cloud, TrendingUp, TrendingDown } from 'lucide-react';
 import { AppHeader } from '@/components/ui/app-header';
 import { format, subDays } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -54,10 +54,17 @@ function normalizeWeatherForTimeline(raw: any): {
   if (!raw) return null;
   const w = Array.isArray(raw) ? raw[0] : raw;
   if (!w) return null;
+  const rawDelta = w.pressure_change_24h ?? w.pressureChange24h ?? w.pressure_delta_24h ?? w.pressure_delta24h ?? w.delta_24h ?? null;
+  // Robust parseFloat: handle string, number, 0
+  let parsedDelta: number | null = null;
+  if (rawDelta !== null && rawDelta !== undefined) {
+    const num = typeof rawDelta === 'string' ? parseFloat(rawDelta) : Number(rawDelta);
+    parsedDelta = Number.isNaN(num) ? null : num;
+  }
   const result = {
     temperature_c: w.temperature_c ?? w.temp_c ?? w.temperature ?? null,
     pressure_mb: w.pressure_mb ?? w.pressureMb ?? null,
-    pressure_change_24h: w.pressure_change_24h ?? w.pressureChange24h ?? w.pressure_delta_24h ?? null,
+    pressure_change_24h: parsedDelta,
     humidity: w.humidity ?? w.humidity_percent ?? null,
     condition_text: sanitizeWeatherText(w.condition_text ?? w.conditionText ?? w.condition ?? null),
   };
@@ -703,12 +710,17 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
                               {(() => {
                                 const weather = normalizeWeatherForTimeline(item.data.weather);
                                 if (import.meta.env.DEV) {
-                                  console.debug('[DiaryTimeline] Weather debug', {
-                                    entry_id: item.data.id,
-                                    raw_weather_keys: item.data.weather ? Object.keys(item.data.weather) : null,
-                                    condition_text: weather?.condition_text,
-                                    pressure_mb: weather?.pressure_mb,
-                                    pressure_change_24h: weather?.pressure_change_24h,
+                                  console.debug('[DiaryTimeline] Weather Δ debug', {
+                                    entryId: item.data.id,
+                                    rawWeather: item.data.weather,
+                                    rawDeltaCandidates: {
+                                      pressure_change_24h: item.data.weather?.pressure_change_24h,
+                                      pressureChange24h: item.data.weather?.pressureChange24h,
+                                      pressure_delta_24h: item.data.weather?.pressure_delta_24h,
+                                      pressure_delta24h: item.data.weather?.pressure_delta24h,
+                                      delta_24h: item.data.weather?.delta_24h,
+                                    },
+                                    normalizedWeather: weather,
                                   });
                                 }
                                 if (!weather) return null;
@@ -730,25 +742,40 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
                                           <span className="text-sm font-medium">{weather.temperature_c}°C</span>
                                         </div>
                                       )}
-                                      {/* Luftdruck + Δ24h */}
-                                      {(weather.pressure_mb !== null || weather.pressure_change_24h != null) && (
+                                      {/* Luftdruck */}
+                                      {weather.pressure_mb !== null && (
                                         <div className="flex items-center gap-2">
                                           <Gauge className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                                          <span className="text-sm font-medium">
-                                            {weather.pressure_mb !== null && <>{weather.pressure_mb} hPa</>}
-                                            {weather.pressure_change_24h != null && (
-                                              <span className={cn(
-                                                "text-xs ml-1.5",
-                                                weather.pressure_change_24h > 0 ? "text-green-400" :
-                                                weather.pressure_change_24h < 0 ? "text-red-400" :
-                                                "text-muted-foreground"
-                                              )}>
-                                                (Δ {weather.pressure_change_24h > 0 ? '+' : ''}{Math.round(weather.pressure_change_24h)} hPa/24h)
-                                              </span>
-                                            )}
-                                          </span>
+                                          <span className="text-sm font-medium">{weather.pressure_mb} hPa</span>
                                         </div>
                                       )}
+                                      {/* Δ 24h — eigene Zeile, immer wenn vorhanden (auch bei 0) */}
+                                      {(() => {
+                                        const delta = weather.pressure_change_24h;
+                                        const hasDelta = delta !== null && delta !== undefined && !Number.isNaN(delta);
+                                        if (!hasDelta) return null;
+                                        const DeltaIcon = delta > 0 ? TrendingUp : delta < 0 ? TrendingDown : Gauge;
+                                        return (
+                                          <div className="flex items-center gap-2">
+                                            <DeltaIcon className={cn(
+                                              "h-3.5 w-3.5 shrink-0",
+                                              delta > 0 ? "text-green-400" :
+                                              delta < 0 ? "text-red-400" :
+                                              "text-muted-foreground"
+                                            )} />
+                                            <span className="text-sm font-medium">
+                                              Δ 24h:{' '}
+                                              <span className={cn(
+                                                delta > 0 ? "text-green-400" :
+                                                delta < 0 ? "text-red-400" :
+                                                "text-muted-foreground"
+                                              )}>
+                                                {delta > 0 ? '+' : ''}{Math.round(delta)} hPa
+                                              </span>
+                                            </span>
+                                          </div>
+                                        );
+                                      })()}
                                       {/* Luftfeuchte */}
                                       {weather.humidity !== null && (
                                         <div className="flex items-center gap-2">
