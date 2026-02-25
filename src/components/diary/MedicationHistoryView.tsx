@@ -139,17 +139,17 @@ export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
           {/* Status Block */}
           <Card>
             <CardContent className="pt-4 pb-4 space-y-3">
-              {/* Name + Strength */}
+              {/* Name + Strength + "inkl. heute" hint */}
               <div className="flex items-baseline justify-between">
                 <h3 className="text-sm font-semibold">
                   {selectedMedication}
                   {selectedMedData?.staerke ? ` ${selectedMedData.staerke}` : ""}
                 </h3>
-                <span className="text-[11px] text-muted-foreground/60">inkl. heute</span>
+                <span className="text-xs text-muted-foreground">inkl. heute</span>
               </div>
 
               {/* Counts + Limit */}
-              <div className="space-y-2.5">
+              <div className="space-y-3">
                 {/* 7-Day Count */}
                 <div className="flex items-baseline justify-between">
                   <span className="text-sm text-muted-foreground">7 Tage</span>
@@ -173,16 +173,22 @@ export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
                       Limit ({periodLabel(activeLimit.period_type)})
                     </span>
                     <div className="flex items-center gap-1.5">
-                      <span className={cn(
-                        "text-base font-semibold tabular-nums",
-                        limitStatus === 'exceeded' && "text-destructive",
-                        limitStatus === 'reached' && "text-destructive",
-                        limitStatus === 'warning' && "text-amber-500"
-                      )}>
-                        {limitUsed} / {activeLimit.limit_count}
+                      {/* used / limit — used is prominent, /limit is secondary */}
+                      <span className="text-base tabular-nums">
+                        <span className={cn(
+                          "font-semibold",
+                          limitStatus === 'exceeded' && "text-destructive",
+                          limitStatus === 'reached' && "text-destructive",
+                          limitStatus === 'warning' && "text-warning"
+                        )}>
+                          {limitUsed}
+                        </span>
+                        <span className="text-muted-foreground font-normal">
+                          {" / "}{activeLimit.limit_count}
+                        </span>
                       </span>
-                      {limitStatus === 'warning' && (
-                        <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                      {showLimitWarning && limitStatus === 'warning' && (
+                        <AlertTriangle className="h-3.5 w-3.5 text-warning" />
                       )}
                       {(limitStatus === 'reached' || limitStatus === 'exceeded') && (
                         <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
@@ -192,11 +198,11 @@ export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
                           Überschritten
                         </span>
                       )}
-                      {/* Edit limit icon */}
+                      {/* Edit limit — dezent, aber gut tappbar */}
                       {onNavigateToLimitEdit && (
                         <button
                           onClick={() => onNavigateToLimitEdit(selectedMedication)}
-                          className="ml-1 text-muted-foreground/50 hover:text-foreground transition-colors"
+                          className="ml-1 min-w-[32px] min-h-[32px] flex items-center justify-center text-muted-foreground/50 hover:text-foreground focus-visible:text-foreground transition-colors rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                           title="Limit bearbeiten"
                         >
                           <Settings className="h-3.5 w-3.5" />
@@ -211,7 +217,7 @@ export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
                   <div className="flex items-center justify-end">
                     <button
                       onClick={() => onNavigateToLimitEdit(selectedMedication)}
-                      className="text-xs text-muted-foreground/60 hover:text-foreground underline transition-colors"
+                      className="text-xs text-muted-foreground hover:text-foreground underline transition-colors min-h-[32px] flex items-center"
                     >
                       Limit festlegen
                     </button>

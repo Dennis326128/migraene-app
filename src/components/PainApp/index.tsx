@@ -59,6 +59,8 @@ export const PainApp: React.FC = () => {
   const [voicePrefillData, setVoicePrefillData] = useState<VoicePrefillData | null>(null);
   const [diaryReportOrigin, setDiaryReportOrigin] = useState<DiaryReportOrigin>(null);
   const [doctorsOrigin, setDoctorsOrigin] = useState<DoctorsOrigin>(null);
+  // Return state for limit-edit navigation from diary medication view
+  const [limitEditReturn, setLimitEditReturn] = useState<{ medication: string; scrollY: number } | null>(null);
   const [selectedAIReport, setSelectedAIReport] = useState<AIReport | null>(null);
   const [diaryInitialMedication, setDiaryInitialMedication] = useState<string | null>(null);
   const [diaryOneShotRange, setDiaryOneShotRange] = useState<{ preset: string; from?: string; to?: string } | null>(null);
@@ -271,6 +273,10 @@ export const PainApp: React.FC = () => {
           onBack={() => { setDiaryInitialMedication(null); setDiaryOneShotRange(null); goHome(); }}
           initialMedication={diaryInitialMedication}
           initialRangeOverride={diaryOneShotRange}
+          onNavigateToLimitEdit={(medicationName) => {
+            setLimitEditReturn({ medication: medicationName, scrollY: window.scrollY });
+            setView('medication-limits');
+          }}
           onNavigate={(target) => {
             if (target === 'diary-report') {
               setDiaryReportOrigin('diary-timeline');
@@ -354,7 +360,22 @@ export const PainApp: React.FC = () => {
 
       {view === "medication-limits" && withSuspense(
         <LazyMedicationLimitsPage 
-          onBack={goHome}
+          onBack={() => {
+            if (limitEditReturn) {
+              // Restore diary medication view
+              setDiaryInitialMedication(limitEditReturn.medication);
+              setDiaryOneShotRange(null);
+              setView('diary-timeline');
+              // Restore scroll after render
+              const scrollY = limitEditReturn.scrollY;
+              setLimitEditReturn(null);
+              requestAnimationFrame(() => {
+                setTimeout(() => window.scrollTo(0, scrollY), 100);
+              });
+            } else {
+              goHome();
+            }
+          }}
           onNavigateToMedications={handleNavigateToMedications}
         />,
         "Limits laden..."
