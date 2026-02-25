@@ -345,8 +345,8 @@ serve(async (req) => {
                 temperature_c: data.hourly.temperature_2m[closestIndex],
                 humidity: data.hourly.relative_humidity_2m[closestIndex],
                 pressure_mb: data.hourly.surface_pressure[closestIndex],
-                pressure_change_24h: null, // Not available in hourly data
-                wind_kph: data.hourly.wind_speed_10m[closestIndex] * 3.6, // Convert m/s to km/h
+                pressure_change_24h: null, // Will be calculated below from DB
+                wind_kph: data.hourly.wind_speed_10m[closestIndex] * 3.6,
                 dewpoint_c: data.hourly.dewpoint_2m?.[closestIndex],
                 condition_text: `Historical data (${formattedTime})`,
                 location: `${lat.toFixed(2)}, ${lon.toFixed(2)}`
@@ -363,7 +363,6 @@ serve(async (req) => {
       if (!weatherData) {
         console.log('🌍 Fetching DAILY historical weather data from Open-Meteo');
         try {
-          // Fetch current date and previous day for pressure change calculation
           const prevDate = new Date(requestDate);
           prevDate.setDate(prevDate.getDate() - 1);
           const prevDateString = prevDate.toISOString().split('T')[0];
@@ -376,16 +375,15 @@ serve(async (req) => {
           console.log('📊 Daily historical weather response:', data);
 
           if (data.daily && data.daily.temperature_2m_mean && data.daily.temperature_2m_mean.length > 0) {
-            const currentIndex = data.daily.temperature_2m_mean.length - 1; // Last day = requested date
+            const currentIndex = data.daily.temperature_2m_mean.length - 1;
             let pressureChange24h = null;
             
-            // Calculate pressure change if we have both days
             if (data.daily.surface_pressure_mean && data.daily.surface_pressure_mean.length >= 2) {
               const currentPressure = data.daily.surface_pressure_mean[currentIndex];
               const previousPressure = data.daily.surface_pressure_mean[currentIndex - 1];
               if (currentPressure && previousPressure) {
                 pressureChange24h = currentPressure - previousPressure;
-                console.log('📈 Calculated historical 24h pressure change:', pressureChange24h, 'hPa');
+                console.log('📈 Calculated historical 24h pressure change from daily API:', pressureChange24h, 'hPa');
               }
             }
 
@@ -394,7 +392,7 @@ serve(async (req) => {
               humidity: data.daily.relative_humidity_2m_mean[currentIndex],
               pressure_mb: data.daily.surface_pressure_mean[currentIndex],
               pressure_change_24h: pressureChange24h,
-              wind_kph: data.daily.wind_speed_10m_mean[currentIndex], // Already in km/h from archive API
+              wind_kph: data.daily.wind_speed_10m_mean[currentIndex],
               dewpoint_c: data.daily.dewpoint_2m_mean ? data.daily.dewpoint_2m_mean[currentIndex] : null,
               condition_text: 'Historical data (daily average)',
               location: `${lat.toFixed(2)}, ${lon.toFixed(2)}`
@@ -404,6 +402,61 @@ serve(async (req) => {
         } catch (error) {
           console.log('⚠️ Daily historical weather API failed:', error);
         }
+      }
+    }
+
+    // ────────────────────────────────────────
+    // Δ24h: Calculate from DB if not yet set
+    // ────────────────────────────────────────
+    // Δ is often NULL for hourly historical data because the API doesn't provide it.
+    // We calculate it from a weather_log ~24h prior in the same location.
+    if (weatherData && weatherData.pressure_mb != null && weatherData.pressure_change_24h == null) {
+      console.log('📈 Calculating Δ24h from DB...');
+      try {
+        const targetTime = new Date(requestDate.getTime() - 24 * 60 * 60 * 1000);
+        const toleranceMs = 90 * 60 * 1000; // ±90 minutes
+        const windowStart = new Date(targetTime.getTime() - toleranceMs).toISOString();
+        const windowEnd = new Date(targetTime.getTime() + toleranceMs).toISOString();
+
+        // lat_rounded / lon_rounded are computed columns (2 decimal places)
+        const latRounded = Math.round(roundedLat * 100) / 100;
+        const lonRounded = Math.round(roundedLon * 100) / 100;
+
+        const { data: candidates, error: deltaError } = await supabaseService
+          .from('weather_logs')
+          .select('pressure_mb, requested_at')
+          .eq('user_id', userId)
+          .eq('lat_rounded', latRounded)
+          .eq('lon_rounded', lonRounded)
+          .not('pressure_mb', 'is', null)
+          .gte('requested_at', windowStart)
+          .lte('requested_at', windowEnd)
+          .order('requested_at', { ascending: false })
+          .limit(5);
+
+        if (deltaError) {
+          console.log('⚠️ Δ24h query error:', deltaError.message);
+        } else if (candidates && candidates.length > 0) {
+          // Find the closest match to targetTime
+          let bestMatch = candidates[0];
+          let bestDiff = Math.abs(new Date(bestMatch.requested_at).getTime() - targetTime.getTime());
+
+          for (const c of candidates) {
+            const diff = Math.abs(new Date(c.requested_at).getTime() - targetTime.getTime());
+            if (diff < bestDiff) {
+              bestDiff = diff;
+              bestMatch = c;
+            }
+          }
+
+          const delta = Math.round(weatherData.pressure_mb - bestMatch.pressure_mb);
+          weatherData.pressure_change_24h = delta;
+          console.log(`✅ Δ24h calculated: ${delta} hPa (ref from ${bestMatch.requested_at}, diff ${Math.round(bestDiff / 60000)}min)`);
+        } else {
+          console.log('ℹ️ No weather_log found ~24h prior for Δ24h calculation');
+        }
+      } catch (err) {
+        console.log('⚠️ Δ24h calculation failed:', err);
       }
     }
 
