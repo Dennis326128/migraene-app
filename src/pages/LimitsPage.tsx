@@ -27,6 +27,12 @@ import { cn } from "@/lib/utils";
 interface LimitsPageProps {
   onBack: () => void;
   onNavigateToMedications?: () => void;
+  /** Deep-link: which tab to open initially */
+  initialTab?: 'limits' | 'status';
+  /** Deep-link: pre-fill medication name for create flow */
+  prefillMedicationName?: string | null;
+  /** Deep-link: mode — 'create' opens add form, 'edit' scrolls to existing */
+  initialMode?: 'create' | 'edit' | null;
 }
 
 const periodLabels: Record<string, string> = {
@@ -35,7 +41,7 @@ const periodLabels: Record<string, string> = {
   month: "pro Monat",
 };
 
-export function LimitsPage({ onBack, onNavigateToMedications }: LimitsPageProps) {
+export function LimitsPage({ onBack, onNavigateToMedications, initialTab, prefillMedicationName, initialMode }: LimitsPageProps) {
   const queryClient = useQueryClient();
   const { data: serverLimits = [], isLoading: limitsLoading } = useMedicationLimits();
   const { data: medications = [], isLoading: medsLoading } = useMeds();
@@ -44,7 +50,7 @@ export function LimitsPage({ onBack, onNavigateToMedications }: LimitsPageProps)
   const updateLimit = useUpdateMedicationLimit();
   const deleteLimit = useDeleteMedicationLimit();
 
-  const [activeTab, setActiveTab] = useState("status");
+  const [activeTab, setActiveTab] = useState(initialTab || "status");
   const [warningThreshold, setWarningThreshold] = useState<string>("90");
   
   // Local limits state for optimistic updates
@@ -64,6 +70,14 @@ export function LimitsPage({ onBack, onNavigateToMedications }: LimitsPageProps)
       setLocalLimits(serverLimits);
     }
   }, [serverLimits, limitsLoading]);
+
+  // Deep-link: auto-open create form with prefill when navigating from medication view
+  useEffect(() => {
+    if (initialMode === 'create' && prefillMedicationName && !limitsLoading) {
+      setShowAddForm(true);
+      setNewLimit(prev => ({ ...prev, medication_name: prefillMedicationName }));
+    }
+  }, [initialMode, prefillMedicationName, limitsLoading]);
 
   // Initialize warning threshold from user defaults
   useEffect(() => {
@@ -231,7 +245,7 @@ export function LimitsPage({ onBack, onNavigateToMedications }: LimitsPageProps)
 
       <div className="container mx-auto p-4 max-w-md space-y-4">
         {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'limits' | 'status')}>
           <TabsList className="w-full grid grid-cols-2">
             <TabsTrigger value="limits">Limits</TabsTrigger>
             <TabsTrigger value="status">Aktueller Stand</TabsTrigger>

@@ -60,7 +60,7 @@ export const PainApp: React.FC = () => {
   const [diaryReportOrigin, setDiaryReportOrigin] = useState<DiaryReportOrigin>(null);
   const [doctorsOrigin, setDoctorsOrigin] = useState<DoctorsOrigin>(null);
   // Return state for limit-edit navigation from diary medication view
-  const [limitEditReturn, setLimitEditReturn] = useState<{ medication: string; scrollY: number } | null>(null);
+  const [limitEditReturn, setLimitEditReturn] = useState<{ medication: string; scrollY: number; mode: 'create' | 'edit' } | null>(null);
   const [selectedAIReport, setSelectedAIReport] = useState<AIReport | null>(null);
   const [diaryInitialMedication, setDiaryInitialMedication] = useState<string | null>(null);
   const [diaryOneShotRange, setDiaryOneShotRange] = useState<{ preset: string; from?: string; to?: string } | null>(null);
@@ -273,8 +273,8 @@ export const PainApp: React.FC = () => {
           onBack={() => { setDiaryInitialMedication(null); setDiaryOneShotRange(null); goHome(); }}
           initialMedication={diaryInitialMedication}
           initialRangeOverride={diaryOneShotRange}
-          onNavigateToLimitEdit={(medicationName) => {
-            setLimitEditReturn({ medication: medicationName, scrollY: window.scrollY });
+          onNavigateToLimitEdit={(medicationName, mode) => {
+            setLimitEditReturn({ medication: medicationName, scrollY: window.scrollY, mode });
             setView('medication-limits');
           }}
           onNavigate={(target) => {
@@ -377,6 +377,9 @@ export const PainApp: React.FC = () => {
             }
           }}
           onNavigateToMedications={handleNavigateToMedications}
+          initialTab={limitEditReturn ? 'limits' : undefined}
+          initialMode={limitEditReturn?.mode ?? null}
+          prefillMedicationName={limitEditReturn?.medication ?? null}
         />,
         "Limits laden..."
       )}

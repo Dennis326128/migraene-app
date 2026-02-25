@@ -26,10 +26,15 @@ import { formatDoseWithUnit } from "@/lib/utils/doseFormatter";
 import { getLimitStatus, isWarningStatus } from "@/lib/utils/medicationLimitStatus";
 import { cn } from "@/lib/utils";
 
+/** Normalize medication name for robust matching */
+function normalizeMedName(name: string): string {
+  return name.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
 interface MedicationHistoryViewProps {
   selectedMedication: string | null;
   onSelectMedication: (name: string | null) => void;
-  onNavigateToLimitEdit?: (medicationName: string) => void;
+  onNavigateToLimitEdit?: (medicationName: string, mode: 'create' | 'edit') => void;
 }
 
 /** Map period_type to German label */
@@ -73,11 +78,12 @@ export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
 
   const selectedMedData = allMeds.find((m) => m.name === selectedMedication);
 
-  // Find active limit for this medication
+  // Find active limit for this medication — robust normalized matching
   const activeLimit = React.useMemo(() => {
     if (!selectedMedication) return null;
+    const normalizedSelected = normalizeMedName(selectedMedication);
     return allLimits.find(
-      (l) => l.medication_name === selectedMedication && l.is_active
+      (l) => l.is_active && normalizeMedName(l.medication_name) === normalizedSelected
     ) ?? null;
   }, [allLimits, selectedMedication]);
 
@@ -201,7 +207,7 @@ export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
                       {/* Edit limit — dezent, aber gut tappbar */}
                       {onNavigateToLimitEdit && (
                         <button
-                          onClick={() => onNavigateToLimitEdit(selectedMedication)}
+                          onClick={() => onNavigateToLimitEdit(selectedMedication, 'edit')}
                           className="ml-1 min-w-[32px] min-h-[32px] flex items-center justify-center text-muted-foreground/50 hover:text-foreground focus-visible:text-foreground transition-colors rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                           title="Limit bearbeiten"
                         >
@@ -216,7 +222,7 @@ export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
                 {!activeLimit && onNavigateToLimitEdit && (
                   <div className="flex items-center justify-end">
                     <button
-                      onClick={() => onNavigateToLimitEdit(selectedMedication)}
+                      onClick={() => onNavigateToLimitEdit(selectedMedication, 'create')}
                       className="text-xs text-muted-foreground hover:text-foreground underline transition-colors min-h-[32px] flex items-center"
                     >
                       Limit festlegen
