@@ -306,7 +306,7 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
   };
 
   // Schmerzeinträge laden (mit Pagination)
-  const { data: painEntries = [], isLoading: loadingEntries } = useEntries({
+   const { data: painEntries = [], isLoading: loadingEntries } = useEntries({
     limit: pageSize,
     offset: currentPage * pageSize
   });
@@ -344,7 +344,11 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
       
       if (error) throw error;
       return data || [];
-    }
+    },
+    placeholderData: (prev) => prev,
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
   });
 
   // Gesamtanzahl der Kontext-Notizen laden
@@ -502,7 +506,7 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
                   {t('diary.pain')}
                 </ToggleGroupItem>
                 <ToggleGroupItem value="context_note" className="flex-1">
-                  {t('diary.context')}
+                  Notizen
                 </ToggleGroupItem>
                 <ToggleGroupItem value="medication" className="flex-1">
                   <Pill className="h-3.5 w-3.5 mr-1" />
@@ -552,7 +556,7 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
               <EmptyState
                 icon="📖"
                 title="Noch keine Einträge"
-                description="Erstellen Sie Ihren ersten Schmerz-Eintrag oder fügen Sie Kontext-Notizen hinzu."
+                description="Erstellen Sie Ihren ersten Schmerz-Eintrag oder fügen Sie Notizen hinzu."
               />
             ) : (
           Object.entries(groupedByDate).map(([date, items]) => (
@@ -647,17 +651,11 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
                                 </div>
                               )}
                                
-                              {/* Schmerzlokalisation (nur in Details) */}
+                              {/* Schmerzlokalisation (nur in Details, schlicht) */}
                               {item.data.pain_locations && item.data.pain_locations.length > 0 && (
                                 <div>
                                   <h4 className="text-xs font-semibold text-muted-foreground mb-1">Lokalisation</h4>
-                                  <div className="flex flex-wrap gap-1">
-                                    {item.data.pain_locations.map((loc: string, i: number) => (
-                                      <Badge key={i} variant="outline" className="text-xs">
-                                        📍 {loc}
-                                      </Badge>
-                                    ))}
-                                  </div>
+                                  <p className="text-sm">{item.data.pain_locations.join(', ')}</p>
                                 </div>
                               )}
 
@@ -909,7 +907,7 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
         onOpenChange={setDeleteConfirmOpen}
         onConfirm={handleDeleteConfirm}
         title={deleteTarget?.type === 'entry' ? 'Eintrag löschen' : 'Notiz löschen'}
-        description={deleteTarget?.type === 'entry' 
+        description={deleteTarget?.type === 'entry'
           ? 'Möchtest du diesen Migräne-Eintrag wirklich löschen?'
           : 'Möchtest du diese Notiz wirklich löschen?'
         }
