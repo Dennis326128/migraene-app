@@ -749,30 +749,38 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
                                           <span className="text-sm font-medium">{weather.pressure_mb} hPa</span>
                                         </div>
                                       )}
-                                      {/* Δ 24h — eigene Zeile, immer wenn vorhanden (auch bei 0) */}
+                                      {/* Δ 24h — IMMER anzeigen: Wert oder "nicht verfügbar" */}
                                       {(() => {
                                         const delta = weather.pressure_change_24h;
                                         const hasDelta = delta !== null && delta !== undefined && !Number.isNaN(delta);
-                                        if (!hasDelta) return null;
-                                        const DeltaIcon = delta > 0 ? TrendingUp : delta < 0 ? TrendingDown : Gauge;
-                                        return (
-                                          <div className="flex items-center gap-2">
-                                            <DeltaIcon className={cn(
-                                              "h-3.5 w-3.5 shrink-0",
-                                              delta > 0 ? "text-green-400" :
-                                              delta < 0 ? "text-red-400" :
-                                              "text-muted-foreground"
-                                            )} />
-                                            <span className="text-sm font-medium">
-                                              Δ 24h:{' '}
-                                              <span className={cn(
+                                        if (hasDelta) {
+                                          const DeltaIcon = delta > 0 ? TrendingUp : delta < 0 ? TrendingDown : Gauge;
+                                          return (
+                                            <div className="flex items-center gap-2">
+                                              <DeltaIcon className={cn(
+                                                "h-3.5 w-3.5 shrink-0",
                                                 delta > 0 ? "text-green-400" :
                                                 delta < 0 ? "text-red-400" :
                                                 "text-muted-foreground"
-                                              )}>
-                                                {delta > 0 ? '+' : ''}{Math.round(delta)} hPa
+                                              )} />
+                                              <span className="text-sm font-medium">
+                                                Δ 24h:{' '}
+                                                <span className={cn(
+                                                  delta > 0 ? "text-green-400" :
+                                                  delta < 0 ? "text-red-400" :
+                                                  "text-muted-foreground"
+                                                )}>
+                                                  {delta > 0 ? '+' : ''}{Math.round(delta)} hPa
+                                                </span>
                                               </span>
-                                            </span>
+                                            </div>
+                                          );
+                                        }
+                                        // Nicht verfügbar — transparent anzeigen
+                                        return (
+                                          <div className="flex items-center gap-2">
+                                            <Gauge className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
+                                            <span className="text-sm text-muted-foreground/70">Δ 24h: nicht verfügbar</span>
                                           </div>
                                         );
                                       })()}
