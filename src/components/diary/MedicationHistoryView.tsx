@@ -138,85 +138,86 @@ export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
         <>
           {/* Status Block */}
           <Card>
-            <CardContent className="pt-4 pb-4 space-y-2.5">
+            <CardContent className="pt-4 pb-4 space-y-3">
               {/* Name + Strength */}
-              <h3 className="text-sm font-semibold">
-                {selectedMedication}
-                {selectedMedData?.staerke ? ` ${selectedMedData.staerke}` : ""}
-              </h3>
-
-              {/* 7-Day Count (incl. today) */}
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">7 Tage (inkl. heute)</span>
-                <Badge variant="secondary" className="text-sm font-semibold px-2.5 py-0.5">
-                  {rolling7dCount}×
-                </Badge>
+              <div className="flex items-baseline justify-between">
+                <h3 className="text-sm font-semibold">
+                  {selectedMedication}
+                  {selectedMedData?.staerke ? ` ${selectedMedData.staerke}` : ""}
+                </h3>
+                <span className="text-[11px] text-muted-foreground/60">inkl. heute</span>
               </div>
 
-              {/* 30-Day Count (incl. today) */}
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">30 Tage (inkl. heute)</span>
-                <Badge variant="secondary" className="text-sm font-semibold px-2.5 py-0.5">
-                  {rolling30dCount}×
-                </Badge>
-              </div>
-
-              {/* Limit (only if exists) */}
-              {activeLimit && limitUsed !== null && (
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">
-                    Limit ({periodLabel(activeLimit.period_type)})
+              {/* Counts + Limit */}
+              <div className="space-y-2.5">
+                {/* 7-Day Count */}
+                <div className="flex items-baseline justify-between">
+                  <span className="text-sm text-muted-foreground">7 Tage</span>
+                  <span className="text-base font-semibold tabular-nums">
+                    {rolling7dCount}×
                   </span>
-                  <div className="flex items-center gap-1.5">
-                    <span className={cn(
-                      "text-sm font-semibold",
-                      limitStatus === 'exceeded' && "text-destructive",
-                      limitStatus === 'reached' && "text-destructive",
-                      limitStatus === 'warning' && "text-amber-500"
-                    )}>
-                      {limitUsed} / {activeLimit.limit_count}
-                    </span>
-                    {limitStatus === 'warning' && (
-                      <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
-                    )}
-                    {(limitStatus === 'reached' || limitStatus === 'exceeded') && (
-                      <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
-                    )}
-                    {limitStatus === 'reached' && (
-                      <Badge variant="outline" className="text-[10px] h-4 px-1 border-destructive text-destructive">
-                        Erreicht
-                      </Badge>
-                    )}
-                    {limitStatus === 'exceeded' && (
-                      <Badge variant="destructive" className="text-[10px] h-4 px-1">
-                        Überschritten
-                      </Badge>
-                    )}
-                    {/* Edit limit icon */}
-                    {onNavigateToLimitEdit && (
-                      <button
-                        onClick={() => onNavigateToLimitEdit(selectedMedication)}
-                        className="ml-1 text-muted-foreground hover:text-foreground transition-colors"
-                        title="Limit bearbeiten"
-                      >
-                        <Settings className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </div>
                 </div>
-              )}
 
-              {/* No limit → offer to set one */}
-              {!activeLimit && onNavigateToLimitEdit && (
-                <div className="flex items-center justify-end">
-                  <button
-                    onClick={() => onNavigateToLimitEdit(selectedMedication)}
-                    className="text-xs text-muted-foreground hover:text-foreground underline transition-colors"
-                  >
-                    Limit festlegen
-                  </button>
+                {/* 30-Day Count */}
+                <div className="flex items-baseline justify-between">
+                  <span className="text-sm text-muted-foreground">30 Tage</span>
+                  <span className="text-base font-semibold tabular-nums">
+                    {rolling30dCount}×
+                  </span>
                 </div>
-              )}
+
+                {/* Limit (only if exists) */}
+                {activeLimit && limitUsed !== null && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">
+                      Limit ({periodLabel(activeLimit.period_type)})
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className={cn(
+                        "text-base font-semibold tabular-nums",
+                        limitStatus === 'exceeded' && "text-destructive",
+                        limitStatus === 'reached' && "text-destructive",
+                        limitStatus === 'warning' && "text-amber-500"
+                      )}>
+                        {limitUsed} / {activeLimit.limit_count}
+                      </span>
+                      {limitStatus === 'warning' && (
+                        <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                      )}
+                      {(limitStatus === 'reached' || limitStatus === 'exceeded') && (
+                        <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
+                      )}
+                      {limitStatus === 'exceeded' && (
+                        <span className="text-[11px] font-medium text-destructive">
+                          Überschritten
+                        </span>
+                      )}
+                      {/* Edit limit icon */}
+                      {onNavigateToLimitEdit && (
+                        <button
+                          onClick={() => onNavigateToLimitEdit(selectedMedication)}
+                          className="ml-1 text-muted-foreground/50 hover:text-foreground transition-colors"
+                          title="Limit bearbeiten"
+                        >
+                          <Settings className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* No limit → offer to set one */}
+                {!activeLimit && onNavigateToLimitEdit && (
+                  <div className="flex items-center justify-end">
+                    <button
+                      onClick={() => onNavigateToLimitEdit(selectedMedication)}
+                      className="text-xs text-muted-foreground/60 hover:text-foreground underline transition-colors"
+                    >
+                      Limit festlegen
+                    </button>
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
 
