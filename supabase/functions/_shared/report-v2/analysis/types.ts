@@ -158,6 +158,8 @@ export interface InsightsForLLM {
 
 export interface WeatherDayFeature {
   date: string;
+  /** Whether this day was documented in the diary (entry exists) */
+  documented: boolean;
   painMax: number;
   hadHeadache: boolean;
   hadAcuteMed: boolean;

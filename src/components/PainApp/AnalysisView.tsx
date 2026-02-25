@@ -13,6 +13,7 @@ import { MeCfsStatisticsCard } from "./MeCfsStatisticsCard";
 import { MeCfsCorrelationCard } from "./MeCfsCorrelationCard";
 import { VoiceNotesAIAnalysis } from "./VoiceNotesAIAnalysis";
 import { MedicationOverviewCard } from "./MedicationOverviewCard";
+import { WeatherAssociationCard } from "./WeatherAssociationCard";
 import { useTimeDistribution } from "@/features/statistics/hooks/useStatistics";
 import { useMedicationEffectsForEntries } from "@/features/medication-effects/hooks/useMedicationEffects";
 import { useMedicationLimits } from "@/features/medication-limits/hooks/useMedicationLimits";
@@ -31,6 +32,8 @@ import { useSymptomBurdens } from "@/features/symptoms/hooks/useSymptomBurden";
 import { getMeCfsTrackingStartDate, filterEntriesForMeCfs } from "@/lib/mecfs/trackingStart";
 import { getDocumentedDays } from "@/lib/dateRange/rangeResolver";
 import { useTimeRange } from "@/contexts/TimeRangeContext";
+import { buildWeatherDayFeatures } from "@/lib/report-v2/adapters/buildWeatherDayFeatures";
+import { computeWeatherAssociation } from "@/lib/report-v2/adapters/weatherAssociationBrowser";
 
 /** Fetch entry_symptoms with symptom names for a set of entry IDs */
 function useEntrySymptomsBulk(entryIds: number[]) {
@@ -178,6 +181,23 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
   const { data: dayBuckets } = useHeadacheTreatmentDays();
   const daysInRange = dayBuckets?.totalDays ?? 0;
 
+  // ─── Weather Logs for Association ─────────────────────────────────
+  const { data: weatherLogs = [] } = useQuery({
+    queryKey: ['weather-logs-for-analysis', from, to],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('weather_logs')
+        .select('id, snapshot_date, requested_at, pressure_mb, pressure_change_24h, temperature_c, humidity')
+        .gte('snapshot_date', from)
+        .lte('snapshot_date', to)
+        .order('snapshot_date', { ascending: true })
+        .limit(1000);
+      if (error) throw error;
+      return data ?? [];
+    },
+    staleTime: 120_000,
+  });
+
   // ─── SSOT Report (V2) ─────────────────────────────────────────────
   const ssotReport = useMemo(() => {
     if (filteredEntries.length === 0) return null;
@@ -194,6 +214,20 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
     });
     return report;
   }, [filteredEntries, from, to, timeRange, medicationEffectsData, daysInRange]);
+
+  // ─── Weather Association (deterministic) ──────────────────────────
+  const weatherAnalysis = useMemo(() => {
+    if (!ssotReport || ssotReport.raw.countsByDay.length === 0) return null;
+
+    const weatherDayFeatures = buildWeatherDayFeatures({
+      countsByDay: ssotReport.raw.countsByDay,
+      entries: filteredEntries as any[],
+      weatherLogs: weatherLogs as any[],
+    });
+
+    if (weatherDayFeatures.length === 0) return null;
+    return computeWeatherAssociation(weatherDayFeatures);
+  }, [ssotReport, filteredEntries, weatherLogs]);
 
   const hasOveruseWarning = useMemo(() => {
     return patternStats.medicationAndEffect.topMedications.some(med => {
@@ -343,7 +377,16 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
                   </CardContent>
                 </Card>
 
-                {/* 6. Schmerz- & Wetterverlauf */}
+                {/* 6.5 Wetter & Kopfschmerz (deterministic) */}
+                {weatherAnalysis && (
+                  <WeatherAssociationCard
+                    coverage={weatherAnalysis.coverage}
+                    pressureDelta24h={weatherAnalysis.pressureDelta24h}
+                    disclaimer={weatherAnalysis.disclaimer}
+                  />
+                )}
+
+                {/* 7. Schmerz- & Wetterverlauf */}
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between pb-2">
                     <CardTitle className="text-base">Schmerz- & Wetterverlauf</CardTitle>
