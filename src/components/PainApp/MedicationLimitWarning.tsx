@@ -9,7 +9,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { AlertTriangle } from "lucide-react";
-import { buildLimitMessage, type LimitStatus } from "@/lib/utils/medicationLimitStatus";
+import { buildLimitMessageParts, type LimitStatus } from "@/lib/utils/medicationLimitStatus";
 
 interface LimitCheck {
   medication_name: string;
@@ -30,9 +30,9 @@ interface MedicationLimitWarningProps {
 function getDialogTitle(checks: LimitCheck[]): string {
   const hasExceeded = checks.some(c => c.status === 'exceeded');
   const hasReached = checks.some(c => c.status === 'reached');
-  if (hasExceeded) return 'Dein gesetztes Limit wurde überschritten';
-  if (hasReached) return 'Dein gesetztes Limit wurde erreicht';
-  return 'Achtung: Du bist nahe an deinem Limit';
+  if (hasExceeded) return 'Limit überschritten';
+  if (hasReached) return 'Limit erreicht';
+  return 'Limit bald erreicht';
 }
 
 export function MedicationLimitWarning({
@@ -61,26 +61,29 @@ export function MedicationLimitWarning({
           <AlertDialogDescription asChild>
             <div className="space-y-3 pt-1">
               {criticalChecks.map((check, index) => {
-                const msg = buildLimitMessage(
+                const parts = buildLimitMessageParts(
                   check.status,
                   check.current_count,
                   check.limit_count,
                   check.period_type,
                   check.medication_name,
                 );
+                if (!parts) return null;
                 return (
-                  <div key={index} className="p-3 rounded-lg bg-muted/50">
-                    <p className="text-sm text-foreground">{msg}</p>
+                  <div key={index} className="p-3 rounded-lg bg-muted/50 space-y-2">
+                    <p className="text-sm text-foreground">{parts.statusLine}</p>
+                    <p className="text-sm text-foreground/80">{parts.detailLine}</p>
                   </div>
                 );
               })}
 
               {hasExceeded && (
-                <div className="p-3 rounded-lg bg-warning/10 border border-warning/20">
+                <div className="rounded-md bg-muted/40 p-3">
                   <p className="text-xs text-foreground/80 leading-relaxed">
                     Eine häufige Einnahme kann das Risiko für anhaltende oder häufiger
                     auftretende Kopfschmerzen erhöhen.
-                    <br />
+                  </p>
+                  <p className="text-xs text-foreground/80 leading-relaxed mt-1.5">
                     Bitte sprich mit deinem Arzt oder deiner Ärztin darüber.
                   </p>
                 </div>
