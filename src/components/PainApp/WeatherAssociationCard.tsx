@@ -137,13 +137,32 @@ export function WeatherAssociationCard({
         )}
 
         {/* Relative Risk */}
-        {pressureDelta24h.relativeRisk && pressureDelta24h.relativeRisk.rr != null && (
+        {pressureDelta24h.relativeRisk && (
           <div className="text-sm bg-muted/30 rounded-lg p-3">
-            <span className="font-medium">Relatives Risiko: </span>
-            <span>{pressureDelta24h.relativeRisk.rr}×</span>
-            <span className="text-muted-foreground ml-1">
-              ({pressureDelta24h.relativeRisk.compareLabel} vs. {pressureDelta24h.relativeRisk.referenceLabel})
-            </span>
+            {pressureDelta24h.relativeRisk.rr != null ? (
+              <>
+                <span className="font-medium">Relatives Risiko: </span>
+                <span>{pressureDelta24h.relativeRisk.rr}×</span>
+                <span className="text-muted-foreground ml-1">
+                  ({pressureDelta24h.relativeRisk.compareLabel} vs. {pressureDelta24h.relativeRisk.referenceLabel})
+                </span>
+                {pressureDelta24h.relativeRisk.absDiff != null && (
+                  <span className="text-muted-foreground ml-1">
+                    · Differenz: {pressureDelta24h.relativeRisk.absDiff > 0 ? '+' : ''}{Math.round(pressureDelta24h.relativeRisk.absDiff * 100)} pp
+                  </span>
+                )}
+              </>
+            ) : (
+              <>
+                <span className="font-medium">Relatives Risiko nicht berechenbar </span>
+                <span className="text-muted-foreground">(Referenz 0%)</span>
+                {pressureDelta24h.relativeRisk.absDiff != null && (
+                  <span className="text-muted-foreground ml-1">
+                    · Differenz: {pressureDelta24h.relativeRisk.absDiff > 0 ? '+' : ''}{Math.round(pressureDelta24h.relativeRisk.absDiff * 100)} pp
+                  </span>
+                )}
+              </>
+            )}
           </div>
         )}
 

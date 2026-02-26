@@ -389,15 +389,22 @@ function computeTargetTimeMs(
   tz: string,
   preferPainAsTarget: boolean
 ): number {
+  const isPainEntry = (e: EntryForWeatherJoin) =>
+    e.entry_kind === 'pain' || (!e.entry_kind && (e.pain_level != null && e.pain_level !== ''));
+
   const withTime = dayEntries.filter(e => e.selected_date && parseSelectedTime(e.selected_time) !== null);
 
   if (preferPainAsTarget) {
-    // Try pain entries first
-    const painEntries = withTime.filter(
-      e => e.entry_kind === 'pain' || (!e.entry_kind && (e.pain_level != null && e.pain_level !== ''))
-    );
-    if (painEntries.length > 0) {
-      return findEarliestMs(painEntries, tz, dateISO);
+    // Check if ANY pain entries exist (even without time)
+    const hasPainEntries = dayEntries.some(isPainEntry);
+    if (hasPainEntries) {
+      // Try pain entries with valid time first
+      const painWithTime = withTime.filter(isPainEntry);
+      if (painWithTime.length > 0) {
+        return findEarliestMs(painWithTime, tz, dateISO);
+      }
+      // Pain entries exist but none have valid time → noon (pain-priority still honored)
+      return localNoonEpochMs(dateISO, tz);
     }
   }
 
@@ -406,7 +413,8 @@ function computeTargetTimeMs(
     return findEarliestMs(withTime, tz, dateISO);
   }
 
-  // Fallback: 12:00 local
+  // Entries exist but none have valid time → noon
+  // No entries at all → noon
   return localNoonEpochMs(dateISO, tz);
 }
 

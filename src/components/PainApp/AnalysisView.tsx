@@ -33,7 +33,7 @@ import { getMeCfsTrackingStartDate, filterEntriesForMeCfs } from "@/lib/mecfs/tr
 import { getDocumentedDays } from "@/lib/dateRange/rangeResolver";
 import { useTimeRange } from "@/contexts/TimeRangeContext";
 import { buildWeatherDayFeatures } from "@/lib/report-v2/adapters/buildWeatherDayFeatures";
-import { computeWeatherAssociation } from "@/lib/report-v2/adapters/weatherAssociationBrowser";
+import { computeWeatherAssociation } from "@/lib/weather/computeWeatherAssociation";
 
 /** Fetch entry_symptoms with symptom names for a set of entry IDs */
 function useEntrySymptomsBulk(entryIds: number[]) {
@@ -188,23 +188,60 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) return [];
 
-      // Paginated fetch — no limit(1000) truncation
+      // Paginated fetch — stable ordering by (snapshot_date, id), deduplicated
+      const seenIds = new Set<number>();
       const allLogs: any[] = [];
       const PAGE_SIZE = 1000;
+      const userId = userData.user.id;
+
+      // Fetch by snapshot_date range
       let offset = 0;
       let hasMore = true;
-
       while (hasMore) {
         const { data, error } = await supabase
           .from('weather_logs')
           .select('id, snapshot_date, requested_at, pressure_mb, pressure_change_24h, temperature_c, humidity')
-          .eq('user_id', userData.user.id)
+          .eq('user_id', userId)
           .gte('snapshot_date', from)
           .lte('snapshot_date', to)
-          .order('snapshot_date', { ascending: true })
+          .order('snapshot_date', { ascending: true, nullsFirst: false })
+          .order('id', { ascending: true })
           .range(offset, offset + PAGE_SIZE - 1);
         if (error) throw error;
-        if (data) allLogs.push(...data);
+        if (data) {
+          for (const row of data) {
+            if (!seenIds.has(row.id)) {
+              seenIds.add(row.id);
+              allLogs.push(row);
+            }
+          }
+        }
+        hasMore = (data?.length ?? 0) === PAGE_SIZE;
+        offset += PAGE_SIZE;
+      }
+
+      // Also fetch logs with null snapshot_date but requested_at in range
+      offset = 0;
+      hasMore = true;
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('weather_logs')
+          .select('id, snapshot_date, requested_at, pressure_mb, pressure_change_24h, temperature_c, humidity')
+          .eq('user_id', userId)
+          .is('snapshot_date', null)
+          .gte('requested_at', `${from}T00:00:00`)
+          .lte('requested_at', `${to}T23:59:59`)
+          .order('id', { ascending: true })
+          .range(offset, offset + PAGE_SIZE - 1);
+        if (error) throw error;
+        if (data) {
+          for (const row of data) {
+            if (!seenIds.has(row.id)) {
+              seenIds.add(row.id);
+              allLogs.push(row);
+            }
+          }
+        }
         hasMore = (data?.length ?? 0) === PAGE_SIZE;
         offset += PAGE_SIZE;
       }

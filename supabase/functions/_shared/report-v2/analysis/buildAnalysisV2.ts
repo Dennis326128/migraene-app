@@ -270,6 +270,9 @@ function buildInsights(
       "Do not infer migraine days — migraineDays is null because no diagnostic flag exists.",
       "Do not use alarmist language — use 'orientierender Hinweis' and 'keine Diagnose'.",
       "Do not invent weather statistics — use only the pre-computed buckets and relative risk values.",
+      "Do not combine multiple percentage values into new derived numbers.",
+      "When weather pressureDelta24h.enabled is false, do not make any statements about weather-headache associations.",
+      "When weather confidence is 'insufficient', only explain data coverage — do not claim patterns.",
     ],
   };
 }
