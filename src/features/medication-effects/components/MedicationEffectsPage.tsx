@@ -20,7 +20,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { MedicationEffectPayload } from '../api/medicationEffects.api';
 
 const PAGE_SIZE = 30;
-const UNDO_TIMEOUT_MS = 8000;
+const UNDO_TIMEOUT_MS = 3500;
 
 export function MedicationEffectsPage() {
   const navigate = useNavigate();
