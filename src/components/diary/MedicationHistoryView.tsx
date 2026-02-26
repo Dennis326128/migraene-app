@@ -75,16 +75,54 @@ function periodLabel(type: string): string {
   }
 }
 
-/** Build relative date label: "Heute", "Gestern", "vor X Tagen" */
+/**
+ * Build relative date label: "Heute", "Gestern", "vor X Tagen"
+ * Uses Berlin-aware todayStr() as SSOT for calendar day comparison.
+ */
 function relativeDateLabel(intakeDate: string, todayDate: string): string | null {
   const diff = differenceInCalendarDays(
-    new Date(todayDate + "T00:00:00"),
-    new Date(intakeDate + "T00:00:00")
+    new Date(todayDate + "T12:00:00"),
+    new Date(intakeDate + "T12:00:00")
   );
   if (diff === 0) return "Heute";
   if (diff === 1) return "Gestern";
   if (diff >= 2) return `vor ${diff} Tagen`;
   return null;
+}
+
+/**
+ * SSOT: Get the occurred-at timestamp for an intake in Berlin timezone.
+ * Priority: taken_date + taken_time > taken_at > created_at
+ * Returns { localDate: YYYY-MM-DD, localTime: HH:mm, berlinDate: Date }
+ */
+function getIntakeOccurredAt(intake: { taken_at: string; taken_date: string; taken_time: string }) {
+  // taken_date is already a calendar date (YYYY-MM-DD), taken_time is HH:mm(:ss)
+  const berlinTime = toZonedTime(new Date(intake.taken_at), "Europe/Berlin");
+  const localDate = intake.taken_date || format(berlinTime, "yyyy-MM-dd");
+  const localTime = intake.taken_time
+    ? intake.taken_time.substring(0, 5)
+    : format(berlinTime, "HH:mm");
+  return { localDate, localTime, berlinTime };
+}
+
+/**
+ * Format intake date for display:
+ * - "Heute – HH:MM"
+ * - "Gestern – HH:MM"
+ * - "Wochentag, DD. Monat YYYY – HH:MM"
+ */
+function formatIntakeDisplay(localDate: string, localTime: string, todayDate: string): string {
+  const diff = differenceInCalendarDays(
+    new Date(todayDate + "T12:00:00"),
+    new Date(localDate + "T12:00:00")
+  );
+  if (diff === 0) return `Heute – ${localTime}`;
+  if (diff === 1) return `Gestern – ${localTime}`;
+
+  // Full date: "Dienstag, 24. Februar 2026 – HH:MM"
+  const d = new Date(localDate + "T12:00:00");
+  const formatted = format(d, "EEEE, d. MMMM yyyy", { locale: de });
+  return `${formatted} – ${localTime}`;
 }
 
 // ─── Props ──────────────────────────────────────────────────────────
@@ -305,32 +343,17 @@ export const MedicationHistoryView: React.FC<MedicationHistoryViewProps> = ({
           ) : (
             <div className="space-y-1.5">
               {items.map((intake) => {
-                const isToday = intake.taken_date === today;
-                const berlinTime = toZonedTime(new Date(intake.taken_at), "Europe/Berlin");
-                const timeStr = format(berlinTime, "HH:mm");
+                const { localDate, localTime } = getIntakeOccurredAt(intake);
+                const isToday = localDate === today;
                 const showDose = intake.dose_quarters !== 4;
-                const relLabel = relativeDateLabel(intake.taken_date, today);
-
-                // Full date display
-                const dateDisplay = isToday
-                  ? "Heute"
-                  : format(berlinTime, "EEEE, d. MMMM yyyy", { locale: de });
+                const displayText = formatIntakeDisplay(localDate, localTime, today);
 
                 return (
                   <Card key={intake.id} className="hover:bg-accent/5 transition-colors">
                     <CardContent className="py-3 px-4 flex items-center justify-between">
-                      <div className="flex items-baseline gap-1.5 min-w-0">
-                        <span className={cn("text-sm font-medium truncate", isToday ? "" : "capitalize")}>
-                          {dateDisplay}
-                        </span>
-                        <span className="text-sm text-muted-foreground shrink-0">– {timeStr}</span>
-                        {/* Relative label (subtle secondary info) */}
-                        {relLabel && !isToday && (
-                          <span className="text-xs text-muted-foreground/60 shrink-0">
-                            · {relLabel}
-                          </span>
-                        )}
-                      </div>
+                      <span className={cn("text-sm font-medium", isToday ? "" : "capitalize")}>
+                        {displayText}
+                      </span>
                       {showDose && (
                         <Badge variant="outline" className="text-xs shrink-0 ml-2">
                           {formatDoseWithUnit(intake.dose_quarters)}

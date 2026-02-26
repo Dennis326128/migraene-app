@@ -25,11 +25,13 @@ const PAGE_SIZE = 10;
 
 /**
  * Rolling today-based ranges (includes today for safety/limits).
+ * Uses todayStr() which is Berlin-aware (SSOT).
  */
 function getRollingRanges() {
   const today = todayStr();
-  const from7d = format(subDays(new Date(today + "T00:00:00"), 6), "yyyy-MM-dd");
-  const from30d = format(subDays(new Date(today + "T00:00:00"), 29), "yyyy-MM-dd");
+  // Use noon to avoid DST edge cases when subtracting days
+  const from7d = format(subDays(new Date(today + "T12:00:00"), 6), "yyyy-MM-dd");
+  const from30d = format(subDays(new Date(today + "T12:00:00"), 29), "yyyy-MM-dd");
   return { today, from7d, from30d };
 }
 
