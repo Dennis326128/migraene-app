@@ -364,12 +364,41 @@ describe('buildWeatherDayFeatures – entry weather_id but wl missing', () => {
   });
 });
 
-// ─── Test 15: computeWeatherAssociation RR with reference 0 ──
-import { computeWeatherAssociation } from '@/lib/weather/computeWeatherAssociation';
+// ─── Test 15: Entry weather_id miss → joinReason diagnostic ──
+describe('buildWeatherDayFeatures – weatherJoinReason', () => {
+  it('sets joinReason to entry-weather-id-miss→snapshot when wl missing', () => {
+    const day = makeDay('2026-02-26', { documented: true, headache: true, painMax: 4 });
+    const entries: EntryForWeatherJoin[] = [
+      makeEntry({ selected_time: '08:00', weather_id: 999 }),
+    ];
+    const weatherLogs: WeatherLogForFeature[] = [
+      makeWeatherLog(1, { snapshot_date: '2026-02-26', requested_at: '2026-02-26T07:00:00Z', pressure_mb: 1020 }),
+    ];
+
+    const result = buildWeatherDayFeatures({
+      countsByDay: [day], entries, weatherLogs, timezone: TZ,
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].weatherCoverage).toBe('snapshot');
+    expect(result[0].weatherJoinReason).toBe('entry-weather-id-miss→snapshot');
+  });
+});
+
+// ─── Test 16: computeWeatherAssociation RR with reference 0 ──
+import {
+  computeWeatherAssociation,
+  fmtPct,
+  fmtPain,
+  fmtRR,
+  fmtAbsDiff,
+  hasAnyWeatherValue,
+  hasDelta,
+  PRESSURE_DELTA_BUCKET_LABELS,
+} from '@/lib/weather/computeWeatherAssociation';
 
 describe('computeWeatherAssociation – RR edge cases', () => {
   it('reference rate 0 → rr null, absDiff correct', () => {
-    // Create features: 10 stable days (no headache), 10 drop days (2 headache)
     const features = [];
     for (let i = 0; i < 25; i++) {
       features.push({
@@ -379,7 +408,7 @@ describe('computeWeatherAssociation – RR edge cases', () => {
         hadHeadache: false,
         hadAcuteMed: false,
         pressureMb: 1013,
-        pressureChange24h: 0, // stable
+        pressureChange24h: 0,
         temperatureC: 10,
         humidity: 60,
         weatherCoverage: 'snapshot' as const,
@@ -393,7 +422,7 @@ describe('computeWeatherAssociation – RR edge cases', () => {
         hadHeadache: i < 2,
         hadAcuteMed: false,
         pressureMb: 1013,
-        pressureChange24h: -10, // strong drop
+        pressureChange24h: -10,
         temperatureC: 10,
         humidity: 60,
         weatherCoverage: 'snapshot' as const,
@@ -403,10 +432,120 @@ describe('computeWeatherAssociation – RR edge cases', () => {
     const result = computeWeatherAssociation(features);
 
     expect(result.pressureDelta24h.enabled).toBe(true);
-    // Reference (stable) has 0% headache rate → rr null
     if (result.pressureDelta24h.relativeRisk) {
       expect(result.pressureDelta24h.relativeRisk.rr).toBeNull();
       expect(result.pressureDelta24h.relativeRisk.absDiff).toBe(0.2);
     }
+  });
+});
+
+// ─── Test 17: Format helpers ──
+describe('Format helpers (SSOT)', () => {
+  it('fmtPct formats rate as percentage', () => {
+    expect(fmtPct(0.234)).toBe('23%');
+    expect(fmtPct(0)).toBe('0%');
+    expect(fmtPct(null)).toBe('–');
+  });
+
+  it('fmtPain formats pain with 1 decimal', () => {
+    expect(fmtPain(3.456)).toBe('3.5');
+    expect(fmtPain(null)).toBe('–');
+  });
+
+  it('fmtRR formats relative risk', () => {
+    expect(fmtRR(2.34)).toBe('2.3×');
+    expect(fmtRR(null)).toBe('–');
+  });
+
+  it('fmtAbsDiff formats percentage points', () => {
+    expect(fmtAbsDiff(0.15)).toBe('+15 pp');
+    expect(fmtAbsDiff(-0.1)).toBe('-10 pp');
+    expect(fmtAbsDiff(null)).toBe('–');
+  });
+});
+
+// ─── Test 18: hasAnyWeatherValue + hasDelta helpers ──
+describe('Coverage helpers (SSOT)', () => {
+  const base = {
+    date: '2026-01-01', documented: true, painMax: 0,
+    hadHeadache: false, hadAcuteMed: false, weatherCoverage: 'none' as const,
+  };
+
+  it('hasAnyWeatherValue detects any non-null weather field', () => {
+    expect(hasAnyWeatherValue({ ...base, pressureMb: null, temperatureC: null, humidity: null, pressureChange24h: null })).toBe(false);
+    expect(hasAnyWeatherValue({ ...base, pressureMb: 1013, temperatureC: null, humidity: null, pressureChange24h: null })).toBe(true);
+    expect(hasAnyWeatherValue({ ...base, pressureMb: null, temperatureC: null, humidity: 60, pressureChange24h: null })).toBe(true);
+  });
+
+  it('hasDelta checks pressureChange24h only', () => {
+    expect(hasDelta({ ...base, pressureMb: 1013, temperatureC: null, humidity: null, pressureChange24h: null })).toBe(false);
+    expect(hasDelta({ ...base, pressureMb: null, temperatureC: null, humidity: null, pressureChange24h: -5 })).toBe(true);
+  });
+});
+
+// ─── Test 19: Bucket labels are from SSOT constants ──
+describe('Bucket labels (SSOT)', () => {
+  it('uses SSOT labels for pressure delta buckets', () => {
+    expect(PRESSURE_DELTA_BUCKET_LABELS.strongDrop).toContain('-8');
+    expect(PRESSURE_DELTA_BUCKET_LABELS.moderateDrop).toContain('-3');
+    expect(PRESSURE_DELTA_BUCKET_LABELS.stableOrRise).toContain('-3');
+  });
+});
+
+// ─── Test 20: 0-day bucket has null meanPainMax ──
+describe('computeWeatherAssociation – 0-day bucket', () => {
+  it('bucket with 0 days has null meanPainMax and 0 rates', () => {
+    // All days are stable → strongDrop bucket will have 0 days
+    const features = [];
+    for (let i = 0; i < 25; i++) {
+      features.push({
+        date: `2026-01-${String(i + 1).padStart(2, '0')}`,
+        documented: true,
+        painMax: 3,
+        hadHeadache: true,
+        hadAcuteMed: false,
+        pressureMb: 1013,
+        pressureChange24h: 0, // all stable
+        temperatureC: 10,
+        humidity: 60,
+        weatherCoverage: 'snapshot' as const,
+      });
+    }
+
+    const result = computeWeatherAssociation(features);
+    const strongDropBucket = result.pressureDelta24h.buckets.find(b => b.label.includes('Starker'));
+    expect(strongDropBucket).toBeDefined();
+    expect(strongDropBucket!.nDays).toBe(0);
+    expect(strongDropBucket!.meanPainMax).toBeNull();
+    expect(strongDropBucket!.headacheRate).toBe(0);
+  });
+});
+
+// ─── Test 21: Confounding hint NOT triggered with small buckets ──
+describe('computeWeatherAssociation – confounding hint', () => {
+  it('does not trigger confounding note when no bucket has >= 20 days', () => {
+    // 10 stable + 10 drop days with very different acuteMed rates
+    const features = [];
+    for (let i = 0; i < 10; i++) {
+      features.push({
+        date: `2026-01-${String(i + 1).padStart(2, '0')}`,
+        documented: true, painMax: 3, hadHeadache: true, hadAcuteMed: true,
+        pressureMb: 1013, pressureChange24h: 0,
+        temperatureC: 10, humidity: 60, weatherCoverage: 'snapshot' as const,
+      });
+    }
+    for (let i = 0; i < 10; i++) {
+      features.push({
+        date: `2026-02-${String(i + 1).padStart(2, '0')}`,
+        documented: true, painMax: 3, hadHeadache: true, hadAcuteMed: false,
+        pressureMb: 1013, pressureChange24h: -10,
+        temperatureC: 10, humidity: 60, weatherCoverage: 'snapshot' as const,
+      });
+    }
+
+    const result = computeWeatherAssociation(features);
+    // Both buckets have only 10 days (< 20), confounding note should NOT appear
+    const confoundingNote = result.pressureDelta24h.notes.find(n => n.includes('Akutmedikation'));
+    expect(confoundingNote).toBeUndefined();
   });
 });

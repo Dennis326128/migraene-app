@@ -74,6 +74,8 @@ export interface WeatherDayFeature {
   temperatureC: number | null;
   humidity: number | null;
   weatherCoverage: 'entry' | 'snapshot' | 'none';
+  /** Debug-only: reason for weather join. Not shown in UI. */
+  weatherJoinReason?: string;
 }
 
 export interface WeatherCoverageCounts {
@@ -86,20 +88,74 @@ export interface ComputeWeatherAssociationOptions {
   coverageCounts?: WeatherCoverageCounts;
 }
 
-// ─── Constants ──────────────────────────────────────────────────────────
+// ─── Exported Constants (SSOT for thresholds & labels) ──────────────────
 
-const MIN_DAYS_FOR_STATEMENT = 20;
-const MIN_DAYS_PER_BUCKET = 5;
-const HIGH_CONFIDENCE_DAYS = 60;
-const MEDIUM_CONFIDENCE_DAYS = 30;
-const MIN_DAYS_ABSOLUTE_PRESSURE = 60;
-const DELTA_STRONG_DROP = -8;
-const DELTA_MODERATE_DROP = -3;
-const PRESSURE_LOW = 1005;
-const PRESSURE_HIGH = 1025;
+export const MIN_DAYS_FOR_STATEMENT = 20;
+export const MIN_DAYS_PER_BUCKET = 5;
+export const HIGH_CONFIDENCE_DAYS = 60;
+export const MEDIUM_CONFIDENCE_DAYS = 30;
+export const MIN_DAYS_ABSOLUTE_PRESSURE = 60;
+export const DELTA_STRONG_DROP = -8;
+export const DELTA_MODERATE_DROP = -3;
+export const PRESSURE_LOW = 1005;
+export const PRESSURE_HIGH = 1025;
 
-const WEATHER_DISCLAIMER =
+/** Minimum days in at least one bucket for confounding hint to fire */
+export const MIN_DAYS_CONFOUNDING_HINT = 20;
+
+export const PRESSURE_DELTA_BUCKET_LABELS = {
+  strongDrop: `Starker Abfall (≤ ${DELTA_STRONG_DROP} hPa)`,
+  moderateDrop: `Moderater Abfall (${DELTA_STRONG_DROP} bis ${DELTA_MODERATE_DROP} hPa)`,
+  stableOrRise: `Stabil / Anstieg (> ${DELTA_MODERATE_DROP} hPa)`,
+} as const;
+
+export const ABS_PRESSURE_BUCKET_LABELS = {
+  low: `Tiefdruck (< ${PRESSURE_LOW} hPa)`,
+  normal: `Normal (${PRESSURE_LOW}–${PRESSURE_HIGH} hPa)`,
+  high: `Hochdruck (> ${PRESSURE_HIGH} hPa)`,
+} as const;
+
+export const WEATHER_DISCLAIMER =
   "Orientierender Hinweis basierend auf Ihrer Dokumentation. Zusammenhang ≠ Ursache. Keine Diagnose.";
+
+// ─── Coverage Helpers (SSOT) ────────────────────────────────────────────
+
+/** Does this feature have any usable weather value? */
+export function hasAnyWeatherValue(f: WeatherDayFeature): boolean {
+  return f.pressureMb != null || f.temperatureC != null || f.humidity != null || f.pressureChange24h != null;
+}
+
+/** Does this feature have a 24h pressure delta? */
+export function hasDelta(f: WeatherDayFeature): boolean {
+  return f.pressureChange24h != null;
+}
+
+// ─── Format Helpers (SSOT for UI + PDF) ─────────────────────────────────
+
+/** Format rate as percentage string, e.g. 0.234 → "23%" */
+export function fmtPct(rate: number | null | undefined): string {
+  if (rate == null) return '–';
+  return `${Math.round(rate * 100)}%`;
+}
+
+/** Format mean pain, e.g. 3.456 → "3.5" or null → "–" */
+export function fmtPain(mean: number | null | undefined): string {
+  if (mean == null) return '–';
+  return mean.toFixed(1);
+}
+
+/** Format relative risk, e.g. 2.34 → "2.3×" or null → "–" */
+export function fmtRR(rr: number | null | undefined): string {
+  if (rr == null) return '–';
+  return `${rr.toFixed(1)}×`;
+}
+
+/** Format absolute difference in percentage points, e.g. 0.15 → "+15 pp" */
+export function fmtAbsDiff(absDiff: number | null | undefined): string {
+  if (absDiff == null) return '–';
+  const pp = Math.round(absDiff * 100);
+  return `${pp > 0 ? '+' : ''}${pp} pp`;
+}
 
 // ─── Helpers ────────────────────────────────────────────────────────────
 
@@ -128,7 +184,7 @@ function buildBucket(label: string, days: WeatherDayFeature[]): WeatherBucketRes
     label,
     nDays,
     headacheRate: nDays > 0 ? round2(headacheDays / nDays) : 0,
-    meanPainMax: mean(painValues),
+    meanPainMax: nDays > 0 ? mean(painValues) : null,
     acuteMedRate: nDays > 0 ? round2(acuteMedDays / nDays) : 0,
   };
 }
@@ -162,10 +218,8 @@ export function computeWeatherAssociation(
 ): WeatherAnalysisV2 {
   const documented = features.filter((f) => f.documented);
   const daysDocumented = documented.length;
-  const daysWithWeather = documented.filter(
-    (f) => f.pressureMb != null || f.temperatureC != null || f.humidity != null || f.pressureChange24h != null
-  ).length;
-  const daysWithDelta = documented.filter((f) => f.pressureChange24h != null).length;
+  const daysWithWeather = documented.filter(hasAnyWeatherValue).length;
+  const daysWithDelta = documented.filter(hasDelta).length;
 
   // Coverage counts: from options or compute from features.weatherCoverage
   let entryCount = 0;
@@ -203,7 +257,7 @@ export function computeWeatherAssociation(
 
 function analyzePressureDelta(documentedDays: WeatherDayFeature[], coverage: WeatherCoverageInfo): WeatherPressureDelta24h {
   const notes: string[] = [];
-  const paired = documentedDays.filter((f) => f.pressureChange24h != null);
+  const paired = documentedDays.filter(hasDelta);
   const confidence = determineConfidence(paired.length);
 
   if (confidence === "insufficient") {
@@ -216,9 +270,9 @@ function analyzePressureDelta(documentedDays: WeatherDayFeature[], coverage: Wea
   const moderateDrop = paired.filter((f) => f.pressureChange24h! > DELTA_STRONG_DROP && f.pressureChange24h! <= DELTA_MODERATE_DROP);
   const stableOrRise = paired.filter((f) => f.pressureChange24h! > DELTA_MODERATE_DROP);
 
-  const bucketA = buildBucket("Starker Abfall (≤ −8 hPa)", strongDrop);
-  const bucketB = buildBucket("Moderater Abfall (−8 bis −3 hPa)", moderateDrop);
-  const bucketC = buildBucket("Stabil / Anstieg (> −3 hPa)", stableOrRise);
+  const bucketA = buildBucket(PRESSURE_DELTA_BUCKET_LABELS.strongDrop, strongDrop);
+  const bucketB = buildBucket(PRESSURE_DELTA_BUCKET_LABELS.moderateDrop, moderateDrop);
+  const bucketC = buildBucket(PRESSURE_DELTA_BUCKET_LABELS.stableOrRise, stableOrRise);
   const buckets = [bucketA, bucketB, bucketC];
 
   for (const b of buckets) {
@@ -239,9 +293,14 @@ function analyzePressureDelta(documentedDays: WeatherDayFeature[], coverage: Wea
     notes.push("Δ24h derzeit nur bei einem Teil der Tage verfügbar. Aussagekraft kann eingeschränkt sein.");
   }
 
-  const acuteMedRates = buckets.filter((b) => b.nDays >= MIN_DAYS_PER_BUCKET).map((b) => b.acuteMedRate);
-  if (acuteMedRates.length >= 2 && Math.max(...acuteMedRates) - Math.min(...acuteMedRates) > 0.2) {
-    notes.push("Akutmedikationsrate variiert zwischen Druckgruppen. Medikation kann die Schmerzintensität beeinflussen.");
+  // Confounding hint: only if at least 2 buckets with MIN_DAYS_PER_BUCKET AND at least 1 with MIN_DAYS_CONFOUNDING_HINT
+  const qualifiedBuckets = buckets.filter((b) => b.nDays >= MIN_DAYS_PER_BUCKET);
+  const hasLargeBucket = buckets.some((b) => b.nDays >= MIN_DAYS_CONFOUNDING_HINT);
+  if (qualifiedBuckets.length >= 2 && hasLargeBucket) {
+    const acuteMedRates = qualifiedBuckets.map((b) => b.acuteMedRate);
+    if (Math.max(...acuteMedRates) - Math.min(...acuteMedRates) > 0.2) {
+      notes.push("Akutmedikation unterscheidet sich zwischen Gruppen; das kann die beobachtete Schmerzintensität beeinflussen.");
+    }
   }
 
   return { enabled: true, confidence, buckets, relativeRisk, notes };
@@ -259,9 +318,9 @@ function analyzeAbsolutePressure(documentedDays: WeatherDayFeature[]): WeatherAb
   const high = paired.filter((f) => f.pressureMb! > PRESSURE_HIGH);
 
   const buckets = [
-    buildBucket(`Tiefdruck (< ${PRESSURE_LOW} hPa)`, low),
-    buildBucket(`Normal (${PRESSURE_LOW}–${PRESSURE_HIGH} hPa)`, normal),
-    buildBucket(`Hochdruck (> ${PRESSURE_HIGH} hPa)`, high),
+    buildBucket(ABS_PRESSURE_BUCKET_LABELS.low, low),
+    buildBucket(ABS_PRESSURE_BUCKET_LABELS.normal, normal),
+    buildBucket(ABS_PRESSURE_BUCKET_LABELS.high, high),
   ];
 
   for (const b of buckets) {

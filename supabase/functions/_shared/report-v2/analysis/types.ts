@@ -168,6 +168,8 @@ export interface WeatherDayFeature {
   temperatureC: number | null;
   humidity: number | null;
   weatherCoverage: "entry" | "snapshot" | "none";
+  /** Debug-only: reason for weather join decision */
+  weatherJoinReason?: string;
 }
 
 // ─── Weather Association Analysis ────────────────────────────────────────

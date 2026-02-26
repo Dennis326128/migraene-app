@@ -229,8 +229,8 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
           .select('id, snapshot_date, requested_at, pressure_mb, pressure_change_24h, temperature_c, humidity')
           .eq('user_id', userId)
           .is('snapshot_date', null)
-          .gte('requested_at', `${from}T00:00:00`)
-          .lte('requested_at', `${to}T23:59:59`)
+          .gte('requested_at', `${from}T00:00:00.000Z`)
+          .lte('requested_at', `${to}T23:59:59.999Z`)
           .order('id', { ascending: true })
           .range(offset, offset + PAGE_SIZE - 1);
         if (error) throw error;
