@@ -123,11 +123,11 @@ export function UnratedEffectCard({
             
             {/* Line 2: Date · Time — both equal size, time slightly bolder */}
             <div className="text-sm text-muted-foreground">
-              <span>{dateLabel}</span>
+              <span className="font-normal">{dateLabel}</span>
               {timeLabel && (
                 <>
                   <span className="mx-1.5 text-muted-foreground/40">·</span>
-                  <span className="font-semibold text-foreground/80">{timeLabel} Uhr</span>
+                  <span className="font-medium text-foreground/80">{timeLabel} Uhr</span>
                 </>
               )}
             </div>
@@ -152,7 +152,7 @@ export function UnratedEffectCard({
         </div>
 
         {/* Slider: Effect Rating (unchanged logic) */}
-        <div className="space-y-2">
+        <div className="space-y-2 pt-2">
           <Label className="text-base font-medium">
             Wie war die Wirkung?
           </Label>
