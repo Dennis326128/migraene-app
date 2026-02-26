@@ -588,3 +588,62 @@ describe('buildWeatherDayFeatures – joinReason typed', () => {
     expect(result[0].weatherJoinReason).toBe('none');
   });
 });
+
+// ─── Test: entry-weather-id-miss triggers snapshot fallback ──
+describe('buildWeatherDayFeatures – snapshot fallback', () => {
+  it('entry has weather_id but no matching log -> uses snapshot', () => {
+    const entry = makeEntry({
+      selected_date: '2026-02-26',
+      selected_time: '10:00',
+      weather_id: 999, // non-existent ID
+    });
+    const snapshotLog = makeWeatherLog(50, {
+      snapshot_date: '2026-02-26',
+      requested_at: '2026-02-26T09:00:00Z',
+    });
+    const result = buildWeatherDayFeatures({
+      countsByDay: [makeDay('2026-02-26', { documented: true, headache: true })],
+      entries: [entry],
+      weatherLogs: [snapshotLog],
+      timezone: TZ,
+    });
+    expect(result[0].weatherCoverage).toBe('snapshot');
+    expect(result[0].weatherJoinReason).toBe('entry-weather-id-miss->snapshot');
+    expect(result[0].pressureMb).toBe(1013);
+  });
+
+  it('entry without weather_id and without snapshot -> coverage none', () => {
+    const entry = makeEntry({
+      selected_date: '2026-02-26',
+      selected_time: '10:00',
+      weather_id: null,
+    });
+    const result = buildWeatherDayFeatures({
+      countsByDay: [makeDay('2026-02-26', { documented: true })],
+      entries: [entry],
+      weatherLogs: [],
+      timezone: TZ,
+    });
+    expect(result[0].weatherCoverage).toBe('none');
+    expect(result[0].pressureMb).toBeNull();
+  });
+});
+
+// ─── Test: Δ24h null display ──
+describe('Δ24h null handling', () => {
+  it('feature with null pressureChange24h has null delta', () => {
+    const entry = makeEntry({ selected_date: '2026-02-26', selected_time: '10:00' });
+    const log = makeWeatherLog(1, {
+      snapshot_date: '2026-02-26',
+      requested_at: '2026-02-26T10:00:00Z',
+      pressure_change_24h: null,
+    });
+    const result = buildWeatherDayFeatures({
+      countsByDay: [makeDay('2026-02-26', { documented: true })],
+      entries: [entry],
+      weatherLogs: [log],
+      timezone: TZ,
+    });
+    expect(result[0].pressureChange24h).toBeNull();
+  });
+});

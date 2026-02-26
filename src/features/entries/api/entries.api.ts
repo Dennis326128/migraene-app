@@ -225,9 +225,10 @@ export async function createEntry(payload: PainEntryPayload): Promise<string> {
     ? new Date(`${parsed.selected_date}T${parsed.selected_time}:00`).toISOString()
     : new Date().toISOString();
 
-  const insert = {
+  const insert: any = {
     user_id: user.id,
     timestamp_created: atISO,
+    weather_status: 'ok', // Will be set to 'pending' if weather fetch fails externally
     ...parsed,
   };
 
