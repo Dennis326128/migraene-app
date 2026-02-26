@@ -1,13 +1,17 @@
 /**
- * Browser-compatible re-export of computeWeatherAssociation.
- * The analysis module uses .ts imports for Deno; this file provides
- * the same logic for the browser (React/Vite) environment.
+ * ═══════════════════════════════════════════════════════════════════════════
+ * @deprecated — Use computeWeatherAssociation from weatherAssociation.ts
+ *
+ * This file re-exports the SSOT weatherAssociation module for browser use.
+ * No separate computation logic. Single Source of Truth.
+ * ═══════════════════════════════════════════════════════════════════════════
  */
 
-// Re-implement locally to avoid .ts extension issues in browser builds.
-// This is a thin wrapper that delegates to the same pure logic.
-
 export type { WeatherDayFeature } from './buildWeatherDayFeatures';
+
+export type { WeatherCoverageCounts } from './buildWeatherDayFeatures';
+
+// ─── Types (re-exported for consumers) ──────────────────────────────────
 
 export type WeatherConfidence = 'high' | 'medium' | 'low' | 'insufficient';
 
@@ -47,6 +51,9 @@ export interface WeatherCoverageInfo {
   daysWithDelta24h: number;
   ratioWeather: number;
   ratioDelta24h: number;
+  daysWithEntryWeather?: number;
+  daysWithSnapshotWeather?: number;
+  daysWithNoWeather?: number;
 }
 
 export interface WeatherAnalysisV2 {
@@ -57,6 +64,7 @@ export interface WeatherAnalysisV2 {
 }
 
 import type { WeatherDayFeature } from './buildWeatherDayFeatures';
+import type { WeatherCoverageCounts } from './buildWeatherDayFeatures';
 
 // ─── Constants ──────────────────────────────────────────────────────────
 
@@ -123,7 +131,14 @@ function computeRelativeRisk(
 
 // ─── Main ───────────────────────────────────────────────────────────────
 
-export function computeWeatherAssociation(features: WeatherDayFeature[]): WeatherAnalysisV2 {
+export interface ComputeWeatherAssociationOptions {
+  coverageCounts?: WeatherCoverageCounts;
+}
+
+export function computeWeatherAssociation(
+  features: WeatherDayFeature[],
+  options?: ComputeWeatherAssociationOptions
+): WeatherAnalysisV2 {
   const documented = features.filter((f) => f.documented);
   const daysDocumented = documented.length;
   const daysWithWeather = documented.filter(
@@ -131,12 +146,32 @@ export function computeWeatherAssociation(features: WeatherDayFeature[]): Weathe
   ).length;
   const daysWithDelta = documented.filter((f) => f.pressureChange24h != null).length;
 
+  // Coverage counts: from options or compute from features.weatherCoverage
+  let entryCount = 0;
+  let snapshotCount = 0;
+  let noneCount = 0;
+
+  if (options?.coverageCounts) {
+    entryCount = options.coverageCounts.daysWithEntryWeather;
+    snapshotCount = options.coverageCounts.daysWithSnapshotWeather;
+    noneCount = options.coverageCounts.daysWithNoWeather;
+  } else {
+    for (const f of documented) {
+      if (f.weatherCoverage === 'entry') entryCount++;
+      else if (f.weatherCoverage === 'snapshot') snapshotCount++;
+      else noneCount++;
+    }
+  }
+
   const coverage: WeatherCoverageInfo = {
     daysDocumented,
     daysWithWeather,
     daysWithDelta24h: daysWithDelta,
     ratioWeather: daysDocumented > 0 ? round2(daysWithWeather / daysDocumented) : 0,
     ratioDelta24h: daysDocumented > 0 ? round2(daysWithDelta / daysDocumented) : 0,
+    daysWithEntryWeather: entryCount,
+    daysWithSnapshotWeather: snapshotCount,
+    daysWithNoWeather: noneCount,
   };
 
   const pressureDelta24h = analyzePressureDelta(documented, coverage);

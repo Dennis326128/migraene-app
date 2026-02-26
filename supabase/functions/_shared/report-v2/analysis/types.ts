@@ -210,6 +210,12 @@ export interface WeatherCoverageInfo {
   daysWithDelta24h: number;
   ratioWeather: number;
   ratioDelta24h: number;
+  /** Days where weather came from entry-linked weather_id */
+  daysWithEntryWeather?: number;
+  /** Days where weather came from snapshot fallback */
+  daysWithSnapshotWeather?: number;
+  /** Documented days with no weather data at all */
+  daysWithNoWeather?: number;
 }
 
 export interface WeatherAnalysisV2 {

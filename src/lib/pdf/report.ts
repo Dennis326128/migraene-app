@@ -95,7 +95,6 @@ type BuildReportParams = {
   freeTextExportMode?: FreeTextExportMode;
   
   // KRITISCH: Explizites Flag ob User Premium-KI ausgewählt hat
-  // Unterscheidet sich von premiumAIReport !== undefined (= Daten vorhanden)
   isPremiumAIRequested?: boolean;
   
   analysisReport?: string;
@@ -134,7 +133,6 @@ type BuildReportParams = {
     fax?: string;
     email?: string;
   }>;
-  // Premium KI-Analysebericht (optional - Daten wenn vorhanden)
   premiumAIReport?: {
     schemaVersion?: number;
     timeRange?: { from: string; to: string };
@@ -157,23 +155,52 @@ type BuildReportParams = {
     }>;
     createdAt: string;
   };
-  // Begleitsymptome Daten für klinische Übersicht
   symptomData?: SymptomDataForPdf;
-  // ME/CFS-Belastungsdaten
   meCfsData?: {
-    avgScore: number;         // Ø Belastung 0–10
-    avgLabel: string;         // z.B. "leicht"
-    peakLabel: string;        // Höchste Belastung label
-    burdenPct: number;        // Anteil Tage mit Belastung in %
-    burdenPer30: number;      // Belastete Tage / 30 (hochgerechnet)
+    avgScore: number;
+    avgLabel: string;
+    peakLabel: string;
+    burdenPct: number;
+    burdenPer30: number;
     daysWithBurden: number;
-    documentedDays: number;   // nur dokumentierte Tage
-    calendarDays: number;     // Kalendertage im Zeitraum
-    iqrLabel: string;         // z.B. "0–3/10"
+    documentedDays: number;
+    calendarDays: number;
+    iqrLabel: string;
     dataQualityNote?: string;
   };
-  // Optional: Pre-rendered chart image (PNG bytes from html2canvas)
   chartImageBytes?: Uint8Array;
+  /** Weather association from analysisV2.weather (SSOT) */
+  weatherAnalysis?: {
+    coverage: {
+      daysDocumented: number;
+      daysWithWeather: number;
+      daysWithDelta24h: number;
+      ratioWeather: number;
+      ratioDelta24h: number;
+      daysWithEntryWeather?: number;
+      daysWithSnapshotWeather?: number;
+      daysWithNoWeather?: number;
+    };
+    pressureDelta24h: {
+      enabled: boolean;
+      confidence: string;
+      buckets: Array<{
+        label: string;
+        nDays: number;
+        headacheRate: number;
+        meanPainMax: number | null;
+        acuteMedRate: number;
+      }>;
+      relativeRisk: {
+        referenceLabel: string;
+        compareLabel: string;
+        rr: number | null;
+        absDiff: number | null;
+      } | null;
+      notes: string[];
+    };
+    disclaimer: string;
+  } | null;
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -915,6 +942,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     symptomData,
     meCfsData,
     chartImageBytes,
+    weatherAnalysis,
   } = params;
 
   const pdfDoc = await PDFDocument.create();
@@ -1714,6 +1742,101 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     yPos -= boxHeight + LAYOUT.sectionGap;
   }
 
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 4.5 WETTER & KOPFSCHMERZ (from analysisV2.weather SSOT)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  if (weatherAnalysis) {
+    const wa = weatherAnalysis;
+    const isInsufficient = wa.pressureDelta24h.confidence === 'insufficient';
+
+    const spaceNeeded = isInsufficient ? 80 : 200;
+    const spaceCheck = ensureSpace(pdfDoc, page, yPos, spaceNeeded);
+    page = spaceCheck.page;
+    yPos = spaceCheck.yPos;
+
+    yPos = drawSectionHeader(page, "WETTER & KOPFSCHMERZ", yPos, fontBold, 13);
+
+    // Coverage line
+    const covParts: string[] = [
+      `Dokumentiert: ${wa.coverage.daysDocumented} Tage`,
+      `Wetter: ${wa.coverage.daysWithWeather} (${Math.round(wa.coverage.ratioWeather * 100)}%)`,
+    ];
+    if (wa.coverage.daysWithEntryWeather != null) covParts.push(`Entry: ${wa.coverage.daysWithEntryWeather}`);
+    if (wa.coverage.daysWithSnapshotWeather != null) covParts.push(`Snapshot: ${wa.coverage.daysWithSnapshotWeather}`);
+    if (wa.coverage.daysWithNoWeather != null && wa.coverage.daysWithNoWeather > 0) covParts.push(`Keine Daten: ${wa.coverage.daysWithNoWeather}`);
+
+    page.drawText(sanitizeForPDF(covParts.join('  |  ')), {
+      x: LAYOUT.margin, y: yPos, size: 8, font, color: COLORS.textLight,
+    });
+    yPos -= 16;
+
+    if (isInsufficient) {
+      page.drawText(sanitizeForPDF('Noch nicht ausreichend Daten fuer eine Wetter-Kopfschmerz-Analyse.'), {
+        x: LAYOUT.margin, y: yPos, size: 9, font, color: COLORS.text,
+      });
+      if (wa.pressureDelta24h.notes.length > 0) {
+        yPos -= 12;
+        page.drawText(sanitizeForPDF(wa.pressureDelta24h.notes[0]), {
+          x: LAYOUT.margin, y: yPos, size: 8, font, color: COLORS.textLight,
+        });
+      }
+      yPos -= LAYOUT.sectionGap;
+    } else {
+      // Bucket table
+      if (wa.pressureDelta24h.buckets.length > 0) {
+        // Header
+        const colX = [LAYOUT.margin, LAYOUT.margin + 230, LAYOUT.margin + 300, LAYOUT.margin + 370];
+        page.drawText('Druckaenderung', { x: colX[0], y: yPos, size: 8, font: fontBold, color: COLORS.text });
+        page.drawText('Tage', { x: colX[1], y: yPos, size: 8, font: fontBold, color: COLORS.text });
+        page.drawText('KS-Rate', { x: colX[2], y: yPos, size: 8, font: fontBold, color: COLORS.text });
+        page.drawText('Ø Intensitaet', { x: colX[3], y: yPos, size: 8, font: fontBold, color: COLORS.text });
+        yPos -= 4;
+        page.drawLine({
+          start: { x: LAYOUT.margin, y: yPos },
+          end: { x: LAYOUT.pageWidth - LAYOUT.margin, y: yPos },
+          thickness: 0.5, color: COLORS.border,
+        });
+        yPos -= 12;
+
+        for (const b of wa.pressureDelta24h.buckets) {
+          page.drawText(sanitizeForPDF(b.label), { x: colX[0], y: yPos, size: 8, font, color: COLORS.text });
+          page.drawText(String(b.nDays), { x: colX[1], y: yPos, size: 8, font, color: COLORS.text });
+          page.drawText(`${Math.round(b.headacheRate * 100)}%`, { x: colX[2], y: yPos, size: 8, font, color: COLORS.text });
+          page.drawText(b.meanPainMax != null ? b.meanPainMax.toFixed(1) : '-', { x: colX[3], y: yPos, size: 8, font, color: COLORS.text });
+          yPos -= 14;
+        }
+      }
+
+      // Relative Risk
+      if (wa.pressureDelta24h.relativeRisk && wa.pressureDelta24h.relativeRisk.rr != null) {
+        yPos -= 4;
+        const rr = wa.pressureDelta24h.relativeRisk;
+        page.drawText(sanitizeForPDF(`Relatives Risiko: ${rr.rr}x (${rr.compareLabel} vs. ${rr.referenceLabel})`), {
+          x: LAYOUT.margin, y: yPos, size: 9, font: fontBold, color: COLORS.text,
+        });
+        yPos -= 14;
+      }
+
+      // Notes (max 2)
+      const notesToShow = wa.pressureDelta24h.notes.slice(0, 2);
+      for (const note of notesToShow) {
+        page.drawText(sanitizeForPDF(`- ${note}`), {
+          x: LAYOUT.margin, y: yPos, size: 8, font, color: COLORS.textLight,
+        });
+        yPos -= 12;
+      }
+
+      yPos -= LAYOUT.sectionGap;
+    }
+
+    // Disclaimer
+    page.drawText(sanitizeForPDF(wa.disclaimer), {
+      x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight,
+    });
+    yPos -= LAYOUT.sectionGap;
+  }
 
 
   // ═══════════════════════════════════════════════════════════════════════════

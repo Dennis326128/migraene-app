@@ -30,6 +30,9 @@ interface WeatherCoverage {
   daysWithDelta24h: number;
   ratioWeather: number;
   ratioDelta24h: number;
+  daysWithEntryWeather?: number;
+  daysWithSnapshotWeather?: number;
+  daysWithNoWeather?: number;
 }
 
 interface PressureDelta {
@@ -70,6 +73,24 @@ export function WeatherAssociationCard({
           <span>Dokumentiert: {coverage.daysDocumented} Tage</span>
           <span>·</span>
           <span>Wetter: {coverage.daysWithWeather} ({Math.round(coverage.ratioWeather * 100)}%)</span>
+          {coverage.daysWithEntryWeather != null && (
+            <>
+              <span>·</span>
+              <span>Entry: {coverage.daysWithEntryWeather}</span>
+            </>
+          )}
+          {coverage.daysWithSnapshotWeather != null && (
+            <>
+              <span>·</span>
+              <span>Snapshot: {coverage.daysWithSnapshotWeather}</span>
+            </>
+          )}
+          {coverage.daysWithNoWeather != null && coverage.daysWithNoWeather > 0 && (
+            <>
+              <span>·</span>
+              <span>Keine Daten: {coverage.daysWithNoWeather}</span>
+            </>
+          )}
           <span>·</span>
           <span>Δ24h: {coverage.daysWithDelta24h} ({Math.round(coverage.ratioDelta24h * 100)}%)</span>
         </div>

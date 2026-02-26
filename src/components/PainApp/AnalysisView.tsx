@@ -185,15 +185,31 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
   const { data: weatherLogs = [] } = useQuery({
     queryKey: ['weather-logs-for-analysis', from, to],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('weather_logs')
-        .select('id, snapshot_date, requested_at, pressure_mb, pressure_change_24h, temperature_c, humidity')
-        .gte('snapshot_date', from)
-        .lte('snapshot_date', to)
-        .order('snapshot_date', { ascending: true })
-        .limit(1000);
-      if (error) throw error;
-      return data ?? [];
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) return [];
+
+      // Paginated fetch — no limit(1000) truncation
+      const allLogs: any[] = [];
+      const PAGE_SIZE = 1000;
+      let offset = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('weather_logs')
+          .select('id, snapshot_date, requested_at, pressure_mb, pressure_change_24h, temperature_c, humidity')
+          .eq('user_id', userData.user.id)
+          .gte('snapshot_date', from)
+          .lte('snapshot_date', to)
+          .order('snapshot_date', { ascending: true })
+          .range(offset, offset + PAGE_SIZE - 1);
+        if (error) throw error;
+        if (data) allLogs.push(...data);
+        hasMore = (data?.length ?? 0) === PAGE_SIZE;
+        offset += PAGE_SIZE;
+      }
+
+      return allLogs;
     },
     staleTime: 120_000,
   });
@@ -215,18 +231,21 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
     return report;
   }, [filteredEntries, from, to, timeRange, medicationEffectsData, daysInRange]);
 
-  // ─── Weather Association (deterministic) ──────────────────────────
+  // ─── Weather Association (deterministic, SSOT) ─────────────────────
   const weatherAnalysis = useMemo(() => {
     if (!ssotReport || ssotReport.raw.countsByDay.length === 0) return null;
 
-    const weatherDayFeatures = buildWeatherDayFeatures({
-      countsByDay: ssotReport.raw.countsByDay,
-      entries: filteredEntries as any[],
-      weatherLogs: weatherLogs as any[],
-    });
+    const { features, coverageCounts } = buildWeatherDayFeatures(
+      {
+        countsByDay: ssotReport.raw.countsByDay,
+        entries: filteredEntries as any[],
+        weatherLogs: weatherLogs as any[],
+      },
+      true
+    );
 
-    if (weatherDayFeatures.length === 0) return null;
-    return computeWeatherAssociation(weatherDayFeatures);
+    if (features.length === 0) return null;
+    return computeWeatherAssociation(features, { coverageCounts });
   }, [ssotReport, filteredEntries, weatherLogs]);
 
   const hasOveruseWarning = useMemo(() => {

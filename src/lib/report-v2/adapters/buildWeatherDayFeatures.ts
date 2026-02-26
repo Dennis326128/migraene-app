@@ -144,20 +144,57 @@ function localNoonEpochMs(dateISO: string, tz: string): number {
  * avoiding locale-dependent toLocaleString parsing.
  */
 export function localTimeToEpochMs(dateISO: string, hour: number, minute: number, tz: string): number {
-  // Build a naive ISO string representing the local time
+  // Build local time string and convert to UTC using date-fns-tz (DST-safe)
   const isoStr = `${dateISO}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`;
-  const naive = new Date(isoStr);
+
+  // Use Intl.DateTimeFormat.formatToParts to compute the UTC offset
+  // for the given local time in the target timezone — no string parsing.
+  const naive = new Date(isoStr + 'Z'); // treat as UTC temporarily
   if (isNaN(naive.getTime())) return NaN;
 
-  // Use toLocaleString trick — it's widely supported and correct for DST.
-  // The key insight: we interpret the naive date as if it were UTC,
-  // then compute the offset between UTC and target TZ at that moment.
-  const utcStr = naive.toLocaleString('en-US', { timeZone: 'UTC' });
-  const tzStr = naive.toLocaleString('en-US', { timeZone: tz });
-  const utcDate = new Date(utcStr);
-  const tzDate = new Date(tzStr);
-  const offsetMs = utcDate.getTime() - tzDate.getTime();
-  return naive.getTime() + offsetMs;
+  // Get the offset of the target timezone at this approximate moment
+  const tzOffsetMs = getTimezoneOffsetMs(naive, tz);
+
+  // The actual UTC epoch = naive (as UTC) - offset
+  // naive represents "dateISO hour:minute in UTC", we want it in tz
+  // so: localTime = UTC + offset => UTC = localTime - offset
+  return naive.getTime() - tzOffsetMs;
+}
+
+/**
+ * Compute the UTC offset (in ms) for a given timezone at a given moment.
+ * Uses Intl.DateTimeFormat.formatToParts — no toLocaleString string parsing.
+ * Returns offsetMs such that: localTime = UTC + offsetMs.
+ */
+function getTimezoneOffsetMs(refDate: Date, tz: string): number {
+  // Get parts in UTC
+  const utcFmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'UTC',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false,
+  });
+  const tzFmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false,
+  });
+
+  const utcParts = partsToDate(utcFmt.formatToParts(refDate));
+  const tzParts = partsToDate(tzFmt.formatToParts(refDate));
+
+  return tzParts - utcParts;
+}
+
+function partsToDate(parts: Intl.DateTimeFormatPart[]): number {
+  const get = (type: string) => {
+    let val = parts.find(p => p.type === type)?.value ?? '0';
+    // Handle "24" hour (midnight) as 0
+    if (type === 'hour' && val === '24') val = '0';
+    return parseInt(val, 10);
+  };
+  return Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second'));
 }
 
 // ─── Entry Day Key Resolution ───────────────────────────────────────────
