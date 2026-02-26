@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { formatRelativeDateLabel } from "@/lib/dateUtils";
 import { Button } from "@/components/ui/button";
 import { SaveButton } from "@/components/ui/save-button";
 import { Label } from "@/components/ui/label";
@@ -125,7 +126,7 @@ export function MedicationEffectModal({
           <Card className="p-3 bg-secondary/50">
             <div className="text-sm">
               <div className="font-medium">
-                {medicationEntry.selected_date} um {medicationEntry.selected_time}
+                {formatRelativeDateLabel(medicationEntry.selected_date)} um {medicationEntry.selected_time}
               </div>
               <div className="text-muted-foreground">
                 Schmerzstärke: {medicationEntry.pain_level}

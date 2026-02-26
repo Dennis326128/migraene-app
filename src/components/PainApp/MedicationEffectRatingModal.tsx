@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { formatRelativeDateLabel } from "@/lib/dateUtils";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -181,7 +182,7 @@ export function MedicationEffectRatingModal({
           <Card className="p-3 bg-muted/50">
             <div className="text-sm">
               <div className="font-medium">
-                {currentMed.entryInfo.selected_date} um {currentMed.entryInfo.selected_time}
+                {formatRelativeDateLabel(currentMed.entryInfo.selected_date)} um {currentMed.entryInfo.selected_time}
               </div>
               <div className="text-muted-foreground">
                 Schmerzstärke: {currentMed.entryInfo.pain_level}

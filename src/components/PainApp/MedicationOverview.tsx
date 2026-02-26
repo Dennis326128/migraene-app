@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { ChevronDown, ChevronUp, X, Clock, Calendar } from "lucide-react";
+import { formatRelativeDateLabel } from "@/lib/dateUtils";
 import { MedicationEffectSlider } from "@/components/ui/medication-effect-slider";
 import { useToast } from "@/hooks/use-toast";
 import { useCreateMedicationEffect } from "@/features/medication-effects/hooks/useMedicationEffects";
@@ -168,13 +169,8 @@ function MedicationCard({ entry, medication, existingEffect }: MedicationCardPro
   };
 
   const formatDateTime = (date: string, time: string) => {
-    const dateObj = new Date(date);
     return {
-      date: dateObj.toLocaleDateString('de-DE', { 
-        weekday: 'short', 
-        day: '2-digit', 
-        month: '2-digit' 
-      }),
+      date: formatRelativeDateLabel(date),
       time: time
     };
   };
