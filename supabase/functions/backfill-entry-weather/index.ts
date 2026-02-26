@@ -6,11 +6,30 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+/** Breakdown counters for structured response */
+interface BackfillBreakdown {
+  linked_existing_snapshot: number;
+  fetched_new_weather: number;
+  no_location: number;
+  api_error: number;
+  insert_error: number;
+}
+
+interface EntryLog {
+  entryId: number;
+  userId: string;
+  date: string | null;
+  time: string | null;
+  action: string;
+  reason: string;
+  weatherLogId?: number;
+  errorCode?: string;
+}
+
 /**
- * Backfill edge function: finds pain_entries with weather_status='pending' or weather_id=null
- * in the last 30 days, attempts to fetch weather and link it.
+ * Backfill edge function: finds pain_entries needing weather data
+ * (weather_status pending/failed/null OR weather_id null) in the last 30 days.
  *
- * Can be called via cron or manually.
  * Auth: uses service role key (verify_jwt=false, secured by CRON_SECRET header).
  */
 serve(async (req) => {
@@ -44,14 +63,16 @@ serve(async (req) => {
     }
 
     // Find entries needing weather (last 30 days, max 50 per run)
+    // Target: weather_status IN (null, 'pending', 'failed') OR weather_id IS NULL
+    // AND retry_count < 5
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
     const { data: entries, error: fetchError } = await supabase
       .from('pain_entries')
       .select('id, user_id, selected_date, selected_time, latitude, longitude, timestamp_created, weather_status, weather_retry_count')
-      .or('weather_status.eq.pending,and(weather_id.is.null,weather_status.eq.ok)')
-      .gte('timestamp_created', thirtyDaysAgo)
+      .or('weather_status.is.null,weather_status.eq.pending,weather_status.eq.failed,weather_id.is.null')
       .lt('weather_retry_count', 5)
+      .gte('timestamp_created', thirtyDaysAgo)
       .order('timestamp_created', { ascending: false })
       .limit(50);
 
@@ -73,15 +94,32 @@ serve(async (req) => {
 
     let successCount = 0;
     let failCount = 0;
+    const breakdown: BackfillBreakdown = {
+      linked_existing_snapshot: 0,
+      fetched_new_weather: 0,
+      no_location: 0,
+      api_error: 0,
+      insert_error: 0,
+    };
+    const entryLogs: EntryLog[] = [];
 
     for (const entry of entries) {
+      const entryDate = entry.selected_date || entry.timestamp_created?.split('T')[0];
+      const logEntry: EntryLog = {
+        entryId: entry.id,
+        userId: entry.user_id,
+        date: entryDate || null,
+        time: entry.selected_time || null,
+        action: 'skip',
+        reason: 'unknown',
+      };
+
       try {
         // Need coordinates - check entry or user profile
         let lat = entry.latitude;
         let lon = entry.longitude;
 
         if (!lat || !lon) {
-          // Try user profile location
           const { data: profile } = await supabase
             .from('user_profiles')
             .select('latitude, longitude')
@@ -93,7 +131,6 @@ serve(async (req) => {
         }
 
         if (!lat || !lon) {
-          // No location available - mark as failed
           await supabase
             .from('pain_entries')
             .update({
@@ -104,29 +141,42 @@ serve(async (req) => {
             })
             .eq('id', entry.id);
           failCount++;
+          breakdown.no_location++;
+          logEntry.action = 'failed';
+          logEntry.reason = 'no_location';
+          logEntry.errorCode = 'NO_LOCATION';
+          entryLogs.push(logEntry);
           continue;
         }
 
-        // First check: is there already a snapshot for this date?
-        const entryDate = entry.selected_date || entry.timestamp_created?.split('T')[0];
+        // Check for existing snapshots on the same date — pick NEAREST by time
         if (entryDate) {
-          const { data: existingLog } = await supabase
+          const { data: existingLogs } = await supabase
             .from('weather_logs')
-            .select('id')
+            .select('id, requested_at, created_at')
             .eq('user_id', entry.user_id)
             .eq('snapshot_date', entryDate)
-            .limit(1);
+            .order('requested_at', { ascending: true })
+            .limit(20);
 
-          if (existingLog && existingLog.length > 0) {
-            // Link existing snapshot
+          if (existingLogs && existingLogs.length > 0) {
+            // Pick nearest to entry time
+            const entryTimeMs = computeEntryTimeMs(entryDate, entry.selected_time);
+            const nearest = pickNearestSnapshot(existingLogs, entryTimeMs);
+
             await supabase
               .from('pain_entries')
               .update({
-                weather_id: existingLog[0].id,
+                weather_id: nearest.id,
                 weather_status: 'ok',
               })
               .eq('id', entry.id);
             successCount++;
+            breakdown.linked_existing_snapshot++;
+            logEntry.action = 'linked_existing';
+            logEntry.reason = 'nearest_snapshot_by_time';
+            logEntry.weatherLogId = nearest.id;
+            entryLogs.push(logEntry);
             continue;
           }
         }
@@ -141,26 +191,27 @@ serve(async (req) => {
 
         const weatherData = await response.json();
 
-        // Insert weather log
+        // Insert weather log — pressure_change_24h = NULL (never fabricate 0)
         const { data: insertedLog, error: insertError } = await supabase
           .from('weather_logs')
           .insert({
             user_id: entry.user_id,
             latitude: lat,
             longitude: lon,
-            temperature_c: weatherData.main?.temp,
-            pressure_mb: weatherData.main?.pressure,
-            humidity: weatherData.main?.humidity,
-            wind_kph: weatherData.wind?.speed ? weatherData.wind.speed * 3.6 : 0,
-            condition_text: weatherData.weather?.[0]?.description,
-            condition_icon: weatherData.weather?.[0]?.icon,
+            temperature_c: weatherData.main?.temp ?? null,
+            pressure_mb: weatherData.main?.pressure ?? null,
+            humidity: weatherData.main?.humidity ?? null,
+            wind_kph: weatherData.wind?.speed ? weatherData.wind.speed * 3.6 : null,
+            condition_text: weatherData.weather?.[0]?.description ?? null,
+            condition_icon: weatherData.weather?.[0]?.icon ?? null,
             snapshot_date: entryDate,
-            pressure_change_24h: 0,
+            pressure_change_24h: null, // Never fabricate — must be calculated properly
           })
           .select('id')
           .single();
 
         if (insertError || !insertedLog) {
+          breakdown.insert_error++;
           throw new Error(insertError?.message || 'Insert failed');
         }
 
@@ -174,6 +225,11 @@ serve(async (req) => {
           .eq('id', entry.id);
 
         successCount++;
+        breakdown.fetched_new_weather++;
+        logEntry.action = 'fetched_new';
+        logEntry.reason = 'api_fetch';
+        logEntry.weatherLogId = insertedLog.id;
+        entryLogs.push(logEntry);
       } catch (err: any) {
         console.error(`❌ Entry ${entry.id}:`, err.message);
         await supabase
@@ -186,16 +242,25 @@ serve(async (req) => {
           })
           .eq('id', entry.id);
         failCount++;
+        breakdown.api_error++;
+        logEntry.action = 'failed';
+        logEntry.reason = 'api_error';
+        logEntry.errorCode = err.message?.substring(0, 50) || 'UNKNOWN';
+        entryLogs.push(logEntry);
       }
     }
 
-    console.log(`✅ Backfill complete: ${successCount} success, ${failCount} failed`);
-
-    return new Response(JSON.stringify({
+    // Structured summary log
+    const summary = {
       processed: entries.length,
       success: successCount,
       failed: failCount,
-    }), {
+      breakdown,
+      sample: entryLogs.slice(0, 5),
+    };
+    console.log('✅ Backfill complete:', JSON.stringify(summary));
+
+    return new Response(JSON.stringify(summary), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error: any) {
@@ -206,3 +271,41 @@ serve(async (req) => {
     });
   }
 });
+
+/**
+ * Compute entry target time in epoch ms for nearest-snapshot matching.
+ * Falls back to noon UTC if no time provided.
+ */
+function computeEntryTimeMs(dateISO: string, timeStr: string | null): number {
+  if (!timeStr) {
+    return new Date(`${dateISO}T12:00:00Z`).getTime();
+  }
+  // Normalize HH:MM or HH:MM:SS
+  const parts = timeStr.split(':');
+  const hh = parts[0] || '12';
+  const mm = parts[1] || '00';
+  return new Date(`${dateISO}T${hh}:${mm}:00Z`).getTime();
+}
+
+/**
+ * Pick the snapshot with requested_at (or created_at) nearest to targetMs.
+ */
+function pickNearestSnapshot(
+  logs: Array<{ id: number; requested_at: string | null; created_at: string | null }>,
+  targetMs: number
+): { id: number } {
+  let best = logs[0];
+  let bestDiff = Infinity;
+
+  for (const log of logs) {
+    const ts = log.requested_at || log.created_at;
+    if (!ts) continue;
+    const diff = Math.abs(new Date(ts).getTime() - targetMs);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      best = log;
+    }
+  }
+
+  return best;
+}
