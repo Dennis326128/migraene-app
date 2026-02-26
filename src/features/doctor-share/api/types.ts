@@ -9,20 +9,29 @@ export interface DoctorShareStatus {
   code: string;
   code_display: string;
   created_at: string;
+  is_active: boolean;
+  expires_at: string | null;
+  is_currently_active: boolean;
+  default_range: string;
+  // Legacy compat
+  is_share_active: boolean;
   share_active_until: string | null;
   share_revoked_at: string | null;
-  is_share_active: boolean;
   was_revoked_today: boolean;
 }
 
-// Ergebnis der Aktivierung/Revoke-Mutation
+// Ergebnis der Aktivierung/Deaktivierung
 export interface ActivateShareResult {
   success: boolean;
   message: string;
+  is_active: boolean;
+  expires_at: string | null;
+  is_currently_active: boolean;
+  code_display?: string;
+  // Legacy compat
+  is_share_active: boolean;
   share_active_until: string | null;
   share_revoked_at: string | null;
-  is_share_active: boolean;
-  code_display?: string;
 }
 
 // Website: Patientenstammdaten (für Arzt-Ansicht)
@@ -110,30 +119,17 @@ export interface UserMedication {
 
 // Website: Vollständige API-Response
 export interface DoctorReportData {
-  // Patientenstammdaten
   patient: PatientInfo | null;
-  
-  // Zusammenfassung
   summary: ReportSummary;
-  
-  // Chart-Daten
   chart_data: ChartData;
-  
-  // Paginierte Einträge
   entries: PainEntry[];
   entries_total: number;
   entries_page: number;
   entries_page_size: number;
-  
-  // Medikamenten-Infos
   medication_stats: MedicationStat[];
   medication_courses: MedicationCourse[];
   user_medications: UserMedication[];
-  
-  // Schmerzort-Statistik
   location_stats: Record<string, number>;
-  
-  // Zeitraum
   from_date: string;
   to_date: string;
 }

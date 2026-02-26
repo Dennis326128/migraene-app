@@ -1,9 +1,14 @@
 /**
  * Edge Function: activate-doctor-share
- * Aktiviert/Beendet die 24h-Freigabe für den Arzt-Code des Nutzers
- * 
- * POST mit { action: "activate" }: Aktiviert Freigabe (share_active_until = now + 24h)
- * POST mit { action: "revoke" }: Beendet Freigabe sofort
+ * Aktiviert oder deaktiviert die zeitlich begrenzte Freigabe.
+ *
+ * POST (kein Body oder { action: "activate" }):
+ *   → is_active = true, expires_at = now + ttl_minutes (default 1440 = 24h)
+ *
+ * POST { action: "deactivate" | "revoke" }:
+ *   → is_active = false (sofort beenden)
+ *
+ * Idempotent: Erneutes Aktivieren verlängert/erneuert expires_at.
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
@@ -13,14 +18,14 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const DEFAULT_TTL_MINUTES = 24 * 60; // 24 hours
+
 Deno.serve(async (req) => {
-  // CORS Preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Auth prüfen
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(
@@ -29,25 +34,32 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Body parsen für action
+    // Parse body
     let action = "activate";
+    let ttlMinutes = DEFAULT_TTL_MINUTES;
+    let defaultRange: string | undefined;
+
     try {
       const body = await req.json();
-      if (body.action === "revoke") {
-        action = "revoke";
+      if (body.action === "deactivate" || body.action === "revoke") {
+        action = "deactivate";
+      }
+      if (typeof body.ttl_minutes === "number" && body.ttl_minutes > 0) {
+        ttlMinutes = body.ttl_minutes;
+      }
+      if (typeof body.default_range === "string") {
+        defaultRange = body.default_range;
       }
     } catch {
-      // Kein Body = activate (Standard)
+      // No body = activate (default)
     }
 
-    // Supabase Client mit User-Token
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
     });
 
-    // User verifizieren
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) {
       return new Response(
@@ -56,13 +68,12 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Bestehenden Code finden
+    // Find existing share
     const { data: existingShare, error: fetchError } = await supabase
       .from("doctor_shares")
-      .select("id, code, code_display, share_active_until, share_revoked_at")
+      .select("id, code_display, is_active, expires_at, default_range")
       .eq("user_id", user.id)
       .is("revoked_at", null)
-      .order("created_at", { ascending: true })
       .limit(1)
       .maybeSingle();
 
@@ -76,18 +87,19 @@ Deno.serve(async (req) => {
 
     if (!existingShare) {
       return new Response(
-        JSON.stringify({ error: "Kein Arzt-Code vorhanden" }),
+        JSON.stringify({ error: "Kein Arzt-Code vorhanden. Bitte zuerst Code generieren." }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     const now = new Date();
 
-    // REVOKE = Freigabe beenden
-    if (action === "revoke") {
+    // === DEACTIVATE ===
+    if (action === "deactivate") {
       const { error: updateError } = await supabase
         .from("doctor_shares")
         .update({
+          is_active: false,
           share_active_until: now.toISOString(),
           share_revoked_at: now.toISOString(),
         })
@@ -101,29 +113,41 @@ Deno.serve(async (req) => {
         );
       }
 
-      console.log(`[Doctor Share] Revoked share for user ${user.id.substring(0, 8)}...`);
+      console.log(`[Doctor Share] Deactivated for user ${user.id.substring(0, 8)}...`);
 
       return new Response(
         JSON.stringify({
           success: true,
           message: "Freigabe beendet",
+          is_active: false,
+          expires_at: existingShare.expires_at,
+          is_currently_active: false,
+          // Legacy compat
+          is_share_active: false,
           share_active_until: now.toISOString(),
           share_revoked_at: now.toISOString(),
-          is_share_active: false,
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // ACTIVATE = Freigabe aktivieren (24h)
-    const activeUntil = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    // === ACTIVATE ===
+    const expiresAt = new Date(now.getTime() + ttlMinutes * 60 * 1000);
+
+    const updateData: Record<string, unknown> = {
+      is_active: true,
+      expires_at: expiresAt.toISOString(),
+      share_active_until: expiresAt.toISOString(),
+      share_revoked_at: null,
+    };
+
+    if (defaultRange) {
+      updateData.default_range = defaultRange;
+    }
 
     const { error: updateError } = await supabase
       .from("doctor_shares")
-      .update({
-        share_active_until: activeUntil.toISOString(),
-        share_revoked_at: null, // Reset revoked_at beim Aktivieren
-      })
+      .update(updateData)
       .eq("id", existingShare.id);
 
     if (updateError) {
@@ -134,16 +158,20 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`[Doctor Share] Activated share for user ${user.id.substring(0, 8)}... until ${activeUntil.toISOString()}`);
+    console.log(`[Doctor Share] Activated for user ${user.id.substring(0, 8)}... until ${expiresAt.toISOString()}`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: "Freigabe aktiviert für 24 Stunden",
-        share_active_until: activeUntil.toISOString(),
-        share_revoked_at: null,
-        is_share_active: true,
+        message: `Freigabe aktiviert für ${Math.round(ttlMinutes / 60)} Stunden`,
+        is_active: true,
+        expires_at: expiresAt.toISOString(),
+        is_currently_active: true,
         code_display: existingShare.code_display,
+        // Legacy compat
+        is_share_active: true,
+        share_active_until: expiresAt.toISOString(),
+        share_revoked_at: null,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

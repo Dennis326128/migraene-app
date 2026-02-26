@@ -337,6 +337,7 @@ export type Database = {
           default_range: string
           expires_at: string | null
           id: string
+          is_active: boolean
           last_accessed_at: string | null
           revoked_at: string | null
           share_active_until: string | null
@@ -350,6 +351,7 @@ export type Database = {
           default_range?: string
           expires_at?: string | null
           id?: string
+          is_active?: boolean
           last_accessed_at?: string | null
           revoked_at?: string | null
           share_active_until?: string | null
@@ -363,6 +365,7 @@ export type Database = {
           default_range?: string
           expires_at?: string | null
           id?: string
+          is_active?: boolean
           last_accessed_at?: string | null
           revoked_at?: string | null
           share_active_until?: string | null
