@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { MedicationEffectSlider } from '@/components/ui/medication-effect-slider';
-import { MoreVertical, CheckCircle } from 'lucide-react';
+import { MoreVertical, CheckCircle, Trash2 } from 'lucide-react';
 import { formatRelativeDateTimeLabel } from '@/lib/dateUtils';
 import { normalizePainLevel } from '@/lib/utils/pain';
 import type { UnratedMedicationEntry } from '../api/medicationEffects.api';
@@ -147,11 +147,13 @@ export function UnratedEffectCard({
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent align="end" className="min-w-[10rem]">
               <DropdownMenuItem 
                 onClick={() => setShowDeleteDialog(true)}
                 disabled={isDeleting}
+                className="text-destructive focus:text-destructive py-2.5"
               >
+                <Trash2 className="h-4 w-4 mr-2" />
                 Einnahme löschen
               </DropdownMenuItem>
             </DropdownMenuContent>
