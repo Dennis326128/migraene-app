@@ -1,14 +1,15 @@
 /**
  * Edge Function: validate-doctor-share
- * Arzt gibt Code ein → Prüft is_active + expires_at → Session wird erstellt
+ * Arzt gibt Code ein → Prüft Freigabe → Signiertes Access-Token zurück
  * ÖFFENTLICH (kein JWT), rate-limited
  *
  * Freigabe aktiv = is_active=true AND (expires_at IS NULL OR expires_at > now())
- * NO COOKIES — session_id returned in JSON, client sends via x-doctor-session header.
+ * NO COOKIES, NO SESSIONS — access_token returned in JSON.
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { getCorsHeaders, handlePreflight } from "../_shared/cors.ts";
+import { signDoctorAccessToken, getDoctorAccessSecret } from "../_shared/doctorAccess.ts";
 
 // Rate Limiting
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
@@ -29,14 +30,6 @@ function checkRateLimit(ip: string): boolean {
 
 function normalizeCode(input: string): string {
   return input.toUpperCase().replace(/[-\s]/g, "");
-}
-
-async function hashString(str: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(str);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, "0")).join("").substring(0, 32);
 }
 
 function isShareCurrentlyActive(isActive: boolean, expiresAt: string | null): boolean {
@@ -112,34 +105,28 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Create session
-    const userAgent = req.headers.get("user-agent") || "";
-    const userAgentHash = userAgent ? await hashString(userAgent) : null;
+    // Sign access token
+    const secret = getDoctorAccessSecret();
+    const now = Math.floor(Date.now() / 1000);
+    const maxExp = now + 24 * 60 * 60; // now + 24h
+    const shareExp = share.expires_at ? Math.floor(new Date(share.expires_at).getTime() / 1000) : maxExp;
+    const exp = Math.min(shareExp, maxExp);
 
-    const { data: session, error: sessionError } = await supabase
-      .from("doctor_share_sessions")
-      .insert({ share_id: share.id, user_agent_hash: userAgentHash })
-      .select("id")
-      .single();
+    const accessToken = await signDoctorAccessToken(
+      { share_id: share.id, user_id: share.user_id, exp, v: 1 },
+      secret,
+    );
 
-    if (sessionError) {
-      console.error("Session creation error:", sessionError);
-      return new Response(
-        JSON.stringify({ valid: false, error: "Session konnte nicht erstellt werden", error_code: "internal_error" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
+    // Update last_accessed_at (analytics, non-blocking)
     await supabase.from("doctor_shares").update({ last_accessed_at: new Date().toISOString() }).eq("id", share.id);
 
-    console.log(`[Doctor Share] Session created for share ${share.id.substring(0, 8)}...`);
+    console.log(`[Doctor Share] Access token issued for share ${share.id.substring(0, 8)}...`);
 
-    // NO Set-Cookie — session_id in JSON body only
     return new Response(
       JSON.stringify({
         valid: true,
-        session_id: session.id,
-        share_active_until: share.expires_at,
+        access_token: accessToken,
+        expires_at: share.expires_at,
         default_range: share.default_range,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }

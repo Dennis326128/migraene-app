@@ -28,8 +28,8 @@ import { toast } from "sonner";
 import {
   SUPABASE_FUNCTIONS_BASE_URL,
   buildDoctorFetchInit,
-  doctorSessionFallback,
-} from "@/features/doctor-share/doctorSessionFallback";
+  doctorAccessStore,
+} from "@/features/doctor-share/doctorAccessStore";
 
 // Types
 interface ReportSummary {
@@ -144,27 +144,6 @@ const DoctorReportView: React.FC = () => {
   const [isDownloading, setIsDownloading] = useState(false);
   const [expiredMessage, setExpiredMessage] = useState<string | null>(null);
 
-  // Session-Ping Interval
-  const pingSession = useCallback(async () => {
-    try {
-      const response = await fetch(`${SUPABASE_FUNCTIONS_BASE_URL}/ping-doctor-session`, {
-        method: "POST",
-        ...buildDoctorFetchInit(),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok || !result.active) {
-        // Session abgelaufen → zurück zur Code-Eingabe
-        setExpiredMessage("Sitzung abgelaufen");
-        doctorSessionFallback.clear();
-        navigate("/doctor?expired=1");
-      }
-    } catch {
-      // Fehler ignorieren, beim nächsten Ping erneut versuchen
-    }
-  }, [navigate]);
-
   // Daten laden
   const loadData = useCallback(async (currentRange: RangeFilter, currentPage: number) => {
     setIsLoading(true);
@@ -182,8 +161,8 @@ const DoctorReportView: React.FC = () => {
 
       if (!response.ok) {
         if (response.status === 401) {
-          setExpiredMessage("Sitzung abgelaufen");
-          doctorSessionFallback.clear();
+          setExpiredMessage("Freigabe beendet oder abgelaufen");
+          doctorAccessStore.clear();
           navigate("/doctor?expired=1");
           return;
         }
@@ -200,24 +179,10 @@ const DoctorReportView: React.FC = () => {
     }
   }, [navigate]);
 
-  // Initial laden + Ping-Interval
+  // Initial laden (no ping needed — token-based auth)
   useEffect(() => {
     loadData(range, page);
-
-    // Ping alle 5 Minuten
-    const pingInterval = setInterval(pingSession, 5 * 60 * 1000);
-
-    // Activity-basierter Ping
-    const handleActivity = () => pingSession();
-    window.addEventListener("click", handleActivity, { passive: true });
-    window.addEventListener("scroll", handleActivity, { passive: true });
-
-    return () => {
-      clearInterval(pingInterval);
-      window.removeEventListener("click", handleActivity);
-      window.removeEventListener("scroll", handleActivity);
-    };
-  }, [loadData, pingSession, range, page]);
+  }, [loadData, range, page]);
 
   // Range ändern
   const handleRangeChange = (newRange: RangeFilter) => {
@@ -240,7 +205,7 @@ const DoctorReportView: React.FC = () => {
 
       if (!response.ok) {
         if (response.status === 401) {
-          doctorSessionFallback.clear();
+          doctorAccessStore.clear();
           navigate("/doctor?expired=1");
           return;
         }
@@ -268,8 +233,7 @@ const DoctorReportView: React.FC = () => {
 
   // Abmelden
   const handleLogout = () => {
-    // Cookie wird serverseitig nicht aktiv gelöscht, aber Session läuft ab
-    doctorSessionFallback.clear();
+    doctorAccessStore.clear();
     navigate("/doctor");
   };
 

@@ -13,9 +13,8 @@ import { AlertCircle, Lock, ExternalLink, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   SUPABASE_FUNCTIONS_BASE_URL,
-  doctorSessionFallback,
-  buildDoctorFetchInit,
-} from "@/features/doctor-share/doctorSessionFallback";
+  doctorAccessStore,
+} from "@/features/doctor-share/doctorAccessStore";
 
 const DoctorCodeEntry: React.FC = () => {
   const navigate = useNavigate();
@@ -36,13 +35,12 @@ const DoctorCodeEntry: React.FC = () => {
     inputRef.current?.focus();
   }, []);
 
-  // After 800ms show a calm "connecting" hint to avoid the "nothing happens" feeling.
+  // After 800ms show a calm "connecting" hint
   useEffect(() => {
     if (!isValidating) {
       setShowConnectingHint(false);
       return;
     }
-
     const t = window.setTimeout(() => setShowConnectingHint(true), 800);
     return () => window.clearTimeout(t);
   }, [isValidating]);
@@ -66,7 +64,7 @@ const DoctorCodeEntry: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (isValidating) return; // prevent double submit
+    if (isValidating) return;
     
     if (!canSubmit) {
       setError("Bitte geben Sie den vollständigen 8-stelligen Code ein");
@@ -79,11 +77,8 @@ const DoctorCodeEntry: React.FC = () => {
     try {
       const response = await fetch(`${SUPABASE_FUNCTIONS_BASE_URL}/validate-doctor-share`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code }),
-        credentials: "include", // Wichtig für Cookie-Handling
       });
 
       const data = await response.json();
@@ -94,9 +89,9 @@ const DoctorCodeEntry: React.FC = () => {
         return;
       }
 
-      // Session-ID für Header-Fallback speichern (falls Cookies nicht funktionieren)
-      if (data.session_id && typeof data.session_id === "string") {
-        doctorSessionFallback.set(data.session_id);
+      // Store access token
+      if (data.access_token && typeof data.access_token === "string") {
+        doctorAccessStore.set(data.access_token);
       }
 
       // Erfolg → zur Ansicht navigieren
@@ -149,7 +144,7 @@ const DoctorCodeEntry: React.FC = () => {
               <div className="flex items-center gap-2 p-3 rounded-md bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-200">
                 <AlertCircle className="w-4 h-4 flex-shrink-0" />
                 <p className="text-sm">
-                  Die vorherige Sitzung ist abgelaufen. Bitte geben Sie den Code erneut ein.
+                  Die Freigabe ist abgelaufen. Bitte geben Sie den Code erneut ein.
                 </p>
               </div>
             )}

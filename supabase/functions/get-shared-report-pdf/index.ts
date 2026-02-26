@@ -1,48 +1,13 @@
 /**
  * Edge Function: get-shared-report-pdf
  * Generiert PDF für die Arzt-Ansicht
- * Auth: Header x-doctor-session (no cookies)
+ * Auth: Header x-doctor-access (signed HMAC token, no sessions/cookies)
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
-import { getCorsHeaders, handlePreflight, getSessionIdFromHeader } from "../_shared/cors.ts";
-
-const SESSION_TIMEOUT_MINUTES = 60;
-
-async function validateSession(
-  supabase: ReturnType<typeof createClient>,
-  sessionId: string
-): Promise<{ valid: boolean; userId?: string; reason?: string }> {
-  const { data: session, error } = await supabase
-    .from("doctor_share_sessions")
-    .select(`
-      id, last_activity_at, ended_at,
-      doctor_shares!inner ( id, user_id, expires_at, revoked_at, is_active )
-    `)
-    .eq("id", sessionId)
-    .maybeSingle();
-
-  if (error || !session) return { valid: false, reason: "session_not_found" };
-  if (session.ended_at) return { valid: false, reason: "session_ended" };
-
-  const share = session.doctor_shares as {
-    id: string; user_id: string; expires_at: string | null;
-    revoked_at: string | null; is_active: boolean;
-  };
-  const now = new Date();
-
-  if (share.revoked_at) return { valid: false, reason: "share_revoked" };
-  const isCurrentlyActive = share.is_active && (!share.expires_at || now < new Date(share.expires_at));
-  if (!isCurrentlyActive) return { valid: false, reason: "not_shared" };
-
-  const lastActivity = new Date(session.last_activity_at);
-  if ((now.getTime() - lastActivity.getTime()) / (1000 * 60) > SESSION_TIMEOUT_MINUTES) {
-    return { valid: false, reason: "session_timeout" };
-  }
-
-  return { valid: true, userId: share.user_id };
-}
+import { getCorsHeaders, handlePreflight } from "../_shared/cors.ts";
+import { verifyDoctorAccess } from "../_shared/doctorAccessGuard.ts";
 
 // --- Helpers ---
 function getDateRange(range: string): { from: string; to: string } {
@@ -85,30 +50,20 @@ Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
 
   try {
-    const sessionId = getSessionIdFromHeader(req);
-    if (!sessionId) {
-      return new Response(
-        JSON.stringify({ error: "Keine aktive Sitzung" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-    const sessionResult = await validateSession(supabase, sessionId);
-    if (!sessionResult.valid) {
+    const accessResult = await verifyDoctorAccess(req, supabase);
+    if (!accessResult.valid) {
       return new Response(
-        JSON.stringify({ error: "Sitzung abgelaufen", reason: sessionResult.reason }),
+        JSON.stringify({ error: "Freigabe beendet oder abgelaufen", reason: accessResult.reason }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const userId = sessionResult.userId!;
+    const userId = accessResult.payload!.user_id;
     const url = new URL(req.url);
     const range = url.searchParams.get("range") || "3m";
     const { from, to } = getDateRange(range);
-
-    await supabase.from("doctor_share_sessions").update({ last_activity_at: new Date().toISOString() }).eq("id", sessionId);
 
     const [entriesResult, patientDataResult] = await Promise.all([
       supabase.from("pain_entries").select("*").eq("user_id", userId)
