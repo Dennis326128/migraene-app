@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Plus, Bell, BellOff, Clock, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -8,6 +8,8 @@ import { ReminderCard } from './ReminderCard';
 import { groupReminders, type GroupedReminder } from '@/features/reminders/helpers/groupReminders';
 import { ReminderForm } from './ReminderForm';
 import { EmptyState } from '@/components/ui/empty-state';
+import { useRelativeTime } from '@/features/reminders/hooks/useRelativeTime';
+import { formatRelativeReminderLabel } from '@/lib/relativeReminderLabel';
 import {
   Select,
   SelectContent,
@@ -92,6 +94,16 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
   const queryClient = useQueryClient();
   const { data: activeReminders = [], isLoading: loadingActive } = useActiveReminders();
   const { data: historyReminders = [], isLoading: loadingHistory } = useHistoryReminders();
+
+  // Smart refresh for relative labels (midnight + visibility + minute-timer for today)
+  const hasTodayReminders = useMemo(() => {
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    return activeReminders.some((r: Reminder) => r.date_time?.startsWith(todayStr));
+  }, [activeReminders]);
+  // tick drives re-render → formatRelativeReminderLabel() re-evaluates inline
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _tick = useRelativeTime(hasTodayReminders);
 
   const createMutation = useCreateReminder();
   const createMultipleMutation = useCreateMultipleReminders();
@@ -642,6 +654,7 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
                   <ReminderCard
                     key={grouped.reminder.id}
                     grouped={grouped}
+                    relativeLabel={formatRelativeReminderLabel(grouped.nextOccurrence)}
                     onEdit={handleEdit}
                     onMarkDone={handleMarkDone}
                     onPlanFollowUp={handlePlanFollowUp}
@@ -726,6 +739,7 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
                   <ReminderCard
                     key={grouped.reminder.id}
                     grouped={grouped}
+                    relativeLabel={formatRelativeReminderLabel(grouped.nextOccurrence)}
                     onEdit={handleEdit}
                     onMarkDone={handleMarkDone}
                     onPlanFollowUp={handlePlanFollowUp}
