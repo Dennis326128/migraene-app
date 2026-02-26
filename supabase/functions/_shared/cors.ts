@@ -32,7 +32,7 @@ export function getCorsHeaders(req: Request): Record<string, string> {
     "Access-Control-Allow-Origin": allowed ? origin : "https://migraina.lovable.app",
     "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
     "Access-Control-Allow-Headers":
-      "content-type, x-doctor-session, x-report-legacy, authorization, x-client-info, apikey",
+      "content-type, x-doctor-access, x-doctor-session, x-report-legacy, authorization, x-client-info, apikey",
     Vary: "Origin",
   };
 }

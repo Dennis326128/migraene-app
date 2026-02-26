@@ -1,13 +1,13 @@
 /**
  * Edge Function: ping-doctor-session
- * Hält die Arzt-Session aktiv (aktualisiert last_activity_at)
- * Auth: Header x-doctor-session (no cookies)
+ * DEPRECATED: No longer used for auth gating.
+ * Kept for backwards compatibility — returns active status based on token + DB check.
+ * Auth: Header x-doctor-access (signed HMAC token)
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { getCorsHeaders, handlePreflight, getSessionIdFromHeader } from "../_shared/cors.ts";
-
-const SESSION_TIMEOUT_MINUTES = 60;
+import { getCorsHeaders, handlePreflight } from "../_shared/cors.ts";
+import { verifyDoctorAccess } from "../_shared/doctorAccessGuard.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return handlePreflight(req);
@@ -15,80 +15,25 @@ Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
 
   try {
-    const sessionId = getSessionIdFromHeader(req);
-    if (!sessionId) {
-      return new Response(
-        JSON.stringify({ active: false, reason: "no_session" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-    const { data: session, error: sessionError } = await supabase
-      .from("doctor_share_sessions")
-      .select(`
-        id, last_activity_at, ended_at,
-        doctor_shares!inner (
-          id, expires_at, revoked_at, is_active
-        )
-      `)
-      .eq("id", sessionId)
+    const accessResult = await verifyDoctorAccess(req, supabase);
+    if (!accessResult.valid) {
+      return new Response(
+        JSON.stringify({ active: false, reason: accessResult.reason }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Get expires_at for display
+    const { data: share } = await supabase
+      .from("doctor_shares")
+      .select("expires_at")
+      .eq("id", accessResult.payload!.share_id)
       .maybeSingle();
 
-    if (sessionError || !session) {
-      return new Response(
-        JSON.stringify({ active: false, reason: "session_not_found" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    if (session.ended_at) {
-      return new Response(
-        JSON.stringify({ active: false, reason: "session_ended" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const share = session.doctor_shares as {
-      id: string; expires_at: string | null; revoked_at: string | null; is_active: boolean;
-    };
-    const now = new Date();
-
-    if (share.revoked_at) {
-      await supabase.from("doctor_share_sessions").update({ ended_at: now.toISOString() }).eq("id", sessionId);
-      return new Response(
-        JSON.stringify({ active: false, reason: "share_revoked" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Check is_active + expires_at
-    const isCurrentlyActive = share.is_active && (!share.expires_at || now < new Date(share.expires_at));
-    if (!isCurrentlyActive) {
-      await supabase.from("doctor_share_sessions").update({ ended_at: now.toISOString() }).eq("id", sessionId);
-      return new Response(
-        JSON.stringify({ active: false, reason: "not_shared" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Inactivity timeout
-    const lastActivity = new Date(session.last_activity_at);
-    const minutesSinceActivity = (now.getTime() - lastActivity.getTime()) / (1000 * 60);
-    if (minutesSinceActivity > SESSION_TIMEOUT_MINUTES) {
-      await supabase.from("doctor_share_sessions").update({ ended_at: now.toISOString() }).eq("id", sessionId);
-      return new Response(
-        JSON.stringify({ active: false, reason: "session_timeout" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Update activity
-    await supabase.from("doctor_share_sessions").update({ last_activity_at: now.toISOString() }).eq("id", sessionId);
-
     return new Response(
-      JSON.stringify({ active: true, remaining_minutes: Math.round(Math.max(0, SESSION_TIMEOUT_MINUTES - minutesSinceActivity)) }),
+      JSON.stringify({ active: true, expires_at: share?.expires_at || null }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
