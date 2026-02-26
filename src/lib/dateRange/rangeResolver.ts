@@ -244,10 +244,9 @@ export function validatePreset(
 
 /**
  * Determine the best default preset based on documentation span.
- * Priority: 3m → 1m → all
+ * Priority: 1m → all
  */
 export function getDefaultPreset(documentationSpanDays: number): TimeRangePreset {
-  if (documentationSpanDays >= 90) return '3m';
   if (documentationSpanDays >= 30) return '1m';
   return 'all';
 }
