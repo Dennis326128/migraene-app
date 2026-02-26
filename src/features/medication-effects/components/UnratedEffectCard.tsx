@@ -134,7 +134,7 @@ export function UnratedEffectCard({
 
             {/* Line 3: Pain before intake — slightly smaller, calm */}
             <div className="text-xs text-muted-foreground">
-              Schmerz vor Einnahme: {painScore}/10
+              Schmerz vor Einnahme {painScore}/10
             </div>
           </div>
 
@@ -154,7 +154,7 @@ export function UnratedEffectCard({
         {/* Slider: Effect Rating (unchanged logic) */}
         <div className="space-y-2">
           <Label className="text-base font-medium">
-            Wie gut hat es geholfen?
+            Wie war die Wirkung?
           </Label>
           <MedicationEffectSlider
             value={effectScore}
@@ -171,7 +171,7 @@ export function UnratedEffectCard({
           <Textarea 
             value={observations}
             onChange={(e) => setObservations(e.target.value)}
-            placeholder="z. B. Übelkeit, müde oder gut vertragen …"
+            placeholder="z. B. Übelkeit oder gut vertragen …"
             className="text-sm resize-none min-h-[5rem] bg-muted/30"
             rows={3}
             disabled={isSaving || isDeleting}
