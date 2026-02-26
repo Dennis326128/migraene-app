@@ -20,22 +20,22 @@ const effectLabels: Record<number, string> = {
 }
 
 const effectEmojis: Record<number, string> = {
-  0: "❌",
-  1: "🔴",
-  2: "🟠",
-  3: "🟡",
-  4: "🟢",
-  5: "⭐"
+  0: "○",
+  1: "◔",
+  2: "◑",
+  3: "◕",
+  4: "●",
+  5: "✦"
 }
 
 function getEffectColor(value: number): string {
   switch (value) {
     case 0: return "hsl(var(--muted-foreground))"
-    case 1: return "hsl(0, 84%, 60%)"
-    case 2: return "hsl(24, 100%, 50%)"
-    case 3: return "hsl(45, 93%, 47%)"
-    case 4: return "hsl(142, 76%, 36%)"
-    case 5: return "hsl(var(--success))"
+    case 1: return "hsl(30, 15%, 55%)"
+    case 2: return "hsl(40, 25%, 58%)"
+    case 3: return "hsl(90, 25%, 52%)"
+    case 4: return "hsl(142, 30%, 48%)"
+    case 5: return "hsl(142, 40%, 42%)"
     default: return "hsl(var(--muted))"
   }
 }
