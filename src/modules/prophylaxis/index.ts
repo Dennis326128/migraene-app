@@ -48,3 +48,34 @@ export {
   CGRP_DRUG_REGISTRY,
   type DrugProfile,
 } from './drugRegistry';
+
+// Data Source Mapper
+export {
+  mapToResolverInput,
+  type MapperInput,
+  type RawPainEntry,
+  type RawMedicationIntake,
+  type RawReminder,
+  type RawReminderCompletion,
+} from './dataSourceMapper';
+
+// Day Features
+export {
+  buildProphylaxisDayFeatures,
+  type BuildDayFeaturesInput,
+} from './dayFeatures';
+
+// Text Generator
+export {
+  generateProphylaxisTextBlock,
+  buildProphylaxisPdfData,
+  type ProphylaxisTextBlock,
+  type InjectionSummaryLine,
+  type ProphylaxisPdfData,
+} from './textGenerator';
+
+// Hooks
+export {
+  useProphylaxisAnalysis,
+  useDetectedCgrpDrugs,
+} from './hooks/useProphylaxisAnalysis';

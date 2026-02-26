@@ -202,6 +202,21 @@ type BuildReportParams = {
     };
     disclaimer: string;
   } | null;
+  /** Prophylaxis analysis (CGRP dose events + pre/post stats) */
+  prophylaxisData?: {
+    sectionTitle: string;
+    injectionRows: Array<{
+      date: string;
+      source: string;
+      confidence: string;
+    }>;
+    prePostRows: Array<{
+      label: string;
+      pre: string;
+      post: string;
+    }>;
+    notes: string[];
+  } | null;
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -944,6 +959,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     meCfsData,
     chartImageBytes,
     weatherAnalysis,
+    prophylaxisData,
   } = params;
 
   const pdfDoc = await PDFDocument.create();
@@ -1359,7 +1375,56 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 3c. BEGLEITSYMPTOME – KLINISCHE BEWERTUNG (nach Medikation)
+  // 3b2. PROPHYLAXE-AUSWERTUNG (CGRP Dose Events + Pre/Post)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  if (prophylaxisData && prophylaxisData.injectionRows.length > 0) {
+    const estHeight = 30 + prophylaxisData.injectionRows.length * 16 + prophylaxisData.prePostRows.length * 16 + prophylaxisData.notes.length * 14 + 40;
+    const spaceChkProph = ensureSpace(pdfDoc, page, yPos, Math.min(estHeight, 200));
+    page = spaceChkProph.page;
+    yPos = spaceChkProph.yPos;
+
+    yPos = drawSectionHeader(page, sanitizeForPDF(prophylaxisData.sectionTitle), yPos, fontBold, 11);
+
+    // Injection table
+    page.drawText("Erkannte Injektionen:", { x: LAYOUT.margin, y: yPos, size: 9, font: fontBold, color: COLORS.primary });
+    yPos -= 14;
+    for (const row of prophylaxisData.injectionRows) {
+      if (yPos < LAYOUT.margin + 40) { page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]); yPos = LAYOUT.pageHeight - LAYOUT.margin; }
+      page.drawText(`${row.date}  |  ${sanitizeForPDF(row.source)}  |  Confidence: ${row.confidence}`, {
+        x: LAYOUT.margin + 8, y: yPos, size: 8, font, color: COLORS.text,
+      });
+      yPos -= 14;
+    }
+    yPos -= 4;
+
+    // Pre/Post table
+    if (prophylaxisData.prePostRows.length > 0) {
+      const colX = [LAYOUT.margin + 8, LAYOUT.margin + 160, LAYOUT.margin + 310];
+      page.drawText("Metrik", { x: colX[0], y: yPos, size: 8, font: fontBold, color: COLORS.textLight });
+      page.drawText("Vor Injektion", { x: colX[1], y: yPos, size: 8, font: fontBold, color: COLORS.textLight });
+      page.drawText("Nach Injektion", { x: colX[2], y: yPos, size: 8, font: fontBold, color: COLORS.textLight });
+      yPos -= 12;
+      page.drawLine({ start: { x: LAYOUT.margin, y: yPos + 4 }, end: { x: LAYOUT.pageWidth - LAYOUT.margin, y: yPos + 4 }, thickness: 0.3, color: COLORS.border });
+      for (const row of prophylaxisData.prePostRows) {
+        if (yPos < LAYOUT.margin + 40) { page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]); yPos = LAYOUT.pageHeight - LAYOUT.margin; }
+        page.drawText(sanitizeForPDF(row.label), { x: colX[0], y: yPos, size: 8, font, color: COLORS.text });
+        page.drawText(sanitizeForPDF(row.pre), { x: colX[1], y: yPos, size: 8, font, color: COLORS.text });
+        page.drawText(sanitizeForPDF(row.post), { x: colX[2], y: yPos, size: 8, font, color: COLORS.text });
+        yPos -= 14;
+      }
+      yPos -= 4;
+    }
+
+    // Notes/warnings
+    for (const note of prophylaxisData.notes) {
+      if (yPos < LAYOUT.margin + 30) { page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]); yPos = LAYOUT.pageHeight - LAYOUT.margin; }
+      page.drawText(sanitizeForPDF(`Hinweis: ${note}`), { x: LAYOUT.margin + 8, y: yPos, size: 7, font, color: COLORS.textLight });
+      yPos -= 12;
+    }
+    yPos -= LAYOUT.sectionGap;
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
 
   if (symptomData) {
