@@ -1,7 +1,8 @@
-// Public doctor-share flow uses an HttpOnly cookie (doctor_session).
-// In some preview environments third-party cookies can be blocked.
-// We therefore support a preview fallback where the session id is also
-// stored client-side and sent via `x-doctor-session` header.
+/**
+ * Doctor session management for public doctor-share flow.
+ * Session ID is stored client-side and sent via `x-doctor-session` header.
+ * No cookies are used.
+ */
 
 export const SUPABASE_FUNCTIONS_BASE_URL =
   "https://lzcbjciqrhsezxkjeyhb.supabase.co/functions/v1";
@@ -32,6 +33,10 @@ export const doctorSessionFallback = {
   },
 };
 
+/**
+ * Build fetch init for doctor endpoints.
+ * Sends session via x-doctor-session header. No cookies/credentials.
+ */
 export function buildDoctorFetchInit(init: RequestInit = {}): RequestInit {
   const sessionId = doctorSessionFallback.get();
   const headers = new Headers(init.headers);
@@ -40,6 +45,5 @@ export function buildDoctorFetchInit(init: RequestInit = {}): RequestInit {
   return {
     ...init,
     headers,
-    credentials: "include",
   };
 }
