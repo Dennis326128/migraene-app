@@ -381,7 +381,7 @@ describe('buildWeatherDayFeatures – weatherJoinReason', () => {
 
     expect(result).toHaveLength(1);
     expect(result[0].weatherCoverage).toBe('snapshot');
-    expect(result[0].weatherJoinReason).toBe('entry-weather-id-miss→snapshot');
+    expect(result[0].weatherJoinReason).toBe('entry-weather-id-miss->snapshot');
   });
 });
 
@@ -396,6 +396,7 @@ import {
   hasDelta,
   PRESSURE_DELTA_BUCKET_LABELS,
 } from '@/lib/weather/computeWeatherAssociation';
+import { localDateBoundsToUtcIso } from '@/lib/weather/dateBounds';
 
 describe('computeWeatherAssociation – RR edge cases', () => {
   it('reference rate 0 → rr null, absDiff correct', () => {
@@ -483,12 +484,13 @@ describe('Coverage helpers (SSOT)', () => {
   });
 });
 
-// ─── Test 19: Bucket labels are from SSOT constants ──
+// ─── Test 19: Bucket labels contain thresholds (regex, no glyph dependency) ──
 describe('Bucket labels (SSOT)', () => {
-  it('uses SSOT labels for pressure delta buckets', () => {
-    expect(PRESSURE_DELTA_BUCKET_LABELS.strongDrop).toContain('-8');
-    expect(PRESSURE_DELTA_BUCKET_LABELS.moderateDrop).toContain('-3');
-    expect(PRESSURE_DELTA_BUCKET_LABELS.stableOrRise).toContain('-3');
+  it('labels contain threshold numbers', () => {
+    expect(PRESSURE_DELTA_BUCKET_LABELS.strongDrop).toMatch(/8/);
+    expect(PRESSURE_DELTA_BUCKET_LABELS.moderateDrop).toMatch(/8/);
+    expect(PRESSURE_DELTA_BUCKET_LABELS.moderateDrop).toMatch(/3/);
+    expect(PRESSURE_DELTA_BUCKET_LABELS.stableOrRise).toMatch(/3/);
   });
 });
 
@@ -547,5 +549,42 @@ describe('computeWeatherAssociation – confounding hint', () => {
     // Both buckets have only 10 days (< 20), confounding note should NOT appear
     const confoundingNote = result.pressureDelta24h.notes.find(n => n.includes('Akutmedikation'));
     expect(confoundingNote).toBeUndefined();
+  });
+});
+
+// ─── Test 22: DST-safe UTC bounds ──
+describe('localDateBoundsToUtcIso', () => {
+  it('produces valid ISO strings for DST start (spring forward)', () => {
+    const { startIso, endIso } = localDateBoundsToUtcIso('2026-03-29', '2026-03-29', 'Europe/Berlin');
+    expect(startIso).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+    expect(endIso).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+    expect(new Date(startIso).getTime()).toBeLessThan(new Date(endIso).getTime());
+  });
+
+  it('produces valid ISO strings for DST end (fall back)', () => {
+    const { startIso, endIso } = localDateBoundsToUtcIso('2026-10-25', '2026-10-25', 'Europe/Berlin');
+    expect(new Date(startIso).getTime()).not.toBeNaN();
+    expect(new Date(endIso).getTime()).not.toBeNaN();
+    expect(new Date(startIso).getTime()).toBeLessThan(new Date(endIso).getTime());
+  });
+
+  it('covers full local day (approx 24h span)', () => {
+    const { startIso, endIso } = localDateBoundsToUtcIso('2026-06-15', '2026-06-15', 'Europe/Berlin');
+    const spanMs = new Date(endIso).getTime() - new Date(startIso).getTime();
+    // Should be approximately 24h (86399999 ms)
+    expect(spanMs).toBeGreaterThan(86000000);
+    expect(spanMs).toBeLessThan(87000000);
+  });
+});
+
+// ─── Test 23: joinReason = 'none' when coverage = 'none' ──
+describe('buildWeatherDayFeatures – joinReason typed', () => {
+  it('sets joinReason to none when no weather data', () => {
+    const result = buildWeatherDayFeatures({
+      countsByDay: [makeDay('2026-02-26', { documented: true })],
+      entries: [], weatherLogs: [], timezone: TZ,
+    });
+    expect(result[0].weatherCoverage).toBe('none');
+    expect(result[0].weatherJoinReason).toBe('none');
   });
 });

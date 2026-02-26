@@ -34,6 +34,7 @@ import { getDocumentedDays } from "@/lib/dateRange/rangeResolver";
 import { useTimeRange } from "@/contexts/TimeRangeContext";
 import { buildWeatherDayFeatures } from "@/lib/report-v2/adapters/buildWeatherDayFeatures";
 import { computeWeatherAssociation } from "@/lib/weather/computeWeatherAssociation";
+import { localDateBoundsToUtcIso } from "@/lib/weather/dateBounds";
 
 /** Fetch entry_symptoms with symptom names for a set of entry IDs */
 function useEntrySymptomsBulk(entryIds: number[]) {
@@ -188,11 +189,13 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) return [];
 
-      // Paginated fetch — stable ordering by (snapshot_date, id), deduplicated
       const seenIds = new Set<number>();
       const allLogs: any[] = [];
       const PAGE_SIZE = 1000;
       const userId = userData.user.id;
+
+      // DST-safe UTC bounds for requested_at filtering
+      const { startIso, endIso } = localDateBoundsToUtcIso(from, to, 'Europe/Berlin');
 
       // Fetch by snapshot_date range
       let offset = 0;
@@ -220,7 +223,7 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
         offset += PAGE_SIZE;
       }
 
-      // Also fetch logs with null snapshot_date but requested_at in range
+      // Also fetch logs with null snapshot_date but requested_at in range (DST-safe)
       offset = 0;
       hasMore = true;
       while (hasMore) {
@@ -229,8 +232,8 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
           .select('id, snapshot_date, requested_at, pressure_mb, pressure_change_24h, temperature_c, humidity')
           .eq('user_id', userId)
           .is('snapshot_date', null)
-          .gte('requested_at', `${from}T00:00:00.000Z`)
-          .lte('requested_at', `${to}T23:59:59.999Z`)
+          .gte('requested_at', startIso)
+          .lte('requested_at', endIso)
           .order('id', { ascending: true })
           .range(offset, offset + PAGE_SIZE - 1);
         if (error) throw error;

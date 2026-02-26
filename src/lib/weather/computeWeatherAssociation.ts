@@ -4,158 +4,46 @@
  * ═══════════════════════════════════════════════════════════════════════════
  *
  * Deterministic, clinically interpretable weather–headache association.
- * No LLM. No p-hacking. Max 3 core factors.
- *
  * Pure function. No DB, no I/O, no side effects. Isomorphic (Browser + Deno).
  *
  * IMPORTANT: Only documented days (documented=true) are used as analysis basis.
  */
 
-// ─── Types ──────────────────────────────────────────────────────────────
+import type {
+  WeatherDayFeature,
+  WeatherBucketResult,
+  RelativeRiskResult,
+  WeatherPressureDelta24h,
+  WeatherAbsolutePressure,
+  WeatherCoverageInfo,
+  WeatherAnalysisV2,
+  ComputeWeatherAssociationOptions,
+  WeatherConfidence,
+} from './types';
 
-export type WeatherConfidence = 'high' | 'medium' | 'low' | 'insufficient';
+import {
+  MIN_DAYS_FOR_STATEMENT,
+  MIN_DAYS_PER_BUCKET,
+  HIGH_CONFIDENCE_DAYS,
+  MEDIUM_CONFIDENCE_DAYS,
+  MIN_DAYS_ABSOLUTE_PRESSURE,
+  DELTA_STRONG_DROP,
+  DELTA_MODERATE_DROP,
+  PRESSURE_LOW,
+  PRESSURE_HIGH,
+  MIN_DAYS_CONFOUNDING_HINT,
+  PRESSURE_DELTA_BUCKET_LABELS,
+  ABS_PRESSURE_BUCKET_LABELS,
+  WEATHER_DISCLAIMER,
+} from './constants';
 
-export interface WeatherBucketResult {
-  label: string;
-  nDays: number;
-  headacheRate: number;
-  meanPainMax: number | null;
-  acuteMedRate: number;
-}
+import { hasAnyWeatherValue, hasDelta } from './coverage';
 
-export interface RelativeRiskResult {
-  referenceLabel: string;
-  compareLabel: string;
-  rr: number | null;
-  absDiff: number;
-}
-
-export interface WeatherPressureDelta24h {
-  enabled: boolean;
-  confidence: WeatherConfidence;
-  buckets: WeatherBucketResult[];
-  relativeRisk: RelativeRiskResult | null;
-  notes: string[];
-}
-
-export interface WeatherAbsolutePressure {
-  enabled: boolean;
-  confidence: WeatherConfidence;
-  buckets: WeatherBucketResult[];
-  notes: string[];
-}
-
-export interface WeatherCoverageInfo {
-  daysDocumented: number;
-  daysWithWeather: number;
-  daysWithDelta24h: number;
-  ratioWeather: number;
-  ratioDelta24h: number;
-  daysWithEntryWeather?: number;
-  daysWithSnapshotWeather?: number;
-  daysWithNoWeather?: number;
-}
-
-export interface WeatherAnalysisV2 {
-  coverage: WeatherCoverageInfo;
-  pressureDelta24h: WeatherPressureDelta24h;
-  absolutePressure: WeatherAbsolutePressure | null;
-  disclaimer: string;
-}
-
-export interface WeatherDayFeature {
-  date: string;
-  documented: boolean;
-  painMax: number;
-  hadHeadache: boolean;
-  hadAcuteMed: boolean;
-  pressureMb: number | null;
-  pressureChange24h: number | null;
-  temperatureC: number | null;
-  humidity: number | null;
-  weatherCoverage: 'entry' | 'snapshot' | 'none';
-  /** Debug-only: reason for weather join. Not shown in UI. */
-  weatherJoinReason?: string;
-}
-
-export interface WeatherCoverageCounts {
-  daysWithEntryWeather: number;
-  daysWithSnapshotWeather: number;
-  daysWithNoWeather: number;
-}
-
-export interface ComputeWeatherAssociationOptions {
-  coverageCounts?: WeatherCoverageCounts;
-}
-
-// ─── Exported Constants (SSOT for thresholds & labels) ──────────────────
-
-export const MIN_DAYS_FOR_STATEMENT = 20;
-export const MIN_DAYS_PER_BUCKET = 5;
-export const HIGH_CONFIDENCE_DAYS = 60;
-export const MEDIUM_CONFIDENCE_DAYS = 30;
-export const MIN_DAYS_ABSOLUTE_PRESSURE = 60;
-export const DELTA_STRONG_DROP = -8;
-export const DELTA_MODERATE_DROP = -3;
-export const PRESSURE_LOW = 1005;
-export const PRESSURE_HIGH = 1025;
-
-/** Minimum days in at least one bucket for confounding hint to fire */
-export const MIN_DAYS_CONFOUNDING_HINT = 20;
-
-export const PRESSURE_DELTA_BUCKET_LABELS = {
-  strongDrop: `Starker Abfall (≤ ${DELTA_STRONG_DROP} hPa)`,
-  moderateDrop: `Moderater Abfall (${DELTA_STRONG_DROP} bis ${DELTA_MODERATE_DROP} hPa)`,
-  stableOrRise: `Stabil / Anstieg (> ${DELTA_MODERATE_DROP} hPa)`,
-} as const;
-
-export const ABS_PRESSURE_BUCKET_LABELS = {
-  low: `Tiefdruck (< ${PRESSURE_LOW} hPa)`,
-  normal: `Normal (${PRESSURE_LOW}–${PRESSURE_HIGH} hPa)`,
-  high: `Hochdruck (> ${PRESSURE_HIGH} hPa)`,
-} as const;
-
-export const WEATHER_DISCLAIMER =
-  "Orientierender Hinweis basierend auf Ihrer Dokumentation. Zusammenhang ≠ Ursache. Keine Diagnose.";
-
-// ─── Coverage Helpers (SSOT) ────────────────────────────────────────────
-
-/** Does this feature have any usable weather value? */
-export function hasAnyWeatherValue(f: WeatherDayFeature): boolean {
-  return f.pressureMb != null || f.temperatureC != null || f.humidity != null || f.pressureChange24h != null;
-}
-
-/** Does this feature have a 24h pressure delta? */
-export function hasDelta(f: WeatherDayFeature): boolean {
-  return f.pressureChange24h != null;
-}
-
-// ─── Format Helpers (SSOT for UI + PDF) ─────────────────────────────────
-
-/** Format rate as percentage string, e.g. 0.234 → "23%" */
-export function fmtPct(rate: number | null | undefined): string {
-  if (rate == null) return '–';
-  return `${Math.round(rate * 100)}%`;
-}
-
-/** Format mean pain, e.g. 3.456 → "3.5" or null → "–" */
-export function fmtPain(mean: number | null | undefined): string {
-  if (mean == null) return '–';
-  return mean.toFixed(1);
-}
-
-/** Format relative risk, e.g. 2.34 → "2.3×" or null → "–" */
-export function fmtRR(rr: number | null | undefined): string {
-  if (rr == null) return '–';
-  return `${rr.toFixed(1)}×`;
-}
-
-/** Format absolute difference in percentage points, e.g. 0.15 → "+15 pp" */
-export function fmtAbsDiff(absDiff: number | null | undefined): string {
-  if (absDiff == null) return '–';
-  const pp = Math.round(absDiff * 100);
-  return `${pp > 0 ? '+' : ''}${pp} pp`;
-}
+// Re-export everything so existing imports from this file keep working
+export * from './types';
+export * from './constants';
+export { hasAnyWeatherValue, hasDelta } from './coverage';
+export { fmtPct, fmtPain, fmtRR, fmtAbsDiff } from './format';
 
 // ─── Helpers ────────────────────────────────────────────────────────────
 
@@ -261,8 +149,8 @@ function analyzePressureDelta(documentedDays: WeatherDayFeature[], coverage: Wea
   const confidence = determineConfidence(paired.length);
 
   if (confidence === "insufficient") {
-    if (paired.length === 0) notes.push("Keine Δ24h-Daten vorhanden.");
-    else notes.push(`Nur ${paired.length} Tage mit Δ24h-Daten. Mindestens ${MIN_DAYS_FOR_STATEMENT} benötigt.`);
+    if (paired.length === 0) notes.push("Keine \u039424h-Daten vorhanden.");
+    else notes.push(`Nur ${paired.length} Tage mit \u039424h-Daten. Mindestens ${MIN_DAYS_FOR_STATEMENT} ben\u00f6tigt.`);
     return { enabled: false, confidence, buckets: [], relativeRisk: null, notes };
   }
 
@@ -277,7 +165,7 @@ function analyzePressureDelta(documentedDays: WeatherDayFeature[], coverage: Wea
 
   for (const b of buckets) {
     if (b.nDays > 0 && b.nDays < MIN_DAYS_PER_BUCKET) {
-      notes.push(`${b.label}: nur ${b.nDays} Tage (< ${MIN_DAYS_PER_BUCKET}), eingeschränkte Aussagekraft.`);
+      notes.push(`${b.label}: nur ${b.nDays} Tage (< ${MIN_DAYS_PER_BUCKET}), eingeschr\u00e4nkte Aussagekraft.`);
     }
   }
 
@@ -290,7 +178,7 @@ function analyzePressureDelta(documentedDays: WeatherDayFeature[], coverage: Wea
   }
 
   if (coverage.ratioDelta24h < 0.5) {
-    notes.push("Δ24h derzeit nur bei einem Teil der Tage verfügbar. Aussagekraft kann eingeschränkt sein.");
+    notes.push("\u039424h derzeit nur bei einem Teil der Tage verf\u00fcgbar. Aussagekraft kann eingeschr\u00e4nkt sein.");
   }
 
   // Confounding hint: only if at least 2 buckets with MIN_DAYS_PER_BUCKET AND at least 1 with MIN_DAYS_CONFOUNDING_HINT
@@ -299,7 +187,7 @@ function analyzePressureDelta(documentedDays: WeatherDayFeature[], coverage: Wea
   if (qualifiedBuckets.length >= 2 && hasLargeBucket) {
     const acuteMedRates = qualifiedBuckets.map((b) => b.acuteMedRate);
     if (Math.max(...acuteMedRates) - Math.min(...acuteMedRates) > 0.2) {
-      notes.push("Akutmedikation unterscheidet sich zwischen Gruppen; das kann die beobachtete Schmerzintensität beeinflussen.");
+      notes.push("Akutmedikation unterscheidet sich zwischen Gruppen; das kann die beobachtete Schmerzintensit\u00e4t beeinflussen.");
     }
   }
 
@@ -325,7 +213,7 @@ function analyzeAbsolutePressure(documentedDays: WeatherDayFeature[]): WeatherAb
 
   for (const b of buckets) {
     if (b.nDays > 0 && b.nDays < MIN_DAYS_PER_BUCKET) {
-      notes.push(`${b.label}: nur ${b.nDays} Tage, eingeschränkte Aussagekraft.`);
+      notes.push(`${b.label}: nur ${b.nDays} Tage, eingeschr\u00e4nkte Aussagekraft.`);
     }
   }
 
