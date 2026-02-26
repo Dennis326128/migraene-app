@@ -4,20 +4,17 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { MedicationEffectSlider } from '@/components/ui/medication-effect-slider';
-import { Trash2, CheckCircle } from 'lucide-react';
+import { MoreVertical, CheckCircle } from 'lucide-react';
 import { formatRelativeDateTimeLabel } from '@/lib/dateUtils';
 import { normalizePainLevel } from '@/lib/utils/pain';
 import type { UnratedMedicationEntry } from '../api/medicationEffects.api';
+import { DeleteConfirmation } from '@/components/ui/delete-confirmation';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface UnratedEffectCardProps {
   entry: UnratedMedicationEntry;
@@ -138,17 +135,27 @@ export function UnratedEffectCard({
             </div>
           </div>
 
-          {/* Delete Button */}
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="h-8 w-8 shrink-0 text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10"
-            onClick={() => setShowDeleteDialog(true)}
-            disabled={isDeleting}
-            aria-label="Einnahme löschen"
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
+          {/* 3-dot overflow menu */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8 shrink-0 text-muted-foreground"
+                aria-label="Aktionen"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem 
+                onClick={() => setShowDeleteDialog(true)}
+                disabled={isDeleting}
+              >
+                Einnahme löschen
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         {/* Slider: Effect Rating (unchanged logic) */}
@@ -199,27 +206,16 @@ export function UnratedEffectCard({
       </Card>
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Einnahme wirklich löschen?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Dadurch wird die Einnahme von <strong>{medName}</strong> aus dem Tagebuch entfernt.
-              Diese Aktion kann rückgängig gemacht werden.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Abbrechen</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              disabled={isDeleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {isDeleting ? 'Löscht...' : 'Löschen'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteConfirmation
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        onConfirm={handleDelete}
+        title="Einnahme löschen?"
+        description={`${medName} · ${timeLabel ? `${timeLabel} Uhr` : dateLabel} wird entfernt.`}
+        confirmText="Löschen"
+        cancelText="Abbrechen"
+        isDeleting={isDeleting}
+      />
     </>
   );
 }
