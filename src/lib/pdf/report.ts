@@ -1778,15 +1778,19 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       });
       if (wa.pressureDelta24h.notes.length > 0) {
         yPos -= 12;
-        page.drawText(sanitizeForPDF(wa.pressureDelta24h.notes[0]), {
+        page.drawText(sanitizeForPDF(wa.pressureDelta24h.notes[0].substring(0, 120)), {
           x: LAYOUT.margin, y: yPos, size: 8, font, color: COLORS.textLight,
         });
       }
       yPos -= LAYOUT.sectionGap;
     } else {
-      // Bucket table
+      // Bucket table — ensure space before drawing
       if (wa.pressureDelta24h.buckets.length > 0) {
-        // Header
+        const bucketSpaceNeeded = 20 + wa.pressureDelta24h.buckets.length * 14 + 10;
+        const bucketCheck = ensureSpace(pdfDoc, page, yPos, bucketSpaceNeeded);
+        page = bucketCheck.page;
+        yPos = bucketCheck.yPos;
+
         const colX = [LAYOUT.margin, LAYOUT.margin + 230, LAYOUT.margin + 300, LAYOUT.margin + 370];
         page.drawText('Druckaenderung', { x: colX[0], y: yPos, size: 8, font: fontBold, color: COLORS.text });
         page.drawText('Tage', { x: colX[1], y: yPos, size: 8, font: fontBold, color: COLORS.text });
@@ -1809,29 +1813,52 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
         }
       }
 
-      // Relative Risk
-      if (wa.pressureDelta24h.relativeRisk && wa.pressureDelta24h.relativeRisk.rr != null) {
+      // Relative Risk — ensure space
+      if (wa.pressureDelta24h.relativeRisk) {
+        const rrCheck = ensureSpace(pdfDoc, page, yPos, 30);
+        page = rrCheck.page;
+        yPos = rrCheck.yPos;
+
         yPos -= 4;
         const rr = wa.pressureDelta24h.relativeRisk;
-        page.drawText(sanitizeForPDF(`Relatives Risiko: ${rr.rr}x (${rr.compareLabel} vs. ${rr.referenceLabel})`), {
-          x: LAYOUT.margin, y: yPos, size: 9, font: fontBold, color: COLORS.text,
-        });
+        if (rr.rr != null) {
+          const absDiffText = rr.absDiff != null ? `, Differenz: ${rr.absDiff > 0 ? '+' : ''}${Math.round(rr.absDiff * 100)} pp` : '';
+          page.drawText(sanitizeForPDF(`Relatives Risiko: ${rr.rr}x (${rr.compareLabel} vs. ${rr.referenceLabel})${absDiffText}`), {
+            x: LAYOUT.margin, y: yPos, size: 9, font: fontBold, color: COLORS.text,
+          });
+        } else {
+          const absDiffText = rr.absDiff != null ? ` Differenz: ${rr.absDiff > 0 ? '+' : ''}${Math.round(rr.absDiff * 100)} pp` : '';
+          page.drawText(sanitizeForPDF(`Relatives Risiko nicht berechenbar (Referenz 0%).${absDiffText}`), {
+            x: LAYOUT.margin, y: yPos, size: 9, font, color: COLORS.text,
+          });
+        }
         yPos -= 14;
       }
 
-      // Notes (max 2)
+      // Notes (max 2) — ensure space
       const notesToShow = wa.pressureDelta24h.notes.slice(0, 2);
-      for (const note of notesToShow) {
-        page.drawText(sanitizeForPDF(`- ${note}`), {
-          x: LAYOUT.margin, y: yPos, size: 8, font, color: COLORS.textLight,
-        });
-        yPos -= 12;
+      if (notesToShow.length > 0) {
+        const notesCheck = ensureSpace(pdfDoc, page, yPos, notesToShow.length * 14 + 10);
+        page = notesCheck.page;
+        yPos = notesCheck.yPos;
+
+        for (const note of notesToShow) {
+          // Truncate long notes
+          const truncated = note.length > 120 ? note.substring(0, 117) + '...' : note;
+          page.drawText(sanitizeForPDF(`- ${truncated}`), {
+            x: LAYOUT.margin, y: yPos, size: 8, font, color: COLORS.textLight,
+          });
+          yPos -= 12;
+        }
       }
 
       yPos -= LAYOUT.sectionGap;
     }
 
     // Disclaimer
+    const disclaimerCheck = ensureSpace(pdfDoc, page, yPos, 20);
+    page = disclaimerCheck.page;
+    yPos = disclaimerCheck.yPos;
     page.drawText(sanitizeForPDF(wa.disclaimer), {
       x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight,
     });

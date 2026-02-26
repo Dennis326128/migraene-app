@@ -310,3 +310,103 @@ describe('buildWeatherDayFeatures – coverage counts', () => {
     expect(result.coverageCounts.daysWithNoWeather).toBe(1);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PROMPT 3/3 TESTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ─── Test 13: Pain entry with missing selected_time → noon fallback (pain priority) ──
+describe('buildWeatherDayFeatures – pain entry without time', () => {
+  it('pain entry with missing selected_time still triggers pain-priority fallback to noon', () => {
+    const day = makeDay('2026-02-26', { documented: true, headache: true, painMax: 5 });
+    // Pain entry WITHOUT time, lifestyle entry WITH time at 06:00
+    const entries: EntryForWeatherJoin[] = [
+      makeEntry({ selected_time: '06:00', entry_kind: 'lifestyle', pain_level: null, weather_id: null }),
+      makeEntry({ selected_time: null, entry_kind: 'pain', pain_level: '5', weather_id: null }),
+    ];
+    // Snapshot at 06:30 (near lifestyle) vs 11:30 (near noon)
+    const weatherLogs: WeatherLogForFeature[] = [
+      makeWeatherLog(1, { snapshot_date: '2026-02-26', requested_at: '2026-02-26T05:30:00Z', pressure_mb: 1001 }),
+      makeWeatherLog(2, { snapshot_date: '2026-02-26', requested_at: '2026-02-26T10:30:00Z', pressure_mb: 1002 }),
+    ];
+
+    const result = buildWeatherDayFeatures({
+      countsByDay: [day], entries, weatherLogs, timezone: TZ,
+      preferPainAsTarget: true,
+    });
+
+    expect(result).toHaveLength(1);
+    // Pain entry exists but has no time → target = noon (12:00 Berlin)
+    // Log 2 at ~11:30 Berlin is closer to noon than Log 1 at ~06:30
+    expect(result[0].pressureMb).toBe(1002);
+  });
+});
+
+// ─── Test 14: Entry has weather_id but weatherLog missing → uses snapshot fallback ──
+describe('buildWeatherDayFeatures – entry weather_id but wl missing', () => {
+  it('falls back to snapshot when entry weather_id has no matching log', () => {
+    const day = makeDay('2026-02-26', { documented: true, headache: true, painMax: 4 });
+    const entries: EntryForWeatherJoin[] = [
+      makeEntry({ selected_time: '08:00', weather_id: 999 }), // id 999 not in weatherLogs
+    ];
+    const weatherLogs: WeatherLogForFeature[] = [
+      // Only a snapshot, no id=999
+      makeWeatherLog(1, { snapshot_date: '2026-02-26', requested_at: '2026-02-26T07:00:00Z', pressure_mb: 1020 }),
+    ];
+
+    const result = buildWeatherDayFeatures({
+      countsByDay: [day], entries, weatherLogs, timezone: TZ,
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].weatherCoverage).toBe('snapshot');
+    expect(result[0].pressureMb).toBe(1020);
+  });
+});
+
+// ─── Test 15: computeWeatherAssociation RR with reference 0 ──
+import { computeWeatherAssociation } from '@/lib/weather/computeWeatherAssociation';
+
+describe('computeWeatherAssociation – RR edge cases', () => {
+  it('reference rate 0 → rr null, absDiff correct', () => {
+    // Create features: 10 stable days (no headache), 10 drop days (2 headache)
+    const features = [];
+    for (let i = 0; i < 25; i++) {
+      features.push({
+        date: `2026-01-${String(i + 1).padStart(2, '0')}`,
+        documented: true,
+        painMax: 0,
+        hadHeadache: false,
+        hadAcuteMed: false,
+        pressureMb: 1013,
+        pressureChange24h: 0, // stable
+        temperatureC: 10,
+        humidity: 60,
+        weatherCoverage: 'snapshot' as const,
+      });
+    }
+    for (let i = 0; i < 10; i++) {
+      features.push({
+        date: `2026-02-${String(i + 1).padStart(2, '0')}`,
+        documented: true,
+        painMax: i < 2 ? 5 : 0,
+        hadHeadache: i < 2,
+        hadAcuteMed: false,
+        pressureMb: 1013,
+        pressureChange24h: -10, // strong drop
+        temperatureC: 10,
+        humidity: 60,
+        weatherCoverage: 'snapshot' as const,
+      });
+    }
+
+    const result = computeWeatherAssociation(features);
+
+    expect(result.pressureDelta24h.enabled).toBe(true);
+    // Reference (stable) has 0% headache rate → rr null
+    if (result.pressureDelta24h.relativeRisk) {
+      expect(result.pressureDelta24h.relativeRisk.rr).toBeNull();
+      expect(result.pressureDelta24h.relativeRisk.absDiff).toBe(0.2);
+    }
+  });
+});

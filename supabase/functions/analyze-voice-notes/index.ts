@@ -636,6 +636,14 @@ REGELN:
 - Deutsche Sprache
 - Keine medizinischen Empfehlungen
 
+WETTER-REGELN:
+- Verwende NUR die im Datensatz gelieferten Wetterzahlen (Bucket-Werte, RR, absDiff)
+- Erfinde KEINE neuen Prozentwerte oder Statistiken
+- Kombiniere NICHT mehrere Prozentwerte zu neuen Zahlen
+- Wenn keine Wetterdaten vorhanden: keine Aussagen ueber Wetter-Kopfschmerz-Zusammenhang
+- Wenn Wetter-Konfidenz "insufficient": nur Datenlage erklaeren, keine Muster behaupten
+- Formulierung: "orientierender Hinweis", "Zusammenhang ≠ Ursache"
+
 JSON-SCHEMA:
 ${jsonSchema}`;
 

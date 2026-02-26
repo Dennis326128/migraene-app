@@ -98,20 +98,20 @@ function computeRelativeRisk(
   ) {
     return null;
   }
+  const absDiff = round2(compare.headacheRate - reference.headacheRate);
   if (reference.headacheRate === 0) {
-    // Cannot compute RR with 0 reference rate
     return {
       referenceLabel: reference.label,
       compareLabel: compare.label,
       rr: null,
-      absDiff: round2(compare.headacheRate - reference.headacheRate),
+      absDiff,
     };
   }
   return {
     referenceLabel: reference.label,
     compareLabel: compare.label,
     rr: round2(compare.headacheRate / reference.headacheRate),
-    absDiff: round2(compare.headacheRate - reference.headacheRate),
+    absDiff,
   };
 }
 
