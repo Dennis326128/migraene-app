@@ -245,16 +245,20 @@ export const EntriesList = ({
                     </div>
                     
                     <div className="flex items-center gap-2">
-                      {selectedEntry.weather.pressure_change_24h != null && selectedEntry.weather.pressure_change_24h > 0 ? (
-                        <TrendingUp className="h-4 w-4 text-red-500 shrink-0" />
-                      ) : selectedEntry.weather.pressure_change_24h != null && selectedEntry.weather.pressure_change_24h < 0 ? (
-                        <TrendingDown className="h-4 w-4 text-blue-500 shrink-0" />
+                      {selectedEntry.weather.pressure_change_24h != null && !Number.isNaN(selectedEntry.weather.pressure_change_24h) ? (
+                        selectedEntry.weather.pressure_change_24h > 0 ? (
+                          <TrendingUp className="h-4 w-4 text-red-500 shrink-0" />
+                        ) : selectedEntry.weather.pressure_change_24h < 0 ? (
+                          <TrendingDown className="h-4 w-4 text-blue-500 shrink-0" />
+                        ) : (
+                          <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                        )
                       ) : (
-                        <ArrowRight className="h-4 w-4 text-gray-500 shrink-0" />
+                        <ArrowRight className="h-4 w-4 text-muted-foreground/50 shrink-0" />
                       )}
                       <span className="text-muted-foreground min-w-[140px]">{t('weather.pressureTrend')}:</span>
                       <span className="font-medium">
-                        {selectedEntry.weather.pressure_change_24h != null ? (
+                        {selectedEntry.weather.pressure_change_24h != null && !Number.isNaN(selectedEntry.weather.pressure_change_24h) ? (
                           <>
                             {selectedEntry.weather.pressure_change_24h > 0 ? "+" : ""}
                             {selectedEntry.weather.pressure_change_24h.toFixed(1)} hPa

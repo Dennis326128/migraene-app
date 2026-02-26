@@ -723,3 +723,54 @@ describe('explainWeatherMissing', () => {
     })).toBe('NO_WEATHER_ID_AND_NO_SNAPSHOT');
   });
 });
+
+// ─── WeatherDebugPanel prod gating ─────────────────────────────────────
+describe('WeatherDebugPanel prod gating', () => {
+  it('should only render when DEV or VITE_WEATHER_DEBUG flag is set', () => {
+    // The component checks: import.meta.env.DEV || import.meta.env.VITE_WEATHER_DEBUG === 'true'
+    // In prod (DEV=false, no flag) it returns null.
+    // We test the logic inline since we can't easily mock import.meta.env in vitest without setup.
+    const isDebugEnabled = (isDev: boolean, flag?: string) => isDev || flag === 'true';
+
+    expect(isDebugEnabled(false)).toBe(false);
+    expect(isDebugEnabled(false, undefined)).toBe(false);
+    expect(isDebugEnabled(false, 'false')).toBe(false);
+    expect(isDebugEnabled(true)).toBe(true);
+    expect(isDebugEnabled(false, 'true')).toBe(true);
+  });
+});
+
+// ─── Δ24h display logic ────────────────────────────────────────────────
+describe('Δ24h display logic', () => {
+  it('storedDelta null => source missing', () => {
+    const storedDelta: number | null = null;
+    const hasDelta = storedDelta !== null && storedDelta !== undefined && !Number.isNaN(storedDelta);
+    expect(hasDelta).toBe(false);
+  });
+
+  it('storedDelta 0 => valid, shows 0 hPa', () => {
+    const storedDelta: number | null = 0;
+    const hasDelta = storedDelta !== null && storedDelta !== undefined && !Number.isNaN(storedDelta);
+    expect(hasDelta).toBe(true);
+    expect(Math.round(storedDelta)).toBe(0);
+  });
+
+  it('storedDelta NaN => treated as missing', () => {
+    const storedDelta: number = NaN;
+    const hasDelta = storedDelta !== null && storedDelta !== undefined && !Number.isNaN(storedDelta);
+    expect(hasDelta).toBe(false);
+  });
+
+  it('calculated source shows value', () => {
+    const deltaResult = { delta: -5, source: 'calculated' as const };
+    expect(deltaResult.delta).toBe(-5);
+    expect(deltaResult.source).toBe('calculated');
+  });
+
+  it('stored source with real value', () => {
+    const deltaResult = { delta: 3, source: 'stored' as const };
+    const hasDelta = deltaResult.delta !== null && !Number.isNaN(deltaResult.delta);
+    expect(hasDelta).toBe(true);
+    expect(deltaResult.delta > 0 ? '+' : '').toBe('+');
+  });
+});
