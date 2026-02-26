@@ -21,7 +21,8 @@ export interface MedicationSummary {
  */
 export function getSummaryRanges() {
   const effectiveToday = yesterdayStr();
-  const effective = new Date(effectiveToday + "T00:00:00");
+  // Use noon to avoid DST edge cases when subtracting days
+  const effective = new Date(effectiveToday + "T12:00:00");
   const from7d = format(subDays(effective, 6), "yyyy-MM-dd");
   const from30d = format(subDays(effective, 29), "yyyy-MM-dd");
   return { effectiveToday, from7d, from30d };

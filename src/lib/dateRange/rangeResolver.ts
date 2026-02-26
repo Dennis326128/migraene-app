@@ -6,9 +6,13 @@
  * - effectiveEnd ≤ today (no future dates)
  * - Dynamic presets based on documentationSpanDays
  * - "Seit Beginn" replaces "Alle"
+ *
+ * IMPORTANT: todayStr()/yesterdayStr() use Berlin timezone (Europe/Berlin)
+ * to ensure calendar-day correctness for medical data. Never use UTC split.
  */
 
 import type { TimeRangePreset } from '@/components/PainApp/TimeRangeButtons';
+import { berlinDateToday } from '@/lib/tz';
 
 /** Fixed day counts per preset */
 const PRESET_DAYS: Record<string, number> = {
@@ -29,20 +33,26 @@ export function daysBetweenInclusive(from: string, to: string): number {
 }
 
 /**
- * Get today as YYYY-MM-DD (local time).
+ * Get today as YYYY-MM-DD in Berlin timezone.
+ * Uses berlinDateToday() as SSOT — ensures correctness between midnight
+ * and 2am Berlin time when UTC date would be the previous day.
  */
 export function todayStr(): string {
-  return new Date().toISOString().split('T')[0];
+  return berlinDateToday();
 }
 
 /**
- * Get yesterday as YYYY-MM-DD (local time).
+ * Get yesterday as YYYY-MM-DD in Berlin timezone.
  * Used as the effective end date for all presets — today is not yet complete.
  */
 export function yesterdayStr(): string {
-  const d = new Date();
+  const today = berlinDateToday();
+  const d = new Date(today + 'T12:00:00'); // noon to avoid DST edge cases
   d.setDate(d.getDate() - 1);
-  return d.toISOString().split('T')[0];
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 /**
