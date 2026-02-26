@@ -7,7 +7,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { fmtPct, fmtPain, fmtRR, fmtAbsDiff } from "@/lib/weather/computeWeatherAssociation";
+import { fmtPct, fmtPain, fmtRR, fmtAbsDiff } from "@/lib/weather/format";
 
 /** Minimal types matching WeatherAnalysisV2 shape */
 interface WeatherBucket {
@@ -107,7 +107,7 @@ export function WeatherAssociationCard({
           </div>
         )}
 
-        {/* Bucket table */}
+        {/* Bucket table — proper <table> with <thead>/<tbody> */}
         {pressureDelta24h.enabled && pressureDelta24h.buckets.length > 0 && (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -125,7 +125,9 @@ export function WeatherAssociationCard({
                     <td className="py-2 pr-2 text-foreground max-w-[220px] truncate" title={bucket.label}>
                       {bucket.label}
                     </td>
-                    <td className="py-2 px-2 text-right text-muted-foreground">{bucket.nDays}</td>
+                    <td className="py-2 px-2 text-right text-muted-foreground">
+                      {bucket.nDays}
+                    </td>
                     <td className="py-2 px-2 text-right font-medium">
                       {bucket.nDays === 0 ? '–' : fmtPct(bucket.headacheRate)}
                     </td>
@@ -181,22 +183,10 @@ export function WeatherAssociationCard({
           </div>
         )}
 
-        {/* Disclaimer */}
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <p className="text-[10px] text-muted-foreground/70 italic cursor-help">
-                {disclaimer}
-              </p>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="max-w-xs">
-              <p className="text-xs">
-                Die Analyse basiert auf Ihren dokumentierten Daten und zeigt statistische Zusammenhänge.
-                Dies ist keine medizinische Diagnose und ersetzt nicht die ärztliche Beurteilung.
-              </p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        {/* SSOT Disclaimer — single source, no duplicate tooltip text */}
+        <p className="text-[10px] text-muted-foreground/70 italic">
+          {disclaimer}
+        </p>
 
         {/* Confidence badge */}
         {!isInsufficient && (

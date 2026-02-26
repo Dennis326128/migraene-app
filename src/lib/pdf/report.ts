@@ -31,6 +31,7 @@ import { drawPieChartWithLegend } from "@/lib/pdf/pieChart";
 import { drawSymptomSection, type SymptomDataForPdf } from "@/lib/pdf/symptomSection";
 import { buildPainWeatherSeries, normalizePainLevel as sharedNormalizePainLevel, type PainWeatherDataPoint } from "@/lib/charts/painWeatherData";
 import { drawSmoothPainWeatherChart } from "@/lib/charts/painWeatherPdfChart";
+import { fmtPct, fmtPain, fmtRR, fmtAbsDiff } from "@/lib/weather/format";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES & CONSTANTS
@@ -1808,8 +1809,8 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
           const labelTruncated = b.label.length > 40 ? b.label.substring(0, 37) + '...' : b.label;
           page.drawText(sanitizeForPDF(labelTruncated), { x: colX[0], y: yPos, size: 8, font, color: COLORS.text });
           page.drawText(String(b.nDays), { x: colX[1], y: yPos, size: 8, font, color: COLORS.text });
-          page.drawText(b.nDays === 0 ? '-' : `${Math.round(b.headacheRate * 100)}%`, { x: colX[2], y: yPos, size: 8, font, color: COLORS.text });
-          page.drawText(b.nDays === 0 ? '-' : (b.meanPainMax != null ? b.meanPainMax.toFixed(1) : '-'), { x: colX[3], y: yPos, size: 8, font, color: COLORS.text });
+          page.drawText(sanitizeForPDF(b.nDays === 0 ? '-' : fmtPct(b.headacheRate)), { x: colX[2], y: yPos, size: 8, font, color: COLORS.text });
+          page.drawText(sanitizeForPDF(b.nDays === 0 ? '-' : fmtPain(b.meanPainMax)), { x: colX[3], y: yPos, size: 8, font, color: COLORS.text });
           yPos -= 14;
         }
       }
@@ -1823,12 +1824,12 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
         yPos -= 4;
         const rr = wa.pressureDelta24h.relativeRisk;
         if (rr.rr != null) {
-          const absDiffText = rr.absDiff != null ? `, Differenz: ${rr.absDiff > 0 ? '+' : ''}${Math.round(rr.absDiff * 100)} pp` : '';
-          page.drawText(sanitizeForPDF(`Relatives Risiko: ${rr.rr}x (${rr.compareLabel} vs. ${rr.referenceLabel})${absDiffText}`), {
+          const absDiffText = rr.absDiff != null ? `, Differenz: ${sanitizeForPDF(fmtAbsDiff(rr.absDiff))}` : '';
+          page.drawText(sanitizeForPDF(`Relatives Risiko: ${fmtRR(rr.rr)} (${rr.compareLabel} vs. ${rr.referenceLabel})${absDiffText}`), {
             x: LAYOUT.margin, y: yPos, size: 9, font: fontBold, color: COLORS.text,
           });
         } else {
-          const absDiffText = rr.absDiff != null ? ` Differenz: ${rr.absDiff > 0 ? '+' : ''}${Math.round(rr.absDiff * 100)} pp` : '';
+          const absDiffText = rr.absDiff != null ? ` Differenz: ${sanitizeForPDF(fmtAbsDiff(rr.absDiff))}` : '';
           page.drawText(sanitizeForPDF(`Relatives Risiko nicht berechenbar (Referenz 0%).${absDiffText}`), {
             x: LAYOUT.margin, y: yPos, size: 9, font, color: COLORS.text,
           });

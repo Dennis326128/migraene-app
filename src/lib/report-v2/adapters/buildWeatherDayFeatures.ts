@@ -18,6 +18,7 @@
  */
 
 import type { DayCountRecord } from '../types';
+import type { WeatherJoinReason } from '@/lib/weather/types';
 
 // ─── Exported Types ─────────────────────────────────────────────────────
 
@@ -33,7 +34,7 @@ export interface WeatherDayFeature {
   humidity: number | null;
   weatherCoverage: 'entry' | 'snapshot' | 'none';
   /** Debug-only: reason for weather join decision */
-  weatherJoinReason?: string;
+  weatherJoinReason?: WeatherJoinReason;
 }
 
 export interface WeatherLogForFeature {
@@ -298,7 +299,7 @@ export function buildWeatherDayFeatures(
     // ── Resolve weather ──
     let weatherLog: WeatherLogForFeature | null = null;
     let coverage: 'entry' | 'snapshot' | 'none' = 'none';
-    let joinReason = 'none';
+    let joinReason: WeatherJoinReason = 'none';
 
     // Priority A: entry-linked weather (nearest to target)
     const entriesWithWeather = dayEntries.filter(e => e.weather_id != null);
@@ -323,7 +324,7 @@ export function buildWeatherDayFeatures(
         weatherLog = pickNearestWeatherLog(candidates, targetMs);
         coverage = 'snapshot';
         joinReason = joinReason === 'entry-weather-id-miss'
-          ? 'entry-weather-id-miss→snapshot'
+          ? 'entry-weather-id-miss->snapshot'
           : 'snapshot-by-date';
       }
     }
