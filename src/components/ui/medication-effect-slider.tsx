@@ -30,7 +30,7 @@ const effectEmojis: Record<number, string> = {
 
 function getEffectColor(value: number): string {
   switch (value) {
-    case 0: return "hsl(var(--destructive))"
+    case 0: return "hsl(var(--muted-foreground))"
     case 1: return "hsl(0, 84%, 60%)"
     case 2: return "hsl(24, 100%, 50%)"
     case 3: return "hsl(45, 93%, 47%)"
@@ -59,10 +59,10 @@ export function MedicationEffectSlider({ value, onValueChange, disabled, classNa
   
   return (
     <div className={cn("w-full space-y-3", className)}>
-      {/* Current value display */}
+      {/* Current value display — slightly larger, stable */}
       <div className="flex items-center justify-center">
         <div 
-          className="flex items-center gap-2 px-4 py-2 rounded-full font-medium text-lg"
+          className="flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold text-xl"
           style={{ backgroundColor: `${effectColor}20`, color: effectColor }}
         >
           <span>{emoji}</span>

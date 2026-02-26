@@ -121,19 +121,19 @@ export function UnratedEffectCard({
             {/* Line 1: Medication Name */}
             <div className="font-semibold text-lg truncate">💊 {medName}</div>
             
-            {/* Line 2: Date · Time */}
+            {/* Line 2: Date · Time — both equal size, time slightly bolder */}
             <div className="text-sm text-muted-foreground">
-              {dateLabel}
+              <span>{dateLabel}</span>
               {timeLabel && (
                 <>
                   <span className="mx-1.5 text-muted-foreground/40">·</span>
-                  <span className="font-medium text-foreground/80">{timeLabel} Uhr</span>
+                  <span className="font-semibold text-foreground/80">{timeLabel} Uhr</span>
                 </>
               )}
             </div>
 
-            {/* Line 3: Pain before intake */}
-            <div className="text-sm text-muted-foreground">
+            {/* Line 3: Pain before intake — slightly smaller, calm */}
+            <div className="text-xs text-muted-foreground">
               Schmerz vor Einnahme: {painScore}/10
             </div>
           </div>
@@ -142,7 +142,7 @@ export function UnratedEffectCard({
           <Button 
             variant="ghost" 
             size="icon" 
-            className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+            className="h-8 w-8 shrink-0 text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10"
             onClick={() => setShowDeleteDialog(true)}
             disabled={isDeleting}
             aria-label="Einnahme löschen"
@@ -163,37 +163,39 @@ export function UnratedEffectCard({
           />
         </div>
 
-        {/* Unified observations field (notes + side effects merged) */}
-        <div className="space-y-1.5">
+        {/* Unified observations field — more spacing from slider */}
+        <div className="space-y-1.5 pt-2">
           <Label className="text-sm text-muted-foreground">
             Beobachtungen (optional)
           </Label>
           <Textarea 
             value={observations}
             onChange={(e) => setObservations(e.target.value)}
-            placeholder="z. B. Übelkeit, müde, gut vertragen, nach 2 Std wieder Schmerzen …"
-            className="text-sm resize-none min-h-[5rem]"
+            placeholder="z. B. Übelkeit, müde oder gut vertragen …"
+            className="text-sm resize-none min-h-[5rem] bg-muted/30"
             rows={3}
             disabled={isSaving || isDeleting}
           />
         </div>
 
-        {/* Save Button */}
-        <Button
-          onClick={handleSave}
-          disabled={isSaving || isDeleting}
-          className="w-full"
-          size="lg"
-        >
-          {isSaving ? (
-            'Speichert...'
-          ) : (
-            <>
-              <CheckCircle className="w-4 h-4 mr-2" />
-              Bewertung speichern
-            </>
-          )}
-        </Button>
+        {/* Save Button — sticky on mobile with shadow */}
+        <div className="sticky bottom-0 pt-3 pb-1 -mx-4 px-4 bg-gradient-to-t from-card via-card to-transparent">
+          <Button
+            onClick={handleSave}
+            disabled={isSaving || isDeleting}
+            className="w-full shadow-lg"
+            size="lg"
+          >
+            {isSaving ? (
+              'Speichert...'
+            ) : (
+              <>
+                <CheckCircle className="w-4 h-4 mr-2" />
+                Bewertung speichern
+              </>
+            )}
+          </Button>
+        </div>
       </Card>
 
       {/* Delete Confirmation Dialog */}
