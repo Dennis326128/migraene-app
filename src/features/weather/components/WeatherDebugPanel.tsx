@@ -57,8 +57,9 @@ export function explainWeatherMissing(params: {
 export function WeatherDebugPanel({ info }: { info: WeatherDebugInfo }) {
   const [open, setOpen] = useState(false);
 
-  // Only render in DEV
-  if (!import.meta.env.DEV) return null;
+  // Only render in DEV or when VITE_WEATHER_DEBUG flag is set
+  const isDebugEnabled = import.meta.env.DEV || import.meta.env.VITE_WEATHER_DEBUG === 'true';
+  if (!isDebugEnabled) return null;
 
   const reasonColor =
     info.missingReason === 'OK' ? 'text-green-500' :

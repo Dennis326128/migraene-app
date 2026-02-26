@@ -149,7 +149,7 @@ function WeatherDetail({ entryData, userId }: { entryData: any; userId: string |
     missingReason,
   };
 
-  if (import.meta.env.DEV) {
+  if (import.meta.env.DEV || import.meta.env.VITE_WEATHER_DEBUG === 'true') {
     console.debug('[WeatherDetail]', {
       entryId: entryData.id,
       source: hasEntryWeather ? 'entry' : isSnapshot ? 'snapshot' : 'none',
