@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildWeatherDayFeatures,
   toLocalDateISO,
+  parseSelectedTime,
   type WeatherLogForFeature,
   type EntryForWeatherJoin,
 } from '../adapters/buildWeatherDayFeatures';
@@ -47,14 +48,11 @@ function makeWeatherLog(id: number, overrides: Partial<WeatherLogForFeature> = {
 // ─── Test 1: Timezone edge ──────────────────────────────────────────────
 describe('toLocalDateISO', () => {
   it('does NOT assign post-midnight Berlin time to previous day', () => {
-    // 2026-02-26T00:30:00+01:00 Berlin = Feb 26, NOT Feb 25
-    // In UTC this is 2026-02-25T23:30:00Z
     const result = toLocalDateISO('2026-02-25T23:30:00Z', TZ);
-    expect(result).toBe('2026-02-26'); // Berlin is UTC+1 in winter
+    expect(result).toBe('2026-02-26');
   });
 
   it('assigns pre-midnight UTC correctly to Berlin next day', () => {
-    // 2026-03-28T23:30:00Z = 2026-03-29T01:30:00+02:00 (CEST)
     const result = toLocalDateISO('2026-03-28T23:30:00Z', TZ);
     expect(result).toBe('2026-03-29');
   });
@@ -64,28 +62,20 @@ describe('toLocalDateISO', () => {
 describe('buildWeatherDayFeatures – target time priority', () => {
   it('selects weather nearest to earliest pain entry time', () => {
     const day = makeDay('2026-02-26', { documented: true, headache: true, painMax: 6 });
-
-    // Pain entry at 08:00, lifestyle entry at 06:00
     const entries: EntryForWeatherJoin[] = [
       makeEntry({ selected_time: '06:00', entry_kind: 'lifestyle', pain_level: null, weather_id: null }),
       makeEntry({ selected_time: '08:00', entry_kind: 'pain', pain_level: '6', weather_id: null }),
     ];
-
-    // Two weather logs: one at 06:30 (closer to lifestyle), one at 07:45 (closer to pain)
     const weatherLogs: WeatherLogForFeature[] = [
-      makeWeatherLog(1, { snapshot_date: '2026-02-26', requested_at: '2026-02-26T05:30:00Z', pressure_mb: 1010 }), // 06:30 Berlin
-      makeWeatherLog(2, { snapshot_date: '2026-02-26', requested_at: '2026-02-26T06:45:00Z', pressure_mb: 1015 }), // 07:45 Berlin
+      makeWeatherLog(1, { snapshot_date: '2026-02-26', requested_at: '2026-02-26T05:30:00Z', pressure_mb: 1010 }),
+      makeWeatherLog(2, { snapshot_date: '2026-02-26', requested_at: '2026-02-26T06:45:00Z', pressure_mb: 1015 }),
     ];
 
     const result = buildWeatherDayFeatures({
-      countsByDay: [day],
-      entries,
-      weatherLogs,
-      timezone: TZ,
+      countsByDay: [day], entries, weatherLogs, timezone: TZ,
     });
 
     expect(result).toHaveLength(1);
-    // Target is 08:00 Berlin. Weather log 2 (07:45) is closer than log 1 (06:30).
     expect(result[0].pressureMb).toBe(1015);
     expect(result[0].weatherCoverage).toBe('snapshot');
   });
@@ -95,60 +85,43 @@ describe('buildWeatherDayFeatures – target time priority', () => {
 describe('buildWeatherDayFeatures – entry weather nearest', () => {
   it('picks entry with weather_id nearest to target time', () => {
     const day = makeDay('2026-02-26', { documented: true, headache: true, painMax: 7 });
-
-    // Two pain entries with weather_id, at different times
     const entries: EntryForWeatherJoin[] = [
       makeEntry({ selected_time: '10:00', weather_id: 100 }),
-      makeEntry({ selected_time: '07:00', weather_id: 200 }), // earliest pain = target
+      makeEntry({ selected_time: '07:00', weather_id: 200 }),
     ];
-
     const weatherLogs: WeatherLogForFeature[] = [
       makeWeatherLog(100, { pressure_mb: 1010 }),
       makeWeatherLog(200, { pressure_mb: 1020 }),
     ];
 
     const result = buildWeatherDayFeatures({
-      countsByDay: [day],
-      entries,
-      weatherLogs,
-      timezone: TZ,
+      countsByDay: [day], entries, weatherLogs, timezone: TZ,
     });
 
     expect(result).toHaveLength(1);
-    // Target = 07:00 (earliest pain). Entry at 07:00 has weather_id=200, entry at 10:00 has 100.
-    // Nearest to 07:00 is the 07:00 entry → weather_id=200
     expect(result[0].pressureMb).toBe(1020);
     expect(result[0].weatherCoverage).toBe('entry');
   });
 });
 
-// ─── Test 4: Snapshot nearest to target (not "pick first") ──────────────
+// ─── Test 4: Snapshot nearest to target ──────────────────────────────────
 describe('buildWeatherDayFeatures – snapshot nearest', () => {
   it('picks snapshot nearest to target, not first in array', () => {
     const day = makeDay('2026-02-26', { documented: true, headache: false, painMax: 0 });
-
-    // No entries with weather_id
     const entries: EntryForWeatherJoin[] = [
       makeEntry({ selected_time: '14:00', weather_id: null, entry_kind: 'lifestyle', pain_level: null }),
     ];
-
-    // Three snapshot candidates at different times
     const weatherLogs: WeatherLogForFeature[] = [
-      makeWeatherLog(1, { snapshot_date: '2026-02-26', requested_at: '2026-02-26T07:00:00Z', pressure_mb: 1001 }), // 08:00 Berlin
-      makeWeatherLog(2, { snapshot_date: '2026-02-26', requested_at: '2026-02-26T12:30:00Z', pressure_mb: 1002 }), // 13:30 Berlin
-      makeWeatherLog(3, { snapshot_date: '2026-02-26', requested_at: '2026-02-26T18:00:00Z', pressure_mb: 1003 }), // 19:00 Berlin
+      makeWeatherLog(1, { snapshot_date: '2026-02-26', requested_at: '2026-02-26T07:00:00Z', pressure_mb: 1001 }),
+      makeWeatherLog(2, { snapshot_date: '2026-02-26', requested_at: '2026-02-26T12:30:00Z', pressure_mb: 1002 }),
+      makeWeatherLog(3, { snapshot_date: '2026-02-26', requested_at: '2026-02-26T18:00:00Z', pressure_mb: 1003 }),
     ];
 
     const result = buildWeatherDayFeatures({
-      countsByDay: [day],
-      entries,
-      weatherLogs,
-      timezone: TZ,
+      countsByDay: [day], entries, weatherLogs, timezone: TZ,
     });
 
     expect(result).toHaveLength(1);
-    // Target = 14:00 Berlin (lifestyle entry, no pain entry).
-    // Nearest: log 2 at 13:30 Berlin (30min away) vs log 1 at 08:00 (6h) vs log 3 at 19:00 (5h)
     expect(result[0].pressureMb).toBe(1002);
     expect(result[0].weatherCoverage).toBe('snapshot');
   });
@@ -163,10 +136,7 @@ describe('buildWeatherDayFeatures – undocumented exclusion', () => {
     ];
 
     const result = buildWeatherDayFeatures({
-      countsByDay: days,
-      entries: [],
-      weatherLogs: [],
-      timezone: TZ,
+      countsByDay: days, entries: [], weatherLogs: [], timezone: TZ,
     });
 
     expect(result).toHaveLength(1);
@@ -179,9 +149,7 @@ describe('buildWeatherDayFeatures – no weather', () => {
   it('sets coverage=none when no weather data exists', () => {
     const result = buildWeatherDayFeatures({
       countsByDay: [makeDay('2026-02-26', { documented: true })],
-      entries: [],
-      weatherLogs: [],
-      timezone: TZ,
+      entries: [], weatherLogs: [], timezone: TZ,
     });
 
     expect(result).toHaveLength(1);
@@ -194,23 +162,151 @@ describe('buildWeatherDayFeatures – no weather', () => {
 describe('buildWeatherDayFeatures – deterministic tie-break', () => {
   it('on equal distance, picks lower weather_log id', () => {
     const day = makeDay('2026-02-26', { documented: true });
-
-    // No entries → target = 12:00 local
-    // Two logs equidistant from 12:00
     const weatherLogs: WeatherLogForFeature[] = [
-      makeWeatherLog(99, { snapshot_date: '2026-02-26', requested_at: '2026-02-26T10:00:00Z', pressure_mb: 999 }), // 11:00 Berlin
-      makeWeatherLog(5,  { snapshot_date: '2026-02-26', requested_at: '2026-02-26T12:00:00Z', pressure_mb: 555 }), // 13:00 Berlin
+      makeWeatherLog(99, { snapshot_date: '2026-02-26', requested_at: '2026-02-26T10:00:00Z', pressure_mb: 999 }),
+      makeWeatherLog(5,  { snapshot_date: '2026-02-26', requested_at: '2026-02-26T12:00:00Z', pressure_mb: 555 }),
     ];
 
     const result = buildWeatherDayFeatures({
-      countsByDay: [day],
-      entries: [],
-      weatherLogs,
-      timezone: TZ,
+      countsByDay: [day], entries: [], weatherLogs, timezone: TZ,
     });
 
     expect(result).toHaveLength(1);
-    // Both are 1h from 12:00 Berlin. Lower id=5 wins.
     expect(result[0].pressureMb).toBe(555);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NEW TESTS (Prompt 2/3)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ─── Test 8: parseSelectedTime robust parsing ───────────────────────────
+describe('parseSelectedTime', () => {
+  it('parses "8:00" same as "08:00"', () => {
+    expect(parseSelectedTime('8:00')).toEqual({ hour: 8, minute: 0 });
+    expect(parseSelectedTime('08:00')).toEqual({ hour: 8, minute: 0 });
+  });
+
+  it('parses HH:MM:SS format', () => {
+    expect(parseSelectedTime('14:30:45')).toEqual({ hour: 14, minute: 30 });
+  });
+
+  it('clamps 24:00 to 23:59', () => {
+    expect(parseSelectedTime('24:00')).toEqual({ hour: 23, minute: 59 });
+  });
+
+  it('returns null for invalid input', () => {
+    expect(parseSelectedTime(null)).toBeNull();
+    expect(parseSelectedTime('')).toBeNull();
+    expect(parseSelectedTime('abc')).toBeNull();
+    expect(parseSelectedTime('25:00')).toBeNull();
+    expect(parseSelectedTime('12:60')).toBeNull();
+  });
+});
+
+// ─── Test 9: All requested_at null → lowest id chosen ───────────────────
+describe('buildWeatherDayFeatures – snapshot all null requested_at', () => {
+  it('picks lowest id when all requested_at are null', () => {
+    const day = makeDay('2026-02-26', { documented: true });
+    const weatherLogs: WeatherLogForFeature[] = [
+      makeWeatherLog(50, { snapshot_date: '2026-02-26', requested_at: null, pressure_mb: 1050 }),
+      makeWeatherLog(10, { snapshot_date: '2026-02-26', requested_at: null, pressure_mb: 1010 }),
+      makeWeatherLog(30, { snapshot_date: '2026-02-26', requested_at: null, pressure_mb: 1030 }),
+    ];
+
+    const result = buildWeatherDayFeatures({
+      countsByDay: [day], entries: [], weatherLogs, timezone: TZ,
+    });
+
+    expect(result).toHaveLength(1);
+    // Lowest id = 10
+    expect(result[0].pressureMb).toBe(1010);
+    expect(result[0].weatherCoverage).toBe('snapshot');
+  });
+});
+
+// ─── Test 10: preferPainAsTarget=false → earliest any entry ─────────────
+describe('buildWeatherDayFeatures – preferPainAsTarget=false', () => {
+  it('uses earliest any entry as target, not pain', () => {
+    const day = makeDay('2026-02-26', { documented: true, headache: true, painMax: 5 });
+    // Lifestyle at 06:00, pain at 10:00
+    const entries: EntryForWeatherJoin[] = [
+      makeEntry({ selected_time: '06:00', entry_kind: 'lifestyle', pain_level: null, weather_id: null }),
+      makeEntry({ selected_time: '10:00', entry_kind: 'pain', pain_level: '5', weather_id: null }),
+    ];
+    // Weather log at 06:30 (close to lifestyle) vs 09:30 (close to pain)
+    const weatherLogs: WeatherLogForFeature[] = [
+      makeWeatherLog(1, { snapshot_date: '2026-02-26', requested_at: '2026-02-26T05:30:00Z', pressure_mb: 1001 }), // 06:30 Berlin
+      makeWeatherLog(2, { snapshot_date: '2026-02-26', requested_at: '2026-02-26T08:30:00Z', pressure_mb: 1002 }), // 09:30 Berlin
+    ];
+
+    const result = buildWeatherDayFeatures({
+      countsByDay: [day], entries, weatherLogs, timezone: TZ,
+      preferPainAsTarget: false,
+    });
+
+    expect(result).toHaveLength(1);
+    // Target = 06:00 (earliest any entry). Log 1 at 06:30 is closer than log 2 at 09:30.
+    expect(result[0].pressureMb).toBe(1001);
+  });
+});
+
+// ─── Test 11: Entry fallback dayKey via occurred_at ──────────────────────
+describe('buildWeatherDayFeatures – entry dayKey fallback', () => {
+  it('uses occurred_at as day key when selected_date is missing', () => {
+    const day = makeDay('2026-02-26', { documented: true });
+    // Entry without selected_date but with occurred_at
+    const entries: EntryForWeatherJoin[] = [
+      {
+        selected_date: null,
+        selected_time: null,
+        occurred_at: '2026-02-25T23:30:00Z', // = 2026-02-26 00:30 Berlin
+        weather_id: 1,
+        entry_kind: 'pain',
+        pain_level: '3',
+      },
+    ];
+    const weatherLogs: WeatherLogForFeature[] = [
+      makeWeatherLog(1, { pressure_mb: 1005 }),
+    ];
+
+    const result = buildWeatherDayFeatures({
+      countsByDay: [day], entries, weatherLogs, timezone: TZ,
+    });
+
+    expect(result).toHaveLength(1);
+    // Entry should be assigned to 2026-02-26 via occurred_at in Berlin TZ
+    expect(result[0].pressureMb).toBe(1005);
+    expect(result[0].weatherCoverage).toBe('entry');
+  });
+});
+
+// ─── Test 12: Coverage counts ───────────────────────────────────────────
+describe('buildWeatherDayFeatures – coverage counts', () => {
+  it('returns correct coverage counts', () => {
+    const days: DayCountRecord[] = [
+      makeDay('2026-02-24', { documented: true }),
+      makeDay('2026-02-25', { documented: true }),
+      makeDay('2026-02-26', { documented: true }),
+    ];
+
+    const entries: EntryForWeatherJoin[] = [
+      makeEntry({ selected_date: '2026-02-24', weather_id: 1 }),
+    ];
+
+    const weatherLogs: WeatherLogForFeature[] = [
+      makeWeatherLog(1, { pressure_mb: 1010 }),
+      makeWeatherLog(2, { snapshot_date: '2026-02-25', requested_at: '2026-02-25T10:00:00Z', pressure_mb: 1015 }),
+    ];
+
+    const result = buildWeatherDayFeatures(
+      { countsByDay: days, entries, weatherLogs, timezone: TZ },
+      true
+    );
+
+    expect(result.features).toHaveLength(3);
+    expect(result.coverageCounts.daysWithEntryWeather).toBe(1);
+    expect(result.coverageCounts.daysWithSnapshotWeather).toBe(1);
+    expect(result.coverageCounts.daysWithNoWeather).toBe(1);
   });
 });
