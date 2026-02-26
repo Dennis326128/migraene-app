@@ -10,6 +10,7 @@ import { de } from 'date-fns/locale';
 import { toZonedTime } from 'date-fns-tz';
 import { useEntries } from '@/features/entries/hooks/useEntries';
 import { usePressureDelta24h } from '@/features/entries/hooks/usePressureDelta24h';
+import { useSnapshotWeather } from '@/features/weather/hooks/useSnapshotWeather';
 import { useDeleteEntry } from '@/features/entries/hooks/useEntryMutations';
 import { supabase } from '@/integrations/supabase/client';
 import type { MigraineEntry } from '@/types/painApp';
@@ -84,7 +85,28 @@ function normalizeWeatherForTimeline(raw: any): {
  * requests, not for historical backfills. This component calculates it on-demand.
  */
 function WeatherDetail({ entryData, userId }: { entryData: any; userId: string | undefined }) {
-  const weather = normalizeWeatherForTimeline(entryData.weather);
+  const entryWeather = normalizeWeatherForTimeline(entryData.weather);
+  const hasEntryWeather = entryWeather !== null;
+
+  // Snapshot fallback: fetch nearest snapshot when entry has no weather
+  const { data: snapshotWeather } = useSnapshotWeather({
+    entryId: entryData.id,
+    userId,
+    entryDate: entryData.selected_date || entryData.timestamp_created?.split('T')[0],
+    entryTime: entryData.selected_time,
+    hasEntryWeather,
+    enabled: true,
+  });
+
+  // Use entry weather first, then snapshot fallback
+  const weather = entryWeather || (snapshotWeather ? {
+    temperature_c: snapshotWeather.temperature_c,
+    pressure_mb: snapshotWeather.pressure_mb,
+    humidity: snapshotWeather.humidity,
+    condition_text: snapshotWeather.condition_text,
+    pressure_change_24h: snapshotWeather.pressure_change_24h,
+  } : null);
+  const isSnapshot = !hasEntryWeather && snapshotWeather !== null && snapshotWeather !== undefined;
 
   // Determine stored delta
   const storedDelta = weather?.pressure_change_24h ?? null;
@@ -95,36 +117,30 @@ function WeatherDetail({ entryData, userId }: { entryData: any; userId: string |
     userId,
     occurredAt: entryData.timestamp_created,
     currentPressureMb: weather?.pressure_mb ?? null,
-    currentWeatherLogId: entryData.weather?.id,
+    currentWeatherLogId: entryData.weather?.id ?? snapshotWeather?.id,
     storedDelta,
     enabled: true,
   });
 
   if (import.meta.env.DEV) {
-    const rawW = entryData.weather;
-    console.debug('[DiaryTimeline] Weather Δ debug', {
+    console.debug('[DiaryTimeline] Weather debug', {
       entryId: entryData.id,
-      occurredAt: entryData.timestamp_created,
-      rawWeather: rawW,
-      rawDeltaCandidates: {
-        pressure_change_24h: rawW?.pressure_change_24h,
-        pressureChange24h: rawW?.pressureChange24h,
-        pressure_delta_24h: rawW?.pressure_delta_24h,
-        delta_24h: rawW?.delta_24h,
-      },
-      normalizedWeather: weather,
+      hasEntryWeather,
+      isSnapshot,
+      snapshotId: snapshotWeather?.id,
       deltaResult,
-      deltaMissingReasonCandidate: !weather
-        ? 'no weather data'
-        : weather.pressure_mb === null
-          ? 'missing pressure_mb'
-          : storedDelta === null
-            ? 'pressure_change_24h NULL in DB (historical backfill)'
-            : 'stored delta available',
     });
   }
 
-  if (!weather) return null;
+  if (!weather) {
+    // No weather at all - show compact "no data" line
+    return (
+      <div>
+        <h4 className="text-xs font-medium text-muted-foreground mb-1.5">Wetter</h4>
+        <p className="text-sm text-muted-foreground/60">Keine Wetterdaten verfügbar</p>
+      </div>
+    );
+  }
 
   const delta = deltaResult.delta;
   const hasDelta = delta !== null && delta !== undefined && !Number.isNaN(delta);
@@ -132,7 +148,14 @@ function WeatherDetail({ entryData, userId }: { entryData: any; userId: string |
 
   return (
     <div>
-      <h4 className="text-xs font-medium text-muted-foreground mb-1.5">Wetter</h4>
+      <div className="flex items-center gap-2 mb-1.5">
+        <h4 className="text-xs font-medium text-muted-foreground">Wetter</h4>
+        {isSnapshot && (
+          <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-muted-foreground/30 text-muted-foreground/70">
+            Snapshot
+          </Badge>
+        )}
+      </div>
       <div className="space-y-1">
         {weather.condition_text && (
           <div className="flex items-center gap-2">
@@ -184,7 +207,7 @@ function WeatherDetail({ entryData, userId }: { entryData: any; userId: string |
           <div className="flex items-center gap-2">
             <Gauge className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
             <span className="text-sm text-muted-foreground/50">Δ 24h: –</span>
-            <span title="Für diesen Zeitpunkt ist keine 24h-Änderung verfügbar.">
+            <span title="Nicht verfügbar – fehlende Vergleichsdaten 24h zuvor oder API lieferte keine Historie.">
               <Info className="h-3 w-3 text-muted-foreground/40 cursor-help" />
             </span>
           </div>

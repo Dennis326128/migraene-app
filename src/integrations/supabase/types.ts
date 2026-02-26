@@ -795,7 +795,11 @@ export type Database = {
           timestamp_created: string | null
           user_id: string
           voice_note_id: string | null
+          weather_error_at: string | null
+          weather_error_code: string | null
           weather_id: number | null
+          weather_retry_count: number
+          weather_status: string
         }
         Insert: {
           aura_type?: string
@@ -818,7 +822,11 @@ export type Database = {
           timestamp_created?: string | null
           user_id: string
           voice_note_id?: string | null
+          weather_error_at?: string | null
+          weather_error_code?: string | null
           weather_id?: number | null
+          weather_retry_count?: number
+          weather_status?: string
         }
         Update: {
           aura_type?: string
@@ -841,7 +849,11 @@ export type Database = {
           timestamp_created?: string | null
           user_id?: string
           voice_note_id?: string | null
+          weather_error_at?: string | null
+          weather_error_code?: string | null
           weather_id?: number | null
+          weather_retry_count?: number
+          weather_status?: string
         }
         Relationships: [
           {
@@ -1978,7 +1990,11 @@ export type Database = {
           timestamp_created: string | null
           user_id: string
           voice_note_id: string | null
+          weather_error_at: string | null
+          weather_error_code: string | null
           weather_id: number | null
+          weather_retry_count: number
+          weather_status: string
         }[]
         SetofOptions: {
           from: "*"

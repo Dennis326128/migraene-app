@@ -262,7 +262,9 @@ export const EntriesList = ({
                               <span className="ml-2 text-orange-600">⚠️ {t('common.strong')}</span>
                             )}
                           </>
-                        ) : "-"}
+                        ) : (
+                          <span title="Nicht verfügbar – fehlende Vergleichsdaten 24h zuvor.">–</span>
+                        )}
                       </span>
                     </div>
                     
@@ -281,6 +283,16 @@ export const EntriesList = ({
                       </p>
                     </div>
                   )}
+                </div>
+              )}
+
+              {!selectedEntry.weather && (
+                <div className="mt-4 pt-3 border-t">
+                  <p className="font-medium mb-2 flex items-center gap-2">
+                    <CloudSun className="h-5 w-5 text-muted-foreground" />
+                    {t('weather.data')}
+                  </p>
+                  <p className="text-sm text-muted-foreground">{t('weather.noData', 'Keine Wetterdaten verfügbar')}</p>
                 </div>
               )}
             </div>
