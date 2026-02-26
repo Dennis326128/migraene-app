@@ -11,10 +11,13 @@ import { hasFollowUpConfigured, formatFollowUpDate, cloneReminderForCreate } fro
 import { isReminderOverdue } from '@/features/reminders/helpers/attention';
 import type { GroupedReminder } from '@/features/reminders/helpers/groupReminders';
 import { formatNextOccurrence } from '@/features/reminders/helpers/groupReminders';
+import type { RelativeReminderResult } from '@/lib/relativeReminderLabel';
 
 interface ReminderCardProps {
   /** Grouped reminder data (series-based display) */
   grouped: GroupedReminder;
+  /** Pre-computed relative label (driven by useRelativeTime tick) */
+  relativeLabel?: RelativeReminderResult | null;
   onEdit: (reminder: Reminder, allReminders: Reminder[]) => void;
   onMarkDone: (id: string) => void;
   onPlanFollowUp?: (prefill: ReminderPrefill) => void;
@@ -30,7 +33,7 @@ const extractTimeFromDateTime = (dateTime: string): string => {
   }
 };
 
-export const ReminderCard = ({ grouped, onEdit, onMarkDone, onPlanFollowUp }: ReminderCardProps) => {
+export const ReminderCard = ({ grouped, relativeLabel, onEdit, onMarkDone, onPlanFollowUp }: ReminderCardProps) => {
   const { reminder, nextOccurrence, frequencyLabel, isRecurring, displayTitle } = grouped;
   const isOverdue = isReminderOverdue(reminder);
   const showFollowUp = hasFollowUpConfigured(reminder) && onPlanFollowUp;
@@ -129,7 +132,18 @@ export const ReminderCard = ({ grouped, onEdit, onMarkDone, onPlanFollowUp }: Re
                     })()
                 }
               </div>
-              {/* Relative time removed — cleaner medical UX */}
+              {/* Relative label: "In 11 Tagen", "Morgen", "Heute · In 3 Std" */}
+              {relativeLabel && relativeLabel.dayDiff >= 0 && (
+                <div className={cn(
+                  "text-xs mt-0.5",
+                  relativeLabel.isToday && relativeLabel.subLabel
+                    ? "text-primary font-medium"
+                    : "text-muted-foreground"
+                )}>
+                  {relativeLabel.label}
+                  {relativeLabel.subLabel && ` · ${relativeLabel.subLabel}`}
+                </div>
+              )}
             </div>
 
             {reminder.notes && (
