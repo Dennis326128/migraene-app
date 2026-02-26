@@ -14,19 +14,16 @@ describe('yesterdayStr', () => {
 });
 
 describe('getDefaultPreset', () => {
-  it('returns 3m when spanDays >= 90', () => {
-    expect(getDefaultPreset(100)).toBe('3m');
-    expect(getDefaultPreset(90)).toBe('3m');
-    expect(getDefaultPreset(365)).toBe('3m');
-  });
-
-  it('returns 1m when consecutiveDocumentedDays >= 30 but < 90', () => {
-    expect(getDefaultPreset(35)).toBe('1m');
+  it('returns 1m when spanDays >= 30', () => {
     expect(getDefaultPreset(30)).toBe('1m');
+    expect(getDefaultPreset(35)).toBe('1m');
     expect(getDefaultPreset(89)).toBe('1m');
+    expect(getDefaultPreset(90)).toBe('1m');
+    expect(getDefaultPreset(100)).toBe('1m');
+    expect(getDefaultPreset(365)).toBe('1m');
   });
 
-  it('returns all when consecutiveDocumentedDays < 30', () => {
+  it('returns all when spanDays < 30', () => {
     expect(getDefaultPreset(10)).toBe('all');
     expect(getDefaultPreset(0)).toBe('all');
     expect(getDefaultPreset(29)).toBe('all');
@@ -88,8 +85,8 @@ describe('validatePreset', () => {
   it('falls back to default when preset not available', () => {
     // 50 days → default is 1m
     expect(validatePreset('3m', 50)).toBe('1m');
-    // 100 days → default is 3m
-    expect(validatePreset('12m', 100)).toBe('3m');
+    // 100 days → default is 1m
+    expect(validatePreset('12m', 100)).toBe('1m');
     // 10 days → default is all
     expect(validatePreset('1m', 10)).toBe('all');
   });
