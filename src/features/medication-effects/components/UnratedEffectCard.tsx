@@ -15,6 +15,7 @@ import {
   X
 } from 'lucide-react';
 import { COMMON_SIDE_EFFECTS } from '@/lib/utils/medicationEffects';
+import { formatRelativeDateTimeLabel } from '@/lib/dateUtils';
 import { normalizePainLevel } from '@/lib/utils/pain';
 import type { UnratedMedicationEntry } from '../api/medicationEffects.api';
 import type { ParsedMedicationEffect } from '@/types/medicationEffect.types';
@@ -48,21 +49,7 @@ interface UnratedEffectCardProps {
   isDeleting?: boolean;
 }
 
-/** Format date/time to German format: "12.12.2025, 12:05" */
-function formatGermanDateTime(date: string | null, time: string | null): string {
-  if (!date) return '';
-  
-  const [year, month, day] = date.split('-');
-  const formattedDate = `${day}.${month}.${year}`;
-  
-  let formattedTime = '';
-  if (time) {
-    const timeParts = time.split(':');
-    formattedTime = `${timeParts[0]}:${timeParts[1]}`;
-  }
-  
-  return formattedTime ? `${formattedDate}, ${formattedTime}` : formattedDate;
-}
+// formatGermanDateTime removed — using centralized formatRelativeDateTimeLabel from dateUtils
 
 /** Get pain severity level for color coding */
 function getPainSeverityLevel(score: number): 'mild' | 'moderate' | 'severe' {
@@ -169,7 +156,7 @@ export function UnratedEffectCard({
             {/* Date/Time + Pain level inline */}
             <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
               <Clock className="w-3.5 h-3.5 shrink-0" />
-              <span>{formatGermanDateTime(entry.selected_date, entry.selected_time)}</span>
+              <span>{formatRelativeDateTimeLabel(entry.selected_date, entry.selected_time)}</span>
               <span className="text-muted-foreground/50">•</span>
               <div className="inline-flex items-center gap-1">
                 <span className={`h-2 w-2 rounded-full ${getPainDotColor(painSeverity)}`} />
