@@ -7,6 +7,7 @@
 export { 
   getDoctorShareStatus,
   activateDoctorShare,
+  deactivateDoctorShare,
   revokeDoctorShare,
   getPermanentDoctorCode,
   fetchDoctorShares,
@@ -48,6 +49,7 @@ export type {
 export {
   useDoctorShareStatus,
   useActivateDoctorShare,
+  useDeactivateDoctorShare,
   useRevokeDoctorShare,
   usePermanentDoctorCode,
   useDoctorShares,

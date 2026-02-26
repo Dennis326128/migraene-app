@@ -1,9 +1,13 @@
 /**
- * Edge Function: get-doctor-share-status
- * Holt den permanenten Arzt-Code und Freigabe-Status des Nutzers.
+ * Edge Function: get-permanent-doctor-code
+ * Holt den permanenten Arzt-Code des Nutzers.
  * Falls kein Code existiert, wird einmalig einer erstellt.
- * 
- * NEU: Unterstützt 24h-Freigabe-Fenster via share_active_until
+ * Idempotent: Gibt immer denselben Code zurück.
+ *
+ * Rückgabe:
+ * { code, code_display, is_active, expires_at, is_currently_active, default_range, ... }
+ *
+ * is_currently_active = is_active AND (expires_at IS NULL OR expires_at > now())
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
@@ -13,33 +17,61 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Code-Generator: 4 Buchstaben + 4 Zahlen
+// Code-Generator: 8 Zeichen aus sicherem Charset
+const SAFE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
 function generateShareCode(): { code: string; display: string } {
-  const letters = "ABCDEFGHJKLMNPQRSTUVWXYZ"; // Ohne I, O (verwechselbar)
-  const digits = "0123456789";
-  
-  let letterPart = "";
-  let digitPart = "";
-  
-  for (let i = 0; i < 4; i++) {
-    letterPart += letters[Math.floor(Math.random() * letters.length)];
-    digitPart += digits[Math.floor(Math.random() * digits.length)];
+  let raw = "";
+  for (let i = 0; i < 8; i++) {
+    raw += SAFE_CHARS[Math.floor(Math.random() * SAFE_CHARS.length)];
   }
-  
-  const code = letterPart + digitPart;
-  const display = `${letterPart}-${digitPart}`;
-  
-  return { code, display };
+  const display = `${raw.slice(0, 4)}-${raw.slice(4)}`;
+  return { code: raw, display };
+}
+
+/** Compute whether share is currently active */
+function computeIsCurrentlyActive(isActive: boolean, expiresAt: string | null): boolean {
+  if (!isActive) return false;
+  if (!expiresAt) return true;
+  return new Date(expiresAt) > new Date();
+}
+
+/** Build standardized response object */
+function buildResponse(row: {
+  id: string;
+  code: string;
+  code_display: string;
+  created_at: string;
+  is_active: boolean;
+  expires_at: string | null;
+  default_range: string;
+}) {
+  const isCurrentlyActive = computeIsCurrentlyActive(row.is_active, row.expires_at);
+
+  // If expired but is_active still true, auto-correct in background (fire-and-forget)
+  return {
+    id: row.id,
+    code: row.code,
+    code_display: row.code_display,
+    created_at: row.created_at,
+    is_active: row.is_active,
+    expires_at: row.expires_at,
+    is_currently_active: isCurrentlyActive,
+    default_range: row.default_range,
+    // Legacy compatibility fields
+    is_share_active: isCurrentlyActive,
+    share_active_until: row.expires_at,
+    share_revoked_at: (!row.is_active && row.expires_at) ? row.expires_at : null,
+    was_revoked_today: false,
+  };
 }
 
 Deno.serve(async (req) => {
-  // CORS Preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Auth prüfen
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(
@@ -48,14 +80,12 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Supabase Client mit User-Token
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
     });
 
-    // User verifizieren
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) {
       return new Response(
@@ -64,13 +94,12 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Prüfe ob User bereits einen Code hat
-    const { data: existingCode, error: fetchError } = await supabase
+    // Try to fetch existing code (unique per user where revoked_at IS NULL)
+    const { data: existing, error: fetchError } = await supabase
       .from("doctor_shares")
-      .select("id, code, code_display, created_at, share_active_until, share_revoked_at")
+      .select("id, code, code_display, created_at, is_active, expires_at, default_range")
       .eq("user_id", user.id)
-      .is("revoked_at", null) // Nur nicht-widerrufene Codes
-      .order("created_at", { ascending: true })
+      .is("revoked_at", null)
       .limit(1)
       .maybeSingle();
 
@@ -82,57 +111,38 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Falls Code existiert, diesen mit Freigabe-Status zurückgeben
-    if (existingCode) {
-      const now = new Date();
-      const shareActiveUntil = existingCode.share_active_until 
-        ? new Date(existingCode.share_active_until) 
-        : null;
-      const shareRevokedAt = existingCode.share_revoked_at
-        ? new Date(existingCode.share_revoked_at)
-        : null;
-      
-      // Berechne ob Freigabe aktiv ist
-      const isShareActive = shareActiveUntil && shareActiveUntil > now;
-      
-      // Berechne ob heute bewusst beendet wurde (in User-Zeitzone vereinfacht)
-      // Wir prüfen: Wurde in den letzten 24h bewusst beendet?
-      const wasRevokedToday = shareRevokedAt && 
-        (now.getTime() - shareRevokedAt.getTime()) < 24 * 60 * 60 * 1000;
+    // If exists, auto-correct expired is_active and return
+    if (existing) {
+      const isCurrentlyActive = computeIsCurrentlyActive(existing.is_active, existing.expires_at);
+
+      // Auto-correct: if DB says active but actually expired, set is_active=false
+      if (existing.is_active && !isCurrentlyActive) {
+        await supabase
+          .from("doctor_shares")
+          .update({ is_active: false })
+          .eq("id", existing.id);
+        existing.is_active = false;
+      }
 
       return new Response(
-        JSON.stringify({
-          id: existingCode.id,
-          code: existingCode.code,
-          code_display: existingCode.code_display,
-          created_at: existingCode.created_at,
-          share_active_until: existingCode.share_active_until,
-          share_revoked_at: existingCode.share_revoked_at,
-          is_share_active: isShareActive,
-          was_revoked_today: wasRevokedToday,
-        }),
+        JSON.stringify(buildResponse(existing)),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Kein Code vorhanden -> Neuen erstellen
-    let attempts = 0;
+    // No code exists → create one (idempotent, collision-safe)
     let codeData: { code: string; display: string } | null = null;
-    
-    while (attempts < 5) {
+    for (let attempts = 0; attempts < 5; attempts++) {
       const candidate = generateShareCode();
-      
-      const { data: existing } = await supabase
+      const { data: collision } = await supabase
         .from("doctor_shares")
         .select("id")
         .eq("code", candidate.code)
         .maybeSingle();
-      
-      if (!existing) {
+      if (!collision) {
         codeData = candidate;
         break;
       }
-      attempts++;
     }
 
     if (!codeData) {
@@ -142,48 +152,38 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Permanenten Code erstellen (ohne aktive Freigabe)
     const { data: newCode, error: insertError } = await supabase
       .from("doctor_shares")
       .insert({
         user_id: user.id,
         code: codeData.code,
         code_display: codeData.display,
-        expires_at: null, // Kein Ablauf - Code ist permanent
+        expires_at: null,
         default_range: "3m",
-        share_active_until: null, // Freigabe noch nicht aktiv
-        share_revoked_at: null,
+        is_active: false,
       })
-      .select("id, code, code_display, created_at, share_active_until, share_revoked_at")
+      .select("id, code, code_display, created_at, is_active, expires_at, default_range")
       .single();
 
     if (insertError) {
+      // Race condition: another request created the code
       if (insertError.code === "23505") {
         console.log("Race condition detected, fetching existing code");
         const { data: raceCode } = await supabase
           .from("doctor_shares")
-          .select("id, code, code_display, created_at, share_active_until, share_revoked_at")
+          .select("id, code, code_display, created_at, is_active, expires_at, default_range")
           .eq("user_id", user.id)
           .is("revoked_at", null)
           .single();
 
         if (raceCode) {
           return new Response(
-            JSON.stringify({
-              id: raceCode.id,
-              code: raceCode.code,
-              code_display: raceCode.code_display,
-              created_at: raceCode.created_at,
-              share_active_until: raceCode.share_active_until,
-              share_revoked_at: raceCode.share_revoked_at,
-              is_share_active: false,
-              was_revoked_today: false,
-            }),
+            JSON.stringify(buildResponse(raceCode)),
             { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
       }
-      
+
       console.error("Insert error:", insertError);
       return new Response(
         JSON.stringify({ error: "Code konnte nicht erstellt werden" }),
@@ -192,16 +192,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({
-        id: newCode.id,
-        code: newCode.code,
-        code_display: newCode.code_display,
-        created_at: newCode.created_at,
-        share_active_until: newCode.share_active_until,
-        share_revoked_at: newCode.share_revoked_at,
-        is_share_active: false,
-        was_revoked_today: false,
-      }),
+      JSON.stringify(buildResponse(newCode)),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 

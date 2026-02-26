@@ -1,15 +1,15 @@
 /**
  * Doctor Share Hooks
  * React Query hooks for the "Per Code teilen" feature
- * 
- * NEU: 24h-Freigabe-Fenster Logik
+ *
+ * Logik: is_active + expires_at
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getDoctorShareStatus,
   activateDoctorShare,
-  revokeDoctorShare,
+  deactivateDoctorShare,
 } from "../api/doctorShare.api";
 import type { DoctorShareStatus } from "../api/types";
 
@@ -22,18 +22,18 @@ export function useDoctorShareStatus() {
   return useQuery({
     queryKey: QUERY_KEY,
     queryFn: getDoctorShareStatus,
-    staleTime: 1000 * 30, // 30 Sekunden - Freigabe-Status kann sich ändern
+    staleTime: 1000 * 30,
   });
 }
 
 /**
- * Aktiviert die 24h-Freigabe
+ * Aktiviert die Freigabe (Default 24h)
  */
 export function useActivateDoctorShare() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
-    mutationFn: activateDoctorShare,
+    mutationFn: () => activateDoctorShare(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY });
     },
@@ -41,18 +41,21 @@ export function useActivateDoctorShare() {
 }
 
 /**
- * Beendet die Freigabe sofort
+ * Beendet die Freigabe sofort (Toggle OFF)
  */
-export function useRevokeDoctorShare() {
+export function useDeactivateDoctorShare() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
-    mutationFn: revokeDoctorShare,
+    mutationFn: deactivateDoctorShare,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY });
     },
   });
 }
+
+// Legacy alias
+export const useRevokeDoctorShare = useDeactivateDoctorShare;
 
 // Legacy-Hooks für Kompatibilität
 export function usePermanentDoctorCode() {

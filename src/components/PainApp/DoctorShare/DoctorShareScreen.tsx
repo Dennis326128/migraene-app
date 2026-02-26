@@ -11,7 +11,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { Copy, Check, ExternalLink, AlertCircle, Loader2, Plus } from "lucide-react";
+import { Copy, Check, ExternalLink, AlertCircle, Loader2, Plus, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -96,7 +96,7 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack, on
     !isLoading &&
     !fetchError &&
     shareStatus &&
-    !shareStatus.is_share_active &&
+    !shareStatus.is_currently_active &&
     !shareStatus.was_revoked_today &&
     !justCreatedCode &&
     flowState === "idle";
@@ -129,7 +129,7 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack, on
 
     try {
       // 1. Activate share if needed
-      if (!shareStatus?.is_share_active) {
+      if (!shareStatus?.is_currently_active) {
         await activateMutation.mutateAsync(undefined);
         await refetch();
       }
@@ -371,13 +371,13 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack, on
   };
 
   const isPending = activateMutation.isPending || revokeMutation.isPending;
-  const isShareActive = shareStatus?.is_share_active ?? false;
+  const isShareActive = shareStatus?.is_currently_active ?? false;
   const displayCode = justCreatedCode || shareStatus?.code_display;
   const isGenerating = flowState === "generating";
   const isReady = !isLoading && !fetchError && flowState !== "generating" && flowState !== "error" && (isShareActive || justCreatedCode || shareStatus?.was_revoked_today);
 
   // Check if share expired (auto-off)
-  const isExpired = shareStatus && !isShareActive && shareStatus.share_active_until && !shareStatus.was_revoked_today;
+  const isExpired = shareStatus && !isShareActive && shareStatus.expires_at && shareStatus.is_active === false && !shareStatus.was_revoked_today;
 
   return (
     <div className="min-h-screen bg-background">
@@ -542,7 +542,7 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack, on
               {/* Expired hint */}
               {isExpired && (
                 <p className="text-sm text-muted-foreground">
-                  Freigabe ist abgelaufen. Du kannst sie jederzeit erneut aktivieren.
+                  Freigabe abgelaufen – erneut aktivieren.
                 </p>
               )}
 
@@ -564,14 +564,29 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack, on
                 </button>
               )}
 
-              {/* Toggle row */}
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-foreground">Freigabe aktiv</span>
-                <Switch
-                  checked={isShareActive}
-                  onCheckedChange={handleToggle}
-                  disabled={isPending}
-                />
+              {/* Toggle row with status */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-foreground">Freigabe aktiv</span>
+                  <Switch
+                    checked={isShareActive}
+                    onCheckedChange={handleToggle}
+                    disabled={isPending}
+                  />
+                </div>
+
+                {/* Status label */}
+                {isShareActive && shareStatus?.expires_at && (
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>
+                      Aktiv bis {format(new Date(shareStatus.expires_at), "HH:mm, dd.MM.", { locale: de })}
+                    </span>
+                  </div>
+                )}
+                {!isShareActive && !isExpired && shareStatus && (
+                  <p className="text-xs text-muted-foreground">Freigabe inaktiv</p>
+                )}
               </div>
 
               {/* 24h hint – first use only */}
