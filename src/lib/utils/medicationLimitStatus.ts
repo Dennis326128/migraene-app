@@ -44,6 +44,16 @@ export function getStatusLabel(status: LimitStatus): string {
   }
 }
 
+/** Period type to window days number */
+export function getPeriodWindowDays(periodType: string): number {
+  switch (periodType) {
+    case 'day': return 1;
+    case 'week': return 7;
+    case 'month': return 30;
+    default: return 30;
+  }
+}
+
 /** Period type to human-readable German time window */
 export function getPeriodTimeWindow(periodType: string): string {
   switch (periodType) {
@@ -54,7 +64,55 @@ export function getPeriodTimeWindow(periodType: string): string {
   }
 }
 
-/** Build professional, neutral warning message for a given status */
+/**
+ * Structured limit message for rendering as two separate paragraphs.
+ * SSOT for all 3 states: warning, reached, exceeded.
+ *
+ * Variables: {limit}, {windowDays}, {medName}, {count}, {remaining}, {ratioText}
+ */
+export interface LimitMessageParts {
+  title: string;
+  statusLine: string;
+  detailLine: string;
+}
+
+export function buildLimitMessageParts(
+  status: LimitStatus,
+  currentCount: number,
+  limitCount: number,
+  periodType: string,
+  medicationName: string,
+): LimitMessageParts | null {
+  const timeWindow = getPeriodTimeWindow(periodType);
+  const windowDays = getPeriodWindowDays(periodType);
+  const ratioText = `${currentCount}/${limitCount}`;
+  const remaining = Math.max(0, limitCount - currentCount);
+
+  switch (status) {
+    case 'warning':
+      return {
+        title: 'Limit bald erreicht',
+        statusLine: `Du hast ${ratioText} Einnahmen in den letzten ${windowDays} Tagen dokumentiert.`,
+        detailLine: `Noch ${remaining} bis zu deinem Limit von ${limitCount}.`,
+      };
+    case 'reached':
+      return {
+        title: 'Limit erreicht',
+        statusLine: `Du hast dein Limit von ${limitCount} Einnahmen in ${timeWindow} erreicht.`,
+        detailLine: `${medicationName}: ${currentCount} Einnahmen dokumentiert.`,
+      };
+    case 'exceeded':
+      return {
+        title: 'Limit überschritten',
+        statusLine: `Dein gesetztes Limit von ${limitCount} Einnahmen in ${timeWindow} wurde überschritten.`,
+        detailLine: `${medicationName}: ${currentCount} Einnahmen dokumentiert.`,
+      };
+    default:
+      return null;
+  }
+}
+
+/** @deprecated Use buildLimitMessageParts for structured rendering. */
 export function buildLimitMessage(
   status: LimitStatus,
   currentCount: number,
@@ -62,17 +120,7 @@ export function buildLimitMessage(
   periodType: string,
   medicationName: string,
 ): string | null {
-  const timeWindow = getPeriodTimeWindow(periodType);
-  const periodLabel = periodType === 'day' ? 'pro Tag' : periodType === 'week' ? 'pro Woche' : 'pro Monat';
-
-  switch (status) {
-    case 'warning':
-      return `Achtung: Du hast ${currentCount} von ${limitCount} Einnahmen in ${timeWindow} dokumentiert. Dein Limit beträgt ${limitCount} ${periodLabel}.`;
-    case 'reached':
-      return `Hinweis: Du hast dein Limit von ${limitCount} Einnahmen in ${timeWindow} erreicht.`;
-    case 'exceeded':
-      return `Dein gesetztes Limit von ${limitCount} Einnahmen in ${timeWindow} wurde überschritten. ${medicationName}: ${currentCount} Einnahmen dokumentiert.`;
-    default:
-      return null;
-  }
+  const parts = buildLimitMessageParts(status, currentCount, limitCount, periodType, medicationName);
+  if (!parts) return null;
+  return `${parts.statusLine} ${parts.detailLine}`;
 }
