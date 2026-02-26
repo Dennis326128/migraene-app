@@ -1805,10 +1805,11 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
         yPos -= 12;
 
         for (const b of wa.pressureDelta24h.buckets) {
-          page.drawText(sanitizeForPDF(b.label), { x: colX[0], y: yPos, size: 8, font, color: COLORS.text });
+          const labelTruncated = b.label.length > 40 ? b.label.substring(0, 37) + '...' : b.label;
+          page.drawText(sanitizeForPDF(labelTruncated), { x: colX[0], y: yPos, size: 8, font, color: COLORS.text });
           page.drawText(String(b.nDays), { x: colX[1], y: yPos, size: 8, font, color: COLORS.text });
-          page.drawText(`${Math.round(b.headacheRate * 100)}%`, { x: colX[2], y: yPos, size: 8, font, color: COLORS.text });
-          page.drawText(b.meanPainMax != null ? b.meanPainMax.toFixed(1) : '-', { x: colX[3], y: yPos, size: 8, font, color: COLORS.text });
+          page.drawText(b.nDays === 0 ? '-' : `${Math.round(b.headacheRate * 100)}%`, { x: colX[2], y: yPos, size: 8, font, color: COLORS.text });
+          page.drawText(b.nDays === 0 ? '-' : (b.meanPainMax != null ? b.meanPainMax.toFixed(1) : '-'), { x: colX[3], y: yPos, size: 8, font, color: COLORS.text });
           yPos -= 14;
         }
       }

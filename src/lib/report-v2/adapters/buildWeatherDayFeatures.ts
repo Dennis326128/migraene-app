@@ -32,6 +32,8 @@ export interface WeatherDayFeature {
   temperatureC: number | null;
   humidity: number | null;
   weatherCoverage: 'entry' | 'snapshot' | 'none';
+  /** Debug-only: reason for weather join decision */
+  weatherJoinReason?: string;
 }
 
 export interface WeatherLogForFeature {
@@ -296,6 +298,7 @@ export function buildWeatherDayFeatures(
     // ── Resolve weather ──
     let weatherLog: WeatherLogForFeature | null = null;
     let coverage: 'entry' | 'snapshot' | 'none' = 'none';
+    let joinReason = 'none';
 
     // Priority A: entry-linked weather (nearest to target)
     const entriesWithWeather = dayEntries.filter(e => e.weather_id != null);
@@ -306,6 +309,9 @@ export function buildWeatherDayFeatures(
         if (wl) {
           weatherLog = wl;
           coverage = 'entry';
+          joinReason = 'entry-weather-id-hit';
+        } else {
+          joinReason = 'entry-weather-id-miss';
         }
       }
     }
@@ -316,6 +322,9 @@ export function buildWeatherDayFeatures(
       if (candidates && candidates.length > 0) {
         weatherLog = pickNearestWeatherLog(candidates, targetMs);
         coverage = 'snapshot';
+        joinReason = joinReason === 'entry-weather-id-miss'
+          ? 'entry-weather-id-miss→snapshot'
+          : 'snapshot-by-date';
       }
     }
 
@@ -340,6 +349,7 @@ export function buildWeatherDayFeatures(
       temperatureC: weatherLog?.temperature_c ?? null,
       humidity: weatherLog?.humidity ?? null,
       weatherCoverage: coverage,
+      weatherJoinReason: joinReason,
     });
   }
 

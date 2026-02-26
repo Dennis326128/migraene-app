@@ -7,6 +7,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { fmtPct, fmtPain, fmtRR, fmtAbsDiff } from "@/lib/weather/computeWeatherAssociation";
 
 /** Minimal types matching WeatherAnalysisV2 shape */
 interface WeatherBucket {
@@ -72,7 +73,7 @@ export function WeatherAssociationCard({
         <div className="text-xs text-muted-foreground flex flex-wrap gap-x-3 gap-y-1">
           <span>Dokumentiert: {coverage.daysDocumented} Tage</span>
           <span>·</span>
-          <span>Wetter: {coverage.daysWithWeather} ({Math.round(coverage.ratioWeather * 100)}%)</span>
+          <span>Wetter: {coverage.daysWithWeather} ({fmtPct(coverage.ratioWeather)})</span>
           {coverage.daysWithEntryWeather != null && (
             <>
               <span>·</span>
@@ -92,7 +93,7 @@ export function WeatherAssociationCard({
             </>
           )}
           <span>·</span>
-          <span>Δ24h: {coverage.daysWithDelta24h} ({Math.round(coverage.ratioDelta24h * 100)}%)</span>
+          <span>Δ24h: {coverage.daysWithDelta24h} ({fmtPct(coverage.ratioDelta24h)})</span>
         </div>
 
         {/* Insufficient data */}
@@ -112,7 +113,7 @@ export function WeatherAssociationCard({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                  <th className="pb-2 pr-2 font-medium">Druckänderung</th>
+                  <th className="pb-2 pr-2 font-medium max-w-[220px]">Druckänderung</th>
                   <th className="pb-2 px-2 font-medium text-right">Tage</th>
                   <th className="pb-2 px-2 font-medium text-right">KS-Rate</th>
                   <th className="pb-2 pl-2 font-medium text-right">Ø Intensität</th>
@@ -121,13 +122,15 @@ export function WeatherAssociationCard({
               <tbody>
                 {pressureDelta24h.buckets.map((bucket) => (
                   <tr key={bucket.label} className="border-b border-border/50 last:border-0">
-                    <td className="py-2 pr-2 text-foreground">{bucket.label}</td>
+                    <td className="py-2 pr-2 text-foreground max-w-[220px] truncate" title={bucket.label}>
+                      {bucket.label}
+                    </td>
                     <td className="py-2 px-2 text-right text-muted-foreground">{bucket.nDays}</td>
                     <td className="py-2 px-2 text-right font-medium">
-                      {Math.round(bucket.headacheRate * 100)}%
+                      {bucket.nDays === 0 ? '–' : fmtPct(bucket.headacheRate)}
                     </td>
                     <td className="py-2 pl-2 text-right text-muted-foreground">
-                      {bucket.meanPainMax != null ? bucket.meanPainMax.toFixed(1) : "–"}
+                      {bucket.nDays === 0 ? '–' : fmtPain(bucket.meanPainMax)}
                     </td>
                   </tr>
                 ))}
@@ -142,13 +145,13 @@ export function WeatherAssociationCard({
             {pressureDelta24h.relativeRisk.rr != null ? (
               <>
                 <span className="font-medium">Relatives Risiko: </span>
-                <span>{pressureDelta24h.relativeRisk.rr}×</span>
+                <span>{fmtRR(pressureDelta24h.relativeRisk.rr)}</span>
                 <span className="text-muted-foreground ml-1">
                   ({pressureDelta24h.relativeRisk.compareLabel} vs. {pressureDelta24h.relativeRisk.referenceLabel})
                 </span>
                 {pressureDelta24h.relativeRisk.absDiff != null && (
                   <span className="text-muted-foreground ml-1">
-                    · Differenz: {pressureDelta24h.relativeRisk.absDiff > 0 ? '+' : ''}{Math.round(pressureDelta24h.relativeRisk.absDiff * 100)} pp
+                    · Differenz: {fmtAbsDiff(pressureDelta24h.relativeRisk.absDiff)}
                   </span>
                 )}
               </>
@@ -158,7 +161,7 @@ export function WeatherAssociationCard({
                 <span className="text-muted-foreground">(Referenz 0%)</span>
                 {pressureDelta24h.relativeRisk.absDiff != null && (
                   <span className="text-muted-foreground ml-1">
-                    · Differenz: {pressureDelta24h.relativeRisk.absDiff > 0 ? '+' : ''}{Math.round(pressureDelta24h.relativeRisk.absDiff * 100)} pp
+                    · Differenz: {fmtAbsDiff(pressureDelta24h.relativeRisk.absDiff)}
                   </span>
                 )}
               </>
