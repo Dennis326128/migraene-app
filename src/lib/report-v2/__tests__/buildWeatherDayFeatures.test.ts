@@ -3,10 +3,12 @@ import {
   buildWeatherDayFeatures,
   toLocalDateISO,
   parseSelectedTime,
+  localTimeToEpochMs,
   type WeatherLogForFeature,
   type EntryForWeatherJoin,
 } from '../adapters/buildWeatherDayFeatures';
 import type { DayCountRecord } from '../types';
+import { explainWeatherMissing } from '@/features/weather/components/WeatherDebugPanel';
 
 const TZ = 'Europe/Berlin';
 
@@ -645,5 +647,79 @@ describe('Δ24h null handling', () => {
       timezone: TZ,
     });
     expect(result[0].pressureChange24h).toBeNull();
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PHASE 2+3 TESTS — queryKey, TZ, backfill, explainWeatherMissing
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ─── Test: TZ conversion — local 10:00 Berlin ≠ 10:00 UTC ──
+describe('localTimeToEpochMs – TZ correctness', () => {
+  it('local 10:00 Berlin in winter (CET, UTC+1) differs from 10:00 UTC', () => {
+    const berlinMs = localTimeToEpochMs('2026-01-15', 10, 0, 'Europe/Berlin');
+    const utcMs = new Date('2026-01-15T10:00:00Z').getTime();
+    // Berlin 10:00 CET = 09:00 UTC → should be 1h earlier than 10:00 UTC
+    expect(berlinMs).toBe(utcMs - 3600000);
+  });
+
+  it('local 10:00 Berlin in summer (CEST, UTC+2) differs from 10:00 UTC', () => {
+    const berlinMs = localTimeToEpochMs('2026-07-15', 10, 0, 'Europe/Berlin');
+    const utcMs = new Date('2026-07-15T10:00:00Z').getTime();
+    // Berlin 10:00 CEST = 08:00 UTC → should be 2h earlier
+    expect(berlinMs).toBe(utcMs - 7200000);
+  });
+});
+
+// ─── Test: explainWeatherMissing returns expected codes ──
+describe('explainWeatherMissing', () => {
+  it('returns OK when entry weather exists', () => {
+    expect(explainWeatherMissing({
+      weatherId: 1, weatherStatus: 'ok', weatherErrorCode: null,
+      hasEntryWeather: true, snapshotAvailable: false, hasLocation: true,
+    })).toBe('OK');
+  });
+
+  it('returns OK when snapshot available', () => {
+    expect(explainWeatherMissing({
+      weatherId: null, weatherStatus: null, weatherErrorCode: null,
+      hasEntryWeather: false, snapshotAvailable: true, hasLocation: true,
+    })).toBe('OK');
+  });
+
+  it('returns NO_LOCATION when no coordinates', () => {
+    expect(explainWeatherMissing({
+      weatherId: null, weatherStatus: null, weatherErrorCode: null,
+      hasEntryWeather: false, snapshotAvailable: false, hasLocation: false,
+    })).toBe('NO_LOCATION');
+  });
+
+  it('returns WEATHER_PENDING', () => {
+    expect(explainWeatherMissing({
+      weatherId: null, weatherStatus: 'pending', weatherErrorCode: null,
+      hasEntryWeather: false, snapshotAvailable: false, hasLocation: true,
+    })).toBe('WEATHER_PENDING');
+  });
+
+  it('returns WEATHER_FAILED with code', () => {
+    const result = explainWeatherMissing({
+      weatherId: null, weatherStatus: 'failed', weatherErrorCode: 'API_TIMEOUT',
+      hasEntryWeather: false, snapshotAvailable: false, hasLocation: true,
+    });
+    expect(result).toBe('WEATHER_FAILED:API_TIMEOUT');
+  });
+
+  it('returns WEATHER_ID_MISSING_LOG', () => {
+    expect(explainWeatherMissing({
+      weatherId: 123, weatherStatus: 'ok', weatherErrorCode: null,
+      hasEntryWeather: false, snapshotAvailable: false, hasLocation: true,
+    })).toBe('WEATHER_ID_MISSING_LOG');
+  });
+
+  it('returns NO_WEATHER_ID_AND_NO_SNAPSHOT', () => {
+    expect(explainWeatherMissing({
+      weatherId: null, weatherStatus: 'ok', weatherErrorCode: null,
+      hasEntryWeather: false, snapshotAvailable: false, hasLocation: true,
+    })).toBe('NO_WEATHER_ID_AND_NO_SNAPSHOT');
   });
 });

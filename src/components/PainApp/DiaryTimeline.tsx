@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Filter, Calendar as CalendarIcon, Edit, Trash2, ChevronDown, ChevronUp, ArrowDown, Heart, MessageSquare, List, LayoutGrid, Pill, Activity, Thermometer, Droplets, Gauge, Cloud, TrendingUp, TrendingDown, Info } from 'lucide-react';
+import { WeatherDebugPanel, explainWeatherMissing, type WeatherDebugInfo } from '@/features/weather/components/WeatherDebugPanel';
 import { AppHeader } from '@/components/ui/app-header';
 import { format, subDays } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -122,12 +123,38 @@ function WeatherDetail({ entryData, userId }: { entryData: any; userId: string |
     enabled: true,
   });
 
+  // Build debug info
+  const missingReason = explainWeatherMissing({
+    weatherId: entryData.weather_id ?? null,
+    weatherStatus: entryData.weather_status ?? null,
+    weatherErrorCode: entryData.weather_error_code ?? null,
+    hasEntryWeather,
+    snapshotAvailable: snapshotWeather !== null && snapshotWeather !== undefined,
+    hasLocation: !!(entryData.latitude || entryData.longitude),
+  });
+
+  const debugInfo: WeatherDebugInfo = {
+    entryId: entryData.id,
+    selectedDate: entryData.selected_date ?? null,
+    selectedTime: entryData.selected_time ?? null,
+    timestampCreated: entryData.timestamp_created ?? null,
+    weatherId: entryData.weather_id ?? null,
+    weatherStatus: entryData.weather_status ?? null,
+    weatherErrorCode: entryData.weather_error_code ?? null,
+    weatherRetryCount: entryData.weather_retry_count ?? null,
+    weatherErrorAt: entryData.weather_error_at ?? null,
+    hasEntryWeather,
+    snapshotFallbackUsed: isSnapshot,
+    snapshotWeatherId: snapshotWeather?.id ?? null,
+    missingReason,
+  };
+
   if (import.meta.env.DEV) {
-    console.debug('[DiaryTimeline] Weather debug', {
+    console.debug('[WeatherDetail]', {
       entryId: entryData.id,
-      hasEntryWeather,
-      isSnapshot,
+      source: hasEntryWeather ? 'entry' : isSnapshot ? 'snapshot' : 'none',
       snapshotId: snapshotWeather?.id,
+      missingReason,
       deltaResult,
     });
   }
@@ -219,6 +246,7 @@ function WeatherDetail({ entryData, userId }: { entryData: any; userId: string |
           </div>
         )}
       </div>
+      <WeatherDebugPanel info={debugInfo} />
     </div>
   );
 }

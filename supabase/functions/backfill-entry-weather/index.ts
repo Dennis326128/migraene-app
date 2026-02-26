@@ -71,7 +71,7 @@ serve(async (req) => {
       .from('pain_entries')
       .select('id, user_id, selected_date, selected_time, latitude, longitude, timestamp_created, weather_status, weather_retry_count')
       .or('weather_status.is.null,weather_status.eq.pending,weather_status.eq.failed,weather_id.is.null')
-      .lt('weather_retry_count', 5)
+      .or('weather_retry_count.is.null,weather_retry_count.lt.5')
       .gte('timestamp_created', thirtyDaysAgo)
       .order('timestamp_created', { ascending: false })
       .limit(50);
@@ -274,17 +274,44 @@ serve(async (req) => {
 
 /**
  * Compute entry target time in epoch ms for nearest-snapshot matching.
- * Falls back to noon UTC if no time provided.
+ * Uses Europe/Berlin timezone for DST-safe conversion.
+ * Falls back to noon Berlin time if no time provided.
  */
 function computeEntryTimeMs(dateISO: string, timeStr: string | null): number {
-  if (!timeStr) {
-    return new Date(`${dateISO}T12:00:00Z`).getTime();
-  }
-  // Normalize HH:MM or HH:MM:SS
-  const parts = timeStr.split(':');
-  const hh = parts[0] || '12';
-  const mm = parts[1] || '00';
-  return new Date(`${dateISO}T${hh}:${mm}:00Z`).getTime();
+  // Parse time
+  const hh = timeStr ? parseInt(timeStr.split(':')[0] || '12', 10) : 12;
+  const mm = timeStr ? parseInt(timeStr.split(':')[1] || '0', 10) : 0;
+
+  // Build local time string and compute UTC offset via Intl
+  const isoStr = `${dateISO}T${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:00`;
+  const naive = new Date(isoStr + 'Z');
+  if (isNaN(naive.getTime())) return new Date(`${dateISO}T12:00:00Z`).getTime();
+
+  // Get Berlin offset at this moment
+  const utcFmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'UTC', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  });
+  const tzFmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  });
+
+  const getPart = (parts: Intl.DateTimeFormatPart[], type: string) => {
+    let val = parts.find(p => p.type === type)?.value ?? '0';
+    if (type === 'hour' && val === '24') val = '0';
+    return parseInt(val, 10);
+  };
+  const toMs = (parts: Intl.DateTimeFormatPart[]) =>
+    Date.UTC(getPart(parts, 'year'), getPart(parts, 'month') - 1, getPart(parts, 'day'),
+             getPart(parts, 'hour'), getPart(parts, 'minute'), getPart(parts, 'second'));
+
+  const utcMs = toMs(utcFmt.formatToParts(naive));
+  const tzMs = toMs(tzFmt.formatToParts(naive));
+  const offsetMs = tzMs - utcMs;
+
+  // UTC = localTime - offset
+  return naive.getTime() - offsetMs;
 }
 
 /**

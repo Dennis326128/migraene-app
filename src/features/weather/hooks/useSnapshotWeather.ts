@@ -53,7 +53,12 @@ async function fetchSnapshotWeather(
     .order('requested_at', { ascending: true })
     .limit(20);
 
-  if (error || !data || data.length === 0) return null;
+  if (error || !data || data.length === 0) {
+    if (import.meta.env.DEV) {
+      console.debug('[fetchSnapshotWeather] no candidates', { error: error?.message, count: data?.length ?? 0 });
+    }
+    return null;
+  }
 
   // Find nearest to entryTimeMs (prefer requested_at, fallback created_at)
   let best = data[0];
@@ -67,6 +72,16 @@ async function fetchSnapshotWeather(
       bestDiff = diff;
       best = row;
     }
+  }
+
+  if (import.meta.env.DEV) {
+    const chosenTs = best.requested_at || best.created_at;
+    console.debug('[fetchSnapshotWeather] chosen', {
+      candidates: data.length,
+      chosenId: best.id,
+      chosenField: best.requested_at ? 'requested_at' : 'created_at',
+      diffMs: bestDiff,
+    });
   }
 
   return {
@@ -102,8 +117,16 @@ export function useSnapshotWeather(params: {
     : 0;
 
   return useQuery({
-    queryKey: ['snapshot-weather', entryId],
-    queryFn: () => fetchSnapshotWeather(userId!, entryDate!, entryTimeMs),
+    // queryKey includes userId/date/time for correct cache isolation
+    queryKey: ['snapshot-weather', userId, entryDate, entryTime ?? 'noon', entryId],
+    queryFn: () => {
+      if (import.meta.env.DEV) {
+        console.debug('[useSnapshotWeather] fetch', {
+          userId, entryDate, entryTime, entryTimeMs, tz: TZ,
+        });
+      }
+      return fetchSnapshotWeather(userId!, entryDate!, entryTimeMs);
+    },
     enabled: enabled && !hasEntryWeather && !!userId && !!entryDate,
     staleTime: 10 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
