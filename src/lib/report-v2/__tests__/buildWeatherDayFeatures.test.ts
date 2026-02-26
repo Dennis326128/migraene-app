@@ -726,17 +726,26 @@ describe('explainWeatherMissing', () => {
 
 // ─── WeatherDebugPanel prod gating ─────────────────────────────────────
 describe('WeatherDebugPanel prod gating', () => {
-  it('should only render when DEV or VITE_WEATHER_DEBUG flag is set', () => {
-    // The component checks: import.meta.env.DEV || import.meta.env.VITE_WEATHER_DEBUG === 'true'
-    // In prod (DEV=false, no flag) it returns null.
-    // We test the logic inline since we can't easily mock import.meta.env in vitest without setup.
-    const isDebugEnabled = (isDev: boolean, flag?: string) => isDev || flag === 'true';
+  const shouldRender = (isDev: boolean, flag: string | undefined, localStorageVal: string | null) =>
+    (isDev || flag === 'true') && localStorageVal === '1';
 
-    expect(isDebugEnabled(false)).toBe(false);
-    expect(isDebugEnabled(false, undefined)).toBe(false);
-    expect(isDebugEnabled(false, 'false')).toBe(false);
-    expect(isDebugEnabled(true)).toBe(true);
-    expect(isDebugEnabled(false, 'true')).toBe(true);
+  it('should NOT render in prod without support mode', () => {
+    expect(shouldRender(false, undefined, null)).toBe(false);
+    expect(shouldRender(false, 'false', null)).toBe(false);
+    expect(shouldRender(false, undefined, '0')).toBe(false);
+  });
+
+  it('should NOT render in DEV without localStorage support flag', () => {
+    expect(shouldRender(true, undefined, null)).toBe(false);
+    expect(shouldRender(true, undefined, '0')).toBe(false);
+  });
+
+  it('should render when DEV=true AND support_weather_debug=1', () => {
+    expect(shouldRender(true, undefined, '1')).toBe(true);
+  });
+
+  it('should render when VITE_WEATHER_DEBUG=true AND support_weather_debug=1', () => {
+    expect(shouldRender(false, 'true', '1')).toBe(true);
   });
 });
 
