@@ -1,6 +1,6 @@
 /**
  * DoctorReportView
- * Arzt-Ansicht des Patientenberichts
+ * Arzt-Ansicht des Patientenberichts (SSOT v1 Report Schema)
  * Route: /doctor/view
  */
 
@@ -30,60 +30,11 @@ import {
   buildDoctorFetchInit,
   doctorAccessStore,
 } from "@/features/doctor-share/doctorAccessStore";
+import { safeDateFormat } from "@/lib/utils/safeParseDate";
 
-// Types
-interface ReportSummary {
-  headache_days: number;
-  migraine_days: number;
-  triptan_days: number;
-  acute_med_days: number;
-  avg_intensity: number;
-  overuse_warning: boolean;
-  // NEU: Erweiterte KPIs vom Snapshot
-  total_triptan_intakes?: number;
-  kpis?: {
-    painDays: number;
-    migraineDays: number;
-    triptanDays: number;
-    acuteMedDays: number;
-    auraDays: number;
-    avgIntensity: number;
-    totalTriptanIntakes: number;
-  };
-  normalizedKPIs?: {
-    painDaysPer30: number;
-    migraineDaysPer30: number;
-    triptanDaysPer30: number;
-    triptanIntakesPer30: number;
-    acuteMedDaysPer30: number;
-  };
-}
-
-interface ChartData {
-  dates: string[];
-  pain_levels: number[];
-}
-
-interface MedicationStat {
-  name: string;
-  intake_count: number;
-  avg_effect: number | null;
-  effect_count: number;
-  // NEU: Erweiterte Felder
-  days_used?: number;
-  avg_per_30?: number;
-  is_triptan?: boolean;
-}
-
-interface PainEntry {
-  id: number;
-  selected_date: string;
-  selected_time: string | null;
-  pain_level: string;
-  aura_type: string | null;
-  medications: string[] | null;
-  notes: string | null;
-}
+// ═══════════════════════════════════════════════════════════════
+// Types — aligned with DoctorReportJSON from Edge Function
+// ═══════════════════════════════════════════════════════════════
 
 interface ReportPeriod {
   fromDate: string;
@@ -93,27 +44,132 @@ interface ReportPeriod {
   entriesCount: number;
 }
 
-interface ReportData {
+interface NormalizationConfig {
+  enabled: boolean;
+  targetDays: number;
+  basisDays: number;
+}
+
+interface ReportMeta {
+  range: string;
+  fromDate: string;
+  toDate: string;
+  generatedAt: string;
+  timezone: string;
+  reportVersion: string;
+  schemaVersion: string;
+  period: ReportPeriod;
+  normalization: NormalizationConfig;
+}
+
+interface CoreKPIs {
+  painDays: number;
+  migraineDays: number;
+  triptanDays: number;
+  acuteMedDays: number;
+  auraDays: number;
+  avgIntensity: number;
+  totalTriptanIntakes: number;
+}
+
+interface NormalizedKPIs {
+  painDaysPer30: number;
+  migraineDaysPer30: number;
+  triptanDaysPer30: number;
+  triptanIntakesPer30: number;
+  acuteMedDaysPer30: number;
+}
+
+interface ReportSummary {
+  daysInRange: number;
+  headacheDays: number;
+  migraineDays: number;
+  triptanDays: number;
+  acuteMedDays: number;
+  auraDays: number;
+  avgIntensity: number;
+  overuseWarning: boolean;
+  kpis: CoreKPIs;
+  normalizedKPIs: NormalizedKPIs;
+  totalTriptanIntakes: number;
+  documentationGaps: { gapDays: number; message: string };
+}
+
+interface ReportEntry {
+  id: number;
+  date: string;
+  time: string | null;
+  createdAt: string;
+  intensity: number;
+  intensityLabel: string;
+  medications: string[];
+  note: string | null;
+  aura: string | null;
+  painLocations: string[];
+}
+
+interface MedicationStat {
+  name: string;
+  intakeCount: number;
+  avgEffect: number | null;
+  effectCount: number;
+  daysUsed?: number;
+  avgPer30?: number;
+  isTriptan?: boolean;
+}
+
+interface ProphylaxisCourse {
+  id: string;
+  name: string;
+  doseText: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  isActive: boolean;
+  effectiveness: number | null;
+  sideEffects: string | null;
+  discontinuationReason: string | null;
+}
+
+interface PatientData {
+  firstName: string | null;
+  lastName: string | null;
+  fullName: string | null;
+  dateOfBirth: string | null;
+  street: string | null;
+  postalCode: string | null;
+  city: string | null;
+  phone: string | null;
+  fax: string | null;
+  healthInsurance: string | null;
+  insuranceNumber: string | null;
+  salutation: string | null;
+  title: string | null;
+}
+
+interface DoctorReportJSON {
+  meta: ReportMeta;
   summary: ReportSummary;
-  chart_data: ChartData;
-  entries: PainEntry[];
-  entries_total: number;
-  entries_page: number;
-  entries_page_size: number;
-  medication_stats: MedicationStat[];
-  from_date: string;
-  to_date: string;
-  // NEU: Erweiterte Metadaten vom Snapshot
-  report?: {
-    meta?: {
-      period?: ReportPeriod;
-      normalization?: {
-        enabled: boolean;
-        targetDays: number;
-        basisDays: number;
-      };
-    };
+  charts: {
+    intensityOverTime: { date: string; maxIntensity: number; isMigraine: boolean }[];
+    topAcuteMeds: { label: string; value: number; category?: string }[];
   };
+  tables: {
+    entries: ReportEntry[];
+    entriesTotal: number;
+    entriesPage: number;
+    entriesPageSize: number;
+    prophylaxisCourses: ProphylaxisCourse[];
+    medicationStats: MedicationStat[];
+    locationStats: Record<string, number>;
+  };
+  optional: {
+    patientData?: PatientData;
+  };
+}
+
+/** API response shape */
+interface DoctorReportResponse {
+  report: DoctorReportJSON;
 }
 
 type RangeFilter = "30d" | "3m" | "6m" | "12m";
@@ -125,34 +181,49 @@ const RANGE_LABELS: Record<RangeFilter, string> = {
   "12m": "1 Jahr",
 };
 
-const PAIN_LEVEL_LABELS: Record<string, string> = {
-  "-": "Kein Schmerz",
-  leicht: "Leicht",
-  mittel: "Mittel",
-  stark: "Stark",
-  sehr_stark: "Sehr stark",
+const INTENSITY_LABELS: Record<string, string> = {
+  "Kein Schmerz": "Kein Schmerz",
+  "Leicht": "Leicht",
+  "Mittel": "Mittel",
+  "Stark": "Stark",
+  "Sehr stark": "Sehr stark",
 };
+
+// ═══════════════════════════════════════════════════════════════
+// Component
+// ═══════════════════════════════════════════════════════════════
 
 const DoctorReportView: React.FC = () => {
   const navigate = useNavigate();
 
   const [range, setRange] = useState<RangeFilter>("3m");
   const [page, setPage] = useState(1);
-  const [data, setData] = useState<ReportData | null>(null);
+  const [report, setReport] = useState<DoctorReportJSON | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
-  const [expiredMessage, setExpiredMessage] = useState<string | null>(null);
 
-  // Daten laden
+  // Date formatting helpers using safeParseDate
+  const fmtDate = (dateStr: string | null | undefined) =>
+    safeDateFormat(dateStr, (d) => format(d, "d. MMM yyyy", { locale: de }));
+
+  const fmtDateShort = (dateStr: string | null | undefined) =>
+    safeDateFormat(dateStr, (d) => format(d, "dd.MM.", { locale: de }));
+
+  // ─── Data Loading ──────────────────────────────────────────
   const loadData = useCallback(async (currentRange: RangeFilter, currentPage: number) => {
+    // Guard: no token → redirect
+    if (!doctorAccessStore.get()) {
+      navigate("/doctor");
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
-    setExpiredMessage(null);
 
     try {
       const response = await fetch(
-        `${SUPABASE_FUNCTIONS_BASE_URL}/get-shared-report-data?range=${currentRange}&page=${currentPage}&legacy=1`,
+        `${SUPABASE_FUNCTIONS_BASE_URL}/get-shared-report-data?range=${currentRange}&page=${currentPage}`,
         {
           method: "GET",
           ...buildDoctorFetchInit(),
@@ -161,7 +232,6 @@ const DoctorReportView: React.FC = () => {
 
       if (!response.ok) {
         if (response.status === 401) {
-          setExpiredMessage("Freigabe beendet oder abgelaufen");
           doctorAccessStore.clear();
           navigate("/doctor?expired=1");
           return;
@@ -169,29 +239,31 @@ const DoctorReportView: React.FC = () => {
         throw new Error("Daten konnten nicht geladen werden");
       }
 
-      const result = await response.json();
-      setData(result);
+      const result: DoctorReportResponse = await response.json();
+
+      if (!result.report?.meta) {
+        throw new Error("Ungültiges Datenformat");
+      }
+
+      setReport(result.report);
     } catch (err) {
-      console.error("Load error:", err);
-      setError("Fehler beim Laden der Daten");
+      console.error("[DoctorReportView] Load error:", err);
+      setError("Beim Laden des Berichts ist ein Fehler aufgetreten. Bitte versuchen Sie es erneut.");
     } finally {
       setIsLoading(false);
     }
   }, [navigate]);
 
-  // Initial laden (no ping needed — token-based auth)
   useEffect(() => {
     loadData(range, page);
   }, [loadData, range, page]);
 
-  // Range ändern
   const handleRangeChange = (newRange: RangeFilter) => {
     setRange(newRange);
     setPage(1);
-    loadData(newRange, 1);
   };
 
-  // PDF herunterladen
+  // ─── PDF Download ──────────────────────────────────────────
   const handleDownloadPdf = async () => {
     setIsDownloading(true);
     try {
@@ -214,9 +286,11 @@ const DoctorReportView: React.FC = () => {
 
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
+      const fromStr = report?.meta.fromDate ?? "unbekannt";
+      const toStr = report?.meta.toDate ?? "unbekannt";
       const link = document.createElement("a");
       link.href = url;
-      link.download = `Kopfschmerztagebuch_${data?.from_date}_${data?.to_date}.pdf`;
+      link.download = `Kopfschmerztagebuch_${fromStr}_${toStr}.pdf`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -224,43 +298,27 @@ const DoctorReportView: React.FC = () => {
 
       toast.success("PDF heruntergeladen");
     } catch (err) {
-      console.error("Download error:", err);
+      console.error("[DoctorReportView] PDF error:", err);
       toast.error("PDF-Download fehlgeschlagen");
     } finally {
       setIsDownloading(false);
     }
   };
 
-  // Abmelden
   const handleLogout = () => {
     doctorAccessStore.clear();
     navigate("/doctor");
   };
 
-  const computeDaysInRange = (fromDate: string, toDate: string) => {
-    const from = new Date(fromDate);
-    const to = new Date(toDate);
-    const ms = to.getTime() - from.getTime();
-    const days = Math.floor(ms / (1000 * 60 * 60 * 24)) + 1;
-    return Math.max(1, days);
-  };
-
-  const formatPer30 = (value: number, daysInRange: number) => {
-    const per30 = (value / daysInRange) * 30;
-    return per30.toFixed(1);
-  };
-
-  // Formatierung
-  const formatDate = (dateStr: string) => {
-    return format(new Date(dateStr), "d. MMM yyyy", { locale: de });
-  };
-
-  const formatDateShort = (dateStr: string) => {
-    return format(new Date(dateStr), "dd.MM.", { locale: de });
-  };
-
-  // Pagination
-  const totalPages = data ? Math.ceil(data.entries_total / data.entries_page_size) : 1;
+  // ─── Derived values ────────────────────────────────────────
+  const meta = report?.meta;
+  const summary = report?.summary;
+  const tables = report?.tables;
+  const nkpis = summary?.normalizedKPIs;
+  const kpis = summary?.kpis;
+  const period = meta?.period;
+  const daysInRange = period?.daysInRange ?? summary?.daysInRange ?? 1;
+  const totalPages = tables ? Math.ceil(tables.entriesTotal / tables.entriesPageSize) : 1;
 
   return (
     <div className="min-h-screen bg-background">
@@ -269,9 +327,9 @@ const DoctorReportView: React.FC = () => {
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
           <div>
             <h1 className="font-semibold text-lg">Kopfschmerztagebuch</h1>
-            {data && (
+            {meta && (
               <p className="text-sm text-muted-foreground">
-                {formatDate(data.from_date)} – {formatDate(data.to_date)}
+                {fmtDate(meta.fromDate)} – {fmtDate(meta.toDate)}
               </p>
             )}
           </div>
@@ -322,55 +380,26 @@ const DoctorReportView: React.FC = () => {
           </div>
         ) : error ? (
           <Card>
-            <CardContent className="py-8 text-center">
+            <CardContent className="py-8 text-center space-y-4">
               <p className="text-destructive">{error}</p>
-              <Button
-                variant="outline"
-                className="mt-4"
-                onClick={() => loadData(range, page)}
-              >
+              <Button variant="outline" onClick={() => loadData(range, page)}>
                 Erneut versuchen
               </Button>
             </CardContent>
           </Card>
-        ) : data ? (
+        ) : report && summary && tables ? (
           <>
-            {/* Expired Message (rare, but keep UX clear) */}
-            {expiredMessage && (
-              <Card>
-                <CardContent className="py-4 text-center text-muted-foreground">
-                  {expiredMessage}
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Summary Cards - Nutze normalizedKPIs wenn vorhanden, sonst berechne */}
+            {/* Summary Cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {(() => {
-                // Nutze erweiterte KPIs wenn vorhanden
-                const nkpis = data.summary.normalizedKPIs;
-                const daysInRange = data.report?.meta?.period?.daysInRange 
-                  ?? computeDaysInRange(data.from_date, data.to_date);
-                
-                // Bevorzuge Server-berechnete Werte, Fallback auf Client-Berechnung
-                const headachePer30 = nkpis?.painDaysPer30?.toFixed(1) 
-                  ?? formatPer30(data.summary.headache_days, daysInRange);
-                const triptanPer30 = nkpis?.triptanDaysPer30?.toFixed(1) 
-                  ?? formatPer30(data.summary.triptan_days, daysInRange);
-                const triptanIntakesPer30 = nkpis?.triptanIntakesPer30?.toFixed(1) 
-                  ?? (data.summary.total_triptan_intakes 
-                      ? formatPer30(data.summary.total_triptan_intakes, daysInRange) 
-                      : null);
-
-                return (
-                  <>
               <Card>
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2 text-muted-foreground mb-1">
                     <Calendar className="w-4 h-4" />
                     <span className="text-xs">Kopfschmerztage / 30 Tage</span>
                   </div>
-                  <p className="text-2xl font-bold">{headachePer30}</p>
+                  <p className="text-2xl font-bold">
+                    {nkpis?.painDaysPer30?.toFixed(1) ?? "-"}
+                  </p>
                 </CardContent>
               </Card>
 
@@ -380,7 +409,7 @@ const DoctorReportView: React.FC = () => {
                     <Activity className="w-4 h-4" />
                     <span className="text-xs">Migränetage (roh)</span>
                   </div>
-                  <p className="text-2xl font-bold">{data.summary.migraine_days}</p>
+                  <p className="text-2xl font-bold">{kpis?.migraineDays ?? summary.migraineDays}</p>
                 </CardContent>
               </Card>
 
@@ -389,10 +418,12 @@ const DoctorReportView: React.FC = () => {
                   <div className="flex items-center gap-2 text-muted-foreground mb-1">
                     <Pill className="w-4 h-4" />
                     <span className="text-xs">
-                      {triptanIntakesPer30 ? "Triptan-Einnahmen / 30 Tage" : "Triptantage / 30 Tage"}
+                      {nkpis?.triptanIntakesPer30 != null ? "Triptan-Einnahmen / 30 Tage" : "Triptantage / 30 Tage"}
                     </span>
                   </div>
-                  <p className="text-2xl font-bold">{triptanIntakesPer30 || triptanPer30}</p>
+                  <p className="text-2xl font-bold">
+                    {nkpis?.triptanIntakesPer30?.toFixed(1) ?? nkpis?.triptanDaysPer30?.toFixed(1) ?? "-"}
+                  </p>
                 </CardContent>
               </Card>
 
@@ -402,24 +433,19 @@ const DoctorReportView: React.FC = () => {
                     <TrendingUp className="w-4 h-4" />
                     <span className="text-xs">Ø Intensität</span>
                   </div>
-                  <p className="text-2xl font-bold">{data.summary.avg_intensity}</p>
+                  <p className="text-2xl font-bold">{summary.avgIntensity}</p>
                 </CardContent>
               </Card>
-                  </>
-                );
-              })()}
             </div>
 
-            {/* Pie Chart: Tagesverteilung */}
-            {(() => {
-              const daysInRange = data.report?.meta?.period?.daysInRange 
-                ?? computeDaysInRange(data.from_date, data.to_date);
-              const headacheDays = data.summary.kpis?.painDays ?? data.summary.headache_days;
-              const triptanDays = data.summary.kpis?.triptanDays ?? data.summary.triptan_days;
+            {/* Pie Chart */}
+            {daysInRange > 0 && (() => {
+              const headacheDays = kpis?.painDays ?? summary.headacheDays;
+              const triptanDays = kpis?.triptanDays ?? summary.triptanDays;
               const painNoTriptan = Math.max(0, headacheDays - triptanDays);
               const painFree = Math.max(0, daysInRange - headacheDays);
-              
-              return daysInRange > 0 ? (
+
+              return (
                 <Card>
                   <CardContent className="p-4">
                     <p className="text-sm font-medium text-muted-foreground mb-3">Tagesverteilung</p>
@@ -431,72 +457,60 @@ const DoctorReportView: React.FC = () => {
                     />
                   </CardContent>
                 </Card>
-              ) : null;
-            })()}
-
-            {/* Erweiterte Zusammenfassung mit Normalisierung */}
-            {(() => {
-              const period = data.report?.meta?.period;
-              const daysInRange = period?.daysInRange ?? computeDaysInRange(data.from_date, data.to_date);
-              const nkpis = data.summary.normalizedKPIs;
-              const headachePer30 = nkpis?.painDaysPer30?.toFixed(1) ?? formatPer30(data.summary.headache_days, daysInRange);
-              const triptanPer30 = nkpis?.triptanDaysPer30?.toFixed(1) ?? formatPer30(data.summary.triptan_days, daysInRange);
-              const triptanIntakesPer30 = nkpis?.triptanIntakesPer30;
-              
-              return (
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <tbody>
-                          <tr className="border-b">
-                            <td className="py-2 text-muted-foreground">Tage im Zeitraum</td>
-                            <td className="py-2 text-right font-medium">{daysInRange}</td>
-                          </tr>
-                          {period?.documentedDaysCount !== undefined && (
-                            <tr className="border-b">
-                              <td className="py-2 text-muted-foreground">davon dokumentiert</td>
-                              <td className="py-2 text-right font-medium">{period.documentedDaysCount}</td>
-                            </tr>
-                          )}
-                          <tr className="border-b">
-                            <td className="py-2 text-muted-foreground">Einträge gesamt</td>
-                            <td className="py-2 text-right font-medium">{data.entries_total}</td>
-                          </tr>
-                          <tr className="border-b">
-                            <td className="py-2 text-muted-foreground">Schmerztage (roh)</td>
-                            <td className="py-2 text-right font-medium">{data.summary.headache_days}</td>
-                          </tr>
-                          <tr className="border-b">
-                            <td className="py-2 text-muted-foreground">Triptantage (roh)</td>
-                            <td className="py-2 text-right font-medium">{data.summary.triptan_days}</td>
-                          </tr>
-                          {data.summary.total_triptan_intakes !== undefined && (
-                            <tr className="border-b">
-                              <td className="py-2 text-muted-foreground">Triptan-Einnahmen gesamt</td>
-                              <td className="py-2 text-right font-medium">{data.summary.total_triptan_intakes}</td>
-                            </tr>
-                          )}
-                          <tr>
-                            <td className="py-2 text-muted-foreground">Ø pro 30 Tage (normiert)</td>
-                            <td className="py-2 text-right font-medium">
-                              Schmerzen {headachePer30} · 
-                              {triptanIntakesPer30 !== undefined 
-                                ? ` Triptan ${triptanIntakesPer30.toFixed(1)} Einnahmen`
-                                : ` Triptan ${triptanPer30} Tage`
-                              }
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                  </CardContent>
-                </Card>
               );
             })()}
 
+            {/* Extended Summary Table */}
+            <Card>
+              <CardContent className="p-4">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <tbody>
+                      <tr className="border-b">
+                        <td className="py-2 text-muted-foreground">Tage im Zeitraum</td>
+                        <td className="py-2 text-right font-medium">{daysInRange}</td>
+                      </tr>
+                      {period?.documentedDaysCount != null && (
+                        <tr className="border-b">
+                          <td className="py-2 text-muted-foreground">davon dokumentiert</td>
+                          <td className="py-2 text-right font-medium">{period.documentedDaysCount}</td>
+                        </tr>
+                      )}
+                      <tr className="border-b">
+                        <td className="py-2 text-muted-foreground">Einträge gesamt</td>
+                        <td className="py-2 text-right font-medium">{tables.entriesTotal}</td>
+                      </tr>
+                      <tr className="border-b">
+                        <td className="py-2 text-muted-foreground">Schmerztage (roh)</td>
+                        <td className="py-2 text-right font-medium">{summary.headacheDays}</td>
+                      </tr>
+                      <tr className="border-b">
+                        <td className="py-2 text-muted-foreground">Triptantage (roh)</td>
+                        <td className="py-2 text-right font-medium">{summary.triptanDays}</td>
+                      </tr>
+                      {summary.totalTriptanIntakes > 0 && (
+                        <tr className="border-b">
+                          <td className="py-2 text-muted-foreground">Triptan-Einnahmen gesamt</td>
+                          <td className="py-2 text-right font-medium">{summary.totalTriptanIntakes}</td>
+                        </tr>
+                      )}
+                      <tr>
+                        <td className="py-2 text-muted-foreground">Ø pro 30 Tage (normiert)</td>
+                        <td className="py-2 text-right font-medium">
+                          Schmerzen {nkpis?.painDaysPer30?.toFixed(1) ?? "-"} ·{" "}
+                          {nkpis?.triptanIntakesPer30 != null
+                            ? `Triptan ${nkpis.triptanIntakesPer30.toFixed(1)} Einnahmen`
+                            : `Triptan ${nkpis?.triptanDaysPer30?.toFixed(1) ?? "-"} Tage`}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Overuse Warning */}
-            {data.summary.overuse_warning && (
+            {summary.overuseWarning && (
               <Card className="border-amber-500 bg-amber-50 dark:bg-amber-950">
                 <CardContent className="p-4 flex items-center gap-3">
                   <AlertTriangle className="w-5 h-5 text-amber-600" />
@@ -505,7 +519,7 @@ const DoctorReportView: React.FC = () => {
                       Hinweis: Erhöhte Akutmedikation
                     </p>
                     <p className="text-sm text-amber-700 dark:text-amber-300">
-                      {data.summary.acute_med_days} Tage mit Akutmedikation im Zeitraum.
+                      {summary.acuteMedDays} Tage mit Akutmedikation im Zeitraum.
                       Bei &gt;10 Tagen/Monat besteht Übergebrauchsrisiko.
                     </p>
                   </div>
@@ -514,7 +528,7 @@ const DoctorReportView: React.FC = () => {
             )}
 
             {/* Medication Stats */}
-            {data.medication_stats.length > 0 && (
+            {tables.medicationStats.length > 0 && (
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base">Akutmedikation</CardTitle>
@@ -530,14 +544,12 @@ const DoctorReportView: React.FC = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {data.medication_stats.slice(0, 10).map((stat, i) => (
+                        {tables.medicationStats.slice(0, 10).map((stat, i) => (
                           <tr key={i} className="border-b last:border-0">
                             <td className="py-2">{stat.name}</td>
-                            <td className="text-right py-2">{stat.intake_count}</td>
+                            <td className="text-right py-2">{stat.intakeCount}</td>
                             <td className="text-right py-2">
-                              {stat.avg_effect !== null
-                                ? `${stat.avg_effect}/4`
-                                : "-"}
+                              {stat.avgEffect != null ? `${stat.avgEffect}/4` : "-"}
                             </td>
                           </tr>
                         ))}
@@ -552,7 +564,7 @@ const DoctorReportView: React.FC = () => {
             <Card>
               <CardHeader className="pb-3 flex flex-row items-center justify-between">
                 <CardTitle className="text-base">
-                  Einträge ({data.entries_total})
+                  Dokumentierte Tage ({tables.entriesTotal})
                 </CardTitle>
                 {totalPages > 1 && (
                   <div className="flex items-center gap-2">
@@ -560,10 +572,7 @@ const DoctorReportView: React.FC = () => {
                       variant="ghost"
                       size="icon"
                       disabled={page <= 1}
-                      onClick={() => {
-                        setPage((p) => p - 1);
-                        loadData(range, page - 1);
-                      }}
+                      onClick={() => setPage((p) => p - 1)}
                     >
                       <ChevronLeft className="w-4 h-4" />
                     </Button>
@@ -574,10 +583,7 @@ const DoctorReportView: React.FC = () => {
                       variant="ghost"
                       size="icon"
                       disabled={page >= totalPages}
-                      onClick={() => {
-                        setPage((p) => p + 1);
-                        loadData(range, page + 1);
-                      }}
+                      onClick={() => setPage((p) => p + 1)}
                     >
                       <ChevronRight className="w-4 h-4" />
                     </Button>
@@ -585,7 +591,7 @@ const DoctorReportView: React.FC = () => {
                 )}
               </CardHeader>
               <CardContent>
-                {data.entries.length === 0 ? (
+                {tables.entries.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
                     <p>Noch keine Einträge im gewählten Zeitraum.</p>
                   </div>
@@ -601,24 +607,24 @@ const DoctorReportView: React.FC = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {data.entries.map((entry) => (
+                        {tables.entries.map((entry) => (
                           <tr key={entry.id} className="border-b last:border-0">
                             <td className="py-2 whitespace-nowrap">
-                              {formatDateShort(entry.selected_date)}
-                              {entry.selected_time && (
+                              {fmtDateShort(entry.date)}
+                              {entry.time && (
                                 <span className="text-muted-foreground ml-1">
-                                  {entry.selected_time.substring(0, 5)}
+                                  {entry.time.substring(0, 5)}
                                 </span>
                               )}
                             </td>
                             <td className="py-2">
-                              {PAIN_LEVEL_LABELS[entry.pain_level] || entry.pain_level}
+                              {INTENSITY_LABELS[entry.intensityLabel] || entry.intensityLabel}
                             </td>
                             <td className="py-2 max-w-[200px] truncate">
-                              {entry.medications?.join(", ") || "-"}
+                              {entry.medications.length > 0 ? entry.medications.join(", ") : "-"}
                             </td>
                             <td className="py-2 max-w-[200px] truncate text-muted-foreground">
-                              {entry.notes || "-"}
+                              {entry.note || "-"}
                             </td>
                           </tr>
                         ))}
