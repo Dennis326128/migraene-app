@@ -152,7 +152,7 @@ const DoctorReportView: React.FC = () => {
 
     try {
       const response = await fetch(
-        `${SUPABASE_FUNCTIONS_BASE_URL}/get-shared-report-data?range=${currentRange}&page=${currentPage}`,
+        `${SUPABASE_FUNCTIONS_BASE_URL}/get-shared-report-data?range=${currentRange}&page=${currentPage}&legacy=1`,
         {
           method: "GET",
           ...buildDoctorFetchInit(),
