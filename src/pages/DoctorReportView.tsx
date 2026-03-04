@@ -4,7 +4,7 @@
  * Route: /doctor/view
  */
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { HeadacheDaysPie } from "@/components/diary/HeadacheDaysPie";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -167,7 +167,6 @@ interface DoctorReportJSON {
   };
 }
 
-/** API response shape */
 interface DoctorReportResponse {
   report: DoctorReportJSON;
 }
@@ -189,12 +188,18 @@ const INTENSITY_LABELS: Record<string, string> = {
   "Sehr stark": "Sehr stark",
 };
 
+/** Sanitize filename: remove special characters */
+function sanitizeFilename(s: string): string {
+  return s.replace(/[^a-zA-Z0-9._-]/g, "_");
+}
+
 // ═══════════════════════════════════════════════════════════════
 // Component
 // ═══════════════════════════════════════════════════════════════
 
 const DoctorReportView: React.FC = () => {
   const navigate = useNavigate();
+  const abortRef = useRef<AbortController | null>(null);
 
   const [range, setRange] = useState<RangeFilter>("3m");
   const [page, setPage] = useState(1);
@@ -203,20 +208,23 @@ const DoctorReportView: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
 
-  // Date formatting helpers using safeParseDate
   const fmtDate = (dateStr: string | null | undefined) =>
     safeDateFormat(dateStr, (d) => format(d, "d. MMM yyyy", { locale: de }));
 
   const fmtDateShort = (dateStr: string | null | undefined) =>
     safeDateFormat(dateStr, (d) => format(d, "dd.MM.", { locale: de }));
 
-  // ─── Data Loading ──────────────────────────────────────────
+  // ─── Data Loading with AbortController ─────────────────────
   const loadData = useCallback(async (currentRange: RangeFilter, currentPage: number) => {
-    // Guard: no token → redirect
     if (!doctorAccessStore.get()) {
       navigate("/doctor");
       return;
     }
+
+    // Abort previous in-flight request
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     setIsLoading(true);
     setError(null);
@@ -227,6 +235,7 @@ const DoctorReportView: React.FC = () => {
         {
           method: "GET",
           ...buildDoctorFetchInit(),
+          signal: controller.signal,
         }
       );
 
@@ -241,21 +250,27 @@ const DoctorReportView: React.FC = () => {
 
       const result: DoctorReportResponse = await response.json();
 
-      if (!result.report?.meta) {
-        throw new Error("Ungültiges Datenformat");
+      if (!result.report?.meta || !result.report?.summary) {
+        setError("Ungültige Daten vom Server erhalten.");
+        setIsLoading(false);
+        return;
       }
 
       setReport(result.report);
     } catch (err) {
+      if ((err as Error).name === "AbortError") return;
       console.error("[DoctorReportView] Load error:", err);
-      setError("Beim Laden des Berichts ist ein Fehler aufgetreten. Bitte versuchen Sie es erneut.");
+      setError("Beim Laden des Berichts ist ein Fehler aufgetreten.");
     } finally {
-      setIsLoading(false);
+      if (!controller.signal.aborted) {
+        setIsLoading(false);
+      }
     }
   }, [navigate]);
 
   useEffect(() => {
     loadData(range, page);
+    return () => abortRef.current?.abort();
   }, [loadData, range, page]);
 
   const handleRangeChange = (newRange: RangeFilter) => {
@@ -286,11 +301,11 @@ const DoctorReportView: React.FC = () => {
 
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
-      const fromStr = report?.meta.fromDate ?? "unbekannt";
-      const toStr = report?.meta.toDate ?? "unbekannt";
+      const fromStr = report?.meta.fromDate?.replace(/\//g, "-") ?? "start";
+      const toStr = report?.meta.toDate?.replace(/\//g, "-") ?? "end";
       const link = document.createElement("a");
       link.href = url;
-      link.download = `Kopfschmerztagebuch_${fromStr}_${toStr}.pdf`;
+      link.download = sanitizeFilename(`Kopfschmerztagebuch_${fromStr}_${toStr}.pdf`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
