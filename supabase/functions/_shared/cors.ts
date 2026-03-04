@@ -34,6 +34,7 @@ export function getCorsHeaders(req: Request): Record<string, string> {
       "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
       "Access-Control-Allow-Headers":
         "content-type, x-doctor-access, authorization, x-client-info, apikey",
+      "Access-Control-Max-Age": "86400",
     };
   }
 
@@ -44,6 +45,7 @@ export function getCorsHeaders(req: Request): Record<string, string> {
     "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
     "Access-Control-Allow-Headers":
       "content-type, x-doctor-access, authorization, x-client-info, apikey",
+    "Access-Control-Max-Age": "86400",
     Vary: "Origin",
   };
 }
