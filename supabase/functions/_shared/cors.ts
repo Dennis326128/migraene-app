@@ -26,10 +26,21 @@ function isOriginAllowed(origin: string): boolean {
 
 export function getCorsHeaders(req: Request): Record<string, string> {
   const origin = req.headers.get("origin") ?? "";
-  const allowed = isOriginAllowed(origin);
 
+  // No origin (curl / server-to-server) → wildcard is safe (no cookies involved)
+  if (!origin) {
+    return {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+      "Access-Control-Allow-Headers":
+        "content-type, x-doctor-access, authorization, x-client-info, apikey",
+    };
+  }
+
+  // Browser request → only echo back if origin is on allowlist
+  const allowed = isOriginAllowed(origin);
   return {
-    "Access-Control-Allow-Origin": allowed ? origin : "*",
+    "Access-Control-Allow-Origin": allowed ? origin : "https://miary.de",
     "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
     "Access-Control-Allow-Headers":
       "content-type, x-doctor-access, authorization, x-client-info, apikey",
