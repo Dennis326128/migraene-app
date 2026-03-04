@@ -29,10 +29,10 @@ export function getCorsHeaders(req: Request): Record<string, string> {
   const allowed = isOriginAllowed(origin);
 
   return {
-    "Access-Control-Allow-Origin": allowed ? origin : "https://miary.de",
+    "Access-Control-Allow-Origin": allowed ? origin : "*",
     "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
     "Access-Control-Allow-Headers":
-      "content-type, x-doctor-access, x-report-legacy, authorization, x-client-info, apikey",
+      "content-type, x-doctor-access, authorization, x-client-info, apikey",
     Vary: "Origin",
   };
 }
