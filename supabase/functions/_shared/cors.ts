@@ -1,6 +1,6 @@
 /**
  * Shared CORS helper for doctor-facing edge functions.
- * No credentials (no cookies) — session via x-doctor-session header.
+ * No credentials, no cookies — auth via x-doctor-access header.
  */
 
 const STATIC_ORIGINS = [
@@ -29,10 +29,10 @@ export function getCorsHeaders(req: Request): Record<string, string> {
   const allowed = isOriginAllowed(origin);
 
   return {
-    "Access-Control-Allow-Origin": allowed ? origin : "https://migraina.lovable.app",
+    "Access-Control-Allow-Origin": allowed ? origin : "https://miary.de",
     "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
     "Access-Control-Allow-Headers":
-      "content-type, x-doctor-access, x-doctor-session, x-report-legacy, authorization, x-client-info, apikey",
+      "content-type, x-doctor-access, x-report-legacy, authorization, x-client-info, apikey",
     Vary: "Origin",
   };
 }
@@ -40,9 +40,4 @@ export function getCorsHeaders(req: Request): Record<string, string> {
 /** Standard preflight response */
 export function handlePreflight(req: Request): Response {
   return new Response(null, { status: 204, headers: getCorsHeaders(req) });
-}
-
-/** Read session id exclusively from x-doctor-session header */
-export function getSessionIdFromHeader(req: Request): string | null {
-  return req.headers.get("x-doctor-session") || null;
 }

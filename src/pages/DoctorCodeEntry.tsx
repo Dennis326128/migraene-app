@@ -16,6 +16,15 @@ import {
   doctorAccessStore,
 } from "@/features/doctor-share/doctorAccessStore";
 
+/** Map error_code from backend to user-facing message */
+const ERROR_CODE_MESSAGES: Record<string, string> = {
+  invalid: "Code nicht gefunden",
+  not_shared: "Freigabe nicht aktiv. Bitte Patient:in bitten, Freigabe in der App zu aktivieren.",
+  revoked: "Dieser Code wurde dauerhaft widerrufen.",
+  rate_limited: "Zu viele Versuche. Bitte kurz warten.",
+  internal_error: "Interner Fehler. Bitte erneut versuchen.",
+};
+
 const DoctorCodeEntry: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -27,15 +36,12 @@ const DoctorCodeEntry: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [showConnectingHint, setShowConnectingHint] = useState(false);
 
-  // Expired-Message aus URL
   const expired = searchParams.get("expired") === "1";
 
-  // Auto-Focus
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
 
-  // After 800ms show a calm "connecting" hint
   useEffect(() => {
     if (!isValidating) {
       setShowConnectingHint(false);
@@ -45,7 +51,6 @@ const DoctorCodeEntry: React.FC = () => {
     return () => window.clearTimeout(t);
   }, [isValidating]);
 
-  // Code formatieren (Auto-Bindestrich)
   const formatCode = (input: string): string => {
     const clean = input.toUpperCase().replace(/[^A-Z0-9]/g, "");
     if (clean.length <= 4) return clean;
@@ -60,12 +65,10 @@ const DoctorCodeEntry: React.FC = () => {
 
   const canSubmit = useMemo(() => code.replace(/-/g, "").length >= 8, [code]);
 
-  // Validierung
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
     if (isValidating) return;
-    
+
     if (!canSubmit) {
       setError("Bitte geben Sie den vollständigen 8-stelligen Code ein");
       return;
@@ -84,17 +87,27 @@ const DoctorCodeEntry: React.FC = () => {
       const data = await response.json();
 
       if (!response.ok || !data.valid) {
-        setError(data.error || "Code ungültig oder abgelaufen");
+        const errorCode = data.error_code as string | undefined;
+        setError(
+          (errorCode && ERROR_CODE_MESSAGES[errorCode]) ||
+          data.error ||
+          "Code ungültig oder abgelaufen"
+        );
         setIsValidating(false);
         return;
       }
 
-      // Store access token
-      if (data.access_token && typeof data.access_token === "string") {
-        doctorAccessStore.set(data.access_token);
+      // Guard: token must be present
+      if (!data.access_token || typeof data.access_token !== "string") {
+        setError("Verbindungsfehler. Bitte erneut versuchen.");
+        setIsValidating(false);
+        return;
       }
 
-      // Erfolg → zur Ansicht navigieren
+      // Clear any previous token before setting new one
+      doctorAccessStore.clear();
+      doctorAccessStore.set(data.access_token);
+
       toast.success("Zugang gewährt");
       navigate("/doctor/view");
     } catch (err) {
@@ -106,7 +119,6 @@ const DoctorCodeEntry: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
       <header className="border-b">
         <div className="max-w-md mx-auto px-4 py-3 flex items-center justify-between">
           <h1 className="font-semibold text-lg">Miary</h1>
@@ -120,18 +132,15 @@ const DoctorCodeEntry: React.FC = () => {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="flex-1 flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardContent className="p-6 space-y-6">
-            {/* Icon */}
             <div className="flex justify-center">
               <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
                 <Lock className="w-8 h-8 text-primary" />
               </div>
             </div>
 
-            {/* Title */}
             <div className="text-center space-y-2">
               <h2 className="text-xl font-semibold">Patientenbericht anzeigen</h2>
               <p className="text-sm text-muted-foreground">
@@ -139,7 +148,6 @@ const DoctorCodeEntry: React.FC = () => {
               </p>
             </div>
 
-            {/* Expired Message */}
             {expired && (
               <div className="flex items-center gap-2 p-3 rounded-md bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-200">
                 <AlertCircle className="w-4 h-4 flex-shrink-0" />
@@ -149,7 +157,6 @@ const DoctorCodeEntry: React.FC = () => {
               </div>
             )}
 
-            {/* Form */}
             <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <Input
@@ -182,14 +189,12 @@ const DoctorCodeEntry: React.FC = () => {
                 )}
               </Button>
 
-              {/* Visible feedback after click */}
               {isValidating && showConnectingHint && (
                 <p className="text-xs text-muted-foreground text-center">
                   Verbindung wird hergestellt…
                 </p>
               )}
 
-              {/* Inline error directly under the button */}
               {error && !isValidating && (
                 <div className="text-sm text-destructive flex flex-col items-center gap-2">
                   <p className="flex items-center gap-1">
@@ -208,7 +213,6 @@ const DoctorCodeEntry: React.FC = () => {
               )}
             </form>
 
-            {/* Info */}
             <p className="text-xs text-center text-muted-foreground">
               Geben Sie den 8-stelligen Code ein, den Sie vom Patienten erhalten haben.
             </p>
@@ -216,7 +220,6 @@ const DoctorCodeEntry: React.FC = () => {
         </Card>
       </main>
 
-      {/* Footer */}
       <footer className="border-t py-4">
         <div className="max-w-md mx-auto px-4 flex items-center justify-center gap-4 text-xs text-muted-foreground">
           <a href="/privacy" className="hover:underline">Datenschutz</a>
