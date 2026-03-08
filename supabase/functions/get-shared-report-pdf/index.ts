@@ -25,7 +25,10 @@ function getDateRange(range: string): { from: string; to: string } {
 
 function painLevelToNumber(level: string): number {
   const map: Record<string, number> = { "-": 0, "leicht": 3, "mittel": 5, "stark": 7, "sehr_stark": 9 };
-  return map[level] ?? 5;
+  if (level in map) return map[level];
+  const num = parseFloat(level);
+  if (!isNaN(num) && num >= 0 && num <= 10) return num;
+  return 0;
 }
 
 function painLevelLabel(level: string): string {

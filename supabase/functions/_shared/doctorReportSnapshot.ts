@@ -441,8 +441,11 @@ export async function buildDoctorReportSnapshot(
       }
     }
 
-    // Migränetag = stark oder sehr_stark (>=7)
-    if (entry.pain_level === "stark" || entry.pain_level === "sehr_stark") {
+    // Migränetag-Heuristik: NRS >= 7 ODER Triptan ODER Aura (nicht "keine")
+    const isMigraineCandidate = intensity >= 7
+      || (entry.aura_type && entry.aura_type !== "keine")
+      || (entry.medications?.some((med: string) => isTriptan(med)));
+    if (isMigraineCandidate && intensity > 0) {
       migraineDaysSet.add(date);
     }
 
