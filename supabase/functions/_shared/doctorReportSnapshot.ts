@@ -226,7 +226,14 @@ const PAIN_LEVEL_TO_LABEL: Record<string, string> = {
 // ════════════════════════════════════════════════════════════════════════════
 
 function painLevelToNumber(level: string): number {
-  return PAIN_LEVEL_TO_NUMBER[level] ?? 5;
+  // 1. Check text label mapping
+  if (level in PAIN_LEVEL_TO_NUMBER) return PAIN_LEVEL_TO_NUMBER[level];
+  // 2. Try parsing as numeric string (NRS 0-10)
+  const num = parseFloat(level);
+  if (!isNaN(num) && num >= 0 && num <= 10) return num;
+  // 3. No valid mapping → return 0 (NOT 5!)
+  console.warn(`[DoctorReport] Unknown pain_level: "${level}", treating as 0`);
+  return 0;
 }
 
 function painLevelToLabel(level: string): string {
@@ -434,8 +441,11 @@ export async function buildDoctorReportSnapshot(
       }
     }
 
-    // Migränetag = stark oder sehr_stark (>=7)
-    if (entry.pain_level === "stark" || entry.pain_level === "sehr_stark") {
+    // Migränetag-Heuristik: NRS >= 7 ODER Triptan ODER Aura (nicht "keine")
+    const isMigraineCandidate = intensity >= 7
+      || (entry.aura_type && entry.aura_type !== "keine")
+      || (entry.medications?.some((med: string) => isTriptan(med)));
+    if (isMigraineCandidate && intensity > 0) {
       migraineDaysSet.add(date);
     }
 
@@ -461,10 +471,12 @@ export async function buildDoctorReportSnapshot(
   });
 
   // Durchschnittliche Intensität (über Tagesmaximum)
-  const dailyMaxValues = Array.from(dailyMaxIntensity.values());
+  const dailyMaxValues = Array.from(dailyMaxIntensity.values()).filter(v => v > 0);
   const avgIntensity = dailyMaxValues.length > 0
     ? Math.round((dailyMaxValues.reduce((a, b) => a + b, 0) / dailyMaxValues.length) * 10) / 10
     : 0;
+
+  console.log(`[DoctorReport] KPI summary: headacheDays=${painDaysSet.size}, migraineDays=${migraineDaysSet.size}, triptanDays=${triptanDaysSet.size}, acuteMedDays=${acuteMedDaysSet.size}, avgIntensity=${avgIntensity}, intensityDataPoints=${dailyMaxValues.length}`);
 
   // Overuse Warning
   const monthsInRange = daysInRange / 30;
