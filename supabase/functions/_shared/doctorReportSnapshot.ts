@@ -708,7 +708,7 @@ export async function buildDoctorReportSnapshot(
     optional,
   };
 
-  console.log(`[DoctorReportSnapshot] Built snapshot: ${entries.length}/${totalEntries} entries, ${prophylaxisCourses.length} courses`);
+  console.log(`[DoctorReportSnapshot] Built snapshot: userId=${userId.substring(0, 8)}... entriesCount=${totalEntries} daysWithEntries=${documentedDatesSet.size} from=${from} to=${to} painDays=${painDaysSet.size} paginatedEntries=${entries.length}`);
 
   return {
     reportJson,
