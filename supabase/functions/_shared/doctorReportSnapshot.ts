@@ -192,6 +192,8 @@ export interface BuildSnapshotResult {
 const REPORT_VERSION = "v1";
 const TIMEZONE = "Europe/Berlin";
 const MAX_ENTRIES_PER_PAGE = 100;
+/** Snapshot TTL in milliseconds (10 minutes) */
+const SNAPSHOT_TTL_MS = 10 * 60 * 1000;
 
 // Triptan-Keywords für Erkennung
 const TRIPTAN_KEYWORDS = [
