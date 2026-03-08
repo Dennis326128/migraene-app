@@ -76,6 +76,7 @@ export function computeMiaryReport(input: ComputeReportInput): MiaryReportV2 {
   let headacheDays = 0;
   let treatmentDays = 0;
   let triptanDays = 0;
+  let totalTriptanIntakes = 0;
   let acuteMedDays = 0;
   let painSum = 0;
   let painCount = 0;
