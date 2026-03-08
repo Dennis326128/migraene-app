@@ -297,7 +297,7 @@ export async function buildDoctorReportSnapshot(
   const { from, to } = getDateRange(range);
   const now = new Date().toISOString();
 
-  console.log(`[DoctorReportSnapshot] Building snapshot for user=${userId.substring(0, 8)}... range=${range}`);
+  console.log(`[DoctorReportSnapshot] Building snapshot for user=${userId.substring(0, 8)}... range=${range} from=${from} to=${to}`);
 
   // ─────────────────────────────────────────────────────────────────────────
   // 1) ALLE DATEN PARALLEL LADEN
