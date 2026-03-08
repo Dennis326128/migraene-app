@@ -226,7 +226,14 @@ const PAIN_LEVEL_TO_LABEL: Record<string, string> = {
 // ════════════════════════════════════════════════════════════════════════════
 
 function painLevelToNumber(level: string): number {
-  return PAIN_LEVEL_TO_NUMBER[level] ?? 5;
+  // 1. Check text label mapping
+  if (level in PAIN_LEVEL_TO_NUMBER) return PAIN_LEVEL_TO_NUMBER[level];
+  // 2. Try parsing as numeric string (NRS 0-10)
+  const num = parseFloat(level);
+  if (!isNaN(num) && num >= 0 && num <= 10) return num;
+  // 3. No valid mapping → return 0 (NOT 5!)
+  console.warn(`[DoctorReport] Unknown pain_level: "${level}", treating as 0`);
+  return 0;
 }
 
 function painLevelToLabel(level: string): string {
