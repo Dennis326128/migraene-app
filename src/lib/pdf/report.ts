@@ -1505,7 +1505,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     page = meCfsCheck.page;
     yPos = meCfsCheck.yPos;
 
-    yPos = drawSectionHeader(page, "ME/CFS-SYMPTOMATIK", yPos, fontBold, 10);
+    yPos = drawSectionHeader(page, "BELASTUNGS- UND ERSCHÖPFUNGSSYMPTOME", yPos, fontBold, 10);
 
     for (const line of meCfsLines) {
       page.drawText(line, {
