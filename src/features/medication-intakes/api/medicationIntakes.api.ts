@@ -253,6 +253,8 @@ export async function getMedicationUsageStats(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
 
+  // Use pain_entries.selected_date for accurate date filtering (not medication_intakes.created_at
+  // which may differ for backdated entries). The !inner join ensures we only get intakes with entries.
   const { data, error } = await supabase
     .from("medication_intakes")
     .select(`
@@ -261,13 +263,11 @@ export async function getMedicationUsageStats(
       created_at,
       pain_entries!inner(selected_date)
     `)
-    .eq("user_id", user.id)
-    .gte("created_at", fromDate)
-    .lte("created_at", toDate);
+    .eq("user_id", user.id);
 
   if (error) throw error;
 
-  // Aggregate by medication
+  // Aggregate by medication — filter by entry's selected_date (not intake's created_at)
   const stats = new Map<string, {
     total_quarters: number;
     days: Set<string>;
@@ -277,6 +277,9 @@ export async function getMedicationUsageStats(
   (data || []).forEach((intake: any) => {
     const name = intake.medication_name;
     const date = intake.pain_entries?.selected_date || intake.created_at.split("T")[0];
+    
+    // Filter by date range using the entry's selected_date (SSOT for "when it happened")
+    if (date < fromDate || date > toDate) return;
     
     if (!stats.has(name)) {
       stats.set(name, { total_quarters: 0, days: new Set(), intake_count: 0 });

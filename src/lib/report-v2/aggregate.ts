@@ -76,6 +76,7 @@ export function computeMiaryReport(input: ComputeReportInput): MiaryReportV2 {
   let headacheDays = 0;
   let treatmentDays = 0;
   let triptanDays = 0;
+  let totalTriptanIntakes = 0;
   let acuteMedDays = 0;
   let painSum = 0;
   let painCount = 0;
@@ -113,7 +114,16 @@ export function computeMiaryReport(input: ComputeReportInput): MiaryReportV2 {
       }
       if (treatment) treatmentDays++;
       if (day.acuteMedUsed) acuteMedDays++;
-      if (day.triptanUsed) triptanDays++;
+      if (day.triptanUsed) {
+        triptanDays++;
+        // Count individual triptan intakes from medications array
+        const triptanMeds = day.medications.filter(m =>
+          m.name.toLowerCase().includes('triptan') ||
+          ['imigran','maxalt','ascotop','naramig','almogran','relpax','allegro','dolotriptan','formigran']
+            .some(t => m.name.toLowerCase().includes(t))
+        );
+        totalTriptanIntakes += Math.max(1, triptanMeds.length);
+      }
     }
   }
 
@@ -137,6 +147,7 @@ export function computeMiaryReport(input: ComputeReportInput): MiaryReportV2 {
     avgPain,
     maxPain,
     triptanDays,
+    totalTriptanIntakes,
     acuteMedDays,
     preventiveMedActive: false, // must be set by caller context
     mohRiskFlag,

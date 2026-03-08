@@ -44,6 +44,8 @@ export interface ReportKPIsV2 {
   avgPain: number | null;
   maxPain: number | null;
   triptanDays: number;
+  /** Total individual triptan intakes (NOT days — one day can have multiple intakes) */
+  totalTriptanIntakes: number;
   acuteMedDays: number;
   preventiveMedActive: boolean;
   mohRiskFlag: MohRiskFlag;
