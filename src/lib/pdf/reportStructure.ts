@@ -28,7 +28,7 @@ export const REPORT_SECTION_ORDER = [
   'patient',
   'doctor',
   
-  // 2. ÄRZTLICHE KERNÜBERSICHT
+  // 2. ÄRZTLICHE KERNÜBERSICHT (Klinische Kurzbewertung)
   'core_kpis',
 
   // 3. AKUTMEDIKATION & WIRKUNG
@@ -43,19 +43,19 @@ export const REPORT_SECTION_ORDER = [
   // 6. TRIGGER & KONTEXT
   'trigger_context',
 
-  // 7. STATISTIKEN & DIAGRAMME
+  // 7. STATISTIKEN & DIAGRAMME (Verlaufsgrafiken)
   'charts',
 
-  // 8. TAGESZEIT-MUSTER
+  // 8. TAGESZEIT-MUSTER (vor Detaildaten, da klinisch relevant)
   'time_of_day_distribution',
 
-  // 9. AUTOMATISCHE VERLAUFSANALYSE (KI)
+  // 9. DATENBASIERTE MUSTERANALYSE (KI-gestützt)
   'premium_ai_report',
   
   // 10. STATISCHE AUFFÄLLIGKEITEN (Fallback falls KI aus)
   'analysis_section',
   
-  // 11. DETAILLIERTE EINTRÄGE (immer ganz unten)
+  // 11. DETAILLIERTE EINTRÄGE (immer ganz am Ende — Referenzdaten)
   'entries_list',
 ] as const;
 
@@ -98,12 +98,12 @@ export const REPORT_SECTIONS: Record<ReportSectionId, {
   },
   core_kpis: {
     id: 'core_kpis',
-    labelDe: 'Ärztliche Kernübersicht',
-    labelEn: 'Core Medical Overview',
-    pdfTitle: 'ARZTLICHE KERNUBERSICHT',
+    labelDe: 'Klinische Kernübersicht',
+    labelEn: 'Clinical Core Overview',
+    pdfTitle: 'KLINISCHE KERNUEBERSICHT',
     isRequired: true,
     isPremium: false,
-    description: 'Ø Schmerztage, Ø Triptan-Einnahmen, Ø Schmerzintensität (normiert auf 30 Tage)',
+    description: 'Kopfschmerztage, Migraenetage, Triptan-Tage/-Einnahmen, Akutmedikation, Intensitaet, MOH-Risiko (normiert auf 30 Tage)',
   },
   symptom_overview: {
     id: 'symptom_overview',
@@ -141,11 +141,12 @@ export const REPORT_SECTIONS: Record<ReportSectionId, {
   },
   premium_ai_report: {
     id: 'premium_ai_report',
-    labelDe: 'KI-Analyse (Premium)',
-    labelEn: 'AI Analysis (Premium)',
-    pdfTitle: 'KI-GESTUTZTE ANALYSE (UNTERSTUTZEND)',
+    labelDe: 'Datenbasierte Musteranalyse (KI)',
+    labelEn: 'Data-Based Pattern Analysis (AI)',
+    pdfTitle: 'DATENBASIERTE MUSTERANALYSE (KI-GESTUTZT)',
     isRequired: false,
     isPremium: true,
+    description: 'Automatische Auswertung auf Basis dokumentierter Daten. Keine aerztliche Diagnose oder Therapieempfehlung.',
   },
   charts: {
     id: 'charts',

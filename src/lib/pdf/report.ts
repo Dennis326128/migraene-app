@@ -1128,25 +1128,32 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       ? Math.round(validPainLevels.reduce((a, b) => a + b, 0) / validPainLevels.length * 10) / 10
       : 0;
       
-    // MOH Risk Logic
+    // MOH Risk Logic (klinisch relevant, keine Diagnose)
     let mohRisk = false;
     let mohMessage = "";
     if (triptanDaysPerMonth >= 10) {
       mohRisk = true;
-      mohMessage = "⚠ Verdacht auf Triptan-Übergebrauch (>10 Tage/Monat)";
+      mohMessage = "Auffaellig haeufige Triptan-Anwendung (>=10 Tage/Monat)";
     } else if (acutePerMonth >= 15) {
       mohRisk = true;
-      mohMessage = "⚠ Verdacht auf Schmerzmittel-Übergebrauch (>15 Tage/Monat)";
+      mohMessage = "Auffaellig haeufige Akutmedikation (>=15 Tage/Monat)";
+    } else if (triptanDaysPerMonth >= 8 || acutePerMonth >= 12) {
+      mohRisk = true;
+      mohMessage = "Erhoehte Akutmedikationsfrequenz - Verlaufskontrolle empfohlen";
     }
     
-    yPos = drawSectionHeader(page, "ÄRZTLICHE KERNÜBERSICHT", yPos, fontBold, 11);
+    yPos = drawSectionHeader(page, "KLINISCHE KERNÜBERSICHT", yPos, fontBold, 11);
     
-    page.drawText(`Berechnet aus ${daysCount} dokumentierten Tagen, normiert auf 30 Tage/Monat`, {
+    // Documentation rate
+    const documentedDates = new Set(entries.map(e => e.selected_date || e.timestamp_created?.split('T')[0]).filter(Boolean));
+    const docRate = daysCount > 0 ? Math.round((documentedDates.size / daysCount) * 100) : 0;
+    
+    page.drawText(`Basis: ${documentedDates.size} dokumentierte Tage von ${daysCount} Kalendertagen (${docRate} %)  |  Normiert auf 30 Tage/Monat`, {
       x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight,
     });
     yPos -= 14;
     
-    const kpiBoxHeight = mohRisk ? 90 : 70;
+    const kpiBoxHeight = mohRisk ? 110 : 90;
     page.drawRectangle({
       x: LAYOUT.margin, y: yPos - kpiBoxHeight,
       width: LAYOUT.pageWidth - 2 * LAYOUT.margin, height: kpiBoxHeight,
@@ -1157,30 +1164,39 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     let kpiY = yPos - boxPadding - 5;
     const colWidth = (LAYOUT.pageWidth - 2 * LAYOUT.margin - 2 * boxPadding) / 3;
     
-    // KPI 1: Headache Days
-    page.drawText("Ø Schmerztage / 30 Tage", { x: LAYOUT.margin + boxPadding, y: kpiY, size: 8, font: fontBold, color: COLORS.text });
+    // KPI 1: Headache Days + Migraine Days
+    page.drawText("Kopfschmerztage / 30T", { x: LAYOUT.margin + boxPadding, y: kpiY, size: 8, font: fontBold, color: COLORS.text });
     page.drawText(formatGermanDecimal(painDaysPerMonth, 1), { x: LAYOUT.margin + boxPadding, y: kpiY - 20, size: 18, font: fontBold, color: COLORS.primary });
-    page.drawText(`davon Migränetage: ${formatGermanDecimal(migrainePerMonth, 1)}`, { x: LAYOUT.margin + boxPadding, y: kpiY - 32, size: 7, font: fontBold, color: COLORS.textLight });
-    page.drawText(`(Gesamt: ${painDays} von ${daysCount} Tagen)`, { x: LAYOUT.margin + boxPadding, y: kpiY - 42, size: 7, font, color: COLORS.textLight });
+    page.drawText(`davon Migraenetage: ${formatGermanDecimal(migrainePerMonth, 1)}`, { x: LAYOUT.margin + boxPadding, y: kpiY - 32, size: 7, font: fontBold, color: COLORS.textLight });
+    page.drawText(`(Gesamt: ${painDays} von ${documentedDates.size} dok. Tagen)`, { x: LAYOUT.margin + boxPadding, y: kpiY - 42, size: 7, font, color: COLORS.textLight });
     
-    // KPI 2: Triptans
-    page.drawText("Ø Triptan-Tage / 30 Tage", { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY, size: 8, font: fontBold, color: COLORS.text });
+    // KPI 2: Triptans + Acute Med
+    page.drawText("Triptan-Tage / 30T", { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY, size: 8, font: fontBold, color: COLORS.text });
     page.drawText(formatGermanDecimal(triptanDaysPerMonth, 1), { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY - 20, size: 18, font: fontBold, color: COLORS.primary });
-    page.drawText(`Einnahmen: ${formatGermanDecimal(triptanIntakesPerMonth, 1)}`, { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY - 32, size: 7, font: fontBold, color: COLORS.textLight });
-    page.drawText(`(Akut-Tage gesamt: ${formatGermanDecimal(acutePerMonth, 1)})`, { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY - 42, size: 7, font, color: COLORS.textLight });
+    page.drawText(`Einnahmen/30T: ${formatGermanDecimal(triptanIntakesPerMonth, 1)}`, { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY - 32, size: 7, font: fontBold, color: COLORS.textLight });
+    page.drawText(`Akutmed.-Tage/30T: ${formatGermanDecimal(acutePerMonth, 1)}`, { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY - 42, size: 7, font, color: COLORS.textLight });
     
-    // KPI 3: Intensity
-    page.drawText("Ø Schmerzintensität", { x: LAYOUT.margin + boxPadding + 2 * colWidth, y: kpiY, size: 8, font: fontBold, color: COLORS.text });
+    // KPI 3: Intensity + Attacks
+    page.drawText("Ø Schmerzintensitaet (NRS)", { x: LAYOUT.margin + boxPadding + 2 * colWidth, y: kpiY, size: 8, font: fontBold, color: COLORS.text });
     page.drawText(`${formatGermanDecimal(avgIntensity, 1)} / 10`, { x: LAYOUT.margin + boxPadding + 2 * colWidth, y: kpiY - 20, size: 18, font: fontBold, color: COLORS.primary });
-    page.drawText(`Attacken gesamt: ${entries.length}`, { x: LAYOUT.margin + boxPadding + 2 * colWidth, y: kpiY - 32, size: 7, font: fontBold, color: COLORS.textLight });
-    page.drawText("(NRS-Skala 0-10)", { x: LAYOUT.margin + boxPadding + 2 * colWidth, y: kpiY - 42, size: 7, font, color: COLORS.textLight });
+    page.drawText(`Eintraege gesamt: ${entries.length}`, { x: LAYOUT.margin + boxPadding + 2 * colWidth, y: kpiY - 32, size: 7, font: fontBold, color: COLORS.textLight });
+    page.drawText(`Dok.-Quote: ${docRate} %`, { x: LAYOUT.margin + boxPadding + 2 * colWidth, y: kpiY - 42, size: 7, font, color: COLORS.textLight });
     
+    // MOH Risk Warning
     if (mohRisk) {
-      page.drawText("MOH-Risiko:", { x: LAYOUT.margin + boxPadding, y: kpiY - 60, size: 8, font: fontBold, color: COLORS.chartPain });
-      page.drawText(mohMessage, { x: LAYOUT.margin + boxPadding + 60, y: kpiY - 60, size: 8, font: fontBold, color: COLORS.chartPain });
+      kpiY -= 60;
+      page.drawText("MOH-Risiko:", { x: LAYOUT.margin + boxPadding, y: kpiY, size: 8, font: fontBold, color: COLORS.chartPain });
+      page.drawText(sanitizeForPDF(mohMessage), { x: LAYOUT.margin + boxPadding + 60, y: kpiY, size: 8, font: fontBold, color: COLORS.chartPain });
+      page.drawText("Aerztliche Pruefung auf Medikamentenuebergebrauch empfohlen.", { x: LAYOUT.margin + boxPadding, y: kpiY - 12, size: 7, font, color: COLORS.chartPain });
     }
     
-    yPos -= kpiBoxHeight + 8;
+    yPos -= kpiBoxHeight + 4;
+    
+    // Migraine day definition footnote
+    page.drawText("Migraenetag-Heuristik: NRS >= 7 ODER Aura dokumentiert ODER Triptan eingenommen. Keine klinische Diagnose.", {
+      x: LAYOUT.margin, y: yPos, size: 6.5, font, color: COLORS.textLight,
+    });
+    yPos -= 12;
     
     // ═══════════════════════════════════════════════════════════════════════
     // PIE CHART: Tagesverteilung (kompakter)
@@ -1481,7 +1497,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 3d. ME/CFS-SYMPTOMATIK (kompakter Block)
+  // 3d. BELASTUNGS- UND ERSCHÖPFUNGSSYMPTOME (patientenseitig dokumentiert)
   // ═══════════════════════════════════════════════════════════════════════════
 
   if (meCfsData) {
@@ -1489,23 +1505,30 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     const meCfsLines = [
       `Belastete Tage (dokumentiert): ${meCfsData.daysWithBurden} / ${meCfsData.documentedDays}`,
       `Dokumentiert: ${meCfsData.documentedDays} / ${meCfsData.calendarDays} Tage`,
-      `Ø Belastung (0–10): ${meCfsData.avgScore}`,
-      `Höchste Belastung: ${sanitizeForPDF(meCfsData.peakLabel)}`,
-      `Üblicher Bereich: ${meCfsData.iqrLabel !== '0/10' ? sanitizeForPDF(meCfsData.iqrLabel) : 'noch nicht ausreichend Daten'}`,
+      `Durchschnittliche Belastung (0-10): ${meCfsData.avgScore}`,
+      `Hoechste Belastung: ${sanitizeForPDF(meCfsData.peakLabel)}`,
+      `Ueblicher Bereich: ${meCfsData.iqrLabel !== '0/10' ? sanitizeForPDF(meCfsData.iqrLabel) : 'noch nicht ausreichend Daten'}`,
       `Dokumentationsquote: ${docQuote} %`,
     ];
     // Add projection line only for 14–29 calendar days
     if (meCfsData.calendarDays >= 14 && meCfsData.calendarDays < 30) {
-      meCfsLines.splice(2, 0, `Schätzung pro 30 Tage: ${meCfsData.burdenPer30} belastete Tage`);
+      meCfsLines.splice(2, 0, `Schaetzung pro 30 Tage: ${meCfsData.burdenPer30} belastete Tage`);
     }
     const hasNote = !!meCfsData.dataQualityNote;
-    const blockHeight = LAYOUT.lineHeight * 2 + meCfsLines.length * LAYOUT.lineHeight + (hasNote ? LAYOUT.lineHeight + 2 : 0) + LAYOUT.sectionGap;
+    const disclaimerHeight = LAYOUT.lineHeight + 4;
+    const blockHeight = LAYOUT.lineHeight * 2 + meCfsLines.length * LAYOUT.lineHeight + (hasNote ? LAYOUT.lineHeight + 2 : 0) + disclaimerHeight + LAYOUT.sectionGap;
 
     const meCfsCheck = ensureSpace(pdfDoc, page, yPos, blockHeight);
     page = meCfsCheck.page;
     yPos = meCfsCheck.yPos;
 
-    yPos = drawSectionHeader(page, "ME/CFS-SYMPTOMATIK", yPos, fontBold, 10);
+    yPos = drawSectionHeader(page, "BELASTUNGS- UND ERSCHOEPFUNGSSYMPTOME", yPos, fontBold, 10);
+    
+    // Disclaimer: no diagnosis
+    page.drawText("Patientenseitig dokumentierte Belastungs-/Erschoepfungssymptome. Keine diagnostische Einordnung.", {
+      x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight,
+    });
+    yPos -= 12;
 
     for (const line of meCfsLines) {
       page.drawText(line, {
@@ -1552,10 +1575,10 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       page = spaceCheck.page;
       yPos = spaceCheck.yPos;
       
-      yPos = drawSectionHeader(page, "ÄRZTLICHER ANALYSEBERICHT (KI-GESTÜTZT)", yPos, fontBold, 12);
+      yPos = drawSectionHeader(page, "DATENBASIERTE MUSTERANALYSE (KI-GESTÜTZT)", yPos, fontBold, 12);
       
-      // Unterzeile + Marker dass KI aktiv ist
-      page.drawText("KI-Analyse aktiviert · Zusammenfassung und Mustererkennung auf Basis der dokumentierten Daten", {
+      // Unterzeile + Disclaimer
+      page.drawText("Automatische Auswertung auf Basis dokumentierter Daten. Keine aerztliche Diagnose oder Therapieempfehlung.", {
         x: LAYOUT.margin,
         y: yPos,
         size: 8,
@@ -1696,7 +1719,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       page = spaceCheck.page;
       yPos = spaceCheck.yPos;
       
-      yPos = drawSectionHeader(page, "ÄRZTLICHER ANALYSEBERICHT", yPos, fontBold, 12);
+      yPos = drawSectionHeader(page, "DATENBASIERTE MUSTERANALYSE", yPos, fontBold, 12);
       
       // Fallback-Hinweis
       page.drawText("Die KI-Analyse konnte für diesen Bericht nicht erstellt werden.", {
@@ -1737,10 +1760,10 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     page = spaceCheck.page;
     yPos = spaceCheck.yPos;
     
-    yPos = drawSectionHeader(page, "ÄRZTLICHE AUSWERTUNG DER DOKUMENTIERTEN DATEN", yPos, fontBold, 12);
+    yPos = drawSectionHeader(page, "STATISCHE AUSWERTUNG DER DOKUMENTIERTEN DATEN", yPos, fontBold, 12);
     
     // Unterzeile
-    page.drawText("Faktenbasierte Zusammenfassung ohne KI-Analyse", {
+    page.drawText("Faktenbasierte Zusammenfassung ohne KI-Analyse. Keine aerztliche Diagnose.", {
       x: LAYOUT.margin,
       y: yPos,
       size: 8,
@@ -2075,45 +2098,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 6. DETAILLIERTE KOPFSCHMERZ-EINTRÄGE (GANZ AM ENDE)
-  // ═══════════════════════════════════════════════════════════════════════════
-  
-  if (includeEntriesList && entries.length > 0) {
-    const spaceCheck = ensureSpace(pdfDoc, page, yPos, 100);
-    page = spaceCheck.page;
-    yPos = spaceCheck.yPos;
-    
-    yPos = drawSectionHeader(page, "DETAILLIERTE KOPFSCHMERZ-EINTRÄGE", yPos, fontBold, 12);
-    
-    page.drawText(`${entries.length} Einträge im Zeitraum`, {
-      x: LAYOUT.margin,
-      y: yPos,
-      size: 8,
-      font,
-      color: COLORS.textLight,
-    });
-    yPos -= 15;
-    
-    const includeNotesInTable = freeTextExportMode !== 'none';
-    yPos = drawTableHeader(page, yPos, fontBold, includeNotesInTable);
-    
-    const sortedEntries = [...entries].sort((a, b) => {
-      const dateA = new Date(a.selected_date || a.timestamp_created || '');
-      const dateB = new Date(b.selected_date || b.timestamp_created || '');
-      return dateB.getTime() - dateA.getTime();
-    });
-    
-    for (const entry of sortedEntries) {
-      const result = drawTableRow(page, entry, yPos, font, pdfDoc, includeNotesInTable, includePrivateNotes);
-      page = result.page;
-      yPos = result.yPos;
-    }
-    
-    yPos -= LAYOUT.sectionGap;
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 7. SCHMERZVERTEILUNG NACH UHRZEIT (neue Seite am Ende)
+  // 6. SCHMERZVERTEILUNG NACH UHRZEIT (vor Detaildaten — klinisch relevanter)
   // ═══════════════════════════════════════════════════════════════════════════
   
   {
@@ -2134,10 +2119,10 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     });
     
     if (hasTimeData) {
-      const defaultTimeChartHeight = 160;  // 200 * 0.8 = -20%
+      const defaultTimeChartHeight = 160;
       const timeChartHeaderSpace = 50;
-      const minTimeChartHeight = 128;     // 160 * 0.8 = -20%
-      const totalTimeNeeded = timeChartHeaderSpace + defaultTimeChartHeight + 30; // +30 for note
+      const minTimeChartHeight = 128;
+      const totalTimeNeeded = timeChartHeaderSpace + defaultTimeChartHeight + 30;
       
       const availableTimeSpace = yPos - LAYOUT.margin - 30;
       let timeChartHeight: number;
@@ -2151,7 +2136,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
         timeChartHeight = defaultTimeChartHeight;
       }
       
-      yPos = drawSectionHeader(page, "SCHMERZVERTEILUNG NACH UHRZEIT", yPos, fontBold, 13);
+      yPos = drawSectionHeader(page, "TAGESZEIT-MUSTER", yPos, fontBold, 13);
       
       page.drawText(`Zeitraum: ${formatDateGerman(from)} - ${formatDateGerman(to)}`, {
         x: LAYOUT.margin, y: yPos, size: 9, font, color: COLORS.textLight,
@@ -2204,7 +2189,6 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
           });
         }
         
-        // X-axis label (every 2 hours for readability, always show 0, 6, 12, 18)
         if (h % 2 === 0) {
           page.drawText(`${h.toString().padStart(2, '0')}h`, {
             x: barX + barWidth / 2 - 8,
@@ -2235,9 +2219,78 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       yPos = chartBottom - 30;
       
       // Note
-      page.drawText("Hinweis: Darstellung basiert auf dokumentierten Schmerzeinträgen mit Uhrzeitangabe.", {
+      page.drawText("Hinweis: Darstellung basiert auf dokumentierten Schmerzeintraegen mit Uhrzeitangabe.", {
         x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight,
       });
+      yPos -= LAYOUT.sectionGap;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 7. DETAILLIERTE KOPFSCHMERZ-EINTRÄGE (GANZ AM ENDE — Referenzdaten)
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  if (includeEntriesList && entries.length > 0) {
+    const spaceCheck = ensureSpace(pdfDoc, page, yPos, 100);
+    page = spaceCheck.page;
+    yPos = spaceCheck.yPos;
+    
+    yPos = drawSectionHeader(page, "DETAILLIERTE KOPFSCHMERZ-EINTRÄGE", yPos, fontBold, 12);
+    
+    page.drawText(`${entries.length} Eintraege im Zeitraum (Referenzdaten)`, {
+      x: LAYOUT.margin,
+      y: yPos,
+      size: 8,
+      font,
+      color: COLORS.textLight,
+    });
+    yPos -= 15;
+    
+    const includeNotesInTable = freeTextExportMode !== 'none';
+    yPos = drawTableHeader(page, yPos, fontBold, includeNotesInTable);
+    
+    const sortedEntries = [...entries].sort((a, b) => {
+      const dateA = new Date(a.selected_date || a.timestamp_created || '');
+      const dateB = new Date(b.selected_date || b.timestamp_created || '');
+      return dateB.getTime() - dateA.getTime();
+    });
+    
+    for (const entry of sortedEntries) {
+      const result = drawTableRow(page, entry, yPos, font, pdfDoc, includeNotesInTable, includePrivateNotes);
+      page = result.page;
+      yPos = result.yPos;
+    }
+    
+    yPos -= LAYOUT.sectionGap;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MEDIZINISCHER HAFTUNGSAUSSCHLUSS (letzte Seite, vor Footer)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  {
+    const disclaimerCheck = ensureSpace(pdfDoc, page, yPos, 60);
+    page = disclaimerCheck.page;
+    yPos = disclaimerCheck.yPos;
+
+    page.drawLine({
+      start: { x: LAYOUT.margin, y: yPos },
+      end: { x: LAYOUT.pageWidth - LAYOUT.margin, y: yPos },
+      thickness: 0.5,
+      color: COLORS.border,
+    });
+    yPos -= 12;
+
+    const disclaimerLines = [
+      "Dieser Bericht wurde automatisch aus patientenseitig dokumentierten Daten erstellt.",
+      "Er stellt keine aerztliche Diagnose, Befundung oder Therapieempfehlung dar.",
+      "Alle Auswertungen dienen der Verlaufsdokumentation und klinischen Entscheidungsunterstuetzung.",
+    ];
+    for (const line of disclaimerLines) {
+      page.drawText(line, {
+        x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight,
+      });
+      yPos -= 10;
     }
   }
 
@@ -2255,7 +2308,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       color: COLORS.textLight,
     });
     
-    p.drawText("Erstellt mit Miary \u2013 Digitale Verlaufsdokumentation f\u00FCr Migr\u00E4ne", {
+    p.drawText("Erstellt mit Miary - Digitale Verlaufsdokumentation fuer Migraene", {
       x: LAYOUT.margin,
       y: LAYOUT.margin - 20,
       size: 8,
