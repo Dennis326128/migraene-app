@@ -182,7 +182,11 @@ export function buildReportData(params: BuildReportDataParams): ReportData {
 
   // Normiert auf 30 Tage
   const headacheDaysPerMonth = Math.round((kpis.daysWithPain / daysInRange) * 30 * 10) / 10;
-  const migraineDaysPerMonth = Math.round((ssotReport.kpis.migraineDays ?? 0 / daysInRange) * 30 * 10) / 10;
+  // migraineDays not in ReportKPIsV2 — derive from raw day records (NRS>=7 OR triptanUsed)
+  const migraineDaysCount = ssotReport.raw.countsByDay.filter(
+    d => d.documented && ((d.painMax !== null && d.painMax >= 7) || d.triptanUsed)
+  ).length;
+  const migraineDaysPerMonth = Math.round((migraineDaysCount / daysInRange) * 30 * 10) / 10;
   const triptanDaysPerMonth = Math.round((ssotReport.kpis.triptanDays / daysInRange) * 30 * 10) / 10;
   const triptanIntakesPerMonth = Math.round((totalTriptanIntakes / daysInRange) * 30 * 10) / 10;
   const acuteMedDaysPerMonth = Math.round((ssotReport.kpis.acuteMedDays / daysInRange) * 30 * 10) / 10;
