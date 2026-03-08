@@ -1696,7 +1696,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       page = spaceCheck.page;
       yPos = spaceCheck.yPos;
       
-      yPos = drawSectionHeader(page, "ÄRZTLICHER ANALYSEBERICHT", yPos, fontBold, 12);
+      yPos = drawSectionHeader(page, "DATENBASIERTE MUSTERANALYSE", yPos, fontBold, 12);
       
       // Fallback-Hinweis
       page.drawText("Die KI-Analyse konnte für diesen Bericht nicht erstellt werden.", {
