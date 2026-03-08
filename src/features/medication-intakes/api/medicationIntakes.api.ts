@@ -267,7 +267,7 @@ export async function getMedicationUsageStats(
 
   if (error) throw error;
 
-  // Aggregate by medication
+  // Aggregate by medication — filter by entry's selected_date (not intake's created_at)
   const stats = new Map<string, {
     total_quarters: number;
     days: Set<string>;
@@ -277,6 +277,9 @@ export async function getMedicationUsageStats(
   (data || []).forEach((intake: any) => {
     const name = intake.medication_name;
     const date = intake.pain_entries?.selected_date || intake.created_at.split("T")[0];
+    
+    // Filter by date range using the entry's selected_date (SSOT for "when it happened")
+    if (date < fromDate || date > toDate) return;
     
     if (!stats.has(name)) {
       stats.set(name, { total_quarters: 0, days: new Set(), intake_count: 0 });

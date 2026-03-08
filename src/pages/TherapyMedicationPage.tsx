@@ -235,7 +235,8 @@ export function TherapyMedicationPage({ onBack, onEditEntry }: TherapyMedication
     });
   }, [allEntries, from, to]);
   
-  // Calculate KPIs - KRITISCH: Distinct Schmerztage, nicht Einträge!
+  // Calculate KPIs — uses SSOT: medication_intakes table (via usageStats) for triptan counts
+  // NOT from limited pain_entries.medications[] which silently drops entries beyond fetch limit
   const kpis = useMemo(() => {
     // SCHMERZTAGE = distinct Kalendertage mit mindestens einem Eintrag
     const painDaysSet = new Set<string>();
@@ -258,22 +259,29 @@ export function TherapyMedicationPage({ onBack, onEditEntry }: TherapyMedication
       ? painLevels.reduce((a, b) => a + b, 0) / painLevels.length
       : 0;
     
-    // TRIPTAN-EINNAHMEN = Anzahl Medikamente die "triptan" im Namen haben
+    // TRIPTAN & AKUT — from medication_intakes table (usageStats), not from limited entries
     let triptanIntakes = 0;
     let acuteMedIntakes = 0;
     const triptanDaysSet = new Set<string>();
     const acuteDaysSet = new Set<string>();
     
+    usageStats.forEach(stat => {
+      acuteMedIntakes += stat.intake_count;
+      // days_used comes from medication_intakes grouped by selected_date
+      // We can't get individual dates here, so we use the count
+      if (isTriptanMedication(stat.medication_name)) {
+        triptanIntakes += stat.intake_count;
+      }
+    });
+
+    // For triptanDays and acuteMedDays, we still need day-level data from entries
+    // but only for the day-counting (not intake counting)
     filteredEntries.forEach(entry => {
       const dateKey = entry.selected_date || entry.timestamp_created?.split('T')[0];
-      
       entry.medications?.forEach(med => {
-        // Triptan-Erkennung: Prüfe ob "triptan" im Namen enthalten ist
         if (isTriptanMedication(med)) {
-          triptanIntakes++;
           if (dateKey) triptanDaysSet.add(dateKey);
         }
-        acuteMedIntakes++;
         if (dateKey) acuteDaysSet.add(dateKey);
       });
     });
@@ -281,7 +289,7 @@ export function TherapyMedicationPage({ onBack, onEditEntry }: TherapyMedication
     const triptanDays = triptanDaysSet.size;
     const acuteMedDays = acuteDaysSet.size;
     
-    // Normiert auf 30 Tage
+    // Normiert auf 30 Tage — intake-based (not day-based)
     const triptanPerMonth = days >= 30 
       ? formatNumberSmart((triptanIntakes / days) * 30) 
       : triptanIntakes;
@@ -301,7 +309,7 @@ export function TherapyMedicationPage({ onBack, onEditEntry }: TherapyMedication
       acutePerMonth,
       days
     };
-  }, [filteredEntries, days]);
+  }, [filteredEntries, days, usageStats]);
   
   // Medication statistics with grouping
   const medicationStats = useMemo(() => {
