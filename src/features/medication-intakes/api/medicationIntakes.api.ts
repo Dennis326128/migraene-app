@@ -253,20 +253,17 @@ export async function getMedicationUsageStats(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
 
-  // Use taken_date for accurate date filtering (not created_at which may differ for backdated entries)
-  // Fallback: join with pain_entries.selected_date for intakes without taken_date
+  // Use pain_entries.selected_date for accurate date filtering (not medication_intakes.created_at
+  // which may differ for backdated entries). The !inner join ensures we only get intakes with entries.
   const { data, error } = await supabase
     .from("medication_intakes")
     .select(`
       medication_name,
       dose_quarters,
-      taken_date,
       created_at,
       pain_entries!inner(selected_date)
     `)
-    .eq("user_id", user.id)
-    .or(`taken_date.gte.${fromDate},and(taken_date.is.null,created_at.gte.${fromDate})`)
-    .or(`taken_date.lte.${toDate},and(taken_date.is.null,created_at.lte.${toDate})`);
+    .eq("user_id", user.id);
 
   if (error) throw error;
 
