@@ -1301,7 +1301,6 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     
     yPos = drawSectionHeader(page, "AKUTMEDIKATION & WIRKUNG", yPos, fontBold, 12);
     
-    const hasExtendedStats = medicationStats[0]?.totalUnitsInRange !== undefined;
     
     // ── Relevance-based sorting: total intakes DESC → last30 DESC → alpha ASC ──
     const sortedMedStats = [...medicationStats].sort((a, b) => {
