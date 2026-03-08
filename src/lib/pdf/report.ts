@@ -1139,14 +1139,18 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       mohMessage = "⚠ Verdacht auf Schmerzmittel-Übergebrauch (>15 Tage/Monat)";
     }
     
-    yPos = drawSectionHeader(page, "ÄRZTLICHE KERNÜBERSICHT", yPos, fontBold, 11);
+    yPos = drawSectionHeader(page, "KLINISCHE KERNÜBERSICHT", yPos, fontBold, 11);
     
-    page.drawText(`Berechnet aus ${daysCount} dokumentierten Tagen, normiert auf 30 Tage/Monat`, {
+    // Documentation rate
+    const documentedDates = new Set(entries.map(e => e.selected_date || e.timestamp_created?.split('T')[0]).filter(Boolean));
+    const docRate = daysCount > 0 ? Math.round((documentedDates.size / daysCount) * 100) : 0;
+    
+    page.drawText(`Basis: ${documentedDates.size} dokumentierte Tage von ${daysCount} Kalendertagen (${docRate} %)  |  Normiert auf 30 Tage/Monat`, {
       x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight,
     });
     yPos -= 14;
     
-    const kpiBoxHeight = mohRisk ? 90 : 70;
+    const kpiBoxHeight = mohRisk ? 110 : 90;
     page.drawRectangle({
       x: LAYOUT.margin, y: yPos - kpiBoxHeight,
       width: LAYOUT.pageWidth - 2 * LAYOUT.margin, height: kpiBoxHeight,
@@ -1157,30 +1161,39 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     let kpiY = yPos - boxPadding - 5;
     const colWidth = (LAYOUT.pageWidth - 2 * LAYOUT.margin - 2 * boxPadding) / 3;
     
-    // KPI 1: Headache Days
-    page.drawText("Ø Schmerztage / 30 Tage", { x: LAYOUT.margin + boxPadding, y: kpiY, size: 8, font: fontBold, color: COLORS.text });
+    // KPI 1: Headache Days + Migraine Days
+    page.drawText("Kopfschmerztage / 30T", { x: LAYOUT.margin + boxPadding, y: kpiY, size: 8, font: fontBold, color: COLORS.text });
     page.drawText(formatGermanDecimal(painDaysPerMonth, 1), { x: LAYOUT.margin + boxPadding, y: kpiY - 20, size: 18, font: fontBold, color: COLORS.primary });
-    page.drawText(`davon Migränetage: ${formatGermanDecimal(migrainePerMonth, 1)}`, { x: LAYOUT.margin + boxPadding, y: kpiY - 32, size: 7, font: fontBold, color: COLORS.textLight });
-    page.drawText(`(Gesamt: ${painDays} von ${daysCount} Tagen)`, { x: LAYOUT.margin + boxPadding, y: kpiY - 42, size: 7, font, color: COLORS.textLight });
+    page.drawText(`davon Migraenetage: ${formatGermanDecimal(migrainePerMonth, 1)}`, { x: LAYOUT.margin + boxPadding, y: kpiY - 32, size: 7, font: fontBold, color: COLORS.textLight });
+    page.drawText(`(Gesamt: ${painDays} von ${documentedDates.size} dok. Tagen)`, { x: LAYOUT.margin + boxPadding, y: kpiY - 42, size: 7, font, color: COLORS.textLight });
     
-    // KPI 2: Triptans
-    page.drawText("Ø Triptan-Tage / 30 Tage", { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY, size: 8, font: fontBold, color: COLORS.text });
+    // KPI 2: Triptans + Acute Med
+    page.drawText("Triptan-Tage / 30T", { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY, size: 8, font: fontBold, color: COLORS.text });
     page.drawText(formatGermanDecimal(triptanDaysPerMonth, 1), { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY - 20, size: 18, font: fontBold, color: COLORS.primary });
-    page.drawText(`Einnahmen: ${formatGermanDecimal(triptanIntakesPerMonth, 1)}`, { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY - 32, size: 7, font: fontBold, color: COLORS.textLight });
-    page.drawText(`(Akut-Tage gesamt: ${formatGermanDecimal(acutePerMonth, 1)})`, { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY - 42, size: 7, font, color: COLORS.textLight });
+    page.drawText(`Einnahmen/30T: ${formatGermanDecimal(triptanIntakesPerMonth, 1)}`, { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY - 32, size: 7, font: fontBold, color: COLORS.textLight });
+    page.drawText(`Akutmed.-Tage/30T: ${formatGermanDecimal(acutePerMonth, 1)}`, { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY - 42, size: 7, font, color: COLORS.textLight });
     
-    // KPI 3: Intensity
-    page.drawText("Ø Schmerzintensität", { x: LAYOUT.margin + boxPadding + 2 * colWidth, y: kpiY, size: 8, font: fontBold, color: COLORS.text });
+    // KPI 3: Intensity + Attacks
+    page.drawText("Ø Schmerzintensitaet (NRS)", { x: LAYOUT.margin + boxPadding + 2 * colWidth, y: kpiY, size: 8, font: fontBold, color: COLORS.text });
     page.drawText(`${formatGermanDecimal(avgIntensity, 1)} / 10`, { x: LAYOUT.margin + boxPadding + 2 * colWidth, y: kpiY - 20, size: 18, font: fontBold, color: COLORS.primary });
-    page.drawText(`Attacken gesamt: ${entries.length}`, { x: LAYOUT.margin + boxPadding + 2 * colWidth, y: kpiY - 32, size: 7, font: fontBold, color: COLORS.textLight });
-    page.drawText("(NRS-Skala 0-10)", { x: LAYOUT.margin + boxPadding + 2 * colWidth, y: kpiY - 42, size: 7, font, color: COLORS.textLight });
+    page.drawText(`Eintraege gesamt: ${entries.length}`, { x: LAYOUT.margin + boxPadding + 2 * colWidth, y: kpiY - 32, size: 7, font: fontBold, color: COLORS.textLight });
+    page.drawText(`Dok.-Quote: ${docRate} %`, { x: LAYOUT.margin + boxPadding + 2 * colWidth, y: kpiY - 42, size: 7, font, color: COLORS.textLight });
     
+    // MOH Risk Warning
     if (mohRisk) {
-      page.drawText("MOH-Risiko:", { x: LAYOUT.margin + boxPadding, y: kpiY - 60, size: 8, font: fontBold, color: COLORS.chartPain });
-      page.drawText(mohMessage, { x: LAYOUT.margin + boxPadding + 60, y: kpiY - 60, size: 8, font: fontBold, color: COLORS.chartPain });
+      kpiY -= 60;
+      page.drawText("MOH-Risiko:", { x: LAYOUT.margin + boxPadding, y: kpiY, size: 8, font: fontBold, color: COLORS.chartPain });
+      page.drawText(sanitizeForPDF(mohMessage), { x: LAYOUT.margin + boxPadding + 60, y: kpiY, size: 8, font: fontBold, color: COLORS.chartPain });
+      page.drawText("Aerztliche Pruefung auf Medikamentenuebergebrauch empfohlen.", { x: LAYOUT.margin + boxPadding, y: kpiY - 12, size: 7, font, color: COLORS.chartPain });
     }
     
-    yPos -= kpiBoxHeight + 8;
+    yPos -= kpiBoxHeight + 4;
+    
+    // Migraine day definition footnote
+    page.drawText("Migraenetag-Heuristik: NRS >= 7 ODER Aura dokumentiert ODER Triptan eingenommen. Keine klinische Diagnose.", {
+      x: LAYOUT.margin, y: yPos, size: 6.5, font, color: COLORS.textLight,
+    });
+    yPos -= 12;
     
     // ═══════════════════════════════════════════════════════════════════════
     // PIE CHART: Tagesverteilung (kompakter)
