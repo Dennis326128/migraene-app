@@ -978,6 +978,55 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   const premiumAIFailed = isPremiumAIRequested && !hasPremiumAIData;
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // SSOT: Zentrale Medikations-Tageszählung für konsistente Zahlen überall
+  // ═══════════════════════════════════════════════════════════════════════════
+  const medDaysMap = new Map<string, Set<string>>(); // med name → Set of dates
+  const medCombinationsMap = new Map<string, Map<string, number>>(); // med → co-med → count
+  entries.forEach(entry => {
+    const date = entry.selected_date || entry.timestamp_created?.split('T')[0] || '';
+    if (!date || !entry.medications || entry.medications.length === 0) return;
+    entry.medications.forEach(med => {
+      if (!medDaysMap.has(med)) medDaysMap.set(med, new Set());
+      medDaysMap.get(med)!.add(date);
+      // Track combinations
+      entry.medications!.forEach(otherMed => {
+        if (otherMed === med) return;
+        if (!medCombinationsMap.has(med)) medCombinationsMap.set(med, new Map());
+        const comboMap = medCombinationsMap.get(med)!;
+        comboMap.set(otherMed, (comboMap.get(otherMed) || 0) + 1);
+      });
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // TRIGGER-EXTRAKTION aus Notizen (zentral, für Trigger-Block + KI)
+  // ═══════════════════════════════════════════════════════════════════════════
+  const TRIGGER_KEYWORDS: Record<string, string[]> = {
+    'Helligkeit / Licht': ['hell', 'licht', 'sonne', 'blendung', 'grell', 'bildschirm', 'monitor'],
+    'Laerm / Geraeusche': ['laerm', 'lärm', 'laut', 'geraeusch', 'geräusch', 'krach'],
+    'Stress': ['stress', 'anspannung', 'druck', 'hektik', 'belastung'],
+    'Schlafmangel': ['schlaf', 'muede', 'müde', 'schlecht geschlafen', 'wenig schlaf', 'uebermuedet', 'übermüdet'],
+    'Koerperliche Belastung': ['sport', 'anstrengung', 'koerperlich', 'körperlich', 'training', 'belastung'],
+    'Wetter': ['wetter', 'foehn', 'föhn', 'gewitter', 'schwuel', 'schwül', 'hitze', 'kaelte', 'kälte'],
+    'Infekt / Krankheit': ['infekt', 'erkaelt', 'erkält', 'krank', 'grippe', 'fieber'],
+    'Alkohol': ['alkohol', 'wein', 'bier', 'sekt'],
+    'Menstruation / Zyklus': ['menstruation', 'periode', 'zyklus', 'regel', 'pms'],
+  };
+  const triggerCounts = new Map<string, number>();
+  entries.forEach(entry => {
+    if (!entry.notes || entry.entry_note_is_private) return;
+    const noteLower = entry.notes.toLowerCase();
+    for (const [trigger, keywords] of Object.entries(TRIGGER_KEYWORDS)) {
+      if (keywords.some(kw => noteLower.includes(kw))) {
+        triggerCounts.set(trigger, (triggerCounts.get(trigger) || 0) + 1);
+      }
+    }
+  });
+  const sortedTriggers = Array.from(triggerCounts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 7);
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // 1. KOPFBEREICH (Titel, Zeitraum, Erstellungsdatum)
   // ═══════════════════════════════════════════════════════════════════════════
   
@@ -1133,13 +1182,13 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     let mohMessage = "";
     if (triptanDaysPerMonth >= 10) {
       mohRisk = true;
-      mohMessage = "Auffaellig haeufige Triptan-Anwendung (>=10 Tage/Monat)";
+      mohMessage = "Auffaellig haeufige Triptan-Anwendung im Berichtszeitraum; klinische Pruefung auf Medikamentenuebergebrauch sinnvoll.";
     } else if (acutePerMonth >= 15) {
       mohRisk = true;
-      mohMessage = "Auffaellig haeufige Akutmedikation (>=15 Tage/Monat)";
+      mohMessage = "Auffaellig haeufige Akutmedikation im Berichtszeitraum; klinische Pruefung auf Medikamentenuebergebrauch sinnvoll.";
     } else if (triptanDaysPerMonth >= 8 || acutePerMonth >= 12) {
       mohRisk = true;
-      mohMessage = "Erhoehte Akutmedikationsfrequenz - Verlaufskontrolle empfohlen";
+      mohMessage = "Erhoehte Akutmedikationsfrequenz - Verlaufskontrolle empfohlen.";
     }
     
     yPos = drawSectionHeader(page, "KLINISCHE KERNÜBERSICHT", yPos, fontBold, 11);
@@ -1185,9 +1234,11 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     // MOH Risk Warning
     if (mohRisk) {
       kpiY -= 60;
-      page.drawText("MOH-Risiko:", { x: LAYOUT.margin + boxPadding, y: kpiY, size: 8, font: fontBold, color: COLORS.chartPain });
-      page.drawText(sanitizeForPDF(mohMessage), { x: LAYOUT.margin + boxPadding + 60, y: kpiY, size: 8, font: fontBold, color: COLORS.chartPain });
-      page.drawText("Aerztliche Pruefung auf Medikamentenuebergebrauch empfohlen.", { x: LAYOUT.margin + boxPadding, y: kpiY - 12, size: 7, font, color: COLORS.chartPain });
+      page.drawText("Hinweis:", { x: LAYOUT.margin + boxPadding, y: kpiY, size: 8, font: fontBold, color: COLORS.chartPain });
+      const mohLines = wrapText(mohMessage, LAYOUT.pageWidth - 2 * LAYOUT.margin - 2 * boxPadding - 55, 8, font);
+      for (let mi = 0; mi < mohLines.length; mi++) {
+        page.drawText(sanitizeForPDF(mohLines[mi]), { x: LAYOUT.margin + boxPadding + 50, y: kpiY - (mi * 11), size: 8, font, color: COLORS.chartPain });
+      }
     }
     
     yPos -= kpiBoxHeight + 4;
@@ -1250,7 +1301,6 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     
     yPos = drawSectionHeader(page, "AKUTMEDIKATION & WIRKUNG", yPos, fontBold, 12);
     
-    const hasExtendedStats = medicationStats[0]?.totalUnitsInRange !== undefined;
     
     // ── Relevance-based sorting: total intakes DESC → last30 DESC → alpha ASC ──
     const sortedMedStats = [...medicationStats].sort((a, b) => {
@@ -1266,17 +1316,15 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     // Filter out meds with 0 intakes
     const filteredMedStats = sortedMedStats.filter(s => (s.totalUnitsInRange ?? s.count) > 0);
     
-    const cols = hasExtendedStats ? {
+    // Extended columns with "Tage" for days with intake (SSOT from medDaysMap)
+    const medCols = {
       name: LAYOUT.margin,
-      totalRange: LAYOUT.margin + 140,
-      avgMonth: LAYOUT.margin + 210,
-      last30: LAYOUT.margin + 280,
-      effectiveness: LAYOUT.margin + 350,
-    } : {
-      name: LAYOUT.margin,
-      count: LAYOUT.margin + 200,
-      effectiveness: LAYOUT.margin + 290,
-      note: LAYOUT.margin + 420,
+      intakes: LAYOUT.margin + 115,
+      days: LAYOUT.margin + 170,
+      avgMonth: LAYOUT.margin + 225,
+      last30: LAYOUT.margin + 285,
+      effectiveness: LAYOUT.margin + 340,
+      combo: LAYOUT.margin + 435,
     };
     
     page.drawRectangle({
@@ -1287,21 +1335,16 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       color: rgb(0.95, 0.97, 1.0),
     });
     
-    if (hasExtendedStats) {
-      page.drawText("Medikament", { x: cols.name, y: yPos - 12, size: 8, font: fontBold });
-      page.drawText("Einnahmen", { x: cols.totalRange, y: yPos - 12, size: 8, font: fontBold });
-      page.drawText("\u00D8 / Monat", { x: cols.avgMonth, y: yPos - 12, size: 8, font: fontBold });
-      page.drawText("Letzte 30T", { x: cols.last30, y: yPos - 12, size: 8, font: fontBold });
-      page.drawText("\u00D8 Wirkung (%)", { x: cols.effectiveness, y: yPos - 12, size: 8, font: fontBold });
-    } else {
-      page.drawText("Medikament", { x: cols.name, y: yPos - 12, size: 9, font: fontBold });
-      page.drawText("Einnahmen", { x: cols.count!, y: yPos - 12, size: 9, font: fontBold });
-      page.drawText("\u00D8 Wirkung (%)", { x: cols.effectiveness, y: yPos - 12, size: 9, font: fontBold });
-      page.drawText("Bemerkung", { x: cols.note!, y: yPos - 12, size: 9, font: fontBold });
-    }
+    page.drawText("Medikament", { x: medCols.name, y: yPos - 12, size: 7, font: fontBold });
+    page.drawText("Einnahmen", { x: medCols.intakes, y: yPos - 12, size: 7, font: fontBold });
+    page.drawText("Tage", { x: medCols.days, y: yPos - 12, size: 7, font: fontBold });
+    page.drawText("\u00D8/30T", { x: medCols.avgMonth, y: yPos - 12, size: 7, font: fontBold });
+    page.drawText("Letzte 30T", { x: medCols.last30, y: yPos - 12, size: 7, font: fontBold });
+    page.drawText("\u00D8 Wirkung", { x: medCols.effectiveness, y: yPos - 12, size: 7, font: fontBold });
+    page.drawText("Kombination", { x: medCols.combo, y: yPos - 12, size: 7, font: fontBold });
     yPos -= 30;
     
-    // Triptane zusammenfassen + andere separat (preserving grouping, but within sorted order)
+    // Triptane zusammenfassen + andere separat
     const triptans = filteredMedStats.filter(s => isTriptan(s.name));
     const others = filteredMedStats.filter(s => !isTriptan(s.name));
     
@@ -1310,16 +1353,19 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       const totalTriptanUnits = triptans.reduce((sum, t) => sum + (t.totalUnitsInRange ?? t.count), 0);
       const totalTriptanPerMonth = triptans.reduce((sum, t) => sum + (t.avgPerMonth ?? 0), 0);
       const totalTriptanLast30 = triptans.reduce((sum, t) => sum + (t.last30Units ?? 0), 0);
+      // Total unique triptan days
+      const allTriptanDays = new Set<string>();
+      triptans.forEach(t => {
+        const days = medDaysMap.get(t.name);
+        if (days) days.forEach(d => allTriptanDays.add(d));
+      });
       
-      page.drawText("Triptane (gesamt)", { x: cols.name, y: yPos, size: 9, font: fontBold, color: COLORS.primaryLight });
-      if (hasExtendedStats) {
-        page.drawText(formatGermanDecimal(totalTriptanUnits, 1), { x: cols.totalRange, y: yPos, size: 9, font: fontBold });
-        page.drawText(formatGermanDecimal(totalTriptanPerMonth, 1), { x: cols.avgMonth, y: yPos, size: 9, font: fontBold });
-        page.drawText(formatGermanDecimal(totalTriptanLast30, 1), { x: cols.last30, y: yPos, size: 9, font: fontBold });
-      } else {
-        page.drawText(totalTriptanUnits.toString(), { x: cols.count!, y: yPos, size: 9, font: fontBold });
-      }
-      yPos -= 15;
+      page.drawText("Triptane (gesamt)", { x: medCols.name, y: yPos, size: 8, font: fontBold, color: COLORS.primaryLight });
+      page.drawText(formatGermanDecimal(totalTriptanUnits, 1), { x: medCols.intakes, y: yPos, size: 8, font: fontBold });
+      page.drawText(String(allTriptanDays.size), { x: medCols.days, y: yPos, size: 8, font: fontBold });
+      page.drawText(formatGermanDecimal(totalTriptanPerMonth, 1), { x: medCols.avgMonth, y: yPos, size: 8, font: fontBold });
+      page.drawText(formatGermanDecimal(totalTriptanLast30, 1), { x: medCols.last30, y: yPos, size: 8, font: fontBold });
+      yPos -= 14;
     }
     
     // Helper: format effectiveness with rating base
@@ -1327,9 +1373,19 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       const totalIntakes = stat.totalUnitsInRange ?? stat.count;
       if (stat.ratedCount > 0 && stat.avgEffect !== null) {
         const effectPercent = Math.round((stat.avgEffect / 10) * 100);
-        return `${effectPercent} % (${stat.ratedCount}/${totalIntakes})`;
+        return `${effectPercent} %`;
       }
-      return "keine Bewertung";
+      return "-";
+    };
+    
+    // Get top combination for a medication
+    const getTopCombo = (medName: string): string => {
+      const comboMap = medCombinationsMap.get(medName);
+      if (!comboMap || comboMap.size === 0) return "-";
+      const sorted = Array.from(comboMap.entries()).sort((a, b) => b[1] - a[1]);
+      const top = sorted[0];
+      if (top[1] < 2) return "-"; // only show if >= 2 co-occurrences
+      return top[0].length > 12 ? top[0].substring(0, 10) + '..' : top[0];
     };
     
     // Alle Medikamente auflisten (sorted by relevance)
@@ -1343,26 +1399,18 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       const medName = isTriptan(stat.name) && triptans.length > 1 
         ? `  ${stat.name}`
         : stat.name;
+      const daysWithIntake = medDaysMap.get(stat.name)?.size ?? 0;
       
-      page.drawText(sanitizeForPDF(medName), { x: cols.name, y: yPos, size: 9, font });
+      const displayName = medName.length > 18 ? medName.substring(0, 16) + '..' : medName;
+      page.drawText(sanitizeForPDF(displayName), { x: medCols.name, y: yPos, size: 8, font });
+      page.drawText(formatGermanDecimal(stat.totalUnitsInRange ?? stat.count, 1), { x: medCols.intakes, y: yPos, size: 8, font });
+      page.drawText(String(daysWithIntake), { x: medCols.days, y: yPos, size: 8, font });
+      page.drawText(formatGermanDecimal(stat.avgPerMonth ?? 0, 1), { x: medCols.avgMonth, y: yPos, size: 8, font });
+      page.drawText(formatGermanDecimal(stat.last30Units ?? 0, 1), { x: medCols.last30, y: yPos, size: 8, font });
+      page.drawText(formatEffectiveness(stat), { x: medCols.effectiveness, y: yPos, size: 8, font });
+      page.drawText(sanitizeForPDF(getTopCombo(stat.name)), { x: medCols.combo, y: yPos, size: 7, font, color: COLORS.textLight });
       
-      if (hasExtendedStats) {
-        page.drawText(formatGermanDecimal(stat.totalUnitsInRange ?? stat.count, 1), { 
-          x: cols.totalRange, y: yPos, size: 9, font 
-        });
-        page.drawText(formatGermanDecimal(stat.avgPerMonth ?? 0, 1), { 
-          x: cols.avgMonth, y: yPos, size: 9, font 
-        });
-        page.drawText(formatGermanDecimal(stat.last30Units ?? 0, 1), { 
-          x: cols.last30, y: yPos, size: 9, font 
-        });
-        page.drawText(formatEffectiveness(stat), { x: cols.effectiveness, y: yPos, size: 9, font });
-      } else {
-        page.drawText(stat.count.toString(), { x: cols.count!, y: yPos, size: 9, font });
-        page.drawText(formatEffectiveness(stat), { x: cols.effectiveness, y: yPos, size: 9, font });
-      }
-      
-      yPos -= 15;
+      yPos -= 14;
     }
     
     yPos -= LAYOUT.sectionGap;
@@ -1553,6 +1601,40 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       yPos -= LAYOUT.lineHeight;
     }
 
+    yPos -= LAYOUT.sectionGap;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // TRIGGER & KONTEXTFAKTOREN (aus Notizen extrahiert)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  if (sortedTriggers.length > 0) {
+    const triggerBlockHeight = 30 + sortedTriggers.length * 14 + 30;
+    const triggerCheck = ensureSpace(pdfDoc, page, yPos, triggerBlockHeight);
+    page = triggerCheck.page;
+    yPos = triggerCheck.yPos;
+
+    yPos = drawSectionHeader(page, "TRIGGER & KONTEXTFAKTOREN", yPos, fontBold, 11);
+
+    page.drawText("Wiederkehrende Muster aus Patientennotizen (automatisch extrahiert, keine klinische Bewertung).", {
+      x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight,
+    });
+    yPos -= 14;
+
+    for (const [trigger, count] of sortedTriggers) {
+      if (yPos < LAYOUT.margin + 40) {
+        page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
+        yPos = LAYOUT.pageHeight - LAYOUT.margin;
+      }
+      page.drawText(sanitizeForPDF(`- ${trigger}: ${count} Erwaehnungen`), {
+        x: LAYOUT.margin + 8, y: yPos, size: 9, font, color: COLORS.text,
+      });
+      yPos -= 13;
+    }
+
+    page.drawText("Hinweis: Schlagwortbasierte Extraktion; kein Beleg fuer kausalen Zusammenhang.", {
+      x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight,
+    });
     yPos -= LAYOUT.sectionGap;
   }
 
@@ -2062,14 +2144,20 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     
     yPos = drawSectionHeader(page, hasWeatherData ? "SCHMERZ- & WETTERVERLAUF" : "SCHMERZVERLAUF", yPos, fontBold, 13);
     
-    page.drawText(`Kombiniertes Verlaufsdiagramm für den Berichtszeitraum ${formatDateGerman(from)} - ${formatDateGerman(to)}`, {
+    page.drawText(`Kombiniertes Verlaufsdiagramm fuer den Berichtszeitraum ${formatDateGerman(from)} - ${formatDateGerman(to)}`, {
       x: LAYOUT.margin,
       y: yPos,
       size: 8,
       font,
       color: COLORS.textLight,
     });
-    yPos -= 20;
+    yPos -= 12;
+    if (hasWeatherData) {
+      page.drawText("Explorative Darstellung; aus den vorliegenden Daten ergibt sich kein gesicherter kausaler Zusammenhang.", {
+        x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight,
+      });
+      yPos -= 12;
+    }
     
     const chartWidth = LAYOUT.pageWidth - 2 * LAYOUT.margin;
     
@@ -2235,9 +2323,9 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     page = spaceCheck.page;
     yPos = spaceCheck.yPos;
     
-    yPos = drawSectionHeader(page, "DETAILLIERTE KOPFSCHMERZ-EINTRÄGE", yPos, fontBold, 12);
+    yPos = drawSectionHeader(page, "ANHANG: DETAILLIERTE KOPFSCHMERZ-EINTRAEGE", yPos, fontBold, 11);
     
-    page.drawText(`${entries.length} Eintraege im Zeitraum (Referenzdaten)`, {
+    page.drawText(`${entries.length} Eintraege im Zeitraum (Referenz- und Nachschlagedaten)`, {
       x: LAYOUT.margin,
       y: yPos,
       size: 8,

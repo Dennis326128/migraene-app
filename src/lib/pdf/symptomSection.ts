@@ -1,10 +1,10 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════
- * BEGLEITSYMPTOME – KLINISCHE ÜBERSICHT FÜR PDF
+ * BEGLEITSYMPTOME – KLINISCH GRUPPIERTE ÜBERSICHT FÜR PDF
  * ═══════════════════════════════════════════════════════════════════════════
  *
  * Berechnet Symptom-Häufigkeit (objektiv) und Belastungsbewertung (subjektiv)
- * und zeichnet den klinischen Abschnitt im PDF.
+ * und zeichnet den klinischen Abschnitt im PDF — klinisch gruppiert.
  */
 
 import { PDFPage, PDFFont, rgb } from "pdf-lib";
@@ -37,7 +37,46 @@ interface SymptomRow {
   burdenLabel: string;
   relevanceScore: number;
   clinicalNote: string;
+  group: SymptomGroup;
 }
+
+type SymptomGroup = 'migraine' | 'neurological' | 'other';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CLINICAL GROUPING
+// ═══════════════════════════════════════════════════════════════════════════
+
+const MIGRAINE_SYMPTOMS = [
+  'lichtempfindlichkeit', 'photophobie',
+  'geraeuschempfindlichkeit', 'geräuschempfindlichkeit', 'phonophobie',
+  'uebelkeit', 'übelkeit', 'erbrechen',
+  'appetitlosigkeit',
+  'geruchsempfindlichkeit',
+];
+
+const NEUROLOGICAL_SYMPTOMS = [
+  'wortfindungsstoerung', 'wortfindungsstörung',
+  'konzentrationsstoerung', 'konzentrationsstörung', 'konzentrationsprobleme',
+  'sehstoerung', 'sehstörung', 'sehstörungen', 'verschwommensehen',
+  'schwindel',
+  'taubheitsgefuehl', 'taubheitsgefühl',
+  'kribbeln',
+  'sprachstoerung', 'sprachstörung',
+  'aura',
+];
+
+function classifySymptom(name: string): SymptomGroup {
+  const lower = name.toLowerCase().trim();
+  if (MIGRAINE_SYMPTOMS.some(s => lower.includes(s))) return 'migraine';
+  if (NEUROLOGICAL_SYMPTOMS.some(s => lower.includes(s))) return 'neurological';
+  return 'other';
+}
+
+const GROUP_LABELS: Record<SymptomGroup, string> = {
+  migraine: 'Migraenetypische Begleitsymptome',
+  neurological: 'Neurologische / kognitive Symptome',
+  other: 'Sonstige Symptome',
+};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // COMPUTATION
@@ -49,15 +88,13 @@ function computeClinicalNote(freqPct: number, burdenLevel: number | null): strin
   const burdenHigh = burdenLevel !== null && burdenLevel >= 3;
   const burdenSet = burdenLevel !== null && burdenLevel > 0;
 
-  if (isHigh && burdenHigh) return "h\u00E4ufig mit ausgepr\u00E4gter Beeintr\u00E4chtigung";
-  if (isHigh && burdenSet) return "h\u00E4ufig, klinisch relevant";
-  if (isHigh && !burdenSet) return "H\u00E4ufigkeit dokumentiert, Beeintr\u00E4chtigung nicht bewertet";
-  if (isMedium && burdenHigh) return "regelm\u00E4\u00DFig, klinisch bedeutsam";
-  if (!isMedium && burdenHigh) return "selten, jedoch klinisch bedeutsam";
-  if (isMedium && burdenSet) return "regelm\u00E4\u00DFig, klinisch relevant";
-  if (isMedium) return "H\u00E4ufigkeit dokumentiert, Beeintr\u00E4chtigung nicht bewertet";
-  if (burdenSet) return "gelegentlich";
-  return "H\u00E4ufigkeit dokumentiert, Beeintr\u00E4chtigung nicht bewertet";
+  if (isHigh && burdenHigh) return "haeufig, ausgepraegt";
+  if (isHigh && burdenSet) return "haeufig, relevant";
+  if (isHigh) return "haeufig";
+  if (isMedium && burdenHigh) return "regelmaessig, bedeutsam";
+  if (!isMedium && burdenHigh) return "selten, bedeutsam";
+  if (isMedium) return "regelmaessig";
+  return "gelegentlich";
 }
 
 export function computeSymptomRows(data: SymptomDataForPdf): {
@@ -73,13 +110,10 @@ export function computeSymptomRows(data: SymptomDataForPdf): {
     return { rows: [], useCheckedBasis, basisCount, hasBurdenData: false };
   }
 
-  // Count symptoms per basis
   const symptomCounts = new Map<string, number>();
 
   for (const es of data.entrySymptoms) {
-    // If using checked basis, only count symptoms from checked entries
     if (useCheckedBasis && !data.checkedEntryIds.has(es.entry_id)) continue;
-
     const name = data.catalog.get(es.symptom_id);
     if (!name) continue;
     symptomCounts.set(name, (symptomCounts.get(name) || 0) + 1);
@@ -105,6 +139,7 @@ export function computeSymptomRows(data: SymptomDataForPdf): {
       burdenLabel,
       relevanceScore,
       clinicalNote: computeClinicalNote(freqPct, burdenLevel),
+      group: classifySymptom(name),
     });
   }
 
@@ -153,8 +188,8 @@ function ensureSpace(
 }
 
 /**
- * Draws the "Begleitsymptome (klinische Übersicht)" section in the PDF.
- * Returns updated { page, yPos }.
+ * Draws the "Begleitsymptome – Klinische Bewertung" section in the PDF,
+ * grouped by clinical category (migraine-typical, neurological, other).
  */
 export function drawSymptomSection(
   pdfDoc: any,
@@ -168,20 +203,18 @@ export function drawSymptomSection(
 ): { page: PDFPage; yPos: number } {
   const { rows, useCheckedBasis, basisCount, hasBurdenData } = computeSymptomRows(data);
 
-  // Skip section if no symptoms at all
   if (rows.length === 0 && basisCount === 0) {
     return { page, yPos };
   }
 
-  // Estimate space: header (40) + basis line (15) + table header (20) + rows (15 each) + footer (30)
-  const topRows = Math.min(rows.length, 6);
-  const estimatedSpace = 40 + 15 + 20 + topRows * 15 + 40;
+  const topRows = Math.min(rows.length, 12);
+  const estimatedSpace = 40 + 15 + 20 + topRows * 15 + 80;
   const spaceCheck = ensureSpace(pdfDoc, page, yPos, estimatedSpace);
   page = spaceCheck.page;
   yPos = spaceCheck.yPos;
 
   // ── Section Header ──
-  page.drawText("BEGLEITSYMPTOME \u2013 KLINISCHE BEWERTUNG", {
+  page.drawText("BEGLEITSYMPTOME - KLINISCHE BEWERTUNG", {
     x: LAYOUT.margin, y: yPos, size: 11, font: fontBold, color: COLORS.primaryLight,
   });
   page.drawLine({
@@ -193,7 +226,7 @@ export function drawSymptomSection(
 
   // ── Basis line ──
   const basisLabel = useCheckedBasis
-    ? `Zeitraum: ${fromFormatted} - ${toFormatted}  |  Basis: ${basisCount} von ${data.totalEntries} Attacken (gepr\u00FCft)`
+    ? `Zeitraum: ${fromFormatted} - ${toFormatted}  |  Basis: ${basisCount} von ${data.totalEntries} Attacken (geprueft)`
     : `Zeitraum: ${fromFormatted} - ${toFormatted}  |  Basis: ${data.totalEntries} Attacken (alle)`;
   
   page.drawText(basisLabel, {
@@ -201,16 +234,14 @@ export function drawSymptomSection(
   });
   yPos -= 11;
 
-  // Fallback warning if using all entries
   if (!useCheckedBasis && data.totalEntries > 0) {
     page.drawText(
-      "Hinweis: Begleitsymptome wurden selten ge\u00F6ffnet; H\u00E4ufigkeiten k\u00F6nnen \u00FCbersch\u00E4tzt sein.",
+      "Hinweis: Begleitsymptome wurden selten geoeffnet; Haeufigkeiten koennen ueberschaetzt sein.",
       { x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight }
     );
     yPos -= 11;
   }
 
-  // Burden not set hint
   if (!hasBurdenData) {
     page.drawText(
       "Belastung: nicht festgelegt",
@@ -227,79 +258,69 @@ export function drawSymptomSection(
     return { page, yPos };
   }
 
-  // ── Table header ──
-  const cols = {
-    symptom: LAYOUT.margin,
-    freq: LAYOUT.margin + 200,
-    burden: LAYOUT.margin + 280,
-  };
+  // ── Group symptoms by clinical category ──
+  const groups: SymptomGroup[] = ['migraine', 'neurological', 'other'];
+  
+  for (const group of groups) {
+    const groupRows = rows.filter(r => r.group === group);
+    if (groupRows.length === 0) continue;
 
-  page.drawRectangle({
-    x: LAYOUT.margin, y: yPos - 15,
-    width: LAYOUT.pageWidth - 2 * LAYOUT.margin, height: 15,
-    color: COLORS.headerBg,
-  });
-
-  page.drawText("Symptom", { x: cols.symptom, y: yPos - 11, size: 8, font: fontBold, color: COLORS.text });
-  page.drawText("H\u00E4ufigkeit", { x: cols.freq, y: yPos - 11, size: 8, font: fontBold, color: COLORS.text });
-  page.drawText("Belastung", { x: cols.burden, y: yPos - 11, size: 8, font: fontBold, color: COLORS.text });
-  yPos -= 26;
-
-  // ── Top 6 rows ──
-  const topSymptoms = rows.slice(0, 6);
-  for (const row of topSymptoms) {
-    if (yPos < LAYOUT.margin + 50) {
+    if (yPos < LAYOUT.margin + 80) {
       page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
       yPos = LAYOUT.pageHeight - LAYOUT.margin;
     }
 
-    page.drawText(sanitize(row.name), {
-      x: cols.symptom, y: yPos, size: 8.5, font: fontBold, color: COLORS.text,
-    });
-    // Right-align frequency percentage
-    const freqText = `${row.frequencyPercent} %`;
-    const freqWidth = font.widthOfTextAtSize(freqText, 8.5);
-    page.drawText(freqText, {
-      x: cols.burden - 10 - freqWidth, y: yPos, size: 8.5, font, color: COLORS.text,
-    });
-    page.drawText(sanitize(row.burdenLabel), {
-      x: cols.burden, y: yPos, size: 8.5, font, color: COLORS.text,
+    // Group sub-header
+    page.drawText(GROUP_LABELS[group], {
+      x: LAYOUT.margin, y: yPos, size: 9, font: fontBold, color: COLORS.primary,
     });
     yPos -= 14;
-  }
 
-  // ── Remaining symptoms (compact list if > 6) ──
-  if (rows.length > 6) {
-    const remaining = rows.slice(6, 12);
-    const remainingNames = remaining.map(r => sanitize(r.name)).join(", ");
-    
-    yPos -= 4;
-    page.drawText(`Weitere Symptome: ${remainingNames}`, {
-      x: LAYOUT.margin, y: yPos, size: 7.5, font, color: COLORS.textLight,
+    // Table header for group
+    const cols = {
+      symptom: LAYOUT.margin + 8,
+      freq: LAYOUT.margin + 210,
+      burden: LAYOUT.margin + 290,
+      note: LAYOUT.margin + 390,
+    };
+
+    page.drawRectangle({
+      x: LAYOUT.margin, y: yPos - 13,
+      width: LAYOUT.pageWidth - 2 * LAYOUT.margin, height: 13,
+      color: COLORS.headerBg,
     });
-    yPos -= 12;
+    page.drawText("Symptom", { x: cols.symptom, y: yPos - 10, size: 7, font: fontBold, color: COLORS.text });
+    page.drawText("Haeufigkeit", { x: cols.freq, y: yPos - 10, size: 7, font: fontBold, color: COLORS.text });
+    page.drawText("Belastung", { x: cols.burden, y: yPos - 10, size: 7, font: fontBold, color: COLORS.text });
+    page.drawText("Einschaetzung", { x: cols.note, y: yPos - 10, size: 7, font: fontBold, color: COLORS.text });
+    yPos -= 22;
 
-    if (rows.length > 12) {
-      const moreCount = rows.length - 12;
-      page.drawText(`... und ${moreCount} weitere`, {
-        x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight,
-      });
-      yPos -= 10;
+    for (const row of groupRows.slice(0, 6)) {
+      if (yPos < LAYOUT.margin + 50) {
+        page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
+        yPos = LAYOUT.pageHeight - LAYOUT.margin;
+      }
+
+      page.drawText(sanitize(row.name), { x: cols.symptom, y: yPos, size: 8, font, color: COLORS.text });
+      page.drawText(`${row.frequencyPercent} %`, { x: cols.freq, y: yPos, size: 8, font, color: COLORS.text });
+      page.drawText(sanitize(row.burdenLabel), { x: cols.burden, y: yPos, size: 8, font, color: COLORS.text });
+      page.drawText(sanitize(row.clinicalNote), { x: cols.note, y: yPos, size: 7, font, color: COLORS.textLight });
+      yPos -= 13;
     }
+    yPos -= 6;
   }
 
   // ── Footer note ──
-  yPos -= 4;
+  yPos -= 2;
   page.drawText(
-    "H\u00E4ufigkeit basiert auf dokumentierten Attacken; Belastung entspricht patientenseitiger Priorisierung.",
+    "Haeufigkeit basiert auf dokumentierten Attacken; Belastung entspricht patientenseitiger Priorisierung.",
     { x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight }
   );
   yPos -= 10;
 
-  // Burden hint if no data
   if (!hasBurdenData) {
     page.drawText(
-      "Tipp: Patient kann in Miary die Beeintr\u00E4chtigung pro Symptom festlegen.",
+      "Tipp: Patient kann in Miary die Beeintraechtigung pro Symptom festlegen.",
       { x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight }
     );
     yPos -= 10;
