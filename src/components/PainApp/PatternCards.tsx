@@ -51,7 +51,7 @@ function Rolling30DayLimitDisplay({ limitInfo }: { limitInfo: MedicationLimitInf
   return (
     <div className="mt-2 pt-2 border-t border-border/50">
       <div className="flex items-center gap-1 mb-1.5">
-        <span className="text-xs font-medium text-muted-foreground">30-Tage-Limit</span>
+        <span className="text-xs font-medium text-muted-foreground">Limit (30 Tage)</span>
         {isOver && <span className="text-amber-500 text-xs">⚠</span>}
         <InfoTooltip content="Rollierend: zählt die letzten 30 Tage ab heute." />
       </div>
