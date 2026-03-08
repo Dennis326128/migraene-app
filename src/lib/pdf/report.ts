@@ -2145,14 +2145,20 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     
     yPos = drawSectionHeader(page, hasWeatherData ? "SCHMERZ- & WETTERVERLAUF" : "SCHMERZVERLAUF", yPos, fontBold, 13);
     
-    page.drawText(`Kombiniertes Verlaufsdiagramm für den Berichtszeitraum ${formatDateGerman(from)} - ${formatDateGerman(to)}`, {
+    page.drawText(`Kombiniertes Verlaufsdiagramm fuer den Berichtszeitraum ${formatDateGerman(from)} - ${formatDateGerman(to)}`, {
       x: LAYOUT.margin,
       y: yPos,
       size: 8,
       font,
       color: COLORS.textLight,
     });
-    yPos -= 20;
+    yPos -= 12;
+    if (hasWeatherData) {
+      page.drawText("Explorative Darstellung; aus den vorliegenden Daten ergibt sich kein gesicherter kausaler Zusammenhang.", {
+        x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight,
+      });
+      yPos -= 12;
+    }
     
     const chartWidth = LAYOUT.pageWidth - 2 * LAYOUT.margin;
     
