@@ -471,10 +471,12 @@ export async function buildDoctorReportSnapshot(
   });
 
   // Durchschnittliche Intensität (über Tagesmaximum)
-  const dailyMaxValues = Array.from(dailyMaxIntensity.values());
+  const dailyMaxValues = Array.from(dailyMaxIntensity.values()).filter(v => v > 0);
   const avgIntensity = dailyMaxValues.length > 0
     ? Math.round((dailyMaxValues.reduce((a, b) => a + b, 0) / dailyMaxValues.length) * 10) / 10
     : 0;
+
+  console.log(`[DoctorReport] KPI summary: headacheDays=${painDaysSet.size}, migraineDays=${migraineDaysSet.size}, triptanDays=${triptanDaysSet.size}, acuteMedDays=${acuteMedDaysSet.size}, avgIntensity=${avgIntensity}, intensityDataPoints=${dailyMaxValues.length}`);
 
   // Overuse Warning
   const monthsInRange = daysInRange / 30;

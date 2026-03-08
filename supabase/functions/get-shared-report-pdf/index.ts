@@ -91,7 +91,13 @@ Deno.serve(async (req) => {
 
     // Summary
     const painDays = new Set(allEntries.filter(e => e.pain_level && e.pain_level !== "-").map(e => e.selected_date));
-    const migraineDays = new Set(allEntries.filter(e => e.pain_level === "stark" || e.pain_level === "sehr_stark").map(e => e.selected_date));
+    const triptanKeywordsPdf = ["triptan","almotriptan","eletriptan","frovatriptan","naratriptan","rizatriptan","sumatriptan","zolmitriptan","suma","riza","zolmi","nara","almo","ele","frova","imigran","maxalt","ascotop","naramig","almogran","relpax","allegro","dolotriptan","formigran"];
+    const migraineDays = new Set(allEntries.filter(e => {
+      const nrs = painLevelToNumber(e.pain_level);
+      const hasTriptan = e.medications?.some((med: string) => triptanKeywordsPdf.some(kw => med.toLowerCase().includes(kw)));
+      const hasAura = e.aura_type && e.aura_type !== "keine";
+      return nrs > 0 && (nrs >= 7 || hasTriptan || hasAura);
+    }).map(e => e.selected_date));
     const triptanKeywords = ["triptan","almotriptan","eletriptan","frovatriptan","naratriptan","rizatriptan","sumatriptan","zolmitriptan","suma","riza","zolmi","nara","almo","ele","frova","imigran","maxalt","ascotop","naramig","almogran","relpax","allegro","dolotriptan","formigran"];
     const triptanDays = new Set(allEntries.filter(e => e.medications?.some((med: string) => triptanKeywords.some(kw => med.toLowerCase().includes(kw)))).map(e => e.selected_date));
     const acuteMedDays = new Set(allEntries.filter(e => e.medications && e.medications.length > 0).map(e => e.selected_date));
