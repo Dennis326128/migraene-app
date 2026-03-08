@@ -114,7 +114,16 @@ export function computeMiaryReport(input: ComputeReportInput): MiaryReportV2 {
       }
       if (treatment) treatmentDays++;
       if (day.acuteMedUsed) acuteMedDays++;
-      if (day.triptanUsed) triptanDays++;
+      if (day.triptanUsed) {
+        triptanDays++;
+        // Count individual triptan intakes from medications array
+        const triptanMeds = day.medications.filter(m =>
+          m.name.toLowerCase().includes('triptan') ||
+          ['imigran','maxalt','ascotop','naramig','almogran','relpax','allegro','dolotriptan','formigran']
+            .some(t => m.name.toLowerCase().includes(t))
+        );
+        totalTriptanIntakes += Math.max(1, triptanMeds.length);
+      }
     }
   }
 
