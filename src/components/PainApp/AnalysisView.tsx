@@ -17,6 +17,7 @@ import { WeatherAssociationCard } from "./WeatherAssociationCard";
 import { useTimeDistribution } from "@/features/statistics/hooks/useStatistics";
 import { useMedicationEffectsForEntries } from "@/features/medication-effects/hooks/useMedicationEffects";
 import { useMedicationLimits } from "@/features/medication-limits/hooks/useMedicationLimits";
+import { useMedicationSummary } from "@/features/medication-intakes/hooks/useMedicationSummary";
 import { computeStatistics } from "@/lib/statistics";
 import type { MedicationEffect, MedicationLimit, EntrySymptom } from "@/lib/statistics";
 import { FullscreenChartModal, FullscreenChartButton } from "./FullscreenChartModal";
