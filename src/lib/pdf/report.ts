@@ -1605,6 +1605,40 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     yPos -= LAYOUT.sectionGap;
   }
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // TRIGGER & KONTEXTFAKTOREN (aus Notizen extrahiert)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  if (sortedTriggers.length > 0) {
+    const triggerBlockHeight = 30 + sortedTriggers.length * 14 + 30;
+    const triggerCheck = ensureSpace(pdfDoc, page, yPos, triggerBlockHeight);
+    page = triggerCheck.page;
+    yPos = triggerCheck.yPos;
+
+    yPos = drawSectionHeader(page, "TRIGGER & KONTEXTFAKTOREN", yPos, fontBold, 11);
+
+    page.drawText("Wiederkehrende Muster aus Patientennotizen (automatisch extrahiert, keine klinische Bewertung).", {
+      x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight,
+    });
+    yPos -= 14;
+
+    for (const [trigger, count] of sortedTriggers) {
+      if (yPos < LAYOUT.margin + 40) {
+        page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
+        yPos = LAYOUT.pageHeight - LAYOUT.margin;
+      }
+      page.drawText(sanitizeForPDF(`- ${trigger}: ${count} Erwaehnungen`), {
+        x: LAYOUT.margin + 8, y: yPos, size: 9, font, color: COLORS.text,
+      });
+      yPos -= 13;
+    }
+
+    page.drawText("Hinweis: Schlagwortbasierte Extraktion; kein Beleg fuer kausalen Zusammenhang.", {
+      x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight,
+    });
+    yPos -= LAYOUT.sectionGap;
+  }
+
   // 4. BERICHT / ANALYSE
   // KRITISCHE LOGIK:
   // - Wenn isPremiumAIRequested = true UND hasPremiumAIData = true → KI-Bericht
