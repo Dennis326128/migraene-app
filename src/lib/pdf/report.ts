@@ -2265,6 +2265,36 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // MEDIZINISCHER HAFTUNGSAUSSCHLUSS (letzte Seite, vor Footer)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  {
+    const disclaimerCheck = ensureSpace(pdfDoc, page, yPos, 60);
+    page = disclaimerCheck.page;
+    yPos = disclaimerCheck.yPos;
+
+    page.drawLine({
+      start: { x: LAYOUT.margin, y: yPos },
+      end: { x: LAYOUT.pageWidth - LAYOUT.margin, y: yPos },
+      thickness: 0.5,
+      color: COLORS.border,
+    });
+    yPos -= 12;
+
+    const disclaimerLines = [
+      "Dieser Bericht wurde automatisch aus patientenseitig dokumentierten Daten erstellt.",
+      "Er stellt keine aerztliche Diagnose, Befundung oder Therapieempfehlung dar.",
+      "Alle Auswertungen dienen der Verlaufsdokumentation und klinischen Entscheidungsunterstuetzung.",
+    ];
+    for (const line of disclaimerLines) {
+      page.drawText(line, {
+        x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight,
+      });
+      yPos -= 10;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // FOOTER (Seitenzahlen)
   // ═══════════════════════════════════════════════════════════════════════════
   
@@ -2278,7 +2308,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       color: COLORS.textLight,
     });
     
-    p.drawText("Erstellt mit Miary \u2013 Digitale Verlaufsdokumentation f\u00FCr Migr\u00E4ne", {
+    p.drawText("Erstellt mit Miary - Digitale Verlaufsdokumentation fuer Migraene", {
       x: LAYOUT.margin,
       y: LAYOUT.margin - 20,
       size: 8,
