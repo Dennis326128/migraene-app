@@ -273,13 +273,23 @@ export function computeStatistics(
       const sideEffectCount = medSideEffects.get(name) || 0;
 
       // Limit info — SSOT from medication_intakes via useMedicationSummary
+      // Handles ALL period_types: day, week, month
       const limit = medicationLimits.find(l => l.medication_name === name && l.is_active);
       let limitInfo: MedicationLimitInfo | undefined;
       
-      if (limit && limit.period_type === 'month') {
-        // Use medication_intakes SSOT count (same source as MedicationOverviewCard)
+      if (limit) {
         const summary = medicationSummaries?.find(s => s.medication_name === name);
-        const rolling30Count = summary?.count_30d ?? 0;
+        // Use the correct SSOT count based on period_type
+        let rolling30Count: number;
+        switch (limit.period_type) {
+          case 'week':
+            rolling30Count = summary?.count_7d ?? 0;
+            break;
+          case 'month':
+          default:
+            rolling30Count = summary?.count_30d ?? 0;
+            break;
+        }
         const limitCount = limit.limit_count;
         const remaining = Math.max(0, limitCount - rolling30Count);
         const overBy = Math.max(0, rolling30Count - limitCount);

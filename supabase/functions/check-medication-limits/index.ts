@@ -29,26 +29,29 @@ interface LimitCheck {
   period_start: string;
 }
 
+/**
+ * SSOT: Count medication intakes from `medication_intakes` table.
+ * Uses `taken_date` (event date) for accurate period filtering.
+ * This matches the client-side SSOT (fetchMedicationSummaries).
+ */
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Extract JWT token FIRST
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       throw new Error('Keine Authentifizierung');
     }
 
-    // Create Supabase client WITH the JWT token in the auth context
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
       {
         global: {
           headers: {
-            Authorization: authHeader, // ✅ Set auth header for ALL requests
+            Authorization: authHeader,
           },
         },
         auth: {
@@ -57,7 +60,6 @@ serve(async (req) => {
       }
     );
 
-    // Verify user (now with proper auth context)
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
@@ -80,9 +82,8 @@ serve(async (req) => {
       .single();
 
     const warningPct = profileData?.medication_limit_warning_threshold_pct ?? 80;
-    console.log('⚙️ Warning threshold:', warningPct, '%');
 
-    // Get ALL active limits for this user first
+    // Get ALL active limits for this user
     const { data: allLimits, error: limitsError } = await supabase
       .from('user_medication_limits')
       .select('*')
@@ -93,7 +94,7 @@ serve(async (req) => {
       throw limitsError;
     }
 
-    // Filter client-side to match requested medications (case-insensitive, trimmed)
+    // Filter to requested medications (case-insensitive)
     const limits = (allLimits || []).filter(limit => {
       const normalizedLimitName = normalizeMedicationName(limit.medication_name);
       return medications.some((med: string) => 
@@ -102,70 +103,64 @@ serve(async (req) => {
     }) as MedicationLimit[];
 
     console.log('📋 Active limits found:', limits.length);
-    if (limits.length > 0) {
-      for (const limit of limits) {
-        console.log(`  - ${limit.medication_name}: ${limit.limit_count}/${limit.period_type}`);
-      }
-    }
 
     const results: LimitCheck[] = [];
 
-    for (const limit of limits as MedicationLimit[]) {
-      // Calculate period start date
+    for (const limit of limits) {
+      // Calculate period start date — uses today as anchor for safety monitoring
       const now = new Date();
-      let periodStart: Date;
+      let periodStartDate: string;
       
       switch (limit.period_type) {
         case 'day':
-          periodStart = new Date(now);
-          periodStart.setHours(0, 0, 0, 0);
+          periodStartDate = now.toISOString().split('T')[0];
           break;
-        case 'week':
-          periodStart = new Date(now);
-          periodStart.setDate(now.getDate() - 7);
+        case 'week': {
+          const weekAgo = new Date(now);
+          weekAgo.setDate(now.getDate() - 6);
+          periodStartDate = weekAgo.toISOString().split('T')[0];
           break;
-        case 'month':
-          periodStart = new Date(now);
-          periodStart.setDate(now.getDate() - 30);
+        }
+        case 'month': {
+          const monthAgo = new Date(now);
+          monthAgo.setDate(now.getDate() - 29);
+          periodStartDate = monthAgo.toISOString().split('T')[0];
           break;
+        }
         default:
           continue;
       }
 
-      // Count current usage from pain_entries
-      console.log(`📊 Counting ${limit.medication_name} from ${periodStart.toISOString()}`);
-      
-      // Count current usage from pain_entries
-      const { data: painEntries, error: entriesError } = await supabase
-        .from('pain_entries')
-        .select('medications, timestamp_created')
-        .eq('user_id', user.id)
-        .gte('timestamp_created', periodStart.toISOString())
-        .not('medications', 'is', null);
+      const todayDate = now.toISOString().split('T')[0];
 
-      if (entriesError) {
-        console.error('Pain entries error:', entriesError);
+      // SSOT: Count from medication_intakes table using taken_date
+      // This matches the client-side fetchMedicationSummaries logic
+      const { data: intakes, error: intakesError } = await supabase
+        .from('medication_intakes')
+        .select('id, medication_name, taken_date')
+        .eq('user_id', user.id)
+        .gte('taken_date', periodStartDate)
+        .lte('taken_date', todayDate);
+
+      if (intakesError) {
+        console.error('Medication intakes error:', intakesError);
       }
 
-      // Calculate total usage from pain_entries (case-insensitive, trimmed)
+      // Count intakes for this medication (case-insensitive)
       let currentCount = 0;
       const normalizedLimitName = normalizeMedicationName(limit.medication_name);
       
-      if (painEntries) {
-        for (const entry of painEntries) {
-          if (entry.medications) {
-            // Count each occurrence of this medication in the array
-            const medicationCount = entry.medications.filter((med: string) => 
-              normalizeMedicationName(med) === normalizedLimitName
-            ).length;
-            currentCount += medicationCount;
+      if (intakes) {
+        for (const intake of intakes) {
+          if (normalizeMedicationName(intake.medication_name) === normalizedLimitName) {
+            currentCount++;
           }
         }
       }
 
-      console.log(`✅ ${limit.medication_name}: ${currentCount}/${limit.limit_count} (${limit.period_type})`);
+      console.log(`✅ ${limit.medication_name}: ${currentCount}/${limit.limit_count} (${limit.period_type}) [SSOT: medication_intakes]`);
 
-      const percentage = (currentCount / limit.limit_count) * 100;
+      const percentage = limit.limit_count > 0 ? (currentCount / limit.limit_count) * 100 : 0;
       let status: 'safe' | 'warning' | 'reached' | 'exceeded';
 
       if (currentCount > limit.limit_count) {
@@ -185,7 +180,7 @@ serve(async (req) => {
         period_type: limit.period_type,
         percentage: Math.round(percentage),
         status,
-        period_start: periodStart.toISOString()
+        period_start: periodStartDate,
       });
     }
 

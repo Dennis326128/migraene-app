@@ -4,25 +4,14 @@ import { Progress } from "@/components/ui/progress";
 import { AlertTriangle, CheckCircle, Clock, XCircle } from "lucide-react";
 import { useMedicationLimits, useCheckMedicationLimits } from "@/features/medication-limits/hooks/useMedicationLimits";
 import { useMeds } from "@/features/meds/hooks/useMeds";
-import { useEntries } from "@/features/entries/hooks/useEntries";
+import { useMedicationSummary } from "@/features/medication-intakes/hooks/useMedicationSummary";
 import { cn } from "@/lib/utils";
 
 export function MedicationLimitsOverview() {
   const { data: limits = [], isLoading: limitsLoading } = useMedicationLimits();
   const { data: medications = [] } = useMeds();
   const { mutate: checkLimits, data: limitChecks = [], isPending: checking } = useCheckMedicationLimits();
-
-  // Get last 30 days entries for analysis
-  const last30Days = useMemo(() => {
-    const now = new Date();
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    return {
-      from: thirtyDaysAgo.toISOString().split('T')[0],
-      to: now.toISOString().split('T')[0]
-    };
-  }, []);
-
-  const { data: recentEntries = [] } = useEntries(last30Days);
+  const { data: summaries = [], isLoading: summariesLoading } = useMedicationSummary();
 
   // Check limits when we have medications
   React.useEffect(() => {
@@ -31,22 +20,16 @@ export function MedicationLimitsOverview() {
     }
   }, [medications, checkLimits]);
 
-  // Calculate medication usage from entries for 30-day overview
+  // SSOT: Build medication usage from medication_intakes (same source as MedicationOverviewCard)
   const medicationUsage = useMemo(() => {
-    const usage: Record<string, number> = {};
-    
-    recentEntries.forEach(entry => {
-      if (entry.medications) {
-        entry.medications.forEach((med: string) => {
-          usage[med] = (usage[med] || 0) + 1;
-        });
-      }
-    });
-    
+    const usage: Record<string, { count_7d: number; count_30d: number }> = {};
+    for (const s of summaries) {
+      usage[s.medication_name] = { count_7d: s.count_7d, count_30d: s.count_30d };
+    }
     return usage;
-  }, [recentEntries]);
+  }, [summaries]);
 
-  if (limitsLoading || checking) {
+  if (limitsLoading || checking || summariesLoading) {
     return (
       <Card>
         <CardContent className="p-6">
@@ -59,7 +42,7 @@ export function MedicationLimitsOverview() {
     );
   }
 
-  // No limits set up - simplified view
+  // No limits set up - simplified view using SSOT
   if (limits.length === 0) {
     return (
       <Card>
@@ -77,12 +60,14 @@ export function MedicationLimitsOverview() {
             <h4 className="font-medium mb-2">30-Tage-Übersicht (ohne Limits)</h4>
             {Object.keys(medicationUsage).length > 0 ? (
               <div className="space-y-2">
-                {Object.entries(medicationUsage).map(([med, count]) => (
-                  <div key={med} className="flex justify-between items-center">
-                    <span className="text-sm">{med}</span>
-                    <span className="text-sm font-medium">{count}x genommen</span>
-                  </div>
-                ))}
+                {Object.entries(medicationUsage)
+                  .filter(([, stats]) => stats.count_30d > 0)
+                  .map(([med, stats]) => (
+                    <div key={med} className="flex justify-between items-center">
+                      <span className="text-sm">{med}</span>
+                      <span className="text-sm font-medium">{stats.count_30d}× (letzte 30 Tage)</span>
+                    </div>
+                  ))}
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">Noch keine Einträge mit Medikamenten erstellt.</p>
@@ -98,118 +83,81 @@ export function MedicationLimitsOverview() {
 
   return (
     <div className="space-y-4">
-      {/* Status Overview */}
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            Medikamenten-Überverbrauch Status
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {hasIssues ? (
-            <div className="flex items-center gap-2 text-yellow-600">
-              <AlertTriangle className="h-4 w-4" />
-              <span className="font-medium">Achtung: Limits erreicht oder überschritten</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 text-green-600">
-              <CheckCircle className="h-4 w-4" />
-              <span className="font-medium">Alles im grünen Bereich!</span>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Medication Cards */}
-      <div className="grid gap-4">
-        {limitChecks.map((check) => {
-          const percentage = Math.min((check.current_count / check.limit_count) * 100, 100);
-          
-          let statusColor = "bg-green-500";
-          let statusText = "🟢 Sicher";
-          let statusDescription = "Alles in Ordnung";
-          
-          if (check.status === 'warning') {
-            statusColor = "bg-yellow-500";
-            statusText = "🟡 Achtung";
-            statusDescription = "Sie nähern sich dem Limit";
-          } else if (check.status === 'reached') {
-            statusColor = "bg-orange-500";
-            statusText = "🟠 Limit erreicht";
-            statusDescription = "Limit erreicht - Vorsicht geboten";
-          } else if (check.status === 'exceeded') {
-            statusColor = "bg-red-500";
-            statusText = "🔴 Überschritten";
-            statusDescription = "Limit überschritten - Arzt konsultieren!";
-          }
-
-          return (
-            <Card key={`${check.medication_name}-${check.period_type}`} className="border-l-4" style={{ borderLeftColor: statusColor.replace('bg-', '#') }}>
-              <CardContent className="p-4">
-                <div className="space-y-3">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="font-medium">{check.medication_name}</h3>
-                      <p className="text-sm text-muted-foreground">
-                        {check.current_count}/{check.limit_count} pro {
-                          check.period_type === 'day' ? 'Tag' :
-                          check.period_type === 'week' ? 'Woche' : 'Monat'
-                        }
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm font-medium">{statusText}</div>
-                      <div className="text-xs text-muted-foreground">{statusDescription}</div>
-                    </div>
-                  </div>
-                  
-                  <Progress value={percentage} className="h-2" />
-                  
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>{Math.round(percentage)}% verbraucht</span>
-                    <span>
-                      <Clock className="h-3 w-3 inline mr-1" />
-                      seit {new Date(check.period_start).toLocaleDateString('de-DE')}
-                    </span>
-                  </div>
-                  
-                  {check.status === 'exceeded' && (
-                    <div className="bg-red-50 border border-red-200 p-3 rounded-md">
-                      <p className="text-sm text-red-800">
-                        <strong>Wichtig:</strong> Sie haben das empfohlene Limit überschritten. 
-                        Konsultieren Sie bitte Ihren Arzt.
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
-
-      {/* 30-Day Overview */}
-      <Card>
+      {/* Summary Card */}
+      <Card className={cn(
+        hasIssues ? "border-destructive/50" : "border-green-500/50"
+      )}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Clock className="h-5 w-5" />
-            30-Tage-Übersicht
+            {hasIssues ? (
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+            ) : (
+              <CheckCircle className="h-5 w-5 text-green-500" />
+            )}
+            Medikamenten-Limits
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {Object.entries(medicationUsage).map(([med, count]) => (
-              <div key={med} className="flex justify-between items-center p-3 bg-muted/50 rounded-lg">
-                <span className="font-medium">{med}</span>
-                <span className="text-lg font-bold">{count}x</span>
+        <CardContent className="space-y-4">
+          {limitChecks.map((check) => {
+            const percentage = Math.min(100, check.percentage);
+            return (
+              <div key={check.medication_name} className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="font-medium">{check.medication_name}</span>
+                  <span className={cn(
+                    "text-sm font-medium",
+                    check.status === 'exceeded' && "text-destructive",
+                    check.status === 'reached' && "text-amber-500",
+                    check.status === 'warning' && "text-amber-500",
+                    check.status === 'safe' && "text-green-500"
+                  )}>
+                    {check.current_count}/{check.limit_count}
+                    {check.status === 'exceeded' && (
+                      <span className="ml-1">
+                        ({check.status === 'exceeded' ? (
+                          <>{check.current_count - check.limit_count} über</>
+                        ) : null})
+                      </span>
+                    )}
+                  </span>
+                </div>
+                <Progress 
+                  value={percentage}
+                  className={cn(
+                    "h-2",
+                    check.status === 'exceeded' && "[&>div]:bg-destructive",
+                    check.status === 'reached' && "[&>div]:bg-amber-500",
+                    check.status === 'warning' && "[&>div]:bg-amber-500",
+                    check.status === 'safe' && "[&>div]:bg-green-500"
+                  )}
+                />
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>
+                    {check.period_type === 'day' ? 'Heute' : 
+                     check.period_type === 'week' ? 'Letzte 7 Tage' : 
+                     'Letzte 30 Tage'}
+                  </span>
+                  {check.status === 'exceeded' ? (
+                    <span className="text-destructive flex items-center gap-1">
+                      <XCircle className="h-3 w-3" /> Überschritten
+                    </span>
+                  ) : check.status === 'reached' ? (
+                    <span className="text-amber-500 flex items-center gap-1">
+                      <AlertTriangle className="h-3 w-3" /> Erreicht
+                    </span>
+                  ) : check.status === 'warning' ? (
+                    <span className="text-amber-500 flex items-center gap-1">
+                      <AlertTriangle className="h-3 w-3" /> Achtung
+                    </span>
+                  ) : (
+                    <span className="text-green-500 flex items-center gap-1">
+                      <CheckCircle className="h-3 w-3" /> OK
+                    </span>
+                  )}
+                </div>
               </div>
-            ))}
-          </div>
-          {Object.keys(medicationUsage).length === 0 && (
-            <p className="text-muted-foreground text-center py-4">
-              Noch keine Einträge mit Medikamenten erstellt.
-            </p>
-          )}
+            );
+          })}
         </CardContent>
       </Card>
     </div>
