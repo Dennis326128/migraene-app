@@ -541,7 +541,8 @@ export async function buildDoctorReportSnapshot(
     .map(([date, maxIntensity]) => ({
       date,
       maxIntensity,
-      isMigraine: maxIntensity >= 7,
+      // isMigraine must match the summary heuristic (NRS>=7 OR aura OR triptan)
+      isMigraine: migraineDaysSet.has(date),
     }));
 
   // Top Acute Meds
