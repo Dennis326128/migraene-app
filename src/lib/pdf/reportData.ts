@@ -37,7 +37,10 @@ export interface AcuteMedicationStat {
 
 export interface CoreMedicalKPIs {
   headacheDaysPerMonth: number;
+  migraineDaysPerMonth: number;
   triptanIntakesPerMonth: number;
+  triptanDaysPerMonth: number;
+  acuteMedDaysPerMonth: number;
   avgIntensity: number;
   totalAttacks: number;
   daysWithMedication: number;
@@ -179,11 +182,17 @@ export function buildReportData(params: BuildReportDataParams): ReportData {
 
   // Normiert auf 30 Tage
   const headacheDaysPerMonth = Math.round((kpis.daysWithPain / daysInRange) * 30 * 10) / 10;
+  const migraineDaysPerMonth = Math.round((ssotReport.kpis.migraineDays ?? 0 / daysInRange) * 30 * 10) / 10;
+  const triptanDaysPerMonth = Math.round((ssotReport.kpis.triptanDays / daysInRange) * 30 * 10) / 10;
   const triptanIntakesPerMonth = Math.round((totalTriptanIntakes / daysInRange) * 30 * 10) / 10;
+  const acuteMedDaysPerMonth = Math.round((ssotReport.kpis.acuteMedDays / daysInRange) * 30 * 10) / 10;
 
   const coreKPIs: CoreMedicalKPIs = {
     headacheDaysPerMonth,
+    migraineDaysPerMonth,
     triptanIntakesPerMonth,
+    triptanDaysPerMonth,
+    acuteMedDaysPerMonth,
     avgIntensity: kpis.avgIntensity,
     totalAttacks: kpis.totalAttacks,
     daysWithMedication: kpis.daysWithAcuteMedication,

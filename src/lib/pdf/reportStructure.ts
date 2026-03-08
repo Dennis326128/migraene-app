@@ -40,20 +40,23 @@ export const REPORT_SECTION_ORDER = [
   // 5. BEGLEITSYMPTOME – KLINISCHE BEWERTUNG
   'symptom_overview',
 
-  // 6. AUFFÄLLIGKEITEN & MUSTER
-  'analysis_section',
-  
-  // 7. PREMIUM-KI-ANALYSE
+  // 6. TRIGGER & KONTEXT
+  'trigger_context',
+
+  // 7. STATISTIKEN & DIAGRAMME
+  'charts',
+
+  // 8. TAGESZEIT-MUSTER
+  'time_of_day_distribution',
+
+  // 9. AUTOMATISCHE VERLAUFSANALYSE (KI)
   'premium_ai_report',
   
-  // 8. STATISTIKEN & DIAGRAMME
-  'charts',
+  // 10. STATISCHE AUFFÄLLIGKEITEN (Fallback falls KI aus)
+  'analysis_section',
   
-  // 9. DETAILLIERTE EINTRÄGE
+  // 11. DETAILLIERTE EINTRÄGE (immer ganz unten)
   'entries_list',
-  
-  // 10. KONTEXT- & SPRACHNOTIZEN
-  'context_notes',
 ] as const;
 
 export type ReportSectionId = typeof REPORT_SECTION_ORDER[number];
@@ -160,11 +163,19 @@ export const REPORT_SECTIONS: Record<ReportSectionId, {
     isRequired: false,
     isPremium: false,
   },
-  context_notes: {
-    id: 'context_notes',
-    labelDe: 'Kontextnotizen',
-    labelEn: 'Context Notes',
-    pdfTitle: 'AUSFUHRLICHE KONTEXTNOTIZEN',
+  trigger_context: {
+    id: 'trigger_context',
+    labelDe: 'Trigger & Kontext',
+    labelEn: 'Triggers & Context',
+    pdfTitle: 'TRIGGER & KONTEXT',
+    isRequired: false,
+    isPremium: false,
+  },
+  time_of_day_distribution: {
+    id: 'time_of_day_distribution',
+    labelDe: 'Tageszeit-Muster',
+    labelEn: 'Time of Day Patterns',
+    pdfTitle: 'TAGESZEIT-MUSTER',
     isRequired: false,
     isPremium: false,
   },

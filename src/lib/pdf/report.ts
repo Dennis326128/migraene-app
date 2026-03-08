@@ -1084,24 +1084,60 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   
   {
     const painDaysSet = new Set<string>();
+    const migraineDaysSet = new Set<string>();
+    const triptanDaysSet = new Set<string>();
+    const acuteMedDaysSet = new Set<string>();
     let triptanIntakesTotal = 0;
     
     entries.forEach(entry => {
       const date = entry.selected_date || entry.timestamp_created?.split('T')[0] || '';
-      if (date) painDaysSet.add(date);
-      if (entry.medications && entry.medications.length > 0) {
-        entry.medications.forEach(med => { if (isTriptan(med)) triptanIntakesTotal++; });
+      if (!date) return;
+      
+      const painLevel = painLevelToNumericValue(entry.pain_level);
+      if (painLevel > 0) painDaysSet.add(date);
+      
+      const hasAura = entry.aura_type && entry.aura_type !== "keine";
+      const hasMeds = entry.medications && entry.medications.length > 0;
+      
+      let hasTriptan = false;
+      if (hasMeds) {
+        acuteMedDaysSet.add(date);
+        entry.medications!.forEach(med => {
+          if (isTriptan(med)) {
+            hasTriptan = true;
+            triptanIntakesTotal++;
+          }
+        });
+        if (hasTriptan) triptanDaysSet.add(date);
+      }
+      
+      if (painLevel > 0 && (painLevel >= 7 || hasAura || hasTriptan)) {
+        migraineDaysSet.add(date);
       }
     });
     
     const painDays = painDaysSet.size;
     const painDaysPerMonth = daysCount > 0 ? Math.round((painDays / daysCount) * 30 * 10) / 10 : 0;
-    const triptanPerMonth = daysCount > 0 ? Math.round((triptanIntakesTotal / daysCount) * 30 * 10) / 10 : 0;
+    const migrainePerMonth = daysCount > 0 ? Math.round((migraineDaysSet.size / daysCount) * 30 * 10) / 10 : 0;
+    const triptanDaysPerMonth = daysCount > 0 ? Math.round((triptanDaysSet.size / daysCount) * 30 * 10) / 10 : 0;
+    const triptanIntakesPerMonth = daysCount > 0 ? Math.round((triptanIntakesTotal / daysCount) * 30 * 10) / 10 : 0;
+    const acutePerMonth = daysCount > 0 ? Math.round((acuteMedDaysSet.size / daysCount) * 30 * 10) / 10 : 0;
     
     const validPainLevels = entries.map(e => painLevelToNumericValue(e.pain_level)).filter(l => l > 0);
     const avgIntensity = validPainLevels.length > 0
       ? Math.round(validPainLevels.reduce((a, b) => a + b, 0) / validPainLevels.length * 10) / 10
       : 0;
+      
+    // MOH Risk Logic
+    let mohRisk = false;
+    let mohMessage = "";
+    if (triptanDaysPerMonth >= 10) {
+      mohRisk = true;
+      mohMessage = "⚠ Verdacht auf Triptan-Übergebrauch (>10 Tage/Monat)";
+    } else if (acutePerMonth >= 15) {
+      mohRisk = true;
+      mohMessage = "⚠ Verdacht auf Schmerzmittel-Übergebrauch (>15 Tage/Monat)";
+    }
     
     yPos = drawSectionHeader(page, "ÄRZTLICHE KERNÜBERSICHT", yPos, fontBold, 11);
     
@@ -1110,7 +1146,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     });
     yPos -= 14;
     
-    const kpiBoxHeight = 55;
+    const kpiBoxHeight = mohRisk ? 90 : 70;
     page.drawRectangle({
       x: LAYOUT.margin, y: yPos - kpiBoxHeight,
       width: LAYOUT.pageWidth - 2 * LAYOUT.margin, height: kpiBoxHeight,
@@ -1118,26 +1154,34 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     });
     
     const boxPadding = 10;
-    const kpiY = yPos - boxPadding;
+    let kpiY = yPos - boxPadding - 5;
     const colWidth = (LAYOUT.pageWidth - 2 * LAYOUT.margin - 2 * boxPadding) / 3;
     
-    // KPI 1
-    page.drawText("Ø Schmerztage / Monat", { x: LAYOUT.margin + boxPadding, y: kpiY, size: 8, font: fontBold, color: COLORS.text });
+    // KPI 1: Headache Days
+    page.drawText("Ø Schmerztage / 30 Tage", { x: LAYOUT.margin + boxPadding, y: kpiY, size: 8, font: fontBold, color: COLORS.text });
     page.drawText(formatGermanDecimal(painDaysPerMonth, 1), { x: LAYOUT.margin + boxPadding, y: kpiY - 20, size: 18, font: fontBold, color: COLORS.primary });
-    page.drawText(`(${painDays} Tage in ${daysCount} Tagen)`, { x: LAYOUT.margin + boxPadding, y: kpiY - 34, size: 7, font, color: COLORS.textLight });
+    page.drawText(`davon Migränetage: ${formatGermanDecimal(migrainePerMonth, 1)}`, { x: LAYOUT.margin + boxPadding, y: kpiY - 32, size: 7, font: fontBold, color: COLORS.textLight });
+    page.drawText(`(Gesamt: ${painDays} von ${daysCount} Tagen)`, { x: LAYOUT.margin + boxPadding, y: kpiY - 42, size: 7, font, color: COLORS.textLight });
     
-    // KPI 2
-    page.drawText("Ø Triptane / Monat", { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY, size: 8, font: fontBold, color: COLORS.text });
-    page.drawText(formatGermanDecimal(triptanPerMonth, 1), { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY - 20, size: 18, font: fontBold, color: COLORS.primary });
-    page.drawText(`(${triptanIntakesTotal} Einnahmen gesamt)`, { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY - 34, size: 7, font, color: COLORS.textLight });
+    // KPI 2: Triptans
+    page.drawText("Ø Triptan-Tage / 30 Tage", { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY, size: 8, font: fontBold, color: COLORS.text });
+    page.drawText(formatGermanDecimal(triptanDaysPerMonth, 1), { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY - 20, size: 18, font: fontBold, color: COLORS.primary });
+    page.drawText(`Einnahmen: ${formatGermanDecimal(triptanIntakesPerMonth, 1)}`, { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY - 32, size: 7, font: fontBold, color: COLORS.textLight });
+    page.drawText(`(Akut-Tage gesamt: ${formatGermanDecimal(acutePerMonth, 1)})`, { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY - 42, size: 7, font, color: COLORS.textLight });
     
-    // KPI 3
+    // KPI 3: Intensity
     page.drawText("Ø Schmerzintensität", { x: LAYOUT.margin + boxPadding + 2 * colWidth, y: kpiY, size: 8, font: fontBold, color: COLORS.text });
     page.drawText(`${formatGermanDecimal(avgIntensity, 1)} / 10`, { x: LAYOUT.margin + boxPadding + 2 * colWidth, y: kpiY - 20, size: 18, font: fontBold, color: COLORS.primary });
-    page.drawText("(NRS-Skala)", { x: LAYOUT.margin + boxPadding + 2 * colWidth, y: kpiY - 34, size: 7, font, color: COLORS.textLight });
+    page.drawText(`Attacken gesamt: ${entries.length}`, { x: LAYOUT.margin + boxPadding + 2 * colWidth, y: kpiY - 32, size: 7, font: fontBold, color: COLORS.textLight });
+    page.drawText("(NRS-Skala 0-10)", { x: LAYOUT.margin + boxPadding + 2 * colWidth, y: kpiY - 42, size: 7, font, color: COLORS.textLight });
+    
+    if (mohRisk) {
+      page.drawText("MOH-Risiko:", { x: LAYOUT.margin + boxPadding, y: kpiY - 60, size: 8, font: fontBold, color: COLORS.chartPain });
+      page.drawText(mohMessage, { x: LAYOUT.margin + boxPadding + 60, y: kpiY - 60, size: 8, font: fontBold, color: COLORS.chartPain });
+    }
     
     yPos -= kpiBoxHeight + 8;
-
+    
     // ═══════════════════════════════════════════════════════════════════════
     // PIE CHART: Tagesverteilung (kompakter)
     // ═══════════════════════════════════════════════════════════════════════
