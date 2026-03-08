@@ -120,6 +120,7 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
   const entryIds = useMemo(() => filteredEntries.map(e => Number(e.id)), [filteredEntries]);
   const { data: medicationEffectsData = [] } = useMedicationEffectsForEntries(entryIds);
   const { data: medicationLimits = [] } = useMedicationLimits();
+  const { data: medicationSummaries = [] } = useMedicationSummary();
   
   const { data: entrySymptoms = [] } = useEntrySymptomsBulk(entryIds);
   
@@ -137,9 +138,10 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
       medicationEffectsData as MedicationEffect[],
       entrySymptoms as EntrySymptom[],
       medicationLimits as MedicationLimit[],
-      allEntries
+      undefined, // allEntries — deprecated param
+      medicationSummaries, // SSOT: medication_intakes counts
     );
-  }, [filteredEntries, medicationEffectsData, entrySymptoms, medicationLimits, allEntries]);
+  }, [filteredEntries, medicationEffectsData, entrySymptoms, medicationLimits, medicationSummaries]);
 
   // Begleitsymptome stats
   const symptomStats = useMemo(() => {
