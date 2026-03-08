@@ -10,6 +10,7 @@ import {
   buildDoctorReportSnapshot,
   getCachedSnapshot,
   isSnapshotStale,
+  shouldForceRebuild,
   upsertSnapshot,
   type DoctorReportJSON,
 } from "../_shared/doctorReportSnapshot.ts";
