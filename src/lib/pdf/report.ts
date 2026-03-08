@@ -2075,45 +2075,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 6. DETAILLIERTE KOPFSCHMERZ-EINTRÄGE (GANZ AM ENDE)
-  // ═══════════════════════════════════════════════════════════════════════════
-  
-  if (includeEntriesList && entries.length > 0) {
-    const spaceCheck = ensureSpace(pdfDoc, page, yPos, 100);
-    page = spaceCheck.page;
-    yPos = spaceCheck.yPos;
-    
-    yPos = drawSectionHeader(page, "DETAILLIERTE KOPFSCHMERZ-EINTRÄGE", yPos, fontBold, 12);
-    
-    page.drawText(`${entries.length} Einträge im Zeitraum`, {
-      x: LAYOUT.margin,
-      y: yPos,
-      size: 8,
-      font,
-      color: COLORS.textLight,
-    });
-    yPos -= 15;
-    
-    const includeNotesInTable = freeTextExportMode !== 'none';
-    yPos = drawTableHeader(page, yPos, fontBold, includeNotesInTable);
-    
-    const sortedEntries = [...entries].sort((a, b) => {
-      const dateA = new Date(a.selected_date || a.timestamp_created || '');
-      const dateB = new Date(b.selected_date || b.timestamp_created || '');
-      return dateB.getTime() - dateA.getTime();
-    });
-    
-    for (const entry of sortedEntries) {
-      const result = drawTableRow(page, entry, yPos, font, pdfDoc, includeNotesInTable, includePrivateNotes);
-      page = result.page;
-      yPos = result.yPos;
-    }
-    
-    yPos -= LAYOUT.sectionGap;
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 7. SCHMERZVERTEILUNG NACH UHRZEIT (neue Seite am Ende)
+  // 6. SCHMERZVERTEILUNG NACH UHRZEIT (vor Detaildaten — klinisch relevanter)
   // ═══════════════════════════════════════════════════════════════════════════
   
   {
@@ -2134,10 +2096,10 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     });
     
     if (hasTimeData) {
-      const defaultTimeChartHeight = 160;  // 200 * 0.8 = -20%
+      const defaultTimeChartHeight = 160;
       const timeChartHeaderSpace = 50;
-      const minTimeChartHeight = 128;     // 160 * 0.8 = -20%
-      const totalTimeNeeded = timeChartHeaderSpace + defaultTimeChartHeight + 30; // +30 for note
+      const minTimeChartHeight = 128;
+      const totalTimeNeeded = timeChartHeaderSpace + defaultTimeChartHeight + 30;
       
       const availableTimeSpace = yPos - LAYOUT.margin - 30;
       let timeChartHeight: number;
@@ -2151,7 +2113,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
         timeChartHeight = defaultTimeChartHeight;
       }
       
-      yPos = drawSectionHeader(page, "SCHMERZVERTEILUNG NACH UHRZEIT", yPos, fontBold, 13);
+      yPos = drawSectionHeader(page, "TAGESZEIT-MUSTER", yPos, fontBold, 13);
       
       page.drawText(`Zeitraum: ${formatDateGerman(from)} - ${formatDateGerman(to)}`, {
         x: LAYOUT.margin, y: yPos, size: 9, font, color: COLORS.textLight,
@@ -2204,7 +2166,6 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
           });
         }
         
-        // X-axis label (every 2 hours for readability, always show 0, 6, 12, 18)
         if (h % 2 === 0) {
           page.drawText(`${h.toString().padStart(2, '0')}h`, {
             x: barX + barWidth / 2 - 8,
@@ -2235,10 +2196,49 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       yPos = chartBottom - 30;
       
       // Note
-      page.drawText("Hinweis: Darstellung basiert auf dokumentierten Schmerzeinträgen mit Uhrzeitangabe.", {
+      page.drawText("Hinweis: Darstellung basiert auf dokumentierten Schmerzeintraegen mit Uhrzeitangabe.", {
         x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight,
       });
+      yPos -= LAYOUT.sectionGap;
     }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 7. DETAILLIERTE KOPFSCHMERZ-EINTRÄGE (GANZ AM ENDE — Referenzdaten)
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  if (includeEntriesList && entries.length > 0) {
+    const spaceCheck = ensureSpace(pdfDoc, page, yPos, 100);
+    page = spaceCheck.page;
+    yPos = spaceCheck.yPos;
+    
+    yPos = drawSectionHeader(page, "DETAILLIERTE KOPFSCHMERZ-EINTRÄGE", yPos, fontBold, 12);
+    
+    page.drawText(`${entries.length} Eintraege im Zeitraum (Referenzdaten)`, {
+      x: LAYOUT.margin,
+      y: yPos,
+      size: 8,
+      font,
+      color: COLORS.textLight,
+    });
+    yPos -= 15;
+    
+    const includeNotesInTable = freeTextExportMode !== 'none';
+    yPos = drawTableHeader(page, yPos, fontBold, includeNotesInTable);
+    
+    const sortedEntries = [...entries].sort((a, b) => {
+      const dateA = new Date(a.selected_date || a.timestamp_created || '');
+      const dateB = new Date(b.selected_date || b.timestamp_created || '');
+      return dateB.getTime() - dateA.getTime();
+    });
+    
+    for (const entry of sortedEntries) {
+      const result = drawTableRow(page, entry, yPos, font, pdfDoc, includeNotesInTable, includePrivateNotes);
+      page = result.page;
+      yPos = result.yPos;
+    }
+    
+    yPos -= LAYOUT.sectionGap;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
