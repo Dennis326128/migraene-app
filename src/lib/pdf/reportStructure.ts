@@ -98,12 +98,12 @@ export const REPORT_SECTIONS: Record<ReportSectionId, {
   },
   core_kpis: {
     id: 'core_kpis',
-    labelDe: 'Ärztliche Kernübersicht',
-    labelEn: 'Core Medical Overview',
-    pdfTitle: 'ARZTLICHE KERNUBERSICHT',
+    labelDe: 'Klinische Kernübersicht',
+    labelEn: 'Clinical Core Overview',
+    pdfTitle: 'KLINISCHE KERNUEBERSICHT',
     isRequired: true,
     isPremium: false,
-    description: 'Ø Schmerztage, Ø Triptan-Einnahmen, Ø Schmerzintensität (normiert auf 30 Tage)',
+    description: 'Kopfschmerztage, Migraenetage, Triptan-Tage/-Einnahmen, Akutmedikation, Intensitaet, MOH-Risiko (normiert auf 30 Tage)',
   },
   symptom_overview: {
     id: 'symptom_overview',
