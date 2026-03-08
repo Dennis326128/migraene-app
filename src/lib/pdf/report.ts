@@ -1552,7 +1552,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       page = spaceCheck.page;
       yPos = spaceCheck.yPos;
       
-      yPos = drawSectionHeader(page, "ÄRZTLICHER ANALYSEBERICHT (KI-GESTÜTZT)", yPos, fontBold, 12);
+      yPos = drawSectionHeader(page, "DATENBASIERTE MUSTERANALYSE (KI-GESTÜTZT)", yPos, fontBold, 12);
       
       // Unterzeile + Marker dass KI aktiv ist
       page.drawText("KI-Analyse aktiviert · Zusammenfassung und Mustererkennung auf Basis der dokumentierten Daten", {
