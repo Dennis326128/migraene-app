@@ -274,6 +274,7 @@ const DoctorReportView: React.FC = () => {
   }, [loadData, range, page]);
 
   const handleRangeChange = (newRange: RangeFilter) => {
+    setReport(null); // Clear stale data immediately to prevent flash
     setRange(newRange);
     setPage(1);
   };
