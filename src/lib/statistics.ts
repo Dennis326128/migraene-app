@@ -88,11 +88,10 @@ export function computeStatistics(
   medicationEffects: MedicationEffect[],
   entrySymptoms: EntrySymptom[],
   medicationLimits: MedicationLimit[],
-  allEntries?: MigraineEntry[]  // Optional: alle Einträge für rolling 30-day Berechnung
+  _allEntries?: MigraineEntry[],  // @deprecated — no longer used for limit calculation
+  medicationSummaries?: MedicationSummary[],  // SSOT: counts from medication_intakes table
 ): PatternStatistics {
   const totalEpisodes = filteredEntries.length;
-  // Für rolling 30-day Berechnung: nutze allEntries wenn vorhanden, sonst filteredEntries
-  const entriesForRolling = allEntries || filteredEntries;
 
   // 1. Schmerzprofil
   const painLevels = filteredEntries
