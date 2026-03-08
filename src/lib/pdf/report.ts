@@ -1317,17 +1317,15 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     // Filter out meds with 0 intakes
     const filteredMedStats = sortedMedStats.filter(s => (s.totalUnitsInRange ?? s.count) > 0);
     
-    const cols = hasExtendedStats ? {
+    // Extended columns with "Tage" for days with intake (SSOT from medDaysMap)
+    const medCols = {
       name: LAYOUT.margin,
-      totalRange: LAYOUT.margin + 140,
-      avgMonth: LAYOUT.margin + 210,
-      last30: LAYOUT.margin + 280,
-      effectiveness: LAYOUT.margin + 350,
-    } : {
-      name: LAYOUT.margin,
-      count: LAYOUT.margin + 200,
-      effectiveness: LAYOUT.margin + 290,
-      note: LAYOUT.margin + 420,
+      intakes: LAYOUT.margin + 115,
+      days: LAYOUT.margin + 170,
+      avgMonth: LAYOUT.margin + 225,
+      last30: LAYOUT.margin + 285,
+      effectiveness: LAYOUT.margin + 340,
+      combo: LAYOUT.margin + 435,
     };
     
     page.drawRectangle({
@@ -1338,21 +1336,16 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       color: rgb(0.95, 0.97, 1.0),
     });
     
-    if (hasExtendedStats) {
-      page.drawText("Medikament", { x: cols.name, y: yPos - 12, size: 8, font: fontBold });
-      page.drawText("Einnahmen", { x: cols.totalRange, y: yPos - 12, size: 8, font: fontBold });
-      page.drawText("\u00D8 / Monat", { x: cols.avgMonth, y: yPos - 12, size: 8, font: fontBold });
-      page.drawText("Letzte 30T", { x: cols.last30, y: yPos - 12, size: 8, font: fontBold });
-      page.drawText("\u00D8 Wirkung (%)", { x: cols.effectiveness, y: yPos - 12, size: 8, font: fontBold });
-    } else {
-      page.drawText("Medikament", { x: cols.name, y: yPos - 12, size: 9, font: fontBold });
-      page.drawText("Einnahmen", { x: cols.count!, y: yPos - 12, size: 9, font: fontBold });
-      page.drawText("\u00D8 Wirkung (%)", { x: cols.effectiveness, y: yPos - 12, size: 9, font: fontBold });
-      page.drawText("Bemerkung", { x: cols.note!, y: yPos - 12, size: 9, font: fontBold });
-    }
+    page.drawText("Medikament", { x: medCols.name, y: yPos - 12, size: 7, font: fontBold });
+    page.drawText("Einnahmen", { x: medCols.intakes, y: yPos - 12, size: 7, font: fontBold });
+    page.drawText("Tage", { x: medCols.days, y: yPos - 12, size: 7, font: fontBold });
+    page.drawText("\u00D8/30T", { x: medCols.avgMonth, y: yPos - 12, size: 7, font: fontBold });
+    page.drawText("Letzte 30T", { x: medCols.last30, y: yPos - 12, size: 7, font: fontBold });
+    page.drawText("\u00D8 Wirkung", { x: medCols.effectiveness, y: yPos - 12, size: 7, font: fontBold });
+    page.drawText("Kombination", { x: medCols.combo, y: yPos - 12, size: 7, font: fontBold });
     yPos -= 30;
     
-    // Triptane zusammenfassen + andere separat (preserving grouping, but within sorted order)
+    // Triptane zusammenfassen + andere separat
     const triptans = filteredMedStats.filter(s => isTriptan(s.name));
     const others = filteredMedStats.filter(s => !isTriptan(s.name));
     
@@ -1361,16 +1354,19 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       const totalTriptanUnits = triptans.reduce((sum, t) => sum + (t.totalUnitsInRange ?? t.count), 0);
       const totalTriptanPerMonth = triptans.reduce((sum, t) => sum + (t.avgPerMonth ?? 0), 0);
       const totalTriptanLast30 = triptans.reduce((sum, t) => sum + (t.last30Units ?? 0), 0);
+      // Total unique triptan days
+      const allTriptanDays = new Set<string>();
+      triptans.forEach(t => {
+        const days = medDaysMap.get(t.name);
+        if (days) days.forEach(d => allTriptanDays.add(d));
+      });
       
-      page.drawText("Triptane (gesamt)", { x: cols.name, y: yPos, size: 9, font: fontBold, color: COLORS.primaryLight });
-      if (hasExtendedStats) {
-        page.drawText(formatGermanDecimal(totalTriptanUnits, 1), { x: cols.totalRange, y: yPos, size: 9, font: fontBold });
-        page.drawText(formatGermanDecimal(totalTriptanPerMonth, 1), { x: cols.avgMonth, y: yPos, size: 9, font: fontBold });
-        page.drawText(formatGermanDecimal(totalTriptanLast30, 1), { x: cols.last30, y: yPos, size: 9, font: fontBold });
-      } else {
-        page.drawText(totalTriptanUnits.toString(), { x: cols.count!, y: yPos, size: 9, font: fontBold });
-      }
-      yPos -= 15;
+      page.drawText("Triptane (gesamt)", { x: medCols.name, y: yPos, size: 8, font: fontBold, color: COLORS.primaryLight });
+      page.drawText(formatGermanDecimal(totalTriptanUnits, 1), { x: medCols.intakes, y: yPos, size: 8, font: fontBold });
+      page.drawText(String(allTriptanDays.size), { x: medCols.days, y: yPos, size: 8, font: fontBold });
+      page.drawText(formatGermanDecimal(totalTriptanPerMonth, 1), { x: medCols.avgMonth, y: yPos, size: 8, font: fontBold });
+      page.drawText(formatGermanDecimal(totalTriptanLast30, 1), { x: medCols.last30, y: yPos, size: 8, font: fontBold });
+      yPos -= 14;
     }
     
     // Helper: format effectiveness with rating base
@@ -1378,9 +1374,19 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       const totalIntakes = stat.totalUnitsInRange ?? stat.count;
       if (stat.ratedCount > 0 && stat.avgEffect !== null) {
         const effectPercent = Math.round((stat.avgEffect / 10) * 100);
-        return `${effectPercent} % (${stat.ratedCount}/${totalIntakes})`;
+        return `${effectPercent} %`;
       }
-      return "keine Bewertung";
+      return "-";
+    };
+    
+    // Get top combination for a medication
+    const getTopCombo = (medName: string): string => {
+      const comboMap = medCombinationsMap.get(medName);
+      if (!comboMap || comboMap.size === 0) return "-";
+      const sorted = Array.from(comboMap.entries()).sort((a, b) => b[1] - a[1]);
+      const top = sorted[0];
+      if (top[1] < 2) return "-"; // only show if >= 2 co-occurrences
+      return top[0].length > 12 ? top[0].substring(0, 10) + '..' : top[0];
     };
     
     // Alle Medikamente auflisten (sorted by relevance)
@@ -1394,26 +1400,18 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       const medName = isTriptan(stat.name) && triptans.length > 1 
         ? `  ${stat.name}`
         : stat.name;
+      const daysWithIntake = medDaysMap.get(stat.name)?.size ?? 0;
       
-      page.drawText(sanitizeForPDF(medName), { x: cols.name, y: yPos, size: 9, font });
+      const displayName = medName.length > 18 ? medName.substring(0, 16) + '..' : medName;
+      page.drawText(sanitizeForPDF(displayName), { x: medCols.name, y: yPos, size: 8, font });
+      page.drawText(formatGermanDecimal(stat.totalUnitsInRange ?? stat.count, 1), { x: medCols.intakes, y: yPos, size: 8, font });
+      page.drawText(String(daysWithIntake), { x: medCols.days, y: yPos, size: 8, font });
+      page.drawText(formatGermanDecimal(stat.avgPerMonth ?? 0, 1), { x: medCols.avgMonth, y: yPos, size: 8, font });
+      page.drawText(formatGermanDecimal(stat.last30Units ?? 0, 1), { x: medCols.last30, y: yPos, size: 8, font });
+      page.drawText(formatEffectiveness(stat), { x: medCols.effectiveness, y: yPos, size: 8, font });
+      page.drawText(sanitizeForPDF(getTopCombo(stat.name)), { x: medCols.combo, y: yPos, size: 7, font, color: COLORS.textLight });
       
-      if (hasExtendedStats) {
-        page.drawText(formatGermanDecimal(stat.totalUnitsInRange ?? stat.count, 1), { 
-          x: cols.totalRange, y: yPos, size: 9, font 
-        });
-        page.drawText(formatGermanDecimal(stat.avgPerMonth ?? 0, 1), { 
-          x: cols.avgMonth, y: yPos, size: 9, font 
-        });
-        page.drawText(formatGermanDecimal(stat.last30Units ?? 0, 1), { 
-          x: cols.last30, y: yPos, size: 9, font 
-        });
-        page.drawText(formatEffectiveness(stat), { x: cols.effectiveness, y: yPos, size: 9, font });
-      } else {
-        page.drawText(stat.count.toString(), { x: cols.count!, y: yPos, size: 9, font });
-        page.drawText(formatEffectiveness(stat), { x: cols.effectiveness, y: yPos, size: 9, font });
-      }
-      
-      yPos -= 15;
+      yPos -= 14;
     }
     
     yPos -= LAYOUT.sectionGap;
