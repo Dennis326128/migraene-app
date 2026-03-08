@@ -1497,7 +1497,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 3d. ME/CFS-SYMPTOMATIK (kompakter Block)
+  // 3d. BELASTUNGS- UND ERSCHÖPFUNGSSYMPTOME (patientenseitig dokumentiert)
   // ═══════════════════════════════════════════════════════════════════════════
 
   if (meCfsData) {
@@ -1505,23 +1505,30 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     const meCfsLines = [
       `Belastete Tage (dokumentiert): ${meCfsData.daysWithBurden} / ${meCfsData.documentedDays}`,
       `Dokumentiert: ${meCfsData.documentedDays} / ${meCfsData.calendarDays} Tage`,
-      `Ø Belastung (0–10): ${meCfsData.avgScore}`,
-      `Höchste Belastung: ${sanitizeForPDF(meCfsData.peakLabel)}`,
-      `Üblicher Bereich: ${meCfsData.iqrLabel !== '0/10' ? sanitizeForPDF(meCfsData.iqrLabel) : 'noch nicht ausreichend Daten'}`,
+      `Durchschnittliche Belastung (0-10): ${meCfsData.avgScore}`,
+      `Hoechste Belastung: ${sanitizeForPDF(meCfsData.peakLabel)}`,
+      `Ueblicher Bereich: ${meCfsData.iqrLabel !== '0/10' ? sanitizeForPDF(meCfsData.iqrLabel) : 'noch nicht ausreichend Daten'}`,
       `Dokumentationsquote: ${docQuote} %`,
     ];
     // Add projection line only for 14–29 calendar days
     if (meCfsData.calendarDays >= 14 && meCfsData.calendarDays < 30) {
-      meCfsLines.splice(2, 0, `Schätzung pro 30 Tage: ${meCfsData.burdenPer30} belastete Tage`);
+      meCfsLines.splice(2, 0, `Schaetzung pro 30 Tage: ${meCfsData.burdenPer30} belastete Tage`);
     }
     const hasNote = !!meCfsData.dataQualityNote;
-    const blockHeight = LAYOUT.lineHeight * 2 + meCfsLines.length * LAYOUT.lineHeight + (hasNote ? LAYOUT.lineHeight + 2 : 0) + LAYOUT.sectionGap;
+    const disclaimerHeight = LAYOUT.lineHeight + 4;
+    const blockHeight = LAYOUT.lineHeight * 2 + meCfsLines.length * LAYOUT.lineHeight + (hasNote ? LAYOUT.lineHeight + 2 : 0) + disclaimerHeight + LAYOUT.sectionGap;
 
     const meCfsCheck = ensureSpace(pdfDoc, page, yPos, blockHeight);
     page = meCfsCheck.page;
     yPos = meCfsCheck.yPos;
 
-    yPos = drawSectionHeader(page, "BELASTUNGS- UND ERSCHÖPFUNGSSYMPTOME", yPos, fontBold, 10);
+    yPos = drawSectionHeader(page, "BELASTUNGS- UND ERSCHOEPFUNGSSYMPTOME", yPos, fontBold, 10);
+    
+    // Disclaimer: no diagnosis
+    page.drawText("Patientenseitig dokumentierte Belastungs-/Erschoepfungssymptome. Keine diagnostische Einordnung.", {
+      x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight,
+    });
+    yPos -= 12;
 
     for (const line of meCfsLines) {
       page.drawText(line, {
