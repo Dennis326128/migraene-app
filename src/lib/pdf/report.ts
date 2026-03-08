@@ -2318,9 +2318,9 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     page = spaceCheck.page;
     yPos = spaceCheck.yPos;
     
-    yPos = drawSectionHeader(page, "DETAILLIERTE KOPFSCHMERZ-EINTRÄGE", yPos, fontBold, 12);
+    yPos = drawSectionHeader(page, "ANHANG: DETAILLIERTE KOPFSCHMERZ-EINTRAEGE", yPos, fontBold, 11);
     
-    page.drawText(`${entries.length} Eintraege im Zeitraum (Referenzdaten)`, {
+    page.drawText(`${entries.length} Eintraege im Zeitraum (Referenz- und Nachschlagedaten)`, {
       x: LAYOUT.margin,
       y: yPos,
       size: 8,
