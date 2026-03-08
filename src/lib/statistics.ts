@@ -272,13 +272,14 @@ export function computeStatistics(
       
       const sideEffectCount = medSideEffects.get(name) || 0;
 
-      // Limit info mit korrekter rolling 30-day Berechnung
+      // Limit info — SSOT from medication_intakes via useMedicationSummary
       const limit = medicationLimits.find(l => l.medication_name === name && l.is_active);
       let limitInfo: MedicationLimitInfo | undefined;
       
       if (limit && limit.period_type === 'month') {
-        // Rolling 30-day Berechnung - UNABHÄNGIG vom gewählten Zeitraum
-        const rolling30Count = calculateRolling30DayCount(name, entriesForRolling);
+        // Use medication_intakes SSOT count (same source as MedicationOverviewCard)
+        const summary = medicationSummaries?.find(s => s.medication_name === name);
+        const rolling30Count = summary?.count_30d ?? 0;
         const limitCount = limit.limit_count;
         const remaining = Math.max(0, limitCount - rolling30Count);
         const overBy = Math.max(0, rolling30Count - limitCount);
