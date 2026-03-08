@@ -10,6 +10,7 @@ import {
   buildDoctorReportSnapshot,
   getCachedSnapshot,
   isSnapshotStale,
+  shouldForceRebuild,
   upsertSnapshot,
   type DoctorReportJSON,
 } from "../_shared/doctorReportSnapshot.ts";
@@ -102,16 +103,29 @@ Deno.serve(async (req) => {
     let reportJson: DoctorReportJSON;
     const cached = await getCachedSnapshot(supabase, shareId, range);
     let needsRebuild = !cached || cached.isStale;
+    let rebuildReason = !cached ? "no_cache" : cached.isStale ? "is_stale_flag" : "";
 
-    if (cached && !cached.isStale) {
+    if (cached && !needsRebuild) {
+      // Check source data staleness
       const stale = await isSnapshotStale(supabase, userId, range, cached.sourceUpdatedAt);
       if (stale) {
         needsRebuild = true;
+        rebuildReason = "source_data_newer";
         await supabase.from("doctor_share_report_snapshots").update({ is_stale: true }).eq("id", cached.id);
       }
     }
 
+    if (cached && !needsRebuild) {
+      // Force-rebuild check: TTL, empty snapshot with existing data
+      const forceCheck = await shouldForceRebuild(supabase, cached, userId, range);
+      if (forceCheck.rebuild) {
+        needsRebuild = true;
+        rebuildReason = forceCheck.reason;
+      }
+    }
+
     if (needsRebuild) {
+      console.log(`[Doctor Report v1] Rebuilding snapshot: reason=${rebuildReason} userId=${userId.substring(0, 8)}... range=${range}`);
       const { reportJson: newReport, sourceUpdatedAt } = await buildDoctorReportSnapshot(supabase, {
         userId, range, page, includePatientData: true,
       });
@@ -123,6 +137,7 @@ Deno.serve(async (req) => {
       });
       reportJson = newReport;
     } else {
+      console.log(`[Doctor Report v1] Using cached snapshot for userId=${userId.substring(0, 8)}... range=${range}`);
       reportJson = cached!.reportJson;
     }
 

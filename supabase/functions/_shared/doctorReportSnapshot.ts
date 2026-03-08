@@ -192,6 +192,8 @@ export interface BuildSnapshotResult {
 const REPORT_VERSION = "v1";
 const TIMEZONE = "Europe/Berlin";
 const MAX_ENTRIES_PER_PAGE = 100;
+/** Snapshot TTL in milliseconds (10 minutes) */
+const SNAPSHOT_TTL_MS = 10 * 60 * 1000;
 
 // Triptan-Keywords für Erkennung
 const TRIPTAN_KEYWORDS = [
@@ -295,7 +297,7 @@ export async function buildDoctorReportSnapshot(
   const { from, to } = getDateRange(range);
   const now = new Date().toISOString();
 
-  console.log(`[DoctorReportSnapshot] Building snapshot for user=${userId.substring(0, 8)}... range=${range}`);
+  console.log(`[DoctorReportSnapshot] Building snapshot for user=${userId.substring(0, 8)}... range=${range} from=${from} to=${to}`);
 
   // ─────────────────────────────────────────────────────────────────────────
   // 1) ALLE DATEN PARALLEL LADEN
@@ -706,7 +708,7 @@ export async function buildDoctorReportSnapshot(
     optional,
   };
 
-  console.log(`[DoctorReportSnapshot] Built snapshot: ${entries.length}/${totalEntries} entries, ${prophylaxisCourses.length} courses`);
+  console.log(`[DoctorReportSnapshot] Built snapshot: userId=${userId.substring(0, 8)}... entriesCount=${totalEntries} daysWithEntries=${documentedDatesSet.size} from=${from} to=${to} painDays=${painDaysSet.size} paginatedEntries=${entries.length}`);
 
   return {
     reportJson,
@@ -765,42 +767,93 @@ export async function isSnapshotStale(
   cachedSourceUpdatedAt: string | null
 ): Promise<boolean> {
   if (!cachedSourceUpdatedAt) {
-    return true; // No cached timestamp = stale
+    return true;
   }
 
   const { from, to } = getDateRange(range);
 
-  // Check latest update in pain_entries
-  const { data: latestEntry } = await supabase
-    .from("pain_entries")
-    .select("timestamp_created")
-    .eq("user_id", userId)
-    .gte("selected_date", from)
-    .lte("selected_date", to)
-    .order("timestamp_created", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  // Check latest update in medication_courses
-  const { data: latestCourse } = await supabase
-    .from("medication_courses")
-    .select("updated_at")
-    .eq("user_id", userId)
-    .order("updated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  // Check latest update in pain_entries AND count entries
+  const [latestEntryResult, entryCountResult, latestCourseResult] = await Promise.all([
+    supabase
+      .from("pain_entries")
+      .select("timestamp_created")
+      .eq("user_id", userId)
+      .gte("selected_date", from)
+      .lte("selected_date", to)
+      .order("timestamp_created", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("pain_entries")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .gte("selected_date", from)
+      .lte("selected_date", to),
+    supabase
+      .from("medication_courses")
+      .select("updated_at")
+      .eq("user_id", userId)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
 
   const cachedDate = new Date(cachedSourceUpdatedAt);
 
-  if (latestEntry?.timestamp_created && new Date(latestEntry.timestamp_created) > cachedDate) {
+  if (latestEntryResult.data?.timestamp_created && new Date(latestEntryResult.data.timestamp_created) > cachedDate) {
+    console.log(`[SnapshotStale] pain_entries newer than snapshot`);
     return true;
   }
 
-  if (latestCourse?.updated_at && new Date(latestCourse.updated_at) > cachedDate) {
+  if (latestCourseResult.data?.updated_at && new Date(latestCourseResult.data.updated_at) > cachedDate) {
+    console.log(`[SnapshotStale] medication_courses newer than snapshot`);
     return true;
   }
 
   return false;
+}
+
+/**
+ * Check if a cached snapshot should be force-rebuilt:
+ * - TTL expired (>10 min)
+ * - Snapshot shows 0 entries but DB has entries
+ * - Snapshot shows 0 headache days but DB has pain entries
+ */
+export async function shouldForceRebuild(
+  supabase: SupabaseClient,
+  cached: CachedSnapshot,
+  userId: string,
+  range: string
+): Promise<{ rebuild: boolean; reason: string }> {
+  // 1) TTL check
+  const age = Date.now() - new Date(cached.generatedAt).getTime();
+  if (age > SNAPSHOT_TTL_MS) {
+    return { rebuild: true, reason: `TTL expired (${Math.round(age / 1000)}s old)` };
+  }
+
+  // 2) Empty snapshot but entries exist
+  const snapshotEntriesTotal = cached.reportJson?.tables?.entriesTotal ?? 0;
+  const snapshotHeadacheDays = cached.reportJson?.summary?.headacheDays ?? 0;
+
+  if (snapshotEntriesTotal === 0 || snapshotHeadacheDays === 0) {
+    const { from, to } = getDateRange(range);
+    const { count } = await supabase
+      .from("pain_entries")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .gte("selected_date", from)
+      .lte("selected_date", to)
+      .neq("pain_level", "-");
+
+    if (count && count > 0) {
+      const reason = snapshotEntriesTotal === 0
+        ? `Snapshot has 0 entries but DB has ${count} pain entries`
+        : `Snapshot has 0 headacheDays but DB has ${count} pain entries`;
+      return { rebuild: true, reason };
+    }
+  }
+
+  return { rebuild: false, reason: "fresh" };
 }
 
 /**
