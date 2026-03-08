@@ -37,7 +37,10 @@ export interface AcuteMedicationStat {
 
 export interface CoreMedicalKPIs {
   headacheDaysPerMonth: number;
+  migraineDaysPerMonth: number;
   triptanIntakesPerMonth: number;
+  triptanDaysPerMonth: number;
+  acuteMedDaysPerMonth: number;
   avgIntensity: number;
   totalAttacks: number;
   daysWithMedication: number;
