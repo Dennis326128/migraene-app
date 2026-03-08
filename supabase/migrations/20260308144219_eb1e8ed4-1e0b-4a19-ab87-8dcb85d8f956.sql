@@ -1,0 +1,1 @@
+UPDATE doctor_share_report_snapshots SET is_stale = true WHERE is_stale = false;
