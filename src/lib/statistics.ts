@@ -79,35 +79,9 @@ export interface PatternStatistics {
 }
 
 /**
- * Berechnet die Anzahl der Medikamenteneinnahmen in den letzten 30 Tagen (rollierend)
+ * @deprecated Removed — limit counts now come from medication_intakes SSOT via useMedicationSummary.
+ * See: MedicationOverviewCard and computeStatistics medicationSummaries param.
  */
-function calculateRolling30DayCount(
-  medName: string,
-  allEntries: MigraineEntry[]
-): number {
-  const now = new Date();
-  const rollingWindowStart = startOfDay(subDays(now, 30));
-  const rollingWindowEnd = endOfDay(now);
-
-  let count = 0;
-  allEntries.forEach(entry => {
-    const entryDateStr = entry.selected_date || entry.timestamp_created?.split('T')[0];
-    if (!entryDateStr) return;
-    
-    try {
-      const entryDate = parseISO(entryDateStr);
-      if (isWithinInterval(entryDate, { start: rollingWindowStart, end: rollingWindowEnd })) {
-        if (entry.medications?.includes(medName)) {
-          count++;
-        }
-      }
-    } catch {
-      // Skip invalid dates
-    }
-  });
-
-  return count;
-}
 
 export function computeStatistics(
   filteredEntries: MigraineEntry[],
