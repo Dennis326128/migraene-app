@@ -1554,8 +1554,8 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       
       yPos = drawSectionHeader(page, "DATENBASIERTE MUSTERANALYSE (KI-GESTÜTZT)", yPos, fontBold, 12);
       
-      // Unterzeile + Marker dass KI aktiv ist
-      page.drawText("KI-Analyse aktiviert · Zusammenfassung und Mustererkennung auf Basis der dokumentierten Daten", {
+      // Unterzeile + Disclaimer
+      page.drawText("Automatische Auswertung auf Basis dokumentierter Daten. Keine aerztliche Diagnose oder Therapieempfehlung.", {
         x: LAYOUT.margin,
         y: yPos,
         size: 8,
