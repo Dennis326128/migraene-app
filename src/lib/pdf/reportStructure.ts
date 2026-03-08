@@ -141,11 +141,12 @@ export const REPORT_SECTIONS: Record<ReportSectionId, {
   },
   premium_ai_report: {
     id: 'premium_ai_report',
-    labelDe: 'KI-Analyse (Premium)',
-    labelEn: 'AI Analysis (Premium)',
-    pdfTitle: 'KI-GESTUTZTE ANALYSE (UNTERSTUTZEND)',
+    labelDe: 'Datenbasierte Musteranalyse (KI)',
+    labelEn: 'Data-Based Pattern Analysis (AI)',
+    pdfTitle: 'DATENBASIERTE MUSTERANALYSE (KI-GESTUTZT)',
     isRequired: false,
     isPremium: true,
+    description: 'Automatische Auswertung auf Basis dokumentierter Daten. Keine aerztliche Diagnose oder Therapieempfehlung.',
   },
   charts: {
     id: 'charts',
