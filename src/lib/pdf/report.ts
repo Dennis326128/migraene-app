@@ -978,6 +978,55 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   const premiumAIFailed = isPremiumAIRequested && !hasPremiumAIData;
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // SSOT: Zentrale Medikations-Tageszählung für konsistente Zahlen überall
+  // ═══════════════════════════════════════════════════════════════════════════
+  const medDaysMap = new Map<string, Set<string>>(); // med name → Set of dates
+  const medCombinationsMap = new Map<string, Map<string, number>>(); // med → co-med → count
+  entries.forEach(entry => {
+    const date = entry.selected_date || entry.timestamp_created?.split('T')[0] || '';
+    if (!date || !entry.medications || entry.medications.length === 0) return;
+    entry.medications.forEach(med => {
+      if (!medDaysMap.has(med)) medDaysMap.set(med, new Set());
+      medDaysMap.get(med)!.add(date);
+      // Track combinations
+      entry.medications!.forEach(otherMed => {
+        if (otherMed === med) return;
+        if (!medCombinationsMap.has(med)) medCombinationsMap.set(med, new Map());
+        const comboMap = medCombinationsMap.get(med)!;
+        comboMap.set(otherMed, (comboMap.get(otherMed) || 0) + 1);
+      });
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // TRIGGER-EXTRAKTION aus Notizen (zentral, für Trigger-Block + KI)
+  // ═══════════════════════════════════════════════════════════════════════════
+  const TRIGGER_KEYWORDS: Record<string, string[]> = {
+    'Helligkeit / Licht': ['hell', 'licht', 'sonne', 'blendung', 'grell', 'bildschirm', 'monitor'],
+    'Laerm / Geraeusche': ['laerm', 'lärm', 'laut', 'geraeusch', 'geräusch', 'krach'],
+    'Stress': ['stress', 'anspannung', 'druck', 'hektik', 'belastung'],
+    'Schlafmangel': ['schlaf', 'muede', 'müde', 'schlecht geschlafen', 'wenig schlaf', 'uebermuedet', 'übermüdet'],
+    'Koerperliche Belastung': ['sport', 'anstrengung', 'koerperlich', 'körperlich', 'training', 'belastung'],
+    'Wetter': ['wetter', 'foehn', 'föhn', 'gewitter', 'schwuel', 'schwül', 'hitze', 'kaelte', 'kälte'],
+    'Infekt / Krankheit': ['infekt', 'erkaelt', 'erkält', 'krank', 'grippe', 'fieber'],
+    'Alkohol': ['alkohol', 'wein', 'bier', 'sekt'],
+    'Menstruation / Zyklus': ['menstruation', 'periode', 'zyklus', 'regel', 'pms'],
+  };
+  const triggerCounts = new Map<string, number>();
+  entries.forEach(entry => {
+    if (!entry.notes || entry.entry_note_is_private) return;
+    const noteLower = entry.notes.toLowerCase();
+    for (const [trigger, keywords] of Object.entries(TRIGGER_KEYWORDS)) {
+      if (keywords.some(kw => noteLower.includes(kw))) {
+        triggerCounts.set(trigger, (triggerCounts.get(trigger) || 0) + 1);
+      }
+    }
+  });
+  const sortedTriggers = Array.from(triggerCounts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 7);
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // 1. KOPFBEREICH (Titel, Zeitraum, Erstellungsdatum)
   // ═══════════════════════════════════════════════════════════════════════════
   
