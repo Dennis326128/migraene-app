@@ -147,6 +147,7 @@ export function computeMiaryReport(input: ComputeReportInput): MiaryReportV2 {
     avgPain,
     maxPain,
     triptanDays,
+    totalTriptanIntakes,
     acuteMedDays,
     preventiveMedActive: false, // must be set by caller context
     mohRiskFlag,
