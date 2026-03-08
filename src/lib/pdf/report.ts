@@ -1234,9 +1234,11 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     // MOH Risk Warning
     if (mohRisk) {
       kpiY -= 60;
-      page.drawText("MOH-Risiko:", { x: LAYOUT.margin + boxPadding, y: kpiY, size: 8, font: fontBold, color: COLORS.chartPain });
-      page.drawText(sanitizeForPDF(mohMessage), { x: LAYOUT.margin + boxPadding + 60, y: kpiY, size: 8, font: fontBold, color: COLORS.chartPain });
-      page.drawText("Aerztliche Pruefung auf Medikamentenuebergebrauch empfohlen.", { x: LAYOUT.margin + boxPadding, y: kpiY - 12, size: 7, font, color: COLORS.chartPain });
+      page.drawText("Hinweis:", { x: LAYOUT.margin + boxPadding, y: kpiY, size: 8, font: fontBold, color: COLORS.chartPain });
+      const mohLines = wrapText(mohMessage, LAYOUT.pageWidth - 2 * LAYOUT.margin - 2 * boxPadding - 55, 8, font);
+      for (let mi = 0; mi < mohLines.length; mi++) {
+        page.drawText(sanitizeForPDF(mohLines[mi]), { x: LAYOUT.margin + boxPadding + 50, y: kpiY - (mi * 11), size: 8, font, color: COLORS.chartPain });
+      }
     }
     
     yPos -= kpiBoxHeight + 4;
