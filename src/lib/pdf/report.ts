@@ -1128,15 +1128,18 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       ? Math.round(validPainLevels.reduce((a, b) => a + b, 0) / validPainLevels.length * 10) / 10
       : 0;
       
-    // MOH Risk Logic
+    // MOH Risk Logic (klinisch relevant, keine Diagnose)
     let mohRisk = false;
     let mohMessage = "";
     if (triptanDaysPerMonth >= 10) {
       mohRisk = true;
-      mohMessage = "⚠ Verdacht auf Triptan-Übergebrauch (>10 Tage/Monat)";
+      mohMessage = "Auffaellig haeufige Triptan-Anwendung (>=10 Tage/Monat)";
     } else if (acutePerMonth >= 15) {
       mohRisk = true;
-      mohMessage = "⚠ Verdacht auf Schmerzmittel-Übergebrauch (>15 Tage/Monat)";
+      mohMessage = "Auffaellig haeufige Akutmedikation (>=15 Tage/Monat)";
+    } else if (triptanDaysPerMonth >= 8 || acutePerMonth >= 12) {
+      mohRisk = true;
+      mohMessage = "Erhoehte Akutmedikationsfrequenz - Verlaufskontrolle empfohlen";
     }
     
     yPos = drawSectionHeader(page, "KLINISCHE KERNÜBERSICHT", yPos, fontBold, 11);
