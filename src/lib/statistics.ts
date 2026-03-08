@@ -1,8 +1,8 @@
 import type { MigraineEntry, MedicationIntakeInfo } from "@/types/painApp";
 import { normalizePainLevel } from "@/lib/utils/pain";
-import { subDays, startOfDay, endOfDay, parseISO, isWithinInterval } from "date-fns";
 import { getEffectiveScore } from "@/lib/utils/medicationEffects";
 import { DEFAULT_DOSE_QUARTERS } from "@/lib/utils/doseFormatter";
+import type { MedicationSummary } from "@/features/medication-intakes/api/medicationSummary.api";
 
 export interface MedicationEffect {
   id: string;
@@ -79,46 +79,19 @@ export interface PatternStatistics {
 }
 
 /**
- * Berechnet die Anzahl der Medikamenteneinnahmen in den letzten 30 Tagen (rollierend)
+ * @deprecated Removed — limit counts now come from medication_intakes SSOT via useMedicationSummary.
+ * See: MedicationOverviewCard and computeStatistics medicationSummaries param.
  */
-function calculateRolling30DayCount(
-  medName: string,
-  allEntries: MigraineEntry[]
-): number {
-  const now = new Date();
-  const rollingWindowStart = startOfDay(subDays(now, 30));
-  const rollingWindowEnd = endOfDay(now);
-
-  let count = 0;
-  allEntries.forEach(entry => {
-    const entryDateStr = entry.selected_date || entry.timestamp_created?.split('T')[0];
-    if (!entryDateStr) return;
-    
-    try {
-      const entryDate = parseISO(entryDateStr);
-      if (isWithinInterval(entryDate, { start: rollingWindowStart, end: rollingWindowEnd })) {
-        if (entry.medications?.includes(medName)) {
-          count++;
-        }
-      }
-    } catch {
-      // Skip invalid dates
-    }
-  });
-
-  return count;
-}
 
 export function computeStatistics(
   filteredEntries: MigraineEntry[],
   medicationEffects: MedicationEffect[],
   entrySymptoms: EntrySymptom[],
   medicationLimits: MedicationLimit[],
-  allEntries?: MigraineEntry[]  // Optional: alle Einträge für rolling 30-day Berechnung
+  _allEntries?: MigraineEntry[],  // @deprecated — no longer used for limit calculation
+  medicationSummaries?: MedicationSummary[],  // SSOT: counts from medication_intakes table
 ): PatternStatistics {
   const totalEpisodes = filteredEntries.length;
-  // Für rolling 30-day Berechnung: nutze allEntries wenn vorhanden, sonst filteredEntries
-  const entriesForRolling = allEntries || filteredEntries;
 
   // 1. Schmerzprofil
   const painLevels = filteredEntries
@@ -299,13 +272,14 @@ export function computeStatistics(
       
       const sideEffectCount = medSideEffects.get(name) || 0;
 
-      // Limit info mit korrekter rolling 30-day Berechnung
+      // Limit info — SSOT from medication_intakes via useMedicationSummary
       const limit = medicationLimits.find(l => l.medication_name === name && l.is_active);
       let limitInfo: MedicationLimitInfo | undefined;
       
       if (limit && limit.period_type === 'month') {
-        // Rolling 30-day Berechnung - UNABHÄNGIG vom gewählten Zeitraum
-        const rolling30Count = calculateRolling30DayCount(name, entriesForRolling);
+        // Use medication_intakes SSOT count (same source as MedicationOverviewCard)
+        const summary = medicationSummaries?.find(s => s.medication_name === name);
+        const rolling30Count = summary?.count_30d ?? 0;
         const limitCount = limit.limit_count;
         const remaining = Math.max(0, limitCount - rolling30Count);
         const overBy = Math.max(0, rolling30Count - limitCount);
