@@ -73,9 +73,9 @@ function classifySymptom(name: string): SymptomGroup {
 }
 
 const GROUP_LABELS: Record<SymptomGroup, string> = {
-  migraine: 'Migraenetypische Begleitsymptome',
+  migraine: 'Migr\u00E4netypische Begleitsymptome',
   neurological: 'Neurologische / kognitive Symptome',
-  other: 'Sonstige Symptome',
+  other: 'Weitere dokumentierte Symptome',
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
