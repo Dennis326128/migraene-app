@@ -1243,12 +1243,6 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     
     yPos -= kpiBoxHeight + 4;
     
-    // Migraine day definition footnote
-    page.drawText("Migr\u00E4netag-Heuristik: NRS >= 7 ODER Aura dokumentiert ODER Triptan eingenommen. Keine klinische Diagnose.", {
-      x: LAYOUT.margin, y: yPos, size: 6.5, font, color: COLORS.textLight,
-    });
-    yPos -= 12;
-    
     // ═══════════════════════════════════════════════════════════════════════
     // PIE CHART: Tagesverteilung (kompakter)
     // ═══════════════════════════════════════════════════════════════════════
@@ -1319,12 +1313,11 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     // Extended columns with "Tage" for days with intake (SSOT from medDaysMap)
     const medCols = {
       name: LAYOUT.margin,
-      intakes: LAYOUT.margin + 115,
-      days: LAYOUT.margin + 170,
-      avgMonth: LAYOUT.margin + 225,
-      last30: LAYOUT.margin + 285,
-      effectiveness: LAYOUT.margin + 340,
-      combo: LAYOUT.margin + 435,
+      intakes: LAYOUT.margin + 130,
+      days: LAYOUT.margin + 200,
+      avgMonth: LAYOUT.margin + 260,
+      last30: LAYOUT.margin + 330,
+      effectiveness: LAYOUT.margin + 410,
     };
     
     page.drawRectangle({
@@ -1341,7 +1334,6 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     page.drawText("\u00D8/30T", { x: medCols.avgMonth, y: yPos - 12, size: 7, font: fontBold });
     page.drawText("Letzte 30T", { x: medCols.last30, y: yPos - 12, size: 7, font: fontBold });
     page.drawText("\u00D8 Wirkung", { x: medCols.effectiveness, y: yPos - 12, size: 7, font: fontBold });
-    page.drawText("Kombination", { x: medCols.combo, y: yPos - 12, size: 7, font: fontBold });
     yPos -= 30;
     
     // Triptane zusammenfassen + andere separat
@@ -1378,15 +1370,6 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       return "-";
     };
     
-    // Get top combination for a medication
-    const getTopCombo = (medName: string): string => {
-      const comboMap = medCombinationsMap.get(medName);
-      if (!comboMap || comboMap.size === 0) return "-";
-      const sorted = Array.from(comboMap.entries()).sort((a, b) => b[1] - a[1]);
-      const top = sorted[0];
-      if (top[1] < 2) return "-"; // only show if >= 2 co-occurrences
-      return top[0].length > 12 ? top[0].substring(0, 10) + '..' : top[0];
-    };
     
     // Alle Medikamente auflisten (sorted by relevance)
     const allMeds = [...triptans, ...others].slice(0, 8);
@@ -1408,7 +1391,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       page.drawText(formatGermanDecimal(stat.avgPerMonth ?? 0, 1), { x: medCols.avgMonth, y: yPos, size: 8, font });
       page.drawText(formatGermanDecimal(stat.last30Units ?? 0, 1), { x: medCols.last30, y: yPos, size: 8, font });
       page.drawText(formatEffectiveness(stat), { x: medCols.effectiveness, y: yPos, size: 8, font });
-      page.drawText(sanitizeForPDF(getTopCombo(stat.name)), { x: medCols.combo, y: yPos, size: 7, font, color: COLORS.textLight });
+      
       
       yPos -= 14;
     }
