@@ -1572,7 +1572,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     yPos = drawSectionHeader(page, "BELASTUNG\u00D6 UND ERSCHOEPFUNGSSYMPTOME", yPos, fontBold, 10);
     
     // Disclaimer: no diagnosis
-    page.drawText("Patientenseitig dokumentierte Belastungs-/Erschoepfungssymptome. Keine diagnostische Einordnung.", {
+    page.drawText("Patientenseitig dokumentierte Belastungs-/Ersch\u00F6pfungssymptome. Keine diagnostische Einordnung.", {
       x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight,
     });
     yPos -= 12;
