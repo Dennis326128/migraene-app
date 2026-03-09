@@ -81,20 +81,6 @@ const GROUP_LABELS: Record<SymptomGroup, string> = {
 // COMPUTATION
 // ═══════════════════════════════════════════════════════════════════════════
 
-function computeClinicalNote(freqPct: number, burdenLevel: number | null): string {
-  const isHigh = freqPct >= 70;
-  const isMedium = freqPct >= 40;
-  const burdenHigh = burdenLevel !== null && burdenLevel >= 3;
-  const burdenSet = burdenLevel !== null && burdenLevel > 0;
-
-  if (isHigh && burdenHigh) return "h\u00E4ufig dokumentiert, hohe Belastung";
-  if (isHigh && burdenSet) return "h\u00E4ufig dokumentiert";
-  if (isHigh) return "h\u00E4ufig dokumentiert";
-  if (isMedium && burdenHigh) return "regelm\u00E4\u00DFig dokumentiert, hohe Belastung";
-  if (!isMedium && burdenHigh) return "gelegentlich dokumentiert, hohe Belastung";
-  if (isMedium) return "regelm\u00E4\u00DFig dokumentiert";
-  return "gelegentlich dokumentiert";
-}
 
 export function computeSymptomRows(data: SymptomDataForPdf): {
   rows: SymptomRow[];
