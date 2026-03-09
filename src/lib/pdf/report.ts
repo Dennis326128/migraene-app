@@ -1191,7 +1191,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       mohMessage = "Erh\u00F6hte Akutmedikationsfrequenz \u2013 Verlaufskontrolle empfohlen.";
     }
     
-    yPos = drawSectionHeader(page, "KLINISCHE KERNÜBERSICHT", yPos, fontBold, 11);
+    yPos = drawSectionHeader(page, "KLINISCHE KERN\u00DCBERSICHT", yPos, fontBold, 11);
     
     // Documentation rate
     const documentedDates = new Set(entries.map(e => e.selected_date || e.timestamp_created?.split('T')[0]).filter(Boolean));
