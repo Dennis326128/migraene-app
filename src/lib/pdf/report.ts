@@ -2307,7 +2307,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       yPos = chartBottom - 30;
       
       // Note
-      page.drawText("Hinweis: Darstellung basiert auf dokumentierten Schmerzeintraegen mit Uhrzeitangabe.", {
+      page.drawText("Hinweis: Darstellung basiert auf dokumentierten Schmerzeintr\u00E4gen mit Uhrzeitangabe.", {
         x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight,
       });
       yPos -= LAYOUT.sectionGap;
