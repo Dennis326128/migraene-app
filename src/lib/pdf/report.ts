@@ -1370,15 +1370,6 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       return "-";
     };
     
-    // Get top combination for a medication
-    const getTopCombo = (medName: string): string => {
-      const comboMap = medCombinationsMap.get(medName);
-      if (!comboMap || comboMap.size === 0) return "-";
-      const sorted = Array.from(comboMap.entries()).sort((a, b) => b[1] - a[1]);
-      const top = sorted[0];
-      if (top[1] < 2) return "-"; // only show if >= 2 co-occurrences
-      return top[0].length > 12 ? top[0].substring(0, 10) + '..' : top[0];
-    };
     
     // Alle Medikamente auflisten (sorted by relevance)
     const allMeds = [...triptans, ...others].slice(0, 8);
