@@ -2371,8 +2371,8 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
 
     const disclaimerLines = [
       "Dieser Bericht wurde automatisch aus patientenseitig dokumentierten Daten erstellt.",
-      "Er stellt keine aerztliche Diagnose, Befundung oder Therapieempfehlung dar.",
-      "Alle Auswertungen dienen der Verlaufsdokumentation und klinischen Entscheidungsunterstuetzung.",
+      "Er stellt keine \u00E4rztliche Diagnose, Befundung oder Therapieempfehlung dar.",
+      "Alle Auswertungen dienen der Verlaufsdokumentation und klinischen Entscheidungsunterst\u00FCtzung.",
     ];
     for (const line of disclaimerLines) {
       page.drawText(line, {
