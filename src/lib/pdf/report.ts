@@ -1625,7 +1625,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
         page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
         yPos = LAYOUT.pageHeight - LAYOUT.margin;
       }
-      page.drawText(sanitizeForPDF(`- ${trigger}: ${count} Erwaehnungen`), {
+      page.drawText(sanitizeForPDF(`- ${trigger}: ${count} Erw\u00E4hnungen`), {
         x: LAYOUT.margin + 8, y: yPos, size: 9, font, color: COLORS.text,
       });
       yPos -= 13;
