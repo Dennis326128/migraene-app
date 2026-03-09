@@ -2396,7 +2396,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       color: COLORS.textLight,
     });
     
-    p.drawText("Erstellt mit Miary - Digitale Verlaufsdokumentation fuer Migraene", {
+    p.drawText("Erstellt mit Miary \u2013 Digitale Verlaufsdokumentation f\u00FCr Migr\u00E4ne", {
       x: LAYOUT.margin,
       y: LAYOUT.margin - 20,
       size: 8,
