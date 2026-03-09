@@ -1553,7 +1553,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     page = meCfsCheck.page;
     yPos = meCfsCheck.yPos;
 
-    yPos = drawSectionHeader(page, "BELASTUNG\u00D6 UND ERSCHOEPFUNGSSYMPTOME", yPos, fontBold, 10);
+    yPos = drawSectionHeader(page, "BELASTUNGS- UND ERSCH\u00D6PFUNGSSYMPTOME", yPos, fontBold, 10);
     
     // Disclaimer: no diagnosis
     page.drawText("Patientenseitig dokumentierte Belastungs-/Ersch\u00F6pfungssymptome. Keine diagnostische Einordnung.", {
