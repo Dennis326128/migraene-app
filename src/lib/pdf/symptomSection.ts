@@ -320,7 +320,7 @@ export function drawSymptomSection(
 
   if (!hasBurdenData) {
     page.drawText(
-      "Tipp: Patient kann in Miary die Beeintraechtigung pro Symptom festlegen.",
+      "Tipp: Patient kann in Miary die Beeintr\u00E4chtigung pro Symptom festlegen.",
       { x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight }
     );
     yPos -= 10;
