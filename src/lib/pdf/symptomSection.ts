@@ -265,9 +265,8 @@ export function drawSymptomSection(
     // Table header for group
     const cols = {
       symptom: LAYOUT.margin + 8,
-      freq: LAYOUT.margin + 210,
-      burden: LAYOUT.margin + 290,
-      note: LAYOUT.margin + 390,
+      freq: LAYOUT.margin + 250,
+      burden: LAYOUT.margin + 370,
     };
 
     page.drawRectangle({
