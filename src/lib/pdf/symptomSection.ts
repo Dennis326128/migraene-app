@@ -36,7 +36,6 @@ interface SymptomRow {
   burdenLevel: number | null;
   burdenLabel: string;
   relevanceScore: number;
-  clinicalNote: string;
   group: SymptomGroup;
 }
 
