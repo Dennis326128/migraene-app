@@ -88,13 +88,13 @@ function computeClinicalNote(freqPct: number, burdenLevel: number | null): strin
   const burdenHigh = burdenLevel !== null && burdenLevel >= 3;
   const burdenSet = burdenLevel !== null && burdenLevel > 0;
 
-  if (isHigh && burdenHigh) return "haeufig, ausgepraegt";
-  if (isHigh && burdenSet) return "haeufig, relevant";
-  if (isHigh) return "haeufig";
-  if (isMedium && burdenHigh) return "regelmaessig, bedeutsam";
-  if (!isMedium && burdenHigh) return "selten, bedeutsam";
-  if (isMedium) return "regelmaessig";
-  return "gelegentlich";
+  if (isHigh && burdenHigh) return "h\u00E4ufig dokumentiert, hohe Belastung";
+  if (isHigh && burdenSet) return "h\u00E4ufig dokumentiert";
+  if (isHigh) return "h\u00E4ufig dokumentiert";
+  if (isMedium && burdenHigh) return "regelm\u00E4\u00DFig dokumentiert, hohe Belastung";
+  if (!isMedium && burdenHigh) return "gelegentlich dokumentiert, hohe Belastung";
+  if (isMedium) return "regelm\u00E4\u00DFig dokumentiert";
+  return "gelegentlich dokumentiert";
 }
 
 export function computeSymptomRows(data: SymptomDataForPdf): {
