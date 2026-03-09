@@ -39,17 +39,17 @@ export async function fetchMedicationSummaries(): Promise<MedicationSummary[]> {
   const { effectiveToday, from7d, from30d } = getSummaryRanges();
 
   // Run both queries in parallel
-  const [windowResult, globalLastResult] = await Promise.all([
-    // 1. All intakes in the 30d window (covers both 7d and 30d counts)
+  // IMPORTANT: We fetch ALL intakes (no taken_date filter) because some rows have
+  // NULL taken_date due to a sync bug. We filter client-side using taken_date ?? taken_at.
+  const [allIntakesResult, globalLastResult] = await Promise.all([
     supabase
       .from("medication_intakes")
       .select("medication_name, taken_at, taken_date")
       .eq("user_id", user.id)
-      .gte("taken_date", from30d)
-      .lte("taken_date", effectiveToday)
-      .order("taken_at", { ascending: false }),
+      .order("taken_at", { ascending: false })
+      .limit(2000),
 
-    // 2. Global last intake per medication (most recent per med, limit reasonable)
+    // 2. Global last intake per medication (most recent per med)
     supabase
       .from("medication_intakes")
       .select("medication_name, taken_at")
@@ -58,7 +58,7 @@ export async function fetchMedicationSummaries(): Promise<MedicationSummary[]> {
       .limit(500),
   ]);
 
-  if (windowResult.error) throw windowResult.error;
+  if (allIntakesResult.error) throw allIntakesResult.error;
   if (globalLastResult.error) throw globalLastResult.error;
 
   // Build global last map from query 2
@@ -69,17 +69,26 @@ export async function fetchMedicationSummaries(): Promise<MedicationSummary[]> {
     }
   }
 
-  // Aggregate 30d window counts
+  // Aggregate counts — use taken_date with fallback to taken_at date portion
   const medMap = new Map<string, { count_7d: number; count_30d: number }>();
 
-  for (const intake of (windowResult.data || [])) {
+  for (const intake of (allIntakesResult.data || [])) {
+    // SSOT: effective date = taken_date ?? date portion of taken_at
+    const effectiveDate = intake.taken_date
+      || (intake.taken_at ? intake.taken_at.substring(0, 10) : null);
+
+    if (!effectiveDate) continue;
+
+    // Filter to 30d window
+    if (effectiveDate < from30d || effectiveDate > effectiveToday) continue;
+
     const name = intake.medication_name;
     if (!medMap.has(name)) {
       medMap.set(name, { count_7d: 0, count_30d: 0 });
     }
     const entry = medMap.get(name)!;
     entry.count_30d++;
-    if (intake.taken_date! >= from7d) {
+    if (effectiveDate >= from7d) {
       entry.count_7d++;
     }
   }
@@ -98,7 +107,6 @@ export async function fetchMedicationSummaries(): Promise<MedicationSummary[]> {
       ...stats,
     }))
     .sort((a, b) => {
-      // Sort by 30d count desc, then by last intake desc
       if (b.count_30d !== a.count_30d) return b.count_30d - a.count_30d;
       if (a.last_intake_at && b.last_intake_at) return b.last_intake_at.localeCompare(a.last_intake_at);
       return a.last_intake_at ? -1 : 1;
