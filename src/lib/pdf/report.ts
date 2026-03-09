@@ -2144,7 +2144,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     
     yPos = drawSectionHeader(page, hasWeatherData ? "SCHMERZ- & WETTERVERLAUF" : "SCHMERZVERLAUF", yPos, fontBold, 13);
     
-    page.drawText(`Kombiniertes Verlaufsdiagramm fuer den Berichtszeitraum ${formatDateGerman(from)} - ${formatDateGerman(to)}`, {
+    page.drawText("Kombiniertes Verlaufsdiagramm f\u00FCr den Berichtszeitraum " + formatDateGerman(from) + " - " + formatDateGerman(to), {
       x: LAYOUT.margin,
       y: yPos,
       size: 8,
