@@ -1988,7 +1988,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     yPos -= 16;
 
     if (isInsufficient) {
-      page.drawText(sanitizeForPDF('Noch nicht ausreichend Daten fuer eine Wetter-Kopfschmerz-Analyse.'), {
+      page.drawText('Noch nicht ausreichend Daten f\u00FCr eine Wetter-Kopfschmerz-Analyse.', {
         x: LAYOUT.margin, y: yPos, size: 9, font, color: COLORS.text,
       });
       if (wa.pressureDelta24h.notes.length > 0) {
