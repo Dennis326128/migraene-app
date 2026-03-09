@@ -1243,12 +1243,6 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     
     yPos -= kpiBoxHeight + 4;
     
-    // Migraine day definition footnote
-    page.drawText("Migr\u00E4netag-Heuristik: NRS >= 7 ODER Aura dokumentiert ODER Triptan eingenommen. Keine klinische Diagnose.", {
-      x: LAYOUT.margin, y: yPos, size: 6.5, font, color: COLORS.textLight,
-    });
-    yPos -= 12;
-    
     // ═══════════════════════════════════════════════════════════════════════
     // PIE CHART: Tagesverteilung (kompakter)
     // ═══════════════════════════════════════════════════════════════════════
