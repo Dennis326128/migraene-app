@@ -1003,10 +1003,10 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   // ═══════════════════════════════════════════════════════════════════════════
   const TRIGGER_KEYWORDS: Record<string, string[]> = {
     'Helligkeit / Licht': ['hell', 'licht', 'sonne', 'blendung', 'grell', 'bildschirm', 'monitor'],
-    'Laerm / Geraeusche': ['laerm', 'lärm', 'laut', 'geraeusch', 'geräusch', 'krach'],
+    'L\u00E4rm / Ger\u00E4usche': ['laerm', 'lärm', 'laut', 'geraeusch', 'geräusch', 'krach'],
     'Stress': ['stress', 'anspannung', 'druck', 'hektik', 'belastung'],
     'Schlafmangel': ['schlaf', 'muede', 'müde', 'schlecht geschlafen', 'wenig schlaf', 'uebermuedet', 'übermüdet'],
-    'Koerperliche Belastung': ['sport', 'anstrengung', 'koerperlich', 'körperlich', 'training', 'belastung'],
+    'K\u00F6rperliche Belastung': ['sport', 'anstrengung', 'koerperlich', 'körperlich', 'training', 'belastung'],
     'Wetter': ['wetter', 'foehn', 'föhn', 'gewitter', 'schwuel', 'schwül', 'hitze', 'kaelte', 'kälte'],
     'Infekt / Krankheit': ['infekt', 'erkaelt', 'erkält', 'krank', 'grippe', 'fieber'],
     'Alkohol': ['alkohol', 'wein', 'bier', 'sekt'],
