@@ -1845,7 +1845,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     yPos = drawSectionHeader(page, "STATISCHE AUSWERTUNG DER DOKUMENTIERTEN DATEN", yPos, fontBold, 12);
     
     // Unterzeile
-    page.drawText("Faktenbasierte Zusammenfassung ohne KI-Analyse. Keine aerztliche Diagnose.", {
+    page.drawText("Faktenbasierte Zusammenfassung ohne KI-Analyse. Keine \u00E4rztliche Diagnose.", {
       x: LAYOUT.margin,
       y: yPos,
       size: 8,
