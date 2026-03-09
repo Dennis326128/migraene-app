@@ -1228,7 +1228,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     // KPI 3: Intensity + Attacks
     page.drawText("\u00D8 Schmerzintensit\u00E4t (NRS)", { x: LAYOUT.margin + boxPadding + 2 * colWidth, y: kpiY, size: 8, font: fontBold, color: COLORS.text });
     page.drawText(`${formatGermanDecimal(avgIntensity, 1)} / 10`, { x: LAYOUT.margin + boxPadding + 2 * colWidth, y: kpiY - 20, size: 18, font: fontBold, color: COLORS.primary });
-    page.drawText(`Eintraege gesamt: ${entries.length}`, { x: LAYOUT.margin + boxPadding + 2 * colWidth, y: kpiY - 32, size: 7, font: fontBold, color: COLORS.textLight });
+    page.drawText(`Eintr\u00E4ge gesamt: ${entries.length}`, { x: LAYOUT.margin + boxPadding + 2 * colWidth, y: kpiY - 32, size: 7, font: fontBold, color: COLORS.textLight });
     page.drawText(`Dok.-Quote: ${docRate} %`, { x: LAYOUT.margin + boxPadding + 2 * colWidth, y: kpiY - 42, size: 7, font, color: COLORS.textLight });
     
     // MOH Risk Warning
