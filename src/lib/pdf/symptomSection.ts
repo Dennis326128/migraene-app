@@ -36,7 +36,6 @@ interface SymptomRow {
   burdenLevel: number | null;
   burdenLabel: string;
   relevanceScore: number;
-  clinicalNote: string;
   group: SymptomGroup;
 }
 
@@ -82,20 +81,6 @@ const GROUP_LABELS: Record<SymptomGroup, string> = {
 // COMPUTATION
 // ═══════════════════════════════════════════════════════════════════════════
 
-function computeClinicalNote(freqPct: number, burdenLevel: number | null): string {
-  const isHigh = freqPct >= 70;
-  const isMedium = freqPct >= 40;
-  const burdenHigh = burdenLevel !== null && burdenLevel >= 3;
-  const burdenSet = burdenLevel !== null && burdenLevel > 0;
-
-  if (isHigh && burdenHigh) return "h\u00E4ufig dokumentiert, hohe Belastung";
-  if (isHigh && burdenSet) return "h\u00E4ufig dokumentiert";
-  if (isHigh) return "h\u00E4ufig dokumentiert";
-  if (isMedium && burdenHigh) return "regelm\u00E4\u00DFig dokumentiert, hohe Belastung";
-  if (!isMedium && burdenHigh) return "gelegentlich dokumentiert, hohe Belastung";
-  if (isMedium) return "regelm\u00E4\u00DFig dokumentiert";
-  return "gelegentlich dokumentiert";
-}
 
 export function computeSymptomRows(data: SymptomDataForPdf): {
   rows: SymptomRow[];
@@ -138,7 +123,6 @@ export function computeSymptomRows(data: SymptomDataForPdf): {
       burdenLevel,
       burdenLabel,
       relevanceScore,
-      clinicalNote: computeClinicalNote(freqPct, burdenLevel),
       group: classifySymptom(name),
     });
   }
@@ -279,9 +263,8 @@ export function drawSymptomSection(
     // Table header for group
     const cols = {
       symptom: LAYOUT.margin + 8,
-      freq: LAYOUT.margin + 210,
-      burden: LAYOUT.margin + 290,
-      note: LAYOUT.margin + 390,
+      freq: LAYOUT.margin + 250,
+      burden: LAYOUT.margin + 370,
     };
 
     page.drawRectangle({
@@ -292,7 +275,7 @@ export function drawSymptomSection(
     page.drawText("Symptom", { x: cols.symptom, y: yPos - 10, size: 7, font: fontBold, color: COLORS.text });
     page.drawText("H\u00E4ufigkeit", { x: cols.freq, y: yPos - 10, size: 7, font: fontBold, color: COLORS.text });
     page.drawText("Belastung", { x: cols.burden, y: yPos - 10, size: 7, font: fontBold, color: COLORS.text });
-    page.drawText("Einsch\u00E4tzung", { x: cols.note, y: yPos - 10, size: 7, font: fontBold, color: COLORS.text });
+    
     yPos -= 22;
 
     for (const row of groupRows.slice(0, 6)) {
@@ -304,7 +287,7 @@ export function drawSymptomSection(
       page.drawText(sanitize(row.name), { x: cols.symptom, y: yPos, size: 8, font, color: COLORS.text });
       page.drawText(`${row.frequencyPercent} %`, { x: cols.freq, y: yPos, size: 8, font, color: COLORS.text });
       page.drawText(sanitize(row.burdenLabel), { x: cols.burden, y: yPos, size: 8, font, color: COLORS.text });
-      page.drawText(sanitize(row.clinicalNote), { x: cols.note, y: yPos, size: 7, font, color: COLORS.textLight });
+      
       yPos -= 13;
     }
     yPos -= 6;
