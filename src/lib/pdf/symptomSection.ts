@@ -290,9 +290,9 @@ export function drawSymptomSection(
       color: COLORS.headerBg,
     });
     page.drawText("Symptom", { x: cols.symptom, y: yPos - 10, size: 7, font: fontBold, color: COLORS.text });
-    page.drawText("Haeufigkeit", { x: cols.freq, y: yPos - 10, size: 7, font: fontBold, color: COLORS.text });
+    page.drawText("H\u00E4ufigkeit", { x: cols.freq, y: yPos - 10, size: 7, font: fontBold, color: COLORS.text });
     page.drawText("Belastung", { x: cols.burden, y: yPos - 10, size: 7, font: fontBold, color: COLORS.text });
-    page.drawText("Einschaetzung", { x: cols.note, y: yPos - 10, size: 7, font: fontBold, color: COLORS.text });
+    page.drawText("Einsch\u00E4tzung", { x: cols.note, y: yPos - 10, size: 7, font: fontBold, color: COLORS.text });
     yPos -= 22;
 
     for (const row of groupRows.slice(0, 6)) {
