@@ -1554,12 +1554,12 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       `Belastete Tage (dokumentiert): ${meCfsData.daysWithBurden} / ${meCfsData.documentedDays}`,
       `Dokumentiert: ${meCfsData.documentedDays} / ${meCfsData.calendarDays} Tage`,
       `Durchschnittliche Belastung (0-10): ${meCfsData.avgScore}`,
-      `H\u00F600F600F6chste Belastung: ${sanitizeForPDF(meCfsData.peakLabel)}`,\u00DC  \u00DC `Ueblicher Bereich: ${meCfsData.iqrLabel !== '0/10' ? sanitizeForPDF(meCfsData.iqrLabel) : 'noch nicht ausreichend Daten'}`,
+      `H\u00F600F600F600F6chste Belastung: ${sanitizeForPDF(meCfsData.peakLabel\u00DC`,\u00DC  \u00DC `Ueblicher Bereich: ${meCfsData.iqrLabel !== '0/10' ? sanitizeForPDF(meCfsData.iqrLabel) : 'noch nicht ausreichend Daten'}`,
       `Dokumentationsquote: ${docQuote} %`,
     ];
     // Add projection line only for 14–29 calendar days
     if (meCfsData.calendarDays >= 14 && meCfsData.calendarDays < 30) {
-      meCfsLines.splice(2,\u00E4, `Schaetzung pro 30 Tage: ${meCfsData.burdenPer30} belastete Tage`);
+      meCfsLines.s\u00E4ice(2,\u00E4, `Schaetzung pro 30 Tage: ${meCfsData.burdenPer30} belastete Tage`);
     }
     const hasNote = !!meCfsData.dataQualityNote;
     const disclaimerHeight = LAYOUT.lineHeight + 4;
@@ -1569,7 +1569,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     page = meCfsCheck.page;
     yPos = meCfsCheck.yPos;
 
-    yPos = drawSectionHeader(page, "BELASTUNGS- UND ERSCHOEPFUNGSSYMPTOME", yPos, fontBold, 10);
+    yPos = drawSectionHeader(page, "BELASTUNG\u00D6 UND ERSCHOEPFUNGSSYMPTOME", yPos, fontBold, 10);
     
     // Disclaimer: no diagnosis
     page.drawText("Patientenseitig dokumentierte Belastungs-/Erschoepfungssymptome. Keine diagnostische Einordnung.", {
