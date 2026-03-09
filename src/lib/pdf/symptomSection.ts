@@ -236,7 +236,7 @@ export function drawSymptomSection(
 
   if (!useCheckedBasis && data.totalEntries > 0) {
     page.drawText(
-      "Hinweis: Begleitsymptome wurden selten geoeffnet; Haeufigkeiten koennen ueberschaetzt sein.",
+      "Hinweis: Begleitsymptome wurden selten ge\u00F6ffnet; H\u00E4ufigkeiten k\u00F6nnen \u00FCbersch\u00E4tzt sein.",
       { x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight }
     );
     yPos -= 11;
