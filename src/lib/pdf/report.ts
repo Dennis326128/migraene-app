@@ -1182,13 +1182,13 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     let mohMessage = "";
     if (triptanDaysPerMonth >= 10) {
       mohRisk = true;
-      mohMessage = "Auffaellig haeufige Triptan-Anwendung im Berichtszeitraum; klinische Pruefung auf Medikamentenuebergebrauch sinnvoll.";
+      mohMessage = "Auff\u00E4llig h\u00E4ufige Triptan-Anwendung im Berichtszeitraum; klinische Pr\u00FCfung auf Medikamenten\u00FCbergebrauch sinnvoll.";
     } else if (acutePerMonth >= 15) {
       mohRisk = true;
-      mohMessage = "Auffaellig haeufige Akutmedikation im Berichtszeitraum; klinische Pruefung auf Medikamentenuebergebrauch sinnvoll.";
+      mohMessage = "Auff\u00E4llig h\u00E4ufige Akutmedikation im Berichtszeitraum; klinische Pr\u00FCfung auf Medikamenten\u00FCbergebrauch sinnvoll.";
     } else if (triptanDaysPerMonth >= 8 || acutePerMonth >= 12) {
       mohRisk = true;
-      mohMessage = "Erhoehte Akutmedikationsfrequenz - Verlaufskontrolle empfohlen.";
+      mohMessage = "Erh\u00F6hte Akutmedikationsfrequenz \u2013 Verlaufskontrolle empfohlen.";
     }
     
     yPos = drawSectionHeader(page, "KLINISCHE KERNÜBERSICHT", yPos, fontBold, 11);
