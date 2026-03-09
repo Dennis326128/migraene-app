@@ -1313,12 +1313,11 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     // Extended columns with "Tage" for days with intake (SSOT from medDaysMap)
     const medCols = {
       name: LAYOUT.margin,
-      intakes: LAYOUT.margin + 115,
-      days: LAYOUT.margin + 170,
-      avgMonth: LAYOUT.margin + 225,
-      last30: LAYOUT.margin + 285,
-      effectiveness: LAYOUT.margin + 340,
-      combo: LAYOUT.margin + 435,
+      intakes: LAYOUT.margin + 130,
+      days: LAYOUT.margin + 200,
+      avgMonth: LAYOUT.margin + 260,
+      last30: LAYOUT.margin + 330,
+      effectiveness: LAYOUT.margin + 410,
     };
     
     page.drawRectangle({
