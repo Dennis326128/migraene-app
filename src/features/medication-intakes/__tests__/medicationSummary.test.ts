@@ -105,12 +105,16 @@ describe("NULL taken_date resilience", () => {
   });
 
   it("fallback extracts YYYY-MM-DD from ISO timestamp", () => {
-    const effectiveDate = null ?? "2026-03-07T15:17:41+00".substring(0, 10);
+    const takenDate: string | null = null;
+    const takenAt = "2026-03-07T15:17:41+00";
+    const effectiveDate = takenDate ?? takenAt.substring(0, 10);
     expect(effectiveDate).toBe("2026-03-07");
   });
 
   it("taken_date takes priority over taken_at", () => {
-    const effectiveDate = "2026-03-03" ?? "2026-03-03T11:32:00+00".substring(0, 10);
+    const takenDate: string | null = "2026-03-03";
+    const takenAt = "2026-03-03T11:32:00+00";
+    const effectiveDate = takenDate ?? takenAt.substring(0, 10);
     expect(effectiveDate).toBe("2026-03-03");
   });
 
