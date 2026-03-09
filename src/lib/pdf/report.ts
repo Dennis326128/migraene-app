@@ -1659,7 +1659,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       yPos = drawSectionHeader(page, "DATENBASIERTE MUSTERANALYSE (KI-GEST\u00DCTZT)", yPos, fontBold, 12);
       
       // Unterzeile + Disclaimer
-      page.drawText("Automatische Auswertung auf Basis dokumentierter Daten. Keine aerztliche Diagnose oder Therapieempfehlung.", {
+      page.drawText("Automatische Auswertung auf Basis dokumentierter Daten. Keine \u00E4rztliche Diagnose oder Therapieempfehlung.", {
         x: LAYOUT.margin,
         y: yPos,
         size: 8,
