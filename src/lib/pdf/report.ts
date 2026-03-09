@@ -1631,7 +1631,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       yPos -= 13;
     }
 
-    page.drawText("Hinweis: Schlagwortbasierte Extraktion; kein Beleg fuer kausalen Zusammenhang.", {
+    page.drawText("Hinweis: Schlagwortbasierte Extraktion; kein Beleg f\u00FCr kausalen Zusammenhang.", {
       x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight,
     });
     yPos -= LAYOUT.sectionGap;
