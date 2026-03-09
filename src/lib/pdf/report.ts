@@ -2007,10 +2007,10 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
         yPos = bucketCheck.yPos;
 
         const colX = [LAYOUT.margin, LAYOUT.margin + 230, LAYOUT.margin + 300, LAYOUT.margin + 370];
-        page.drawText('Druckaenderung', { x: colX[0], y: yPos, size: 8, font: fontBold, color: COLORS.text });
+        page.drawText('Druck\u00E4nderung', { x: colX[0], y: yPos, size: 8, font: fontBold, color: COLORS.text });
         page.drawText('Tage', { x: colX[1], y: yPos, size: 8, font: fontBold, color: COLORS.text });
         page.drawText('KS-Rate', { x: colX[2], y: yPos, size: 8, font: fontBold, color: COLORS.text });
-        page.drawText('Ø Intensitaet', { x: colX[3], y: yPos, size: 8, font: fontBold, color: COLORS.text });
+        page.drawText('\u00D8 Intensit\u00E4t', { x: colX[3], y: yPos, size: 8, font: fontBold, color: COLORS.text });
         yPos -= 4;
         page.drawLine({
           start: { x: LAYOUT.margin, y: yPos },
