@@ -125,6 +125,7 @@ export function computeSymptomRows(data: SymptomDataForPdf): {
       relevanceScore,
       clinicalNote: computeClinicalNote(freqPct, burdenLevel),
       group: classifySymptom(name),
+      group: classifySymptom(name),
     });
   }
 
