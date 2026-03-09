@@ -1216,7 +1216,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     // KPI 1: Headache Days + Migraine Days
     page.drawText("Kopfschmerztage / 30T", { x: LAYOUT.margin + boxPadding, y: kpiY, size: 8, font: fontBold, color: COLORS.text });
     page.drawText(formatGermanDecimal(painDaysPerMonth, 1), { x: LAYOUT.margin + boxPadding, y: kpiY - 20, size: 18, font: fontBold, color: COLORS.primary });
-    page.drawText(`davon Migraenetage: ${formatGermanDecimal(migrainePerMonth, 1)}`, { x: LAYOUT.margin + boxPadding, y: kpiY - 32, size: 7, font: fontBold, color: COLORS.textLight });
+    page.drawText(`davon Migr\u00E4netage: ${formatGermanDecimal(migrainePerMonth, 1)}`, { x: LAYOUT.margin + boxPadding, y: kpiY - 32, size: 7, font: fontBold, color: COLORS.textLight });
     page.drawText(`(Gesamt: ${painDays} von ${documentedDates.size} dok. Tagen)`, { x: LAYOUT.margin + boxPadding, y: kpiY - 42, size: 7, font, color: COLORS.textLight });
     
     // KPI 2: Triptans + Acute Med
