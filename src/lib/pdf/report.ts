@@ -1334,7 +1334,6 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     page.drawText("\u00D8/30T", { x: medCols.avgMonth, y: yPos - 12, size: 7, font: fontBold });
     page.drawText("Letzte 30T", { x: medCols.last30, y: yPos - 12, size: 7, font: fontBold });
     page.drawText("\u00D8 Wirkung", { x: medCols.effectiveness, y: yPos - 12, size: 7, font: fontBold });
-    page.drawText("Kombination", { x: medCols.combo, y: yPos - 12, size: 7, font: fontBold });
     yPos -= 30;
     
     // Triptane zusammenfassen + andere separat
