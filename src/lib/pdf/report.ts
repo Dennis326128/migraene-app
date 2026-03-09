@@ -1391,7 +1391,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       page.drawText(formatGermanDecimal(stat.avgPerMonth ?? 0, 1), { x: medCols.avgMonth, y: yPos, size: 8, font });
       page.drawText(formatGermanDecimal(stat.last30Units ?? 0, 1), { x: medCols.last30, y: yPos, size: 8, font });
       page.drawText(formatEffectiveness(stat), { x: medCols.effectiveness, y: yPos, size: 8, font });
-      page.drawText(sanitizeForPDF(getTopCombo(stat.name)), { x: medCols.combo, y: yPos, size: 7, font, color: COLORS.textLight });
+      
       
       yPos -= 14;
     }
