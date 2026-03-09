@@ -226,7 +226,7 @@ export function drawSymptomSection(
 
   // ── Basis line ──
   const basisLabel = useCheckedBasis
-    ? `Zeitraum: ${fromFormatted} - ${toFormatted}  |  Basis: ${basisCount} von ${data.totalEntries} Attacken (geprueft)`
+    ? `Zeitraum: ${fromFormatted} - ${toFormatted}  |  Basis: ${basisCount} von ${data.totalEntries} Attacken (gepr\u00FCft)`
     : `Zeitraum: ${fromFormatted} - ${toFormatted}  |  Basis: ${data.totalEntries} Attacken (alle)`;
   
   page.drawText(basisLabel, {
