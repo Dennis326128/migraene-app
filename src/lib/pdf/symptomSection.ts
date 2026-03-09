@@ -289,7 +289,7 @@ export function drawSymptomSection(
       page.drawText(sanitize(row.name), { x: cols.symptom, y: yPos, size: 8, font, color: COLORS.text });
       page.drawText(`${row.frequencyPercent} %`, { x: cols.freq, y: yPos, size: 8, font, color: COLORS.text });
       page.drawText(sanitize(row.burdenLabel), { x: cols.burden, y: yPos, size: 8, font, color: COLORS.text });
-      page.drawText(sanitize(row.clinicalNote), { x: cols.note, y: yPos, size: 7, font, color: COLORS.textLight });
+      
       yPos -= 13;
     }
     yPos -= 6;
