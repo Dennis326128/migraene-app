@@ -145,11 +145,16 @@ serve(async (req) => {
       }
 
       // Count intakes for this medication (case-insensitive)
+      // Use taken_date with fallback to taken_at date portion for NULL taken_date
       let currentCount = 0;
       const normalizedLimitName = normalizeMedicationName(limit.medication_name);
       
       if (intakes) {
         for (const intake of intakes) {
+          const effectiveDate = intake.taken_date
+            || (intake.taken_at ? intake.taken_at.substring(0, 10) : null);
+          if (!effectiveDate) continue;
+          if (effectiveDate < periodStartDate || effectiveDate > todayDate) continue;
           if (normalizeMedicationName(intake.medication_name) === normalizedLimitName) {
             currentCount++;
           }
