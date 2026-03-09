@@ -134,13 +134,11 @@ serve(async (req) => {
       const todayDate = now.toISOString().split('T')[0];
 
       // SSOT: Count from medication_intakes table using taken_date
-      // This matches the client-side fetchMedicationSummaries logic
+      // Fallback: also fetch taken_at for rows where taken_date may be NULL
       const { data: intakes, error: intakesError } = await supabase
         .from('medication_intakes')
-        .select('id, medication_name, taken_date')
-        .eq('user_id', user.id)
-        .gte('taken_date', periodStartDate)
-        .lte('taken_date', todayDate);
+        .select('id, medication_name, taken_date, taken_at')
+        .eq('user_id', user.id);
 
       if (intakesError) {
         console.error('Medication intakes error:', intakesError);
