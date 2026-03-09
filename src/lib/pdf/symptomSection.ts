@@ -313,7 +313,7 @@ export function drawSymptomSection(
   // ── Footer note ──
   yPos -= 2;
   page.drawText(
-    "Haeufigkeit basiert auf dokumentierten Attacken; Belastung entspricht patientenseitiger Priorisierung.",
+    "H\u00E4ufigkeit basiert auf dokumentierten Attacken; Belastung entspricht patientenseitiger Priorisierung.",
     { x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight }
   );
   yPos -= 10;
