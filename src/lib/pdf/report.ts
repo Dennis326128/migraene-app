@@ -1554,7 +1554,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       `Belastete Tage (dokumentiert): ${meCfsData.daysWithBurden} / ${meCfsData.documentedDays}`,
       `Dokumentiert: ${meCfsData.documentedDays} / ${meCfsData.calendarDays} Tage`,
       `Durchschnittliche Belastung (0-10): ${meCfsData.avgScore}`,
-      `Hoechste Belastung: ${sanitizeForPDF(meCfsData.peakLabel)}`,
+      `H\u00F6chste Belastung: ${sanitizeForPDF(meCfsData.peakLabel)}`,
       `Ueblicher Bereich: ${meCfsData.iqrLabel !== '0/10' ? sanitizeForPDF(meCfsData.iqrLabel) : 'noch nicht ausreichend Daten'}`,
       `Dokumentationsquote: ${docQuote} %`,
     ];
