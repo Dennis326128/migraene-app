@@ -1003,10 +1003,10 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   // ═══════════════════════════════════════════════════════════════════════════
   const TRIGGER_KEYWORDS: Record<string, string[]> = {
     'Helligkeit / Licht': ['hell', 'licht', 'sonne', 'blendung', 'grell', 'bildschirm', 'monitor'],
-    'Laerm / Geraeusche': ['laerm', 'lärm', 'laut', 'geraeusch', 'geräusch', 'krach'],
+    'L\u00E4rm / Ger\u00E4usche': ['laerm', 'lärm', 'laut', 'geraeusch', 'geräusch', 'krach'],
     'Stress': ['stress', 'anspannung', 'druck', 'hektik', 'belastung'],
     'Schlafmangel': ['schlaf', 'muede', 'müde', 'schlecht geschlafen', 'wenig schlaf', 'uebermuedet', 'übermüdet'],
-    'Koerperliche Belastung': ['sport', 'anstrengung', 'koerperlich', 'körperlich', 'training', 'belastung'],
+    'K\u00F6rperliche Belastung': ['sport', 'anstrengung', 'koerperlich', 'körperlich', 'training', 'belastung'],
     'Wetter': ['wetter', 'foehn', 'föhn', 'gewitter', 'schwuel', 'schwül', 'hitze', 'kaelte', 'kälte'],
     'Infekt / Krankheit': ['infekt', 'erkaelt', 'erkält', 'krank', 'grippe', 'fieber'],
     'Alkohol': ['alkohol', 'wein', 'bier', 'sekt'],
@@ -1182,16 +1182,16 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     let mohMessage = "";
     if (triptanDaysPerMonth >= 10) {
       mohRisk = true;
-      mohMessage = "Auffaellig haeufige Triptan-Anwendung im Berichtszeitraum; klinische Pruefung auf Medikamentenuebergebrauch sinnvoll.";
+      mohMessage = "Auff\u00E4llig h\u00E4ufige Triptan-Anwendung im Berichtszeitraum; klinische Pr\u00FCfung auf Medikamenten\u00FCbergebrauch sinnvoll.";
     } else if (acutePerMonth >= 15) {
       mohRisk = true;
-      mohMessage = "Auffaellig haeufige Akutmedikation im Berichtszeitraum; klinische Pruefung auf Medikamentenuebergebrauch sinnvoll.";
+      mohMessage = "Auff\u00E4llig h\u00E4ufige Akutmedikation im Berichtszeitraum; klinische Pr\u00FCfung auf Medikamenten\u00FCbergebrauch sinnvoll.";
     } else if (triptanDaysPerMonth >= 8 || acutePerMonth >= 12) {
       mohRisk = true;
-      mohMessage = "Erhoehte Akutmedikationsfrequenz - Verlaufskontrolle empfohlen.";
+      mohMessage = "Erh\u00F6hte Akutmedikationsfrequenz \u2013 Verlaufskontrolle empfohlen.";
     }
     
-    yPos = drawSectionHeader(page, "KLINISCHE KERNÜBERSICHT", yPos, fontBold, 11);
+    yPos = drawSectionHeader(page, "KLINISCHE KERN\u00DCBERSICHT", yPos, fontBold, 11);
     
     // Documentation rate
     const documentedDates = new Set(entries.map(e => e.selected_date || e.timestamp_created?.split('T')[0]).filter(Boolean));
@@ -1216,7 +1216,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     // KPI 1: Headache Days + Migraine Days
     page.drawText("Kopfschmerztage / 30T", { x: LAYOUT.margin + boxPadding, y: kpiY, size: 8, font: fontBold, color: COLORS.text });
     page.drawText(formatGermanDecimal(painDaysPerMonth, 1), { x: LAYOUT.margin + boxPadding, y: kpiY - 20, size: 18, font: fontBold, color: COLORS.primary });
-    page.drawText(`davon Migraenetage: ${formatGermanDecimal(migrainePerMonth, 1)}`, { x: LAYOUT.margin + boxPadding, y: kpiY - 32, size: 7, font: fontBold, color: COLORS.textLight });
+    page.drawText(`davon Migr\u00E4netage: ${formatGermanDecimal(migrainePerMonth, 1)}`, { x: LAYOUT.margin + boxPadding, y: kpiY - 32, size: 7, font: fontBold, color: COLORS.textLight });
     page.drawText(`(Gesamt: ${painDays} von ${documentedDates.size} dok. Tagen)`, { x: LAYOUT.margin + boxPadding, y: kpiY - 42, size: 7, font, color: COLORS.textLight });
     
     // KPI 2: Triptans + Acute Med
@@ -1226,9 +1226,9 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     page.drawText(`Akutmed.-Tage/30T: ${formatGermanDecimal(acutePerMonth, 1)}`, { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY - 42, size: 7, font, color: COLORS.textLight });
     
     // KPI 3: Intensity + Attacks
-    page.drawText("Ø Schmerzintensitaet (NRS)", { x: LAYOUT.margin + boxPadding + 2 * colWidth, y: kpiY, size: 8, font: fontBold, color: COLORS.text });
+    page.drawText("\u00D8 Schmerzintensit\u00E4t (NRS)", { x: LAYOUT.margin + boxPadding + 2 * colWidth, y: kpiY, size: 8, font: fontBold, color: COLORS.text });
     page.drawText(`${formatGermanDecimal(avgIntensity, 1)} / 10`, { x: LAYOUT.margin + boxPadding + 2 * colWidth, y: kpiY - 20, size: 18, font: fontBold, color: COLORS.primary });
-    page.drawText(`Eintraege gesamt: ${entries.length}`, { x: LAYOUT.margin + boxPadding + 2 * colWidth, y: kpiY - 32, size: 7, font: fontBold, color: COLORS.textLight });
+    page.drawText(`Eintr\u00E4ge gesamt: ${entries.length}`, { x: LAYOUT.margin + boxPadding + 2 * colWidth, y: kpiY - 32, size: 7, font: fontBold, color: COLORS.textLight });
     page.drawText(`Dok.-Quote: ${docRate} %`, { x: LAYOUT.margin + boxPadding + 2 * colWidth, y: kpiY - 42, size: 7, font, color: COLORS.textLight });
     
     // MOH Risk Warning
@@ -1244,7 +1244,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     yPos -= kpiBoxHeight + 4;
     
     // Migraine day definition footnote
-    page.drawText("Migraenetag-Heuristik: NRS >= 7 ODER Aura dokumentiert ODER Triptan eingenommen. Keine klinische Diagnose.", {
+    page.drawText("Migr\u00E4netag-Heuristik: NRS \u2265 7 ODER Aura dokumentiert ODER Triptan eingenommen. Keine klinische Diagnose.", {
       x: LAYOUT.margin, y: yPos, size: 6.5, font, color: COLORS.textLight,
     });
     yPos -= 12;
@@ -1554,13 +1554,13 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       `Belastete Tage (dokumentiert): ${meCfsData.daysWithBurden} / ${meCfsData.documentedDays}`,
       `Dokumentiert: ${meCfsData.documentedDays} / ${meCfsData.calendarDays} Tage`,
       `Durchschnittliche Belastung (0-10): ${meCfsData.avgScore}`,
-      `Hoechste Belastung: ${sanitizeForPDF(meCfsData.peakLabel)}`,
-      `Ueblicher Bereich: ${meCfsData.iqrLabel !== '0/10' ? sanitizeForPDF(meCfsData.iqrLabel) : 'noch nicht ausreichend Daten'}`,
+      "H\u00F6chste Belastung: " + sanitizeForPDF(meCfsData.peakLabel),
+      "\u00DCblicher Bereich: " + (meCfsData.iqrLabel !== '0/10' ? sanitizeForPDF(meCfsData.iqrLabel) : 'noch nicht ausreichend Daten'),
       `Dokumentationsquote: ${docQuote} %`,
     ];
-    // Add projection line only for 14–29 calendar days
+    // Add projection line only for 14-29 calendar days
     if (meCfsData.calendarDays >= 14 && meCfsData.calendarDays < 30) {
-      meCfsLines.splice(2, 0, `Schaetzung pro 30 Tage: ${meCfsData.burdenPer30} belastete Tage`);
+      meCfsLines.splice(2, 0, "Sch\u00E4tzung pro 30 Tage: " + meCfsData.burdenPer30 + " belastete Tage");
     }
     const hasNote = !!meCfsData.dataQualityNote;
     const disclaimerHeight = LAYOUT.lineHeight + 4;
@@ -1570,10 +1570,10 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     page = meCfsCheck.page;
     yPos = meCfsCheck.yPos;
 
-    yPos = drawSectionHeader(page, "BELASTUNGS- UND ERSCHOEPFUNGSSYMPTOME", yPos, fontBold, 10);
+    yPos = drawSectionHeader(page, "BELASTUNG\u00D6 UND ERSCHOEPFUNGSSYMPTOME", yPos, fontBold, 10);
     
     // Disclaimer: no diagnosis
-    page.drawText("Patientenseitig dokumentierte Belastungs-/Erschoepfungssymptome. Keine diagnostische Einordnung.", {
+    page.drawText("Patientenseitig dokumentierte Belastungs-/Ersch\u00F6pfungssymptome. Keine diagnostische Einordnung.", {
       x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight,
     });
     yPos -= 12;
@@ -1626,13 +1626,13 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
         page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
         yPos = LAYOUT.pageHeight - LAYOUT.margin;
       }
-      page.drawText(sanitizeForPDF(`- ${trigger}: ${count} Erwaehnungen`), {
+      page.drawText(sanitizeForPDF(`- ${trigger}: ${count} Erw\u00E4hnungen`), {
         x: LAYOUT.margin + 8, y: yPos, size: 9, font, color: COLORS.text,
       });
       yPos -= 13;
     }
 
-    page.drawText("Hinweis: Schlagwortbasierte Extraktion; kein Beleg fuer kausalen Zusammenhang.", {
+    page.drawText("Hinweis: Schlagwortbasierte Extraktion; kein Beleg f\u00FCr kausalen Zusammenhang.", {
       x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight,
     });
     yPos -= LAYOUT.sectionGap;
@@ -1657,10 +1657,10 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       page = spaceCheck.page;
       yPos = spaceCheck.yPos;
       
-      yPos = drawSectionHeader(page, "DATENBASIERTE MUSTERANALYSE (KI-GESTÜTZT)", yPos, fontBold, 12);
+      yPos = drawSectionHeader(page, "DATENBASIERTE MUSTERANALYSE (KI-GEST\u00DCTZT)", yPos, fontBold, 12);
       
       // Unterzeile + Disclaimer
-      page.drawText("Automatische Auswertung auf Basis dokumentierter Daten. Keine aerztliche Diagnose oder Therapieempfehlung.", {
+      page.drawText("Automatische Auswertung auf Basis dokumentierter Daten. Keine \u00E4rztliche Diagnose oder Therapieempfehlung.", {
         x: LAYOUT.margin,
         y: yPos,
         size: 8,
@@ -1845,7 +1845,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     yPos = drawSectionHeader(page, "STATISCHE AUSWERTUNG DER DOKUMENTIERTEN DATEN", yPos, fontBold, 12);
     
     // Unterzeile
-    page.drawText("Faktenbasierte Zusammenfassung ohne KI-Analyse. Keine aerztliche Diagnose.", {
+    page.drawText("Faktenbasierte Zusammenfassung ohne KI-Analyse. Keine \u00E4rztliche Diagnose.", {
       x: LAYOUT.margin,
       y: yPos,
       size: 8,
@@ -1988,7 +1988,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     yPos -= 16;
 
     if (isInsufficient) {
-      page.drawText(sanitizeForPDF('Noch nicht ausreichend Daten fuer eine Wetter-Kopfschmerz-Analyse.'), {
+      page.drawText('Noch nicht ausreichend Daten f\u00FCr eine Wetter-Kopfschmerz-Analyse.', {
         x: LAYOUT.margin, y: yPos, size: 9, font, color: COLORS.text,
       });
       if (wa.pressureDelta24h.notes.length > 0) {
@@ -2007,10 +2007,10 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
         yPos = bucketCheck.yPos;
 
         const colX = [LAYOUT.margin, LAYOUT.margin + 230, LAYOUT.margin + 300, LAYOUT.margin + 370];
-        page.drawText('Druckaenderung', { x: colX[0], y: yPos, size: 8, font: fontBold, color: COLORS.text });
+        page.drawText('Druck\u00E4nderung', { x: colX[0], y: yPos, size: 8, font: fontBold, color: COLORS.text });
         page.drawText('Tage', { x: colX[1], y: yPos, size: 8, font: fontBold, color: COLORS.text });
         page.drawText('KS-Rate', { x: colX[2], y: yPos, size: 8, font: fontBold, color: COLORS.text });
-        page.drawText('Ø Intensitaet', { x: colX[3], y: yPos, size: 8, font: fontBold, color: COLORS.text });
+        page.drawText('\u00D8 Intensit\u00E4t', { x: colX[3], y: yPos, size: 8, font: fontBold, color: COLORS.text });
         yPos -= 4;
         page.drawLine({
           start: { x: LAYOUT.margin, y: yPos },
@@ -2144,7 +2144,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     
     yPos = drawSectionHeader(page, hasWeatherData ? "SCHMERZ- & WETTERVERLAUF" : "SCHMERZVERLAUF", yPos, fontBold, 13);
     
-    page.drawText(`Kombiniertes Verlaufsdiagramm fuer den Berichtszeitraum ${formatDateGerman(from)} - ${formatDateGerman(to)}`, {
+    page.drawText("Kombiniertes Verlaufsdiagramm f\u00FCr den Berichtszeitraum " + formatDateGerman(from) + " - " + formatDateGerman(to), {
       x: LAYOUT.margin,
       y: yPos,
       size: 8,
@@ -2307,7 +2307,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       yPos = chartBottom - 30;
       
       // Note
-      page.drawText("Hinweis: Darstellung basiert auf dokumentierten Schmerzeintraegen mit Uhrzeitangabe.", {
+      page.drawText("Hinweis: Darstellung basiert auf dokumentierten Schmerzeintr\u00E4gen mit Uhrzeitangabe.", {
         x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight,
       });
       yPos -= LAYOUT.sectionGap;
@@ -2371,8 +2371,8 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
 
     const disclaimerLines = [
       "Dieser Bericht wurde automatisch aus patientenseitig dokumentierten Daten erstellt.",
-      "Er stellt keine aerztliche Diagnose, Befundung oder Therapieempfehlung dar.",
-      "Alle Auswertungen dienen der Verlaufsdokumentation und klinischen Entscheidungsunterstuetzung.",
+      "Er stellt keine \u00E4rztliche Diagnose, Befundung oder Therapieempfehlung dar.",
+      "Alle Auswertungen dienen der Verlaufsdokumentation und klinischen Entscheidungsunterst\u00FCtzung.",
     ];
     for (const line of disclaimerLines) {
       page.drawText(line, {
@@ -2396,7 +2396,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       color: COLORS.textLight,
     });
     
-    p.drawText("Erstellt mit Miary - Digitale Verlaufsdokumentation fuer Migraene", {
+    p.drawText("Erstellt mit Miary \u2013 Digitale Verlaufsdokumentation f\u00FCr Migr\u00E4ne", {
       x: LAYOUT.margin,
       y: LAYOUT.margin - 20,
       size: 8,

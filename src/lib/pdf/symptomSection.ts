@@ -73,9 +73,9 @@ function classifySymptom(name: string): SymptomGroup {
 }
 
 const GROUP_LABELS: Record<SymptomGroup, string> = {
-  migraine: 'Migraenetypische Begleitsymptome',
+  migraine: 'Migr\u00E4netypische Begleitsymptome',
   neurological: 'Neurologische / kognitive Symptome',
-  other: 'Sonstige Symptome',
+  other: 'Weitere dokumentierte Symptome',
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -88,13 +88,13 @@ function computeClinicalNote(freqPct: number, burdenLevel: number | null): strin
   const burdenHigh = burdenLevel !== null && burdenLevel >= 3;
   const burdenSet = burdenLevel !== null && burdenLevel > 0;
 
-  if (isHigh && burdenHigh) return "haeufig, ausgepraegt";
-  if (isHigh && burdenSet) return "haeufig, relevant";
-  if (isHigh) return "haeufig";
-  if (isMedium && burdenHigh) return "regelmaessig, bedeutsam";
-  if (!isMedium && burdenHigh) return "selten, bedeutsam";
-  if (isMedium) return "regelmaessig";
-  return "gelegentlich";
+  if (isHigh && burdenHigh) return "h\u00E4ufig dokumentiert, hohe Belastung";
+  if (isHigh && burdenSet) return "h\u00E4ufig dokumentiert";
+  if (isHigh) return "h\u00E4ufig dokumentiert";
+  if (isMedium && burdenHigh) return "regelm\u00E4\u00DFig dokumentiert, hohe Belastung";
+  if (!isMedium && burdenHigh) return "gelegentlich dokumentiert, hohe Belastung";
+  if (isMedium) return "regelm\u00E4\u00DFig dokumentiert";
+  return "gelegentlich dokumentiert";
 }
 
 export function computeSymptomRows(data: SymptomDataForPdf): {
@@ -226,7 +226,7 @@ export function drawSymptomSection(
 
   // ── Basis line ──
   const basisLabel = useCheckedBasis
-    ? `Zeitraum: ${fromFormatted} - ${toFormatted}  |  Basis: ${basisCount} von ${data.totalEntries} Attacken (geprueft)`
+    ? `Zeitraum: ${fromFormatted} - ${toFormatted}  |  Basis: ${basisCount} von ${data.totalEntries} Attacken (gepr\u00FCft)`
     : `Zeitraum: ${fromFormatted} - ${toFormatted}  |  Basis: ${data.totalEntries} Attacken (alle)`;
   
   page.drawText(basisLabel, {
@@ -236,7 +236,7 @@ export function drawSymptomSection(
 
   if (!useCheckedBasis && data.totalEntries > 0) {
     page.drawText(
-      "Hinweis: Begleitsymptome wurden selten geoeffnet; Haeufigkeiten koennen ueberschaetzt sein.",
+      "Hinweis: Begleitsymptome wurden selten ge\u00F6ffnet; H\u00E4ufigkeiten k\u00F6nnen \u00FCbersch\u00E4tzt sein.",
       { x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight }
     );
     yPos -= 11;
@@ -290,9 +290,9 @@ export function drawSymptomSection(
       color: COLORS.headerBg,
     });
     page.drawText("Symptom", { x: cols.symptom, y: yPos - 10, size: 7, font: fontBold, color: COLORS.text });
-    page.drawText("Haeufigkeit", { x: cols.freq, y: yPos - 10, size: 7, font: fontBold, color: COLORS.text });
+    page.drawText("H\u00E4ufigkeit", { x: cols.freq, y: yPos - 10, size: 7, font: fontBold, color: COLORS.text });
     page.drawText("Belastung", { x: cols.burden, y: yPos - 10, size: 7, font: fontBold, color: COLORS.text });
-    page.drawText("Einschaetzung", { x: cols.note, y: yPos - 10, size: 7, font: fontBold, color: COLORS.text });
+    page.drawText("Einsch\u00E4tzung", { x: cols.note, y: yPos - 10, size: 7, font: fontBold, color: COLORS.text });
     yPos -= 22;
 
     for (const row of groupRows.slice(0, 6)) {
@@ -313,14 +313,14 @@ export function drawSymptomSection(
   // ── Footer note ──
   yPos -= 2;
   page.drawText(
-    "Haeufigkeit basiert auf dokumentierten Attacken; Belastung entspricht patientenseitiger Priorisierung.",
+    "H\u00E4ufigkeit basiert auf dokumentierten Attacken; Belastung entspricht patientenseitiger Priorisierung.",
     { x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight }
   );
   yPos -= 10;
 
   if (!hasBurdenData) {
     page.drawText(
-      "Tipp: Patient kann in Miary die Beeintraechtigung pro Symptom festlegen.",
+      "Tipp: Patient kann in Miary die Beeintr\u00E4chtigung pro Symptom festlegen.",
       { x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight }
     );
     yPos -= 10;
