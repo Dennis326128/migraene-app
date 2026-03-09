@@ -1656,7 +1656,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       page = spaceCheck.page;
       yPos = spaceCheck.yPos;
       
-      yPos = drawSectionHeader(page, "DATENBASIERTE MUSTERANALYSE (KI-GESTÜTZT)", yPos, fontBold, 12);
+      yPos = drawSectionHeader(page, "DATENBASIERTE MUSTERANALYSE (KI-GEST\u00DCTZT)", yPos, fontBold, 12);
       
       // Unterzeile + Disclaimer
       page.drawText("Automatische Auswertung auf Basis dokumentierter Daten. Keine aerztliche Diagnose oder Therapieempfehlung.", {
