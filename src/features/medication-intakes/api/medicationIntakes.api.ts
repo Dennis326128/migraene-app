@@ -188,6 +188,17 @@ export async function syncIntakesForEntry(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
 
+  // Fetch the parent entry's selected_date/selected_time for taken_date/taken_time
+  const { data: entryData } = await supabase
+    .from("pain_entries")
+    .select("selected_date, selected_time")
+    .eq("id", entryId)
+    .eq("user_id", user.id)
+    .single();
+
+  const entryDate = entryData?.selected_date || null;
+  const entryTime = entryData?.selected_time || null;
+
   // Get existing intakes
   const existingIntakes = await getIntakesForEntry(entryId);
   const existingByName = new Map(existingIntakes.map(i => [i.medication_name, i]));
@@ -207,12 +218,14 @@ export async function syncIntakesForEntry(
         toUpdate.push({ id: existing.id, doseQuarters: newDose });
       }
     } else {
-      // Create new
+      // Create new — include taken_date/taken_time from parent entry
       toCreate.push({
         entry_id: entryId,
         medication_name: med.name,
         medication_id: med.medicationId,
         dose_quarters: med.doseQuarters ?? DEFAULT_DOSE_QUARTERS,
+        ...(entryDate && { taken_date: entryDate }),
+        ...(entryTime && { taken_time: entryTime }),
       });
     }
   }
