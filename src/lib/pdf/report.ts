@@ -1086,6 +1086,9 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     if (patientData.phone) {
       yPos = drawKeyValue(page, "Telefon", patientData.phone, yPos, font, fontBold);
     }
+    if (patientData.email) {
+      yPos = drawKeyValue(page, "E-Mail", patientData.email, yPos, font, fontBold);
+    }
     if (patientData.street || patientData.postalCode || patientData.city) {
       const address = [patientData.street, `${patientData.postalCode || ''} ${patientData.city || ''}`.trim()].filter(Boolean).join(", ");
       yPos = drawKeyValue(page, "Adresse", address, yPos, font, fontBold);
