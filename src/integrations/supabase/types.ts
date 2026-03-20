@@ -887,6 +887,7 @@ export type Database = {
           city: string | null
           created_at: string | null
           date_of_birth: string | null
+          email: string | null
           fax: string | null
           first_name: string | null
           health_insurance: string | null
@@ -905,6 +906,7 @@ export type Database = {
           city?: string | null
           created_at?: string | null
           date_of_birth?: string | null
+          email?: string | null
           fax?: string | null
           first_name?: string | null
           health_insurance?: string | null
@@ -923,6 +925,7 @@ export type Database = {
           city?: string | null
           created_at?: string | null
           date_of_birth?: string | null
+          email?: string | null
           fax?: string | null
           first_name?: string | null
           health_insurance?: string | null
