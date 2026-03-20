@@ -11,17 +11,25 @@ import { initVersionWatcher, checkAppVersion, setupServiceWorkerListener } from 
 // QA Error Capture
 import { initErrorCapture, loadPersistedErrors } from './lib/qa/errorCapture';
 
+const container = document.getElementById('root');
+if (!container) throw new Error('Root element not found');
+
+function renderBootstrapFallback(message: string) {
+  container.innerHTML = `
+    <div class="min-h-screen flex items-center justify-center bg-background text-foreground px-4">
+      <p class="text-sm text-muted-foreground">${message}</p>
+    </div>
+  `;
+}
+
 // CRITICAL: Setup SW listener FIRST - catches controller changes early
 setupServiceWorkerListener();
 
 // CRITICAL: Check app version - this may trigger reload
 if (checkAppVersion()) {
   console.log('App version changed, reload in progress...');
+  renderBootstrapFallback('Neue Version wird geladen...');
 } else {
-
-const container = document.getElementById("root");
-if (!container) throw new Error("Root element not found");
-
 // Initialize QA error capture
 initErrorCapture();
 if (import.meta.env.DEV) {

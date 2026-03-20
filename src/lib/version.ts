@@ -11,6 +11,31 @@ export const APP_VERSION = BUILD_ID;
 
 let isReloading = false;
 
+function safeStorageGet(key: string): string | null {
+  try {
+    return window.localStorage.getItem(key);
+  } catch (err) {
+    console.warn(`[version] localStorage get failed for "${key}"`, err);
+    return null;
+  }
+}
+
+function safeStorageSet(key: string, value: string) {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch (err) {
+    console.warn(`[version] localStorage set failed for "${key}"`, err);
+  }
+}
+
+function safeStorageRemove(key: string) {
+  try {
+    window.localStorage.removeItem(key);
+  } catch (err) {
+    console.warn(`[version] localStorage remove failed for "${key}"`, err);
+  }
+}
+
 /**
  * Force clear all caches and reload with cache-bust redirect.
  * Fixes the race condition where location.reload() still hits the old SW.
@@ -37,8 +62,8 @@ export async function forceClearCachesAndReload() {
     }
     
     // 3. Clear localStorage version markers
-    localStorage.removeItem('build_id');
-    localStorage.removeItem('app_version');
+    safeStorageRemove('build_id');
+    safeStorageRemove('app_version');
     
     // 4. Wait for SW cleanup to complete (300ms for reliable deactivation)
     await new Promise(r => setTimeout(r, 300));
@@ -56,25 +81,29 @@ export async function forceClearCachesAndReload() {
  * Compares the compile-time BUILD_ID against localStorage.
  */
 export function checkAppVersion() {
-  const storedVersion = localStorage.getItem('app_version');
-  
-  if (storedVersion !== BUILD_ID) {
-    console.log(`🔄 App version changed: ${storedVersion} → ${BUILD_ID}`);
-    localStorage.setItem('app_version', BUILD_ID);
+  try {
+    const storedVersion = safeStorageGet('app_version');
     
-    // Only force reload if there was a previous version (not first visit)
-    // and BUILD_ID is not 'dev' (development mode)
-    if (storedVersion && BUILD_ID !== 'dev') {
-      forceClearCachesAndReload();
-      return true;
+    if (storedVersion !== BUILD_ID) {
+      console.log(`🔄 App version changed: ${storedVersion} → ${BUILD_ID}`);
+      safeStorageSet('app_version', BUILD_ID);
+      
+      // Only force reload if there was a previous version (not first visit)
+      // and BUILD_ID is not 'dev' (development mode)
+      if (storedVersion && BUILD_ID !== 'dev') {
+        forceClearCachesAndReload();
+        return true;
+      }
     }
-  }
-  
-  // Also check if URL has stale cache-bust param and clean it
-  const url = new URL(window.location.href);
-  if (url.searchParams.has('_cb')) {
-    url.searchParams.delete('_cb');
-    window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+    
+    // Also check if URL has stale cache-bust param and clean it
+    const url = new URL(window.location.href);
+    if (url.searchParams.has('_cb')) {
+      url.searchParams.delete('_cb');
+      window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+    }
+  } catch (err) {
+    console.error('[version] checkAppVersion failed:', err);
   }
   
   return false;
