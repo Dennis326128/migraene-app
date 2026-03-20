@@ -306,9 +306,10 @@ STRUKTUR (nur auffällige Punkte erwähnen, irrelevante Abschnitte komplett wegl
 WICHTIG: Beende den Text direkt nach dem letzten zutreffenden Abschnitt. Fuege KEINEN Hinweis, Disclaimer oder "Hinweis:" Absatz hinzu - dieser wird separat im PDF eingefuegt.
 
 DATEN:
-Anzahl Attacken: ${entries.length}
+Kopfschmerztage: ${headacheDays}
+Kopfschmerztage pro Monat: ${headacheDaysPerMonth}
+Gesamteinträge (inkl. schmerzfreie): ${entries.length}
 Tage im Zeitraum: ${daysCount}
-Durchschnitt Attacken pro Monat: ${(entries.length / (daysCount / 30)).toFixed(1).replace('.', ',')}
 ${limits && limits.length > 0 ? `Medikamentenlimits: ${limits.map(l => `${l.medication_name}: max. ${l.limit_count}/${l.period_type}`).join(', ')}` : ''}
 
 Medikamentenverläufe (Prophylaxe/Akuttherapie):
