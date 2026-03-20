@@ -707,7 +707,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
           city: freshPatientData.city || "",
           phone: freshPatientData.phone || "",
           fax: freshPatientData.fax || "",
-          email: userEmail || "",
+          email: freshPatientData.email || userEmail || "",
           dateOfBirth: freshPatientData.date_of_birth || "",
           healthInsurance: freshPatientData.health_insurance || "",
           insuranceNumber: freshPatientData.insurance_number || ""

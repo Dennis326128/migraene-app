@@ -1,0 +1,1 @@
+UPDATE public.patient_data SET email = 'dennis.staudt@gmx.de' WHERE user_id IN (SELECT id FROM auth.users WHERE email = 'dstaudt@dukeinvest.de');

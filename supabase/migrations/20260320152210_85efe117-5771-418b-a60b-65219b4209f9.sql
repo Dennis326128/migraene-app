@@ -1,0 +1,1 @@
+ALTER TABLE public.patient_data ADD COLUMN IF NOT EXISTS email text;
