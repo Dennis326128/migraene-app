@@ -22,26 +22,31 @@ function renderBootstrapFallback(message: string) {
   `;
 }
 
-// CRITICAL: Setup SW listener FIRST - catches controller changes early
-setupServiceWorkerListener();
+try {
+  // CRITICAL: Setup SW listener FIRST - catches controller changes early
+  setupServiceWorkerListener();
 
-// CRITICAL: Check app version - this may trigger reload
-if (checkAppVersion()) {
-  console.log('App version changed, reload in progress...');
-  renderBootstrapFallback('Neue Version wird geladen...');
-} else {
-// Initialize QA error capture
-initErrorCapture();
-if (import.meta.env.DEV) {
-  loadPersistedErrors();
-}
+  // CRITICAL: Check app version - this may trigger reload
+  if (checkAppVersion()) {
+    console.log('App version changed, reload in progress...');
+    renderBootstrapFallback('Neue Version wird geladen...');
+  } else {
+    // Initialize QA error capture
+    initErrorCapture();
+    if (import.meta.env.DEV) {
+      loadPersistedErrors();
+    }
 
-// Version watcher (SW message listener)
-initVersionWatcher();
+    // Version watcher (SW message listener)
+    initVersionWatcher();
 
-createRoot(container).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+    createRoot(container).render(
+      <React.StrictMode>
+        <App />
+      </React.StrictMode>
+    );
+  }
+} catch (err) {
+  console.error('[bootstrap] app startup failed:', err);
+  renderBootstrapFallback('Startfehler. Bitte Seite neu laden.');
 }
