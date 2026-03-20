@@ -20,11 +20,13 @@ function safeStorageGet(key: string): string | null {
   }
 }
 
-function safeStorageSet(key: string, value: string) {
+function safeStorageSet(key: string, value: string): boolean {
   try {
     window.localStorage.setItem(key, value);
+    return true;
   } catch (err) {
     console.warn(`[version] localStorage set failed for "${key}"`, err);
+    return false;
   }
 }
 
@@ -86,13 +88,18 @@ export function checkAppVersion() {
     
     if (storedVersion !== BUILD_ID) {
       console.log(`🔄 App version changed: ${storedVersion} → ${BUILD_ID}`);
-      safeStorageSet('app_version', BUILD_ID);
+      const didPersistVersion = safeStorageSet('app_version', BUILD_ID);
       
       // Only force reload if there was a previous version (not first visit)
       // and BUILD_ID is not 'dev' (development mode)
-      if (storedVersion && BUILD_ID !== 'dev') {
+      // IMPORTANT: only reload when persisting succeeded, otherwise this can loop forever.
+      if (storedVersion && BUILD_ID !== 'dev' && didPersistVersion) {
         forceClearCachesAndReload();
         return true;
+      }
+
+      if (storedVersion && BUILD_ID !== 'dev' && !didPersistVersion) {
+        console.warn('[version] Skipping forced reload because app_version could not be persisted.');
       }
     }
     
