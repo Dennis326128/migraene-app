@@ -270,9 +270,10 @@ Auswertungszeitraum: ${fromFormatted} – ${toFormatted} (${daysCount} Tage)
 
 STRUKTUR (nur auffällige Punkte erwähnen, irrelevante Abschnitte komplett weglassen):
 
-1. Attackenfrequenz: Gesamtzahl der Attacken im Zeitraum, Durchschnitt pro Monat (30 Tage).
-   Beispiel: "Attackenfrequenz: Im Auswertungszeitraum wurden 62 Attacken dokumentiert, entsprechend durchschnittlich 20,6 Attacken pro Monat."
-   WICHTIG: Die Gesamtzahl muss EXAKT ${entries.length} sein!
+1. Kopfschmerzfrequenz: Gesamtzahl der Kopfschmerztage im Zeitraum, Durchschnitt pro Monat (30 Tage).
+   Beispiel: "Kopfschmerzfrequenz: Im Auswertungszeitraum wurden 42 Kopfschmerztage dokumentiert, entsprechend durchschnittlich 14,0 Kopfschmerztage pro Monat."
+   WICHTIG: Die Gesamtzahl der Kopfschmerztage muss EXAKT ${headacheDays} sein! Durchschnitt pro Monat: ${headacheDaysPerMonth}.
+   Hinweis: Es wurden insgesamt ${entries.length} Tagebucheinträge erfasst, davon ${headacheDays} mit Kopfschmerzen.
 
 2. Schmerzintensität: Typischer Bereich (z.B. NRS 7–9) und mittlere Intensität mit Komma (z.B. "6,5/10"). NUR erwähnen, wenn Intensität eher hoch (>6) oder stark schwankend ist.
    Beispiel: "Schmerzintensität: Die Attacken liegen überwiegend im Bereich NRS 7–9, mit einer mittleren Schmerzintensität von 6,5/10."
