@@ -1039,15 +1039,11 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   });
   yPos -= 16;
   
-  // Herkunftszeile: professionelle Positionierung
-  page.drawText("Erstellt mit Miary \u2013 Digitale Verlaufsdokumentation f\u00FCr Migr\u00E4ne", {
-    x: LAYOUT.margin,
-    y: yPos,
-    size: 9,
-    font,
-    color: rgb(0.42, 0.45, 0.50),
-  });
-  yPos -= 14;
+  // TODO: Re-enable Miary branding when ready
+  // page.drawText("Erstellt mit Miary – Digitale Verlaufsdokumentation für Migräne", {
+  //   x: LAYOUT.margin, y: yPos, size: 9, font, color: rgb(0.42, 0.45, 0.50),
+  // });
+  // yPos -= 14;
   
   page.drawLine({
     start: { x: LAYOUT.margin, y: yPos },
@@ -2379,13 +2375,10 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       color: COLORS.textLight,
     });
     
-    p.drawText("Erstellt mit Miary \u2013 Digitale Verlaufsdokumentation f\u00FCr Migr\u00E4ne", {
-      x: LAYOUT.margin,
-      y: LAYOUT.margin - 20,
-      size: 8,
-      font,
-      color: COLORS.textLight,
-    });
+    // TODO: Re-enable Miary branding when ready
+    // p.drawText("Erstellt mit Miary – Digitale Verlaufsdokumentation für Migräne", {
+    //   x: LAYOUT.margin, y: LAYOUT.margin - 20, size: 8, font, color: COLORS.textLight,
+    // });
   });
 
   return await pdfDoc.save();

@@ -105,6 +105,28 @@ Deno.serve(async (req) => {
     const fromFormatted = formatDateGerman(fromDate);
     const toFormatted = formatDateGerman(toDate);
 
+    // ── Korrekte Kopfschmerztage-Zählung (SSOT-konform) ──
+    // entries.length zählt ALLE Einträge (inkl. schmerzfreie/Lifestyle),
+    // aber "Attacken" = Tage mit Schmerz > 0.
+    function painToNRS(level: string | null | undefined): number {
+      if (!level || level === '-' || level === 'keine') return 0;
+      const map: Record<string, number> = { 'leicht': 3, 'mittel': 5, 'stark': 7, 'sehr_stark': 9 };
+      if (level in map) return map[level];
+      const num = parseFloat(level);
+      return (!isNaN(num) && num >= 0 && num <= 10) ? num : 0;
+    }
+
+    const headacheDaysSet = new Set<string>();
+    for (const e of entries) {
+      const date = e.selected_date || e.timestamp_created?.split('T')[0];
+      if (!date) continue;
+      if (painToNRS(e.pain_level) > 0) headacheDaysSet.add(date);
+    }
+    const headacheDays = headacheDaysSet.size;
+    const headacheDaysPerMonth = daysCount > 0
+      ? (Math.round((headacheDays / daysCount) * 30 * 10) / 10).toFixed(1).replace('.', ',')
+      : '0';
+
     if (!entries || entries.length === 0) {
       return new Response(
         JSON.stringify({ 
@@ -248,9 +270,10 @@ Auswertungszeitraum: ${fromFormatted} – ${toFormatted} (${daysCount} Tage)
 
 STRUKTUR (nur auffällige Punkte erwähnen, irrelevante Abschnitte komplett weglassen):
 
-1. Attackenfrequenz: Gesamtzahl der Attacken im Zeitraum, Durchschnitt pro Monat (30 Tage).
-   Beispiel: "Attackenfrequenz: Im Auswertungszeitraum wurden 62 Attacken dokumentiert, entsprechend durchschnittlich 20,6 Attacken pro Monat."
-   WICHTIG: Die Gesamtzahl muss EXAKT ${entries.length} sein!
+1. Kopfschmerzfrequenz: Gesamtzahl der Kopfschmerztage im Zeitraum, Durchschnitt pro Monat (30 Tage).
+   Beispiel: "Kopfschmerzfrequenz: Im Auswertungszeitraum wurden 42 Kopfschmerztage dokumentiert, entsprechend durchschnittlich 14,0 Kopfschmerztage pro Monat."
+   WICHTIG: Die Gesamtzahl der Kopfschmerztage muss EXAKT ${headacheDays} sein! Durchschnitt pro Monat: ${headacheDaysPerMonth}.
+   Hinweis: Es wurden insgesamt ${entries.length} Tagebucheinträge erfasst, davon ${headacheDays} mit Kopfschmerzen.
 
 2. Schmerzintensität: Typischer Bereich (z.B. NRS 7–9) und mittlere Intensität mit Komma (z.B. "6,5/10"). NUR erwähnen, wenn Intensität eher hoch (>6) oder stark schwankend ist.
    Beispiel: "Schmerzintensität: Die Attacken liegen überwiegend im Bereich NRS 7–9, mit einer mittleren Schmerzintensität von 6,5/10."
@@ -283,9 +306,10 @@ STRUKTUR (nur auffällige Punkte erwähnen, irrelevante Abschnitte komplett wegl
 WICHTIG: Beende den Text direkt nach dem letzten zutreffenden Abschnitt. Fuege KEINEN Hinweis, Disclaimer oder "Hinweis:" Absatz hinzu - dieser wird separat im PDF eingefuegt.
 
 DATEN:
-Anzahl Attacken: ${entries.length}
+Kopfschmerztage: ${headacheDays}
+Kopfschmerztage pro Monat: ${headacheDaysPerMonth}
+Gesamteinträge (inkl. schmerzfreie): ${entries.length}
 Tage im Zeitraum: ${daysCount}
-Durchschnitt Attacken pro Monat: ${(entries.length / (daysCount / 30)).toFixed(1).replace('.', ',')}
 ${limits && limits.length > 0 ? `Medikamentenlimits: ${limits.map(l => `${l.medication_name}: max. ${l.limit_count}/${l.period_type}`).join(', ')}` : ''}
 
 Medikamentenverläufe (Prophylaxe/Akuttherapie):
