@@ -105,6 +105,28 @@ Deno.serve(async (req) => {
     const fromFormatted = formatDateGerman(fromDate);
     const toFormatted = formatDateGerman(toDate);
 
+    // ── Korrekte Kopfschmerztage-Zählung (SSOT-konform) ──
+    // entries.length zählt ALLE Einträge (inkl. schmerzfreie/Lifestyle),
+    // aber "Attacken" = Tage mit Schmerz > 0.
+    function painToNRS(level: string | null | undefined): number {
+      if (!level || level === '-' || level === 'keine') return 0;
+      const map: Record<string, number> = { 'leicht': 3, 'mittel': 5, 'stark': 7, 'sehr_stark': 9 };
+      if (level in map) return map[level];
+      const num = parseFloat(level);
+      return (!isNaN(num) && num >= 0 && num <= 10) ? num : 0;
+    }
+
+    const headacheDaysSet = new Set<string>();
+    for (const e of entries) {
+      const date = e.selected_date || e.timestamp_created?.split('T')[0];
+      if (!date) continue;
+      if (painToNRS(e.pain_level) > 0) headacheDaysSet.add(date);
+    }
+    const headacheDays = headacheDaysSet.size;
+    const headacheDaysPerMonth = daysCount > 0
+      ? (Math.round((headacheDays / daysCount) * 30 * 10) / 10).toFixed(1).replace('.', ',')
+      : '0';
+
     if (!entries || entries.length === 0) {
       return new Response(
         JSON.stringify({ 
