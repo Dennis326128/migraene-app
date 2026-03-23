@@ -25,6 +25,13 @@ export interface DailySeriesPoint {
   };
 }
 
+export interface WeatherTimelineEntry {
+  date: string;
+  temperature_c?: number;
+  pressure_mb?: number;
+  humidity?: number;
+}
+
 // SSOT: Delegates to shared normalizePainLevel from @/lib/utils/pain
 const painLevelToScore = (level: string): number => normalizePainLevel(level);
 
