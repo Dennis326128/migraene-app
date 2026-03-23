@@ -5,6 +5,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { formatPainLevel as formatPainLevelUtil, formatAuraType, formatPainLocation, normalizePainLevel } from "@/lib/utils/pain";
+import { groupEntriesByDay } from "@/lib/utils/dayGrouping";
 import { PainEntry, MigraineEntry } from "@/types/painApp";
 import { useEntries } from "@/features/entries/hooks/useEntries";
 import { useDeleteEntry } from "@/features/entries/hooks/useEntryMutations";
