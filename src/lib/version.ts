@@ -10,6 +10,7 @@ export const BUILD_ID = import.meta.env.VITE_BUILD_ID || 'dev';
 export const APP_VERSION = BUILD_ID;
 
 let isReloading = false;
+let didWarnInvalidBuildIdResponse = false;
 
 function safeStorageGet(key: string): string | null {
   try {
@@ -159,11 +160,33 @@ async function checkVersionFromNetwork() {
   if (isReloading || BUILD_ID === 'dev') return;
 
   try {
-    const res = await fetch('/build-id.json', { cache: 'no-store' });
+    const res = await fetch(`/build-id.json?_ts=${Date.now()}`, {
+      cache: 'no-store',
+      headers: {
+        'Cache-Control': 'no-cache',
+        Pragma: 'no-cache',
+      },
+    });
     if (!res.ok) return;
 
-    const { id: serverId } = await res.json();
-    if (serverId && serverId !== BUILD_ID) {
+    const payload = await res.text();
+    let serverId: string | undefined;
+
+    try {
+      const parsed = JSON.parse(payload) as { id?: string };
+      serverId = parsed?.id;
+    } catch {
+      if (!didWarnInvalidBuildIdResponse) {
+        didWarnInvalidBuildIdResponse = true;
+        console.warn('[version] /build-id.json returned invalid JSON, skipping network check');
+      }
+      return;
+    }
+
+    if (!serverId) return;
+    didWarnInvalidBuildIdResponse = false;
+
+    if (serverId !== BUILD_ID) {
       console.log(`🔄 Network version mismatch: local=${BUILD_ID} server=${serverId}`);
       await forceClearCachesAndReload();
     }
