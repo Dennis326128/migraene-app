@@ -109,55 +109,20 @@ export const EntriesList = ({
     return `${phase}`;
   };
 
-  // ─── SSOT: Group entries by day ──────────────────────────────────
+  // ─── SSOT: Group entries by day using shared helper ────────────────
   const dayGroups: DayGroup[] = useMemo(() => {
     if (!entries.length) return [];
 
-    const grouped = new Map<string, MigraineEntry[]>();
+    const rawGroups = groupEntriesByDay(entries as any);
     
-    for (const entry of entries) {
-      // SSOT: use selected_date, fallback to timestamp_created date part
-      const date = entry.selected_date || 
-        (entry.timestamp_created ? entry.timestamp_created.split('T')[0] : null);
-      if (!date) continue;
-      
-      if (!grouped.has(date)) {
-        grouped.set(date, []);
-      }
-      grouped.get(date)!.push(entry);
-    }
-
-    // Build day groups, sorted descending
-    const groups: DayGroup[] = [];
-    for (const [date, dayEntries] of grouped) {
-      // Sort entries within day by time
-      dayEntries.sort((a, b) => {
-        const timeA = a.selected_time || '';
-        const timeB = b.selected_time || '';
-        return timeA.localeCompare(timeB);
-      });
-
-      // SSOT: compute maxPain using shared normalizePainLevel
-      let maxPain = 0;
-      let hasMedication = false;
-      for (const entry of dayEntries) {
-        const pain = normalizePainLevel(entry.pain_level);
-        if (pain > maxPain) maxPain = pain;
-        if (entry.medications && entry.medications.length > 0) hasMedication = true;
-      }
-
-      groups.push({
-        date,
-        displayDate: formatDateLong(date),
-        maxPain,
-        entryCount: dayEntries.length,
-        hasMedication,
-        entries: dayEntries,
-      });
-    }
-
-    groups.sort((a, b) => b.date.localeCompare(a.date));
-    return groups;
+    return rawGroups.map(g => ({
+      date: g.date,
+      displayDate: formatDateLong(g.date),
+      maxPain: g.maxPain,
+      entryCount: g.entryCount,
+      hasMedication: g.hasMedication,
+      entries: g.entries as unknown as MigraineEntry[],
+    }));
   }, [entries, dateLocale]);
 
   const toggleDay = (date: string) => {
