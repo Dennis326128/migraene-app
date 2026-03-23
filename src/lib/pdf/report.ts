@@ -2377,10 +2377,9 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       color: COLORS.textLight,
     });
     
-    // TODO: Re-enable Miary branding when ready
-    // p.drawText("Erstellt mit Miary – Digitale Verlaufsdokumentation für Migräne", {
-    //   x: LAYOUT.margin, y: LAYOUT.margin - 20, size: 8, font, color: COLORS.textLight,
-    // });
+    p.drawText("Erstellt mit Miary – Digitale Verlaufsdokumentation für Migräne", {
+      x: LAYOUT.margin, y: LAYOUT.margin - 20, size: 8, font, color: COLORS.textLight,
+    });
   });
 
   return await pdfDoc.save();
