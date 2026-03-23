@@ -1,4 +1,5 @@
-import { defineConfig } from "vite";
+import { defineConfig, type ViteDevServer } from "vite";
+import type { IncomingMessage, ServerResponse } from "http";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import fs from "fs";
@@ -114,8 +115,8 @@ export default defineConfig(({ mode }) => {
     // Generate build-id.json for network-based version checking
     {
       name: 'generate-build-id',
-      configureServer(server) {
-        server.middlewares.use('/build-id.json', (_req, res) => {
+      configureServer(server: ViteDevServer) {
+        server.middlewares.use('/build-id.json', (_req: IncomingMessage, res: ServerResponse) => {
           res.setHeader('Content-Type', 'application/json; charset=utf-8');
           res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
           res.setHeader('Pragma', 'no-cache');
