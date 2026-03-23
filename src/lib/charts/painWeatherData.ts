@@ -94,43 +94,9 @@ export const PAIN_WEATHER_CHART_CONFIG: PainWeatherChartConfig = {
  * Normalize pain level from various formats to 0-10 scale.
  * Handles: numeric, German descriptors, string numbers.
  */
+// SSOT: Delegates to shared normalizePainLevelStrict from @/lib/utils/pain
 export function normalizePainLevel(level: string | number | undefined | null): number | null {
-  if (level === null || level === undefined) return null;
-
-  if (typeof level === 'number') {
-    return Math.max(0, Math.min(10, level));
-  }
-
-  const levelStr = String(level).toLowerCase().trim().replace(/_/g, ' ');
-
-  const mapping: Record<string, number> = {
-    'keine': 0,
-    'leicht': 2,
-    'schwach': 2,
-    'gering': 2,
-    'mittel': 5,
-    'moderat': 5,
-    'mäßig': 5,
-    'stark': 7,
-    'heftig': 8,
-    'sehr stark': 9,
-    'extrem': 10,
-    'unerträglich': 10,
-  };
-
-  // Try mapping with includes for fuzzy matching (e.g. "sehr_stark")
-  if (levelStr.includes('sehr') && levelStr.includes('stark')) return 9;
-  if (mapping[levelStr] !== undefined) return mapping[levelStr];
-
-  // Partial matches for PDF report compatibility
-  if (levelStr.includes('stark')) return 7;
-  if (levelStr.includes('mittel')) return 5;
-  if (levelStr.includes('leicht')) return 2;
-
-  const parsed = parseInt(levelStr);
-  if (!isNaN(parsed)) return Math.max(0, Math.min(10, parsed));
-
-  return null;
+  return normalizePainLevelStrict(level);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
