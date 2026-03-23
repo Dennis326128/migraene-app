@@ -272,9 +272,14 @@ export function sortEntriesDescending<T extends { date: string; time: string | n
 
 export const CURRENT_SCHEMA_VERSION = 'v2.0';
 
+/**
+ * SSOT-aligned text→numeric mapping for display in doctor share reports.
+ * Canonical scale: leicht=2, mittel=5, stark=7, sehr_stark=9
+ * (matches normalizePainLevel in @/lib/utils/pain)
+ */
 export const PAIN_LEVEL_MAP: Record<string, { value: number; label: string }> = {
   '-': { value: 0, label: 'Kein Schmerz' },
-  'leicht': { value: 3, label: 'Leicht' },
+  'leicht': { value: 2, label: 'Leicht' },
   'mittel': { value: 5, label: 'Mittel' },
   'stark': { value: 7, label: 'Stark' },
   'sehr_stark': { value: 9, label: 'Sehr stark' },

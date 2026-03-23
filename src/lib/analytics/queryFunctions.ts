@@ -457,35 +457,13 @@ export async function countEntries(
 }
 
 /**
- * Konvertiert pain_level String zu numerischem Wert
- * pain_level kann sein: 'keine', 'leicht', 'mittel', 'stark', 'sehr stark', '-'
- * oder in manchen Fällen numerische Strings
+ * Konvertiert pain_level String zu numerischem Wert.
+ * Delegates to SSOT normalizePainLevelStrict from @/lib/utils/pain.
  */
+import { normalizePainLevelStrict } from '@/lib/utils/pain';
+
 function painLevelToNumber(painLevel: string): number | null {
-  const lower = painLevel.toLowerCase().trim();
-  
-  // Textuelle Werte (Hauptformat in der App)
-  const textMap: Record<string, number> = {
-    'keine': 0,
-    '-': 0,
-    'leicht': 2,
-    'mittel': 5,
-    'stark': 7,
-    'sehr stark': 9,
-    'sehr_stark': 9,
-  };
-  
-  if (textMap[lower] !== undefined) {
-    return textMap[lower];
-  }
-  
-  // Numerische Strings als Fallback
-  const num = parseInt(painLevel, 10);
-  if (!isNaN(num) && num >= 0 && num <= 10) {
-    return num;
-  }
-  
-  return null;
+  return normalizePainLevelStrict(painLevel);
 }
 
 /**
