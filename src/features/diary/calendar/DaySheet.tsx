@@ -7,6 +7,7 @@ import { de } from 'date-fns/locale';
 import { ChevronRight, ChevronLeft, Edit2, X, MapPin, Pill, FileText, Activity } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getColorForPain } from './painColorScale';
+import { normalizePainLevelStrict } from '@/lib/utils/pain';
 import { getEntry } from '@/features/entries/api/entries.api';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { PainEntry } from '@/types/painApp';
@@ -181,18 +182,9 @@ export const DaySheet: React.FC<DaySheetProps> = ({
     return `${entries.length} ${entries.length === 1 ? 'Eintrag' : 'Einträge'}`;
   };
   
-  // Get pain color for preview
+  // SSOT: Use shared normalization for pain level display
   const getNumericPain = (painLevel: string | number | null | undefined): number | null => {
-    if (!painLevel) return null;
-    if (typeof painLevel === 'number') return painLevel;
-    const num = parseInt(String(painLevel));
-    if (!isNaN(num)) return num;
-    const t = String(painLevel).toLowerCase();
-    if (t.includes('sehr') && t.includes('stark')) return 9;
-    if (t.includes('stark')) return 7;
-    if (t.includes('mittel')) return 5;
-    if (t.includes('leicht')) return 2;
-    return null;
+    return normalizePainLevelStrict(painLevel as any);
   };
   
   return (
