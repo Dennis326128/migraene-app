@@ -114,6 +114,15 @@ export default defineConfig(({ mode }) => {
     // Generate build-id.json for network-based version checking
     {
       name: 'generate-build-id',
+      configureServer(server) {
+        server.middlewares.use('/build-id.json', (_req, res) => {
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+          res.setHeader('Pragma', 'no-cache');
+          res.setHeader('Expires', '0');
+          res.end(JSON.stringify({ id: buildId }));
+        });
+      },
       writeBundle({ dir }: { dir?: string }) {
         const outDir = dir || 'dist';
         fs.mkdirSync(outDir, { recursive: true });
