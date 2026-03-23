@@ -127,12 +127,7 @@ export async function getWeatherTimelineData(
   });
 }
 
+// SSOT: Delegates to shared normalizePainLevel from @/lib/utils/pain
 function mapPainLevelToScore(painLevel: string): number {
-  switch (painLevel) {
-    case 'leicht': return 2;
-    case 'mittel': return 5;
-    case 'stark': return 7;
-    case 'sehr_stark': return 9;
-    default: return 0;
-  }
+  return normalizePainLevel(painLevel);
 }

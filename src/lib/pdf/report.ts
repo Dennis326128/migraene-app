@@ -301,14 +301,9 @@ function formatDateTimeGerman(dateStr: string, timeStr?: string): string {
   return `${dateFormatted}, ${time} Uhr`;
 }
 
+// SSOT: Delegates to shared normalizePainLevel from @/lib/utils/pain
 function painLevelToNumericValue(painLevel: string): number {
-  const level = (painLevel || "").toLowerCase().replace(/_/g, " ");
-  if (level.includes("sehr") && level.includes("stark")) return 9;
-  if (level.includes("stark")) return 7;
-  if (level.includes("mittel")) return 5;
-  if (level.includes("leicht")) return 2;
-  const num = parseInt(painLevel);
-  return isNaN(num) ? 0 : num;
+  return normalizePainLevelImport(painLevel);
 }
 
 function formatPainLevel(painLevel: string): string {

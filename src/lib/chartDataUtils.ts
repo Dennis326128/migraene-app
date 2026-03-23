@@ -1,5 +1,6 @@
 import { format, startOfDay, endOfDay, addDays, parseISO } from "date-fns";
 import { MigraineEntry, WeatherData } from "@/types/painApp";
+import { normalizePainLevel } from "@/lib/utils/pain";
 
 export interface DailySeriesPoint {
   ts: number; // milliseconds since epoch
@@ -13,30 +14,19 @@ export interface DailySeriesPoint {
   painLevel?: string;
   aura?: string;
   location?: string;
-  medications?: number;
-  notes?: string;
-}
-
-// Simplified type for cleaner API
-export type DailyPoint = DailySeriesPoint;
-
-export interface WeatherTimelineEntry {
-  date: string;
-  temperature_c?: number;
-  pressure_mb?: number;
   humidity?: number;
+  conditionText?: string;
+  medications?: string[];
+  weatherData?: {
+    temperature_c?: number;
+    pressure_mb?: number;
+    humidity?: number;
+    condition_text?: string;
+  };
 }
 
-// Helper function to convert pain level to numeric score
-const painLevelToScore = (level: string): number => {
-  switch (level) {
-    case "leicht": return 2;
-    case "mittel": return 5;
-    case "stark": return 7;
-    case "sehr_stark": return 9;
-    default: return 0;
-  }
-};
+// SSOT: Delegates to shared normalizePainLevel from @/lib/utils/pain
+const painLevelToScore = (level: string): number => normalizePainLevel(level);
 
 /**
  * Returns time domain for chart X-axis: [from, today]

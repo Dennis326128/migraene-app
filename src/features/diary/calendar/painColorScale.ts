@@ -96,33 +96,11 @@ export function getPainLegend(): LegendItem[] {
   ];
 }
 
-// Normalize pain_level string to 0-10 number
+// SSOT: Delegates to shared normalizePainLevelStrict from @/lib/utils/pain
+import { normalizePainLevelStrict } from '@/lib/utils/pain';
+
 export function normalizePainLevel(painLevel: string | null | undefined): number | null {
-  if (!painLevel) return null;
-  
-  const level = painLevel.toLowerCase().trim();
-  
-  // Numeric values
-  const numericValue = parseInt(level, 10);
-  if (!isNaN(numericValue) && numericValue >= 0 && numericValue <= 10) {
-    return numericValue;
-  }
-  
-  // Text values
-  const textMapping: Record<string, number> = {
-    'keine': 0,
-    'leicht': 2,
-    'mittel': 5,
-    'stark': 8,
-    'sehr_stark': 10,
-    'sehr stark': 10
-  };
-  
-  if (level in textMapping) {
-    return textMapping[level];
-  }
-  
-  return null;
+  return normalizePainLevelStrict(painLevel);
 }
 
 // Clear cache (useful for theme changes)
