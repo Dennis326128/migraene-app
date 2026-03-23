@@ -10,16 +10,15 @@ import { normalizePainLevel, normalizePainLevelStrict } from '../pain';
 import { computeDayStats, groupEntriesByDay, type EntryLike } from '../dayGrouping';
 
 // ─── Canonical mapping (the single truth) ─────────────────────────
-const CANONICAL: Record<string, number> = {
+// Both normalizePainLevel and normalizePainLevelStrict must agree on these:
+const CANONICAL_BOTH: Record<string, number> = {
   'leicht': 2,
   'mittel': 5,
   'stark': 7,
   'sehr_stark': 9,
   'keine': 0,
-  '-': 0,
-  // Note: '-' and 'keine' have different semantics in strict vs non-strict
-  // normalizePainLevel: '-' → 0, 'keine' → 0 (safe for aggregation)
-  // normalizePainLevelStrict: '-' → null (gap), 'keine' → 0 (explicit no-pain)
+  '0': 0,
+  '1': 1,
   '2': 2,
   '3': 3,
   '4': 4,
@@ -31,15 +30,29 @@ const CANONICAL: Record<string, number> = {
   '10': 10,
 };
 
+// normalizePainLevel maps '-' → 0 (safe for aggregation)
+// normalizePainLevelStrict maps '-' → null (explicit gap)
+const STRICT_DIVERGENCES: Record<string, { normal: number; strict: number | null }> = {
+  '-': { normal: 0, strict: null },
+};
+
 // ─── Matrix: every input must produce the canonical value ─────────
 describe('Pain level consistency matrix', () => {
-  for (const [input, expected] of Object.entries(CANONICAL)) {
+  for (const [input, expected] of Object.entries(CANONICAL_BOTH)) {
     it(`normalizePainLevel("${input}") === ${expected}`, () => {
       expect(normalizePainLevel(input)).toBe(expected);
     });
-
     it(`normalizePainLevelStrict("${input}") === ${expected}`, () => {
       expect(normalizePainLevelStrict(input)).toBe(expected);
+    });
+  }
+
+  for (const [input, { normal, strict }] of Object.entries(STRICT_DIVERGENCES)) {
+    it(`normalizePainLevel("${input}") === ${normal} (aggregation-safe)`, () => {
+      expect(normalizePainLevel(input)).toBe(normal);
+    });
+    it(`normalizePainLevelStrict("${input}") === ${strict} (gap)`, () => {
+      expect(normalizePainLevelStrict(input)).toBe(strict);
     });
   }
 
@@ -52,6 +65,7 @@ describe('Pain level consistency matrix', () => {
     it(`normalizePainLevelStrict("${input}") === null (strict)`, () => {
       expect(normalizePainLevelStrict(input)).toBeNull();
     });
+  }
   }
 });
 
