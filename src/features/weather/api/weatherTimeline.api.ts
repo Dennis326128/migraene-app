@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabaseClient";
+import { normalizePainLevel } from "@/lib/utils/pain";
 
 export interface WeatherTimelineData {
   date: string;
