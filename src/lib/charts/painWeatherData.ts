@@ -17,6 +17,7 @@
  */
 
 import { format, eachDayOfInterval, startOfDay, endOfDay } from 'date-fns';
+import { normalizePainLevelStrict } from '@/lib/utils/pain';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES
