@@ -1,5 +1,6 @@
 import { format, startOfDay, endOfDay, addDays, parseISO } from "date-fns";
 import { MigraineEntry, WeatherData } from "@/types/painApp";
+import { normalizePainLevel } from "@/lib/utils/pain";
 
 export interface DailySeriesPoint {
   ts: number; // milliseconds since epoch
@@ -13,12 +14,17 @@ export interface DailySeriesPoint {
   painLevel?: string;
   aura?: string;
   location?: string;
-  medications?: number;
+  humidity?: number;
+  conditionText?: string;
+  medications?: string[];
   notes?: string;
+  weatherData?: {
+    temperature_c?: number;
+    pressure_mb?: number;
+    humidity?: number;
+    condition_text?: string;
+  };
 }
-
-// Simplified type for cleaner API
-export type DailyPoint = DailySeriesPoint;
 
 export interface WeatherTimelineEntry {
   date: string;
@@ -27,16 +33,8 @@ export interface WeatherTimelineEntry {
   humidity?: number;
 }
 
-// Helper function to convert pain level to numeric score
-const painLevelToScore = (level: string): number => {
-  switch (level) {
-    case "leicht": return 2;
-    case "mittel": return 5;
-    case "stark": return 7;
-    case "sehr_stark": return 9;
-    default: return 0;
-  }
-};
+// SSOT: Delegates to shared normalizePainLevel from @/lib/utils/pain
+const painLevelToScore = (level: string): number => normalizePainLevel(level);
 
 /**
  * Returns time domain for chart X-axis: [from, today]
@@ -95,7 +93,7 @@ export function buildDailySeries(
     let painLevel: string | undefined;
     let aura: string | undefined;
     let location: string | undefined; 
-    let medications = 0;
+    let medications: string[] = [];
     let notes: string | undefined;
 
     if (dayEntries.length > 0) {
@@ -117,7 +115,7 @@ export function buildDailySeries(
       painLevel = maxPainEntry.pain_level;
       aura = maxPainEntry.aura_type;
       location = maxPainEntry.pain_locations?.join(', ');
-      medications = dayEntries.reduce((sum, entry) => sum + (entry.medications?.length || 0), 0);
+      medications = dayEntries.flatMap(entry => entry.medications || []);
       notes = sortedEntries[0].notes || undefined; // Use notes from latest entry
     }
 

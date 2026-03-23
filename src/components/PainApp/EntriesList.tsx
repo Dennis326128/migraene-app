@@ -86,8 +86,11 @@ export const EntriesList = ({
 
   const dateLocale = currentLanguage === 'de' ? 'de-DE' : 'en-US';
 
-  const formatDate = (dateString: string) =>
-    new Date(dateString).toLocaleDateString(dateLocale, { day: "2-digit", month: "2-digit", year: "2-digit" });
+  // Safe date parsing: append T12:00:00 to prevent timezone-shift for date-only strings
+  const formatDate = (dateString: string) => {
+    const safe = dateString.length === 10 ? dateString + 'T12:00:00' : dateString;
+    return new Date(safe).toLocaleDateString(dateLocale, { day: "2-digit", month: "2-digit", year: "2-digit" });
+  };
 
   const formatDateLong = (dateString: string) =>
     new Date(dateString + 'T12:00:00').toLocaleDateString(dateLocale, { 

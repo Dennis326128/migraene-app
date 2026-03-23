@@ -152,15 +152,15 @@ describe('normalizePainLevel', () => {
     expect(normalizePainLevel('Mittel')).toBe(5);
   });
 
-  it('maps "stark" to 8', () => {
-    expect(normalizePainLevel('stark')).toBe(8);
-    expect(normalizePainLevel('Stark')).toBe(8);
+  it('maps "stark" to 7 (unified SSOT)', () => {
+    expect(normalizePainLevel('stark')).toBe(7);
+    expect(normalizePainLevel('Stark')).toBe(7);
   });
 
-  it('maps "sehr_stark" and "sehr stark" to 10', () => {
-    expect(normalizePainLevel('sehr_stark')).toBe(10);
-    expect(normalizePainLevel('sehr stark')).toBe(10);
-    expect(normalizePainLevel('Sehr Stark')).toBe(10);
+  it('maps "sehr_stark" and "sehr stark" to 9 (unified SSOT)', () => {
+    expect(normalizePainLevel('sehr_stark')).toBe(9);
+    expect(normalizePainLevel('sehr stark')).toBe(9);
+    expect(normalizePainLevel('Sehr Stark')).toBe(9);
   });
 
   it('handles whitespace', () => {
