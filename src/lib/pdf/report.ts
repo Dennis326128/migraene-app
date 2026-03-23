@@ -1039,11 +1039,10 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   });
   yPos -= 16;
   
-  // TODO: Re-enable Miary branding when ready
-  // page.drawText("Erstellt mit Miary – Digitale Verlaufsdokumentation für Migräne", {
-  //   x: LAYOUT.margin, y: yPos, size: 9, font, color: rgb(0.42, 0.45, 0.50),
-  // });
-  // yPos -= 14;
+  page.drawText("Erstellt mit Miary – Digitale Verlaufsdokumentation für Migräne", {
+    x: LAYOUT.margin, y: yPos, size: 9, font, color: rgb(0.42, 0.45, 0.50),
+  });
+  yPos -= 14;
   
   page.drawLine({
     start: { x: LAYOUT.margin, y: yPos },
