@@ -26,9 +26,60 @@ export function convertNumericToCategory(level: number): "leicht" | "mittel" | "
   return "leicht";
 }
 
+/**
+ * SSOT: Normalize pain_level to 0-10 numeric score.
+ * Returns 0 for invalid/unknown values (safe for aggregation).
+ */
 export function normalizePainLevel(level: string | number): number {
   if (typeof level === 'number') return Math.max(0, Math.min(10, level));
   return mapTextLevelToScore(level);
+}
+
+/**
+ * SSOT: Strict normalization — returns null for invalid/unknown values.
+ * Use when distinguishing "no data" from "pain level 0" matters
+ * (charts, calendar, data points where null = gap).
+ */
+export function normalizePainLevelStrict(level: string | number | null | undefined): number | null {
+  if (level === null || level === undefined) return null;
+
+  if (typeof level === 'number') {
+    return level >= 0 && level <= 10 ? level : null;
+  }
+
+  const str = String(level).toLowerCase().trim().replace(/_/g, ' ');
+  if (str === '' || str === '-') return null;
+
+  // Exact text mappings (German)
+  const MAPPING: Record<string, number> = {
+    'keine': 0,
+    'leicht': 2,
+    'schwach': 2,
+    'gering': 2,
+    'mittel': 5,
+    'moderat': 5,
+    'mäßig': 5,
+    'stark': 7,
+    'heftig': 8,
+    'sehr stark': 9,
+    'extrem': 10,
+    'unerträglich': 10,
+  };
+
+  // Fuzzy match for "sehr stark" variants
+  if (str.includes('sehr') && str.includes('stark')) return 9;
+  if (mapping(str, MAPPING)) return MAPPING[str];
+
+  // Partial matches
+  if (str.includes('stark')) return 7;
+  if (str.includes('mittel')) return 5;
+  if (str.includes('leicht')) return 2;
+
+  // Numeric string
+  const num = parseInt(str, 10);
+  if (!isNaN(num) && num >= 0 && num <= 10) return num;
+
+  return null;
 }
 
 export function formatAuraType(aura: string): string {
