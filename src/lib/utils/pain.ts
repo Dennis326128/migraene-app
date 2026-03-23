@@ -68,7 +68,7 @@ export function normalizePainLevelStrict(level: string | number | null | undefin
 
   // Fuzzy match for "sehr stark" variants
   if (str.includes('sehr') && str.includes('stark')) return 9;
-  if (mapping(str, MAPPING)) return MAPPING[str];
+  if (str in MAPPING) return MAPPING[str];
 
   // Partial matches
   if (str.includes('stark')) return 7;
