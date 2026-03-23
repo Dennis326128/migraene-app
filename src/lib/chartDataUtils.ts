@@ -115,7 +115,7 @@ export function buildDailySeries(
       painLevel = maxPainEntry.pain_level;
       aura = maxPainEntry.aura_type;
       location = maxPainEntry.pain_locations?.join(', ');
-      medications = dayEntries.reduce((sum, entry) => sum + (entry.medications?.length || 0), 0);
+      medications = dayEntries.flatMap(entry => entry.medications || []);
       notes = sortedEntries[0].notes || undefined; // Use notes from latest entry
     }
 
