@@ -93,7 +93,7 @@ export function buildDailySeries(
     let painLevel: string | undefined;
     let aura: string | undefined;
     let location: string | undefined; 
-    let medications = 0;
+    let medications: string[] = [];
     let notes: string | undefined;
 
     if (dayEntries.length > 0) {
