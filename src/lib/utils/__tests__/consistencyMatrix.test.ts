@@ -66,7 +66,6 @@ describe('Pain level consistency matrix', () => {
       expect(normalizePainLevelStrict(input)).toBeNull();
     });
   }
-  }
 });
 
 // ─── Mixed legacy + numeric data in aggregation ───────────────────
