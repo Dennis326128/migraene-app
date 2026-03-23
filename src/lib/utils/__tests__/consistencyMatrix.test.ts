@@ -17,8 +17,9 @@ const CANONICAL: Record<string, number> = {
   'sehr_stark': 9,
   'keine': 0,
   '-': 0,
-  '0': 0,
-  '1': 1,
+  // Note: '-' and 'keine' have different semantics in strict vs non-strict
+  // normalizePainLevel: '-' → 0, 'keine' → 0 (safe for aggregation)
+  // normalizePainLevelStrict: '-' → null (gap), 'keine' → 0 (explicit no-pain)
   '2': 2,
   '3': 3,
   '4': 4,
