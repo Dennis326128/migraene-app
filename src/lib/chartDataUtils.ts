@@ -17,6 +17,7 @@ export interface DailySeriesPoint {
   humidity?: number;
   conditionText?: string;
   medications?: string[];
+  notes?: string;
   weatherData?: {
     temperature_c?: number;
     pressure_mb?: number;
