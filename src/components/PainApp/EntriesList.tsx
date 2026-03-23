@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { formatPainLevel as formatPainLevelUtil, formatAuraType, formatPainLocation } from "@/lib/utils/pain";
+import { formatPainLevel as formatPainLevelUtil, formatAuraType, formatPainLocation, normalizePainLevel } from "@/lib/utils/pain";
 import { PainEntry, MigraineEntry } from "@/types/painApp";
 import { useEntries } from "@/features/entries/hooks/useEntries";
 import { useDeleteEntry } from "@/features/entries/hooks/useEntryMutations";
@@ -13,6 +13,8 @@ import { useEntryIntakes } from "@/features/medication-intakes/hooks/useMedicati
 import { formatDoseFromQuarters, DEFAULT_DOSE_QUARTERS } from "@/lib/utils/doseFormatter";
 import { EmptyState } from "@/components/ui/empty-state";
 import { DeleteConfirmation } from "@/components/ui/delete-confirmation";
+import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
+import { TouchSafeCollapsibleTrigger } from "@/components/ui/touch-collapsible";
 import { 
   Thermometer, 
   Droplets, 
@@ -22,9 +24,31 @@ import {
   ArrowRight,
   MapPin,
   CloudSun,
-  AlertCircle
+  AlertCircle,
+  ChevronDown,
+  Pill
 } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
+import { cn } from "@/lib/utils";
+
+// ─── SSOT: Pain color based on numeric score ─────────────────────────
+function getPainColor(numericPain: number): string {
+  if (numericPain >= 8) return '#ef4444';
+  if (numericPain >= 6) return '#fb923c';
+  if (numericPain >= 4) return '#fbbf24';
+  if (numericPain > 0) return 'hsl(var(--muted-foreground) / 0.4)';
+  return 'hsl(var(--muted-foreground) / 0.2)';
+}
+
+// ─── Day group type ──────────────────────────────────────────────────
+interface DayGroup {
+  date: string;           // YYYY-MM-DD
+  displayDate: string;    // formatted
+  maxPain: number;
+  entryCount: number;
+  hasMedication: boolean;
+  entries: MigraineEntry[];
+}
 
 export const EntriesList = ({
   onBack,
@@ -41,6 +65,7 @@ export const EntriesList = ({
   const [selectedEntry, setSelectedEntry] = useState<MigraineEntry | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [entryToDelete, setEntryToDelete] = useState<string | null>(null);
+  const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
 
   const { data: symptomCatalog = [] } = useSymptomCatalog();
   const entryIdNum = selectedEntry?.id ? Number(selectedEntry.id) : null;
@@ -49,12 +74,9 @@ export const EntriesList = ({
   const symptomNameById = new Map(symptomCatalog.map(s => [s.id, s.name]));
   const symptomNames = symptomIds.map(id => symptomNameById.get(id) || id);
   
-  // Build medication display with doses
   const formatMedicationsWithDose = (entry: MigraineEntry, intakes: typeof entryIntakes) => {
     if (!entry.medications?.length) return t('common.none');
-    
     const intakeMap = new Map(intakes.map(i => [i.medication_name, i.dose_quarters]));
-    
     return entry.medications.map(med => {
       const quarters = intakeMap.get(med) ?? DEFAULT_DOSE_QUARTERS;
       const doseStr = formatDoseFromQuarters(quarters);
@@ -62,20 +84,15 @@ export const EntriesList = ({
     }).join(", ");
   };
 
-  const sorted = useMemo(
-    () => [...entries].sort((a, b) =>
-      new Date(b.timestamp_created).getTime() - new Date(a.timestamp_created).getTime()
-    ),
-    [entries]
-  );
-
   const dateLocale = currentLanguage === 'de' ? 'de-DE' : 'en-US';
 
   const formatDate = (dateString: string) =>
     new Date(dateString).toLocaleDateString(dateLocale, { day: "2-digit", month: "2-digit", year: "2-digit" });
 
-  const formatPainLevel = (level: string) =>
-    level.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
+  const formatDateLong = (dateString: string) =>
+    new Date(dateString + 'T12:00:00').toLocaleDateString(dateLocale, { 
+      weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" 
+    });
 
   const formatMoonPhase = (phase: number) => {
     if (phase === 0 || phase === 1) return `🌑 ${t('moon.newMoon')}`;
@@ -87,6 +104,69 @@ export const EntriesList = ({
     if (phase > 0.5 && phase < 0.75) return `🌖 ${t('moon.waningGibbous')}`;
     if (phase > 0.75 && phase < 1) return `🌘 ${t('moon.waningCrescent')}`;
     return `${phase}`;
+  };
+
+  // ─── SSOT: Group entries by day ──────────────────────────────────
+  const dayGroups: DayGroup[] = useMemo(() => {
+    if (!entries.length) return [];
+
+    const grouped = new Map<string, MigraineEntry[]>();
+    
+    for (const entry of entries) {
+      // SSOT: use selected_date, fallback to timestamp_created date part
+      const date = entry.selected_date || 
+        (entry.timestamp_created ? entry.timestamp_created.split('T')[0] : null);
+      if (!date) continue;
+      
+      if (!grouped.has(date)) {
+        grouped.set(date, []);
+      }
+      grouped.get(date)!.push(entry);
+    }
+
+    // Build day groups, sorted descending
+    const groups: DayGroup[] = [];
+    for (const [date, dayEntries] of grouped) {
+      // Sort entries within day by time
+      dayEntries.sort((a, b) => {
+        const timeA = a.selected_time || '';
+        const timeB = b.selected_time || '';
+        return timeA.localeCompare(timeB);
+      });
+
+      // SSOT: compute maxPain using shared normalizePainLevel
+      let maxPain = 0;
+      let hasMedication = false;
+      for (const entry of dayEntries) {
+        const pain = normalizePainLevel(entry.pain_level);
+        if (pain > maxPain) maxPain = pain;
+        if (entry.medications && entry.medications.length > 0) hasMedication = true;
+      }
+
+      groups.push({
+        date,
+        displayDate: formatDateLong(date),
+        maxPain,
+        entryCount: dayEntries.length,
+        hasMedication,
+        entries: dayEntries,
+      });
+    }
+
+    groups.sort((a, b) => b.date.localeCompare(a.date));
+    return groups;
+  }, [entries, dateLocale]);
+
+  const toggleDay = (date: string) => {
+    setExpandedDays(prev => {
+      const next = new Set(prev);
+      if (next.has(date)) {
+        next.delete(date);
+      } else {
+        next.add(date);
+      }
+      return next;
+    });
   };
 
   const handleDeleteClick = (id: string) => {
@@ -119,7 +199,7 @@ export const EntriesList = ({
         {t('entry.viewAll')}
       </p>
 
-      {sorted.length === 0 ? (
+      {dayGroups.length === 0 ? (
         <div className="flex justify-center py-8">
           <EmptyState
             icon="📋"
@@ -134,49 +214,105 @@ export const EntriesList = ({
         </div>
       ) : (
         <div className="space-y-2">
-          {sorted.map((entry) => {
-            const painLevel = entry.pain_level;
-            const isNumeric = !isNaN(Number(painLevel));
-            const numericPain = isNumeric ? Number(painLevel) : 
-              painLevel === "sehr_stark" ? 9 :
-              painLevel === "stark" ? 7 :
-              painLevel === "mittel" ? 5 : 2;
+          {dayGroups.map((group) => {
+            const isExpanded = expandedDays.has(group.date);
             
             return (
-              <div
-                key={entry.id}
-                className="p-3 border-border/30 border rounded-lg bg-card hover:bg-accent/50 cursor-pointer transition-colors"
-                onClick={() => setSelectedEntry(entry)}
+              <Collapsible 
+                key={group.date} 
+                open={isExpanded} 
+                onOpenChange={() => toggleDay(group.date)}
               >
-                <div className="flex items-center gap-3">
-                  <div 
-                    className="w-3 h-3 rounded-full flex-shrink-0"
-                    style={{ 
-                      backgroundColor: numericPain >= 8 ? '#ef4444' : 
-                                       numericPain >= 6 ? '#fb923c' :
-                                       numericPain >= 4 ? '#fbbf24' : 
-                                       'hsl(var(--muted-foreground) / 0.4)'
-                    }}
-                  />
-                  
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-baseline gap-2">
-                      <span className="font-medium text-sm">
-                        {formatDate(entry.selected_date || entry.timestamp_created)}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {entry.selected_time ?? new Date(entry.timestamp_created).toLocaleTimeString(dateLocale, { hour: "2-digit", minute: "2-digit" })}
-                      </span>
+                {/* ─── Day Header (always visible) ──────────────── */}
+                <TouchSafeCollapsibleTrigger className="w-full p-3 border border-border/30 rounded-lg bg-card hover:bg-accent/50 transition-colors text-left">
+                  <div className="flex items-center gap-3">
+                    <div 
+                      className="w-3 h-3 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: getPainColor(group.maxPain) }}
+                    />
+                    
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-baseline gap-2">
+                        <span className="font-medium text-sm">
+                          {group.displayDate}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {group.entryCount === 1 
+                            ? `1 ${t('entry.entry', 'Eintrag')}` 
+                            : `${group.entryCount} ${t('entry.entries', 'Einträge')}`
+                          }
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
+                        {group.maxPain > 0 && (
+                          <span className="font-medium">
+                            {group.maxPain}/10
+                          </span>
+                        )}
+                        {group.maxPain === 0 && (
+                          <span>{t('pain.noHeadache', 'Kein Kopfschmerz')}</span>
+                        )}
+                        {group.hasMedication && (
+                          <span className="flex items-center gap-0.5">
+                            <Pill className="h-3 w-3" /> {t('medication.medication', 'Medikament')}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {formatPainLevel(painLevel)} ({numericPain}/10)
-                      {entry.medications?.length > 0 && (
-                        <span className="ml-2">· 💊 {entry.medications.join(", ")}</span>
-                      )}
-                    </p>
+                    
+                    <ChevronDown className={cn(
+                      "h-4 w-4 text-muted-foreground transition-transform flex-shrink-0",
+                      isExpanded && "rotate-180"
+                    )} />
                   </div>
-                </div>
-              </div>
+                </TouchSafeCollapsibleTrigger>
+
+                {/* ─── Expanded entries ─────────────────────────── */}
+                <CollapsibleContent>
+                  <div className="ml-3 mt-1 space-y-1 border-l-2 border-border/30 pl-3">
+                    {group.entries.map((entry) => {
+                      // SSOT: Use shared normalizePainLevel for each entry
+                      const numericPain = normalizePainLevel(entry.pain_level);
+                      
+                      return (
+                        <div
+                          key={entry.id}
+                          className="p-2.5 rounded-md bg-card/50 hover:bg-accent/30 cursor-pointer transition-colors"
+                          onClick={() => setSelectedEntry(entry)}
+                        >
+                          <div className="flex items-center gap-2">
+                            <div 
+                              className="w-2 h-2 rounded-full flex-shrink-0"
+                              style={{ backgroundColor: getPainColor(numericPain) }}
+                            />
+                            <span className="text-xs text-muted-foreground">
+                              {entry.selected_time ?? 
+                                (entry.timestamp_created 
+                                  ? new Date(entry.timestamp_created).toLocaleTimeString(dateLocale, { hour: "2-digit", minute: "2-digit" }) 
+                                  : '—'
+                                )
+                              }
+                            </span>
+                            <span className="text-xs font-medium">
+                              {numericPain}/10
+                            </span>
+                            {entry.medications && entry.medications.length > 0 && (
+                              <span className="text-xs text-muted-foreground truncate">
+                                💊 {entry.medications.join(", ")}
+                              </span>
+                            )}
+                          </div>
+                          {entry.notes && (
+                            <p className="text-xs text-muted-foreground/70 mt-0.5 truncate ml-4">
+                              {entry.notes}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
             );
           })}
         </div>
@@ -193,7 +329,8 @@ export const EntriesList = ({
               <p><strong>📅 {t('time.date')}:</strong> {formatDate(selectedEntry.selected_date || selectedEntry.timestamp_created)}</p>
               <p><strong>⏰ {t('time.time')}:</strong> {selectedEntry.selected_time ?? new Date(selectedEntry.timestamp_created).toLocaleTimeString(dateLocale, { hour: "2-digit", minute: "2-digit" })}</p>
               
-              <p><strong>🩺 {t('pain.intensity')}:</strong> {formatPainLevel(selectedEntry.pain_level)}</p>
+              {/* SSOT: Use normalizePainLevel for detail view */}
+              <p><strong>🩺 {t('pain.intensity')}:</strong> {normalizePainLevel(selectedEntry.pain_level)}/10</p>
               
               {(selectedEntry as any).aura_type && (selectedEntry as any).aura_type !== "keine" && (
                 <p><strong>✨ {t('aura.title')}:</strong> {formatAuraType((selectedEntry as any).aura_type)}</p>
@@ -327,7 +464,7 @@ export const EntriesList = ({
         isDeleting={isDeleting}
       />
       
-      {sorted.length >= limit && (
+      {entries.length >= limit && (
         <div 
           className="mt-6 py-5 text-center cursor-pointer text-muted-foreground/60 text-sm
                      hover:bg-secondary/30 active:bg-secondary/50 rounded-lg transition-colors
