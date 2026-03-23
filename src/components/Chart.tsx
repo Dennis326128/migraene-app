@@ -322,7 +322,7 @@ const ChartComponent = React.memo(function ChartComponent({ entries, dateRange, 
                     )}
                     {data.aura && <p className="text-xs">Aura: {data.aura}</p>}
                     {data.location && <p className="text-xs">Ort: {data.location}</p>}
-                    {data.medications && data.medications > 0 && <p className="text-xs">Medikamente: {data.medications}</p>}
+                    {data.medications && data.medications.length > 0 && <p className="text-xs">Medikamente: {data.medications.join(', ')}</p>}
                     {data.entriesCount > 1 && <p className="text-xs">{data.entriesCount} Einträge</p>}
                     {data.pressure && (
                       <p className="text-sm">
