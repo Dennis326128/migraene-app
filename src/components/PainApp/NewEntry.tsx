@@ -45,26 +45,8 @@ interface NewEntryProps {
   initialNotes?: string;
 }
 
-const painLevels = [
-  { value: "leicht", label: "Leichte Migräne (2/10)", desc: "Beeinträchtigt Alltag wenig" },
-  { value: "mittel", label: "Mittlere Migräne (5/10)", desc: "Erschwert Aktivitäten" },
-  { value: "stark", label: "Starke Migräne (7/10)", desc: "Normale Aktivitäten unmöglich" },
-  { value: "sehr_stark", label: "Sehr starke Migräne (9/10)", desc: "Bettlägerig, unerträglich" },
-];
+// Pain level is now numeric (0-10) via PainSlider — legacy text options removed
 
-// Haptic Feedback für Mobile
-const triggerHapticFeedback = () => {
-  if ('vibrate' in navigator) {
-    navigator.vibrate(50); // 50ms vibration
-  }
-};
-
-interface MedicationWithEffectiveness {
-  name: string;
-  dosage: string;
-  effectiveness: number;
-  notes: string;
-}
 
 const painLocationsOptions = [
   { value: "einseitig_links", label: "Einseitig links" },
@@ -97,7 +79,6 @@ export const NewEntry = ({
   // Medication state: Map<name, {doseQuarters, medicationId}>
   const [selectedMedications, setSelectedMedications] = useState<Map<string, { doseQuarters: number; medicationId?: string }>>(new Map());
   
-  const [medicationsWithEffectiveness, setMedicationsWithEffectiveness] = useState<MedicationWithEffectiveness[]>([]);
   const [newMedication, setNewMedication] = useState("");
   const [showAddMedication, setShowAddMedication] = useState(false);
   const [saving, setSaving] = useState(false);
