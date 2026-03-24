@@ -6,7 +6,8 @@
  * normalization was used or a mapping constant was applied uniformly.
  */
 import { describe, it, expect } from 'vitest';
-import { normalizePainLevel, normalizePainLevelStrict, mapTextLevelToScore } from '../pain';
+import { normalizePainLevel, normalizePainLevelStrict, mapTextLevelToScore, formatPainDisplay } from '../pain';
+import type { PainDisplay } from '../pain';
 
 // ─── normalizePainLevel (returns number, 0 for invalid) ────────────
 
