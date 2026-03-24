@@ -94,19 +94,21 @@ describe('parseOccurredAt - Zeitparser', () => {
   describe('Fallback & Rundung', () => {
     it('Fallback: Keine Zeitangabe → jetzt (gerundet auf 15 Min)', () => {
       const result = parseOccurredAt('Hatte starke Kopfschmerzen');
-      // 14:37 → gerundet 14:45 Berlin = 12:45 UTC
-      expect(result).toBe('2025-10-16T12:45:00.000Z');
+      // 14:37 → Math.round(37/15)*15 = 30 → 14:30 Berlin = 12:30 UTC
+      expect(result).toBe('2025-10-16T12:30:00.000Z');
     });
 
-    it('Rundung: 14:37 → 14:45', () => {
+    it('Rundung: 14:37 → 14:30', () => {
       const result = parseOccurredAt('jetzt gerade');
-      expect(result).toBe('2025-10-16T12:45:00.000Z');
+      // Math.round(37/15) = Math.round(2.47) = 2 → 2*15 = 30
+      expect(result).toBe('2025-10-16T12:30:00.000Z');
     });
 
-    it('Rundung: 14:08 → 14:00', () => {
+    it('Rundung: 14:08 → 14:15', () => {
       vi.setSystemTime(new Date('2025-10-16T12:08:00.000Z')); // 14:08 Berlin
       const result = parseOccurredAt('gerade eben');
-      expect(result).toBe('2025-10-16T12:00:00.000Z'); // 14:00 Berlin
+      // Math.round(8/15) = Math.round(0.53) = 1 → 1*15 = 15
+      expect(result).toBe('2025-10-16T12:15:00.000Z'); // 14:15 Berlin
     });
   });
 
