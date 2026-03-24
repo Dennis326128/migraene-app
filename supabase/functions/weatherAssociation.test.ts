@@ -1,6 +1,14 @@
 /**
  * Unit tests for weatherAssociation.ts
  * Covers: bucket assignment, headache rates, RR, guardrails, confidence, documented filter
+ *
+ * ⚠️  DENO-ONLY TEST — not part of the normal Node/Vitest app test suite.
+ *     This file uses Deno-native `https:` imports and `Deno.test()`.
+ *     It is excluded from Vitest via vitest.config.ts → exclude: ["supabase/functions/**"].
+ *
+ *     To run:
+ *       npx supabase functions test   (or)
+ *       deno test supabase/functions/weatherAssociation.test.ts --allow-net --allow-env
  */
 
 import { assertEquals, assertExists } from "https://deno.land/std@0.224.0/assert/mod.ts";
