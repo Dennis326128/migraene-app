@@ -12,6 +12,7 @@ import {
 } from '@/features/reminders/hooks/useInAppDueReminders';
 import { SnoozeOptionsSheet } from './SnoozeOptionsSheet';
 import { getSmartSnoozeTime, formatSnoozeTime } from '@/features/reminders/helpers/snooze';
+import { getReminderDisplayTitle } from '@/features/reminders/helpers/displayTitle';
 
 interface DueRemindersSheetProps {
   open: boolean;
