@@ -193,5 +193,41 @@ describe('Day grouping logic (simulated)', () => {
     const entry = { timestamp_created: '2025-03-20T14:30:00Z', selected_date: null };
     const date = entry.selected_date || entry.timestamp_created?.split('T')[0];
     expect(date).toBe('2025-03-20');
+});
+
+// ─── formatPainDisplay (UI display helper) ────────────
+
+describe('formatPainDisplay', () => {
+  it('formats numeric values correctly', () => {
+    expect(formatPainDisplay('7')).toMatchObject({ score: 7, numeric: '7/10', label: 'Stark', category: 'stark' });
+    expect(formatPainDisplay('2')).toMatchObject({ score: 2, numeric: '2/10', label: 'Leicht', category: 'leicht' });
+    expect(formatPainDisplay('5')).toMatchObject({ score: 5, numeric: '5/10', label: 'Mittel', category: 'mittel' });
+    expect(formatPainDisplay('9')).toMatchObject({ score: 9, numeric: '9/10', label: 'Sehr stark', category: 'sehr_stark' });
+    expect(formatPainDisplay('0')).toMatchObject({ score: 0, numeric: '0/10', label: 'Keine Schmerzen', category: 'none' });
   });
+
+  it('formats legacy text values via SSOT', () => {
+    expect(formatPainDisplay('leicht')).toMatchObject({ score: 2, numeric: '2/10', label: 'Leicht' });
+    expect(formatPainDisplay('mittel')).toMatchObject({ score: 5, numeric: '5/10', label: 'Mittel' });
+    expect(formatPainDisplay('stark')).toMatchObject({ score: 7, numeric: '7/10', label: 'Stark' });
+    expect(formatPainDisplay('sehr_stark')).toMatchObject({ score: 9, numeric: '9/10', label: 'Sehr stark' });
+  });
+
+  it('handles null/undefined/empty gracefully', () => {
+    expect(formatPainDisplay(null)).toMatchObject({ score: null, numeric: '–', label: 'Keine Angabe', category: 'unknown' });
+    expect(formatPainDisplay(undefined)).toMatchObject({ score: null, numeric: '–', label: 'Keine Angabe' });
+    expect(formatPainDisplay('')).toMatchObject({ score: null, numeric: '–', label: 'Keine Angabe' });
+    expect(formatPainDisplay('-')).toMatchObject({ score: null, numeric: '–', label: 'Keine Angabe' });
+  });
+
+  it('handles keine as 0', () => {
+    expect(formatPainDisplay('keine')).toMatchObject({ score: 0, numeric: '0/10', label: 'Keine Schmerzen' });
+  });
+
+  it('ensures different entries get different displays', () => {
+    const displays = ['2', '5', '7', '9'].map(v => formatPainDisplay(v));
+    const scores = displays.map(d => d.score);
+    expect(new Set(scores).size).toBe(4);
+  });
+});
 });
