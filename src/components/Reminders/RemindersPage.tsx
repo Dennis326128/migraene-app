@@ -95,6 +95,16 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
   const queryClient = useQueryClient();
   const { data: activeReminders = [], isLoading: loadingActive } = useActiveReminders();
   const { data: historyReminders = [], isLoading: loadingHistory } = useHistoryReminders();
+  const { data: allDoctors = [] } = useDoctors();
+
+  // Build doctors lookup map for display title resolution
+  const doctorsMap = useMemo<DoctorsMap>(() => {
+    const map: DoctorsMap = new Map();
+    for (const doc of allDoctors) {
+      map.set(doc.id, { title: doc.title, first_name: doc.first_name, last_name: doc.last_name });
+    }
+    return map;
+  }, [allDoctors]);
 
   // Smart refresh for relative labels (midnight + visibility + minute-timer for today)
   const hasTodayReminders = useMemo(() => {
