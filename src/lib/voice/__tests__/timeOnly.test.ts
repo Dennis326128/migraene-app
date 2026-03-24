@@ -31,10 +31,10 @@ describe('parseOccurredAt - Zeitparser', () => {
       expect(result).toBe('2025-10-16T12:30:00.000Z');
     });
 
-    it('Relativ: "vor 1 Tag" → gestern 14:45 Berlin', () => {
+    it('Relativ: "vor 1 Tag" → gestern 14:30 Berlin', () => {
       const result = parseOccurredAt('vor 1 Tag Migräne gehabt');
-      // 15.10. 14:37 → gerundet 14:45 Berlin = 12:45 UTC
-      expect(result).toBe('2025-10-15T12:45:00.000Z');
+      // 15.10. 14:37 → Math.round(37/15)*15 = 30 → 14:30 Berlin = 12:30 UTC
+      expect(result).toBe('2025-10-15T12:30:00.000Z');
     });
   });
 
