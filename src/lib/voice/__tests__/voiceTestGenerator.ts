@@ -82,18 +82,21 @@ function generateK1(rng: ReturnType<typeof createRng>, count: number): GoldenCas
     const parts = [filler, booster, intensity.word, noun].filter(Boolean);
     const transcript = parts.join(' ');
     
-    // Adjust pain for booster – match actual parser INTENSITY_WORD_MAP behavior:
-    // Parser has specific combos: "sehr starke" → 9, "sehr leichte" → 1
-    // "richtig" only boosts "richtig schlimm" → 7 (no general boost)
-    // "extrem" is a standalone pattern → 9
+    // Match actual parser INTENSITY_WORD_MAP first-match behavior:
+    // Pattern order: 0(keine)→1(sehr leichte)→3(leichte)→5(mittel*)→9(sehr starke|extreme|...)→7(starke|heftige|schlimme)
+    // "sehr starke" matches pattern 9, "sehr leichte" matches pattern 1
+    // "extrem" matches pattern 9's "extreme?r?" — but only wins if no earlier pattern matches first
     let expectedPain = intensity.pain;
     if (booster === 'sehr') {
-      if (intensity.pain >= 7) expectedPain = 9;       // "sehr starke/heftige/schlimme" → 9
-      if (intensity.word === 'leichte') expectedPain = 1; // "sehr leichte" → 1
+      if (intensity.word === 'starke') expectedPain = 9;   // "sehr starke" in pattern 9
+      else if (intensity.word === 'leichte') expectedPain = 1; // "sehr leichte" in pattern 1
+      // "sehr heftige/schlimme/mittelstarke" → base word matches first
     } else if (booster === 'extrem') {
-      expectedPain = 9; // "extrem" is standalone → 9
+      // "extrem" matches pattern 9 (position 4), so it wins over patterns at position 5+ (starke/heftige/schlimme)
+      // but loses to patterns at position 3- (leichte=2, mittelstarke=3)
+      if (intensity.pain >= 7) expectedPain = 9;
+      // leichte/mittelstarke match earlier → keep base value
     }
-    // "richtig" and "ziemlich" don't boost in parser
     
     cases.push({
       id: `GEN-K1-${i + 1}`,
