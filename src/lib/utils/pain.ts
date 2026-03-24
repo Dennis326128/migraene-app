@@ -111,6 +111,37 @@ export function formatPainLocations(locations: string[]): string {
   return locations.map(formatPainLocation).join(', ');
 }
 
+/**
+ * UI display helper: Returns consistent label, numeric string and category for any pain_level.
+ * Builds on SSOT normalization — no own semantic logic.
+ */
+export interface PainDisplay {
+  /** Numeric 0-10 or null */
+  score: number | null;
+  /** e.g. "7/10", "–" */
+  numeric: string;
+  /** Human label: "Stark", "Leicht", "Keine Angabe" */
+  label: string;
+  /** Category for color coding */
+  category: 'none' | 'leicht' | 'mittel' | 'stark' | 'sehr_stark' | 'unknown';
+}
+
+export function formatPainDisplay(level: string | number | null | undefined): PainDisplay {
+  const score = normalizePainLevelStrict(level);
+
+  if (score === null) {
+    return { score: null, numeric: '–', label: 'Keine Angabe', category: 'unknown' };
+  }
+
+  const numeric = `${score}/10`;
+
+  if (score === 0) return { score, numeric, label: 'Keine Schmerzen', category: 'none' };
+  if (score <= 3) return { score, numeric, label: 'Leicht', category: 'leicht' };
+  if (score <= 6) return { score, numeric, label: 'Mittel', category: 'mittel' };
+  if (score <= 8) return { score, numeric, label: 'Stark', category: 'stark' };
+  return { score, numeric, label: 'Sehr stark', category: 'sehr_stark' };
+}
+
 export function convertNumericPainToCategory(level: string): "leicht" | "mittel" | "stark" | "sehr_stark" {
   // If already a category, return as-is
   if (['leicht', 'mittel', 'stark', 'sehr_stark'].includes(level)) {
