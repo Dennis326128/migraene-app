@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { formatPainLevel as formatPainLevelUtil, formatAuraType, formatPainLocation, normalizePainLevel, formatPainDisplay as formatPainDisplayUtil } from "@/lib/utils/pain";
+import { formatAuraType, formatPainLocation, normalizePainLevel, formatPainDisplay as formatPainDisplayUtil } from "@/lib/utils/pain";
 import { groupEntriesByDay } from "@/lib/utils/dayGrouping";
 import { PainEntry, MigraineEntry } from "@/types/painApp";
 import { useEntries } from "@/features/entries/hooks/useEntries";
