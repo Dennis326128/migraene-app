@@ -86,21 +86,11 @@ describe('getColorForPain', () => {
 });
 
 describe('shouldUseDarkText', () => {
-  it('returns true for levels 0-4 (light backgrounds)', () => {
-    expect(shouldUseDarkText(0)).toBe(true);
-    expect(shouldUseDarkText(1)).toBe(true);
-    expect(shouldUseDarkText(2)).toBe(true);
-    expect(shouldUseDarkText(3)).toBe(true);
-    expect(shouldUseDarkText(4)).toBe(true);
-  });
-
-  it('returns false for levels 5-10 (dark backgrounds)', () => {
-    expect(shouldUseDarkText(5)).toBe(false);
-    expect(shouldUseDarkText(6)).toBe(false);
-    expect(shouldUseDarkText(7)).toBe(false);
-    expect(shouldUseDarkText(8)).toBe(false);
-    expect(shouldUseDarkText(9)).toBe(false);
-    expect(shouldUseDarkText(10)).toBe(false);
+  // Production now uses light text on all backgrounds (dark theme heatmap)
+  it('returns false for all levels (all backgrounds use light text)', () => {
+    for (let i = 0; i <= 10; i++) {
+      expect(shouldUseDarkText(i)).toBe(false);
+    }
   });
 
   it('returns false for null', () => {

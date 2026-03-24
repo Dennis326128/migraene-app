@@ -91,7 +91,9 @@ export function parseOccurredAt(text: string): string {
   }
 
   // 5. Tageszeit: "morgens", "nachmittags", etc.
-  for (const [keyword, defaultTime] of Object.entries(PART_OF_DAY)) {
+  // Sort by keyword length descending to match "nachmittags" before "mittag"
+  const sortedParts = Object.entries(PART_OF_DAY).sort((a, b) => b[0].length - a[0].length);
+  for (const [keyword, defaultTime] of sortedParts) {
     if (lower.includes(keyword)) {
       const [h, m] = defaultTime.split(':').map(Number);
       base.setHours(h, m, 0, 0);

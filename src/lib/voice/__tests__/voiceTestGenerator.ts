@@ -122,8 +122,11 @@ function generateK4(rng: ReturnType<typeof createRng>, count: number): GoldenCas
     const transcript = parts.join(' ');
     
     let expectedPain = intensity.pain;
-    if (booster === 'sehr' || booster === 'extrem' || booster === 'richtig') {
+    if (booster === 'sehr') {
       if (intensity.pain >= 7) expectedPain = 9;
+      if (intensity.word === 'leichte') expectedPain = 1;
+    } else if (booster === 'extrem') {
+      expectedPain = 9;
     }
     
     cases.push({

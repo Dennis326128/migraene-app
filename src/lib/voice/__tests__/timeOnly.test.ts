@@ -145,8 +145,8 @@ describe('parseOccurredAt - Zeitparser', () => {
 
     it('Unvollständige Zeit wird ignoriert', () => {
       const result = parseOccurredAt('irgendwann heute');
-      // Fallback: jetzt gerundet
-      expect(result).toBe('2025-10-16T12:45:00.000Z');
+      // Fallback: jetzt gerundet → 14:37 → 14:30
+      expect(result).toBe('2025-10-16T12:30:00.000Z');
     });
   });
 });
