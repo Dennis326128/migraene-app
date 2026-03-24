@@ -308,7 +308,11 @@ function painLevelToNumericValue(painLevel: string): number {
 
 function formatPainLevel(painLevel: string): string {
   const numeric = painLevelToNumericValue(painLevel);
-  return numeric > 0 ? `${numeric}/10` : painLevel;
+  if (numeric > 0) return `${numeric}/10`;
+  // 0 = "keine Schmerzen", unknown/empty = raw fallback
+  const lower = (painLevel || '').toLowerCase().replace(/_/g, ' ');
+  if (lower === 'keine' || lower === '0') return '0/10';
+  return painLevel || '–';
 }
 
 function wrapText(text: string, maxWidth: number, fontSize: number, font: PDFFont): string[] {

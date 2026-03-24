@@ -25,7 +25,7 @@ import {
   getLatestMedicationIntake,
   countMedicationDays,
 } from '@/lib/analytics/queryLatest';
-import { normalizePainLevel } from '@/lib/utils/pain';
+import { normalizePainLevelStrict } from '@/lib/utils/pain';
 
 // ============================================
 // Types
