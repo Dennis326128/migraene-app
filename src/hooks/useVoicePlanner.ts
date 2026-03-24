@@ -352,10 +352,15 @@ async function executeQuery(
           .gte('selected_date', from.toISOString().split('T')[0]);
         
         if (data && data.length > 0) {
-          const avg = data.reduce((sum, e) => {
-            const level = normalizePainLevel(e.pain_level);
-            return sum + level;
-          }, 0) / data.length;
+          const levels = data
+            .map(e => normalizePainLevelStrict(e.pain_level))
+            .filter((v): v is number => v !== null);
+          
+          if (levels.length === 0) {
+            return { type: 'average', average: 0, message: 'Keine auswertbaren Schmerzwerte im Zeitraum' };
+          }
+          
+          const avg = levels.reduce((sum, v) => sum + v, 0) / levels.length;
           
           return {
             type: 'average',
