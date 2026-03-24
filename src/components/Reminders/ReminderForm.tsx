@@ -378,8 +378,11 @@ export const ReminderForm = ({ reminder, groupedReminders, prefill, onSubmit, on
   // Time of day is now fully optional — no validation needed
   const hasValidTimeSelection = true;
   
-  // Auto-title is always generated internally
-  const autoTitle = generateAutoTitle(type as any, selectedMedications, selectedTimeOfDay[0] || null);
+  // Auto-title is always generated internally — uses SSOT for appointments
+  const autoTitle = generateAutoTitle(
+    type as any, selectedMedications, selectedTimeOfDay[0] || null,
+    appointmentCustomTitle, selectedDoctorId || null, selectedDoctorName
+  );
   
   // Combined validation for submit button
   const canSubmit = true;
