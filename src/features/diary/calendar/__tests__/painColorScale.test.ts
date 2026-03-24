@@ -19,12 +19,13 @@ describe('generateColorScale', () => {
     expect(colors).toHaveLength(11);
   });
 
-  it('all colors are valid HSL strings', () => {
+  it('all colors are valid color strings (hex or rgba)', () => {
     const colors = generateColorScale();
-    const hslRegex = /^hsl\(\d+ \d+% \d+%\)$/;
+    // Production uses hex (#rrggbb) and rgba for level 0
+    const colorRegex = /^(#[0-9a-fA-F]{6}|rgba\(.+\))$/;
     
     colors.forEach((color, i) => {
-      expect(color).toMatch(hslRegex);
+      expect(color).toMatch(colorRegex);
     });
   });
 
