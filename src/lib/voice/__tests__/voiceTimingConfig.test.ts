@@ -160,9 +160,10 @@ describe('voiceTimingConfig', () => {
      */
     it('should handle normal speech pace', () => {
       const text = 'Kopfschmerzen Stärke 7 von 10 Ibuprofen genommen';
-      const duration = 5000; // ~8 words in 5s = 1.6 wps (normal)
+      const duration = 7000; // ~8 words in 7s = ~1.1 wps (normal, above minRecordMs=6000)
+      // Note: text ends with number pattern → continuation boost is added
       const threshold = getAdaptiveSilenceThreshold(text, duration);
-      expect(threshold).toBe(VOICE_MIGRAINE_PROFILE.baseSilenceMs);
+      expect(threshold).toBe(VOICE_MIGRAINE_PROFILE.baseSilenceMs + VOICE_MIGRAINE_PROFILE.continuationBoostMs);
       expect(canAutoStop(text, duration)).toBe(true);
     });
 
