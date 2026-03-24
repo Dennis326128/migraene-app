@@ -1,3 +1,46 @@
+/**
+ * ═══════════════════════════════════════════════════════════════════
+ * Pain-Level SSOT — Single Source of Truth
+ * ═══════════════════════════════════════════════════════════════════
+ *
+ * Supported raw values (DB column `pain_entries.pain_level` is TEXT):
+ *   • Numeric strings:  "0" – "10"
+ *   • Legacy German:    "keine", "leicht", "schwach", "gering",
+ *                       "mittel", "moderat", "mäßig", "stark",
+ *                       "heftig", "sehr_stark", "sehr stark",
+ *                       "extrem", "unerträglich"
+ *   • Missing/empty:    "", "-", null, undefined
+ *
+ * Canonical numeric mapping (NRS 0-10):
+ *   keine → 0 | leicht/schwach/gering → 2 | mittel/moderat/mäßig → 5
+ *   stark → 7 | heftig → 8 | sehr stark → 9 | extrem/unerträglich → 10
+ *
+ * Three functions, three purposes:
+ *
+ *   normalizePainLevel(level)        → number (0-10)
+ *     For aggregation / charts / statistics. Returns 0 for invalid input.
+ *     Use when "no data" and "no pain" can be treated equally.
+ *
+ *   normalizePainLevelStrict(level)  → number | null
+ *     For contexts where null ≠ 0 matters (calendar gaps, averages).
+ *     Returns null for missing/invalid input.
+ *
+ *   formatPainDisplay(level)         → { score, numeric, label, category }
+ *     UI-only. Builds on normalizePainLevelStrict.
+ *     Returns human-readable label + "X/10" string + color category.
+ *     null score → "–" / "Keine Angabe" / category "unknown".
+ *
+ * Edge-case rules:
+ *   • ""  / null / undefined / "-"  →  null (strict) / 0 (non-strict)
+ *   • "keine" / "0"                →  score 0, label "Keine Schmerzen"
+ *   • Unknown non-empty strings    →  null (strict) / 0 (non-strict)
+ *
+ * Deprecated exports (convertNumericToCategory, convertNumericPainToCategory):
+ *   Kept for possible external consumers (PDF legacy paths).
+ *   All internal code should use formatPainDisplay() instead.
+ * ═══════════════════════════════════════════════════════════════════
+ */
+
 export function formatPainLevel(text: string) {
   return (text || "").replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
 }
