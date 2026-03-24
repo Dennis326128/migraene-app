@@ -391,8 +391,8 @@ export async function countPainFreeDays(
     for (const entry of entries || []) {
       if (!entry.selected_date) continue;
       const level = (entry.pain_level || '').toLowerCase().trim();
-      // 'keine' und '-' gelten als schmerzfrei
-      if (level !== 'keine' && level !== '-' && level !== '') {
+      // 'keine', '0', '-' und leer gelten als schmerzfrei (SSOT: NRS 0 = kein Schmerz)
+      if (level !== 'keine' && level !== '-' && level !== '' && level !== '0') {
         daysWithPain.add(entry.selected_date);
       }
     }
