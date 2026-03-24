@@ -252,9 +252,9 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
    * badge = visible card count. Always.
    */
   const typeCounts = (() => {
-    const aktuellGroups = groupReminders(getVisibleRemindersForTab('aktuell'));
-    const medGroups = groupReminders(getVisibleRemindersForTab('medication'));
-    const aptGroups = groupReminders(getVisibleRemindersForTab('appointment'));
+    const aktuellGroups = groupReminders(getVisibleRemindersForTab('aktuell'), doctorsMap);
+    const medGroups = groupReminders(getVisibleRemindersForTab('medication'), doctorsMap);
+    const aptGroups = groupReminders(getVisibleRemindersForTab('appointment'), doctorsMap);
     return {
       aktuell: aktuellGroups.length,
       medication: medGroups.length,
