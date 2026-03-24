@@ -79,7 +79,6 @@ export const NewEntry = ({
   // Medication state: Map<name, {doseQuarters, medicationId}>
   const [selectedMedications, setSelectedMedications] = useState<Map<string, { doseQuarters: number; medicationId?: string }>>(new Map());
   
-  const [medicationsWithEffectiveness, setMedicationsWithEffectiveness] = useState<MedicationWithEffectiveness[]>([]);
   const [newMedication, setNewMedication] = useState("");
   const [showAddMedication, setShowAddMedication] = useState(false);
   const [saving, setSaving] = useState(false);
