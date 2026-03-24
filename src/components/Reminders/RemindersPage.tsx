@@ -661,7 +661,7 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
               </div>
             ) : visibleReminders.length > 0 ? (
               <div className="space-y-3">
-                {groupReminders(visibleReminders).map((grouped) => (
+                {groupReminders(visibleReminders, doctorsMap).map((grouped) => (
                   <ReminderCard
                     key={grouped.reminder.id}
                     grouped={grouped}
