@@ -72,6 +72,9 @@ export interface CreateReminderInput {
   follow_up_interval_unit?: FollowUpIntervalUnit;
   next_follow_up_date?: string;
   series_id?: string;
+  // Appointment-specific
+  custom_title?: string;
+  doctor_id?: string;
 }
 
 export interface UpdateReminderInput {
