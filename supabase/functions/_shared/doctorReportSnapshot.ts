@@ -302,6 +302,14 @@ export interface MeCfsAnalysis {
   totalDaysInRange: number;
   /** Guard: only show if documented >= 14 */
   sufficient: boolean;
+  /** Average severity score (only documented days with score > 0) */
+  avgScore?: number | null;
+  /** Peak severity score */
+  peakScore?: number | null;
+  /** Peak severity label (mild/moderate/severe) */
+  peakLabel?: string | null;
+  /** Documentation rate = documentedDays / totalDaysInRange */
+  documentationRate?: number;
 }
 
 /** Full analysis block (all optional sub-fields) */
