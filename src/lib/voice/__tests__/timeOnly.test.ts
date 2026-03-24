@@ -139,8 +139,8 @@ describe('parseOccurredAt - Zeitparser', () => {
 
     it('Mehrere Zeitangaben: nimmt erste', () => {
       const result = parseOccurredAt('vor 2 Stunden um 14 Uhr');
-      // "vor 2 Stunden" wird zuerst gematcht
-      expect(result).toBe('2025-10-16T10:45:00.000Z');
+      // "vor 2 Stunden" wird zuerst gematcht → 12:37 Berlin → 12:30
+      expect(result).toBe('2025-10-16T10:30:00.000Z');
     });
 
     it('Unvollständige Zeit wird ignoriert', () => {
