@@ -76,11 +76,11 @@ export interface DoctorReportSummary {
   avgIntensity: number;
   overuseWarning: boolean;
   documentationGaps: DocumentationGap;
-  /** NEW: Raw KPIs */
+  /** Raw KPIs */
   kpis: CoreKPIs;
-  /** NEW: Normalized KPIs (per 30 days) */
+  /** Normalized KPIs (per 30 days) */
   normalizedKPIs: NormalizedKPIs;
-  /** NEW: Total triptan intakes (not days) */
+  /** Total triptan intakes (not days) */
   totalTriptanIntakes: number;
 }
 
@@ -105,7 +105,7 @@ export interface DoctorReportEntry {
   id: number;
   date: string;
   time: string | null;
-  /** NEW: createdAt for secondary sorting */
+  /** createdAt for secondary sorting */
   createdAt: string;
   intensity: number;
   intensityLabel: string;
@@ -133,11 +133,11 @@ export interface MedicationStat {
   avgEffect: number | null;
   effectCount: number;
   category?: string;
-  /** NEW: Distinct days used */
+  /** Distinct days used */
   daysUsed?: number;
-  /** NEW: Avg per 30 days */
+  /** Avg per 30 days */
   avgPer30?: number;
-  /** NEW: Is triptan flag */
+  /** Is triptan flag */
   isTriptan?: boolean;
 }
 
@@ -169,8 +169,125 @@ export interface PatientData {
 
 export interface DoctorReportOptional {
   patientData?: PatientData;
-  // Future: aiAnalysis, doctorData
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+// ANALYSIS BLOCK TYPES — Additive extension for Website (V1.1)
+// ════════════════════════════════════════════════════════════════════════════
+
+/** Symptom frequency item */
+export interface SymptomStatItem {
+  name: string;
+  count: number;
+  /** Percentage relative to checked episodes (symptoms_state viewed/edited) */
+  percentageOfChecked: number;
+}
+
+/** Accompanying symptoms analysis */
+export interface SymptomsAnalysis {
+  /** All symptoms sorted by frequency */
+  items: SymptomStatItem[];
+  /** Total entries in range */
+  totalEntries: number;
+  /** Entries where symptoms section was viewed/edited */
+  checkedEntries: number;
+  /** Entries that have at least one symptom */
+  entriesWithSymptoms: number;
+}
+
+/** Trigger keyword extraction from notes */
+export interface TriggerItem {
+  trigger: string;
+  count: number;
+}
+
+export interface TriggersAnalysis {
+  /** Top triggers sorted by frequency, max 7 */
+  items: TriggerItem[];
+  /** Number of entries with non-private notes analyzed */
+  notesAnalyzed: number;
+}
+
+/** Detailed headache/treatment day donut (3-bucket: painFree/painNoTriptan/triptan) */
+export interface HeadacheDayDonut {
+  painFreeDays: number;
+  painDaysNoTriptan: number;
+  triptanDays: number;
+  totalDays: number;
+  percentages: {
+    painFree: number;
+    painNoTriptan: number;
+    triptan: number;
+  };
+}
+
+/** Weather pressure bucket result */
+export interface WeatherBucket {
+  label: string;
+  nDays: number;
+  headacheRate: number;
+  meanPainMax: number | null;
+  acuteMedRate: number;
+}
+
+/** Weather relative risk */
+export interface WeatherRelativeRisk {
+  referenceLabel: string;
+  compareLabel: string;
+  rr: number | null;
+  absDiff: number | null;
+}
+
+/** Weather coverage info */
+export interface WeatherCoverage {
+  daysDocumented: number;
+  daysWithWeather: number;
+  daysWithDelta24h: number;
+  ratioWeather: number;
+  ratioDelta24h: number;
+}
+
+/** Weather pressure delta 24h analysis */
+export interface WeatherPressureDelta {
+  enabled: boolean;
+  confidence: "high" | "medium" | "low" | "insufficient";
+  buckets: WeatherBucket[];
+  relativeRisk: WeatherRelativeRisk | null;
+  notes: string[];
+}
+
+/** Structured weather association analysis */
+export interface WeatherAnalysis {
+  coverage: WeatherCoverage;
+  pressureDelta24h: WeatherPressureDelta;
+  disclaimer: string;
+}
+
+/** ME/CFS severity segment */
+export interface MeCfsSegment {
+  key: "none" | "mild" | "moderate" | "severe" | "undocumented";
+  days: number;
+}
+
+/** ME/CFS analysis */
+export interface MeCfsAnalysis {
+  segments: MeCfsSegment[];
+  documentedDays: number;
+  totalDaysInRange: number;
+  /** Guard: only show if documented >= 14 */
+  sufficient: boolean;
+}
+
+/** Full analysis block (all optional sub-fields) */
+export interface DoctorReportAnalysis {
+  symptoms?: SymptomsAnalysis;
+  triggers?: TriggersAnalysis;
+  headacheDayDonut?: HeadacheDayDonut;
+  weather?: WeatherAnalysis;
+  mecfs?: MeCfsAnalysis;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 
 export interface DoctorReportJSON {
   meta: DoctorReportMeta;
@@ -178,6 +295,8 @@ export interface DoctorReportJSON {
   charts: DoctorReportCharts;
   tables: DoctorReportTables;
   optional: DoctorReportOptional;
+  /** V1.1: Extended clinical analysis blocks for website rendering */
+  analysis?: DoctorReportAnalysis;
 }
 
 export interface BuildSnapshotResult {
@@ -221,17 +340,31 @@ const PAIN_LEVEL_TO_LABEL: Record<string, string> = {
   "sehr_stark": "Sehr stark",
 };
 
+// Trigger keywords — same as PDF report SSOT
+const TRIGGER_KEYWORDS: Record<string, string[]> = {
+  'Helligkeit / Licht': ['hell', 'licht', 'sonne', 'blendung', 'grell', 'bildschirm', 'monitor'],
+  'Lärm / Geräusche': ['laerm', 'lärm', 'laut', 'geraeusch', 'geräusch', 'krach'],
+  'Stress': ['stress', 'anspannung', 'druck', 'hektik', 'belastung'],
+  'Schlafmangel': ['schlaf', 'muede', 'müde', 'schlecht geschlafen', 'wenig schlaf', 'uebermuedet', 'übermüdet'],
+  'Körperliche Belastung': ['sport', 'anstrengung', 'koerperlich', 'körperlich', 'training', 'belastung'],
+  'Wetter': ['wetter', 'foehn', 'föhn', 'gewitter', 'schwuel', 'schwül', 'hitze', 'kaelte', 'kälte'],
+  'Infekt / Krankheit': ['infekt', 'erkaelt', 'erkält', 'krank', 'grippe', 'fieber'],
+  'Alkohol': ['alkohol', 'wein', 'bier', 'sekt'],
+  'Menstruation / Zyklus': ['menstruation', 'periode', 'zyklus', 'regel', 'pms'],
+};
+
+// Weather pressure delta bucket thresholds (same as computeWeatherAssociation SSOT)
+const PRESSURE_STRONG_DROP = -8;
+const PRESSURE_MODERATE_DROP = -3;
+
 // ════════════════════════════════════════════════════════════════════════════
 // HELPER FUNCTIONS
 // ════════════════════════════════════════════════════════════════════════════
 
 function painLevelToNumber(level: string): number {
-  // 1. Check text label mapping
   if (level in PAIN_LEVEL_TO_NUMBER) return PAIN_LEVEL_TO_NUMBER[level];
-  // 2. Try parsing as numeric string (NRS 0-10)
   const num = parseFloat(level);
   if (!isNaN(num) && num >= 0 && num <= 10) return num;
-  // 3. No valid mapping → return 0 (NOT 5!)
   console.warn(`[DoctorReport] Unknown pain_level: "${level}", treating as 0`);
   return 0;
 }
@@ -277,6 +410,399 @@ function formatTime(timeStr: string | null): string | null {
   return timeStr.substring(0, 5);
 }
 
+/** Enumerate all dates [start, end] inclusive as YYYY-MM-DD */
+function enumerateDatesInclusive(startDate: string, endDate: string): string[] {
+  const dates: string[] = [];
+  const start = new Date(startDate + 'T00:00:00');
+  const end = new Date(endDate + 'T00:00:00');
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) return dates;
+  const current = new Date(start);
+  while (current <= end) {
+    dates.push(current.toISOString().slice(0, 10));
+    current.setDate(current.getDate() + 1);
+  }
+  return dates;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ANALYSIS BUILDERS
+// ════════════════════════════════════════════════════════════════════════════
+
+interface RawEntry {
+  id: number;
+  selected_date: string | null;
+  selected_time: string | null;
+  pain_level: string;
+  medications: string[] | null;
+  aura_type: string;
+  pain_locations: string[] | null;
+  notes: string | null;
+  timestamp_created: string | null;
+  entry_note_is_private?: boolean;
+  symptoms_state?: string;
+  me_cfs_severity_level?: string;
+  me_cfs_severity_score?: number;
+}
+
+/**
+ * Build symptoms analysis from entry_symptoms + symptom_catalog data.
+ */
+function buildSymptomsAnalysis(
+  allEntries: RawEntry[],
+  entrySymptoms: Array<{ entry_id: number; symptom_id: string }>,
+  symptomCatalog: Array<{ id: string; name: string }>
+): SymptomsAnalysis {
+  const catalogMap = new Map(symptomCatalog.map(s => [s.id, s.name]));
+  const totalEntries = allEntries.length;
+
+  // Checked entries = symptoms_state 'viewed' or 'edited'
+  const checkedEntryIds = new Set(
+    allEntries
+      .filter(e => e.symptoms_state === 'viewed' || e.symptoms_state === 'edited')
+      .map(e => e.id)
+  );
+  const checkedEntries = checkedEntryIds.size;
+
+  // Count symptoms only for checked entries (avoids 96% bias)
+  const counts = new Map<string, number>();
+  let entriesWithSymptoms = 0;
+  const entriesHavingSymptom = new Set<number>();
+
+  for (const es of entrySymptoms) {
+    if (!checkedEntryIds.has(es.entry_id)) continue;
+    entriesHavingSymptom.add(es.entry_id);
+    const name = catalogMap.get(es.symptom_id) || es.symptom_id;
+    counts.set(name, (counts.get(name) || 0) + 1);
+  }
+  entriesWithSymptoms = entriesHavingSymptom.size;
+
+  const items: SymptomStatItem[] = Array.from(counts.entries())
+    .map(([name, count]) => ({
+      name,
+      count,
+      percentageOfChecked: checkedEntries > 0 ? Math.round((count / checkedEntries) * 100) : 0,
+    }))
+    .sort((a, b) => b.count - a.count);
+
+  return { items, totalEntries, checkedEntries, entriesWithSymptoms };
+}
+
+/**
+ * Build trigger keyword extraction from notes (same logic as PDF report).
+ */
+function buildTriggersAnalysis(allEntries: RawEntry[]): TriggersAnalysis {
+  const triggerCounts = new Map<string, number>();
+  let notesAnalyzed = 0;
+
+  for (const entry of allEntries) {
+    if (!entry.notes || entry.entry_note_is_private) continue;
+    notesAnalyzed++;
+    const noteLower = entry.notes.toLowerCase();
+    for (const [trigger, keywords] of Object.entries(TRIGGER_KEYWORDS)) {
+      if (keywords.some(kw => noteLower.includes(kw))) {
+        triggerCounts.set(trigger, (triggerCounts.get(trigger) || 0) + 1);
+      }
+    }
+  }
+
+  const items: TriggerItem[] = Array.from(triggerCounts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 7)
+    .map(([trigger, count]) => ({ trigger, count }));
+
+  return { items, notesAnalyzed };
+}
+
+/**
+ * Build detailed headache day donut (painFree / painNoTriptan / triptan).
+ * Same logic as computeHeadacheTreatmentDayDistribution SSOT.
+ */
+function buildHeadacheDayDonut(
+  from: string,
+  to: string,
+  allEntries: RawEntry[]
+): HeadacheDayDonut {
+  // Group entries by date
+  const entriesByDate = new Map<string, RawEntry[]>();
+  for (const entry of allEntries) {
+    const date = entry.selected_date;
+    if (!date || date < from || date > to) continue;
+    const existing = entriesByDate.get(date);
+    if (existing) existing.push(entry);
+    else entriesByDate.set(date, [entry]);
+  }
+
+  const allDates = enumerateDatesInclusive(from, to);
+  const totalDays = allDates.length;
+  let painFreeDays = 0;
+  let painDaysNoTriptan = 0;
+  let triptanDaysCount = 0;
+
+  for (const date of allDates) {
+    const dayEntries = entriesByDate.get(date) || [];
+    let hasPain = false;
+    let hasTriptan = false;
+
+    for (const entry of dayEntries) {
+      // Pain: pain_level not '-' and not 'keine' and not '0' and not empty
+      const pl = entry.pain_level;
+      if (pl && pl !== '-' && pl !== 'keine' && pl !== '0') {
+        const num = painLevelToNumber(pl);
+        if (num > 0) hasPain = true;
+      }
+      // Triptan check
+      if (entry.medications?.length) {
+        for (const med of entry.medications) {
+          if (isTriptan(med)) { hasTriptan = true; break; }
+        }
+      }
+    }
+
+    if (hasTriptan) triptanDaysCount++;
+    else if (hasPain) painDaysNoTriptan++;
+    else painFreeDays++;
+  }
+
+  const pct = (v: number) => totalDays > 0 ? Math.round((v / totalDays) * 1000) / 10 : 0;
+
+  return {
+    painFreeDays,
+    painDaysNoTriptan,
+    triptanDays: triptanDaysCount,
+    totalDays,
+    percentages: {
+      painFree: pct(painFreeDays),
+      painNoTriptan: pct(painDaysNoTriptan),
+      triptan: pct(triptanDaysCount),
+    },
+  };
+}
+
+/**
+ * Build weather association analysis.
+ * Replicates the deterministic bucket logic from computeWeatherAssociation SSOT.
+ */
+function buildWeatherAnalysis(
+  from: string,
+  to: string,
+  allEntries: RawEntry[],
+  weatherLogs: Array<{
+    id: number;
+    snapshot_date: string | null;
+    requested_at: string | null;
+    pressure_mb: number | null;
+    pressure_change_24h: number | null;
+    temperature_c: number | null;
+    humidity: number | null;
+  }>
+): WeatherAnalysis | null {
+  if (weatherLogs.length === 0) return null;
+
+  // Build day features: for each documented day, find closest weather log
+  const documentedDays = new Map<string, { painMax: number; hadHeadache: boolean; hadAcuteMed: boolean }>();
+
+  // Aggregate per-day from entries
+  for (const entry of allEntries) {
+    const date = entry.selected_date;
+    if (!date || date < from || date > to) continue;
+
+    const intensity = painLevelToNumber(entry.pain_level);
+    const existing = documentedDays.get(date);
+    const hadAcuteMed = (entry.medications?.length || 0) > 0;
+
+    if (existing) {
+      if (intensity > existing.painMax) existing.painMax = intensity;
+      if (intensity > 0) existing.hadHeadache = true;
+      if (hadAcuteMed) existing.hadAcuteMed = true;
+    } else {
+      documentedDays.set(date, {
+        painMax: intensity,
+        hadHeadache: intensity > 0,
+        hadAcuteMed,
+      });
+    }
+  }
+
+  // Index weather logs by snapshot_date (prefer) or requested_at date
+  const weatherByDate = new Map<string, typeof weatherLogs[0]>();
+  for (const log of weatherLogs) {
+    const date = log.snapshot_date || (log.requested_at ? log.requested_at.split('T')[0] : null);
+    if (!date) continue;
+    // Keep first (or overwrite if same date — last write wins is fine for snapshots)
+    if (!weatherByDate.has(date)) {
+      weatherByDate.set(date, log);
+    }
+  }
+
+  // Build features
+  interface DayFeature {
+    date: string;
+    painMax: number;
+    hadHeadache: boolean;
+    hadAcuteMed: boolean;
+    pressureMb: number | null;
+    pressureChange24h: number | null;
+  }
+
+  const features: DayFeature[] = [];
+  let daysWithWeather = 0;
+  let daysWithDelta24h = 0;
+
+  for (const [date, dayData] of documentedDays) {
+    const weather = weatherByDate.get(date);
+    const pressureMb = weather?.pressure_mb ?? null;
+    const pressureChange24h = weather?.pressure_change_24h ?? null;
+
+    if (pressureMb !== null) daysWithWeather++;
+    if (pressureChange24h !== null) daysWithDelta24h++;
+
+    features.push({
+      date,
+      painMax: dayData.painMax,
+      hadHeadache: dayData.hadHeadache,
+      hadAcuteMed: dayData.hadAcuteMed,
+      pressureMb,
+      pressureChange24h,
+    });
+  }
+
+  const daysDocumented = documentedDays.size;
+  const ratioWeather = daysDocumented > 0 ? Math.round((daysWithWeather / daysDocumented) * 100) / 100 : 0;
+  const ratioDelta24h = daysDocumented > 0 ? Math.round((daysWithDelta24h / daysDocumented) * 100) / 100 : 0;
+
+  // Pressure delta 24h buckets (same thresholds as SSOT)
+  const withDelta = features.filter(f => f.pressureChange24h !== null);
+  
+  type Confidence = "high" | "medium" | "low" | "insufficient";
+  let confidence: Confidence = "insufficient";
+  if (withDelta.length >= 60) confidence = "high";
+  else if (withDelta.length >= 30) confidence = "medium";
+  else if (withDelta.length >= 14) confidence = "low";
+
+  const strongDrop = withDelta.filter(f => f.pressureChange24h! <= PRESSURE_STRONG_DROP);
+  const moderateDrop = withDelta.filter(f => f.pressureChange24h! > PRESSURE_STRONG_DROP && f.pressureChange24h! <= PRESSURE_MODERATE_DROP);
+  const stableRise = withDelta.filter(f => f.pressureChange24h! > PRESSURE_MODERATE_DROP);
+
+  function makeBucket(label: string, days: DayFeature[]): WeatherBucket {
+    const nDays = days.length;
+    const headacheDays = days.filter(d => d.hadHeadache).length;
+    const acuteMedDays = days.filter(d => d.hadAcuteMed).length;
+    const painValues = days.filter(d => d.painMax > 0).map(d => d.painMax);
+    return {
+      label,
+      nDays,
+      headacheRate: nDays > 0 ? Math.round((headacheDays / nDays) * 1000) / 10 : 0,
+      meanPainMax: painValues.length > 0 ? Math.round((painValues.reduce((a, b) => a + b, 0) / painValues.length) * 10) / 10 : null,
+      acuteMedRate: nDays > 0 ? Math.round((acuteMedDays / nDays) * 1000) / 10 : 0,
+    };
+  }
+
+  const buckets: WeatherBucket[] = [
+    makeBucket(`Starker Druckabfall (≤ ${PRESSURE_STRONG_DROP} hPa)`, strongDrop),
+    makeBucket(`Mäßiger Druckabfall (${PRESSURE_STRONG_DROP} bis ${PRESSURE_MODERATE_DROP} hPa)`, moderateDrop),
+    makeBucket(`Stabil / Anstieg (> ${PRESSURE_MODERATE_DROP} hPa)`, stableRise),
+  ];
+
+  // Relative risk: strongDrop vs stableRise
+  let relativeRisk: WeatherRelativeRisk | null = null;
+  const refRate = buckets[2].headacheRate;
+  const cmpRate = buckets[0].headacheRate;
+  if (buckets[0].nDays > 0 && buckets[2].nDays > 0) {
+    relativeRisk = {
+      referenceLabel: buckets[2].label,
+      compareLabel: buckets[0].label,
+      rr: refRate > 0 ? Math.round((cmpRate / refRate) * 100) / 100 : null,
+      absDiff: Math.round((cmpRate - refRate) * 10) / 10,
+    };
+  }
+
+  const notes: string[] = [];
+  if (confidence === "insufficient") {
+    notes.push("Zu wenige Tage mit Druckdaten für eine aussagekräftige Analyse.");
+  }
+
+  return {
+    coverage: {
+      daysDocumented,
+      daysWithWeather,
+      daysWithDelta24h,
+      ratioWeather,
+      ratioDelta24h,
+    },
+    pressureDelta24h: {
+      enabled: withDelta.length >= 14,
+      confidence,
+      buckets,
+      relativeRisk,
+      notes,
+    },
+    disclaimer: "Rein deskriptive Statistik. Keine Kausalaussage. Individuelle klinische Bewertung erforderlich.",
+  };
+}
+
+/**
+ * Build ME/CFS analysis from entry severity data.
+ */
+function buildMeCfsAnalysis(
+  from: string,
+  to: string,
+  allEntries: RawEntry[]
+): MeCfsAnalysis | null {
+  // Check if any entry has ME/CFS data
+  const hasAnyCfs = allEntries.some(e => 
+    e.me_cfs_severity_level && e.me_cfs_severity_level !== 'none' && e.me_cfs_severity_score !== undefined && e.me_cfs_severity_score > 0
+  );
+  
+  // Also check if any entry explicitly documents ME/CFS (even 'none' = documented)
+  const hasCfsDocumentation = allEntries.some(e => e.me_cfs_severity_level !== undefined);
+  if (!hasCfsDocumentation && !hasAnyCfs) return null;
+
+  const allDates = enumerateDatesInclusive(from, to);
+  const totalDaysInRange = allDates.length;
+
+  // Group by date, take max severity per day
+  const severityOrder: Record<string, number> = { none: 0, mild: 1, moderate: 2, severe: 3 };
+  const dailyMax = new Map<string, string>(); // date -> max severity level
+
+  for (const entry of allEntries) {
+    const date = entry.selected_date;
+    if (!date || date < from || date > to) continue;
+    const level = entry.me_cfs_severity_level || 'none';
+    const current = dailyMax.get(date);
+    if (!current || (severityOrder[level] ?? 0) > (severityOrder[current] ?? 0)) {
+      dailyMax.set(date, level);
+    }
+  }
+
+  const segments: MeCfsSegment[] = [
+    { key: "none", days: 0 },
+    { key: "mild", days: 0 },
+    { key: "moderate", days: 0 },
+    { key: "severe", days: 0 },
+    { key: "undocumented", days: 0 },
+  ];
+
+  for (const date of allDates) {
+    const level = dailyMax.get(date);
+    if (!level) {
+      segments[4].days++;
+    } else {
+      const seg = segments.find(s => s.key === level);
+      if (seg) seg.days++;
+      else segments[0].days++; // fallback to 'none'
+    }
+  }
+
+  const documentedDays = totalDaysInRange - segments[4].days;
+
+  return {
+    segments,
+    documentedDays,
+    totalDaysInRange,
+    sufficient: documentedDays >= 14,
+  };
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 // MAIN BUILDER FUNCTION
 // ════════════════════════════════════════════════════════════════════════════
@@ -307,7 +833,7 @@ export async function buildDoctorReportSnapshot(
   console.log(`[DoctorReportSnapshot] Building snapshot for user=${userId.substring(0, 8)}... range=${range} from=${from} to=${to}`);
 
   // ─────────────────────────────────────────────────────────────────────────
-  // 1) ALLE DATEN PARALLEL LADEN
+  // 1) ALLE DATEN PARALLEL LADEN (extended with symptoms, weather, ME/CFS)
   // ─────────────────────────────────────────────────────────────────────────
 
   const [
@@ -317,11 +843,13 @@ export async function buildDoctorReportSnapshot(
     medicationCoursesResult,
     patientDataResult,
     userMedicationsResult,
+    symptomCatalogResult,
+    weatherLogsResult,
   ] = await Promise.all([
-    // Alle Einträge für Summary/Charts (ohne Limit!)
+    // All entries for summary/charts — now include symptoms_state and ME/CFS fields
     supabase
       .from("pain_entries")
-      .select("id, selected_date, selected_time, pain_level, medications, aura_type, pain_locations, notes, timestamp_created")
+      .select("id, selected_date, selected_time, pain_level, medications, aura_type, pain_locations, notes, timestamp_created, entry_note_is_private, symptoms_state, me_cfs_severity_level, me_cfs_severity_score")
       .eq("user_id", userId)
       .gte("selected_date", from)
       .lte("selected_date", to)
@@ -336,7 +864,7 @@ export async function buildDoctorReportSnapshot(
       .gte("selected_date", from)
       .lte("selected_date", to),
 
-    // Paginierte Einträge für Tabelle (inkl. timestamp_created für Sortierung)
+    // Paginated entries for table
     supabase
       .from("pain_entries")
       .select("id, selected_date, selected_time, pain_level, medications, aura_type, pain_locations, notes, timestamp_created")
@@ -364,19 +892,53 @@ export async function buildDoctorReportSnapshot(
           .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
 
-    // User Medications für Kategorisierung
+    // User Medications for categorization
     supabase
       .from("user_medications")
       .select("id, name, art, effect_category")
       .eq("user_id", userId),
+
+    // Symptom catalog (global)
+    supabase
+      .from("symptom_catalog")
+      .select("id, name")
+      .eq("is_active", true),
+
+    // Weather logs for the range
+    supabase
+      .from("weather_logs")
+      .select("id, snapshot_date, requested_at, pressure_mb, pressure_change_24h, temperature_c, humidity")
+      .eq("user_id", userId)
+      .or(`snapshot_date.gte.${from},requested_at.gte.${from}T00:00:00`)
+      .or(`snapshot_date.lte.${to},requested_at.lte.${to}T23:59:59`)
+      .order("requested_at", { ascending: false })
+      .limit(1000),
   ]);
 
-  const allEntries = allEntriesResult.data || [];
+  const allEntries = (allEntriesResult.data || []) as RawEntry[];
   const totalEntries = entriesCountResult.count || 0;
   const paginatedEntries = paginatedEntriesResult.data || [];
   const medicationCourses = medicationCoursesResult.data || [];
   const patientData = patientDataResult.data;
   const userMedications = userMedicationsResult.data || [];
+  const symptomCatalog = symptomCatalogResult.data || [];
+  const weatherLogs = weatherLogsResult.data || [];
+
+  // ─── Fetch entry_symptoms for entries in range ───────────────────────────
+  const entryIds = allEntries.map(e => e.id);
+  let entrySymptoms: Array<{ entry_id: number; symptom_id: string }> = [];
+  if (entryIds.length > 0) {
+    // Batch fetch in chunks of 500 to avoid query size limits
+    const CHUNK_SIZE = 500;
+    for (let i = 0; i < entryIds.length; i += CHUNK_SIZE) {
+      const chunk = entryIds.slice(i, i + CHUNK_SIZE);
+      const { data } = await supabase
+        .from("entry_symptoms")
+        .select("entry_id, symptom_id")
+        .in("entry_id", chunk);
+      if (data) entrySymptoms = entrySymptoms.concat(data);
+    }
+  }
 
   // ─────────────────────────────────────────────────────────────────────────
   // 2) SOURCE_UPDATED_AT BERECHNEN (für Staleness-Check)
@@ -408,18 +970,13 @@ export async function buildDoctorReportSnapshot(
     (new Date(to).getTime() - new Date(from).getTime()) / (1000 * 60 * 60 * 24)
   ) + 1;
 
-  // Unique date sets
   const painDaysSet = new Set<string>();
   const migraineDaysSet = new Set<string>();
   const triptanDaysSet = new Set<string>();
   const acuteMedDaysSet = new Set<string>();
   const auraDaysSet = new Set<string>();
   const documentedDatesSet = new Set<string>();
-
-  // Intensity für Durchschnitt (Tagesmaximum)
   const dailyMaxIntensity = new Map<string, number>();
-  
-  // NEU: Triptan-Einnahmen zählen (nicht Tage!)
   let totalTriptanIntakes = 0;
 
   allEntries.forEach(entry => {
@@ -430,18 +987,14 @@ export async function buildDoctorReportSnapshot(
 
     const intensity = painLevelToNumber(entry.pain_level);
 
-    // Schmerztag = intensity > 0
     if (entry.pain_level && entry.pain_level !== "-") {
       painDaysSet.add(date);
-
-      // Track daily max intensity
       const currentMax = dailyMaxIntensity.get(date) || 0;
       if (intensity > currentMax) {
         dailyMaxIntensity.set(date, intensity);
       }
     }
 
-    // Migränetag-Heuristik: NRS >= 7 ODER Triptan ODER Aura (nicht "keine")
     const isMigraineCandidate = intensity >= 7
       || (entry.aura_type && entry.aura_type !== "keine")
       || (entry.medications?.some((med: string) => isTriptan(med)));
@@ -449,7 +1002,6 @@ export async function buildDoctorReportSnapshot(
       migraineDaysSet.add(date);
     }
 
-    // Triptantag + Triptan-Einnahmen zählen
     if (entry.medications?.length) {
       entry.medications.forEach((med: string) => {
         if (isTriptan(med)) {
@@ -459,31 +1011,26 @@ export async function buildDoctorReportSnapshot(
       });
     }
 
-    // Akutmedikationstag
     if (entry.medications && entry.medications.length > 0) {
       acuteMedDaysSet.add(date);
     }
 
-    // Auratag
     if (entry.aura_type && entry.aura_type !== "keine") {
       auraDaysSet.add(date);
     }
   });
 
-  // Durchschnittliche Intensität (über Tagesmaximum)
   const dailyMaxValues = Array.from(dailyMaxIntensity.values()).filter(v => v > 0);
   const avgIntensity = dailyMaxValues.length > 0
     ? Math.round((dailyMaxValues.reduce((a, b) => a + b, 0) / dailyMaxValues.length) * 10) / 10
     : 0;
 
-  console.log(`[DoctorReport] KPI summary: headacheDays=${painDaysSet.size}, migraineDays=${migraineDaysSet.size}, triptanDays=${triptanDaysSet.size}, acuteMedDays=${acuteMedDaysSet.size}, avgIntensity=${avgIntensity}, intensityDataPoints=${dailyMaxValues.length}`);
+  console.log(`[DoctorReport] KPI summary: headacheDays=${painDaysSet.size}, migraineDays=${migraineDaysSet.size}, triptanDays=${triptanDaysSet.size}, acuteMedDays=${acuteMedDaysSet.size}, avgIntensity=${avgIntensity}`);
 
-  // Overuse Warning
   const monthsInRange = daysInRange / 30;
   const acuteMedDaysPerMonth = acuteMedDaysSet.size / monthsInRange;
   const overuseWarning = acuteMedDaysPerMonth > 10;
 
-  // Documentation Gaps
   const gapDays = daysInRange - documentedDatesSet.size;
   const documentationGaps: DocumentationGap = {
     gapDays,
@@ -492,9 +1039,6 @@ export async function buildDoctorReportSnapshot(
       : "Vollständig dokumentiert",
   };
 
-  // ─── NEUE KPI-Strukturen ─────────────────────────────────────────────────
-
-  // Normalisierungsfunktion
   const normalize30 = (value: number) => Math.round((value / daysInRange) * 30 * 10) / 10;
 
   const kpis: CoreKPIs = {
@@ -525,7 +1069,6 @@ export async function buildDoctorReportSnapshot(
     avgIntensity,
     overuseWarning,
     documentationGaps,
-    // NEU: Erweiterte KPIs
     kpis,
     normalizedKPIs,
     totalTriptanIntakes,
@@ -535,17 +1078,14 @@ export async function buildDoctorReportSnapshot(
   // 4) CHARTS BAUEN
   // ─────────────────────────────────────────────────────────────────────────
 
-  // Intensity Over Time (sorted by date)
   const intensityOverTime: IntensityDataPoint[] = Array.from(dailyMaxIntensity.entries())
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([date, maxIntensity]) => ({
       date,
       maxIntensity,
-      // isMigraine must match the summary heuristic (NRS>=7 OR aura OR triptan)
       isMigraine: migraineDaysSet.has(date),
     }));
 
-  // Top Acute Meds
   const medCountMap = new Map<string, number>();
   allEntries.forEach(entry => {
     entry.medications?.forEach((med: string) => {
@@ -553,7 +1093,6 @@ export async function buildDoctorReportSnapshot(
     });
   });
 
-  // Kategorisierung via user_medications
   const medCategoryMap = new Map<string, string>();
   userMedications.forEach(um => {
     medCategoryMap.set(um.name, um.art || um.effect_category || "akut");
@@ -577,7 +1116,6 @@ export async function buildDoctorReportSnapshot(
   // 5) TABLES BAUEN
   // ─────────────────────────────────────────────────────────────────────────
 
-  // Entries (paginiert) mit createdAt für konsistente Sortierung
   const entries: DoctorReportEntry[] = paginatedEntries.map(e => ({
     id: e.id,
     date: e.selected_date,
@@ -591,7 +1129,6 @@ export async function buildDoctorReportSnapshot(
     painLocations: e.pain_locations || [],
   }));
 
-  // Prophylaxis Courses
   const prophylaxisCourses: ProphylaxisCourse[] = medicationCourses.map(c => ({
     id: c.id,
     name: c.medication_name,
@@ -604,7 +1141,6 @@ export async function buildDoctorReportSnapshot(
     discontinuationReason: c.discontinuation_reason || null,
   }));
 
-  // Medication Stats mit erweiterten Feldern
   const medEffectMap = new Map<string, { count: number; daysUsed: Set<string>; effects: number[] }>();
   allEntries.forEach(entry => {
     const date = entry.selected_date;
@@ -622,17 +1158,15 @@ export async function buildDoctorReportSnapshot(
     .map(([name, stat]) => ({
       name,
       intakeCount: stat.count,
-      avgEffect: null, // TODO: Integrate medication_effects if needed
+      avgEffect: null,
       effectCount: 0,
       category: medCategoryMap.get(name) || (isTriptan(name) ? "triptan" : "akut"),
-      // NEU: Erweiterte Felder
       daysUsed: stat.daysUsed.size,
       avgPer30: Math.round((stat.count / daysInRange) * 30 * 10) / 10,
       isTriptan: isTriptan(name),
     }))
     .sort((a, b) => b.intakeCount - a.intakeCount);
 
-  // Location Stats
   const locationStats: Record<string, number> = {};
   allEntries.forEach(entry => {
     entry.pain_locations?.forEach((loc: string) => {
@@ -688,7 +1222,44 @@ export async function buildDoctorReportSnapshot(
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // 7) FINAL REPORT JSON
+  // 7) ANALYSIS BLOCK (V1.1 — new clinical analysis for website)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  const analysis: DoctorReportAnalysis = {};
+
+  // A) Symptoms
+  if (entrySymptoms.length > 0 && symptomCatalog.length > 0) {
+    analysis.symptoms = buildSymptomsAnalysis(allEntries, entrySymptoms, symptomCatalog);
+    console.log(`[DoctorReport] Symptoms: ${analysis.symptoms.items.length} unique, ${analysis.symptoms.checkedEntries} checked entries`);
+  }
+
+  // B) Triggers
+  const triggers = buildTriggersAnalysis(allEntries);
+  if (triggers.items.length > 0) {
+    analysis.triggers = triggers;
+    console.log(`[DoctorReport] Triggers: ${triggers.items.length} found from ${triggers.notesAnalyzed} notes`);
+  }
+
+  // C) Detailed headache day donut
+  analysis.headacheDayDonut = buildHeadacheDayDonut(from, to, allEntries);
+  console.log(`[DoctorReport] Donut: painFree=${analysis.headacheDayDonut.painFreeDays} painNoTriptan=${analysis.headacheDayDonut.painDaysNoTriptan} triptan=${analysis.headacheDayDonut.triptanDays}`);
+
+  // D) Weather
+  const weatherAnalysis = buildWeatherAnalysis(from, to, allEntries, weatherLogs);
+  if (weatherAnalysis) {
+    analysis.weather = weatherAnalysis;
+    console.log(`[DoctorReport] Weather: ${weatherAnalysis.coverage.daysWithDelta24h} days with delta, confidence=${weatherAnalysis.pressureDelta24h.confidence}`);
+  }
+
+  // E) ME/CFS
+  const mecfs = buildMeCfsAnalysis(from, to, allEntries);
+  if (mecfs) {
+    analysis.mecfs = mecfs;
+    console.log(`[DoctorReport] ME/CFS: ${mecfs.documentedDays} documented, sufficient=${mecfs.sufficient}`);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 8) FINAL REPORT JSON
   // ─────────────────────────────────────────────────────────────────────────
 
   const meta: DoctorReportMeta = {
@@ -719,9 +1290,10 @@ export async function buildDoctorReportSnapshot(
     charts,
     tables,
     optional,
+    analysis: Object.keys(analysis).length > 0 ? analysis : undefined,
   };
 
-  console.log(`[DoctorReportSnapshot] Built snapshot: userId=${userId.substring(0, 8)}... entriesCount=${totalEntries} daysWithEntries=${documentedDatesSet.size} from=${from} to=${to} painDays=${painDaysSet.size} paginatedEntries=${entries.length}`);
+  console.log(`[DoctorReportSnapshot] Built snapshot: userId=${userId.substring(0, 8)}... entriesCount=${totalEntries} daysWithEntries=${documentedDatesSet.size} from=${from} to=${to} painDays=${painDaysSet.size} paginatedEntries=${entries.length} analysisBlocks=${Object.keys(analysis).length}`);
 
   return {
     reportJson,
@@ -785,8 +1357,7 @@ export async function isSnapshotStale(
 
   const { from, to } = getDateRange(range);
 
-  // Check latest update in pain_entries AND count entries
-  const [latestEntryResult, entryCountResult, latestCourseResult] = await Promise.all([
+  const [latestEntryResult, _entryCountResult, latestCourseResult] = await Promise.all([
     supabase
       .from("pain_entries")
       .select("timestamp_created")
@@ -827,10 +1398,7 @@ export async function isSnapshotStale(
 }
 
 /**
- * Check if a cached snapshot should be force-rebuilt:
- * - TTL expired (>10 min)
- * - Snapshot shows 0 entries but DB has entries
- * - Snapshot shows 0 headache days but DB has pain entries
+ * Check if a cached snapshot should be force-rebuilt
  */
 export async function shouldForceRebuild(
   supabase: SupabaseClient,
@@ -838,13 +1406,11 @@ export async function shouldForceRebuild(
   userId: string,
   range: string
 ): Promise<{ rebuild: boolean; reason: string }> {
-  // 1) TTL check
   const age = Date.now() - new Date(cached.generatedAt).getTime();
   if (age > SNAPSHOT_TTL_MS) {
     return { rebuild: true, reason: `TTL expired (${Math.round(age / 1000)}s old)` };
   }
 
-  // 2) Empty snapshot but entries exist
   const snapshotEntriesTotal = cached.reportJson?.tables?.entriesTotal ?? 0;
   const snapshotHeadacheDays = cached.reportJson?.summary?.headacheDays ?? 0;
 
