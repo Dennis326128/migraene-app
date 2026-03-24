@@ -114,12 +114,16 @@ const localDateTimeToISO = (dateStr: string, timeStr: string): string => {
 const getTodayDate = (): string => format(new Date(), 'yyyy-MM-dd');
 
 /**
- * Auto-generate a sensible title based on reminder type and context
+ * Auto-generate a sensible title based on reminder type and context.
+ * For appointments, uses SSOT getReminderDisplayTitle.
  */
 function generateAutoTitle(
   type: 'medication' | 'appointment' | 'todo',
   medications: string[],
-  timeOfDay?: TimeOfDay | null
+  timeOfDay?: TimeOfDay | null,
+  customTitle?: string | null,
+  doctorId?: string | null,
+  doctorName?: string | null
 ): string {
   switch (type) {
     case 'medication':
@@ -130,7 +134,10 @@ function generateAutoTitle(
       }
       return 'Medikament einnehmen';
     case 'appointment':
-      return 'Arzttermin';
+      return getReminderDisplayTitle(
+        { type: 'appointment', title: 'Termin', custom_title: customTitle, doctor_id: doctorId },
+        doctorName
+      );
     case 'todo':
       return 'Erinnerung';
     default:
