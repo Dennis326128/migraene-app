@@ -88,6 +88,10 @@ export interface IntensityDataPoint {
   date: string;
   maxIntensity: number;
   isMigraine: boolean;
+  /** Daily temperature in °C (from weather_logs) */
+  temperatureC?: number | null;
+  /** Daily pressure in mbar (from weather_logs) */
+  pressureMb?: number | null;
 }
 
 export interface MedicationChartItem {
@@ -96,9 +100,17 @@ export interface MedicationChartItem {
   category?: string;
 }
 
+/** Time-of-day distribution item (hourly histogram) */
+export interface TimeDistributionItem {
+  hour: number;
+  count: number;
+}
+
 export interface DoctorReportCharts {
   intensityOverTime: IntensityDataPoint[];
   topAcuteMeds: MedicationChartItem[];
+  /** Hourly distribution of pain entries (0-23) */
+  timeDistribution?: TimeDistributionItem[];
 }
 
 export interface DoctorReportEntry {
@@ -139,6 +151,12 @@ export interface MedicationStat {
   avgPer30?: number;
   /** Is triptan flag */
   isTriptan?: boolean;
+  /** Intakes in last 30 days of range */
+  last30Intakes?: number;
+  /** Average effect as percentage (0-100), null if no ratings */
+  avgEffectPercent?: number | null;
+  /** Number of entries with actual effect ratings */
+  ratedCount?: number;
 }
 
 export interface DoctorReportTables {
@@ -181,6 +199,14 @@ export interface SymptomStatItem {
   count: number;
   /** Percentage relative to checked episodes (symptoms_state viewed/edited) */
   percentageOfChecked: number;
+  /** Clinical group classification */
+  group?: 'migraine' | 'neurological' | 'other';
+  /** User-assigned burden level (1-4, null if not set) */
+  burdenLevel?: number | null;
+  /** Human-readable burden label (DE) */
+  burdenLabel?: string;
+  /** Composite relevance score (frequency × burden weight) */
+  relevanceScore?: number;
 }
 
 /** Accompanying symptoms analysis */
@@ -276,6 +302,14 @@ export interface MeCfsAnalysis {
   totalDaysInRange: number;
   /** Guard: only show if documented >= 14 */
   sufficient: boolean;
+  /** Average severity score (only documented days with score > 0) */
+  avgScore?: number | null;
+  /** Peak severity score */
+  peakScore?: number | null;
+  /** Peak severity label (mild/moderate/severe) */
+  peakLabel?: string | null;
+  /** Documentation rate = documentedDays / totalDaysInRange */
+  documentationRate?: number;
 }
 
 /** Full analysis block (all optional sub-fields) */
@@ -322,6 +356,48 @@ const TRIPTAN_KEYWORDS = [
   "imigran", "maxalt", "ascotop", "naramig", "almogran",
   "relpax", "allegro", "dolotriptan", "formigran"
 ];
+
+// ── Symptom classification (mirrored from src/lib/pdf/symptomSection.ts) ──
+const MIGRAINE_SYMPTOMS = [
+  'lichtempfindlichkeit', 'photophobie',
+  'geraeuschempfindlichkeit', 'geräuschempfindlichkeit', 'phonophobie',
+  'uebelkeit', 'übelkeit', 'erbrechen',
+  'appetitlosigkeit', 'geruchsempfindlichkeit',
+];
+const NEUROLOGICAL_SYMPTOMS = [
+  'wortfindungsstoerung', 'wortfindungsstörung',
+  'konzentrationsstoerung', 'konzentrationsstörung', 'konzentrationsprobleme',
+  'sehstoerung', 'sehstörung', 'sehstörungen', 'verschwommensehen',
+  'schwindel', 'taubheitsgefuehl', 'taubheitsgefühl',
+  'kribbeln', 'sprachstoerung', 'sprachstörung', 'aura',
+];
+
+function classifySymptom(name: string): 'migraine' | 'neurological' | 'other' {
+  const lower = name.toLowerCase().trim();
+  if (MIGRAINE_SYMPTOMS.some(s => lower.includes(s))) return 'migraine';
+  if (NEUROLOGICAL_SYMPTOMS.some(s => lower.includes(s))) return 'neurological';
+  return 'other';
+}
+
+// ── Burden labels (mirrored from useSymptomBurden.ts) ──
+const BURDEN_LABELS: Record<number, string> = {
+  0: "",
+  1: "gering",
+  2: "moderat",
+  3: "ausgeprägt",
+  4: "führendes Leitsymptom",
+};
+const BURDEN_WEIGHTS: Record<number, number> = {
+  0: 1.0, 1: 1.1, 2: 1.2, 3: 1.35, 4: 1.5,
+};
+
+// ── ME/CFS severity label mapping ──
+function meCfsSeverityLabel(score: number): string {
+  if (score <= 0) return 'none';
+  if (score <= 3) return 'mild';
+  if (score <= 6) return 'moderate';
+  return 'severe';
+}
 
 // Pain Level Mapping
 const PAIN_LEVEL_TO_NUMBER: Record<string, number> = {
@@ -446,11 +522,13 @@ interface RawEntry {
 
 /**
  * Build symptoms analysis from entry_symptoms + symptom_catalog data.
+ * Enhanced with group, burden, and relevance for PDF-parity.
  */
 function buildSymptomsAnalysis(
   allEntries: RawEntry[],
   entrySymptoms: Array<{ entry_id: number; symptom_id: string }>,
-  symptomCatalog: Array<{ id: string; name: string }>
+  symptomCatalog: Array<{ id: string; name: string }>,
+  burdenData: Array<{ symptom_key: string; burden_level: number | null }>
 ): SymptomsAnalysis {
   const catalogMap = new Map(symptomCatalog.map(s => [s.id, s.name]));
   const totalEntries = allEntries.length;
@@ -462,14 +540,23 @@ function buildSymptomsAnalysis(
       .map(e => e.id)
   );
   const checkedEntries = checkedEntryIds.size;
+  const basisCount = checkedEntries > 0 ? checkedEntries : totalEntries;
 
-  // Count symptoms only for checked entries (avoids 96% bias)
+  // Build burden map: symptom_key → burden_level
+  const burdenMap = new Map<string, number>();
+  for (const b of burdenData) {
+    if (b.burden_level !== null && b.burden_level > 0) {
+      burdenMap.set(b.symptom_key, b.burden_level);
+    }
+  }
+
+  // Count symptoms (only for checked entries if available, else all)
   const counts = new Map<string, number>();
   let entriesWithSymptoms = 0;
   const entriesHavingSymptom = new Set<number>();
 
   for (const es of entrySymptoms) {
-    if (!checkedEntryIds.has(es.entry_id)) continue;
+    if (checkedEntries > 0 && !checkedEntryIds.has(es.entry_id)) continue;
     entriesHavingSymptom.add(es.entry_id);
     const name = catalogMap.get(es.symptom_id) || es.symptom_id;
     counts.set(name, (counts.get(name) || 0) + 1);
@@ -477,12 +564,22 @@ function buildSymptomsAnalysis(
   entriesWithSymptoms = entriesHavingSymptom.size;
 
   const items: SymptomStatItem[] = Array.from(counts.entries())
-    .map(([name, count]) => ({
-      name,
-      count,
-      percentageOfChecked: checkedEntries > 0 ? Math.round((count / checkedEntries) * 100) : 0,
-    }))
-    .sort((a, b) => b.count - a.count);
+    .map(([name, count]) => {
+      const pct = basisCount > 0 ? Math.round((count / basisCount) * 100) : 0;
+      const bl = burdenMap.get(name) ?? null;
+      const bw = BURDEN_WEIGHTS[bl ?? 0] ?? 1.0;
+      const relevance = (count / Math.max(basisCount, 1)) * bw;
+      return {
+        name,
+        count,
+        percentageOfChecked: pct,
+        group: classifySymptom(name),
+        burdenLevel: bl,
+        burdenLabel: bl !== null && bl > 0 ? (BURDEN_LABELS[bl] || "nicht festgelegt") : "nicht festgelegt",
+        relevanceScore: Math.round(relevance * 1000) / 1000,
+      };
+    })
+    .sort((a, b) => (b.relevanceScore ?? 0) - (a.relevanceScore ?? 0));
 
   return { items, totalEntries, checkedEntries, entriesWithSymptoms };
 }
@@ -795,11 +892,34 @@ function buildMeCfsAnalysis(
 
   const documentedDays = totalDaysInRange - segments[4].days;
 
+  // Compute avg and peak from me_cfs_severity_score
+  const scores: number[] = [];
+  for (const entry of allEntries) {
+    const date = entry.selected_date;
+    if (!date || date < from || date > to) continue;
+    if (entry.me_cfs_severity_score !== undefined && entry.me_cfs_severity_score > 0) {
+      scores.push(entry.me_cfs_severity_score);
+    }
+  }
+
+  const avgScore = scores.length > 0
+    ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10
+    : null;
+  const peakScore = scores.length > 0 ? Math.max(...scores) : null;
+  const peakLabel = peakScore !== null ? meCfsSeverityLabel(peakScore) : null;
+  const documentationRate = totalDaysInRange > 0
+    ? Math.round((documentedDays / totalDaysInRange) * 1000) / 10
+    : 0;
+
   return {
     segments,
     documentedDays,
     totalDaysInRange,
     sufficient: documentedDays >= 14,
+    avgScore,
+    peakScore,
+    peakLabel,
+    documentationRate,
   };
 }
 
@@ -845,6 +965,9 @@ export async function buildDoctorReportSnapshot(
     userMedicationsResult,
     symptomCatalogResult,
     weatherLogsResult,
+    symptomBurdenResult,
+    medicationEffectsResult,
+    medicationIntakesLast30Result,
   ] = await Promise.all([
     // All entries for summary/charts — now include symptoms_state and ME/CFS fields
     supabase
@@ -913,6 +1036,29 @@ export async function buildDoctorReportSnapshot(
       .or(`snapshot_date.lte.${to},requested_at.lte.${to}T23:59:59`)
       .order("requested_at", { ascending: false })
       .limit(1000),
+
+    // NEW: User symptom burden levels
+    supabase
+      .from("user_symptom_burden")
+      .select("symptom_key, burden_level")
+      .eq("user_id", userId),
+
+    // NEW: Medication effects for entries in range (fetched via entry join)
+    supabase
+      .from("medication_effects")
+      .select("med_name, effect_score, entry_id")
+      .not("effect_score", "is", null),
+
+    // NEW: Medication intakes in last 30 days of range
+    (() => {
+      const last30From = new Date(new Date(to).getTime() - 29 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      return supabase
+        .from("medication_intakes")
+        .select("medication_name, taken_date")
+        .eq("user_id", userId)
+        .gte("taken_date", last30From)
+        .lte("taken_date", to);
+    })(),
   ]);
 
   const allEntries = (allEntriesResult.data || []) as RawEntry[];
@@ -923,6 +1069,13 @@ export async function buildDoctorReportSnapshot(
   const userMedications = userMedicationsResult.data || [];
   const symptomCatalog = symptomCatalogResult.data || [];
   const weatherLogs = weatherLogsResult.data || [];
+  const symptomBurdenData = (symptomBurdenResult.data || []) as Array<{ symptom_key: string; burden_level: number | null }>;
+  const allMedEffects = (medicationEffectsResult.data || []) as Array<{ med_name: string; effect_score: number | null; entry_id: number }>;
+  const last30Intakes = (medicationIntakesLast30Result.data || []) as Array<{ medication_name: string; taken_date: string }>;
+
+  // Filter medication_effects to only entries in range
+  const entryIdSet = new Set(allEntries.map(e => e.id));
+  const rangeEffects = allMedEffects.filter(e => entryIdSet.has(e.entry_id));
 
   // ─── Fetch entry_symptoms for entries in range ───────────────────────────
   const entryIds = allEntries.map(e => e.id);
@@ -1078,13 +1231,44 @@ export async function buildDoctorReportSnapshot(
   // 4) CHARTS BAUEN
   // ─────────────────────────────────────────────────────────────────────────
 
+  // Build weather-by-date map for chart enrichment
+  const weatherByDateForChart = new Map<string, { temp: number | null; pressure: number | null }>();
+  for (const log of weatherLogs) {
+    const date = (log as any).snapshot_date || ((log as any).requested_at ? (log as any).requested_at.split('T')[0] : null);
+    if (!date || weatherByDateForChart.has(date)) continue;
+    weatherByDateForChart.set(date, {
+      temp: (log as any).temperature_c ?? null,
+      pressure: (log as any).pressure_mb ?? null,
+    });
+  }
+
   const intensityOverTime: IntensityDataPoint[] = Array.from(dailyMaxIntensity.entries())
     .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([date, maxIntensity]) => ({
-      date,
-      maxIntensity,
-      isMigraine: migraineDaysSet.has(date),
-    }));
+    .map(([date, maxIntensity]) => {
+      const w = weatherByDateForChart.get(date);
+      return {
+        date,
+        maxIntensity,
+        isMigraine: migraineDaysSet.has(date),
+        temperatureC: w?.temp ?? null,
+        pressureMb: w?.pressure ?? null,
+      };
+    });
+
+  // Time-of-day histogram
+  const hourCounts = new Map<number, number>();
+  for (const entry of allEntries) {
+    if (!entry.selected_time || entry.pain_level === '-') continue;
+    const hourMatch = entry.selected_time.match(/^(\d{1,2}):/);
+    if (!hourMatch) continue;
+    const hour = parseInt(hourMatch[1], 10);
+    if (hour >= 0 && hour <= 23) {
+      hourCounts.set(hour, (hourCounts.get(hour) || 0) + 1);
+    }
+  }
+  const timeDistribution: TimeDistributionItem[] = Array.from(hourCounts.entries())
+    .map(([hour, count]) => ({ hour, count }))
+    .sort((a, b) => a.hour - b.hour);
 
   const medCountMap = new Map<string, number>();
   allEntries.forEach(entry => {
@@ -1110,6 +1294,7 @@ export async function buildDoctorReportSnapshot(
   const charts: DoctorReportCharts = {
     intensityOverTime,
     topAcuteMeds,
+    timeDistribution: timeDistribution.length > 0 ? timeDistribution : undefined,
   };
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -1141,6 +1326,24 @@ export async function buildDoctorReportSnapshot(
     discontinuationReason: c.discontinuation_reason || null,
   }));
 
+  // Build effect aggregation from medication_effects
+  const medEffectAgg = new Map<string, { scores: number[]; count: number }>();
+  for (const eff of rangeEffects) {
+    if (eff.effect_score === null) continue;
+    if (!medEffectAgg.has(eff.med_name)) {
+      medEffectAgg.set(eff.med_name, { scores: [], count: 0 });
+    }
+    const agg = medEffectAgg.get(eff.med_name)!;
+    agg.scores.push(eff.effect_score);
+    agg.count++;
+  }
+
+  // Build last30 intake counts per med
+  const last30CountMap = new Map<string, number>();
+  for (const intake of last30Intakes) {
+    last30CountMap.set(intake.medication_name, (last30CountMap.get(intake.medication_name) || 0) + 1);
+  }
+
   const medEffectMap = new Map<string, { count: number; daysUsed: Set<string>; effects: number[] }>();
   allEntries.forEach(entry => {
     const date = entry.selected_date;
@@ -1155,16 +1358,27 @@ export async function buildDoctorReportSnapshot(
   });
 
   const medicationStats: MedicationStat[] = Array.from(medEffectMap.entries())
-    .map(([name, stat]) => ({
-      name,
-      intakeCount: stat.count,
-      avgEffect: null,
-      effectCount: 0,
-      category: medCategoryMap.get(name) || (isTriptan(name) ? "triptan" : "akut"),
-      daysUsed: stat.daysUsed.size,
-      avgPer30: Math.round((stat.count / daysInRange) * 30 * 10) / 10,
-      isTriptan: isTriptan(name),
-    }))
+    .map(([name, stat]) => {
+      const effAgg = medEffectAgg.get(name);
+      const avgEffPct = effAgg && effAgg.scores.length > 0
+        ? Math.round((effAgg.scores.reduce((a, b) => a + b, 0) / effAgg.scores.length) / 10 * 100)
+        : null;
+      return {
+        name,
+        intakeCount: stat.count,
+        avgEffect: effAgg && effAgg.scores.length > 0
+          ? Math.round((effAgg.scores.reduce((a, b) => a + b, 0) / effAgg.scores.length) * 10) / 10
+          : null,
+        effectCount: effAgg?.count ?? 0,
+        category: medCategoryMap.get(name) || (isTriptan(name) ? "triptan" : "akut"),
+        daysUsed: stat.daysUsed.size,
+        avgPer30: Math.round((stat.count / daysInRange) * 30 * 10) / 10,
+        isTriptan: isTriptan(name),
+        last30Intakes: last30CountMap.get(name) ?? 0,
+        avgEffectPercent: avgEffPct,
+        ratedCount: effAgg?.count ?? 0,
+      };
+    })
     .sort((a, b) => b.intakeCount - a.intakeCount);
 
   const locationStats: Record<string, number> = {};
@@ -1229,7 +1443,7 @@ export async function buildDoctorReportSnapshot(
 
   // A) Symptoms
   if (entrySymptoms.length > 0 && symptomCatalog.length > 0) {
-    analysis.symptoms = buildSymptomsAnalysis(allEntries, entrySymptoms, symptomCatalog);
+    analysis.symptoms = buildSymptomsAnalysis(allEntries, entrySymptoms, symptomCatalog, symptomBurdenData);
     console.log(`[DoctorReport] Symptoms: ${analysis.symptoms.items.length} unique, ${analysis.symptoms.checkedEntries} checked entries`);
   }
 
