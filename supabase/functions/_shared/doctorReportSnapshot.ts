@@ -1069,6 +1069,13 @@ export async function buildDoctorReportSnapshot(
   const userMedications = userMedicationsResult.data || [];
   const symptomCatalog = symptomCatalogResult.data || [];
   const weatherLogs = weatherLogsResult.data || [];
+  const symptomBurdenData = (symptomBurdenResult.data || []) as Array<{ symptom_key: string; burden_level: number | null }>;
+  const allMedEffects = (medicationEffectsResult.data || []) as Array<{ med_name: string; effect_score: number | null; entry_id: number }>;
+  const last30Intakes = (medicationIntakesLast30Result.data || []) as Array<{ medication_name: string; taken_date: string }>;
+
+  // Filter medication_effects to only entries in range
+  const entryIdSet = new Set(allEntries.map(e => e.id));
+  const rangeEffects = allMedEffects.filter(e => entryIdSet.has(e.entry_id));
 
   // ─── Fetch entry_symptoms for entries in range ───────────────────────────
   const entryIds = allEntries.map(e => e.id);
