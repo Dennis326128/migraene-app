@@ -522,11 +522,13 @@ interface RawEntry {
 
 /**
  * Build symptoms analysis from entry_symptoms + symptom_catalog data.
+ * Enhanced with group, burden, and relevance for PDF-parity.
  */
 function buildSymptomsAnalysis(
   allEntries: RawEntry[],
   entrySymptoms: Array<{ entry_id: number; symptom_id: string }>,
-  symptomCatalog: Array<{ id: string; name: string }>
+  symptomCatalog: Array<{ id: string; name: string }>,
+  burdenData: Array<{ symptom_key: string; burden_level: number | null }>
 ): SymptomsAnalysis {
   const catalogMap = new Map(symptomCatalog.map(s => [s.id, s.name]));
   const totalEntries = allEntries.length;
@@ -538,14 +540,23 @@ function buildSymptomsAnalysis(
       .map(e => e.id)
   );
   const checkedEntries = checkedEntryIds.size;
+  const basisCount = checkedEntries > 0 ? checkedEntries : totalEntries;
 
-  // Count symptoms only for checked entries (avoids 96% bias)
+  // Build burden map: symptom_key → burden_level
+  const burdenMap = new Map<string, number>();
+  for (const b of burdenData) {
+    if (b.burden_level !== null && b.burden_level > 0) {
+      burdenMap.set(b.symptom_key, b.burden_level);
+    }
+  }
+
+  // Count symptoms (only for checked entries if available, else all)
   const counts = new Map<string, number>();
   let entriesWithSymptoms = 0;
   const entriesHavingSymptom = new Set<number>();
 
   for (const es of entrySymptoms) {
-    if (!checkedEntryIds.has(es.entry_id)) continue;
+    if (checkedEntries > 0 && !checkedEntryIds.has(es.entry_id)) continue;
     entriesHavingSymptom.add(es.entry_id);
     const name = catalogMap.get(es.symptom_id) || es.symptom_id;
     counts.set(name, (counts.get(name) || 0) + 1);
@@ -553,12 +564,22 @@ function buildSymptomsAnalysis(
   entriesWithSymptoms = entriesHavingSymptom.size;
 
   const items: SymptomStatItem[] = Array.from(counts.entries())
-    .map(([name, count]) => ({
-      name,
-      count,
-      percentageOfChecked: checkedEntries > 0 ? Math.round((count / checkedEntries) * 100) : 0,
-    }))
-    .sort((a, b) => b.count - a.count);
+    .map(([name, count]) => {
+      const pct = basisCount > 0 ? Math.round((count / basisCount) * 100) : 0;
+      const bl = burdenMap.get(name) ?? null;
+      const bw = BURDEN_WEIGHTS[bl ?? 0] ?? 1.0;
+      const relevance = (count / Math.max(basisCount, 1)) * bw;
+      return {
+        name,
+        count,
+        percentageOfChecked: pct,
+        group: classifySymptom(name),
+        burdenLevel: bl,
+        burdenLabel: bl !== null && bl > 0 ? (BURDEN_LABELS[bl] || "nicht festgelegt") : "nicht festgelegt",
+        relevanceScore: Math.round(relevance * 1000) / 1000,
+      };
+    })
+    .sort((a, b) => (b.relevanceScore ?? 0) - (a.relevanceScore ?? 0));
 
   return { items, totalEntries, checkedEntries, entriesWithSymptoms };
 }
