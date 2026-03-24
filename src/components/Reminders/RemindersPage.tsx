@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/ui/page-header';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ReminderCard } from './ReminderCard';
-import { groupReminders, type GroupedReminder } from '@/features/reminders/helpers/groupReminders';
+import { groupReminders, type GroupedReminder, type DoctorsMap } from '@/features/reminders/helpers/groupReminders';
 import { ReminderForm } from './ReminderForm';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useRelativeTime } from '@/features/reminders/hooks/useRelativeTime';
