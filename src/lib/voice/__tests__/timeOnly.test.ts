@@ -13,10 +13,10 @@ describe('parseOccurredAt - Zeitparser', () => {
   });
 
   describe('Relative Zeitangaben', () => {
-    it('Relativ: "vor 2 Stunden" → 12:45 Berlin (10:45 UTC)', () => {
+    it('Relativ: "vor 2 Stunden" → 12:30 Berlin (10:30 UTC)', () => {
       const result = parseOccurredAt('Hatte vor 2 Stunden Kopfschmerzen');
-      // 14:37 - 2h = 12:37 → gerundet 12:45 Berlin = 10:45 UTC
-      expect(result).toBe('2025-10-16T10:45:00.000Z');
+      // 14:37 - 2h = 12:37 → Math.round(37/15)*15 = 30 → 12:30 Berlin = 10:30 UTC
+      expect(result).toBe('2025-10-16T10:30:00.000Z');
     });
 
     it('Relativ: "vor 30 Minuten" → 14:00 Berlin (12:00 UTC)', () => {
@@ -31,10 +31,10 @@ describe('parseOccurredAt - Zeitparser', () => {
       expect(result).toBe('2025-10-16T12:30:00.000Z');
     });
 
-    it('Relativ: "vor 1 Tag" → gestern 14:45 Berlin', () => {
+    it('Relativ: "vor 1 Tag" → gestern 14:30 Berlin', () => {
       const result = parseOccurredAt('vor 1 Tag Migräne gehabt');
-      // 15.10. 14:37 → gerundet 14:45 Berlin = 12:45 UTC
-      expect(result).toBe('2025-10-15T12:45:00.000Z');
+      // 15.10. 14:37 → Math.round(37/15)*15 = 30 → 14:30 Berlin = 12:30 UTC
+      expect(result).toBe('2025-10-15T12:30:00.000Z');
     });
   });
 
@@ -94,19 +94,21 @@ describe('parseOccurredAt - Zeitparser', () => {
   describe('Fallback & Rundung', () => {
     it('Fallback: Keine Zeitangabe → jetzt (gerundet auf 15 Min)', () => {
       const result = parseOccurredAt('Hatte starke Kopfschmerzen');
-      // 14:37 → gerundet 14:45 Berlin = 12:45 UTC
-      expect(result).toBe('2025-10-16T12:45:00.000Z');
+      // 14:37 → Math.round(37/15)*15 = 30 → 14:30 Berlin = 12:30 UTC
+      expect(result).toBe('2025-10-16T12:30:00.000Z');
     });
 
-    it('Rundung: 14:37 → 14:45', () => {
+    it('Rundung: 14:37 → 14:30', () => {
       const result = parseOccurredAt('jetzt gerade');
-      expect(result).toBe('2025-10-16T12:45:00.000Z');
+      // Math.round(37/15) = Math.round(2.47) = 2 → 2*15 = 30
+      expect(result).toBe('2025-10-16T12:30:00.000Z');
     });
 
-    it('Rundung: 14:08 → 14:00', () => {
+    it('Rundung: 14:08 → 14:15', () => {
       vi.setSystemTime(new Date('2025-10-16T12:08:00.000Z')); // 14:08 Berlin
       const result = parseOccurredAt('gerade eben');
-      expect(result).toBe('2025-10-16T12:00:00.000Z'); // 14:00 Berlin
+      // Math.round(8/15) = Math.round(0.53) = 1 → 1*15 = 15
+      expect(result).toBe('2025-10-16T12:15:00.000Z'); // 14:15 Berlin
     });
   });
 
@@ -137,14 +139,14 @@ describe('parseOccurredAt - Zeitparser', () => {
 
     it('Mehrere Zeitangaben: nimmt erste', () => {
       const result = parseOccurredAt('vor 2 Stunden um 14 Uhr');
-      // "vor 2 Stunden" wird zuerst gematcht
-      expect(result).toBe('2025-10-16T10:45:00.000Z');
+      // "vor 2 Stunden" wird zuerst gematcht → 12:37 Berlin → 12:30
+      expect(result).toBe('2025-10-16T10:30:00.000Z');
     });
 
     it('Unvollständige Zeit wird ignoriert', () => {
       const result = parseOccurredAt('irgendwann heute');
-      // Fallback: jetzt gerundet
-      expect(result).toBe('2025-10-16T12:45:00.000Z');
+      // Fallback: jetzt gerundet → 14:37 → 14:30
+      expect(result).toBe('2025-10-16T12:30:00.000Z');
     });
   });
 });

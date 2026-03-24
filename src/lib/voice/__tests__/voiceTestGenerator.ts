@@ -82,10 +82,20 @@ function generateK1(rng: ReturnType<typeof createRng>, count: number): GoldenCas
     const parts = [filler, booster, intensity.word, noun].filter(Boolean);
     const transcript = parts.join(' ');
     
-    // Adjust pain for booster
+    // Match actual parser INTENSITY_WORD_MAP first-match behavior:
+    // Pattern order: 0(keine)→1(sehr leichte)→3(leichte)→5(mittel*)→9(sehr starke|extreme|...)→7(starke|heftige|schlimme)
+    // "sehr starke" matches pattern 9, "sehr leichte" matches pattern 1
+    // "extrem" matches pattern 9's "extreme?r?" — but only wins if no earlier pattern matches first
     let expectedPain = intensity.pain;
-    if (booster === 'sehr' || booster === 'extrem' || booster === 'richtig') {
+    if (booster === 'sehr') {
+      if (intensity.word === 'starke') expectedPain = 9;   // "sehr starke" in pattern 9
+      else if (intensity.word === 'leichte') expectedPain = 1; // "sehr leichte" in pattern 1
+      // "sehr heftige/schlimme/mittelstarke" → base word matches first
+    } else if (booster === 'extrem') {
+      // "extrem" matches pattern 9 (position 4), so it wins over patterns at position 5+ (starke/heftige/schlimme)
+      // but loses to patterns at position 3- (leichte=2, mittelstarke=3)
       if (intensity.pain >= 7) expectedPain = 9;
+      // leichte/mittelstarke match earlier → keep base value
     }
     
     cases.push({
@@ -115,7 +125,10 @@ function generateK4(rng: ReturnType<typeof createRng>, count: number): GoldenCas
     const transcript = parts.join(' ');
     
     let expectedPain = intensity.pain;
-    if (booster === 'sehr' || booster === 'extrem' || booster === 'richtig') {
+    if (booster === 'sehr') {
+      if (intensity.word === 'starke') expectedPain = 9;
+      else if (intensity.word === 'leichte') expectedPain = 1;
+    } else if (booster === 'extrem') {
       if (intensity.pain >= 7) expectedPain = 9;
     }
     
@@ -136,20 +149,30 @@ function generateK4(rng: ReturnType<typeof createRng>, count: number): GoldenCas
 /** Generate K7 variations: STT errors in pain context */
 function generateK7(rng: ReturnType<typeof createRng>, count: number): GoldenCase[] {
   const cases: GoldenCase[] = [];
+  
+  // Only mutations that the parser recognizes as pain nouns (fuzzy-matched to Kopfschmerzen/Migräne)
+  const painNounMutations = STT_PAIN_MUTATIONS.filter(m => 
+    m.original === 'Kopfschmerzen' || m.original === 'Migräne'
+  );
+  // Mutations of "Schmerzstärke" only work with a trailing number (e.g., "schnellstärke 4")
+  const scaleWordMutations = STT_PAIN_MUTATIONS.filter(m => m.original === 'Schmerzstärke');
+  
   for (let i = 0; i < count; i++) {
-    const mutation = rng.pick(STT_PAIN_MUTATIONS);
-    const booster = rng.pick(BOOSTERS);
-    const intensity = rng.pick(INTENSITY_WORDS);
-    
-    // Some cases: "Schmerzstrecke 5", some: "sehr starke gekoppelschmerzen"
     const useDescriptor = rng.next() > 0.5;
     
-    if (useDescriptor) {
+    if (useDescriptor && painNounMutations.length > 0) {
+      // Descriptor + pain noun mutation: "sehr starke gekoppelschmerzen"
+      const mutation = rng.pick(painNounMutations);
+      const booster = rng.pick(BOOSTERS);
+      const intensity = rng.pick(INTENSITY_WORDS);
       const parts = [booster, intensity.word, mutation.mutated].filter(Boolean);
       const transcript = parts.join(' ');
       
       let expectedPain = intensity.pain;
-      if (booster === 'sehr' || booster === 'extrem') {
+      if (booster === 'sehr') {
+        if (intensity.word === 'starke') expectedPain = 9;
+        else if (intensity.word === 'leichte') expectedPain = 1;
+      } else if (booster === 'extrem') {
         if (intensity.pain >= 7) expectedPain = 9;
       }
       
@@ -164,6 +187,8 @@ function generateK7(rng: ReturnType<typeof createRng>, count: number): GoldenCas
         }
       });
     } else {
+      // Scale word mutation + number: "schnellstärke 4"
+      const mutation = scaleWordMutations.length > 0 ? rng.pick(scaleWordMutations) : rng.pick(STT_PAIN_MUTATIONS);
       const painNum = Math.floor(rng.next() * 10) + 1;
       const transcript = `${mutation.mutated} ${painNum}`;
       
