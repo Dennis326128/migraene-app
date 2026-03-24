@@ -360,10 +360,14 @@ export async function countMigraineDays(
 }
 
 /**
- * Zählt schmerzfreie Tage im Zeitraum
- * Ein Tag gilt als schmerzfrei, wenn:
- * - Kein Eintrag an diesem Tag existiert ODER
- * - Alle Einträge an diesem Tag pain_level = 'keine' oder '-' haben
+ * Zählt schmerzfreie Tage im Zeitraum.
+ * Ein Tag gilt als schmerzfrei, wenn kein Eintrag mit echtem Schmerz existiert.
+ *
+ * Pain-free values (SSOT): 'keine', '0', '-', '' / null / undefined
+ *   - '0' must be included because new entries store NRS 0-10 as numeric strings
+ *   - 'keine' is the legacy text value for "no pain"
+ *   - '-' and empty are placeholders for missing data
+ * Everything else (numeric > 0, legacy text like 'leicht'/'stark') = pain day.
  */
 export async function countPainFreeDays(
   userId: string,
