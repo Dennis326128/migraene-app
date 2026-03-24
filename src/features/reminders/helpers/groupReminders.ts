@@ -136,7 +136,7 @@ export function groupReminders(reminders: Reminder[], doctorsMap?: DoctorsMap): 
       timesPerDay,
       isRecurring,
       displayTitle: lead.type === 'appointment'
-        ? getReminderDisplayTitle(lead)
+        ? getReminderDisplayTitle(lead, lead.doctor_id && doctorsMap ? buildDoctorDisplayName(doctorsMap.get(lead.doctor_id) ?? null) : null)
         : (isRecurring ? getBaseTitle(lead.title) : lead.title),
     });
   }
