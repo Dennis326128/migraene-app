@@ -12,7 +12,7 @@ import { fetchAllEntriesForExport, countEntriesInRange } from "@/features/entrie
 import { buildDiaryPdf } from "@/lib/pdf/report";
 import type { SymptomDataForPdf } from "@/lib/pdf/symptomSection";
 import { buildMedicationPlanPdf } from "@/lib/pdf/medicationPlan";
-import { mapTextLevelToScore } from "@/lib/utils/pain";
+import { mapTextLevelToScore, formatPainDisplay } from "@/lib/utils/pain";
 import { useMedicationEffectsForEntries } from "@/features/medication-effects/hooks/useMedicationEffects";
 import { usePatientData, useDoctors } from "@/features/account/hooks/useAccount";
 import { useMedicationCourses } from "@/features/medication-courses/hooks/useMedicationCourses";

@@ -12,6 +12,7 @@ import { useCreateMedicationEffect } from "@/features/medication-effects/hooks/u
 import { useMedicationSave } from "@/contexts/MedicationSaveContext";
 import { useTouchClick } from "@/hooks/useTouchClick";
 import type { RecentMedicationEntry, MedicationEffect } from "@/features/medication-effects/api/medicationEffects.api";
+import { formatPainDisplay } from "@/lib/utils/pain";
 
 interface MedicationOverviewProps {
   entries: RecentMedicationEntry[];
