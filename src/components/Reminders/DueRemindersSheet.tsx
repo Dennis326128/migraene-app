@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Check, Clock, X, Pill, Calendar, AlertTriangle, ListTodo, ChevronDown } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -12,7 +12,8 @@ import {
 } from '@/features/reminders/hooks/useInAppDueReminders';
 import { SnoozeOptionsSheet } from './SnoozeOptionsSheet';
 import { getSmartSnoozeTime, formatSnoozeTime } from '@/features/reminders/helpers/snooze';
-import { getReminderDisplayTitle } from '@/features/reminders/helpers/displayTitle';
+import { getReminderDisplayTitle, buildDoctorDisplayName } from '@/features/reminders/helpers/displayTitle';
+import { useDoctors } from '@/features/account/hooks/useAccount';
 
 interface DueRemindersSheetProps {
   open: boolean;
