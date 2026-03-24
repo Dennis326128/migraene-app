@@ -12,6 +12,7 @@ import { useCreateMedicationEffect } from "@/features/medication-effects/hooks/u
 import { useMedicationSave } from "@/contexts/MedicationSaveContext";
 import { useTouchClick } from "@/hooks/useTouchClick";
 import type { RecentMedicationEntry, MedicationEffect } from "@/features/medication-effects/api/medicationEffects.api";
+import { formatPainDisplay } from "@/lib/utils/pain";
 
 interface MedicationOverviewProps {
   entries: RecentMedicationEntry[];
@@ -206,7 +207,7 @@ function MedicationCard({ entry, medication, existingEffect }: MedicationCardPro
                 {time}
               </div>
               <Badge variant="secondary" className="text-xs">
-                Schmerz: {entry.pain_level}
+                Schmerz: {formatPainDisplay(entry.pain_level).numeric}
               </Badge>
             </div>
           </div>

@@ -26,7 +26,7 @@ import { QuickContextNoteModal, EditingContextNote } from './QuickContextNoteMod
 import { showSuccessToast, showErrorToast } from '@/lib/toastHelpers';
 import type { ContextMetadata } from '@/lib/voice/saveNote';
 import { CalendarView } from '@/features/diary/calendar';
-import { normalizePainLevel } from '@/lib/utils/pain';
+import { normalizePainLevel, formatPainDisplay } from '@/lib/utils/pain';
 import { MedicationHistoryView } from '@/components/diary/MedicationHistoryView';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 
@@ -508,27 +508,21 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
   };
 
   const getPainLevelDisplay = (level: string) => {
-    const mapping: Record<string, { label: string; numeric: string; color: string }> = {
-      // Text-Werte — consistent orange→red scale, NO purple
-      'keine': { label: 'Keine Schmerzen', numeric: '0/10', color: 'bg-green-500/20 text-green-300' },
-      'leicht': { label: 'Leicht', numeric: '1-3/10', color: 'bg-amber-500/20 text-amber-300' },
-      'mittel': { label: 'Mittel', numeric: '4-6/10', color: 'bg-orange-500/20 text-orange-300' },
-      'stark': { label: 'Stark', numeric: '7-8/10', color: 'bg-red-500/20 text-red-300' },
-      'sehr_stark': { label: 'Sehr stark', numeric: '9-10/10', color: 'bg-red-600/25 text-red-300' },
-      // Numerische Werte (0-10)
-      '0': { label: 'Keine Schmerzen', numeric: '0/10', color: 'bg-green-500/20 text-green-300' },
-      '1': { label: 'Leicht', numeric: '1/10', color: 'bg-amber-500/20 text-amber-300' },
-      '2': { label: 'Leicht', numeric: '2/10', color: 'bg-amber-500/20 text-amber-300' },
-      '3': { label: 'Leicht', numeric: '3/10', color: 'bg-amber-500/20 text-amber-300' },
-      '4': { label: 'Mittel', numeric: '4/10', color: 'bg-orange-500/20 text-orange-300' },
-      '5': { label: 'Mittel', numeric: '5/10', color: 'bg-orange-500/20 text-orange-300' },
-      '6': { label: 'Mittel', numeric: '6/10', color: 'bg-orange-500/20 text-orange-300' },
-      '7': { label: 'Stark', numeric: '7/10', color: 'bg-red-500/20 text-red-300' },
-      '8': { label: 'Stark', numeric: '8/10', color: 'bg-red-500/20 text-red-300' },
-      '9': { label: 'Sehr stark', numeric: '9/10', color: 'bg-red-600/25 text-red-300' },
-      '10': { label: 'Sehr stark', numeric: '10/10', color: 'bg-red-600/25 text-red-300' },
+    const display = formatPainDisplay(level);
+    // Map category to badge colors
+    const colorMap: Record<string, string> = {
+      'none': 'bg-green-500/20 text-green-300',
+      'leicht': 'bg-amber-500/20 text-amber-300',
+      'mittel': 'bg-orange-500/20 text-orange-300',
+      'stark': 'bg-red-500/20 text-red-300',
+      'sehr_stark': 'bg-red-600/25 text-red-300',
+      'unknown': 'bg-muted',
     };
-    return mapping[level] || { label: 'Unbekannt', numeric: '-', color: 'bg-muted' };
+    return {
+      label: display.label,
+      numeric: display.numeric,
+      color: colorMap[display.category] || 'bg-muted',
+    };
   };
 
   // Schmerzeinträge laden (mit Pagination)
