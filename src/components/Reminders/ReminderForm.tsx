@@ -218,7 +218,24 @@ export const ReminderForm = ({ reminder, groupedReminders, prefill, onSubmit, on
     const existing = (reminder as any)?.notify_offsets_minutes;
     return existing && existing.length > 0 ? existing : DEFAULT_APPOINTMENT_OFFSETS;
   });
+
+  // Appointment-specific: custom title and doctor selection
+  const { data: allDoctors = [] } = useDoctors();
+  const activeDoctors = useMemo(() => allDoctors.filter(d => d.is_active !== false), [allDoctors]);
   
+  const [appointmentCustomTitle, setAppointmentCustomTitle] = useState<string>(
+    (reminder as any)?.custom_title || ''
+  );
+  const [selectedDoctorId, setSelectedDoctorId] = useState<string>(
+    (reminder as any)?.doctor_id || ''
+  );
+
+  // Resolve selected doctor name for display title preview
+  const selectedDoctorName = useMemo(() => {
+    if (!selectedDoctorId) return null;
+    const doc = allDoctors.find(d => d.id === selectedDoctorId);
+    return doc ? buildDoctorDisplayName(doc) : null;
+  }, [selectedDoctorId, allDoctors]);
 
   // Weekdays for weekday repeat
   const [selectedWeekdays, setSelectedWeekdays] = useState<Weekday[]>([]);
