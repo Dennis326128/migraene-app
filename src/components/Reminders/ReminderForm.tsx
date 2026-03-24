@@ -523,6 +523,8 @@ export const ReminderForm = ({ reminder, groupedReminders, prefill, onSubmit, on
         next_follow_up_date: next_follow_up_date,
         series_id: finalSeriesId,
         notify_offsets_minutes: notifyOffsets,
+        custom_title: appointmentCustomTitle.trim() || undefined,
+        doctor_id: selectedDoctorId || undefined,
       } : {}),
     };
 
