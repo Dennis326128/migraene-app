@@ -19,6 +19,7 @@ export function mapTextLevelToScore(level: string | number): number {
   return 0;
 }
 
+/** @deprecated Use formatPainDisplay() instead. Kept for potential external consumers. */
 export function convertNumericToCategory(level: number): "leicht" | "mittel" | "stark" | "sehr_stark" {
   if (level >= 8) return "sehr_stark";
   if (level >= 6) return "stark";
@@ -142,6 +143,7 @@ export function formatPainDisplay(level: string | number | null | undefined): Pa
   return { score, numeric, label: 'Sehr stark', category: 'sehr_stark' };
 }
 
+/** @deprecated Use formatPainDisplay() instead. Kept for potential external consumers. */
 export function convertNumericPainToCategory(level: string): "leicht" | "mittel" | "stark" | "sehr_stark" {
   // If already a category, return as-is
   if (['leicht', 'mittel', 'stark', 'sehr_stark'].includes(level)) {
