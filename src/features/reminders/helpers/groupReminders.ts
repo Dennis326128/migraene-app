@@ -2,7 +2,10 @@ import { format, isToday, isTomorrow } from 'date-fns';
 import { de } from 'date-fns/locale';
 import type { Reminder } from '@/types/reminder.types';
 import { deduplicateReminders } from './dedupeKey';
-import { getReminderDisplayTitle } from './displayTitle';
+import { getReminderDisplayTitle, buildDoctorDisplayName } from './displayTitle';
+
+/** Map of doctor_id → doctor object with name fields */
+export type DoctorsMap = Map<string, { title?: string | null; first_name?: string | null; last_name?: string | null }>;
 
 /**
  * A grouped reminder represents one "series" in the list.
