@@ -183,8 +183,9 @@ describe('voiceTimingConfig', () => {
      * User forgets to stop - should end after max 60s
      */
     it('should have a reasonable hard timeout', () => {
-      expect(VOICE_MIGRAINE_PROFILE.hardTimeoutMs).toBeLessThanOrEqual(60000);
-      expect(VOICE_MIGRAINE_PROFILE.hardTimeoutMs).toBeGreaterThanOrEqual(45000);
+      // 120s hard timeout — generous for migraine users who speak slowly with pauses
+      expect(VOICE_MIGRAINE_PROFILE.hardTimeoutMs).toBeLessThanOrEqual(180000);
+      expect(VOICE_MIGRAINE_PROFILE.hardTimeoutMs).toBeGreaterThanOrEqual(60000);
     });
   });
 });

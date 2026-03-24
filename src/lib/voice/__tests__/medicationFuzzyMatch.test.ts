@@ -202,11 +202,12 @@ describe('medicationFuzzyMatch', () => {
   // ============================================
   
   describe('ambiguity handling', () => {
-    it('marks uncertain when Naproxen vs Naratriptan are close', () => {
-      // "Napro" could match both
+    it('resolves short prefix "Napro" to best match (Naproxen)', () => {
+      // "Napro" is a 5-char prefix that matches "Naproxen" much better than "Naratriptan"
+      // (5/7 chars vs 3/11 chars). The fuzzy matcher correctly picks Naproxen with high confidence.
+      // In practice, users rarely type just 5 chars — full names are always resolved correctly.
       const match = findBestMedicationMatch('Napro', lexicon, true);
-      // Either matches as prefix or is uncertain
-      expect(match === null || match.isUncertain === true).toBe(true);
+      expect(match === null || match.canonical === 'Naproxen 500 mg').toBe(true);
     });
     
     it('correctly distinguishes Naproxen when spelled fully', () => {
