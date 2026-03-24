@@ -19,6 +19,7 @@ export function mapTextLevelToScore(level: string | number): number {
   return 0;
 }
 
+/** @deprecated Use formatPainDisplay() instead. Kept for potential external consumers. */
 export function convertNumericToCategory(level: number): "leicht" | "mittel" | "stark" | "sehr_stark" {
   if (level >= 8) return "sehr_stark";
   if (level >= 6) return "stark";
