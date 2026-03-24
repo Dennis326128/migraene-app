@@ -170,10 +170,10 @@ function generateK7(rng: ReturnType<typeof createRng>, count: number): GoldenCas
       
       let expectedPain = intensity.pain;
       if (booster === 'sehr') {
-        if (intensity.pain >= 7) expectedPain = 9;
-        if (intensity.word === 'leichte') expectedPain = 1;
+        if (intensity.word === 'starke') expectedPain = 9;
+        else if (intensity.word === 'leichte') expectedPain = 1;
       } else if (booster === 'extrem') {
-        expectedPain = 9;
+        if (intensity.pain >= 7) expectedPain = 9;
       }
       
       cases.push({
