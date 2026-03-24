@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/select';
 import type { Reminder, CreateReminderInput, UpdateReminderInput, ReminderPrefill, TimeOfDay } from '@/types/reminder.types';
 import { format, parseISO } from 'date-fns';
-import { ArrowLeft, Clock, Plus, CalendarPlus, Info, Bell, ListTodo, Pill, Calendar, Sunrise, Sun, Sunset, Moon } from 'lucide-react';
+import { ArrowLeft, Clock, Plus, CalendarPlus, Info, Bell, ListTodo, Pill, Calendar, Sunrise, Sun, Sunset, Moon, UserRound } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -37,6 +37,8 @@ import {
   formatNotifyOffsets 
 } from '@/features/reminders/helpers/attention';
 import { WeekdayPicker, type Weekday } from '@/components/ui/weekday-picker';
+import { useDoctors } from '@/features/account/hooks/useAccount';
+import { getReminderDisplayTitle, buildDoctorDisplayName } from '@/features/reminders/helpers/displayTitle';
 
 // Schema - title is optional for medication type (auto-generated from medications)
 const reminderSchema = z.object({
