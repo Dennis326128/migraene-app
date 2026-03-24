@@ -138,7 +138,7 @@ export const DueRemindersSheet: React.FC<DueRemindersSheetProps> = ({
             {getTypeIcon(reminder.type)}
             <div className="flex-1 min-w-0">
               <p className="font-medium text-sm truncate">
-                {reminder.type === 'appointment' ? getReminderDisplayTitle(reminder) : reminder.title}
+                {reminder.type === 'appointment' ? getReminderDisplayTitle(reminder, getDoctorName(reminder.doctor_id)) : reminder.title}
               </p>
               <p className="text-xs text-muted-foreground">
                 {formatDate(reminder.date_time)} • {formatTime(reminder.date_time)}
