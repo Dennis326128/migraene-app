@@ -31,6 +31,7 @@ import type { Reminder, CreateReminderInput, UpdateReminderInput, ReminderPrefil
 import { remindersApi } from '@/features/reminders/api/reminders.api';
 import { notificationService } from '@/lib/notifications';
 import { toast } from '@/hooks/use-toast';
+import { useDoctors } from '@/features/account/hooks/useAccount';
 
 type ViewMode = 'list' | 'form';
 type ActiveTab = 'active' | 'history';
