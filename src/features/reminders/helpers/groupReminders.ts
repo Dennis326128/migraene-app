@@ -2,6 +2,7 @@ import { format, isToday, isTomorrow } from 'date-fns';
 import { de } from 'date-fns/locale';
 import type { Reminder } from '@/types/reminder.types';
 import { deduplicateReminders } from './dedupeKey';
+import { getReminderDisplayTitle } from './displayTitle';
 
 /**
  * A grouped reminder represents one "series" in the list.
