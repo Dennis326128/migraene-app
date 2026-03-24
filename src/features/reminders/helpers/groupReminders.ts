@@ -2,6 +2,7 @@ import { format, isToday, isTomorrow } from 'date-fns';
 import { de } from 'date-fns/locale';
 import type { Reminder } from '@/types/reminder.types';
 import { deduplicateReminders } from './dedupeKey';
+import { getReminderDisplayTitle } from './displayTitle';
 
 /**
  * A grouped reminder represents one "series" in the list.
@@ -131,7 +132,9 @@ export function groupReminders(reminders: Reminder[]): GroupedReminder[] {
       frequencyLabel: isRecurring ? buildFrequencyLabel(lead.repeat, timesPerDay) : '',
       timesPerDay,
       isRecurring,
-      displayTitle: isRecurring ? getBaseTitle(lead.title) : lead.title,
+      displayTitle: lead.type === 'appointment'
+        ? getReminderDisplayTitle(lead)
+        : (isRecurring ? getBaseTitle(lead.title) : lead.title),
     });
   }
 

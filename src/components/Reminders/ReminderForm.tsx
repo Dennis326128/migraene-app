@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/select';
 import type { Reminder, CreateReminderInput, UpdateReminderInput, ReminderPrefill, TimeOfDay } from '@/types/reminder.types';
 import { format, parseISO } from 'date-fns';
-import { ArrowLeft, Clock, Plus, CalendarPlus, Info, Bell, ListTodo, Pill, Calendar, Sunrise, Sun, Sunset, Moon } from 'lucide-react';
+import { ArrowLeft, Clock, Plus, CalendarPlus, Info, Bell, ListTodo, Pill, Calendar, Sunrise, Sun, Sunset, Moon, UserRound } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -37,6 +37,8 @@ import {
   formatNotifyOffsets 
 } from '@/features/reminders/helpers/attention';
 import { WeekdayPicker, type Weekday } from '@/components/ui/weekday-picker';
+import { useDoctors } from '@/features/account/hooks/useAccount';
+import { getReminderDisplayTitle, buildDoctorDisplayName } from '@/features/reminders/helpers/displayTitle';
 
 // Schema - title is optional for medication type (auto-generated from medications)
 const reminderSchema = z.object({
@@ -112,12 +114,16 @@ const localDateTimeToISO = (dateStr: string, timeStr: string): string => {
 const getTodayDate = (): string => format(new Date(), 'yyyy-MM-dd');
 
 /**
- * Auto-generate a sensible title based on reminder type and context
+ * Auto-generate a sensible title based on reminder type and context.
+ * For appointments, uses SSOT getReminderDisplayTitle.
  */
 function generateAutoTitle(
   type: 'medication' | 'appointment' | 'todo',
   medications: string[],
-  timeOfDay?: TimeOfDay | null
+  timeOfDay?: TimeOfDay | null,
+  customTitle?: string | null,
+  doctorId?: string | null,
+  doctorName?: string | null
 ): string {
   switch (type) {
     case 'medication':
@@ -128,7 +134,10 @@ function generateAutoTitle(
       }
       return 'Medikament einnehmen';
     case 'appointment':
-      return 'Arzttermin';
+      return getReminderDisplayTitle(
+        { type: 'appointment', title: 'Termin', custom_title: customTitle, doctor_id: doctorId },
+        doctorName
+      );
     case 'todo':
       return 'Erinnerung';
     default:
@@ -209,7 +218,24 @@ export const ReminderForm = ({ reminder, groupedReminders, prefill, onSubmit, on
     const existing = (reminder as any)?.notify_offsets_minutes;
     return existing && existing.length > 0 ? existing : DEFAULT_APPOINTMENT_OFFSETS;
   });
+
+  // Appointment-specific: custom title and doctor selection
+  const { data: allDoctors = [] } = useDoctors();
+  const activeDoctors = useMemo(() => allDoctors.filter(d => d.is_active !== false), [allDoctors]);
   
+  const [appointmentCustomTitle, setAppointmentCustomTitle] = useState<string>(
+    (reminder as any)?.custom_title || ''
+  );
+  const [selectedDoctorId, setSelectedDoctorId] = useState<string>(
+    (reminder as any)?.doctor_id || ''
+  );
+
+  // Resolve selected doctor name for display title preview
+  const selectedDoctorName = useMemo(() => {
+    if (!selectedDoctorId) return null;
+    const doc = allDoctors.find(d => d.id === selectedDoctorId);
+    return doc ? buildDoctorDisplayName(doc) : null;
+  }, [selectedDoctorId, allDoctors]);
 
   // Weekdays for weekday repeat
   const [selectedWeekdays, setSelectedWeekdays] = useState<Weekday[]>([]);
@@ -283,6 +309,8 @@ export const ReminderForm = ({ reminder, groupedReminders, prefill, onSubmit, on
       setSeriesId(undefined);
       setNotifyOffsets(DEFAULT_APPOINTMENT_OFFSETS);
       setEditingTimeOfDay(null);
+      setAppointmentCustomTitle('');
+      setSelectedDoctorId('');
     } else if (reminder) {
       reset({
         type: reminder.type,
@@ -318,6 +346,8 @@ export const ReminderForm = ({ reminder, groupedReminders, prefill, onSubmit, on
       setFollowUpUnit((reminder as any).follow_up_interval_unit || 'months');
       setSeriesId((reminder as any).series_id);
       setNotifyOffsets((reminder as any).notify_offsets_minutes || DEFAULT_APPOINTMENT_OFFSETS);
+      setAppointmentCustomTitle((reminder as any).custom_title || '');
+      setSelectedDoctorId((reminder as any).doctor_id || '');
     } else if (prefill) {
       reset({
         type: prefill.type,
@@ -352,8 +382,11 @@ export const ReminderForm = ({ reminder, groupedReminders, prefill, onSubmit, on
   // Time of day is now fully optional — no validation needed
   const hasValidTimeSelection = true;
   
-  // Auto-title is always generated internally
-  const autoTitle = generateAutoTitle(type as any, selectedMedications, selectedTimeOfDay[0] || null);
+  // Auto-title is always generated internally — uses SSOT for appointments
+  const autoTitle = generateAutoTitle(
+    type as any, selectedMedications, selectedTimeOfDay[0] || null,
+    appointmentCustomTitle, selectedDoctorId || null, selectedDoctorName
+  );
   
   // Combined validation for submit button
   const canSubmit = true;
@@ -444,6 +477,8 @@ export const ReminderForm = ({ reminder, groupedReminders, prefill, onSubmit, on
           next_follow_up_date: next_follow_up_date,
           series_id: finalSeriesId,
           notify_offsets_minutes: notifyOffsets,
+          custom_title: appointmentCustomTitle.trim() || undefined,
+          doctor_id: selectedDoctorId || undefined,
         } : {}),
       };
 
@@ -492,6 +527,8 @@ export const ReminderForm = ({ reminder, groupedReminders, prefill, onSubmit, on
         next_follow_up_date: next_follow_up_date,
         series_id: finalSeriesId,
         notify_offsets_minutes: notifyOffsets,
+        custom_title: appointmentCustomTitle.trim() || undefined,
+        doctor_id: selectedDoctorId || undefined,
       } : {}),
     };
 
@@ -609,7 +646,63 @@ export const ReminderForm = ({ reminder, groupedReminders, prefill, onSubmit, on
             />
           )}
 
-          {/* 3️⃣ REPEAT SELECTION - NOW FIRST AFTER TYPE! */}
+          {/* 2b️⃣ APPOINTMENT FIELDS: optional title + doctor selection */}
+          {isAppointmentType && (
+            <div className="space-y-3">
+              {/* Optional custom title */}
+              <div className="space-y-1.5">
+                <Label htmlFor="appointment-title" className="text-sm">
+                  Bezeichnung <span className="text-muted-foreground font-normal">(optional)</span>
+                </Label>
+                <Input
+                  id="appointment-title"
+                  value={appointmentCustomTitle}
+                  onChange={(e) => setAppointmentCustomTitle(e.target.value)}
+                  placeholder="z. B. MRT Kopf, Botox-Termin, Kontrolle"
+                  className="touch-manipulation"
+                  maxLength={100}
+                />
+              </div>
+
+              {/* Optional doctor selection — only if doctors exist */}
+              {activeDoctors.length > 0 && (
+                <div className="space-y-1.5">
+                  <Label className="text-sm">
+                    Arzt auswählen <span className="text-muted-foreground font-normal">(optional)</span>
+                  </Label>
+                  <Select
+                    value={selectedDoctorId}
+                    onValueChange={(value) => setSelectedDoctorId(value === '__none__' ? '' : value)}
+                  >
+                    <SelectTrigger className="touch-manipulation">
+                      <SelectValue placeholder="Kein Arzt ausgewählt" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">
+                        <span className="text-muted-foreground">Kein Arzt</span>
+                      </SelectItem>
+                      {activeDoctors.map((doc) => (
+                        <SelectItem key={doc.id} value={doc.id}>
+                          <div className="flex items-center gap-2">
+                            <UserRound className="h-3.5 w-3.5 text-muted-foreground" />
+                            {buildDoctorDisplayName(doc) || doc.last_name || 'Arzt'}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Live preview of computed title */}
+              {(appointmentCustomTitle.trim() || selectedDoctorId) && (
+                <p className="text-xs text-muted-foreground pl-1">
+                  Wird angezeigt als: <span className="font-medium text-foreground">{autoTitle}</span>
+                </p>
+              )}
+            </div>
+          )}
+
           <div className="space-y-3 p-4 bg-muted/30 rounded-lg">
             <Label className="text-base font-medium">Wie oft erinnern?</Label>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">

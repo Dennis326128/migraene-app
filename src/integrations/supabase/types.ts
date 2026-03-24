@@ -1029,8 +1029,10 @@ export type Database = {
       reminders: {
         Row: {
           created_at: string
+          custom_title: string | null
           date_time: string
           dedupe_key: string
+          doctor_id: string | null
           follow_up_enabled: boolean
           follow_up_interval_unit: string | null
           follow_up_interval_value: number | null
@@ -1056,8 +1058,10 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          custom_title?: string | null
           date_time: string
           dedupe_key: string
+          doctor_id?: string | null
           follow_up_enabled?: boolean
           follow_up_interval_unit?: string | null
           follow_up_interval_value?: number | null
@@ -1083,8 +1087,10 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          custom_title?: string | null
           date_time?: string
           dedupe_key?: string
+          doctor_id?: string | null
           follow_up_enabled?: boolean
           follow_up_interval_unit?: string | null
           follow_up_interval_value?: number | null
@@ -1109,6 +1115,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "reminders_doctor_id_fkey"
+            columns: ["doctor_id"]
+            isOneToOne: false
+            referencedRelation: "doctors"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "reminders_medication_id_fkey"
             columns: ["medication_id"]
