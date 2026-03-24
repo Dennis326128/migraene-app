@@ -346,6 +346,8 @@ export const ReminderForm = ({ reminder, groupedReminders, prefill, onSubmit, on
       setFollowUpUnit((reminder as any).follow_up_interval_unit || 'months');
       setSeriesId((reminder as any).series_id);
       setNotifyOffsets((reminder as any).notify_offsets_minutes || DEFAULT_APPOINTMENT_OFFSETS);
+      setAppointmentCustomTitle((reminder as any).custom_title || '');
+      setSelectedDoctorId((reminder as any).doctor_id || '');
     } else if (prefill) {
       reset({
         type: prefill.type,
