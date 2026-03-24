@@ -892,11 +892,34 @@ function buildMeCfsAnalysis(
 
   const documentedDays = totalDaysInRange - segments[4].days;
 
+  // Compute avg and peak from me_cfs_severity_score
+  const scores: number[] = [];
+  for (const entry of allEntries) {
+    const date = entry.selected_date;
+    if (!date || date < from || date > to) continue;
+    if (entry.me_cfs_severity_score !== undefined && entry.me_cfs_severity_score > 0) {
+      scores.push(entry.me_cfs_severity_score);
+    }
+  }
+
+  const avgScore = scores.length > 0
+    ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10
+    : null;
+  const peakScore = scores.length > 0 ? Math.max(...scores) : null;
+  const peakLabel = peakScore !== null ? meCfsSeverityLabel(peakScore) : null;
+  const documentationRate = totalDaysInRange > 0
+    ? Math.round((documentedDays / totalDaysInRange) * 1000) / 10
+    : 0;
+
   return {
     segments,
     documentedDays,
     totalDaysInRange,
     sufficient: documentedDays >= 14,
+    avgScore,
+    peakScore,
+    peakLabel,
+    documentationRate,
   };
 }
 
