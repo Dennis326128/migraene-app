@@ -1231,13 +1231,44 @@ export async function buildDoctorReportSnapshot(
   // 4) CHARTS BAUEN
   // ─────────────────────────────────────────────────────────────────────────
 
+  // Build weather-by-date map for chart enrichment
+  const weatherByDateForChart = new Map<string, { temp: number | null; pressure: number | null }>();
+  for (const log of weatherLogs) {
+    const date = (log as any).snapshot_date || ((log as any).requested_at ? (log as any).requested_at.split('T')[0] : null);
+    if (!date || weatherByDateForChart.has(date)) continue;
+    weatherByDateForChart.set(date, {
+      temp: (log as any).temperature_c ?? null,
+      pressure: (log as any).pressure_mb ?? null,
+    });
+  }
+
   const intensityOverTime: IntensityDataPoint[] = Array.from(dailyMaxIntensity.entries())
     .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([date, maxIntensity]) => ({
-      date,
-      maxIntensity,
-      isMigraine: migraineDaysSet.has(date),
-    }));
+    .map(([date, maxIntensity]) => {
+      const w = weatherByDateForChart.get(date);
+      return {
+        date,
+        maxIntensity,
+        isMigraine: migraineDaysSet.has(date),
+        temperatureC: w?.temp ?? null,
+        pressureMb: w?.pressure ?? null,
+      };
+    });
+
+  // Time-of-day histogram
+  const hourCounts = new Map<number, number>();
+  for (const entry of allEntries) {
+    if (!entry.selected_time || entry.pain_level === '-') continue;
+    const hourMatch = entry.selected_time.match(/^(\d{1,2}):/);
+    if (!hourMatch) continue;
+    const hour = parseInt(hourMatch[1], 10);
+    if (hour >= 0 && hour <= 23) {
+      hourCounts.set(hour, (hourCounts.get(hour) || 0) + 1);
+    }
+  }
+  const timeDistribution: TimeDistributionItem[] = Array.from(hourCounts.entries())
+    .map(([hour, count]) => ({ hour, count }))
+    .sort((a, b) => a.hour - b.hour);
 
   const medCountMap = new Map<string, number>();
   allEntries.forEach(entry => {
@@ -1263,6 +1294,7 @@ export async function buildDoctorReportSnapshot(
   const charts: DoctorReportCharts = {
     intensityOverTime,
     topAcuteMeds,
+    timeDistribution: timeDistribution.length > 0 ? timeDistribution : undefined,
   };
 
   // ─────────────────────────────────────────────────────────────────────────
