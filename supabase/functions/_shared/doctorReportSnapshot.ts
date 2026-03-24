@@ -88,6 +88,10 @@ export interface IntensityDataPoint {
   date: string;
   maxIntensity: number;
   isMigraine: boolean;
+  /** Daily temperature in °C (from weather_logs) */
+  temperatureC?: number | null;
+  /** Daily pressure in mbar (from weather_logs) */
+  pressureMb?: number | null;
 }
 
 export interface MedicationChartItem {
@@ -96,9 +100,17 @@ export interface MedicationChartItem {
   category?: string;
 }
 
+/** Time-of-day distribution item (hourly histogram) */
+export interface TimeDistributionItem {
+  hour: number;
+  count: number;
+}
+
 export interface DoctorReportCharts {
   intensityOverTime: IntensityDataPoint[];
   topAcuteMeds: MedicationChartItem[];
+  /** Hourly distribution of pain entries (0-23) */
+  timeDistribution?: TimeDistributionItem[];
 }
 
 export interface DoctorReportEntry {
