@@ -199,6 +199,14 @@ export interface SymptomStatItem {
   count: number;
   /** Percentage relative to checked episodes (symptoms_state viewed/edited) */
   percentageOfChecked: number;
+  /** Clinical group classification */
+  group?: 'migraine' | 'neurological' | 'other';
+  /** User-assigned burden level (1-4, null if not set) */
+  burdenLevel?: number | null;
+  /** Human-readable burden label (DE) */
+  burdenLabel?: string;
+  /** Composite relevance score (frequency × burden weight) */
+  relevanceScore?: number;
 }
 
 /** Accompanying symptoms analysis */
