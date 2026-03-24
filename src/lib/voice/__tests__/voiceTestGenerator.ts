@@ -82,11 +82,18 @@ function generateK1(rng: ReturnType<typeof createRng>, count: number): GoldenCas
     const parts = [filler, booster, intensity.word, noun].filter(Boolean);
     const transcript = parts.join(' ');
     
-    // Adjust pain for booster
+    // Adjust pain for booster – match actual parser INTENSITY_WORD_MAP behavior:
+    // Parser has specific combos: "sehr starke" → 9, "sehr leichte" → 1
+    // "richtig" only boosts "richtig schlimm" → 7 (no general boost)
+    // "extrem" is a standalone pattern → 9
     let expectedPain = intensity.pain;
-    if (booster === 'sehr' || booster === 'extrem' || booster === 'richtig') {
-      if (intensity.pain >= 7) expectedPain = 9;
+    if (booster === 'sehr') {
+      if (intensity.pain >= 7) expectedPain = 9;       // "sehr starke/heftige/schlimme" → 9
+      if (intensity.word === 'leichte') expectedPain = 1; // "sehr leichte" → 1
+    } else if (booster === 'extrem') {
+      expectedPain = 9; // "extrem" is standalone → 9
     }
+    // "richtig" and "ziemlich" don't boost in parser
     
     cases.push({
       id: `GEN-K1-${i + 1}`,
