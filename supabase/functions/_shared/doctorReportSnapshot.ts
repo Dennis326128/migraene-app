@@ -1443,7 +1443,7 @@ export async function buildDoctorReportSnapshot(
 
   // A) Symptoms
   if (entrySymptoms.length > 0 && symptomCatalog.length > 0) {
-    analysis.symptoms = buildSymptomsAnalysis(allEntries, entrySymptoms, symptomCatalog);
+    analysis.symptoms = buildSymptomsAnalysis(allEntries, entrySymptoms, symptomCatalog, symptomBurdenData);
     console.log(`[DoctorReport] Symptoms: ${analysis.symptoms.items.length} unique, ${analysis.symptoms.checkedEntries} checked entries`);
   }
 
