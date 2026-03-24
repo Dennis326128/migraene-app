@@ -1,4 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+// Mock supabase to avoid localStorage reference in test environment
+vi.mock('@/integrations/supabase/client', () => ({
+  supabase: { auth: { getUser: vi.fn() }, from: vi.fn() }
+}));
+
 import { getNextOccurrence } from '../completeReminder';
 import { addDays, addWeeks, addMonths } from 'date-fns';
 
