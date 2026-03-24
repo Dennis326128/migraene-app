@@ -1326,6 +1326,24 @@ export async function buildDoctorReportSnapshot(
     discontinuationReason: c.discontinuation_reason || null,
   }));
 
+  // Build effect aggregation from medication_effects
+  const medEffectAgg = new Map<string, { scores: number[]; count: number }>();
+  for (const eff of rangeEffects) {
+    if (eff.effect_score === null) continue;
+    if (!medEffectAgg.has(eff.med_name)) {
+      medEffectAgg.set(eff.med_name, { scores: [], count: 0 });
+    }
+    const agg = medEffectAgg.get(eff.med_name)!;
+    agg.scores.push(eff.effect_score);
+    agg.count++;
+  }
+
+  // Build last30 intake counts per med
+  const last30CountMap = new Map<string, number>();
+  for (const intake of last30Intakes) {
+    last30CountMap.set(intake.medication_name, (last30CountMap.get(intake.medication_name) || 0) + 1);
+  }
+
   const medEffectMap = new Map<string, { count: number; daysUsed: Set<string>; effects: number[] }>();
   allEntries.forEach(entry => {
     const date = entry.selected_date;
@@ -1340,16 +1358,27 @@ export async function buildDoctorReportSnapshot(
   });
 
   const medicationStats: MedicationStat[] = Array.from(medEffectMap.entries())
-    .map(([name, stat]) => ({
-      name,
-      intakeCount: stat.count,
-      avgEffect: null,
-      effectCount: 0,
-      category: medCategoryMap.get(name) || (isTriptan(name) ? "triptan" : "akut"),
-      daysUsed: stat.daysUsed.size,
-      avgPer30: Math.round((stat.count / daysInRange) * 30 * 10) / 10,
-      isTriptan: isTriptan(name),
-    }))
+    .map(([name, stat]) => {
+      const effAgg = medEffectAgg.get(name);
+      const avgEffPct = effAgg && effAgg.scores.length > 0
+        ? Math.round((effAgg.scores.reduce((a, b) => a + b, 0) / effAgg.scores.length) / 10 * 100)
+        : null;
+      return {
+        name,
+        intakeCount: stat.count,
+        avgEffect: effAgg && effAgg.scores.length > 0
+          ? Math.round((effAgg.scores.reduce((a, b) => a + b, 0) / effAgg.scores.length) * 10) / 10
+          : null,
+        effectCount: effAgg?.count ?? 0,
+        category: medCategoryMap.get(name) || (isTriptan(name) ? "triptan" : "akut"),
+        daysUsed: stat.daysUsed.size,
+        avgPer30: Math.round((stat.count / daysInRange) * 30 * 10) / 10,
+        isTriptan: isTriptan(name),
+        last30Intakes: last30CountMap.get(name) ?? 0,
+        avgEffectPercent: avgEffPct,
+        ratedCount: effAgg?.count ?? 0,
+      };
+    })
     .sort((a, b) => b.intakeCount - a.intakeCount);
 
   const locationStats: Record<string, number> = {};
