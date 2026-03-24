@@ -34,23 +34,7 @@ interface DaySheetProps {
 
 // Helpers
 const getPainLevelLabel = (level: number | string | null): string => {
-  if (level === null || level === undefined) return 'Keine Angabe';
-  
-  const numLevel = typeof level === 'number' ? level : parseInt(String(level));
-  if (isNaN(numLevel)) {
-    const t = String(level).toLowerCase();
-    if (t.includes('sehr') && t.includes('stark')) return 'Sehr stark';
-    if (t.includes('stark')) return 'Stark';
-    if (t.includes('mittel')) return 'Mittel';
-    if (t.includes('leicht')) return 'Leicht';
-    return String(level);
-  }
-  
-  if (numLevel === 0) return 'Keine';
-  if (numLevel <= 3) return 'Leicht';
-  if (numLevel <= 6) return 'Mittel';
-  if (numLevel <= 8) return 'Stark';
-  return 'Sehr stark';
+  return formatPainDisplay(level).label;
 };
 
 const formatTime = (time: string | null | undefined): string => {
