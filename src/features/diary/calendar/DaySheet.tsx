@@ -7,7 +7,7 @@ import { de } from 'date-fns/locale';
 import { ChevronRight, ChevronLeft, Edit2, X, MapPin, Pill, FileText, Activity } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getColorForPain } from './painColorScale';
-import { normalizePainLevelStrict } from '@/lib/utils/pain';
+import { normalizePainLevelStrict, formatPainDisplay } from '@/lib/utils/pain';
 import { getEntry } from '@/features/entries/api/entries.api';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { PainEntry } from '@/types/painApp';
