@@ -206,7 +206,7 @@ function MedicationCard({ entry, medication, existingEffect }: MedicationCardPro
                 {time}
               </div>
               <Badge variant="secondary" className="text-xs">
-                Schmerz: {entry.pain_level}
+                Schmerz: {formatPainDisplay(entry.pain_level).numeric}
               </Badge>
             </div>
           </div>

@@ -352,8 +352,8 @@ async function executeQuery(
         
         if (data && data.length > 0) {
           const avg = data.reduce((sum, e) => {
-            const level = parseInt(e.pain_level, 10);
-            return sum + (isNaN(level) ? 5 : level);
+            const level = normalizePainLevel(e.pain_level);
+            return sum + level;
           }, 0) / data.length;
           
           return {

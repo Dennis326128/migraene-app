@@ -873,7 +873,8 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         : new Date(e.timestamp_created).toLocaleString();
       const meds = (e.medications || []).join("; ");
       const note = (e.notes ?? "").replace(/\r?\n/g, " ").replace(/"/g, '""');
-      return [dt, e.pain_level, meds, `"${note}"`];
+      const painDisplay = formatPainDisplay(e.pain_level);
+      return [dt, painDisplay.score !== null ? `${painDisplay.score}` : e.pain_level, meds, `"${note}"`];
     });
     const lines = [header.join(","), ...rows.map(r => r.join(","))].join("\n");
     const blob = new Blob(["\ufeff" + lines], { type: "text/csv;charset=utf-8" });

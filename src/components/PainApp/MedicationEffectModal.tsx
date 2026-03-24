@@ -130,7 +130,7 @@ export function MedicationEffectModal({
                 {formatRelativeDateLabel(medicationEntry.selected_date)} um {medicationEntry.selected_time}
               </div>
               <div className="text-muted-foreground">
-                Schmerzstärke: {medicationEntry.pain_level}
+                Schmerzstärke: {formatPainDisplay(medicationEntry.pain_level).numeric}
               </div>
             </div>
           </Card>
