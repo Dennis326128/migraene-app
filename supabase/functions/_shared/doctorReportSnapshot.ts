@@ -965,6 +965,9 @@ export async function buildDoctorReportSnapshot(
     userMedicationsResult,
     symptomCatalogResult,
     weatherLogsResult,
+    symptomBurdenResult,
+    medicationEffectsResult,
+    medicationIntakesLast30Result,
   ] = await Promise.all([
     // All entries for summary/charts — now include symptoms_state and ME/CFS fields
     supabase
@@ -1033,6 +1036,29 @@ export async function buildDoctorReportSnapshot(
       .or(`snapshot_date.lte.${to},requested_at.lte.${to}T23:59:59`)
       .order("requested_at", { ascending: false })
       .limit(1000),
+
+    // NEW: User symptom burden levels
+    supabase
+      .from("user_symptom_burden")
+      .select("symptom_key, burden_level")
+      .eq("user_id", userId),
+
+    // NEW: Medication effects for entries in range (fetched via entry join)
+    supabase
+      .from("medication_effects")
+      .select("med_name, effect_score, entry_id")
+      .not("effect_score", "is", null),
+
+    // NEW: Medication intakes in last 30 days of range
+    (() => {
+      const last30From = new Date(new Date(to).getTime() - 29 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      return supabase
+        .from("medication_intakes")
+        .select("medication_name, taken_date")
+        .eq("user_id", userId)
+        .gte("taken_date", last30From)
+        .lte("taken_date", to);
+    })(),
   ]);
 
   const allEntries = (allEntriesResult.data || []) as RawEntry[];
