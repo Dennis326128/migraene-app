@@ -642,7 +642,63 @@ export const ReminderForm = ({ reminder, groupedReminders, prefill, onSubmit, on
             />
           )}
 
-          {/* 3️⃣ REPEAT SELECTION - NOW FIRST AFTER TYPE! */}
+          {/* 2b️⃣ APPOINTMENT FIELDS: optional title + doctor selection */}
+          {isAppointmentType && (
+            <div className="space-y-3">
+              {/* Optional custom title */}
+              <div className="space-y-1.5">
+                <Label htmlFor="appointment-title" className="text-sm">
+                  Bezeichnung <span className="text-muted-foreground font-normal">(optional)</span>
+                </Label>
+                <Input
+                  id="appointment-title"
+                  value={appointmentCustomTitle}
+                  onChange={(e) => setAppointmentCustomTitle(e.target.value)}
+                  placeholder="z. B. MRT Kopf, Botox-Termin, Kontrolle"
+                  className="touch-manipulation"
+                  maxLength={100}
+                />
+              </div>
+
+              {/* Optional doctor selection — only if doctors exist */}
+              {activeDoctors.length > 0 && (
+                <div className="space-y-1.5">
+                  <Label className="text-sm">
+                    Arzt auswählen <span className="text-muted-foreground font-normal">(optional)</span>
+                  </Label>
+                  <Select
+                    value={selectedDoctorId}
+                    onValueChange={(value) => setSelectedDoctorId(value === '__none__' ? '' : value)}
+                  >
+                    <SelectTrigger className="touch-manipulation">
+                      <SelectValue placeholder="Kein Arzt ausgewählt" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">
+                        <span className="text-muted-foreground">Kein Arzt</span>
+                      </SelectItem>
+                      {activeDoctors.map((doc) => (
+                        <SelectItem key={doc.id} value={doc.id}>
+                          <div className="flex items-center gap-2">
+                            <UserRound className="h-3.5 w-3.5 text-muted-foreground" />
+                            {buildDoctorDisplayName(doc) || doc.last_name || 'Arzt'}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Live preview of computed title */}
+              {(appointmentCustomTitle.trim() || selectedDoctorId) && (
+                <p className="text-xs text-muted-foreground pl-1">
+                  Wird angezeigt als: <span className="font-medium text-foreground">{autoTitle}</span>
+                </p>
+              )}
+            </div>
+          )}
+
           <div className="space-y-3 p-4 bg-muted/30 rounded-lg">
             <Label className="text-base font-medium">Wie oft erinnern?</Label>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
