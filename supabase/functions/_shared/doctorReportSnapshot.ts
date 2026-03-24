@@ -357,6 +357,48 @@ const TRIPTAN_KEYWORDS = [
   "relpax", "allegro", "dolotriptan", "formigran"
 ];
 
+// ── Symptom classification (mirrored from src/lib/pdf/symptomSection.ts) ──
+const MIGRAINE_SYMPTOMS = [
+  'lichtempfindlichkeit', 'photophobie',
+  'geraeuschempfindlichkeit', 'geräuschempfindlichkeit', 'phonophobie',
+  'uebelkeit', 'übelkeit', 'erbrechen',
+  'appetitlosigkeit', 'geruchsempfindlichkeit',
+];
+const NEUROLOGICAL_SYMPTOMS = [
+  'wortfindungsstoerung', 'wortfindungsstörung',
+  'konzentrationsstoerung', 'konzentrationsstörung', 'konzentrationsprobleme',
+  'sehstoerung', 'sehstörung', 'sehstörungen', 'verschwommensehen',
+  'schwindel', 'taubheitsgefuehl', 'taubheitsgefühl',
+  'kribbeln', 'sprachstoerung', 'sprachstörung', 'aura',
+];
+
+function classifySymptom(name: string): 'migraine' | 'neurological' | 'other' {
+  const lower = name.toLowerCase().trim();
+  if (MIGRAINE_SYMPTOMS.some(s => lower.includes(s))) return 'migraine';
+  if (NEUROLOGICAL_SYMPTOMS.some(s => lower.includes(s))) return 'neurological';
+  return 'other';
+}
+
+// ── Burden labels (mirrored from useSymptomBurden.ts) ──
+const BURDEN_LABELS: Record<number, string> = {
+  0: "",
+  1: "gering",
+  2: "moderat",
+  3: "ausgeprägt",
+  4: "führendes Leitsymptom",
+};
+const BURDEN_WEIGHTS: Record<number, number> = {
+  0: 1.0, 1: 1.1, 2: 1.2, 3: 1.35, 4: 1.5,
+};
+
+// ── ME/CFS severity label mapping ──
+function meCfsSeverityLabel(score: number): string {
+  if (score <= 0) return 'none';
+  if (score <= 3) return 'mild';
+  if (score <= 6) return 'moderate';
+  return 'severe';
+}
+
 // Pain Level Mapping
 const PAIN_LEVEL_TO_NUMBER: Record<string, number> = {
   "-": 0,
