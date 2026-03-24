@@ -121,7 +121,14 @@ export const DueRemindersSheet: React.FC<DueRemindersSheetProps> = ({
           <div className="flex items-center gap-2 flex-1 min-w-0">
             {getTypeIcon(reminder.type)}
             <div className="flex-1 min-w-0">
-              <p className="font-medium text-sm truncate">{reminder.title}</p>
+              <p className="font-medium text-sm truncate">
+                {reminder.type === 'appointment' 
+                  ? (() => { 
+                      const { getReminderDisplayTitle } = require('@/features/reminders/helpers/displayTitle');
+                      return getReminderDisplayTitle(reminder);
+                    })()
+                  : reminder.title}
+              </p>
               <p className="text-xs text-muted-foreground">
                 {formatDate(reminder.date_time)} • {formatTime(reminder.date_time)}
               </p>
