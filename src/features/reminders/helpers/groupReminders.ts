@@ -97,7 +97,7 @@ export function formatNextOccurrence(date: Date, type: string): string {
  * Each recurring reminder appears exactly once.
  * Non-repeating reminders remain as individual entries.
  */
-export function groupReminders(reminders: Reminder[]): GroupedReminder[] {
+export function groupReminders(reminders: Reminder[], doctorsMap?: DoctorsMap): GroupedReminder[] {
   // Client-side dedup: remove duplicates by dedupe_key before grouping
   const dedupedReminders = deduplicateReminders(reminders);
   const groups = new Map<string, Reminder[]>();
