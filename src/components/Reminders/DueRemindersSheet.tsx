@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Check, Clock, X, Pill, Calendar, AlertTriangle, ListTodo, ChevronDown } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -12,7 +12,8 @@ import {
 } from '@/features/reminders/hooks/useInAppDueReminders';
 import { SnoozeOptionsSheet } from './SnoozeOptionsSheet';
 import { getSmartSnoozeTime, formatSnoozeTime } from '@/features/reminders/helpers/snooze';
-import { getReminderDisplayTitle } from '@/features/reminders/helpers/displayTitle';
+import { getReminderDisplayTitle, buildDoctorDisplayName } from '@/features/reminders/helpers/displayTitle';
+import { useDoctors } from '@/features/account/hooks/useAccount';
 
 interface DueRemindersSheetProps {
   open: boolean;
@@ -32,6 +33,20 @@ export const DueRemindersSheet: React.FC<DueRemindersSheetProps> = ({
     isUpdating,
     dueReminders,
   } = useInAppDueReminders();
+
+  const { data: allDoctors = [] } = useDoctors();
+  const doctorsMap = useMemo(() => {
+    const map = new Map<string, { title?: string | null; first_name?: string | null; last_name?: string | null }>();
+    for (const doc of allDoctors) {
+      map.set(doc.id, { title: doc.title, first_name: doc.first_name, last_name: doc.last_name });
+    }
+    return map;
+  }, [allDoctors]);
+
+  const getDoctorName = (doctorId?: string | null) => {
+    if (!doctorId) return null;
+    return buildDoctorDisplayName(doctorsMap.get(doctorId) ?? null);
+  };
 
   const [snoozeSheetOpen, setSnoozeSheetOpen] = useState(false);
   const [selectedReminder, setSelectedReminder] = useState<DueReminder | null>(null);
@@ -123,7 +138,7 @@ export const DueRemindersSheet: React.FC<DueRemindersSheetProps> = ({
             {getTypeIcon(reminder.type)}
             <div className="flex-1 min-w-0">
               <p className="font-medium text-sm truncate">
-                {reminder.type === 'appointment' ? getReminderDisplayTitle(reminder) : reminder.title}
+                {reminder.type === 'appointment' ? getReminderDisplayTitle(reminder, getDoctorName(reminder.doctor_id)) : reminder.title}
               </p>
               <p className="text-xs text-muted-foreground">
                 {formatDate(reminder.date_time)} • {formatTime(reminder.date_time)}

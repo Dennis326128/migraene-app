@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/ui/page-header';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ReminderCard } from './ReminderCard';
-import { groupReminders, type GroupedReminder } from '@/features/reminders/helpers/groupReminders';
+import { groupReminders, type GroupedReminder, type DoctorsMap } from '@/features/reminders/helpers/groupReminders';
 import { ReminderForm } from './ReminderForm';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useRelativeTime } from '@/features/reminders/hooks/useRelativeTime';
@@ -31,6 +31,7 @@ import type { Reminder, CreateReminderInput, UpdateReminderInput, ReminderPrefil
 import { remindersApi } from '@/features/reminders/api/reminders.api';
 import { notificationService } from '@/lib/notifications';
 import { toast } from '@/hooks/use-toast';
+import { useDoctors } from '@/features/account/hooks/useAccount';
 
 type ViewMode = 'list' | 'form';
 type ActiveTab = 'active' | 'history';
@@ -94,6 +95,16 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
   const queryClient = useQueryClient();
   const { data: activeReminders = [], isLoading: loadingActive } = useActiveReminders();
   const { data: historyReminders = [], isLoading: loadingHistory } = useHistoryReminders();
+  const { data: allDoctors = [] } = useDoctors();
+
+  // Build doctors lookup map for display title resolution
+  const doctorsMap = useMemo<DoctorsMap>(() => {
+    const map: DoctorsMap = new Map();
+    for (const doc of allDoctors) {
+      map.set(doc.id, { title: doc.title, first_name: doc.first_name, last_name: doc.last_name });
+    }
+    return map;
+  }, [allDoctors]);
 
   // Smart refresh for relative labels (midnight + visibility + minute-timer for today)
   const hasTodayReminders = useMemo(() => {
@@ -241,9 +252,9 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
    * badge = visible card count. Always.
    */
   const typeCounts = (() => {
-    const aktuellGroups = groupReminders(getVisibleRemindersForTab('aktuell'));
-    const medGroups = groupReminders(getVisibleRemindersForTab('medication'));
-    const aptGroups = groupReminders(getVisibleRemindersForTab('appointment'));
+    const aktuellGroups = groupReminders(getVisibleRemindersForTab('aktuell'), doctorsMap);
+    const medGroups = groupReminders(getVisibleRemindersForTab('medication'), doctorsMap);
+    const aptGroups = groupReminders(getVisibleRemindersForTab('appointment'), doctorsMap);
     return {
       aktuell: aktuellGroups.length,
       medication: medGroups.length,
@@ -650,7 +661,7 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
               </div>
             ) : visibleReminders.length > 0 ? (
               <div className="space-y-3">
-                {groupReminders(visibleReminders).map((grouped) => (
+                {groupReminders(visibleReminders, doctorsMap).map((grouped) => (
                   <ReminderCard
                     key={grouped.reminder.id}
                     grouped={grouped}
@@ -735,7 +746,7 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
               </div>
             ) : visibleReminders.length > 0 ? (
               <div className="space-y-3">
-                {groupReminders(visibleReminders).map((grouped) => (
+                {groupReminders(visibleReminders, doctorsMap).map((grouped) => (
                   <ReminderCard
                     key={grouped.reminder.id}
                     grouped={grouped}

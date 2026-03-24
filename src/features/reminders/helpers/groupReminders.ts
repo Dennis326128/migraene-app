@@ -2,7 +2,10 @@ import { format, isToday, isTomorrow } from 'date-fns';
 import { de } from 'date-fns/locale';
 import type { Reminder } from '@/types/reminder.types';
 import { deduplicateReminders } from './dedupeKey';
-import { getReminderDisplayTitle } from './displayTitle';
+import { getReminderDisplayTitle, buildDoctorDisplayName } from './displayTitle';
+
+/** Map of doctor_id → doctor object with name fields */
+export type DoctorsMap = Map<string, { title?: string | null; first_name?: string | null; last_name?: string | null }>;
 
 /**
  * A grouped reminder represents one "series" in the list.
@@ -94,7 +97,7 @@ export function formatNextOccurrence(date: Date, type: string): string {
  * Each recurring reminder appears exactly once.
  * Non-repeating reminders remain as individual entries.
  */
-export function groupReminders(reminders: Reminder[]): GroupedReminder[] {
+export function groupReminders(reminders: Reminder[], doctorsMap?: DoctorsMap): GroupedReminder[] {
   // Client-side dedup: remove duplicates by dedupe_key before grouping
   const dedupedReminders = deduplicateReminders(reminders);
   const groups = new Map<string, Reminder[]>();
@@ -133,7 +136,7 @@ export function groupReminders(reminders: Reminder[]): GroupedReminder[] {
       timesPerDay,
       isRecurring,
       displayTitle: lead.type === 'appointment'
-        ? getReminderDisplayTitle(lead)
+        ? getReminderDisplayTitle(lead, lead.doctor_id && doctorsMap ? buildDoctorDisplayName(doctorsMap.get(lead.doctor_id) ?? null) : null)
         : (isRecurring ? getBaseTitle(lead.title) : lead.title),
     });
   }
