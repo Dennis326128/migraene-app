@@ -34,6 +34,20 @@ export const DueRemindersSheet: React.FC<DueRemindersSheetProps> = ({
     dueReminders,
   } = useInAppDueReminders();
 
+  const { data: allDoctors = [] } = useDoctors();
+  const doctorsMap = useMemo(() => {
+    const map = new Map<string, { title?: string | null; first_name?: string | null; last_name?: string | null }>();
+    for (const doc of allDoctors) {
+      map.set(doc.id, { title: doc.title, first_name: doc.first_name, last_name: doc.last_name });
+    }
+    return map;
+  }, [allDoctors]);
+
+  const getDoctorName = (doctorId?: string | null) => {
+    if (!doctorId) return null;
+    return buildDoctorDisplayName(doctorsMap.get(doctorId) ?? null);
+  };
+
   const [snoozeSheetOpen, setSnoozeSheetOpen] = useState(false);
   const [selectedReminder, setSelectedReminder] = useState<DueReminder | null>(null);
 
