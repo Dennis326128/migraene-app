@@ -309,6 +309,8 @@ export const ReminderForm = ({ reminder, groupedReminders, prefill, onSubmit, on
       setSeriesId(undefined);
       setNotifyOffsets(DEFAULT_APPOINTMENT_OFFSETS);
       setEditingTimeOfDay(null);
+      setAppointmentCustomTitle('');
+      setSelectedDoctorId('');
     } else if (reminder) {
       reset({
         type: reminder.type,
