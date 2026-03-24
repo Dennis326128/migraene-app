@@ -151,6 +151,12 @@ export interface MedicationStat {
   avgPer30?: number;
   /** Is triptan flag */
   isTriptan?: boolean;
+  /** Intakes in last 30 days of range */
+  last30Intakes?: number;
+  /** Average effect as percentage (0-100), null if no ratings */
+  avgEffectPercent?: number | null;
+  /** Number of entries with actual effect ratings */
+  ratedCount?: number;
 }
 
 export interface DoctorReportTables {
