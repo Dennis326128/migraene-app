@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { formatPainLevel as formatPainLevelUtil, formatAuraType, formatPainLocation, normalizePainLevel } from "@/lib/utils/pain";
+import { formatPainLevel as formatPainLevelUtil, formatAuraType, formatPainLocation, normalizePainLevel, formatPainDisplay as formatPainDisplayUtil } from "@/lib/utils/pain";
 import { groupEntriesByDay } from "@/lib/utils/dayGrouping";
 import { PainEntry, MigraineEntry } from "@/types/painApp";
 import { useEntries } from "@/features/entries/hooks/useEntries";
@@ -298,8 +298,11 @@ export const EntriesList = ({
               <p><strong>📅 {t('time.date')}:</strong> {formatDate(selectedEntry.selected_date || selectedEntry.timestamp_created)}</p>
               <p><strong>⏰ {t('time.time')}:</strong> {selectedEntry.selected_time ?? new Date(selectedEntry.timestamp_created).toLocaleTimeString(dateLocale, { hour: "2-digit", minute: "2-digit" })}</p>
               
-              {/* SSOT: Use normalizePainLevel for detail view */}
-              <p><strong>🩺 {t('pain.intensity')}:</strong> {normalizePainLevel(selectedEntry.pain_level)}/10</p>
+              {/* SSOT: Use formatPainDisplay for detail view */}
+              {(() => {
+                const pd = formatPainDisplayUtil(selectedEntry.pain_level);
+                return <p><strong>🩺 {t('pain.intensity')}:</strong> {pd.numeric} ({pd.label})</p>;
+              })()}
               
               {(selectedEntry as any).aura_type && (selectedEntry as any).aura_type !== "keine" && (
                 <p><strong>✨ {t('aura.title')}:</strong> {formatAuraType((selectedEntry as any).aura_type)}</p>

@@ -230,4 +230,52 @@ describe('formatPainDisplay', () => {
     expect(new Set(scores).size).toBe(4);
   });
 });
+
+// ─── End-to-end UI path simulation ────────────────────
+
+describe('UI path regression: mixed legacy + numeric entries', () => {
+  it('EntriesList detail + DayHeader use same SSOT', () => {
+    const entries = [
+      { pain_level: 'stark' },
+      { pain_level: '3' },
+      { pain_level: 'sehr_stark' },
+      { pain_level: '' },
+      { pain_level: 'keine' },
+    ];
+
+    const displays = entries.map(e => formatPainDisplay(e.pain_level));
+    expect(displays[0]).toMatchObject({ score: 7, numeric: '7/10', label: 'Stark' });
+    expect(displays[1]).toMatchObject({ score: 3, numeric: '3/10', label: 'Leicht' });
+    expect(displays[2]).toMatchObject({ score: 9, numeric: '9/10', label: 'Sehr stark' });
+    expect(displays[3]).toMatchObject({ score: null, numeric: '–', label: 'Keine Angabe' });
+    expect(displays[4]).toMatchObject({ score: 0, numeric: '0/10', label: 'Keine Schmerzen' });
+  });
+
+  it('avg calculation excludes null entries (voice planner fix)', () => {
+    const rawLevels = ['3', '7', '', 'stark', null, '-'];
+    const levels = rawLevels
+      .map(v => normalizePainLevelStrict(v as any))
+      .filter((v): v is number => v !== null);
+    
+    // Should exclude '', null, '-' → only 3, 7, 7
+    expect(levels).toEqual([3, 7, 7]);
+    const avg = levels.reduce((s, v) => s + v, 0) / levels.length;
+    expect(avg).toBeCloseTo(5.67, 1);
+  });
+
+  it('CSV export: null pain_level produces dash, not raw text', () => {
+    const testCases = [
+      { pain_level: '5', expected: '5' },
+      { pain_level: 'stark', expected: '7' },
+      { pain_level: '', expected: '–' },
+      { pain_level: null, expected: '–' },
+    ];
+    
+    for (const tc of testCases) {
+      const pd = formatPainDisplay(tc.pain_level as any);
+      const csvValue = pd.score !== null ? `${pd.score}` : '–';
+      expect(csvValue).toBe(tc.expected);
+    }
+  });
+});
 });
