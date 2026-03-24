@@ -13,10 +13,10 @@ describe('parseOccurredAt - Zeitparser', () => {
   });
 
   describe('Relative Zeitangaben', () => {
-    it('Relativ: "vor 2 Stunden" → 12:45 Berlin (10:45 UTC)', () => {
+    it('Relativ: "vor 2 Stunden" → 12:30 Berlin (10:30 UTC)', () => {
       const result = parseOccurredAt('Hatte vor 2 Stunden Kopfschmerzen');
-      // 14:37 - 2h = 12:37 → gerundet 12:45 Berlin = 10:45 UTC
-      expect(result).toBe('2025-10-16T10:45:00.000Z');
+      // 14:37 - 2h = 12:37 → Math.round(37/15)*15 = 30 → 12:30 Berlin = 10:30 UTC
+      expect(result).toBe('2025-10-16T10:30:00.000Z');
     });
 
     it('Relativ: "vor 30 Minuten" → 14:00 Berlin (12:00 UTC)', () => {
