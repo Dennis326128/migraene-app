@@ -40,6 +40,9 @@ export interface Reminder {
   follow_up_interval_unit?: FollowUpIntervalUnit | null;
   next_follow_up_date?: string | null;
   series_id?: string | null;
+  // Appointment-specific: optional user label and doctor reference
+  custom_title?: string | null;
+  doctor_id?: string | null;
   // Snooze fields
   snoozed_until?: string | null;
   snooze_count?: number;
