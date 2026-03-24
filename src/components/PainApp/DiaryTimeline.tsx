@@ -26,7 +26,7 @@ import { QuickContextNoteModal, EditingContextNote } from './QuickContextNoteMod
 import { showSuccessToast, showErrorToast } from '@/lib/toastHelpers';
 import type { ContextMetadata } from '@/lib/voice/saveNote';
 import { CalendarView } from '@/features/diary/calendar';
-import { normalizePainLevel } from '@/lib/utils/pain';
+import { normalizePainLevel, formatPainDisplay } from '@/lib/utils/pain';
 import { MedicationHistoryView } from '@/components/diary/MedicationHistoryView';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 
