@@ -1009,10 +1009,10 @@ export async function buildDoctorReportSnapshot(
       .order("timestamp_created", { ascending: false })
       .range((page - 1) * pageSize, page * pageSize - 1),
 
-    // Medication Courses (Prophylaxe)
+    // Medication Courses (Prophylaxe) — all fields needed for PDF-parity
     supabase
       .from("medication_courses")
-      .select("id, medication_name, start_date, end_date, dose_text, is_active, subjective_effectiveness, side_effects_text, discontinuation_reason, type, updated_at")
+      .select("id, medication_name, start_date, end_date, dose_text, is_active, subjective_effectiveness, side_effects_text, discontinuation_reason, type, updated_at, note_for_physician, had_side_effects, baseline_migraine_days, baseline_acute_med_days, baseline_triptan_doses_per_month, baseline_impairment_level")
       .eq("user_id", userId)
       .order("start_date", { ascending: false }),
 
