@@ -465,30 +465,29 @@ function isTriptan(medName: string): boolean {
   return TRIPTAN_KEYWORDS.some(kw => lower.includes(kw));
 }
 
-function getDateRange(range: string): { from: string; to: string } {
-  const to = new Date();
-  const from = new Date();
+/**
+ * Fixed rolling-window date ranges — SSOT aligned with App (rangeResolver.ts PRESET_DAYS).
+ * 1m=30d, 3m=90d, 6m=180d, 12m=365d. End = yesterday (effectiveToday).
+ */
+const PRESET_DAYS_EDGE: Record<string, number> = {
+  '1m': 30, '30d': 30, '3m': 90, '6m': 180, '12m': 365,
+};
 
-  switch (range) {
-    case "30d":
-      from.setDate(from.getDate() - 30);
-      break;
-    case "3m":
-      from.setMonth(from.getMonth() - 3);
-      break;
-    case "6m":
-      from.setMonth(from.getMonth() - 6);
-      break;
-    case "12m":
-      from.setFullYear(from.getFullYear() - 1);
-      break;
-    default:
-      from.setMonth(from.getMonth() - 3);
-  }
+function getDateRange(range: string): { from: string; to: string } {
+  // effectiveToday = yesterday (today is not yet complete) — same as App SSOT
+  const now = new Date();
+  // Use Berlin timezone for consistency
+  const berlinNow = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Berlin' }));
+  berlinNow.setDate(berlinNow.getDate() - 1); // yesterday
+  const toDate = berlinNow;
+
+  const days = PRESET_DAYS_EDGE[range] ?? 90;
+  const fromDate = new Date(toDate);
+  fromDate.setDate(fromDate.getDate() - (days - 1));
 
   return {
-    from: from.toISOString().split("T")[0],
-    to: to.toISOString().split("T")[0],
+    from: fromDate.toISOString().split("T")[0],
+    to: toDate.toISOString().split("T")[0],
   };
 }
 
