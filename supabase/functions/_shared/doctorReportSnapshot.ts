@@ -321,6 +321,12 @@ export interface MeCfsAnalysis {
   peakLabel?: string | null;
   /** Documentation rate = documentedDays / totalDaysInRange */
   documentationRate?: number;
+  /** Days with severity score > 0 (burdened/affected days) */
+  burdenedDays?: number;
+  /** Typical range label e.g. "2–5" (IQR of daily max scores) */
+  typicalRange?: string | null;
+  /** Data quality note for display (e.g. insufficient data warning) */
+  dataQualityNote?: string | null;
 }
 
 /** Full analysis block (all optional sub-fields) */
