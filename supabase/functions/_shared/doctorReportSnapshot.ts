@@ -137,6 +137,17 @@ export interface ProphylaxisCourse {
   effectiveness: number | null;
   sideEffects: string | null;
   discontinuationReason: string | null;
+  /** Course type: prophylaxe, akut, etc. */
+  type?: string;
+  /** Note for physician (non-private) */
+  noteForPhysician?: string | null;
+  /** Whether side effects were reported */
+  hadSideEffects?: boolean;
+  /** Baseline data for comparison */
+  baselineMigraineDays?: string | null;
+  baselineAcuteMedDays?: string | null;
+  baselineTriptanDosesPerMonth?: number | null;
+  baselineImpairmentLevel?: string | null;
 }
 
 export interface MedicationStat {
