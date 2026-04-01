@@ -1331,9 +1331,16 @@ export async function buildDoctorReportSnapshot(
     startDate: c.start_date || null,
     endDate: c.end_date || null,
     isActive: c.is_active,
-    effectiveness: c.subjective_effectiveness || null,
+    effectiveness: c.subjective_effectiveness ?? null,
     sideEffects: c.side_effects_text || null,
     discontinuationReason: c.discontinuation_reason || null,
+    type: c.type || 'prophylaxe',
+    noteForPhysician: c.note_for_physician || null,
+    hadSideEffects: c.had_side_effects ?? false,
+    baselineMigraineDays: c.baseline_migraine_days || null,
+    baselineAcuteMedDays: c.baseline_acute_med_days || null,
+    baselineTriptanDosesPerMonth: c.baseline_triptan_doses_per_month ?? null,
+    baselineImpairmentLevel: c.baseline_impairment_level || null,
   }));
 
   // Build effect aggregation from medication_effects
