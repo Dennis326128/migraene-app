@@ -908,15 +908,21 @@ function buildMeCfsAnalysis(
 
   const documentedDays = totalDaysInRange - segments[4].days;
 
-  // Compute avg and peak from me_cfs_severity_score
-  const scores: number[] = [];
+  // Compute avg and peak from me_cfs_severity_score — aggregate per-day max scores
+  const dailyMaxScores = new Map<string, number>();
   for (const entry of allEntries) {
     const date = entry.selected_date;
     if (!date || date < from || date > to) continue;
     if (entry.me_cfs_severity_score !== undefined && entry.me_cfs_severity_score > 0) {
-      scores.push(entry.me_cfs_severity_score);
+      const cur = dailyMaxScores.get(date) ?? 0;
+      if (entry.me_cfs_severity_score > cur) {
+        dailyMaxScores.set(date, entry.me_cfs_severity_score);
+      }
     }
   }
+
+  const scores = Array.from(dailyMaxScores.values());
+  const burdenedDays = scores.length; // days with score > 0
 
   const avgScore = scores.length > 0
     ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10
@@ -927,6 +933,23 @@ function buildMeCfsAnalysis(
     ? Math.round((documentedDays / totalDaysInRange) * 1000) / 10
     : 0;
 
+  // Typical range (IQR of daily max scores)
+  let typicalRange: string | null = null;
+  if (scores.length >= 4) {
+    const sorted = [...scores].sort((a, b) => a - b);
+    const q1 = sorted[Math.floor(sorted.length * 0.25)];
+    const q3 = sorted[Math.floor(sorted.length * 0.75)];
+    typicalRange = `${q1}–${q3}`;
+  }
+
+  // Data quality note
+  let dataQualityNote: string | null = null;
+  if (documentedDays < 14) {
+    dataQualityNote = "Weniger als 14 dokumentierte Tage – Kennzahlen nur eingeschränkt aussagekräftig.";
+  } else if (documentationRate < 50) {
+    dataQualityNote = `Dokumentationsquote ${documentationRate}% – Ergebnisse mit Vorsicht interpretieren.`;
+  }
+
   return {
     segments,
     documentedDays,
@@ -936,6 +959,9 @@ function buildMeCfsAnalysis(
     peakScore,
     peakLabel,
     documentationRate,
+    burdenedDays,
+    typicalRange,
+    dataQualityNote,
   };
 }
 
