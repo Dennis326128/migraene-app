@@ -412,7 +412,7 @@ const DoctorReportView: React.FC = () => {
               const p = report.optional.patientData;
               const address = [p.street, [p.postalCode, p.city].filter(Boolean).join(" ")].filter(Boolean).join(", ");
               const nameDisplay = p.fullName || [p.firstName, p.lastName].filter(Boolean).join(" ");
-              const hasAnyData = nameDisplay || p.dateOfBirth || address || p.healthInsurance || p.insuranceNumber || p.phone || p.fax;
+              const hasAnyData = nameDisplay || p.dateOfBirth || address || p.healthInsurance || p.insuranceNumber || p.phone || p.fax || p.email;
               if (!hasAnyData) return null;
               return (
                 <Card>
