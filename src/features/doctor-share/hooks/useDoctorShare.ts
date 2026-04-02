@@ -5,8 +5,8 @@
  * Logik: is_active + expires_at
  */
 
-import { useQuery, useMutation, useQueryClient, useQueryErrorResetBoundary } from "@tanstack/react-query";
-import { useEffect, useCallback, useRef } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
 import {
   getDoctorShareStatus,
   activateDoctorShare,
