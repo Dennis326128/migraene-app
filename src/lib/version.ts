@@ -1,4 +1,10 @@
 import { getPendingCount } from './performance/optimisticSave';
+import {
+  cleanupPreviewResetParam,
+  cleanupPreviewServiceWorkers,
+  reloadAfterPreviewCacheCleanup,
+  shouldDisableServiceWorkerRuntime,
+} from './pwa/runtime';
 
 /**
  * Auto-generated build ID injected at compile time via vite.config.ts define.
@@ -84,6 +90,11 @@ export async function forceClearCachesAndReload() {
  * Compares the compile-time BUILD_ID against localStorage.
  */
 export function checkAppVersion() {
+  if (shouldDisableServiceWorkerRuntime()) {
+    cleanupPreviewResetParam();
+    return false;
+  }
+
   try {
     const storedVersion = safeStorageGet('app_version');
     
@@ -199,6 +210,10 @@ async function checkVersionFromNetwork() {
  * Initialize version watcher with network-based checks.
  */
 export function initVersionWatcher() {
+  if (shouldDisableServiceWorkerRuntime()) {
+    return;
+  }
+
   // 1. Service Worker message listener
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('message', (event) => {
@@ -236,6 +251,25 @@ export function triggerVersionCheckFromAPI() {
  * Call this early in app initialization (main.tsx).
  */
 export function setupServiceWorkerListener() {
+  if (shouldDisableServiceWorkerRuntime()) {
+    void cleanupPreviewServiceWorkers()
+      .then((didCleanup) => {
+        if (didCleanup) {
+          console.log('[PWA] Preview runtime detected — cleared service workers and caches');
+          reloadAfterPreviewCacheCleanup();
+          return;
+        }
+
+        cleanupPreviewResetParam();
+      })
+      .catch((err) => {
+        console.warn('[PWA] Preview cleanup failed', err);
+        cleanupPreviewResetParam();
+      });
+
+    return;
+  }
+
   if ('serviceWorker' in navigator) {
     // Force check for SW updates on every page load
     navigator.serviceWorker.ready.then((registration) => {
