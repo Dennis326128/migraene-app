@@ -21,6 +21,7 @@ import {
   TrendingUp,
   ChevronLeft,
   ChevronRight,
+  User,
 } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -405,6 +406,71 @@ const DoctorReportView: React.FC = () => {
           </Card>
         ) : report && summary && tables ? (
           <>
+            {/* Patient Data */}
+            {report.optional?.patientData && (() => {
+              const p = report.optional.patientData;
+              const address = [p.street, [p.postalCode, p.city].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+              const nameDisplay = p.fullName || [p.firstName, p.lastName].filter(Boolean).join(" ");
+              const hasAnyData = nameDisplay || p.dateOfBirth || address || p.healthInsurance || p.insuranceNumber || p.phone || p.fax;
+              if (!hasAnyData) return null;
+              return (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <User className="w-4 h-4" />
+                      Patientenstammdaten
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 text-sm">
+                      {nameDisplay && (
+                        <div className="flex justify-between py-1 border-b">
+                          <span className="text-muted-foreground">Name</span>
+                          <span className="font-medium">{[p.salutation, p.title, nameDisplay].filter(Boolean).join(" ")}</span>
+                        </div>
+                      )}
+                      {p.dateOfBirth && (
+                        <div className="flex justify-between py-1 border-b">
+                          <span className="text-muted-foreground">Geburtsdatum</span>
+                          <span className="font-medium">{fmtDate(p.dateOfBirth)}</span>
+                        </div>
+                      )}
+                      {address && (
+                        <div className="flex justify-between py-1 border-b">
+                          <span className="text-muted-foreground">Adresse</span>
+                          <span className="font-medium">{address}</span>
+                        </div>
+                      )}
+                      {p.healthInsurance && (
+                        <div className="flex justify-between py-1 border-b">
+                          <span className="text-muted-foreground">Krankenversicherung</span>
+                          <span className="font-medium">{p.healthInsurance}</span>
+                        </div>
+                      )}
+                      {p.insuranceNumber && (
+                        <div className="flex justify-between py-1 border-b">
+                          <span className="text-muted-foreground">Versicherungsnummer</span>
+                          <span className="font-medium">{p.insuranceNumber}</span>
+                        </div>
+                      )}
+                      {p.phone && (
+                        <div className="flex justify-between py-1 border-b">
+                          <span className="text-muted-foreground">Telefon</span>
+                          <span className="font-medium">{p.phone}</span>
+                        </div>
+                      )}
+                      {p.fax && (
+                        <div className="flex justify-between py-1 border-b">
+                          <span className="text-muted-foreground">Fax</span>
+                          <span className="font-medium">{p.fax}</span>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })()}
+
             {/* Summary Cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <Card>
