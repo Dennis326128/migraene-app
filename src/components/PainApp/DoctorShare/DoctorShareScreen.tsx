@@ -349,23 +349,35 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack, on
   const handleToggle = (checked: boolean) => {
     if (checked) {
       // Reactivate
+      console.log('[DoctorShare] Toggle ON — activating share');
       if (!hintSeen.current) {
         setShowHint(true);
         hintSeen.current = true;
         localStorage.setItem(SHARE_HINT_KEY, "true");
       }
       activateMutation.mutate(undefined, {
-        onSuccess: () => refetch(),
-        onError: () => toast.error("Freigabe konnte nicht aktiviert werden"),
+        onSuccess: () => {
+          console.log('[DoctorShare] Activation successful');
+          refetch();
+        },
+        onError: (err) => {
+          console.error('[DoctorShare] Activation failed:', err);
+          toast.error("Freigabe konnte nicht aktiviert werden");
+        },
       });
     } else {
       // Revoke
+      console.log('[DoctorShare] Toggle OFF — deactivating share');
       revokeMutation.mutate(undefined, {
         onSuccess: () => {
+          console.log('[DoctorShare] Deactivation successful');
           refetch();
           setShowHint(false);
         },
-        onError: () => toast.error("Freigabe konnte nicht beendet werden"),
+        onError: (err) => {
+          console.error('[DoctorShare] Deactivation failed:', err);
+          toast.error("Freigabe konnte nicht beendet werden");
+        },
       });
     }
   };
