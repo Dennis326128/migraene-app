@@ -66,27 +66,49 @@ describe('computeMeCfsMax', () => {
 });
 
 describe('computeMohRiskFlag', () => {
+  // 30-day range: factor = 1, thresholds apply directly
   it('returns none for low usage', () => {
     expect(computeMohRiskFlag({ triptanDays: 2, acuteMedDays: 5, headacheDays: 10 }, 30)).toBe('none');
   });
 
-  it('returns possible for triptanDays >= 8', () => {
+  it('returns possible for triptanDays >= 8 in 30d', () => {
     expect(computeMohRiskFlag({ triptanDays: 8, acuteMedDays: 5, headacheDays: 10 }, 30)).toBe('possible');
   });
 
-  it('returns possible for acuteMedDays >= 12', () => {
+  it('returns possible for acuteMedDays >= 12 in 30d', () => {
     expect(computeMohRiskFlag({ triptanDays: 2, acuteMedDays: 12, headacheDays: 10 }, 30)).toBe('possible');
   });
 
-  it('returns likely for triptanDays >= 10', () => {
+  it('returns likely for triptanDays >= 10 in 30d', () => {
     expect(computeMohRiskFlag({ triptanDays: 10, acuteMedDays: 5, headacheDays: 10 }, 30)).toBe('likely');
   });
 
-  it('returns likely for acuteMedDays >= 15', () => {
+  it('returns likely for acuteMedDays >= 15 in 30d', () => {
     expect(computeMohRiskFlag({ triptanDays: 2, acuteMedDays: 15, headacheDays: 10 }, 30)).toBe('likely');
   });
 
   it('likely takes precedence over possible', () => {
     expect(computeMohRiskFlag({ triptanDays: 10, acuteMedDays: 12, headacheDays: 20 }, 30)).toBe('likely');
+  });
+
+  // 90-day range: normalization must prevent false positives
+  it('returns none for 10 triptanDays in 90d (normalizes to 3.3/30)', () => {
+    expect(computeMohRiskFlag({ triptanDays: 10, acuteMedDays: 5, headacheDays: 20 }, 90)).toBe('none');
+  });
+
+  it('returns none for 15 acuteMedDays in 90d (normalizes to 5/30)', () => {
+    expect(computeMohRiskFlag({ triptanDays: 2, acuteMedDays: 15, headacheDays: 20 }, 90)).toBe('none');
+  });
+
+  it('returns likely for 30 triptanDays in 90d (normalizes to 10/30)', () => {
+    expect(computeMohRiskFlag({ triptanDays: 30, acuteMedDays: 5, headacheDays: 40 }, 90)).toBe('likely');
+  });
+
+  it('returns possible for 24 triptanDays in 90d (normalizes to 8/30)', () => {
+    expect(computeMohRiskFlag({ triptanDays: 24, acuteMedDays: 5, headacheDays: 30 }, 90)).toBe('possible');
+  });
+
+  it('returns none for rangeDays = 0', () => {
+    expect(computeMohRiskFlag({ triptanDays: 10, acuteMedDays: 15, headacheDays: 10 }, 0)).toBe('none');
   });
 });
