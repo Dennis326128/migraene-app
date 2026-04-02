@@ -172,7 +172,6 @@ Deno.serve(async (req) => {
         is_active: false,
       })
       .select("id, code, code_display, created_at, is_active, expires_at, default_range")
-      .select("id, code, code_display, created_at, is_active, expires_at, default_range, share_revoked_at")
       .single();
 
     if (insertError) {
