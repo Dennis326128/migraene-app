@@ -194,6 +194,7 @@ export interface PatientData {
   insuranceNumber: string | null;
   salutation: string | null;
   title: string | null;
+  email: string | null;
 }
 
 export interface DoctorReportOptional {
