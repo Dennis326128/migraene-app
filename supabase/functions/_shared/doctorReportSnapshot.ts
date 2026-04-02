@@ -1484,6 +1484,7 @@ export async function buildDoctorReportSnapshot(
       insuranceNumber: patientData.insurance_number as string | null,
       salutation: patientData.salutation as string | null,
       title: title || null,
+      email: patientData.email as string | null,
     };
   }
 
