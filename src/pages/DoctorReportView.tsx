@@ -145,6 +145,7 @@ interface PatientData {
   insuranceNumber: string | null;
   salutation: string | null;
   title: string | null;
+  email: string | null;
 }
 
 interface DoctorReportJSON {
@@ -411,7 +412,7 @@ const DoctorReportView: React.FC = () => {
               const p = report.optional.patientData;
               const address = [p.street, [p.postalCode, p.city].filter(Boolean).join(" ")].filter(Boolean).join(", ");
               const nameDisplay = p.fullName || [p.firstName, p.lastName].filter(Boolean).join(" ");
-              const hasAnyData = nameDisplay || p.dateOfBirth || address || p.healthInsurance || p.insuranceNumber || p.phone || p.fax;
+              const hasAnyData = nameDisplay || p.dateOfBirth || address || p.healthInsurance || p.insuranceNumber || p.phone || p.fax || p.email;
               if (!hasAnyData) return null;
               return (
                 <Card>
@@ -463,6 +464,12 @@ const DoctorReportView: React.FC = () => {
                         <div className="flex justify-between py-1 border-b">
                           <span className="text-muted-foreground">Fax</span>
                           <span className="font-medium">{p.fax}</span>
+                        </div>
+                      )}
+                      {p.email && (
+                        <div className="flex justify-between py-1 border-b">
+                          <span className="text-muted-foreground">E-Mail</span>
+                          <span className="font-medium">{p.email}</span>
                         </div>
                       )}
                     </div>

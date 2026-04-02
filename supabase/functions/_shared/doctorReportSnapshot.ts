@@ -194,6 +194,7 @@ export interface PatientData {
   insuranceNumber: string | null;
   salutation: string | null;
   title: string | null;
+  email: string | null;
 }
 
 export interface DoctorReportOptional {
@@ -1052,7 +1053,7 @@ export async function buildDoctorReportSnapshot(
     includePatientData
       ? supabase
           .from("patient_data")
-          .select("first_name, last_name, date_of_birth, street, postal_code, city, phone, fax, health_insurance, insurance_number, salutation, title")
+          .select("first_name, last_name, date_of_birth, street, postal_code, city, phone, fax, health_insurance, insurance_number, salutation, title, email")
           .eq("user_id", userId)
           .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
@@ -1483,6 +1484,7 @@ export async function buildDoctorReportSnapshot(
       insuranceNumber: patientData.insurance_number as string | null,
       salutation: patientData.salutation as string | null,
       title: title || null,
+      email: patientData.email as string | null,
     };
   }
 
