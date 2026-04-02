@@ -145,6 +145,7 @@ interface PatientData {
   insuranceNumber: string | null;
   salutation: string | null;
   title: string | null;
+  email: string | null;
 }
 
 interface DoctorReportJSON {
