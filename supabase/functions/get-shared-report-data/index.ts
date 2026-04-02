@@ -34,6 +34,7 @@ function buildLegacyFields(reportJson: DoctorReportJSON, userId: string) {
       insurance_number: reportJson.optional.patientData.insuranceNumber,
       salutation: reportJson.optional.patientData.salutation,
       title: reportJson.optional.patientData.title,
+      email: reportJson.optional.patientData.email,
     } : null,
     summary: {
       headache_days: reportJson.summary.headacheDays,
