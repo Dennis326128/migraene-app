@@ -466,6 +466,12 @@ const DoctorReportView: React.FC = () => {
                           <span className="font-medium">{p.fax}</span>
                         </div>
                       )}
+                      {p.email && (
+                        <div className="flex justify-between py-1 border-b">
+                          <span className="text-muted-foreground">E-Mail</span>
+                          <span className="font-medium">{p.email}</span>
+                        </div>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
