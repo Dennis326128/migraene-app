@@ -45,10 +45,18 @@ function buildResponse(row: {
   is_active: boolean;
   expires_at: string | null;
   default_range: string;
+  share_revoked_at: string | null;
 }) {
   const isCurrentlyActive = computeIsCurrentlyActive(row.is_active, row.expires_at);
 
-  // If expired but is_active still true, auto-correct in background (fire-and-forget)
+  // Determine if revoked today (manual deactivation within last 24h)
+  let wasRevokedToday = false;
+  if (row.share_revoked_at) {
+    const revokedDate = new Date(row.share_revoked_at);
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    wasRevokedToday = revokedDate > oneDayAgo;
+  }
+
   return {
     id: row.id,
     code: row.code,
@@ -61,8 +69,8 @@ function buildResponse(row: {
     // Legacy compatibility fields
     is_share_active: isCurrentlyActive,
     share_active_until: row.expires_at,
-    share_revoked_at: (!row.is_active && row.expires_at) ? row.expires_at : null,
-    was_revoked_today: false,
+    share_revoked_at: row.share_revoked_at,
+    was_revoked_today: wasRevokedToday,
   };
 }
 
@@ -97,7 +105,7 @@ Deno.serve(async (req) => {
     // Try to fetch existing code (unique per user where revoked_at IS NULL)
     const { data: existing, error: fetchError } = await supabase
       .from("doctor_shares")
-      .select("id, code, code_display, created_at, is_active, expires_at, default_range")
+      .select("id, code, code_display, created_at, is_active, expires_at, default_range, share_revoked_at")
       .eq("user_id", user.id)
       .is("revoked_at", null)
       .limit(1)
@@ -117,6 +125,7 @@ Deno.serve(async (req) => {
 
       // Auto-correct: if DB says active but actually expired, set is_active=false
       if (existing.is_active && !isCurrentlyActive) {
+        console.log(`[Doctor Share] Auto-correcting expired share for user ${user.id.substring(0, 8)}... (expired at ${existing.expires_at})`);
         await supabase
           .from("doctor_shares")
           .update({ is_active: false })
@@ -163,6 +172,7 @@ Deno.serve(async (req) => {
         is_active: false,
       })
       .select("id, code, code_display, created_at, is_active, expires_at, default_range")
+      .select("id, code, code_display, created_at, is_active, expires_at, default_range, share_revoked_at")
       .single();
 
     if (insertError) {
@@ -171,7 +181,7 @@ Deno.serve(async (req) => {
         console.log("Race condition detected, fetching existing code");
         const { data: raceCode } = await supabase
           .from("doctor_shares")
-          .select("id, code, code_display, created_at, is_active, expires_at, default_range")
+          .select("id, code, code_display, created_at, is_active, expires_at, default_range, share_revoked_at")
           .eq("user_id", user.id)
           .is("revoked_at", null)
           .single();
