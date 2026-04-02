@@ -72,15 +72,14 @@ export function computeMeCfsMax(
 
 /**
  * Konservative MOH-Risiko-Heuristik (Medication Overuse Headache).
- * Basiert auf absoluten Tagen, NICHT normiert.
  * 
- * Schwellenwerte (konservativ):
- * - likely:   Triptan ≥10 Tage ODER Akutmed ≥15 Tage
- * - possible: Triptan ≥8 Tage ODER Akutmed ≥12 Tage
+ * Schwellenwerte werden auf 30-Tage-normierte Werte angewendet:
+ * - likely:   Triptan ≥10 Tage/Monat ODER Akutmed ≥15 Tage/Monat
+ * - possible: Triptan ≥8 Tage/Monat ODER Akutmed ≥12 Tage/Monat
  * - none:     sonst
  * 
- * WICHTIG: rangeDays wird aktuell nicht verwendet, ist aber als
- * Parameter für zukünftige Normierung reserviert.
+ * rangeDays wird zur Normierung verwendet. Bei rangeDays <= 0
+ * wird 'none' zurückgegeben (keine Bewertung möglich).
  */
 export function computeMohRiskFlag(
   kpis: {
@@ -88,12 +87,19 @@ export function computeMohRiskFlag(
     acuteMedDays: number;
     headacheDays: number;
   },
-  _rangeDays: number
+  rangeDays: number
 ): MohRiskFlag {
-  if (kpis.triptanDays >= 10 || kpis.acuteMedDays >= 15) {
+  if (rangeDays <= 0) return 'none';
+
+  // Normalize to 30-day basis
+  const factor = 30 / rangeDays;
+  const triptanPer30 = kpis.triptanDays * factor;
+  const acuteMedPer30 = kpis.acuteMedDays * factor;
+
+  if (triptanPer30 >= 10 || acuteMedPer30 >= 15) {
     return 'likely';
   }
-  if (kpis.triptanDays >= 8 || kpis.acuteMedDays >= 12) {
+  if (triptanPer30 >= 8 || acuteMedPer30 >= 12) {
     return 'possible';
   }
   return 'none';

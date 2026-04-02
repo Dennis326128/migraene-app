@@ -1222,9 +1222,11 @@ export async function buildDoctorReportSnapshot(
 
   console.log(`[DoctorReport] KPI summary: headacheDays=${painDaysSet.size}, migraineDays=${migraineDaysSet.size}, triptanDays=${triptanDaysSet.size}, acuteMedDays=${acuteMedDaysSet.size}, avgIntensity=${avgIntensity}`);
 
-  const monthsInRange = daysInRange / 30;
-  const acuteMedDaysPerMonth = acuteMedDaysSet.size / monthsInRange;
-  const overuseWarning = acuteMedDaysPerMonth > 10;
+  // MOH overuse warning: normalize to 30-day basis, check both triptan and acute med thresholds
+  const normFactor = daysInRange > 0 ? 30 / daysInRange : 0;
+  const triptanDaysPer30 = triptanDaysSet.size * normFactor;
+  const acuteMedDaysPer30 = acuteMedDaysSet.size * normFactor;
+  const overuseWarning = triptanDaysPer30 >= 10 || acuteMedDaysPer30 >= 15;
 
   const gapDays = daysInRange - documentedDatesSet.size;
   const documentationGaps: DocumentationGap = {
