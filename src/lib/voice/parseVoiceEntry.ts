@@ -51,7 +51,7 @@ import {
 // === TYPEN ===
 // ============================================================
 
-export { MedEntry };
+export type { MedEntry };
 
 export interface ParsedMedication {
   name: string;
