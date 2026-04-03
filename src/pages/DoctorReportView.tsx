@@ -308,8 +308,8 @@ const DoctorReportView: React.FC = () => {
       const link = document.createElement("a");
       link.href = url;
       link.download = buildPdfFilename({
-        lastName: report?.summary?.patientData?.lastName || undefined,
-        firstName: report?.summary?.patientData?.firstName || undefined,
+        lastName: report?.optional?.patientData?.lastName || undefined,
+        firstName: report?.optional?.patientData?.firstName || undefined,
         fromDate: report?.meta.fromDate ?? new Date().toISOString().split('T')[0],
         toDate: report?.meta.toDate ?? new Date().toISOString().split('T')[0],
         reportType: 'diary',
