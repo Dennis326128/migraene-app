@@ -54,8 +54,8 @@ export function drawPieChartWithLegend(
 
   const slices: PieSlice[] = [
     { value: painFreeDays, color: PDF_PIE_COLORS.painFree, label: 'Schmerzfrei' },
-    { value: painDaysNoTriptan, color: PDF_PIE_COLORS.painNoTriptan, label: 'Schmerz ohne Triptan' },
-    { value: triptanDays, color: PDF_PIE_COLORS.triptan, label: 'Tage mit Triptan' },
+    { value: painDaysNoTriptan, color: PDF_PIE_COLORS.painNoTriptan, label: 'Kopfschmerz ohne Akutmedikation' },
+    { value: triptanDays, color: PDF_PIE_COLORS.triptan, label: 'Kopfschmerz mit Akutmedikation' },
   ];
 
   const activeSlices = slices.filter(s => s.value > 0);
