@@ -91,6 +91,19 @@ export const ReportHistoryPage: React.FC<ReportHistoryPageProps> = ({
     return format(new Date(dateStr), "d. MMMM yyyy", { locale: de });
   };
 
+  const formatRange = (fromStr: string, toStr: string) => {
+    const DE_MONTHS = ['Jan', 'Feb', 'Mrz', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+    const from = new Date(fromStr + 'T12:00:00Z');
+    const to = new Date(toStr + 'T12:00:00Z');
+    const fromMonth = DE_MONTHS[from.getUTCMonth()];
+    const fromYear = from.getUTCFullYear();
+    const toMonth = DE_MONTHS[to.getUTCMonth()];
+    const toYear = to.getUTCFullYear();
+    if (fromMonth === toMonth && fromYear === toYear) return `${fromMonth} ${fromYear}`;
+    if (fromYear === toYear) return `${fromMonth} – ${toMonth} ${toYear}`;
+    return `${fromMonth} ${fromYear} – ${toMonth} ${toYear}`;
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background p-4 flex items-center justify-center">
