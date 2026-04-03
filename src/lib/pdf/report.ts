@@ -1249,17 +1249,17 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     // PIE CHART: Tagesverteilung (kompakter)
     // ═══════════════════════════════════════════════════════════════════════
     {
-      const buckets = computeDiaryDayBuckets({
-        startDate: from,
-        endDate: to,
-        entries: entries.map(e => ({
+      const buckets = computeHeadacheTreatmentDayDistribution(
+        from,
+        to,
+        entries.map(e => ({
           selected_date: e.selected_date,
           timestamp_created: e.timestamp_created,
           pain_level: e.pain_level,
           medications: e.medications,
+          entry_kind: e.entry_kind,
         })),
-        documentedDaysOnly: false,
-      });
+      );
 
       const pieSpaceCheck = ensureSpace(pdfDoc, page, yPos, 110);
       page = pieSpaceCheck.page;
