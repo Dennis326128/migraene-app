@@ -201,7 +201,10 @@ export function EntryReviewSheet({
       {/* Medications */}
       {medications.length > 0 && (
         <Card className="p-4">
-          <Label className="text-base font-medium mb-3 block">Medikamente</Label>
+          <Label className="text-base font-medium mb-3 block">
+            Medikamente
+            <UncertaintyHint warning={getFieldWarning('medication', state.uncertainFields)} />
+          </Label>
           {medsNeedReview && (
             <p className="text-xs text-muted-foreground/60 mb-2">
               Bitte kurz prüfen – ähnlich klingende Medikamente möglich.
