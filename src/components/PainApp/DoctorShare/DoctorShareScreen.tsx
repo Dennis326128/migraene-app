@@ -592,7 +592,7 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack, on
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <Clock className="w-3.5 h-3.5" />
                     <span>
-                      Aktiv bis {format(new Date(shareStatus.expires_at), "HH:mm, dd.MM.", { locale: de })}
+                      Aktiv bis {format(new Date(shareStatus.expires_at), "HH:mm", { locale: de })} Uhr am {format(new Date(shareStatus.expires_at), "dd.MM.", { locale: de })}
                     </span>
                   </div>
                 )}
