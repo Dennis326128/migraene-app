@@ -670,17 +670,14 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack, on
               </AlertDialogTitle>
             </div>
             <AlertDialogDescription className="text-sm leading-relaxed">
-              Damit deine Daten auf miary.de abrufbar sind, muss die Freigabe aktiv sein. Soll die Freigabe jetzt aktiviert werden?
+              Du kannst miary.de trotzdem öffnen. Damit deine freigegebenen Daten dort verfügbar sind, aktiviere die Freigabe vorher.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="gap-2 sm:gap-2">
-            <AlertDialogCancel disabled={isActivatingForLink}>
-              Nicht jetzt
-            </AlertDialogCancel>
+          <div className="flex flex-col gap-2 pt-2">
             <Button
               onClick={handleActivateAndOpen}
               disabled={isActivatingForLink}
-              className="gap-2"
+              className="gap-2 w-full"
             >
               {isActivatingForLink ? (
                 <>
@@ -691,7 +688,26 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack, on
                 "Aktivieren und öffnen"
               )}
             </Button>
-          </AlertDialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowActivateDialog(false);
+                window.open("https://miary.de", "_blank", "noopener,noreferrer");
+              }}
+              disabled={isActivatingForLink}
+              className="w-full"
+            >
+              Ohne Freigabe öffnen
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => setShowActivateDialog(false)}
+              disabled={isActivatingForLink}
+              className="w-full text-muted-foreground"
+            >
+              Abbrechen
+            </Button>
+          </div>
         </AlertDialogContent>
       </AlertDialog>
     </>
