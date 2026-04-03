@@ -459,11 +459,12 @@ function computePainFreeIntervals(entries: AnalysisEntry[], fromDate: string, to
 
   const thirdLabels = ['Erstes Drittel', 'Mittleres Drittel', 'Letztes Drittel'];
   const thirdStats = thirds.map((dates, i) => {
-    const hdDays = dates.filter(d => (dayPain.get(d) ?? 0) > 0).length;
-    const pains = dates.filter(d => (dayPain.get(d) ?? 0) > 0).map(d => dayPain.get(d)!);
+    const documented = dates.filter(d => documentedDays.has(d));
+    const hdDays = documented.filter(d => dayPain.get(d)! > 0).length;
+    const pains = documented.filter(d => dayPain.get(d)! > 0).map(d => dayPain.get(d)!);
     const avgNRS = pains.length > 0 ? round1(pains.reduce((a, b) => a + b, 0) / pains.length) : 0;
     const triptanD = dates.filter(d => dayTriptan.get(d)).length;
-    return { label: thirdLabels[i], days: dates.length, headacheDays: hdDays, avgNRS, triptanDays: triptanD };
+    return { label: thirdLabels[i], days: dates.length, documented: documented.length, headacheDays: hdDays, avgNRS, triptanDays: triptanD };
   });
 
   for (const t of thirdStats) {
