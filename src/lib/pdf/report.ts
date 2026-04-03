@@ -28,6 +28,7 @@ import { formatPainLocation, normalizePainLevel as normalizePainLevelImport } fr
 import { isTriptan } from "@/lib/medications/isTriptan";
 import { computeDiaryDayBuckets } from "@/lib/diary/dayBuckets";
 import { drawPieChartWithLegend } from "@/lib/pdf/pieChart";
+import type { ClinicalAnalysisResult } from "@/lib/pdf/clinicalAnalysis";
 import { drawSymptomSection, type SymptomDataForPdf } from "@/lib/pdf/symptomSection";
 import { buildPainWeatherSeries, normalizePainLevel as sharedNormalizePainLevel, type PainWeatherDataPoint } from "@/lib/charts/painWeatherData";
 import { drawSmoothPainWeatherChart } from "@/lib/charts/painWeatherPdfChart";
