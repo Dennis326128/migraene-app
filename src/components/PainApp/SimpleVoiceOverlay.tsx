@@ -28,7 +28,6 @@ import {
 import { useLanguage } from '@/hooks/useLanguage';
 import { EntryReviewSheet, type EntryReviewState } from './EntryReviewSheet';
 import { VoiceDebugOverlay } from './VoiceDebugOverlay';
-import { mergeVoiceAppend, type UserEditedFlags } from '@/lib/voice/mergeVoiceAppend';
 import { DEFAULT_DOSE_QUARTERS } from '@/lib/utils/doseFormatter';
 
 // ============================================
