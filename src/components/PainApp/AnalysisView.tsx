@@ -389,7 +389,6 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
                     painFreeDays={dayBuckets?.painFreeDays ?? 0}
                     painDaysNoTriptan={dayBuckets?.painDaysNoTriptan ?? 0}
                     triptanDays={dayBuckets?.triptanDays ?? 0}
-                    reportLegacySegments={ssotReport?.charts.legacyHeadacheDaysPie?.segments}
                   />
                 </Card>
 

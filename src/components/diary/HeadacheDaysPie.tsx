@@ -1,6 +1,5 @@
 import React, { useMemo } from 'react';
 import { PIE_COLORS_CSS, PIE_LABELS } from '@/lib/theme/pieColors';
-import type { LegacyPieSegment } from '@/lib/report-v2/types';
 
 interface HeadacheDaysPieProps {
   totalDays: number;
@@ -11,8 +10,6 @@ interface HeadacheDaysPieProps {
   compact?: boolean;
   /** Render at larger size for fullscreen views */
   fullscreen?: boolean;
-  /** SSOT V2 legacy pie segments — when provided, overrides individual day props */
-  reportLegacySegments?: LegacyPieSegment[];
 }
 
 interface SliceData {
