@@ -748,11 +748,13 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
       const link = document.createElement('a');
       link.href = url;
       
-      const fromDate = typeof from === 'string' ? new Date(from) : from;
-      const toDate = typeof to === 'string' ? new Date(to) : to;
-      const fromStr = `${fromDate.getFullYear()}-${String(fromDate.getMonth() + 1).padStart(2, '0')}-${String(fromDate.getDate()).padStart(2, '0')}`;
-      const toStr = `${toDate.getFullYear()}-${String(toDate.getMonth() + 1).padStart(2, '0')}-${String(toDate.getDate()).padStart(2, '0')}`;
-      link.download = `Kopfschmerztagebuch_${fromStr}_bis_${toStr}.pdf`;
+      link.download = buildPdfFilename({
+        lastName: freshPatientData?.last_name || undefined,
+        firstName: freshPatientData?.first_name || undefined,
+        fromDate: from,
+        toDate: to,
+        reportType: 'diary',
+      });
       link.click();
       URL.revokeObjectURL(url);
       
