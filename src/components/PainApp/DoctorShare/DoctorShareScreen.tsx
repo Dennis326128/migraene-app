@@ -427,6 +427,7 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack, on
   }, [isActivatingForLink, activateMutation, refetch]);
 
   return (
+    <>
     <div className="min-h-screen bg-background">
       <AppHeader title="Per Code teilen" onBack={handleBack} sticky />
 
