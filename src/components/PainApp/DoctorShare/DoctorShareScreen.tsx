@@ -402,6 +402,30 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack, on
   // Check if share expired (auto-off)
   const isExpired = shareStatus && !isShareActive && shareStatus.expires_at && shareStatus.is_active === false && !shareStatus.was_revoked_today;
 
+  // Handle miary.de link click
+  const handleOpenMiary = useCallback(() => {
+    if (isShareActive) {
+      window.open("https://miary.de", "_blank", "noopener,noreferrer");
+    } else {
+      setShowActivateDialog(true);
+    }
+  }, [isShareActive]);
+
+  const handleActivateAndOpen = useCallback(async () => {
+    if (isActivatingForLink) return;
+    setIsActivatingForLink(true);
+    try {
+      await activateMutation.mutateAsync(undefined);
+      await refetch();
+      setShowActivateDialog(false);
+      window.open("https://miary.de", "_blank", "noopener,noreferrer");
+    } catch {
+      toast.error("Freigabe konnte nicht aktiviert werden");
+    } finally {
+      setIsActivatingForLink(false);
+    }
+  }, [isActivatingForLink, activateMutation, refetch]);
+
   return (
     <div className="min-h-screen bg-background">
       <AppHeader title="Per Code teilen" onBack={handleBack} sticky />
