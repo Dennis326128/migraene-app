@@ -127,8 +127,14 @@ export async function fetchAllEntriesForExport(from: string, to: string): Promis
   let offset = 0;
   let hasMore = true;
 
-  // Filter by selected_date (not timestamp_created!) so backdated entries are included.
-  // This matches the SSOT computation which groups by selected_date.
+  // SSOT uses: selected_date || timestamp_created as date key.
+  // We must fetch entries where EITHER selected_date is in range
+  // OR (selected_date is null AND timestamp_created is in range).
+  // Use .or() to cover both cases, matching what the app does.
+  const toDate = new Date(to);
+  toDate.setHours(23, 59, 59, 999);
+  const toIso = toDate.toISOString();
+  const fromIso = new Date(from).toISOString();
 
   while (hasMore) {
     const { data, error } = await supabase
@@ -156,8 +162,7 @@ export async function fetchAllEntriesForExport(from: string, to: string): Promis
         )
       `)
       .eq("user_id", user.id)
-      .gte("selected_date", from)
-      .lte("selected_date", to)
+      .or(`and(selected_date.gte.${from},selected_date.lte.${to}),and(selected_date.is.null,timestamp_created.gte.${fromIso},timestamp_created.lte.${toIso})`)
       .order("timestamp_created", { ascending: false })
       .range(offset, offset + BATCH_SIZE - 1);
 
