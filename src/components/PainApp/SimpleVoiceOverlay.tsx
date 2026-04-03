@@ -252,19 +252,33 @@ export function SimpleVoiceOverlay({
       const meds = userMedsRef.current;
       const mode = voiceModeRef.current;
       
+      const medLexicon: MedEntry[] = meds.map(m => ({
+        id: m.id,
+        name: m.name,
+        activeIngredient: m.wirkstoff ?? undefined,
+        defaultDoseQuarters: 4,
+      }));
+      
       if (mode === 'append' && baseTranscriptRef.current) {
         const combinedTranscript = (baseTranscriptRef.current + ' ' + currentText).trim();
-        const result = parseVoiceEntryOld(
-          combinedTranscript,
-          meds.map(m => ({ id: m.id, name: m.name, wirkstoff: m.wirkstoff }))
-        );
+        const parsed = parseVoiceEntry(combinedTranscript, medLexicon, new Date());
         
         const currentReview = reviewStateRef.current;
         if (currentReview) {
-          const merged = mergeVoiceAppend(currentReview, result, userEditedRef.current);
+          const { review } = buildEntryReviewState(parsed);
+          // Merge: respect user edits
+          const edited = userEditedRef.current;
           reviewOpenedRef.current = true;
-          setReviewState(merged.state);
-          setPainDefaultUsed(merged.painDefaultUsed);
+          setReviewState({
+            ...review,
+            painLevel: edited.pain ? currentReview.painLevel : review.painLevel,
+            selectedMedications: edited.meds ? currentReview.selectedMedications : review.selectedMedications,
+            notesText: edited.notes
+              ? (currentReview.notesText.trim() + (review.notesText.trim() ? '\n\n' + review.notesText.trim() : ''))
+              : review.notesText,
+            occurredAt: currentReview.occurredAt,
+          });
+          setPainDefaultUsed(parsed.painLevel === null && !edited.pain);
           setEmptyTranscript(!combinedTranscript);
         }
         baseTranscriptRef.current = combinedTranscript;
@@ -272,66 +286,16 @@ export function SimpleVoiceOverlay({
         const isEmpty = !currentText;
         setEmptyTranscript(isEmpty);
         
-        if (FEATURE_FLAGS.USE_NEW_VOICE_PARSER) {
-          // --- New parser pipeline ---
-          const medLexicon: MedEntry[] = meds.map(m => ({
-            id: m.id,
-            name: m.name,
-            activeIngredient: m.wirkstoff ?? undefined,
-            defaultDoseQuarters: 4,
-          }));
-          const parsed = parseVoiceEntryNew(currentText, medLexicon, new Date());
-          const newState = buildReviewStateNew(parsed, {
-            defaultPainLevel: 7,
-            defaultMeCfs: 'none',
-            defaultAura: 'keine',
-          });
-          
-          // Convert new state → EntryReviewSheet's EntryReviewState
-          const selectedMeds = new Map<string, { doseQuarters: number; medicationId?: string }>();
-          for (const med of newState.selectedMedications) {
-            selectedMeds.set(med.name, {
-              doseQuarters: med.doseQuarters,
-              medicationId: med.id,
-            });
-          }
-          
-          const review: EntryReviewState = {
-            painLevel: newState.painLevel,
-            selectedMedications: selectedMeds,
-            notesText: newState.notesText,
-            occurredAt: newState.occurredAt,
-            painLocations: newState.painLocations,
-            auraType: newState.auraType,
-            symptoms: newState.symptoms,
-            meCfsLevel: newState.meCfsLevel,
-            isPrivate: newState.isPrivate,
-            uncertainFields: newState.uncertainFields,
-          };
-          
-          reviewOpenedRef.current = true;
-          setReviewState(review);
-          setLastParseResult(null);
-          setPainDefaultUsed(newState.painLevelIsDefault);
-          setPainFromDescriptor(false);
-          setMedsNeedReview(newState.selectedMedications.some(m => m.needsReview));
-          baseTranscriptRef.current = currentText;
-        } else {
-          // --- Old parser fallback ---
-          const result = parseVoiceEntryOld(
-            currentText,
-            meds.map(m => ({ id: m.id, name: m.name, wirkstoff: m.wirkstoff }))
-          );
-          
-          const review = buildReviewStateOld(result);
-          reviewOpenedRef.current = true;
-          setReviewState(review);
-          setLastParseResult(result);
-          setPainDefaultUsed(result.pain_intensity.value === null);
-          setPainFromDescriptor(!!result.pain_intensity.painFromDescriptor);
-          setMedsNeedReview(result.medsNeedReview);
-          baseTranscriptRef.current = currentText;
-        }
+        const parsed = parseVoiceEntry(currentText, medLexicon, new Date());
+        const { review, painDefaultUsed: pdu, painFromDescriptor: pfd, medsNeedReview: mnr } = buildEntryReviewState(parsed);
+        
+        reviewOpenedRef.current = true;
+        setReviewState(review);
+        setLastParseResult(parsed);
+        setPainDefaultUsed(pdu);
+        setPainFromDescriptor(pfd);
+        setMedsNeedReview(mnr);
+        baseTranscriptRef.current = currentText;
       }
       
       setVoiceMode('new');
