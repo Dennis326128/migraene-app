@@ -57,14 +57,16 @@ function subtractMinutes(now: Date, minutes: number): Date {
  * @returns Zahl oder null wenn nicht erkennbar
  */
 function parseNumberOrWord(token: string): number | null {
-  const norm = normalizeText(token);
+  const raw = token.toLowerCase().trim();
+  const norm = normalizeText(token); // Umlaute expandiert (oe, ae, ue, ss)
 
   // Ziffer direkt
-  const num = parseInt(norm, 10);
+  const num = parseInt(raw, 10);
   if (!isNaN(num)) return num;
 
-  // Zahlwort-Lookup
-  if (norm in TIME_NUMBER_WORDS) return TIME_NUMBER_WORDS[norm];
+  // Zahlwort-Lookup: erst original (mit Umlauten), dann normalisiert
+  if (raw in TIME_NUMBER_WORDS) return TIME_NUMBER_WORDS[raw]!;
+  if (norm in TIME_NUMBER_WORDS) return TIME_NUMBER_WORDS[norm]!;
 
   return null;
 }
@@ -184,8 +186,9 @@ export function parseTimeExpression(text: string, now: Date = new Date()): Parse
   }
 
   // "vor X Stunden und Y Minuten"
+  // WICHTIG: [\w\u00C0-\u024F]+ matcht auch Umlaute (ä,ö,ü,ß und Varianten)
   {
-    const pattern = /\bvor\s+([\w]+)\s+stunden?\s+und\s+([\w]+)\s+minuten?\b/i;
+    const pattern = /\bvor\s+([\wÀ-ɏ]+)\s+stunden?\s+und\s+([\wÀ-ɏ]+)\s+minuten?\b/i;
     const m = pattern.exec(norm);
     if (m) {
       const hours = parseNumberOrWord(m[1]);
@@ -224,9 +227,9 @@ export function parseTimeExpression(text: string, now: Date = new Date()): Parse
     }
   }
 
-  // "vor X Stunden" (Zahl oder Wort)
+  // "vor X Stunden" (Zahl oder Wort, inkl. Umlaute)
   {
-    const pattern = /\bvor\s+([\w]+)\s+stunden?\b/i;
+    const pattern = /\bvor\s+([\wÀ-ɏ]+)\s+stunden?\b/i;
     const m = pattern.exec(norm);
     if (m) {
       const hours = parseNumberOrWord(m[1]);
@@ -246,9 +249,9 @@ export function parseTimeExpression(text: string, now: Date = new Date()): Parse
     }
   }
 
-  // "vor X Minuten" (Zahl oder Wort)
+  // "vor X Minuten" (Zahl oder Wort, inkl. Umlaute wie dreißig, fünfzig)
   {
-    const pattern = /\bvor\s+([\w]+)\s+minuten?\b/i;
+    const pattern = /\bvor\s+([\wÀ-ɏ]+)\s+minuten?\b/i;
     const m = pattern.exec(norm);
     if (m) {
       const minutes = parseNumberOrWord(m[1]);
