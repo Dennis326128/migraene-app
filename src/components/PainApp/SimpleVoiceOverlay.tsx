@@ -311,7 +311,7 @@ export function SimpleVoiceOverlay({
       console.error('[SimpleVoice] Parse error, using defaults:', error);
       openReviewWithDefaults();
     }
-  }, [clearAllTimers, buildReviewStateOld, openReviewWithDefaults]);
+  }, [clearAllTimers, buildEntryReviewState, openReviewWithDefaults]);
   
   // ============================================
   // Auto-Stop Timer (generous fallback only)
