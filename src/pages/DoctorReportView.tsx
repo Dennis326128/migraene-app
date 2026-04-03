@@ -26,6 +26,7 @@ import {
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { toast } from "sonner";
+import { buildPdfFilename } from "@/lib/pdf/filenameUtils";
 import {
   SUPABASE_FUNCTIONS_BASE_URL,
   buildDoctorFetchInit,
