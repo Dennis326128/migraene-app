@@ -16,9 +16,41 @@ import { Card } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { SaveButton } from '@/components/ui/save-button';
 import { MedicationDoseList } from './MedicationDose';
-import { Clock, Mic, ChevronDown } from 'lucide-react';
+import { Clock, Mic, ChevronDown, AlertTriangle, HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+
+// ============================================
+// Uncertainty Indicator Helper
+// ============================================
+
+function getFieldWarning(field: string, uncertainFields?: ReviewUncertainField[]) {
+  if (!uncertainFields) return null;
+  return uncertainFields.find(f => f.field === field) ?? null;
+}
+
+function UncertaintyHint({ warning }: { warning: ReviewUncertainField | null }) {
+  if (!warning) return null;
+  
+  if (warning.confidence < 0.65) {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-warning ml-1.5">
+        <AlertTriangle className="h-3 w-3" />
+        Bitte prüfen
+      </span>
+    );
+  }
+  
+  if (warning.confidence < 0.80) {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground/50 ml-1.5">
+        <HelpCircle className="h-3 w-3" />
+      </span>
+    );
+  }
+  
+  return null;
+}
 
 // ============================================
 // Types
