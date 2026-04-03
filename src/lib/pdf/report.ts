@@ -318,7 +318,8 @@ function formatPainLevel(painLevel: string): string {
   return painLevel || '–';
 }
 
-function wrapText(text: string, maxWidth: number, fontSize: number, font: PDFFont): string[] {
+function wrapText(rawText: string, maxWidth: number, fontSize: number, font: PDFFont): string[] {
+  const text = sanitizeForPDF(rawText);
   if (!text) return [];
   
   const words = text.split(/\s+/);

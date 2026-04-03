@@ -359,7 +359,7 @@ function computeMOHWarning(entries: AnalysisEntry[], fromDate: string, toDate: s
   const totalBenzo = monthBuckets.reduce((s, m) => s + m.benzoCases, 0);
   if (totalBenzo > 0) {
     findings.push({
-      text: `⚠ Benzodiazepineinnahme bei Kopfschmerz: ${totalBenzo} Fälle — klinische Einordnung empfohlen.`,
+      text: `ACHTUNG: Benzodiazepineinnahme bei Kopfschmerz: ${totalBenzo} Faelle - klinische Einordnung empfohlen.`,
       basis: `Basis: ${dayMap.size} dokumentierte Tage`,
     });
   }
