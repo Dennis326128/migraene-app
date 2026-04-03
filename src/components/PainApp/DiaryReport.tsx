@@ -739,6 +739,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         premiumAIReport: premiumAIReportData || undefined,
         symptomData,
         meCfsData,
+        clinicalAnalysis: clinicalAnalysisResult,
       });
 
       const timestamp = Date.now();
