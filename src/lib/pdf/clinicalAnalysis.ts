@@ -37,6 +37,42 @@ export interface AnalysisEntry {
 const MODULE_DISCLAIMER = 'Statistische Assoziation. Kein kausaler Nachweis. Klinische Einordnung erforderlich.';
 const MIN_N = 10;
 
+// ─── Private Notes Anonymization ─────────────────────────────────────────
+
+const ANONYMIZATION_RULES: Array<{ keywords: string[]; label: string }> = [
+  { keywords: ['stress', 'konflikt', 'streit', 'druck'], label: 'Psychosozialer Stress' },
+  { keywords: ['schlaf', 'schlafen', 'erschöpft', 'zopiclon', 'nicht einschlafen', 'schlafmangel'], label: 'Schlafstörung / Erschöpfung' },
+  { keywords: ['arbeit', 'job', 'meeting', 'deadline'], label: 'Berufliche Belastung' },
+  { keywords: ['beziehung', 'freundin', 'freund', 'familie', 'partner'], label: 'Persönlicher Stress' },
+  { keywords: ['sport', 'training', 'bewegung', 'anstrengend'], label: 'Körperliche Aktivität' },
+  { keywords: ['alkohol', 'wein', 'bier', 'sekt'], label: 'Nahrungsmittel/Genussmittel' },
+];
+
+/**
+ * Anonymize private note text to a category label.
+ * Private entries contribute to pattern detection but only via the anonymized label.
+ */
+export function anonymizePrivateNote(noteText: string | null | undefined): string | null {
+  if (!noteText) return null;
+  const lower = noteText.toLowerCase();
+  for (const rule of ANONYMIZATION_RULES) {
+    if (rule.keywords.some(kw => lower.includes(kw))) {
+      return rule.label;
+    }
+  }
+  return 'Persönliche Notiz (nicht exportiert)';
+}
+
+/**
+ * Get the effective note text for analysis: anonymized for private entries, original for public.
+ */
+function getAnalysisNoteText(entry: AnalysisEntry): string | null {
+  if (entry.isPrivate) {
+    return anonymizePrivateNote(entry.notes);
+  }
+  return entry.notes ?? null;
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────
 
 function parsePain(level: string | number | null | undefined): number {
