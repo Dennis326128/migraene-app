@@ -159,7 +159,7 @@ export function SimpleVoiceOverlay({
   // Build Review State from Parse Result
   // ============================================
 
-  const buildReviewState = useCallback((result: VoiceParseResult): EntryReviewState => {
+  const buildReviewStateOld = useCallback((result: OldVoiceParseResult): EntryReviewState => {
     const now = new Date();
     
     const selectedMeds = new Map<string, { doseQuarters: number; medicationId?: string }>();
