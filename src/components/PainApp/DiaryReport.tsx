@@ -27,6 +27,7 @@ import { DoctorSelectionDialog, type Doctor } from "./DoctorSelectionDialog";
 import { Switch } from "@/components/ui/switch";
 import { devLog, devWarn } from "@/lib/utils/devLogger";
 import { buildReportData, type ReportData, getEntryDate } from "@/lib/pdf/reportData";
+import { computeClinicalAnalysis, type AnalysisEntry } from "@/lib/pdf/clinicalAnalysis";
 
 import { PremiumBadge } from "@/components/ui/premium-badge";
 import { useUserAISettings } from "@/features/draft-composer/hooks/useUserAISettings";
