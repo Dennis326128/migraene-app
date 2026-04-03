@@ -643,21 +643,56 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack, on
                 </p>
               )}
 
-              {/* Link to share website */}
-              <a
-                href="https://miary.de"
-                target="_blank"
-                rel="noopener noreferrer"
-                className={`flex items-center gap-2 w-fit py-2.5 px-4 rounded-lg border border-border hover:bg-muted/50 transition-colors text-sm ${!isShareActive ? "pointer-events-none opacity-50" : ""}`}
-                aria-disabled={!isShareActive}
+              {/* Link to share website – always clickable */}
+              <button
+                onClick={handleOpenMiary}
+                className="flex items-center gap-2 w-fit py-2.5 px-4 rounded-lg border border-border hover:bg-muted/50 transition-colors text-sm text-foreground"
               >
                 <ExternalLink className="w-4 h-4" />
                 Miary.de öffnen
-              </a>
+              </button>
             </div>
           )}
         </div>
       </div>
+
+      {/* Activation dialog when share is inactive */}
+      <AlertDialog open={showActivateDialog} onOpenChange={setShowActivateDialog}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <div className="flex items-center gap-3 mb-1">
+              <div className="rounded-full bg-primary/10 p-2">
+                <Info className="w-4 h-4 text-primary" />
+              </div>
+              <AlertDialogTitle className="text-base">
+                Freigabe ist nicht aktiv
+              </AlertDialogTitle>
+            </div>
+            <AlertDialogDescription className="text-sm leading-relaxed">
+              Damit deine Daten auf miary.de abrufbar sind, muss die Freigabe aktiv sein. Soll die Freigabe jetzt aktiviert werden?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 sm:gap-2">
+            <AlertDialogCancel disabled={isActivatingForLink}>
+              Nicht jetzt
+            </AlertDialogCancel>
+            <Button
+              onClick={handleActivateAndOpen}
+              disabled={isActivatingForLink}
+              className="gap-2"
+            >
+              {isActivatingForLink ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Wird aktiviert…
+                </>
+              ) : (
+                "Aktivieren und öffnen"
+              )}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
   );
 };
 
