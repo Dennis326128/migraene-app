@@ -73,6 +73,8 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack, on
   const [copied, setCopied] = useState(false);
   const [showHint, setShowHint] = useState(false);
   const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(null);
+  const [showActivateDialog, setShowActivateDialog] = useState(false);
+  const [isActivatingForLink, setIsActivatingForLink] = useState(false);
   const abortRef = useRef(false);
 
   const today = useMemo(() => new Date(), []);
