@@ -305,11 +305,15 @@ const DoctorReportView: React.FC = () => {
 
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
-      const fromStr = report?.meta.fromDate?.replace(/\//g, "-") ?? "start";
-      const toStr = report?.meta.toDate?.replace(/\//g, "-") ?? "end";
       const link = document.createElement("a");
       link.href = url;
-      link.download = sanitizeFilename(`Kopfschmerztagebuch_${fromStr}_${toStr}.pdf`);
+      link.download = buildPdfFilename({
+        lastName: report?.summary?.patientData?.lastName || undefined,
+        firstName: report?.summary?.patientData?.firstName || undefined,
+        fromDate: report?.meta.fromDate ?? new Date().toISOString().split('T')[0],
+        toDate: report?.meta.toDate ?? new Date().toISOString().split('T')[0],
+        reportType: 'diary',
+      });
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
