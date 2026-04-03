@@ -218,6 +218,8 @@ type BuildReportParams = {
     }>;
     notes: string[];
   } | null;
+  /** Deterministic clinical analysis modules (Phase 1) */
+  clinicalAnalysis?: ClinicalAnalysisResult | null;
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
