@@ -176,9 +176,10 @@ export function EntryReviewSheet({
       )}
 
       {/* Pain Level */}
-      <Card className="p-4">
+      <Card className={cn("p-4", getFieldWarning('painLevel', state.uncertainFields)?.confidence !== undefined && getFieldWarning('painLevel', state.uncertainFields)!.confidence < 0.65 && "ring-1 ring-warning/30")}>
         <Label className="text-base font-medium mb-3 block">
           Schmerzstärke
+          <UncertaintyHint warning={getFieldWarning('painLevel', state.uncertainFields)} />
         </Label>
         <PainSlider
           value={state.painLevel}
