@@ -52,25 +52,14 @@ function describeArc(cx: number, cy: number, r: number, startAngle: number, endA
 }
 
 export const HeadacheDaysPie: React.FC<HeadacheDaysPieProps> = ({
-  totalDays: totalDaysProp,
-  painFreeDays: painFreeDaysProp,
-  painDaysNoTriptan: painDaysNoTriptanProp,
-  triptanDays: triptanDaysProp,
+  totalDays,
+  painFreeDays,
+  painDaysNoTriptan,
+  triptanDays,
   showPercent = true,
   compact = false,
   fullscreen = false,
-  reportLegacySegments,
 }) => {
-  // If SSOT segments provided, use them; else use legacy props
-  const { totalDays, painFreeDays, painDaysNoTriptan, triptanDays } = useMemo(() => {
-    if (reportLegacySegments) {
-      const pf = reportLegacySegments.find(s => s.key === 'painFree')?.days ?? 0;
-      const pnt = reportLegacySegments.find(s => s.key === 'painNoTriptan')?.days ?? 0;
-      const t = reportLegacySegments.find(s => s.key === 'triptan')?.days ?? 0;
-      return { totalDays: pf + pnt + t, painFreeDays: pf, painDaysNoTriptan: pnt, triptanDays: t };
-    }
-    return { totalDays: totalDaysProp, painFreeDays: painFreeDaysProp, painDaysNoTriptan: painDaysNoTriptanProp, triptanDays: triptanDaysProp };
-  }, [reportLegacySegments, totalDaysProp, painFreeDaysProp, painDaysNoTriptanProp, triptanDaysProp]);
 
   const slices = useMemo<SliceData[]>(() => {
     const all: SliceData[] = [
