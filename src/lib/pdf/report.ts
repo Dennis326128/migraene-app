@@ -26,7 +26,7 @@ import type { PainEntry, MedicationIntakeInfo } from "@/types/painApp";
 import { formatDoseFromQuarters, DEFAULT_DOSE_QUARTERS } from "@/lib/utils/doseFormatter";
 import { formatPainLocation, normalizePainLevel as normalizePainLevelImport } from "@/lib/utils/pain";
 import { isTriptan } from "@/lib/medications/isTriptan";
-import { computeHeadacheTreatmentDayDistribution } from "@/lib/analytics/headacheDays/computeHeadacheTreatmentDayDistribution";
+import { computeHeadacheTreatmentDayDistribution, type HeadacheTreatmentDayResult } from "@/lib/analytics/headacheDays/computeHeadacheTreatmentDayDistribution";
 import { drawPieChartWithLegend } from "@/lib/pdf/pieChart";
 import type { ClinicalAnalysisResult } from "@/lib/pdf/clinicalAnalysis";
 import { drawSymptomSection, type SymptomDataForPdf } from "@/lib/pdf/symptomSection";
@@ -83,6 +83,7 @@ type BuildReportParams = {
   from: string;
   to: string;
   entries: PainEntry[];
+  headacheTreatmentDays?: HeadacheTreatmentDayResult | null;
   selectedMeds: string[];
   
   includeStats?: boolean;
@@ -1249,7 +1250,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     // PIE CHART: Tagesverteilung (kompakter)
     // ═══════════════════════════════════════════════════════════════════════
     {
-      const buckets = computeHeadacheTreatmentDayDistribution(
+      const buckets = headacheTreatmentDays ?? computeHeadacheTreatmentDayDistribution(
         from,
         to,
         entries.map(e => ({
