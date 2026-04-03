@@ -602,11 +602,7 @@ export const NewEntry = ({
             );
             
             if (warningNeeded && onLimitWarning) {
-                r.status === 'warning' || r.status === 'reached' || r.status === 'exceeded'
-              ));
-              // Call parent callback before returning
               setTimeout(() => onLimitWarning(limitResults), 1500);
-            } else {
             }
           })
           .catch((error) => {
