@@ -16,10 +16,13 @@ import { Mic, ChevronLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useMeds, useRecentMeds } from '@/features/meds/hooks/useMeds';
 import { 
-  parseVoiceEntry,
+  parseVoiceEntry as parseVoiceEntryOld,
   formatTimeDisplay,
-  type VoiceParseResult 
+  type VoiceParseResult as OldVoiceParseResult
 } from '@/lib/voice/simpleVoiceParser';
+import { FEATURE_FLAGS } from '@/config/featureFlags';
+import { parseVoiceEntry as parseVoiceEntryNew, type VoiceParseResult as NewVoiceParseResult, type MedEntry } from '@/lib/voice/parseVoiceEntry';
+import { buildReviewState as buildReviewStateNew } from '@/lib/voice/buildReviewState';
 import { buildUserMedicationLexicon, correctMedicationsInTranscript } from '@/lib/voice/medicationFuzzyMatch';
 import { isBrowserSttSupported } from '@/lib/voice/sttConfig';
 import { 
@@ -47,6 +50,12 @@ export interface VoiceSavePayload {
   time: string;
   medications: Array<{ name: string; medicationId?: string; doseQuarters: number }>;
   notes: string;
+  // New parser fields
+  painLocations?: string[];
+  auraType?: string;
+  symptoms?: string[];
+  meCfsLevel?: string;
+  isPrivate?: boolean;
 }
 
 interface SimpleVoiceOverlayProps {
@@ -76,7 +85,7 @@ export function SimpleVoiceOverlay({
   const [medsNeedReview, setMedsNeedReview] = useState(false);
   const [saving, setSaving] = useState(false);
   const [voiceMode, setVoiceMode] = useState<VoiceMode>('new');
-  const [lastParseResult, setLastParseResult] = useState<VoiceParseResult | null>(null);
+  const [lastParseResult, setLastParseResult] = useState<OldVoiceParseResult | null>(null);
   
   // User edit tracking
   const [userEdited, setUserEdited] = useState<UserEditedFlags>({ pain: false, meds: false, notes: false });
@@ -150,7 +159,7 @@ export function SimpleVoiceOverlay({
   // Build Review State from Parse Result
   // ============================================
 
-  const buildReviewState = useCallback((result: VoiceParseResult): EntryReviewState => {
+  const buildReviewStateOld = useCallback((result: OldVoiceParseResult): EntryReviewState => {
     const now = new Date();
     
     const selectedMeds = new Map<string, { doseQuarters: number; medicationId?: string }>();
@@ -242,7 +251,7 @@ export function SimpleVoiceOverlay({
       
       if (mode === 'append' && baseTranscriptRef.current) {
         const combinedTranscript = (baseTranscriptRef.current + ' ' + currentText).trim();
-        const result = parseVoiceEntry(
+        const result = parseVoiceEntryOld(
           combinedTranscript,
           meds.map(m => ({ id: m.id, name: m.name, wirkstoff: m.wirkstoff }))
         );
@@ -260,19 +269,66 @@ export function SimpleVoiceOverlay({
         const isEmpty = !currentText;
         setEmptyTranscript(isEmpty);
         
-        const result = parseVoiceEntry(
-          currentText,
-          meds.map(m => ({ id: m.id, name: m.name, wirkstoff: m.wirkstoff }))
-        );
-        
-        const review = buildReviewState(result);
-        reviewOpenedRef.current = true;
-        setReviewState(review);
-        setLastParseResult(result);
-        setPainDefaultUsed(result.pain_intensity.value === null);
-        setPainFromDescriptor(!!result.pain_intensity.painFromDescriptor);
-        setMedsNeedReview(result.medsNeedReview);
-        baseTranscriptRef.current = currentText;
+        if (FEATURE_FLAGS.USE_NEW_VOICE_PARSER) {
+          // --- New parser pipeline ---
+          const medLexicon: MedEntry[] = meds.map(m => ({
+            id: m.id,
+            name: m.name,
+            activeIngredient: m.wirkstoff ?? undefined,
+            defaultDoseQuarters: 4,
+          }));
+          const parsed = parseVoiceEntryNew(currentText, medLexicon, new Date());
+          const newState = buildReviewStateNew(parsed, {
+            defaultPainLevel: 7,
+            defaultMeCfs: 'none',
+            defaultAura: 'keine',
+          });
+          
+          // Convert new state → EntryReviewSheet's EntryReviewState
+          const selectedMeds = new Map<string, { doseQuarters: number; medicationId?: string }>();
+          for (const med of newState.selectedMedications) {
+            selectedMeds.set(med.name, {
+              doseQuarters: med.doseQuarters,
+              medicationId: med.id,
+            });
+          }
+          
+          const review: EntryReviewState = {
+            painLevel: newState.painLevel,
+            selectedMedications: selectedMeds,
+            notesText: newState.notesText,
+            occurredAt: newState.occurredAt,
+            painLocations: newState.painLocations,
+            auraType: newState.auraType,
+            symptoms: newState.symptoms,
+            meCfsLevel: newState.meCfsLevel,
+            isPrivate: newState.isPrivate,
+            uncertainFields: newState.uncertainFields,
+          };
+          
+          reviewOpenedRef.current = true;
+          setReviewState(review);
+          setLastParseResult(null);
+          setPainDefaultUsed(newState.painLevelIsDefault);
+          setPainFromDescriptor(false);
+          setMedsNeedReview(newState.selectedMedications.some(m => m.needsReview));
+          baseTranscriptRef.current = currentText;
+        } else {
+          // --- Old parser fallback ---
+          const result = parseVoiceEntryOld(
+            currentText,
+            meds.map(m => ({ id: m.id, name: m.name, wirkstoff: m.wirkstoff }))
+          );
+          
+          const review = buildReviewStateOld(result);
+          reviewOpenedRef.current = true;
+          setReviewState(review);
+          setLastParseResult(result);
+          setPainDefaultUsed(result.pain_intensity.value === null);
+          setPainFromDescriptor(!!result.pain_intensity.painFromDescriptor);
+          setMedsNeedReview(result.medsNeedReview);
+          baseTranscriptRef.current = currentText;
+        }
       }
       
       setVoiceMode('new');
@@ -288,7 +344,7 @@ export function SimpleVoiceOverlay({
       console.error('[SimpleVoice] Parse error, using defaults:', error);
       openReviewWithDefaults();
     }
-  }, [clearAllTimers, buildReviewState, openReviewWithDefaults]);
+  }, [clearAllTimers, buildReviewStateOld, openReviewWithDefaults]);
   
   // ============================================
   // Auto-Stop Timer (generous fallback only)
@@ -564,6 +620,11 @@ export function SimpleVoiceOverlay({
         time: reviewState.occurredAt.time,
         medications,
         notes: reviewState.notesText,
+        painLocations: reviewState.painLocations,
+        auraType: reviewState.auraType,
+        symptoms: reviewState.symptoms,
+        meCfsLevel: reviewState.meCfsLevel,
+        isPrivate: reviewState.isPrivate,
       });
       
       onOpenChange(false);

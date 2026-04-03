@@ -16,13 +16,53 @@ import { Card } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { SaveButton } from '@/components/ui/save-button';
 import { MedicationDoseList } from './MedicationDose';
-import { Clock, Mic, ChevronDown } from 'lucide-react';
+import { Clock, Mic, ChevronDown, AlertTriangle, HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 // ============================================
+// Uncertainty Indicator Helper
+// ============================================
+
+function getFieldWarning(field: string, uncertainFields?: ReviewUncertainField[]) {
+  if (!uncertainFields) return null;
+  return uncertainFields.find(f => f.field === field) ?? null;
+}
+
+function UncertaintyHint({ warning }: { warning: ReviewUncertainField | null }) {
+  if (!warning) return null;
+  
+  if (warning.confidence < 0.65) {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-warning ml-1.5">
+        <AlertTriangle className="h-3 w-3" />
+        Bitte prüfen
+      </span>
+    );
+  }
+  
+  if (warning.confidence < 0.80) {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground/50 ml-1.5">
+        <HelpCircle className="h-3 w-3" />
+      </span>
+    );
+  }
+  
+  return null;
+}
+
+// ============================================
 // Types
 // ============================================
+
+export interface ReviewUncertainField {
+  field: string;
+  label: string;
+  value: string;
+  confidence: number;
+  tapToEdit: boolean;
+}
 
 export interface EntryReviewState {
   painLevel: number;
@@ -33,6 +73,13 @@ export interface EntryReviewState {
     time: string;    // HH:mm
     displayText?: string;
   };
+  // New voice parser fields (optional for backward compat)
+  painLocations?: string[];
+  auraType?: string;
+  symptoms?: string[];
+  meCfsLevel?: string;
+  isPrivate?: boolean;
+  uncertainFields?: ReviewUncertainField[];
 }
 
 interface MedicationOption {
@@ -129,9 +176,10 @@ export function EntryReviewSheet({
       )}
 
       {/* Pain Level */}
-      <Card className="p-4">
+      <Card className={cn("p-4", getFieldWarning('painLevel', state.uncertainFields)?.confidence !== undefined && getFieldWarning('painLevel', state.uncertainFields)!.confidence < 0.65 && "ring-1 ring-warning/30")}>
         <Label className="text-base font-medium mb-3 block">
           Schmerzstärke
+          <UncertaintyHint warning={getFieldWarning('painLevel', state.uncertainFields)} />
         </Label>
         <PainSlider
           value={state.painLevel}
@@ -153,7 +201,10 @@ export function EntryReviewSheet({
       {/* Medications */}
       {medications.length > 0 && (
         <Card className="p-4">
-          <Label className="text-base font-medium mb-3 block">Medikamente</Label>
+          <Label className="text-base font-medium mb-3 block">
+            Medikamente
+            <UncertaintyHint warning={getFieldWarning('medication', state.uncertainFields)} />
+          </Label>
           {medsNeedReview && (
             <p className="text-xs text-muted-foreground/60 mb-2">
               Bitte kurz prüfen – ähnlich klingende Medikamente möglich.

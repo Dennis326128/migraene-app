@@ -463,6 +463,12 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             pain_level: data.painLevel ?? 7,
             medications: data.medications?.map(m => m.name) || [],
             notes: data.notes || '',
+            // New parser fields
+            pain_locations: (data.painLocations ?? []) as any,
+            aura_type: (data.auraType ?? 'keine') as any,
+            me_cfs_severity_level: (data.meCfsLevel ?? 'none') as any,
+            entry_note_is_private: data.isPrivate ?? false,
+            entry_kind: 'voice' as const,
           };
           
           try {
@@ -488,6 +494,34 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                     taken_date: entryDate,
                     taken_time: entryTime,
                   });
+                }
+              }
+            }
+
+            // Sync symptoms from voice parser
+            if (Number.isFinite(numericId) && data.symptoms && data.symptoms.length > 0) {
+              const { data: catalogEntries } = await supabase
+                .from('symptom_catalog')
+                .select('id, name')
+                .eq('is_active', true);
+
+              if (catalogEntries && catalogEntries.length > 0) {
+                // Map symptom slugs to catalog IDs by matching names
+                const matchedSymptoms = data.symptoms
+                  .map(slug => {
+                    const match = catalogEntries.find(c =>
+                      c.name.toLowerCase().replace(/[äöüß\s]/g, m => {
+                        const map: Record<string, string> = { 'ä': 'ae', 'ö': 'oe', 'ü': 'ue', 'ß': 'ss', ' ': '' };
+                        return map[m] ?? m;
+                      }).includes(slug.replace(/_/g, ''))
+                      || slug.toLowerCase() === c.name.toLowerCase()
+                    );
+                    return match ? { entry_id: numericId, symptom_id: match.id } : null;
+                  })
+                  .filter((s): s is { entry_id: number; symptom_id: string } => s !== null);
+
+                if (matchedSymptoms.length > 0) {
+                  await supabase.from('entry_symptoms').insert(matchedSymptoms);
                 }
               }
             }

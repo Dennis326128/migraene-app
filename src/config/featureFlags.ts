@@ -3,5 +3,5 @@
  */
 export const FEATURE_FLAGS = {
   /** Neues Voice-Parser-System (parseVoiceEntry.ts) anstelle von simpleVoiceParser.ts */
-  USE_NEW_VOICE_PARSER: false,
+  USE_NEW_VOICE_PARSER: true,
 } as const;
