@@ -417,14 +417,24 @@ function computePainFreeIntervals(entries: AnalysisEntry[], fromDate: string, to
     cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
 
-  // Pain-free streaks
+  // Pain-free streaks — only days WITH an entry and pain===0 count as pain-free.
+  // Undocumented days (no entry) are "unknown" and break streaks.
+  const documentedDays = new Set(dayPain.keys());
   let maxStreak = 0;
   let currentStreak = 0;
   const streaks: number[] = [];
+  let painFreeDayCount = 0;
   for (const date of allDates) {
-    const pain = dayPain.get(date) ?? 0;
+    if (!documentedDays.has(date)) {
+      // Unknown day — break streak
+      if (currentStreak > 0) streaks.push(currentStreak);
+      currentStreak = 0;
+      continue;
+    }
+    const pain = dayPain.get(date)!;
     if (pain === 0) {
       currentStreak++;
+      painFreeDayCount++;
     } else {
       if (currentStreak > 0) streaks.push(currentStreak);
       currentStreak = 0;
@@ -435,8 +445,8 @@ function computePainFreeIntervals(entries: AnalysisEntry[], fromDate: string, to
   const avgStreak = streaks.length > 0 ? round1(streaks.reduce((a, b) => a + b, 0) / streaks.length) : 0;
 
   findings.push({
-    text: `Längste schmerzfreie Periode: ${maxStreak} Tage. Durchschnittliche Länge schmerzfreier Intervalle: ${avgStreak} Tage (${streaks.length} Intervalle).`,
-    basis: `Basis: ${totalDays} Kalendertage`,
+    text: `Schmerzfreie Tage: ${painFreeDayCount} von ${documentedDays.size} dokumentierten Tagen. Laengste schmerzfreie Periode: ${maxStreak} Tage. Durchschnitt: ${avgStreak} Tage (${streaks.length} Intervalle).`,
+    basis: `Basis: ${documentedDays.size} dokumentierte Tage (von ${totalDays} Kalendertagen)`,
   });
 
   // Trend: split into thirds
