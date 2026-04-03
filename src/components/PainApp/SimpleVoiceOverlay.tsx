@@ -82,7 +82,7 @@ export function SimpleVoiceOverlay({
   const [lastParseResult, setLastParseResult] = useState<VoiceParseResult | null>(null);
   
   // User edit tracking
-  const [userEdited, setUserEdited] = useState<UserEditedFlags>({ pain: false, meds: false, notes: false });
+  const [userEdited, setUserEdited] = useState<{ pain: boolean; meds: boolean; notes: boolean }>({ pain: false, meds: false, notes: false });
   
   // Transcript storage for append mode
   const baseTranscriptRef = useRef('');
