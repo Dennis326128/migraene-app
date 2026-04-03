@@ -154,31 +154,39 @@ export function SimpleVoiceOverlay({
   // Build Review State from Parse Result
   // ============================================
 
-  const buildReviewStateOld = useCallback((result: OldVoiceParseResult): EntryReviewState => {
-    const now = new Date();
+  const buildEntryReviewState = useCallback((parsed: VoiceParseResult): { review: EntryReviewState; painDefaultUsed: boolean; painFromDescriptor: boolean; medsNeedReview: boolean } => {
+    const newState = buildReviewState(parsed, {
+      defaultPainLevel: 7,
+      defaultMeCfs: 'none',
+      defaultAura: 'keine',
+    });
     
     const selectedMeds = new Map<string, { doseQuarters: number; medicationId?: string }>();
-    for (const med of result.medications) {
+    for (const med of newState.selectedMedications) {
       selectedMeds.set(med.name, {
-        doseQuarters: med.doseQuarters || DEFAULT_DOSE_QUARTERS,
-        medicationId: med.medicationId,
+        doseQuarters: med.doseQuarters,
+        medicationId: med.id,
       });
     }
-
-    const notesText = result.note || result.raw_text || '';
-    const timeDisplay = formatTimeDisplay(result.time);
-
-    return {
-      painLevel: result.pain_intensity.value ?? 7,
+    
+    const review: EntryReviewState = {
+      painLevel: newState.painLevel,
       selectedMedications: selectedMeds,
-      notesText,
-      occurredAt: {
-        date: result.time.date || now.toISOString().slice(0, 10),
-        time: result.time.time || now.toTimeString().slice(0, 5),
-        displayText: result.time.isNow 
-          ? 'Jetzt' 
-          : timeDisplay || undefined,
-      },
+      notesText: newState.notesText,
+      occurredAt: newState.occurredAt,
+      painLocations: newState.painLocations,
+      auraType: newState.auraType,
+      symptoms: newState.symptoms,
+      meCfsLevel: newState.meCfsLevel,
+      isPrivate: newState.isPrivate,
+      uncertainFields: newState.uncertainFields,
+    };
+    
+    return {
+      review,
+      painDefaultUsed: newState.painLevelIsDefault,
+      painFromDescriptor: false,
+      medsNeedReview: newState.selectedMedications.some(m => m.needsReview),
     };
   }, []);
   
