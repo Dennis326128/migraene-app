@@ -1,7 +1,6 @@
 /**
  * parseVoiceEntry.ts
  * Unified Voice-Parser-Pipeline für Migräne-Tracking.
- * Ersetzt simpleVoiceParser.ts und integriert heuristicDraftEngine.ts.
  *
  * Kein LLM – rein regex/fuzzy-basiert.
  * Span-basierter Ansatz: Jede Extraktion merkt sich Start/End-Index.
