@@ -26,6 +26,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { buildDiaryPdf } from "@/lib/pdf/report";
 import { buildReportData } from "@/lib/pdf/reportData";
 import { fetchAllEntriesForExport } from "@/features/entries/api/entries.api";
+import { computeClinicalAnalysis, type AnalysisEntry } from "@/lib/pdf/clinicalAnalysis";
 import { useMedicationCourses } from "@/features/medication-courses/hooks/useMedicationCourses";
 import { useDoctors } from "@/features/account/hooks/useAccount";
 import { saveGeneratedReport } from "@/features/reports/api/generatedReports.api";
