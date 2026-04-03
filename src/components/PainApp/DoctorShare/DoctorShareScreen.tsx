@@ -693,6 +693,7 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack, on
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </>
   );
 };
 
