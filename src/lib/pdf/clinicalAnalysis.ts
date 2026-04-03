@@ -417,14 +417,24 @@ function computePainFreeIntervals(entries: AnalysisEntry[], fromDate: string, to
     cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
 
-  // Pain-free streaks
+  // Pain-free streaks — only days WITH an entry and pain===0 count as pain-free.
+  // Undocumented days (no entry) are "unknown" and break streaks.
+  const documentedDays = new Set(dayPain.keys());
   let maxStreak = 0;
   let currentStreak = 0;
   const streaks: number[] = [];
+  let painFreeDayCount = 0;
   for (const date of allDates) {
-    const pain = dayPain.get(date) ?? 0;
+    if (!documentedDays.has(date)) {
+      // Unknown day — break streak
+      if (currentStreak > 0) streaks.push(currentStreak);
+      currentStreak = 0;
+      continue;
+    }
+    const pain = dayPain.get(date)!;
     if (pain === 0) {
       currentStreak++;
+      painFreeDayCount++;
     } else {
       if (currentStreak > 0) streaks.push(currentStreak);
       currentStreak = 0;
@@ -435,8 +445,8 @@ function computePainFreeIntervals(entries: AnalysisEntry[], fromDate: string, to
   const avgStreak = streaks.length > 0 ? round1(streaks.reduce((a, b) => a + b, 0) / streaks.length) : 0;
 
   findings.push({
-    text: `Längste schmerzfreie Periode: ${maxStreak} Tage. Durchschnittliche Länge schmerzfreier Intervalle: ${avgStreak} Tage (${streaks.length} Intervalle).`,
-    basis: `Basis: ${totalDays} Kalendertage`,
+    text: `Schmerzfreie Tage: ${painFreeDayCount} von ${documentedDays.size} dokumentierten Tagen. Laengste schmerzfreie Periode: ${maxStreak} Tage. Durchschnitt: ${avgStreak} Tage (${streaks.length} Intervalle).`,
+    basis: `Basis: ${documentedDays.size} dokumentierte Tage (von ${totalDays} Kalendertagen)`,
   });
 
   // Trend: split into thirds
@@ -449,11 +459,12 @@ function computePainFreeIntervals(entries: AnalysisEntry[], fromDate: string, to
 
   const thirdLabels = ['Erstes Drittel', 'Mittleres Drittel', 'Letztes Drittel'];
   const thirdStats = thirds.map((dates, i) => {
-    const hdDays = dates.filter(d => (dayPain.get(d) ?? 0) > 0).length;
-    const pains = dates.filter(d => (dayPain.get(d) ?? 0) > 0).map(d => dayPain.get(d)!);
+    const documented = dates.filter(d => documentedDays.has(d));
+    const hdDays = documented.filter(d => dayPain.get(d)! > 0).length;
+    const pains = documented.filter(d => dayPain.get(d)! > 0).map(d => dayPain.get(d)!);
     const avgNRS = pains.length > 0 ? round1(pains.reduce((a, b) => a + b, 0) / pains.length) : 0;
     const triptanD = dates.filter(d => dayTriptan.get(d)).length;
-    return { label: thirdLabels[i], days: dates.length, headacheDays: hdDays, avgNRS, triptanDays: triptanD };
+    return { label: thirdLabels[i], days: dates.length, documented: documented.length, headacheDays: hdDays, avgNRS, triptanDays: triptanD };
   });
 
   for (const t of thirdStats) {
@@ -480,7 +491,16 @@ function computePainFreeIntervals(entries: AnalysisEntry[], fromDate: string, to
   const clusterPeriods: string[] = [];
   let clusterStart = '';
   for (const date of allDates) {
-    if ((dayPain.get(date) ?? 0) > 0) {
+    if (!documentedDays.has(date)) {
+      // Unknown day — break cluster streak too
+      if (clusterStreak >= 5) {
+        clusterCount++;
+        clusterPeriods.push(`${clusterStart} bis ${allDates[allDates.indexOf(date) - 1]} (${clusterStreak} Tage)`);
+      }
+      clusterStreak = 0;
+      continue;
+    }
+    if (dayPain.get(date)! > 0) {
       if (clusterStreak === 0) clusterStart = date;
       clusterStreak++;
     } else {
