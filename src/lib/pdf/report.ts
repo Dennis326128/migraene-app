@@ -26,7 +26,7 @@ import type { PainEntry, MedicationIntakeInfo } from "@/types/painApp";
 import { formatDoseFromQuarters, DEFAULT_DOSE_QUARTERS } from "@/lib/utils/doseFormatter";
 import { formatPainLocation, normalizePainLevel as normalizePainLevelImport } from "@/lib/utils/pain";
 import { isTriptan } from "@/lib/medications/isTriptan";
-import { computeDiaryDayBuckets } from "@/lib/diary/dayBuckets";
+import { computeHeadacheTreatmentDayDistribution } from "@/lib/analytics/headacheDays/computeHeadacheTreatmentDayDistribution";
 import { drawPieChartWithLegend } from "@/lib/pdf/pieChart";
 import type { ClinicalAnalysisResult } from "@/lib/pdf/clinicalAnalysis";
 import { drawSymptomSection, type SymptomDataForPdf } from "@/lib/pdf/symptomSection";
