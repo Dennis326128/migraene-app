@@ -196,7 +196,7 @@ export function SimpleVoiceOverlay({
   // Use refs for values needed in finishRecording to avoid dep cascades
   const voiceModeRef = useRef<VoiceMode>('new');
   const reviewStateRef = useRef<EntryReviewState | null>(null);
-  const userEditedRef = useRef<UserEditedFlags>({ pain: false, meds: false, notes: false });
+  const userEditedRef = useRef<{ pain: boolean; meds: boolean; notes: boolean }>({ pain: false, meds: false, notes: false });
   const userMedsRef = useRef(userMeds);
   
   useEffect(() => { voiceModeRef.current = voiceMode; }, [voiceMode]);
