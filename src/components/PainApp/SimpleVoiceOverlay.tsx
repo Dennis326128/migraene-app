@@ -620,6 +620,11 @@ export function SimpleVoiceOverlay({
         time: reviewState.occurredAt.time,
         medications,
         notes: reviewState.notesText,
+        painLocations: reviewState.painLocations,
+        auraType: reviewState.auraType,
+        symptoms: reviewState.symptoms,
+        meCfsLevel: reviewState.meCfsLevel,
+        isPrivate: reviewState.isPrivate,
       });
       
       onOpenChange(false);
