@@ -162,8 +162,13 @@ export const ReportHistoryPage: React.FC<ReportHistoryPageProps> = ({
                         <span className="font-medium text-sm block">
                           {getReportTypeLabel(report.report_type as ReportType)}
                         </span>
+                        {report.from_date && report.to_date && (
+                          <span className="text-xs text-muted-foreground block">
+                            {formatRange(report.from_date, report.to_date)}
+                          </span>
+                        )}
                         <span className="text-xs text-muted-foreground">
-                          {formatDate(report.created_at)}
+                          Erstellt: {formatDate(report.created_at)}
                         </span>
                       </div>
                       
