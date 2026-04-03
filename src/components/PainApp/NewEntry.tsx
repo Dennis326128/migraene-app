@@ -400,7 +400,6 @@ export const NewEntry = ({
         const isFutureEntry = entryDateTime > now;
         
         if (isFutureEntry) {
-          console.log('⏰ Future entry - weather data will be added later');
           weatherId = null;
           toast({
             title: "Hinweis",
@@ -498,7 +497,6 @@ export const NewEntry = ({
         if (oldDate !== newDate || oldTime !== newTime) {
           try {
             await deleteMut.mutateAsync(entry.id);
-            console.log('🗑️ Deleted old entry after time change:', entry.id);
           } catch (err) {
             console.warn('Failed to delete old entry (might already be replaced by UPSERT):', err);
           }
@@ -521,7 +519,6 @@ export const NewEntry = ({
 
       // Process notes with AI (fire-and-forget, non-blocking)
       if (notes.trim()) {
-        console.log('🧠 Processing notes with AI...');
         (async () => {
           try {
             const { data: { user } } = await supabase.auth.getUser();
@@ -595,25 +592,21 @@ export const NewEntry = ({
 
       // Post-save medication limit check (truly non-blocking, fire-and-forget)
       const savedMedications = payload.medications || [];
-      console.log('🔍 Checking limits for medications:', savedMedications);
       
       if (savedMedications.length > 0) {
         // Don't await - fire and forget for non-blocking behavior
         checkLimits.mutateAsync(savedMedications)
           .then((limitResults) => {
-            console.log('✅ NewEntry limit check results:', limitResults);
             const warningNeeded = limitResults.some(r => 
               r.status === 'warning' || r.status === 'reached' || r.status === 'exceeded'
             );
             
             if (warningNeeded && onLimitWarning) {
-              console.log('⚠️ NewEntry triggering limit warning:', limitResults.filter(r => 
                 r.status === 'warning' || r.status === 'reached' || r.status === 'exceeded'
               ));
               // Call parent callback before returning
               setTimeout(() => onLimitWarning(limitResults), 1500);
             } else {
-              console.log('✅ No warnings needed - all limits safe');
             }
           })
           .catch((error) => {
@@ -628,7 +621,6 @@ export const NewEntry = ({
             // Silent fail: User has already saved
           });
       } else {
-        console.log('ℹ️ No medications to check');
       }
 
       toast({ 
