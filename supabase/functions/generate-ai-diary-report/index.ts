@@ -8,7 +8,7 @@ const corsHeaders = {
 };
 
 // ============== QUOTA CONFIGURATION ==============
-const FREE_DIARY_REPORT_MONTHLY = 5;
+const FREE_DIARY_REPORT_MONTHLY = 3;
 const COOLDOWN_SECONDS = 60;
 const FEATURE_NAME = 'diary_report';
 

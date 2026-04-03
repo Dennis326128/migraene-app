@@ -27,6 +27,7 @@ import { DoctorSelectionDialog, type Doctor } from "./DoctorSelectionDialog";
 import { Switch } from "@/components/ui/switch";
 import { devLog, devWarn } from "@/lib/utils/devLogger";
 import { buildReportData, type ReportData, getEntryDate } from "@/lib/pdf/reportData";
+import { computeClinicalAnalysis, type AnalysisEntry } from "@/lib/pdf/clinicalAnalysis";
 
 import { PremiumBadge } from "@/components/ui/premium-badge";
 import { useUserAISettings } from "@/features/draft-composer/hooks/useUserAISettings";
@@ -659,6 +660,18 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         }
       }
 
+      // ── Deterministic Clinical Analysis (always computed) ──
+      const analysisEntries: AnalysisEntry[] = freshEntries.map(e => ({
+        dateISO: e.selected_date || (e.timestamp_created?.split('T')[0] ?? ''),
+        timeHHMM: e.selected_time || (e.timestamp_created?.split('T')[1]?.substring(0, 5) ?? null),
+        painLevel: e.pain_level,
+        medications: e.medications,
+        meCfsScore: (e as any).me_cfs_severity_score ?? null,
+        notes: e.notes,
+        isPrivate: (e as any).entry_note_is_private ?? false,
+      })).filter(e => e.dateISO);
+      const clinicalAnalysisResult = computeClinicalAnalysis(analysisEntries, from, to);
+
       // PDF mit FRISCHEN Daten generieren – alle Kernabschnitte immer enthalten
       const pdfBytes = await buildDiaryPdf({
         title: "Kopfschmerztagebuch",
@@ -726,6 +739,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         premiumAIReport: premiumAIReportData || undefined,
         symptomData,
         meCfsData,
+        clinicalAnalysis: clinicalAnalysisResult,
       });
 
       const timestamp = Date.now();
