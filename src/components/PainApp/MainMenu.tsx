@@ -464,9 +464,9 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             medications: data.medications?.map(m => m.name) || [],
             notes: data.notes || '',
             // New parser fields
-            pain_locations: data.painLocations ?? [],
-            aura_type: (data.auraType as any) ?? 'keine',
-            me_cfs_severity_level: (data.meCfsLevel as any) ?? 'none',
+            pain_locations: (data.painLocations ?? []) as any,
+            aura_type: (data.auraType ?? 'keine') as any,
+            me_cfs_severity_level: (data.meCfsLevel ?? 'none') as any,
             entry_note_is_private: data.isPrivate ?? false,
             entry_kind: 'voice' as const,
           };
