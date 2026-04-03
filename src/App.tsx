@@ -21,7 +21,6 @@ import NotFound from "./pages/NotFound";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Imprint from "./pages/Imprint";
 import TermsOfService from "./pages/TermsOfService";
-import { MedicationEffectsPage } from "./features/medication-effects/components/MedicationEffectsPage";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { getAccountStatus, AccountStatus } from "@/features/account/api/accountStatus.api";
 
@@ -32,6 +31,11 @@ import DoctorReportView from "./pages/DoctorReportView";
 // Lazy load DEV-only pages
 const QAPage = React.lazy(() => import("./pages/QAPage"));
 const StringInventoryPage = React.lazy(() => import("./pages/StringInventoryPage"));
+const MedicationEffectsPage = React.lazy(() =>
+  import("./features/medication-effects/components/MedicationEffectsPage").then((module) => ({
+    default: module.MedicationEffectsPage,
+  }))
+);
 
 // Create QueryClient with error recovery
 const queryClient = new QueryClient({
@@ -201,7 +205,9 @@ function App() {
                 path="/medication-effects"
                 element={
                   <AuthGuard>
-                    <MedicationEffectsPage />
+                    <React.Suspense fallback={<div className="p-8 text-center">Loading...</div>}>
+                      <MedicationEffectsPage />
+                    </React.Suspense>
                   </AuthGuard>
                 }
               />
