@@ -679,6 +679,7 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         from,
         to,
         entries: freshEntries,
+        headacheTreatmentDays: dayBuckets,
         selectedMeds: [], // No medication filtering – always all
         
         includeStats: true, // Always included
