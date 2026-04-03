@@ -12,7 +12,7 @@
  *   - Trigramm-Vorfilter für Performance
  */
 
-import { SYMPTOM_MAP, LOCATION_MAP, MEDICATION_SYNONYMS } from './voiceGrammar';
+import { SYMPTOM_MAP, LOCATION_MAP, MEDICATION_SYNONYMS, AURA_MAP } from './voiceGrammar';
 
 // ============================================================
 // === TYPEN ===
