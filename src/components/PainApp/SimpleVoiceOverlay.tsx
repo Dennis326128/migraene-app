@@ -16,10 +16,13 @@ import { Mic, ChevronLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useMeds, useRecentMeds } from '@/features/meds/hooks/useMeds';
 import { 
-  parseVoiceEntry,
+  parseVoiceEntry as parseVoiceEntryOld,
   formatTimeDisplay,
-  type VoiceParseResult 
+  type VoiceParseResult as OldVoiceParseResult
 } from '@/lib/voice/simpleVoiceParser';
+import { FEATURE_FLAGS } from '@/config/featureFlags';
+import { parseVoiceEntry as parseVoiceEntryNew, type VoiceParseResult as NewVoiceParseResult, type MedEntry } from '@/lib/voice/parseVoiceEntry';
+import { buildReviewState as buildReviewStateNew } from '@/lib/voice/buildReviewState';
 import { buildUserMedicationLexicon, correctMedicationsInTranscript } from '@/lib/voice/medicationFuzzyMatch';
 import { isBrowserSttSupported } from '@/lib/voice/sttConfig';
 import { 
