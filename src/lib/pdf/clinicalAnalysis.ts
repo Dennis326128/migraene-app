@@ -491,7 +491,16 @@ function computePainFreeIntervals(entries: AnalysisEntry[], fromDate: string, to
   const clusterPeriods: string[] = [];
   let clusterStart = '';
   for (const date of allDates) {
-    if ((dayPain.get(date) ?? 0) > 0) {
+    if (!documentedDays.has(date)) {
+      // Unknown day — break cluster streak too
+      if (clusterStreak >= 5) {
+        clusterCount++;
+        clusterPeriods.push(`${clusterStart} bis ${allDates[allDates.indexOf(date) - 1]} (${clusterStreak} Tage)`);
+      }
+      clusterStreak = 0;
+      continue;
+    }
+    if (dayPain.get(date)! > 0) {
       if (clusterStreak === 0) clusterStart = date;
       clusterStreak++;
     } else {
