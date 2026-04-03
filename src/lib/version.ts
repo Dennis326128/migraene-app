@@ -17,7 +17,6 @@ export const APP_VERSION = BUILD_ID;
 
 let isReloading = false;
 let didWarnInvalidBuildIdResponse = false;
-let hasInitializedVersionWatcher = false;
 
 function safeStorageGet(key: string): string | null {
   try {
@@ -211,16 +210,12 @@ async function checkVersionFromNetwork() {
  * Initialize version watcher with network-based checks.
  */
 export function initVersionWatcher() {
-  if (hasInitializedVersionWatcher) {
+  if (shouldDisableServiceWorkerRuntime()) {
     return;
   }
 
-  hasInitializedVersionWatcher = true;
-
-  const isPreviewRuntime = shouldDisableServiceWorkerRuntime();
-
   // 1. Service Worker message listener
-  if (!isPreviewRuntime && 'serviceWorker' in navigator) {
+  if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('message', (event) => {
       if (event.data?.type === 'NEW_VERSION_AVAILABLE') {
         console.log('📬 Service Worker detected new version');
@@ -229,16 +224,11 @@ export function initVersionWatcher() {
     });
   }
 
-  // 2. Always do network-based build checks.
-  // In Lovable preview/embedded runtimes SW is disabled, so this is the only
-  // reliable way to detect that the iframe is still showing an older build.
-  const initialDelayMs = isPreviewRuntime ? 750 : 3000;
-  const pollIntervalMs = isPreviewRuntime ? 15_000 : 60_000;
+  // 2. Network check after 3s (gives build time to finish)
+  setTimeout(checkVersionFromNetwork, 3000);
 
-  setTimeout(checkVersionFromNetwork, initialDelayMs);
-
-  // 3. Periodic check
-  setInterval(checkVersionFromNetwork, pollIntervalMs);
+  // 3. Periodic check every 60s
+  setInterval(checkVersionFromNetwork, 60_000);
 
   // 4. Check when tab becomes visible again
   document.addEventListener('visibilitychange', () => {
