@@ -546,7 +546,7 @@ export function matchLocation(
 // === AURA-MATCHING ===
 // ============================================================
 
-import { AURA_MAP } from './voiceGrammar';
+// AURA_MAP imported at top of file
 
 /**
  * Matcht einen Text-Token gegen alle bekannten Aura-Typen.
