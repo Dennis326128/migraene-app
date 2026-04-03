@@ -9,7 +9,7 @@
 import React, { useState } from 'react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ChevronDown, Bug } from 'lucide-react';
-import type { VoiceParseResult } from '@/lib/voice/simpleVoiceParser';
+import type { VoiceParseResult } from '@/lib/voice/parseVoiceEntry';
 
 interface VoiceDebugOverlayProps {
   parseResult: VoiceParseResult | null;
@@ -34,29 +34,32 @@ export function VoiceDebugOverlay({
     entry_type: parseResult.entry_type,
     confidence: parseResult.confidence,
     pain: {
-      value: parseResult.pain_intensity.value,
-      confidence: parseResult.pain_intensity.confidence,
-      evidence: parseResult.pain_intensity.evidence,
-      needsReview: parseResult.pain_intensity.needsReview,
-      fromDescriptor: parseResult.pain_intensity.painFromDescriptor,
+      value: parseResult.painLevel,
+      confidence: parseResult.painLevelConfidence,
+      display: parseResult.painLevelDisplay,
     },
     time: {
-      kind: parseResult.time.kind,
-      relative_minutes: parseResult.time.relative_minutes,
-      date: parseResult.time.date,
-      time: parseResult.time.time,
-      isNow: parseResult.time.isNow,
-      display: parseResult.time.displayText,
+      date: parseResult.occurredAt.date,
+      time: parseResult.occurredAt.time,
+      display: parseResult.occurredAt.displayText,
+      confidence: parseResult.occurredAt.confidence,
+      isDefault: parseResult.occurredAt.isDefault,
     },
     medications: parseResult.medications.map(m => ({
       name: m.name,
       confidence: m.confidence,
       needsReview: m.needsReview,
       doseQuarters: m.doseQuarters,
-      matched: m.matched_user_med,
+      matchType: m.matchType,
     })),
+    symptoms: parseResult.symptoms,
+    painLocations: parseResult.painLocations,
+    auraType: parseResult.auraType,
+    meCfsLevel: parseResult.meCfsLevel,
+    isPrivate: parseResult.isPrivate,
     note: parseResult.note,
     raw_text: parseResult.raw_text,
+    uncertainFields: parseResult.uncertainFields,
     flags: {
       painDefaultUsed,
       painFromDescriptor,
