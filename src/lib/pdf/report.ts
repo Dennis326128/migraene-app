@@ -942,6 +942,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     from,
     to,
     entries,
+    headacheTreatmentDays,
     includeChart = true,
     includeAnalysis = false,
     includeEntriesList = true,
