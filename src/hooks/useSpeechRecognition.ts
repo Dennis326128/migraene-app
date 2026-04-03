@@ -375,7 +375,6 @@ export function useSpeechRecognition(options: SpeechRecognitionOptions = {}): Us
 
 async function transcribeWithBrowserText(browserTranscript: string): Promise<SttResult> {
   try {
-    console.log('📤 Sending browser transcript to edge function...');
     
     const { data, error } = await supabase.functions.invoke('transcribe-voice', {
       body: { 
@@ -393,7 +392,6 @@ async function transcribeWithBrowserText(browserTranscript: string): Promise<Stt
       };
     }
 
-    console.log('✅ Edge function result:', data);
     return data as SttResult;
   } catch (error) {
     console.error('❌ Failed to call edge function:', error);
@@ -407,7 +405,6 @@ async function transcribeWithBrowserText(browserTranscript: string): Promise<Stt
 
 async function transcribeAudio(audioBlob: Blob, browserTranscript: string): Promise<string> {
   try {
-    console.log('📤 Sending audio for transcription...');
     
     const reader = new FileReader();
     const base64Promise = new Promise<string>((resolve, reject) => {
@@ -435,7 +432,6 @@ async function transcribeAudio(audioBlob: Blob, browserTranscript: string): Prom
       return browserTranscript;
     }
 
-    console.log('✅ Transcription result:', data);
     const result = data as SttResult;
     return result.transcript || browserTranscript;
   } catch (error) {

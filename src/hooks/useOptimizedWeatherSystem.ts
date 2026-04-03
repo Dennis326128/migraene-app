@@ -43,7 +43,6 @@ export function useOptimizedWeatherSystem() {
 
     // Return cached coordinates if still valid and not forcing refresh
     if (!forceRefresh && cache.coords && (now - cache.timestamp) < cache.ttl) {
-      console.log('🚀 Using cached coordinates:', cache.coords);
       return cache.coords;
     }
 
@@ -51,7 +50,6 @@ export function useOptimizedWeatherSystem() {
 
     try {
       // Try GPS first for most accurate coordinates
-      console.log('📍 Attempting GPS location...');
       const position = await Geolocation.getCurrentPosition({
         enableHighAccuracy: true,
         timeout: 8000, // Increased timeout for better accuracy
@@ -63,7 +61,6 @@ export function useOptimizedWeatherSystem() {
         lon: position.coords.longitude
       };
 
-      console.log('✅ GPS coordinates obtained:', gpsCoords);
 
       // Update cache
       coordinateCacheRef.current = {
@@ -92,7 +89,6 @@ export function useOptimizedWeatherSystem() {
         const fallbackCoords = await getUserFallbackCoordinates();
         
         if (fallbackCoords) {
-          console.log('✅ Using fallback coordinates from profile:', fallbackCoords);
           
           // Update cache with fallback coords (shorter TTL)
           coordinateCacheRef.current = {
@@ -142,7 +138,6 @@ export function useOptimizedWeatherSystem() {
       if (manualCoords) {
         coordinates = manualCoords;
         source = 'manual';
-        console.log('🎯 Using manual coordinates:', coordinates);
       } else {
         coordinates = await getCoordinatesOptimized();
         source = coordinateCacheRef.current.coords === coordinates ? 'cache' : 'gps';
@@ -153,7 +148,6 @@ export function useOptimizedWeatherSystem() {
       }
 
       const targetTimestamp = timestamp || new Date().toISOString();
-      console.log(`🌤️ Fetching weather for ${targetTimestamp} at:`, coordinates);
 
       let weatherId: number | null = null;
 
@@ -172,7 +166,6 @@ export function useOptimizedWeatherSystem() {
           isLoading: false 
         }));
 
-        console.log('✅ Weather fetch successful, ID:', weatherId);
         return { weatherId, coordinates, source };
       }
 
@@ -196,7 +189,6 @@ export function useOptimizedWeatherSystem() {
   const fetchWeatherBatch = useCallback(async (
     entries: Array<{ timestamp: string; coords?: { lat: number; lon: number } }>
   ): Promise<Array<WeatherResult>> => {
-    console.log(`🔄 Batch weather fetch for ${entries.length} entries`);
     const results: WeatherResult[] = [];
 
     for (const entry of entries) {
@@ -227,7 +219,6 @@ export function useOptimizedWeatherSystem() {
       coordinates: null, 
       error: null 
     }));
-    console.log('🗑️ Coordinate cache cleared');
   }, []);
 
   // Initialize coordinate cache on mount
@@ -236,7 +227,6 @@ export function useOptimizedWeatherSystem() {
       try {
         const coords = await getCoordinatesOptimized();
         if (coords) {
-          console.log('🚀 Weather system initialized with coordinates:', coords);
         }
       } catch (error) {
         console.warn('Weather system initialization failed:', error);

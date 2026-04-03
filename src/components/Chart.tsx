@@ -19,11 +19,6 @@ interface Props {
 }
 
 const ChartComponent = React.memo(function ChartComponent({ entries, dateRange, timeRange }: Props) {
-  console.log("ChartComponent render:", { 
-    entriesCount: entries?.length, 
-    dateRange, 
-    timeRange 
-  });
   const isMobile = useIsMobile();
   const [showPassiveWeather, setShowPassiveWeather] = useState(true);
 
@@ -49,14 +44,6 @@ const ChartComponent = React.memo(function ChartComponent({ entries, dateRange, 
   const today = useMemo(() => new Date(), []);
   const daysDiff = useMemo(() => differenceInDays(today, startDate), [today, startDate]); // Always calculate to today
 
-  console.log('📊 Chart date range:', {
-    requested: dateRange,
-    actual: actualDateRange,
-    startDate,
-    endDate,
-    daysDiff,
-    totalEntries: entries?.length || 0
-  });
 
   // Get weather timeline data for the actual date range
   const { data: weatherTimeline = [] } = useWeatherTimeline(
@@ -69,13 +56,6 @@ const ChartComponent = React.memo(function ChartComponent({ entries, dateRange, 
   const dailySeries = useMemo(() => {
     const series = buildDailySeries(entries || [], startDate, endDate, weatherTimeline);
     
-    console.log('📊 Daily series built:', {
-      totalDays: series.length,
-      daysWithPain: series.filter(d => d.pain !== null).length,
-      daysWithWeather: series.filter(d => d.hasWeather).length,
-      firstDay: series[0]?.date,
-      lastDay: series[series.length - 1]?.date
-    });
     
     return series;
   }, [entries, startDate, endDate, weatherTimeline]);

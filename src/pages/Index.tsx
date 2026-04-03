@@ -33,7 +33,6 @@ const Index = () => {
           const result = await backfillMigrainWeatherEntries(days);
           
           if (result.success > 0) {
-            console.log(`✅ ${result.success} Migräne-Einträge mit Wetter-Daten ergänzt`);
           }
         } catch (error) {
           console.warn('⚠️ Wetter-Backfill Fehler:', error);

@@ -234,7 +234,6 @@ export async function createEntry(payload: PainEntryPayload): Promise<string> {
 
   // OFFLINE CHECK: Bei fehlender Verbindung in Queue speichern
   if (!navigator.onLine) {
-    console.log('📴 Offline - saving to local queue');
     const offlineId = await addToOfflineQueue('pain_entry', insert);
     return `offline_${offlineId}`;
   }
@@ -253,7 +252,6 @@ export async function createEntry(payload: PainEntryPayload): Promise<string> {
     if (error) {
       // Bei Netzwerk-Fehlern: in Queue speichern
       if (error.message?.includes('fetch') || error.message?.includes('network') || error.code === 'PGRST000') {
-        console.log('🔄 Network error - saving to offline queue');
         const offlineId = await addToOfflineQueue('pain_entry', insert);
         return `offline_${offlineId}`;
       }
@@ -277,7 +275,6 @@ export async function createEntry(payload: PainEntryPayload): Promise<string> {
   } catch (err: any) {
     // Bei unerwarteten Fehlern (z.B. Timeout): in Queue speichern
     if (err?.message?.includes('fetch') || err?.message?.includes('Failed') || !navigator.onLine) {
-      console.log('🔄 Request failed - saving to offline queue');
       const offlineId = await addToOfflineQueue('pain_entry', insert);
       return `offline_${offlineId}`;
     }

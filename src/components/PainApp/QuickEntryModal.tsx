@@ -176,7 +176,6 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
         });
         latitude = pos.coords.latitude;
         longitude = pos.coords.longitude;
-        console.log('📍 Quick Entry: GPS coordinates captured');
       } catch (gpsError) {
         console.warn('📍 Quick Entry: GPS failed, will use fallback', gpsError);
         
@@ -190,7 +189,6 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
           if (profile?.latitude && profile?.longitude) {
             latitude = Number(profile.latitude);
             longitude = Number(profile.longitude);
-            console.log('📍 Quick Entry: Using stored profile coordinates');
           }
         } catch (profileError) {
           console.warn('📍 Quick Entry: Profile fallback failed', profileError);
@@ -243,13 +241,11 @@ export const QuickEntryModal: React.FC<QuickEntryModalProps> = ({
       if (medicationNames.length > 0) {
         checkLimits.mutateAsync(medicationNames)
           .then((limitResults) => {
-            console.log('✅ QuickEntry limit check results:', limitResults);
             const warningNeeded = limitResults.some(r => 
               r.status === 'warning' || r.status === 'reached' || r.status === 'exceeded'
             );
             
             if (warningNeeded && onLimitWarning) {
-              console.log('⚠️ QuickEntry triggering limit warning');
               setTimeout(() => onLimitWarning(limitResults), 1500);
             }
           })
