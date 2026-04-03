@@ -24,6 +24,14 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 // Types
 // ============================================
 
+export interface ReviewUncertainField {
+  field: string;
+  label: string;
+  value: string;
+  confidence: number;
+  tapToEdit: boolean;
+}
+
 export interface EntryReviewState {
   painLevel: number;
   selectedMedications: Map<string, { doseQuarters: number; medicationId?: string }>;
@@ -33,6 +41,13 @@ export interface EntryReviewState {
     time: string;    // HH:mm
     displayText?: string;
   };
+  // New voice parser fields (optional for backward compat)
+  painLocations?: string[];
+  auraType?: string;
+  symptoms?: string[];
+  meCfsLevel?: string;
+  isPrivate?: boolean;
+  uncertainFields?: ReviewUncertainField[];
 }
 
 interface MedicationOption {

@@ -47,6 +47,12 @@ export interface VoiceSavePayload {
   time: string;
   medications: Array<{ name: string; medicationId?: string; doseQuarters: number }>;
   notes: string;
+  // New parser fields
+  painLocations?: string[];
+  auraType?: string;
+  symptoms?: string[];
+  meCfsLevel?: string;
+  isPrivate?: boolean;
 }
 
 interface SimpleVoiceOverlayProps {
