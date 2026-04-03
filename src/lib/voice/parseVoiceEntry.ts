@@ -247,14 +247,17 @@ export function parsePainLevel(text: string): {
     }
   }
 
-  // --- Pattern 3: Einzelne Zahl (1-10) als Wort oder Ziffer ---
-  // Priorität: Zahlen die nach Schmerz-Kontext-Wörtern kommen
+  // --- Pattern 3: Zahlwort nach Schmerz-Kontext ---
+  // z.B. "Kopfschmerzen sieben", "Migräne acht"
   {
-    const contextPattern = /\b(?:schmerz|kopfschmerz|stärke|niveau|level|migräne)\b[\s,]+(\w+)\b/i;
+    // Kontext-Wort, dann beliebig viele Wörter (inkl. Komma), dann Zahlwort/Ziffer
+    const contextPattern = /\b(?:schmerz(?:en)?|kopfschmerz(?:en)?|migräne|attacke|stärke|niveau|level)\b[\s,]+([\w]+)\b/i;
     const m = contextPattern.exec(norm);
     if (m) {
-      const numVal = parseInt(m[1], 10);
-      const wordVal = NUMBER_WORD_MAP[normalizeText(m[1])];
+      const raw = m[1];
+      const numVal = parseInt(raw, 10);
+      // Zahlwort-Lookup mit normalisiertem Text (Umlaute expandiert)
+      const wordVal = NUMBER_WORD_MAP[raw] ?? NUMBER_WORD_MAP[normalizeText(raw)];
       const val = !isNaN(numVal) ? numVal : wordVal;
       if (val !== undefined && val >= 0 && val <= 10) {
         return {
@@ -264,6 +267,32 @@ export function parsePainLevel(text: string): {
           spanStart: m.index,
           spanEnd: m.index + m[0].length,
         };
+      }
+    }
+  }
+
+  // --- Pattern 3b: Zahlwort isoliert vor Schmerz-Kontext ---
+  // z.B. "sieben, Kopfschmerzen" — Zahl kommt VOR dem Kontext-Wort
+  {
+    const pattern = /\b(null|eins?|eine?|zwei|zwo|drei|vier|fuenf|f[üu]nf|sechs|sieben|acht|neun|zehn|\d{1,2})\b/i;
+    const m = pattern.exec(norm);
+    if (m) {
+      const raw = m[1];
+      const numVal = parseInt(raw, 10);
+      const wordVal = NUMBER_WORD_MAP[raw] ?? NUMBER_WORD_MAP[normalizeText(raw)];
+      const val = !isNaN(numVal) ? numVal : wordVal;
+      if (val !== undefined && val >= 1 && val <= 10) {
+        // Nur wenn Schmerz-Kontext im gesamten Text vorhanden
+        const hasPainCtx = /schmerz|kopf|migr|attacke|weh\b|tut weh/.test(norm);
+        if (hasPainCtx) {
+          return {
+            value: val,
+            confidence: 0.85,
+            display: `${val}/10`,
+            spanStart: m.index,
+            spanEnd: m.index + m[0].length,
+          };
+        }
       }
     }
   }
@@ -294,6 +323,9 @@ export function parsePainLevel(text: string): {
     (a, b) => b[0].length - a[0].length
   );
 
+  // Prüfe ob Schmerz-Kontext IRGENDWO im Text vorhanden (nicht nur ±30 Zeichen)
+  const hasPainContextGlobal = /schmerz|kopf|migr|attacke|\bweh\b|tut weh/.test(norm);
+
   for (const [phrase, value] of sortedDescriptors) {
     const escapedPhrase = phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const pattern = new RegExp(`\\b${escapedPhrase}\\b`, 'i');
@@ -303,10 +335,22 @@ export function parsePainLevel(text: string): {
       const before = norm.slice(Math.max(0, m.index - 15), m.index);
       if (/\bkein(?:e|er|es)?\b|\bnicht\b/.test(before)) continue;
 
-      // Guard: Kontext-Prüfung – ist das im Schmerz-Kontext?
-      const context = norm.slice(Math.max(0, m.index - 30), m.index + m[0].length + 30);
-      const isPainContext = /schmerz|kopf|migräne|attacke|weh|tut/.test(context);
-      const confidence = isPainContext ? 0.82 : 0.68;
+      // Spezial-Guard: "keine" / "kein" als Deskriptor (Wert 0) nur wenn DIREKT
+      // von Schmerzwort gefolgt (z.B. "keine Schmerzen"), nicht "keine Übelkeit"
+      if ((phrase === 'keine' || phrase === 'kein' || phrase === 'keinerlei') && value === 0) {
+        const after = norm.slice(m.index + m[0].length, m.index + m[0].length + 20);
+        if (!/schmerz/.test(after)) continue;
+      }
+
+      // Guard: Schmerz-Kontext: entweder global im Text oder lokal (±60 Zeichen)
+      const localContext = norm.slice(Math.max(0, m.index - 60), m.index + m[0].length + 60);
+      const isPainContext = hasPainContextGlobal ||
+        /schmerz|kopf|migr|attacke|\bweh\b/.test(localContext);
+
+      const confidence = isPainContext ? 0.82 : 0.60;
+
+      // Ohne jeglichen Schmerz-Kontext: überspringen
+      if (!isPainContext) continue;
 
       return {
         value,
@@ -514,11 +558,23 @@ export function parseSymptoms(text: string): {
     }
   }
 
-  // Fuzzy-Matching für nicht direkt erkannte Symptome
+  // Fuzzy-Matching: NUR für Tokens die lang genug sind UND nicht Alltagswörter sind
+  // Mindestlänge 6 Zeichen verhindert Phantom-Matches auf kurze Wörter
+  const FUZZY_SYMPTOM_BLOCKLIST = new Set([
+    'genommen', 'nehmen', 'nehme', 'hatte', 'habe', 'haben', 'stark', 'starke',
+    'schmerz', 'schmerzen', 'kopfschmerz', 'migräne', 'attacke', 'tablette',
+    'tabletten', 'kapsel', 'spray', 'stunde', 'stunden', 'minute', 'minuten',
+    'gestern', 'heute', 'morgen', 'abend', 'nacht', 'mittag', 'privat',
+    'leicht', 'leichte', 'mittel', 'keine', 'kein', 'nicht', 'ohne',
+    'ibuprofen', 'sumatriptan', 'rizatriptan', 'paracetamol', 'aspirin',
+  ]);
+
   const tokens = norm.split(/\s+/);
   for (let i = 0; i < tokens.length; i++) {
-    const token = tokens[i];
-    if (token.length < 4) continue;
+    const token = tokens[i].replace(/[,;.!?]$/, ''); // Satzzeichen am Ende entfernen
+    // Fuzzy nur für Tokens ≥6 Zeichen die nicht auf der Blocklist stehen
+    if (token.length < 6) continue;
+    if (FUZZY_SYMPTOM_BLOCKLIST.has(normalizeText(token))) continue;
 
     // Token-Position
     let tokenStart = 0;
@@ -535,10 +591,11 @@ export function parseSymptoms(text: string): {
     );
     if (hasPrevNeg || hasPrev2Neg) continue;
 
+    // Höherer Threshold für Fuzzy (0.88 statt 0.82) um Phantom-Matches zu reduzieren
     const match = matchSymptom(token);
-    if (match && match.confidence >= 0.82 && !foundSymptoms.has(match.symptomId)) {
+    if (match && match.confidence >= 0.88 && !foundSymptoms.has(match.symptomId)) {
       foundSymptoms.set(match.symptomId, {
-        confidence: match.confidence * 0.88,
+        confidence: match.confidence * 0.85,
         span: [tokenStart, tokenStart + token.length],
       });
     }
