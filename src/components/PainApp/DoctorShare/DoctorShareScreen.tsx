@@ -32,6 +32,15 @@ import { saveGeneratedReport } from "@/features/reports/api/generatedReports.api
 import { upsertShareSettings } from "@/features/doctor-share/api/doctorShareSettings.api";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 
 interface DoctorShareScreenProps {
   onBack: () => void;
