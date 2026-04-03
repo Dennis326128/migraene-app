@@ -218,7 +218,7 @@ export const SYMPTOM_MAP: Record<string, string[]> = {
     'gedanken schwer', 'benebelt',
   ],
   'aura': [
-    'aura', 'flimmerskotom', 'gesichtsfeldausfall', 'kriechende taubheit',
+    'aura', 'flimmerskotom', 'kriechende taubheit',
     'mit aura', 'hatte aura', 'aura gehabt',
   ],
 };
