@@ -962,6 +962,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     chartImageBytes,
     weatherAnalysis,
     prophylaxisData,
+    clinicalAnalysis,
   } = params;
 
   const pdfDoc = await PDFDocument.create();
