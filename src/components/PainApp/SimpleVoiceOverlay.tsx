@@ -386,6 +386,20 @@ export function SimpleVoiceOverlay({
     recognition.continuous = true;
     recognition.interimResults = false;
     
+    // Pass domain vocabulary as grammar hints (improves STT accuracy)
+    try {
+      const SpeechGrammarList = (window as any).SpeechGrammarList || (window as any).webkitSpeechGrammarList;
+      if (SpeechGrammarList) {
+        const vocab = getVocabularyWithUserMeds(userMedsRef.current);
+        const grammarStr = `#JSGF V1.0; grammar migraine; public <term> = ${vocab.join(' | ')} ;`;
+        const grammarList = new SpeechGrammarList();
+        grammarList.addFromString(grammarStr, 1);
+        recognition.grammars = grammarList;
+      }
+    } catch (e) {
+      // SpeechGrammarList not supported in all browsers — silently skip
+    }
+    
     recognition.onstart = () => {
       // Only set recording if we're not already in processing/review
       if (stateRef.current !== 'processing' && stateRef.current !== 'review') {
