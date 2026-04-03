@@ -80,7 +80,7 @@ export function SimpleVoiceOverlay({
   const [medsNeedReview, setMedsNeedReview] = useState(false);
   const [saving, setSaving] = useState(false);
   const [voiceMode, setVoiceMode] = useState<VoiceMode>('new');
-  const [lastParseResult, setLastParseResult] = useState<OldVoiceParseResult | null>(null);
+  const [lastParseResult, setLastParseResult] = useState<VoiceParseResult | null>(null);
   
   // User edit tracking
   const [userEdited, setUserEdited] = useState<UserEditedFlags>({ pain: false, meds: false, notes: false });
