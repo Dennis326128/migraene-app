@@ -68,17 +68,50 @@ Deno.serve(async (req) => {
     const range = url.searchParams.get("range") || "3m";
     const { from, to } = getDateRange(range);
 
+    console.log(`[PDF] Request: patientId=${userId}, range=${range}, start=${from}, end=${to}`);
+
     const [entriesResult, patientDataResult] = await Promise.all([
-      supabase.from("pain_entries").select("*").eq("user_id", userId)
+      supabase.from("pain_entries")
+        .select("id, selected_date, selected_time, pain_level, notes, entry_note_is_private, aura_type")
+        .eq("user_id", userId)
         .gte("selected_date", from).lte("selected_date", to)
         .order("selected_date", { ascending: false }).order("selected_time", { ascending: false }),
       supabase.from("patient_data")
-        .select("first_name, last_name, date_of_birth, street, postal_code, city, phone, health_insurance, insurance_number, title")
+        .select("*")
         .eq("user_id", userId).maybeSingle(),
     ]);
 
-    const allEntries = entriesResult.data || [];
+    if (entriesResult.error) {
+      console.error("[PDF] Entries query error:", entriesResult.error);
+    }
+
+    const rawEntries = entriesResult.data || [];
+
+    // Fetch medication_intakes for all entry IDs
+    const entryIds = rawEntries.map((e: any) => e.id);
+    let medicationMap: Record<number, string[]> = {};
+    if (entryIds.length > 0) {
+      const { data: intakes } = await supabase
+        .from("medication_intakes")
+        .select("entry_id, medication_name")
+        .in("entry_id", entryIds)
+        .eq("user_id", userId);
+
+      for (const intake of (intakes ?? [])) {
+        if (!medicationMap[intake.entry_id]) medicationMap[intake.entry_id] = [];
+        medicationMap[intake.entry_id].push(intake.medication_name);
+      }
+    }
+
+    // Build allEntries with medications from intakes + filter private notes
+    const allEntries = rawEntries.map((e: any) => ({
+      ...e,
+      medications: medicationMap[e.id] ?? [],
+      notes: e.entry_note_is_private ? null : (e.notes ?? null),
+    }));
+
     const patientData = patientDataResult.data;
+    console.log(`[PDF] profile=${!!patientData}, entries=${rawEntries.length}`);
 
     let patientName = "Patient";
     if (patientData) {
