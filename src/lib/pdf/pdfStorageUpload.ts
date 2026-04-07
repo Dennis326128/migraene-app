@@ -32,7 +32,8 @@ export async function uploadPdfToStorage(opts: UploadPdfOptions): Promise<void> 
     });
 
     // 1. Upload to Storage (upsert=true → overwrite if range already cached)
-    const blob = new Blob([opts.pdfBytes], { type: 'application/pdf' });
+    const exactBytes = new Uint8Array(opts.pdfBytes);
+    const blob = new Blob([exactBytes.buffer.slice(exactBytes.byteOffset, exactBytes.byteOffset + exactBytes.byteLength)], { type: 'application/pdf' });
     const { error: uploadError } = await supabase.storage
       .from('generated-reports')
       .upload(storagePath, blob, {
