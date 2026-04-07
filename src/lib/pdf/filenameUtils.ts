@@ -57,3 +57,11 @@ export function buildPdfFilename(opts: {
 
   return parts.join('_') + '.pdf';
 }
+
+/**
+ * Builds the Storage path for cached PDFs (without bucket prefix).
+ * Pattern: {userId}/{rangeStart}_{rangeEnd}.pdf
+ */
+export function buildStoragePath(userId: string, rangeStart: string, rangeEnd: string): string {
+  return `${userId}/${rangeStart}_${rangeEnd}.pdf`;
+}
