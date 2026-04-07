@@ -28,6 +28,7 @@ import { Switch } from "@/components/ui/switch";
 import { devLog, devWarn } from "@/lib/utils/devLogger";
 import { buildReportData, type ReportData, getEntryDate } from "@/lib/pdf/reportData";
 import { computeClinicalAnalysis, type AnalysisEntry } from '@/lib/pdf/clinicalAnalysis';
+import { uploadPdfToStorage } from '@/lib/pdf/pdfStorageUpload';
 import { buildPdfFilename } from '@/lib/pdf/filenameUtils';
 
 import { PremiumBadge } from "@/components/ui/premium-badge";
@@ -743,6 +744,18 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         meCfsData,
         clinicalAnalysis: clinicalAnalysisResult,
       });
+
+      // Fire-and-forget: cache PDF in Supabase Storage for doctor-share lookups
+      if (user) {
+        void uploadPdfToStorage({
+          userId: user.id,
+          rangeStart: from,
+          rangeEnd: to,
+          lastName: freshPatientData?.last_name || undefined,
+          firstName: freshPatientData?.first_name || undefined,
+          pdfBytes: new Uint8Array(pdfBytes),
+        });
+      }
 
       const timestamp = Date.now();
       const blob = new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf' });
