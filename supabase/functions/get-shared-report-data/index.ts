@@ -15,6 +15,7 @@ import {
   upsertSnapshot,
   type DoctorReportJSON,
 } from "../_shared/doctorReportSnapshot.ts";
+import { getLinkedHistoryDiaryReport } from "../_shared/doctorSharedHistoryReport.ts";
 import { getCorsHeaders, handlePreflight } from "../_shared/cors.ts";
 import { verifyDoctorAccess } from "../_shared/doctorAccessGuard.ts";
 
@@ -153,10 +154,19 @@ Deno.serve(async (req) => {
     }
 
     const pagedReport = projectSnapshotPage(reportJson, page);
+    const linkedHistoryReport = await getLinkedHistoryDiaryReport(supabase, shareId, userId);
 
     console.log(
       `[Doctor Report v1] Snapshot resolved: shareId=${shareId} snapshotId=${snapshotId} generatedAt=${snapshotGeneratedAt ?? pagedReport.meta.generatedAt} fromDate=${pagedReport.meta.fromDate} toDate=${pagedReport.meta.toDate} entries=${pagedReport.tables.entriesTotal}`
     );
+
+    if (linkedHistoryReport) {
+      console.log(
+        `[Doctor Report v1] Linked history PDF: shareId=${shareId} historyDiaryId=${linkedHistoryReport.historyDiaryId} createdAt=${linkedHistoryReport.createdAt} pdfFilePath=${linkedHistoryReport.pdfFilePath} isTodayDiary=${linkedHistoryReport.isTodayDiary}`
+      );
+    } else {
+      console.warn(`[Doctor Report v1] No linked history PDF found for shareId=${shareId}`);
+    }
 
     const enrichedReport: DoctorReportJSON = {
       ...pagedReport,
@@ -166,6 +176,11 @@ Deno.serve(async (req) => {
     const responseBody: Record<string, unknown> = {
       report: enrichedReport,
       snapshotId,
+      historyReport: linkedHistoryReport,
+      historyDiaryId: linkedHistoryReport?.historyDiaryId ?? null,
+      historyDiaryCreatedAt: linkedHistoryReport?.createdAt ?? null,
+      pdfFilePath: linkedHistoryReport?.pdfFilePath ?? null,
+      isTodayDiary: linkedHistoryReport?.isTodayDiary ?? false,
     };
     if (wantsLegacy) Object.assign(responseBody, buildLegacyFields(enrichedReport, userId));
 

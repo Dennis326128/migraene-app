@@ -173,6 +173,13 @@ interface DoctorReportJSON {
 interface DoctorReportResponse {
   report: DoctorReportJSON;
   snapshotId: string;
+  historyReport: {
+    historyDiaryId: string;
+    createdAt: string;
+    pdfFilePath: string;
+    title: string;
+    isTodayDiary: boolean;
+  } | null;
 }
 
 type RangeFilter = "30d" | "3m" | "6m" | "12m";
@@ -209,6 +216,7 @@ const DoctorReportView: React.FC = () => {
   const [page, setPage] = useState(1);
   const [report, setReport] = useState<DoctorReportJSON | null>(null);
   const [reportSnapshotId, setReportSnapshotId] = useState<string | null>(null);
+  const [historyReport, setHistoryReport] = useState<DoctorReportResponse["historyReport"]>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -258,17 +266,20 @@ const DoctorReportView: React.FC = () => {
       if (!result.report?.meta || !result.report?.summary || !result.snapshotId) {
         setError("Ungültige Daten vom Server erhalten.");
         setReportSnapshotId(null);
+        setHistoryReport(null);
         setIsLoading(false);
         return;
       }
 
       setReport(result.report);
       setReportSnapshotId(result.snapshotId);
+      setHistoryReport(result.historyReport ?? null);
     } catch (err) {
       if ((err as Error).name === "AbortError") return;
       console.error("[DoctorReportView] Load error:", err);
       setError("Beim Laden des Berichts ist ein Fehler aufgetreten.");
       setReportSnapshotId(null);
+      setHistoryReport(null);
     } finally {
       if (!controller.signal.aborted) {
         setIsLoading(false);
@@ -292,12 +303,12 @@ const DoctorReportView: React.FC = () => {
   const handleDownloadPdf = async () => {
     setIsDownloading(true);
     try {
-      if (!reportSnapshotId) {
-        throw new Error("Der Bericht konnte gerade nicht erstellt werden. Bitte versuche es erneut.");
+      if (!historyReport?.historyDiaryId) {
+        throw new Error("Das freigegebene Verlauf-PDF ist derzeit nicht verfügbar.");
       }
 
       const response = await fetch(
-        `${SUPABASE_FUNCTIONS_BASE_URL}/get-shared-report-pdf?snapshotId=${encodeURIComponent(reportSnapshotId)}`,
+        `${SUPABASE_FUNCTIONS_BASE_URL}/get-shared-report-pdf?historyDiaryId=${encodeURIComponent(historyReport.historyDiaryId)}`,
         {
           method: "GET",
           ...buildDoctorFetchInit(),
@@ -346,13 +357,15 @@ const DoctorReportView: React.FC = () => {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = buildPdfFilename({
-        lastName: report?.optional?.patientData?.lastName || undefined,
-        firstName: report?.optional?.patientData?.firstName || undefined,
-        fromDate: report?.meta.fromDate ?? new Date().toISOString().split('T')[0],
-        toDate: report?.meta.toDate ?? new Date().toISOString().split('T')[0],
-        reportType: 'diary',
-      });
+      link.download = historyReport.title
+        ? `${sanitizeFilename(historyReport.title.replace(/\s+/g, "_"))}_${historyReport.createdAt.slice(0, 10)}.pdf`
+        : buildPdfFilename({
+            lastName: report?.optional?.patientData?.lastName || undefined,
+            firstName: report?.optional?.patientData?.firstName || undefined,
+            fromDate: report?.meta.fromDate ?? new Date().toISOString().split('T')[0],
+            toDate: report?.meta.toDate ?? new Date().toISOString().split('T')[0],
+            reportType: 'diary',
+          });
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
