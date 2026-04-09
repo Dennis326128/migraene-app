@@ -985,7 +985,6 @@ export async function buildDoctorReportSnapshot(
   const {
     userId,
     range,
-    page = 1,
     pageSize = MAX_ENTRIES_PER_PAGE,
     includePatientData = true,
   } = options;
@@ -1002,7 +1001,6 @@ export async function buildDoctorReportSnapshot(
   const [
     allEntriesResult,
     entriesCountResult,
-    paginatedEntriesResult,
     medicationCoursesResult,
     patientDataResult,
     userMedicationsResult,
@@ -1029,18 +1027,6 @@ export async function buildDoctorReportSnapshot(
       .eq("user_id", userId)
       .gte("selected_date", from)
       .lte("selected_date", to),
-
-    // Paginated entries for table
-    supabase
-      .from("pain_entries")
-      .select("id, selected_date, selected_time, pain_level, medications, aura_type, pain_locations, notes, timestamp_created")
-      .eq("user_id", userId)
-      .gte("selected_date", from)
-      .lte("selected_date", to)
-      .order("selected_date", { ascending: false })
-      .order("selected_time", { ascending: false, nullsFirst: false })
-      .order("timestamp_created", { ascending: false })
-      .range((page - 1) * pageSize, page * pageSize - 1),
 
     // Medication Courses (Prophylaxe) — all fields needed for PDF-parity
     supabase
@@ -1106,7 +1092,6 @@ export async function buildDoctorReportSnapshot(
 
   const allEntries = (allEntriesResult.data || []) as RawEntry[];
   const totalEntries = entriesCountResult.count || 0;
-  const paginatedEntries = paginatedEntriesResult.data || [];
   const medicationCourses = medicationCoursesResult.data || [];
   const patientData = patientDataResult.data;
   const userMedications = userMedicationsResult.data || [];
@@ -1346,18 +1331,30 @@ export async function buildDoctorReportSnapshot(
   // 5) TABLES BAUEN
   // ─────────────────────────────────────────────────────────────────────────
 
-  const entries: DoctorReportEntry[] = paginatedEntries.map(e => ({
-    id: e.id,
-    date: e.selected_date,
-    time: formatTime(e.selected_time),
-    createdAt: e.timestamp_created || new Date().toISOString(),
-    intensity: painLevelToNumber(e.pain_level),
-    intensityLabel: painLevelToLabel(e.pain_level),
-    medications: e.medications || [],
-    note: e.notes || null,
-    aura: e.aura_type && e.aura_type !== "keine" ? e.aura_type : null,
-    painLocations: e.pain_locations || [],
-  }));
+  const entries: DoctorReportEntry[] = allEntries
+    .map(e => ({
+      id: e.id,
+      date: e.selected_date,
+      time: formatTime(e.selected_time),
+      createdAt: e.timestamp_created || new Date().toISOString(),
+      intensity: painLevelToNumber(e.pain_level),
+      intensityLabel: painLevelToLabel(e.pain_level),
+      medications: e.medications || [],
+      note: e.notes || null,
+      aura: e.aura_type && e.aura_type !== "keine" ? e.aura_type : null,
+      painLocations: e.pain_locations || [],
+    }))
+    .sort((a, b) => {
+      const dateCompare = b.date.localeCompare(a.date);
+      if (dateCompare !== 0) return dateCompare;
+
+      const timeA = a.time || "23:59:59";
+      const timeB = b.time || "23:59:59";
+      const timeCompare = timeB.localeCompare(timeA);
+      if (timeCompare !== 0) return timeCompare;
+
+      return b.createdAt.localeCompare(a.createdAt);
+    });
 
   const prophylaxisCourses: ProphylaxisCourse[] = medicationCourses.map(c => ({
     id: c.id,
@@ -1443,8 +1440,8 @@ export async function buildDoctorReportSnapshot(
   const tables: DoctorReportTables = {
     entries,
     entriesTotal: totalEntries,
-    entriesPage: page,
-    entriesPageSize: pageSize,
+    entriesPage: 1,
+    entriesPageSize: totalEntries > 0 ? totalEntries : pageSize,
     prophylaxisCourses,
     medicationStats,
     locationStats,
@@ -1580,6 +1577,30 @@ export interface CachedSnapshot {
   isStale: boolean;
 }
 
+export function projectSnapshotPage(
+  reportJson: DoctorReportJSON,
+  page: number,
+  pageSize = MAX_ENTRIES_PER_PAGE,
+): DoctorReportJSON {
+  const safePage = Math.max(1, page);
+  const safePageSize = Math.max(1, pageSize);
+  const allEntries = reportJson.tables?.entries ?? [];
+  const totalEntries = reportJson.tables?.entriesTotal ?? allEntries.length;
+  const start = (safePage - 1) * safePageSize;
+  const end = start + safePageSize;
+
+  return {
+    ...reportJson,
+    tables: {
+      ...reportJson.tables,
+      entries: allEntries.slice(start, end),
+      entriesTotal: totalEntries,
+      entriesPage: safePage,
+      entriesPageSize: safePageSize,
+    },
+  };
+}
+
 /**
  * Get cached snapshot if fresh, otherwise null
  */
@@ -1593,6 +1614,32 @@ export async function getCachedSnapshot(
     .select("id, report_json, source_updated_at, generated_at, is_stale")
     .eq("share_id", shareId)
     .eq("range", range)
+    .eq("report_version", REPORT_VERSION)
+    .maybeSingle();
+
+  if (error || !data) {
+    return null;
+  }
+
+  return {
+    id: data.id,
+    reportJson: data.report_json as DoctorReportJSON,
+    sourceUpdatedAt: data.source_updated_at,
+    generatedAt: data.generated_at,
+    isStale: data.is_stale,
+  };
+}
+
+export async function getSnapshotById(
+  supabase: SupabaseClient,
+  shareId: string,
+  snapshotId: string,
+): Promise<CachedSnapshot | null> {
+  const { data, error } = await supabase
+    .from("doctor_share_report_snapshots")
+    .select("id, report_json, source_updated_at, generated_at, is_stale")
+    .eq("id", snapshotId)
+    .eq("share_id", shareId)
     .eq("report_version", REPORT_VERSION)
     .maybeSingle();
 
