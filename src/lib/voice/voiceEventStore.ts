@@ -15,7 +15,7 @@ import {
   type ClassificationResult,
   type VoiceSegment,
 } from './eventClassifier';
-import { v4 as uuidv4 } from 'crypto';
+
 
 // ============================================================
 // === TYPEN ===
