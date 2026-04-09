@@ -29,9 +29,11 @@ import { useLanguage } from '@/hooks/useLanguage';
 import { EntryReviewSheet, type EntryReviewState } from './EntryReviewSheet';
 import { VoiceDebugOverlay } from './VoiceDebugOverlay';
 import { DEFAULT_DOSE_QUARTERS } from '@/lib/utils/doseFormatter';
-import { classifyVoiceEvent, segmentVoiceInput, getClassificationFeedback, getEventTypeIcon, type ClassificationResult } from '@/lib/voice/eventClassifier';
-import { saveVoiceEvent, generateVoiceSessionId, linkVoiceEventToEntry } from '@/lib/voice/voiceEventStore';
+import { classifyVoiceEvent, segmentVoiceInput, getClassificationFeedback, getEventTypeIcon, getEventTypeLabel, type ClassificationResult, type VoiceEventType } from '@/lib/voice/eventClassifier';
+import { generateVoiceSessionId, linkVoiceEventToEntry } from '@/lib/voice/voiceEventStore';
+import { saveVoiceEventRobust } from '@/lib/voice/voiceEventQueue';
 import { parseEverydayContent } from '@/lib/voice/everydayParser';
+import { showSuccessToast, showInfoToast } from '@/lib/toastHelpers';
 
 // ============================================
 // Types
