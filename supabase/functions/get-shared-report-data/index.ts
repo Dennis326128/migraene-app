@@ -10,6 +10,7 @@ import {
   buildDoctorReportSnapshot,
   getCachedSnapshot,
   isSnapshotStale,
+  projectSnapshotPage,
   shouldForceRebuild,
   upsertSnapshot,
   type DoctorReportJSON,
@@ -102,9 +103,20 @@ Deno.serve(async (req) => {
 
     // Snapshot flow
     let reportJson: DoctorReportJSON;
+    let snapshotId: string | null = null;
+    let snapshotGeneratedAt: string | null = null;
     const cached = await getCachedSnapshot(supabase, shareId, range);
     let needsRebuild = !cached || cached.isStale;
     let rebuildReason = !cached ? "no_cache" : cached.isStale ? "is_stale_flag" : "";
+
+    if (cached && !needsRebuild) {
+      const storedEntries = cached.reportJson.tables?.entries?.length ?? 0;
+      const totalEntries = cached.reportJson.tables?.entriesTotal ?? 0;
+      if (totalEntries > storedEntries) {
+        needsRebuild = true;
+        rebuildReason = "snapshot_entries_incomplete";
+      }
+    }
 
     if (cached && !needsRebuild) {
       // Check source data staleness
@@ -130,24 +142,31 @@ Deno.serve(async (req) => {
       const { reportJson: newReport, sourceUpdatedAt } = await buildDoctorReportSnapshot(supabase, {
         userId, range, page, includePatientData: true,
       });
-      await upsertSnapshot(supabase, shareId, range, newReport, sourceUpdatedAt, null);
-      reportJson = newReport;
-    } else if (page > 1) {
-      const { reportJson: newReport } = await buildDoctorReportSnapshot(supabase, {
-        userId, range, page, includePatientData: true,
-      });
+      snapshotId = await upsertSnapshot(supabase, shareId, range, newReport, sourceUpdatedAt, null);
+      snapshotGeneratedAt = newReport.meta.generatedAt;
       reportJson = newReport;
     } else {
       console.log(`[Doctor Report v1] Using cached snapshot for userId=${userId.substring(0, 8)}... range=${range}`);
+      snapshotId = cached!.id;
+      snapshotGeneratedAt = cached!.generatedAt;
       reportJson = cached!.reportJson;
     }
 
+    const pagedReport = projectSnapshotPage(reportJson, page);
+
+    console.log(
+      `[Doctor Report v1] Snapshot resolved: shareId=${shareId} snapshotId=${snapshotId} generatedAt=${snapshotGeneratedAt ?? pagedReport.meta.generatedAt} fromDate=${pagedReport.meta.fromDate} toDate=${pagedReport.meta.toDate} entries=${pagedReport.tables.entriesTotal}`
+    );
+
     const enrichedReport: DoctorReportJSON = {
-      ...reportJson,
-      meta: { ...reportJson.meta, schemaVersion: "v1" },
+      ...pagedReport,
+      meta: { ...pagedReport.meta, schemaVersion: "v1" },
     };
 
-    const responseBody: Record<string, unknown> = { report: enrichedReport };
+    const responseBody: Record<string, unknown> = {
+      report: enrichedReport,
+      snapshotId,
+    };
     if (wantsLegacy) Object.assign(responseBody, buildLegacyFields(enrichedReport, userId));
 
     return new Response(
