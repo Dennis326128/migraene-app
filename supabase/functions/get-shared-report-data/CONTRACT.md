@@ -107,7 +107,19 @@
         "insuranceNumber": "A123456789"
       }
     }
-  }
+  },
+  "snapshotId": "uuid",
+  "historyReport": {
+    "historyDiaryId": "uuid",
+    "createdAt": "2026-04-09T09:00:00.000Z",
+    "pdfFilePath": "<user-id>/<timestamp>_diary.pdf",
+    "title": "Kopfschmerztagebuch (Freigabe) – 09.01.2026 – 08.04.2026",
+    "isTodayDiary": true
+  },
+  "historyDiaryId": "uuid",
+  "historyDiaryCreatedAt": "2026-04-09T09:00:00.000Z",
+  "pdfFilePath": "<user-id>/<timestamp>_diary.pdf",
+  "isTodayDiary": true
 }
 ```
 
