@@ -739,18 +739,9 @@ export function SimpleVoiceOverlay({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [open, handleClose]);
   
-  // ============================================
-  // Don't render if not open
-  // ============================================
-  
-  if (!open) return null;
-  
-  // ============================================
-  // Render Recording State
-  // ============================================
-  
   // Live classification preview from current transcript
   const livePreviewLabel = React.useMemo(() => {
+    if (!open) return null;
     const text = committedTextRef.current?.trim();
     if (!text || text.length < 3) return null;
     const cls = classifyVoiceEvent(text);
@@ -759,7 +750,14 @@ export function SimpleVoiceOverlay({
     const icon = getEventTypeIcon(primary.type);
     const label = getEventTypeLabel(primary.type);
     return `${icon} ${label}`;
-  }, [/* re-computed on render triggered by state changes */]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, state]);
+
+  // ============================================
+  // Don't render if not open
+  // ============================================
+  
+  if (!open) return null;
 
   const renderRecordingState = () => (
     <div className="flex flex-col items-center justify-center flex-1 pb-32">
