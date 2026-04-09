@@ -14,9 +14,7 @@ import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
 import { getCorsHeaders, handlePreflight } from "../_shared/cors.ts";
 import { verifyDoctorAccess } from "../_shared/doctorAccessGuard.ts";
 import {
-  buildDoctorReportSnapshot,
-  upsertSnapshot,
-  getCachedSnapshot,
+  getSnapshotById,
   type DoctorReportJSON,
 } from "../_shared/doctorReportSnapshot.ts";
 
@@ -55,28 +53,36 @@ Deno.serve(async (req) => {
 
     const { share_id: shareId, user_id: userId } = accessResult.payload!;
     const url = new URL(req.url);
-    const range = url.searchParams.get("range") || "3m";
+    const snapshotId = url.searchParams.get("snapshotId")?.trim();
 
-    console.log(`[PDF] Request: shareId=${shareId}, userId=${userId.substring(0, 8)}..., range=${range}`);
+    if (!snapshotId) {
+      return new Response(
+        JSON.stringify({ error: "snapshotId fehlt" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
-    // ─────────────────────────────────────────────────────────────────────
-    // SSOT: Load the pinned snapshot created during share activation.
-    // Only build a new snapshot as fallback if none exists.
-    // ─────────────────────────────────────────────────────────────────────
-    let reportJson: DoctorReportJSON;
-    const cached = await getCachedSnapshot(supabase, shareId, range);
+    console.log(`[PDF] Request: shareId=${shareId}, userId=${userId.substring(0, 8)}..., requestedSnapshotId=${snapshotId}`);
 
-    if (cached && cached.reportJson) {
-      console.log(`[PDF] ✅ Using pinned snapshot: snapshotId=${cached.id}, generatedAt=${cached.generatedAt}, entries=${cached.reportJson.tables?.entriesTotal ?? 0}`);
-      reportJson = cached.reportJson;
-    } else {
-      // Fallback: build on-demand (should rarely happen if activate pins correctly)
-      console.log(`[PDF] ⚠️ No pinned snapshot found, building on-demand for shareId=${shareId}, range=${range}`);
-      const { reportJson: newReport, sourceUpdatedAt } = await buildDoctorReportSnapshot(supabase, {
-        userId, range, page: 1, includePatientData: true,
-      });
-      await upsertSnapshot(supabase, shareId, range, newReport, sourceUpdatedAt, null);
-      reportJson = newReport;
+    const snapshot = await getSnapshotById(supabase, shareId, snapshotId);
+    if (!snapshot || !snapshot.reportJson) {
+      return new Response(
+        JSON.stringify({ error: "Snapshot nicht gefunden", snapshotId }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log(
+      `[PDF] Snapshot resolved: requestedSnapshotId=${snapshotId}, loadedSnapshotId=${snapshot.id}, shareId=${shareId}, generatedAt=${snapshot.generatedAt}, entries=${snapshot.reportJson.tables?.entriesTotal ?? 0}`
+    );
+
+    let reportJson: DoctorReportJSON = snapshot.reportJson;
+
+    if (snapshot.id !== snapshotId) {
+      return new Response(
+        JSON.stringify({ error: "Snapshot-Auflösung inkonsistent", snapshotId, loadedSnapshotId: snapshot.id }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     // Extract data from snapshot
