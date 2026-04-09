@@ -4,14 +4,19 @@
  *
  * POST (kein Body oder { action: "activate" }):
  *   → is_active = true, expires_at = now + ttl_minutes (default 1440 = 24h)
+ *   → Baut sofort einen Report-Snapshot und pinnt ihn an den Share
  *
  * POST { action: "deactivate" | "revoke" }:
  *   → is_active = false (sofort beenden)
  *
- * Idempotent: Erneutes Aktivieren verlängert/erneuert expires_at.
+ * Idempotent: Erneutes Aktivieren verlängert/erneuert expires_at + Snapshot.
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import {
+  buildDoctorReportSnapshot,
+  upsertSnapshot,
+} from "../_shared/doctorReportSnapshot.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -56,9 +61,15 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    // User-context client for auth
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
     });
+
+    // Service-role client for snapshot building (bypasses RLS)
+    const serviceClient = createClient(supabaseUrl, supabaseServiceKey);
 
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) {
@@ -122,7 +133,6 @@ Deno.serve(async (req) => {
           is_active: false,
           expires_at: existingShare.expires_at,
           is_currently_active: false,
-          // Legacy compat
           is_share_active: false,
           share_active_until: now.toISOString(),
           share_revoked_at: now.toISOString(),
@@ -133,6 +143,7 @@ Deno.serve(async (req) => {
 
     // === ACTIVATE ===
     const expiresAt = new Date(now.getTime() + ttlMinutes * 60 * 1000);
+    const shareRange = defaultRange || existingShare.default_range || "3m";
 
     const updateData: Record<string, unknown> = {
       is_active: true,
@@ -160,6 +171,30 @@ Deno.serve(async (req) => {
 
     console.log(`[Doctor Share] Activated for user ${user.id.substring(0, 8)}... until ${expiresAt.toISOString()}`);
 
+    // ─────────────────────────────────────────────────────────────────────
+    // SNAPSHOT PINNING: Build and persist the report snapshot immediately
+    // This is the Single Source of Truth for the website view + PDF download.
+    // The website will use exactly this snapshot instead of rebuilding from live data.
+    // ─────────────────────────────────────────────────────────────────────
+    let snapshotId: string | null = null;
+    try {
+      console.log(`[Doctor Share] Building pinned snapshot: shareId=${existingShare.id}, range=${shareRange}, userId=${user.id.substring(0, 8)}...`);
+
+      const { reportJson, sourceUpdatedAt } = await buildDoctorReportSnapshot(serviceClient, {
+        userId: user.id,
+        range: shareRange,
+        page: 1,
+        includePatientData: true,
+      });
+
+      snapshotId = await upsertSnapshot(serviceClient, existingShare.id, shareRange, reportJson, sourceUpdatedAt, null);
+
+      console.log(`[Doctor Share] ✅ Snapshot pinned: snapshotId=${snapshotId}, shareId=${existingShare.id}, range=${shareRange}, entries=${reportJson.tables?.entriesTotal ?? 0}, headacheDays=${reportJson.summary?.headacheDays ?? 0}`);
+    } catch (snapshotErr) {
+      // Non-fatal: activation still succeeds, website will build on-demand as fallback
+      console.error(`[Doctor Share] ⚠️ Snapshot pinning failed (non-fatal):`, snapshotErr);
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -168,6 +203,7 @@ Deno.serve(async (req) => {
         expires_at: expiresAt.toISOString(),
         is_currently_active: true,
         code_display: existingShare.code_display,
+        snapshot_id: snapshotId,
         // Legacy compat
         is_share_active: true,
         share_active_until: expiresAt.toISOString(),
