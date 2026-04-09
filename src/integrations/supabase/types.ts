@@ -1739,6 +1739,102 @@ export type Database = {
         }
         Relationships: []
       }
+      voice_events: {
+        Row: {
+          analysis_ready: boolean
+          cleaned_transcript: string | null
+          confidence: number | null
+          created_at: string
+          event_subtypes: string[]
+          event_timestamp: string
+          event_types: string[]
+          id: string
+          medical_relevance: string
+          parsing_status: string
+          raw_transcript: string
+          related_entry_id: number | null
+          review_state: string
+          segments: Json | null
+          session_id: string | null
+          source: string
+          structured_data: Json | null
+          stt_confidence: number | null
+          tags: string[]
+          transcript_fts: unknown
+          tz: string
+          updated_at: string
+          user_id: string
+          voice_note_id: string | null
+        }
+        Insert: {
+          analysis_ready?: boolean
+          cleaned_transcript?: string | null
+          confidence?: number | null
+          created_at?: string
+          event_subtypes?: string[]
+          event_timestamp?: string
+          event_types?: string[]
+          id?: string
+          medical_relevance?: string
+          parsing_status?: string
+          raw_transcript: string
+          related_entry_id?: number | null
+          review_state?: string
+          segments?: Json | null
+          session_id?: string | null
+          source?: string
+          structured_data?: Json | null
+          stt_confidence?: number | null
+          tags?: string[]
+          transcript_fts?: unknown
+          tz?: string
+          updated_at?: string
+          user_id: string
+          voice_note_id?: string | null
+        }
+        Update: {
+          analysis_ready?: boolean
+          cleaned_transcript?: string | null
+          confidence?: number | null
+          created_at?: string
+          event_subtypes?: string[]
+          event_timestamp?: string
+          event_types?: string[]
+          id?: string
+          medical_relevance?: string
+          parsing_status?: string
+          raw_transcript?: string
+          related_entry_id?: number | null
+          review_state?: string
+          segments?: Json | null
+          session_id?: string | null
+          source?: string
+          structured_data?: Json | null
+          stt_confidence?: number | null
+          tags?: string[]
+          transcript_fts?: unknown
+          tz?: string
+          updated_at?: string
+          user_id?: string
+          voice_note_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voice_events_related_entry_id_fkey"
+            columns: ["related_entry_id"]
+            isOneToOne: false
+            referencedRelation: "pain_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voice_events_voice_note_id_fkey"
+            columns: ["voice_note_id"]
+            isOneToOne: false
+            referencedRelation: "voice_notes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       voice_note_segments: {
         Row: {
           confidence: number | null
