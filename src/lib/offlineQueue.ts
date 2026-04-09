@@ -138,6 +138,34 @@ export async function syncPendingEntries() {
             .from('reminders')
             .insert(entry.data);
           if (error) throw error;
+        } else if (entry.type === 'voice_note') {
+          // Voice event from offline queue – insert into voice_events
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) throw new Error('Not authenticated');
+          
+          const veData = entry.data;
+          const { error } = await supabase
+            .from('voice_events')
+            .insert({
+              user_id: user.id,
+              raw_transcript: veData.rawTranscript,
+              cleaned_transcript: veData.cleanedTranscript ?? null,
+              event_timestamp: veData.eventTimestamp ?? new Date().toISOString(),
+              tz: 'Europe/Berlin',
+              event_types: veData.eventTypes ?? [],
+              event_subtypes: [],
+              tags: veData.tags ?? [],
+              confidence: null,
+              stt_confidence: veData.sttConfidence ?? null,
+              review_state: veData.reviewState ?? 'auto_saved',
+              medical_relevance: veData.medicalRelevance ?? 'unknown',
+              analysis_ready: true,
+              parsing_status: 'queued_sync',
+              structured_data: veData.structuredData ?? null,
+              source: veData.source ?? 'voice',
+              session_id: veData.sessionId ?? null,
+            } as any);
+          if (error) throw error;
         }
         
         await removePendingEntry(entry.id);
