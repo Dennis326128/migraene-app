@@ -172,6 +172,7 @@ interface DoctorReportJSON {
 
 interface DoctorReportResponse {
   report: DoctorReportJSON;
+  snapshotId: string;
 }
 
 type RangeFilter = "30d" | "3m" | "6m" | "12m";
@@ -207,6 +208,7 @@ const DoctorReportView: React.FC = () => {
   const [range, setRange] = useState<RangeFilter>("3m");
   const [page, setPage] = useState(1);
   const [report, setReport] = useState<DoctorReportJSON | null>(null);
+  const [reportSnapshotId, setReportSnapshotId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -253,17 +255,20 @@ const DoctorReportView: React.FC = () => {
 
       const result: DoctorReportResponse = await response.json();
 
-      if (!result.report?.meta || !result.report?.summary) {
+      if (!result.report?.meta || !result.report?.summary || !result.snapshotId) {
         setError("Ungültige Daten vom Server erhalten.");
+        setReportSnapshotId(null);
         setIsLoading(false);
         return;
       }
 
       setReport(result.report);
+      setReportSnapshotId(result.snapshotId);
     } catch (err) {
       if ((err as Error).name === "AbortError") return;
       console.error("[DoctorReportView] Load error:", err);
       setError("Beim Laden des Berichts ist ein Fehler aufgetreten.");
+      setReportSnapshotId(null);
     } finally {
       if (!controller.signal.aborted) {
         setIsLoading(false);
@@ -278,6 +283,7 @@ const DoctorReportView: React.FC = () => {
 
   const handleRangeChange = (newRange: RangeFilter) => {
     setReport(null); // Clear stale data immediately to prevent flash
+    setReportSnapshotId(null);
     setRange(newRange);
     setPage(1);
   };
@@ -286,8 +292,12 @@ const DoctorReportView: React.FC = () => {
   const handleDownloadPdf = async () => {
     setIsDownloading(true);
     try {
+      if (!reportSnapshotId) {
+        throw new Error("Der Bericht konnte gerade nicht erstellt werden. Bitte versuche es erneut.");
+      }
+
       const response = await fetch(
-        `${SUPABASE_FUNCTIONS_BASE_URL}/get-shared-report-pdf?range=${range}`,
+        `${SUPABASE_FUNCTIONS_BASE_URL}/get-shared-report-pdf?snapshotId=${encodeURIComponent(reportSnapshotId)}`,
         {
           method: "GET",
           ...buildDoctorFetchInit(),
@@ -307,6 +317,9 @@ const DoctorReportView: React.FC = () => {
           if (contentType.includes("application/json")) {
             const errData = await response.json();
             console.error("[DoctorReportView] PDF server error:", errData);
+            if (typeof errData?.error === "string") {
+              errorMsg = errData.error;
+            }
           }
         } catch { /* ignore parse errors */ }
         throw new Error(errorMsg);
