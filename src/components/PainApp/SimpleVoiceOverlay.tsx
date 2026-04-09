@@ -279,10 +279,51 @@ export function SimpleVoiceOverlay({
       const feedback = getClassificationFeedback(classification);
       setVoiceFeedback(feedback);
 
-      // Determine if this needs structured review (pain/medication) 
+      // Determine if this needs structured review (pain/medication/reminder)
+      const REVIEW_REQUIRED_TYPES: VoiceEventType[] = ['pain', 'medication'];
       const needsStructuredReview = classification.classifications.some(
-        c => c.type === 'pain' || c.type === 'medication'
+        c => REVIEW_REQUIRED_TYPES.includes(c.type)
       );
+
+      // === EVERYDAY DIRECT SAVE: Skip review for non-medical entries ===
+      if (!needsStructuredReview && currentText && classification.isMeaningful) {
+        // Save voice event robustly (with offline fallback)
+        saveVoiceEventRobust({
+          rawTranscript: currentText,
+          cleanedTranscript: currentText,
+          source: 'voice',
+          sessionId: voiceSessionIdRef.current,
+          classification,
+          segments,
+          structuredData: { everyday: everydayData },
+          reviewState: 'auto_saved',
+        }).then(result => {
+          voiceEventIdRef.current = result.id;
+          if (result.queued) {
+            showInfoToast('Offline gespeichert', 'Wird synchronisiert, sobald du online bist.');
+          }
+        });
+
+        // Show friendly toast & close overlay immediately
+        const primaryType = classification.classifications[0]?.type;
+        const icon = primaryType ? getEventTypeIcon(primaryType) : '📝';
+        const label = primaryType ? getEventTypeLabel(primaryType) : 'Notiz';
+        
+        // Build specific feedback from tags
+        const tagHint = classification.tags.length > 0
+          ? `: ${classification.tags.slice(0, 2).map(t => t.charAt(0).toUpperCase() + t.slice(1)).join(', ')}`
+          : '';
+        
+        showSuccessToast(`${icon} ${label}${tagHint}`, 'Als Alltagseintrag gespeichert');
+
+        // Clear fallback timer & close
+        if (fallbackTimerRef.current) {
+          clearTimeout(fallbackTimerRef.current);
+          fallbackTimerRef.current = null;
+        }
+        onOpenChange(false);
+        return;
+      }
       
       if (mode === 'append' && baseTranscriptRef.current) {
         const combinedTranscript = (baseTranscriptRef.current + ' ' + currentText).trim();
@@ -313,8 +354,8 @@ export function SimpleVoiceOverlay({
         const parsed = parseVoiceEntry(currentText, medLexicon, new Date());
         const { review, painDefaultUsed: pdu, painFromDescriptor: pfd, medsNeedReview: mnr } = buildEntryReviewState(parsed);
         
-        // Save voice event FIRST (capture always)
-        saveVoiceEvent({
+        // Save voice event FIRST (capture always) with offline fallback
+        saveVoiceEventRobust({
           rawTranscript: currentText,
           cleanedTranscript: parsed.note || currentText,
           sttConfidence: undefined,
@@ -322,18 +363,16 @@ export function SimpleVoiceOverlay({
           sessionId: voiceSessionIdRef.current,
           classification,
           segments,
-          structuredData: needsStructuredReview ? {
+          structuredData: {
             painLevel: parsed.painLevel,
             medications: parsed.medications.map(m => m.name),
             symptoms: parsed.symptoms,
             meCfsLevel: parsed.meCfsLevel,
             everyday: everydayData,
-          } : {
-            everyday: everydayData,
           },
-          reviewState: needsStructuredReview ? 'auto_saved' : 'auto_saved',
-        }).then(id => {
-          voiceEventIdRef.current = id;
+          reviewState: 'auto_saved',
+        }).then(result => {
+          voiceEventIdRef.current = result.id;
         }).catch(err => {
           console.warn('[VoiceEvent] Background save failed:', err);
         });
@@ -357,6 +396,17 @@ export function SimpleVoiceOverlay({
       }
     } catch (error) {
       console.error('[SimpleVoice] Parse error, using defaults:', error);
+      
+      // Even on parse error: try to save raw transcript
+      if (currentText) {
+        saveVoiceEventRobust({
+          rawTranscript: currentText,
+          source: 'voice',
+          sessionId: voiceSessionIdRef.current,
+          reviewState: 'auto_saved',
+        }).catch(() => {});
+      }
+      
       openReviewWithDefaults();
     }
   }, [clearAllTimers, buildEntryReviewState, openReviewWithDefaults]);
