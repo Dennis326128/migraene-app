@@ -83,6 +83,12 @@ export function SimpleVoiceOverlay({
   const [saving, setSaving] = useState(false);
   const [voiceMode, setVoiceMode] = useState<VoiceMode>('new');
   const [lastParseResult, setLastParseResult] = useState<VoiceParseResult | null>(null);
+  const [voiceFeedback, setVoiceFeedback] = useState<string>('');
+  const [lastClassification, setLastClassification] = useState<ClassificationResult | null>(null);
+  
+  // Voice event tracking
+  const voiceSessionIdRef = useRef(generateVoiceSessionId());
+  const voiceEventIdRef = useRef<string | null>(null);
   
   // User edit tracking
   const [userEdited, setUserEdited] = useState<{ pain: boolean; meds: boolean; notes: boolean }>({ pain: false, meds: false, notes: false });
