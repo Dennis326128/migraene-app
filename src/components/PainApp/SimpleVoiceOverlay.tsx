@@ -266,6 +266,21 @@ export function SimpleVoiceOverlay({
         activeIngredient: m.wirkstoff ?? undefined,
         defaultDoseQuarters: 4,
       }));
+
+      // === ALWAYS-SAVE-FIRST: Classify & persist raw context ===
+      const classification = classifyVoiceEvent(currentText);
+      setLastClassification(classification);
+      const segments = segmentVoiceInput(currentText);
+      const everydayData = parseEverydayContent(currentText);
+      
+      // Generate user-friendly feedback
+      const feedback = getClassificationFeedback(classification);
+      setVoiceFeedback(feedback);
+
+      // Determine if this needs structured review (pain/medication) 
+      const needsStructuredReview = classification.classifications.some(
+        c => c.type === 'pain' || c.type === 'medication'
+      );
       
       if (mode === 'append' && baseTranscriptRef.current) {
         const combinedTranscript = (baseTranscriptRef.current + ' ' + currentText).trim();
@@ -274,7 +289,6 @@ export function SimpleVoiceOverlay({
         const currentReview = reviewStateRef.current;
         if (currentReview) {
           const { review } = buildEntryReviewState(parsed);
-          // Merge: respect user edits
           const edited = userEditedRef.current;
           reviewOpenedRef.current = true;
           setReviewState({
@@ -297,6 +311,31 @@ export function SimpleVoiceOverlay({
         const parsed = parseVoiceEntry(currentText, medLexicon, new Date());
         const { review, painDefaultUsed: pdu, painFromDescriptor: pfd, medsNeedReview: mnr } = buildEntryReviewState(parsed);
         
+        // Save voice event FIRST (capture always)
+        saveVoiceEvent({
+          rawTranscript: currentText,
+          cleanedTranscript: parsed.note || currentText,
+          sttConfidence: undefined,
+          source: 'voice',
+          sessionId: voiceSessionIdRef.current,
+          classification,
+          segments,
+          structuredData: needsStructuredReview ? {
+            painLevel: parsed.painLevel,
+            medications: parsed.medications.map(m => m.name),
+            symptoms: parsed.symptoms,
+            meCfsLevel: parsed.meCfsLevel,
+            everyday: everydayData,
+          } : {
+            everyday: everydayData,
+          },
+          reviewState: needsStructuredReview ? 'auto_saved' : 'auto_saved',
+        }).then(id => {
+          voiceEventIdRef.current = id;
+        }).catch(err => {
+          console.warn('[VoiceEvent] Background save failed:', err);
+        });
+
         reviewOpenedRef.current = true;
         setReviewState(review);
         setLastParseResult(parsed);
@@ -310,7 +349,6 @@ export function SimpleVoiceOverlay({
       setState('review');
       stateRef.current = 'review';
       
-      // Clear fallback since we succeeded
       if (fallbackTimerRef.current) {
         clearTimeout(fallbackTimerRef.current);
         fallbackTimerRef.current = null;
