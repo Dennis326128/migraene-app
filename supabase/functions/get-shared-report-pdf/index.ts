@@ -243,10 +243,24 @@ Deno.serve(async (req) => {
     });
 
   } catch (err) {
-    console.error("Unexpected error:", err);
-    return new Response(
-      JSON.stringify({ error: "PDF-Generierung fehlgeschlagen" }),
-      { status: 500, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
-    );
+    console.error("[PDF] Unexpected error:", err);
+    // Return a minimal valid PDF with error message instead of JSON
+    try {
+      const errDoc = await PDFDocument.create();
+      const errFont = await errDoc.embedFont(StandardFonts.Helvetica);
+      const errPage = errDoc.addPage([595.28, 841.89]);
+      errPage.drawText("Der Bericht konnte nicht erstellt werden.", { x: 40, y: 780, size: 14, font: errFont, color: rgb(0.6, 0.1, 0.1) });
+      errPage.drawText("Bitte versuchen Sie es erneut oder wenden Sie sich an den Patienten.", { x: 40, y: 760, size: 10, font: errFont, color: rgb(0.3, 0.3, 0.3) });
+      const errBytes = await errDoc.save();
+      return new Response(errBytes, {
+        status: 200,
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/pdf", "Content-Disposition": 'attachment; filename="Fehler.pdf"' },
+      });
+    } catch {
+      return new Response(
+        JSON.stringify({ error: "PDF-Generierung fehlgeschlagen" }),
+        { status: 500, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
+      );
+    }
   }
 });
