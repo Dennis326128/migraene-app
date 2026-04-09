@@ -749,6 +749,18 @@ export function SimpleVoiceOverlay({
   // Render Recording State
   // ============================================
   
+  // Live classification preview from current transcript
+  const livePreviewLabel = React.useMemo(() => {
+    const text = committedTextRef.current?.trim();
+    if (!text || text.length < 3) return null;
+    const cls = classifyVoiceEvent(text);
+    if (!cls.isMeaningful || cls.classifications.length === 0) return null;
+    const primary = cls.classifications[0];
+    const icon = getEventTypeIcon(primary.type);
+    const label = getEventTypeLabel(primary.type);
+    return `${icon} ${label}`;
+  }, [/* re-computed on render triggered by state changes */]);
+
   const renderRecordingState = () => (
     <div className="flex flex-col items-center justify-center flex-1 pb-32">
       {/* Pulsing mic indicator */}
@@ -770,6 +782,14 @@ export function SimpleVoiceOverlay({
       <p className="text-base text-muted-foreground mb-2">
         {voiceMode === 'append' ? 'Ergänze deine Eingabe …' : 'Ich höre zu …'}
       </p>
+      
+      {/* Live classification hint (calm, non-technical) */}
+      {livePreviewLabel && (
+        <p className="text-sm text-primary/70 mb-2 transition-opacity duration-500">
+          {livePreviewLabel}
+        </p>
+      )}
+      
       <p className="text-xs text-muted-foreground/50">
         Tippe auf „Fertig", wenn du fertig bist.
       </p>
