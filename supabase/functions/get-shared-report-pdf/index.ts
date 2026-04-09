@@ -1,36 +1,26 @@
 /**
  * Edge Function: get-shared-report-pdf
- * Generiert PDF für die Arzt-Ansicht
- * Auth: Header x-doctor-access (signed HMAC token, no sessions/cookies)
+ * Generiert PDF für die Arzt-Ansicht.
+ *
+ * SSOT-Prinzip: Verwendet den bei der Freigabe gepinnten Snapshot
+ * aus doctor_share_report_snapshots als alleinige Datenquelle.
+ * Fragt KEINE Live-Daten aus pain_entries ab.
+ *
+ * Auth: Header x-doctor-access (signed HMAC token)
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
 import { getCorsHeaders, handlePreflight } from "../_shared/cors.ts";
 import { verifyDoctorAccess } from "../_shared/doctorAccessGuard.ts";
+import {
+  buildDoctorReportSnapshot,
+  upsertSnapshot,
+  getCachedSnapshot,
+  type DoctorReportJSON,
+} from "../_shared/doctorReportSnapshot.ts";
 
 // --- Helpers ---
-function getDateRange(range: string): { from: string; to: string } {
-  const to = new Date();
-  const from = new Date();
-  switch (range) {
-    case "30d": from.setDate(from.getDate() - 30); break;
-    case "3m": from.setMonth(from.getMonth() - 3); break;
-    case "6m": from.setMonth(from.getMonth() - 6); break;
-    case "12m": from.setFullYear(from.getFullYear() - 1); break;
-    default: from.setMonth(from.getMonth() - 3);
-  }
-  return { from: from.toISOString().split("T")[0], to: to.toISOString().split("T")[0] };
-}
-
-function painLevelToNumber(level: string): number {
-  const map: Record<string, number> = { "-": 0, "leicht": 3, "mittel": 5, "stark": 7, "sehr_stark": 9 };
-  if (level in map) return map[level];
-  const num = parseFloat(level);
-  if (!isNaN(num) && num >= 0 && num <= 10) return num;
-  return 0;
-}
-
 function painLevelLabel(level: string): string {
   const map: Record<string, string> = { "-": "Kein Schmerz", "leicht": "Leicht", "mittel": "Mittel", "stark": "Stark", "sehr_stark": "Sehr stark" };
   return map[level] ?? level;
@@ -63,81 +53,51 @@ Deno.serve(async (req) => {
       );
     }
 
-    const userId = accessResult.payload!.user_id;
+    const { share_id: shareId, user_id: userId } = accessResult.payload!;
     const url = new URL(req.url);
     const range = url.searchParams.get("range") || "3m";
-    const { from, to } = getDateRange(range);
 
-    console.log(`[PDF] Request: patientId=${userId}, range=${range}, start=${from}, end=${to}`);
+    console.log(`[PDF] Request: shareId=${shareId}, userId=${userId.substring(0, 8)}..., range=${range}`);
 
-    const [entriesResult, patientDataResult] = await Promise.all([
-      supabase.from("pain_entries")
-        .select("id, selected_date, selected_time, pain_level, notes, entry_note_is_private, aura_type")
-        .eq("user_id", userId)
-        .gte("selected_date", from).lte("selected_date", to)
-        .order("selected_date", { ascending: false }).order("selected_time", { ascending: false }),
-      supabase.from("patient_data")
-        .select("*")
-        .eq("user_id", userId).maybeSingle(),
-    ]);
+    // ─────────────────────────────────────────────────────────────────────
+    // SSOT: Load the pinned snapshot created during share activation.
+    // Only build a new snapshot as fallback if none exists.
+    // ─────────────────────────────────────────────────────────────────────
+    let reportJson: DoctorReportJSON;
+    const cached = await getCachedSnapshot(supabase, shareId, range);
 
-    if (entriesResult.error) {
-      console.error("[PDF] Entries query error:", entriesResult.error);
+    if (cached && cached.reportJson) {
+      console.log(`[PDF] ✅ Using pinned snapshot: snapshotId=${cached.id}, generatedAt=${cached.generatedAt}, entries=${cached.reportJson.tables?.entriesTotal ?? 0}`);
+      reportJson = cached.reportJson;
+    } else {
+      // Fallback: build on-demand (should rarely happen if activate pins correctly)
+      console.log(`[PDF] ⚠️ No pinned snapshot found, building on-demand for shareId=${shareId}, range=${range}`);
+      const { reportJson: newReport, sourceUpdatedAt } = await buildDoctorReportSnapshot(supabase, {
+        userId, range, page: 1, includePatientData: true,
+      });
+      await upsertSnapshot(supabase, shareId, range, newReport, sourceUpdatedAt, null);
+      reportJson = newReport;
     }
 
-    const rawEntries = entriesResult.data || [];
+    // Extract data from snapshot
+    const patientData = reportJson.optional?.patientData ?? null;
+    const entries = reportJson.tables?.entries ?? [];
+    const summary = reportJson.summary;
+    const meta = reportJson.meta;
 
-    // Fetch medication_intakes for all entry IDs
-    const entryIds = rawEntries.map((e: any) => e.id);
-    let medicationMap: Record<number, string[]> = {};
-    if (entryIds.length > 0) {
-      const { data: intakes } = await supabase
-        .from("medication_intakes")
-        .select("entry_id, medication_name")
-        .in("entry_id", entryIds)
-        .eq("user_id", userId);
-
-      for (const intake of (intakes ?? [])) {
-        if (!medicationMap[intake.entry_id]) medicationMap[intake.entry_id] = [];
-        medicationMap[intake.entry_id].push(intake.medication_name);
-      }
-    }
-
-    // Build allEntries with medications from intakes + filter private notes
-    const allEntries = rawEntries.map((e: any) => ({
-      ...e,
-      medications: medicationMap[e.id] ?? [],
-      notes: e.entry_note_is_private ? null : (e.notes ?? null),
-    }));
-
-    const patientData = patientDataResult.data;
-    console.log(`[PDF] profile=${!!patientData}, entries=${rawEntries.length}`);
+    const fromDate = meta?.fromDate ?? "";
+    const toDate = meta?.toDate ?? "";
 
     let patientName = "Patient";
     if (patientData) {
       const parts: string[] = [];
       if (patientData.title) parts.push(patientData.title);
-      if (patientData.first_name) parts.push(patientData.first_name);
-      if (patientData.last_name) parts.push(patientData.last_name);
+      if (patientData.firstName) parts.push(patientData.firstName);
+      if (patientData.lastName) parts.push(patientData.lastName);
       if (parts.length > 0) patientName = parts.join(" ");
     }
 
-    // Summary
-    const painDays = new Set(allEntries.filter(e => e.pain_level && e.pain_level !== "-").map(e => e.selected_date));
-    const triptanKeywordsPdf = ["triptan","almotriptan","eletriptan","frovatriptan","naratriptan","rizatriptan","sumatriptan","zolmitriptan","suma","riza","zolmi","nara","almo","ele","frova","imigran","maxalt","ascotop","naramig","almogran","relpax","allegro","dolotriptan","formigran"];
-    const migraineDays = new Set(allEntries.filter(e => {
-      const nrs = painLevelToNumber(e.pain_level);
-      const hasTriptan = e.medications?.some((med: string) => triptanKeywordsPdf.some(kw => med.toLowerCase().includes(kw)));
-      const hasAura = e.aura_type && e.aura_type !== "keine";
-      return nrs > 0 && (nrs >= 7 || hasTriptan || hasAura);
-    }).map(e => e.selected_date));
-    const triptanKeywords = ["triptan","almotriptan","eletriptan","frovatriptan","naratriptan","rizatriptan","sumatriptan","zolmitriptan","suma","riza","zolmi","nara","almo","ele","frova","imigran","maxalt","ascotop","naramig","almogran","relpax","allegro","dolotriptan","formigran"];
-    const triptanDays = new Set(allEntries.filter(e => e.medications?.some((med: string) => triptanKeywords.some(kw => med.toLowerCase().includes(kw)))).map(e => e.selected_date));
-    const acuteMedDays = new Set(allEntries.filter(e => e.medications && e.medications.length > 0).map(e => e.selected_date));
-    const painLevels = allEntries.filter(e => e.pain_level && e.pain_level !== "-").map(e => painLevelToNumber(e.pain_level));
-    const avgIntensity = painLevels.length > 0 ? painLevels.reduce((a, b) => a + b, 0) / painLevels.length : 0;
-
-    // PDF
+    // PDF generation from snapshot data
     const pdfDoc = await PDFDocument.create();
     const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
@@ -156,34 +116,35 @@ Deno.serve(async (req) => {
     y -= 18;
     page.drawText(`Name: ${patientName}`, { x: margin, y, size: 10, font: helvetica, color: rgb(0.2, 0.2, 0.2) });
     y -= 14;
-    if (patientData?.date_of_birth) { page.drawText(`Geburtsdatum: ${formatDateGerman(patientData.date_of_birth)}`, { x: margin, y, size: 10, font: helvetica, color: rgb(0.2, 0.2, 0.2) }); y -= 14; }
-    if (patientData?.street || patientData?.postal_code || patientData?.city) {
+    if (patientData?.dateOfBirth) { page.drawText(`Geburtsdatum: ${formatDateGerman(patientData.dateOfBirth)}`, { x: margin, y, size: 10, font: helvetica, color: rgb(0.2, 0.2, 0.2) }); y -= 14; }
+    if (patientData?.street || patientData?.postalCode || patientData?.city) {
       const ap: string[] = [];
       if (patientData.street) ap.push(patientData.street);
-      if (patientData.postal_code && patientData.city) ap.push(`${patientData.postal_code} ${patientData.city}`);
+      if (patientData.postalCode && patientData.city) ap.push(`${patientData.postalCode} ${patientData.city}`);
       else if (patientData.city) ap.push(patientData.city);
       if (ap.length > 0) { page.drawText(`Adresse: ${ap.join(", ")}`, { x: margin, y, size: 10, font: helvetica, color: rgb(0.2, 0.2, 0.2) }); y -= 14; }
     }
     if (patientData?.phone) { page.drawText(`Telefon: ${patientData.phone}`, { x: margin, y, size: 10, font: helvetica, color: rgb(0.2, 0.2, 0.2) }); y -= 14; }
-    if (patientData?.health_insurance || patientData?.insurance_number) {
+    if (patientData?.healthInsurance || patientData?.insuranceNumber) {
       let it = "Versicherung: ";
-      if (patientData.health_insurance) it += patientData.health_insurance;
-      if (patientData.insurance_number) it += patientData.health_insurance ? ` (${patientData.insurance_number})` : patientData.insurance_number;
+      if (patientData.healthInsurance) it += patientData.healthInsurance;
+      if (patientData.insuranceNumber) it += patientData.healthInsurance ? ` (${patientData.insuranceNumber})` : patientData.insuranceNumber;
       page.drawText(it, { x: margin, y, size: 10, font: helvetica, color: rgb(0.2, 0.2, 0.2) }); y -= 14;
     }
     y -= 10;
 
-    page.drawText(`Zeitraum: ${formatDateGerman(from)} – ${formatDateGerman(to)}`, { x: margin, y, size: 10, font: helvetica, color: rgb(0.3, 0.3, 0.3) }); y -= 15;
-    page.drawText(`Erstellt am: ${formatDateGerman(new Date().toISOString().split("T")[0])}`, { x: margin, y, size: 10, font: helvetica, color: rgb(0.3, 0.3, 0.3) }); y -= 30;
+    page.drawText(`Zeitraum: ${formatDateGerman(fromDate)} – ${formatDateGerman(toDate)}`, { x: margin, y, size: 10, font: helvetica, color: rgb(0.3, 0.3, 0.3) }); y -= 15;
+    page.drawText(`Erstellt am: ${formatDateGerman(new Date().toISOString().split("T")[0])}`, { x: margin, y, size: 10, font: helvetica, color: rgb(0.3, 0.3, 0.3) }); y -= 15;
+    page.drawText(`Datenquelle: Gepinnter Snapshot (SSOT)`, { x: margin, y, size: 8, font: helvetica, color: rgb(0.5, 0.5, 0.5) }); y -= 25;
 
-    // Summary
+    // Summary from snapshot
     page.drawText("Zusammenfassung", { x: margin, y, size: 14, font: helveticaBold, color: rgb(0.15, 0.35, 0.65) }); y -= 20;
     const summaryItems = [
-      { label: "Kopfschmerztage", value: painDays.size.toString() },
-      { label: "Migränetage (stark/sehr stark)", value: migraineDays.size.toString() },
-      { label: "Triptantage", value: triptanDays.size.toString() },
-      { label: "Tage mit Akutmedikation", value: acuteMedDays.size.toString() },
-      { label: "Ø Intensität", value: avgIntensity.toFixed(1) },
+      { label: "Kopfschmerztage", value: String(summary?.headacheDays ?? 0) },
+      { label: "Migränetage", value: String(summary?.migraineDays ?? 0) },
+      { label: "Triptantage", value: String(summary?.triptanDays ?? 0) },
+      { label: "Tage mit Akutmedikation", value: String(summary?.acuteMedDays ?? 0) },
+      { label: "Ø Intensität", value: (summary?.avgIntensity ?? 0).toFixed(1) },
     ];
     summaryItems.forEach(item => {
       page.drawText(`${item.label}:`, { x: margin, y, size: 10, font: helvetica, color: rgb(0.2, 0.2, 0.2) });
@@ -192,7 +153,7 @@ Deno.serve(async (req) => {
     });
     y -= 20;
 
-    // Entries table
+    // Entries table from snapshot
     page.drawText("Episoden-Liste", { x: margin, y, size: 14, font: helveticaBold, color: rgb(0.15, 0.35, 0.65) }); y -= 20;
     const colWidths = [80, 60, 150, 200];
     const headers = ["Datum", "Intensität", "Medikamente", "Notizen"];
@@ -204,7 +165,7 @@ Deno.serve(async (req) => {
     const maxEntriesPerPage = 35;
     let entriesOnPage = 0;
 
-    for (const entry of allEntries) {
+    for (const entry of entries) {
       if (y < margin + 50 || entriesOnPage >= maxEntriesPerPage) {
         page = pdfDoc.addPage([pageWidth, pageHeight]);
         y = pageHeight - margin;
@@ -216,12 +177,12 @@ Deno.serve(async (req) => {
       }
 
       x = margin;
-      const dateTime = `${formatDateGerman(entry.selected_date)}${entry.selected_time ? `, ${formatTime(entry.selected_time)}` : ""}`;
+      const dateTime = `${formatDateGerman(entry.date)}${entry.time ? `, ${formatTime(entry.time)}` : ""}`;
       page.drawText(dateTime.substring(0, 15), { x, y, size: 8, font: helvetica, color: rgb(0.2, 0.2, 0.2) }); x += colWidths[0];
-      page.drawText(painLevelLabel(entry.pain_level), { x, y, size: 8, font: helvetica, color: rgb(0.2, 0.2, 0.2) }); x += colWidths[1];
+      page.drawText(entry.intensityLabel || painLevelLabel(entry.intensity || "-"), { x, y, size: 8, font: helvetica, color: rgb(0.2, 0.2, 0.2) }); x += colWidths[1];
       const meds = (entry.medications || []).join(", ");
       page.drawText(meds.substring(0, 30) + (meds.length > 30 ? "..." : ""), { x, y, size: 8, font: helvetica, color: rgb(0.2, 0.2, 0.2) }); x += colWidths[2];
-      const notes = (entry.notes || "").replace(/\n/g, " ");
+      const notes = (entry.note || "").replace(/\n/g, " ");
       page.drawText(notes.substring(0, 40) + (notes.length > 40 ? "..." : ""), { x, y, size: 8, font: helvetica, color: rgb(0.4, 0.4, 0.4) });
       y -= 12;
       entriesOnPage++;
@@ -235,7 +196,9 @@ Deno.serve(async (req) => {
     });
 
     const pdfBytes = await pdfDoc.save();
-    const filename = `Kopfschmerztagebuch_${formatDateGerman(from)}-${formatDateGerman(to)}.pdf`.replace(/\./g, "-");
+    const filename = `Kopfschmerztagebuch_${formatDateGerman(fromDate)}-${formatDateGerman(toDate)}.pdf`.replace(/\./g, "-");
+
+    console.log(`[PDF] ✅ Generated PDF: ${pages.length} pages, ${entries.length} entries, ${pdfBytes.length} bytes`);
 
     return new Response(pdfBytes, {
       status: 200,
@@ -244,7 +207,6 @@ Deno.serve(async (req) => {
 
   } catch (err) {
     console.error("[PDF] Unexpected error:", err);
-    // Return a minimal valid PDF with error message instead of JSON
     try {
       const errDoc = await PDFDocument.create();
       const errFont = await errDoc.embedFont(StandardFonts.Helvetica);
