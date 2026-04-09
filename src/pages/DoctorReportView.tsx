@@ -300,10 +300,36 @@ const DoctorReportView: React.FC = () => {
           navigate("/doctor?expired=1");
           return;
         }
-        throw new Error("PDF konnte nicht erstellt werden");
+        // Try to extract a meaningful error message from the response
+        let errorMsg = "Der Bericht konnte gerade nicht erstellt werden. Bitte versuchen Sie es erneut.";
+        try {
+          const contentType = response.headers.get("content-type") || "";
+          if (contentType.includes("application/json")) {
+            const errData = await response.json();
+            console.error("[DoctorReportView] PDF server error:", errData);
+          }
+        } catch { /* ignore parse errors */ }
+        throw new Error(errorMsg);
+      }
+
+      // Verify we actually got a PDF back (not a JSON error masquerading as 200)
+      const contentType = response.headers.get("content-type") || "";
+      if (!contentType.includes("application/pdf")) {
+        console.error("[DoctorReportView] Unexpected content-type:", contentType);
+        try {
+          const body = await response.text();
+          console.error("[DoctorReportView] Response body:", body.substring(0, 500));
+        } catch { /* ignore */ }
+        throw new Error("Der Bericht konnte gerade nicht erstellt werden. Bitte versuchen Sie es erneut.");
       }
 
       const blob = await response.blob();
+
+      // Sanity check: PDF should start with %PDF
+      if (blob.size < 10) {
+        throw new Error("Der Bericht konnte gerade nicht erstellt werden. Bitte versuchen Sie es erneut.");
+      }
+
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -322,7 +348,8 @@ const DoctorReportView: React.FC = () => {
       toast.success("PDF heruntergeladen");
     } catch (err) {
       console.error("[DoctorReportView] PDF error:", err);
-      toast.error("PDF-Download fehlgeschlagen");
+      const msg = err instanceof Error ? err.message : "PDF-Download fehlgeschlagen";
+      toast.error(msg);
     } finally {
       setIsDownloading(false);
     }
