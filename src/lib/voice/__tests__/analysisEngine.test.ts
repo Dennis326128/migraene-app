@@ -14,7 +14,6 @@ function makeDataset(overrides?: Partial<FullAnalysisDataset>): FullAnalysisData
     painEntries: [],
     medicationIntakes: [],
     contextNotes: [],
-    contextNotes: [],
     meta: {
       range: { from: new Date('2025-01-01'), to: new Date('2025-01-07') },
       voiceEventCount: 0,
