@@ -7,8 +7,8 @@
  * === VALIDITY MODEL ===
  * An analysis is "valid" if and only if:
  *   1. It exists for the requested date range (dedupe_key match)
- *   2. The data-state fingerprint matches — meaning no relevant source
- *      data in that range was created or modified AFTER the analysis.
+ *   2. Its data_state_signature matches the CURRENT data state —
+ *      i.e. no relevant source data was created/modified since analysis.
  * 
  * The data-state fingerprint checks FOUR sources (user-scoped, range-scoped):
  *   - pain_entries.updated_at     — edits AND new entries
@@ -16,9 +16,15 @@
  *   - medication_intakes.updated_at — intake changes in range
  *   - medication_effects.updated_at — effect ratings for entries in range
  * 
+ * From these, a deterministic STATE SIGNATURE is derived:
+ *   pe:{count}:{latestTs}|ve:{count}:{latestTs}|mi:{count}:{latestTs}|me:{count}:{latestTs}
+ * 
+ * This signature is stored on ai_reports.data_state_signature and used for
+ * exact-match reuse — not just timestamp comparison.
+ * 
  * The 5-minute cooldown is a SECONDARY safeguard against rapid
- * re-runs when data is unchanged. If data changed, re-analysis
- * is allowed immediately, even within the cooldown.
+ * re-runs when data is unchanged. If data changed (signature differs),
+ * re-analysis is allowed immediately.
  * 
  * Dedupe key format: pattern_analysis_{from}_{to}
  */
@@ -55,28 +61,65 @@ export interface CachedAnalysis {
   updatedAt: string;
   fromDate: string;
   toDate: string;
+  /** The data-state signature stored when this analysis was created/updated */
+  dataStateSignature: string | null;
 }
 
 export interface CacheValidityResult {
   valid: boolean;
-  reason?: 'not_authenticated' | 'pain_data_changed' | 'voice_data_changed' | 'medication_intake_changed' | 'medication_effect_changed';
+  reason?: 'not_authenticated' | 'no_signature' | 'signature_mismatch' | 'pain_data_changed' | 'voice_data_changed' | 'medication_intake_changed' | 'medication_effect_changed';
 }
 
 /**
  * Fingerprint of the data state for a given user + date range.
  * Used to determine if a cached analysis is still valid.
+ * 
+ * Contains both per-source metrics AND a derived signature string
+ * for exact-match comparison.
  */
 export interface DataStateFingerprint {
+  /** Count of pain_entries in range */
+  painEntryCount: number;
   /** Latest updated_at from pain_entries in range */
   latestPainEntry: string | null;
+  /** Count of voice_events in range */
+  voiceEventCount: number;
   /** Latest updated_at from voice_events in range */
   latestVoiceEvent: string | null;
+  /** Count of medication_intakes in range */
+  medIntakeCount: number;
   /** Latest updated_at from medication_intakes in range */
   latestMedIntake: string | null;
+  /** Count of medication_effects for entries in range */
+  medEffectCount: number;
   /** Latest updated_at from medication_effects for entries in range */
   latestMedEffect: string | null;
   /** The single max timestamp across all sources */
   maxTimestamp: string | null;
+  /**
+   * Deterministic state signature for exact-match comparison.
+   * Format: pe:{count}:{ts}|ve:{count}:{ts}|mi:{count}:{ts}|me:{count}:{ts}
+   * where {ts} is epoch ms or 0 if null.
+   */
+  stateSignature: string;
+}
+
+// ============================================================
+// === STATE SIGNATURE BUILDER (pure function) ===
+// ============================================================
+
+/**
+ * Build a deterministic state signature from per-source counts and timestamps.
+ * This is a PURE FUNCTION — no Supabase calls. Used by both client and tests.
+ */
+export function buildStateSignature(
+  painCount: number, painTs: string | null,
+  voiceCount: number, voiceTs: string | null,
+  intakeCount: number, intakeTs: string | null,
+  effectCount: number, effectTs: string | null,
+): string {
+  const ts = (v: string | null) => v ? new Date(v).getTime() : 0;
+  return `pe:${painCount}:${ts(painTs)}|ve:${voiceCount}:${ts(voiceTs)}|mi:${intakeCount}:${ts(intakeTs)}|me:${effectCount}:${ts(effectTs)}`;
 }
 
 // ============================================================
@@ -88,7 +131,7 @@ export interface DataStateFingerprint {
  * 
  * This is the SINGLE SOURCE OF TRUTH for determining whether
  * source data has changed. Used by:
- *   - Client-side cache validation (analysisCache.ts)
+ *   - Client-side cache validation (this file)
  *   - Snapshot builder (doctorReportSnapshot.ts) — via equivalent Deno logic
  *   - PDF report embedding
  * 
@@ -101,42 +144,38 @@ export async function getDataStateFingerprint(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const [painResult, voiceResult, intakeResult, effectResult] = await Promise.all([
-    // pain_entries: updated_at tracks both creation AND edits (trigger-backed)
+  const [painResult, voiceResult, intakeResult, entryIdsResult] = await Promise.all([
+    // pain_entries: count + latest updated_at
     supabase
       .from('pain_entries')
-      .select('updated_at')
+      .select('updated_at', { count: 'exact' })
       .eq('user_id', user.id)
       .gte('selected_date', fromDate)
       .lte('selected_date', toDate)
       .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+      .limit(1),
 
-    // voice_events: updated_at tracks edits to review_state, structured_data, etc.
+    // voice_events: count + latest updated_at
     supabase
       .from('voice_events')
-      .select('updated_at')
+      .select('updated_at', { count: 'exact' })
       .eq('user_id', user.id)
       .gte('event_timestamp', fromDate + 'T00:00:00Z')
       .lte('event_timestamp', toDate + 'T23:59:59Z')
       .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+      .limit(1),
 
-    // medication_intakes: scoped to user + date range
+    // medication_intakes: count + latest updated_at
     supabase
       .from('medication_intakes')
-      .select('updated_at')
+      .select('updated_at', { count: 'exact' })
       .eq('user_id', user.id)
       .gte('taken_date', fromDate)
       .lte('taken_date', toDate)
       .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+      .limit(1),
 
-    // medication_effects: scoped to user via pain_entries join
-    // We query entries in range, then check their effects
+    // Get entry IDs for medication_effects scoping
     supabase
       .from('pain_entries')
       .select('id')
@@ -147,23 +186,27 @@ export async function getDataStateFingerprint(
       .limit(500),
   ]);
 
-  // For medication_effects, we need a second query scoped to the user's entries
+  // medication_effects: scoped to the user's entries in range
   let latestMedEffect: string | null = null;
-  if (effectResult.data && effectResult.data.length > 0) {
-    const entryIds = effectResult.data.map(e => e.id);
-    const { data: effectData } = await supabase
+  let medEffectCount = 0;
+  if (entryIdsResult.data && entryIdsResult.data.length > 0) {
+    const entryIds = entryIdsResult.data.map(e => e.id);
+    const { data: effectData, count: effectCount } = await supabase
       .from('medication_effects')
-      .select('updated_at')
+      .select('updated_at', { count: 'exact' })
       .in('entry_id', entryIds)
       .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    latestMedEffect = effectData?.updated_at ?? null;
+      .limit(1);
+    latestMedEffect = effectData?.[0]?.updated_at ?? null;
+    medEffectCount = effectCount ?? 0;
   }
 
-  const latestPainEntry = painResult.data?.updated_at ?? null;
-  const latestVoiceEvent = voiceResult.data?.updated_at ?? null;
-  const latestMedIntake = intakeResult.data?.updated_at ?? null;
+  const painEntryCount = painResult.count ?? 0;
+  const latestPainEntry = painResult.data?.[0]?.updated_at ?? null;
+  const voiceEventCount = voiceResult.count ?? 0;
+  const latestVoiceEvent = voiceResult.data?.[0]?.updated_at ?? null;
+  const medIntakeCount = intakeResult.count ?? 0;
+  const latestMedIntake = intakeResult.data?.[0]?.updated_at ?? null;
 
   // Compute max across all sources
   const timestamps: number[] = [];
@@ -172,14 +215,26 @@ export async function getDataStateFingerprint(
   if (latestMedIntake) timestamps.push(new Date(latestMedIntake).getTime());
   if (latestMedEffect) timestamps.push(new Date(latestMedEffect).getTime());
 
+  const stateSignature = buildStateSignature(
+    painEntryCount, latestPainEntry,
+    voiceEventCount, latestVoiceEvent,
+    medIntakeCount, latestMedIntake,
+    medEffectCount, latestMedEffect,
+  );
+
   return {
+    painEntryCount,
     latestPainEntry,
+    voiceEventCount,
     latestVoiceEvent,
+    medIntakeCount,
     latestMedIntake,
+    medEffectCount,
     latestMedEffect,
     maxTimestamp: timestamps.length > 0
       ? new Date(Math.max(...timestamps)).toISOString()
       : null,
+    stateSignature,
   };
 }
 
@@ -202,7 +257,7 @@ export async function loadCachedAnalysis(
 
   const { data, error } = await supabase
     .from('ai_reports')
-    .select('id, response_json, created_at, updated_at, from_date, to_date')
+    .select('id, response_json, created_at, updated_at, from_date, to_date, data_state_signature')
     .eq('user_id', user.id)
     .eq('report_type', REPORT_TYPE)
     .eq('dedupe_key', dedupeKey)
@@ -225,6 +280,7 @@ export async function loadCachedAnalysis(
     updatedAt: data.updated_at,
     fromDate: data.from_date || fromDate,
     toDate: data.to_date || toDate,
+    dataStateSignature: data.data_state_signature ?? null,
   };
 }
 
@@ -235,8 +291,8 @@ export async function loadCachedAnalysis(
 /**
  * Determine if a cached analysis is still valid.
  * 
- * PRIMARY CHECK: Has ANY relevant source data changed since the analysis was saved?
- * Uses getDataStateFingerprint (user-scoped, range-scoped) for all comparisons.
+ * PRIMARY CHECK: Does the stored data_state_signature match the current one?
+ * If no signature stored (legacy), falls back to timestamp comparison.
  */
 export async function isCacheValid(
   cached: CachedAnalysis,
@@ -244,20 +300,26 @@ export async function isCacheValid(
   const fingerprint = await getDataStateFingerprint(cached.fromDate, cached.toDate);
   if (!fingerprint) return { valid: false, reason: 'not_authenticated' };
 
+  // PRIMARY: signature-based comparison (exact match)
+  if (cached.dataStateSignature) {
+    if (cached.dataStateSignature === fingerprint.stateSignature) {
+      return { valid: true };
+    }
+    return { valid: false, reason: 'signature_mismatch' };
+  }
+
+  // FALLBACK: timestamp-based for legacy entries without signature
   const cacheTime = new Date(cached.updatedAt).getTime();
 
   if (fingerprint.latestPainEntry && new Date(fingerprint.latestPainEntry).getTime() > cacheTime) {
     return { valid: false, reason: 'pain_data_changed' };
   }
-
   if (fingerprint.latestVoiceEvent && new Date(fingerprint.latestVoiceEvent).getTime() > cacheTime) {
     return { valid: false, reason: 'voice_data_changed' };
   }
-
   if (fingerprint.latestMedIntake && new Date(fingerprint.latestMedIntake).getTime() > cacheTime) {
     return { valid: false, reason: 'medication_intake_changed' };
   }
-
   if (fingerprint.latestMedEffect && new Date(fingerprint.latestMedEffect).getTime() > cacheTime) {
     return { valid: false, reason: 'medication_effect_changed' };
   }
@@ -269,7 +331,7 @@ export async function isCacheValid(
  * Check if re-analysis is allowed (secondary safeguard).
  * 
  * Rules (in priority order):
- * 1. If data has changed → always allow (caller checks isCacheValid first)
+ * 1. If data has changed (signature mismatch) → always allow (caller checks isCacheValid first)
  * 2. If data unchanged → respect cooldown to prevent unnecessary re-runs
  */
 export function canReanalyze(cached: CachedAnalysis): boolean {
@@ -278,22 +340,109 @@ export function canReanalyze(cached: CachedAnalysis): boolean {
 }
 
 // ============================================================
+// === CENTRAL ANALYSIS SELECTION ===
+// ============================================================
+
+/**
+ * Stale analysis policy per output channel.
+ */
+export type OutputChannel = 'app' | 'pdf' | 'website' | 'snapshot';
+
+export interface AnalysisSelection {
+  /** The analysis result, or null if none available */
+  result: VoiceAnalysisResult | null;
+  /** Whether the analysis matches the current data state */
+  isFresh: boolean;
+  /** Why the analysis was selected or rejected */
+  status: 'fresh' | 'stale_accepted' | 'stale_rejected' | 'not_found' | 'not_authenticated';
+  /** The stored signature */
+  storedSignature: string | null;
+  /** The current signature */
+  currentSignature: string | null;
+}
+
+/**
+ * Central analysis selection function.
+ * 
+ * Used by ALL output channels: App, PDF, Website, Snapshot.
+ * Decision chain:
+ *   1. Determine date range
+ *   2. Compute current data-state fingerprint
+ *   3. Find matching analysis by dedupe_key
+ *   4. Compare signatures → fresh or stale
+ *   5. Apply channel-specific stale policy
+ * 
+ * STALE POLICIES:
+ *   - app:      show stale with visual indicator (stale > missing)
+ *   - pdf:      include stale silently (stale > gap in report)
+ *   - website:  show stale with timestamp caveat
+ *   - snapshot: include stale, mark snapshot as stale
+ */
+export async function selectAnalysisForChannel(
+  fromDate: string,
+  toDate: string,
+  channel: OutputChannel,
+): Promise<AnalysisSelection> {
+  const fingerprint = await getDataStateFingerprint(fromDate, toDate);
+  if (!fingerprint) {
+    return { result: null, isFresh: false, status: 'not_authenticated', storedSignature: null, currentSignature: null };
+  }
+
+  const cached = await loadCachedAnalysis(fromDate, toDate);
+  if (!cached) {
+    return { result: null, isFresh: false, status: 'not_found', storedSignature: null, currentSignature: fingerprint.stateSignature };
+  }
+
+  const isFresh = cached.dataStateSignature === fingerprint.stateSignature;
+
+  if (isFresh) {
+    return {
+      result: cached.result,
+      isFresh: true,
+      status: 'fresh',
+      storedSignature: cached.dataStateSignature,
+      currentSignature: fingerprint.stateSignature,
+    };
+  }
+
+  // Stale: channel decides whether to accept
+  // All channels currently accept stale (stale > missing), but with different presentation
+  const staleAccepted = channel === 'app' || channel === 'pdf' || channel === 'website' || channel === 'snapshot';
+
+  return {
+    result: staleAccepted ? cached.result : null,
+    isFresh: false,
+    status: staleAccepted ? 'stale_accepted' : 'stale_rejected',
+    storedSignature: cached.dataStateSignature,
+    currentSignature: fingerprint.stateSignature,
+  };
+}
+
+// ============================================================
 // === SAVE ANALYSIS RESULT ===
 // ============================================================
 
 /**
  * Save a voice pattern analysis result to ai_reports.
- * Uses upsert with dedupe_key to avoid duplicates.
+ * Stores the current data_state_signature for later exact-match reuse.
  */
 export async function saveAnalysisResult(
   result: VoiceAnalysisResult,
   fromDate: string,
   toDate: string,
+  stateSignature?: string,
 ): Promise<string | null> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
   const dedupeKey = buildDedupeKey(fromDate, toDate);
+
+  // If no signature provided, compute it now
+  let signature = stateSignature;
+  if (!signature) {
+    const fp = await getDataStateFingerprint(fromDate, toDate);
+    signature = fp?.stateSignature ?? null;
+  }
 
   // Check for existing
   const { data: existing } = await supabase
@@ -304,7 +453,6 @@ export async function saveAnalysisResult(
     .maybeSingle();
 
   if (existing) {
-    // Update existing
     const { error } = await supabase
       .from('ai_reports')
       .update({
@@ -312,6 +460,8 @@ export async function saveAnalysisResult(
         updated_at: new Date().toISOString(),
         title: `KI-Analyse ${fromDate} – ${toDate}`,
         model: result.meta.model,
+        data_state_signature: signature,
+        source_updated_at: new Date().toISOString(),
       })
       .eq('id', existing.id);
 
@@ -322,7 +472,6 @@ export async function saveAnalysisResult(
     return existing.id;
   }
 
-  // Create new
   const { data, error } = await supabase
     .from('ai_reports')
     .insert({
@@ -335,6 +484,8 @@ export async function saveAnalysisResult(
       response_json: result as any,
       model: result.meta.model,
       dedupe_key: dedupeKey,
+      data_state_signature: signature,
+      source_updated_at: new Date().toISOString(),
     })
     .select('id')
     .single();
@@ -348,32 +499,25 @@ export async function saveAnalysisResult(
 }
 
 // ============================================================
-// === LOAD FOR REPORT / SHARE ===
+// === LOAD FOR REPORT / SHARE (convenience wrapper) ===
 // ============================================================
 
 /**
  * Load the most recent valid pattern analysis for a date range.
  * Used by PDF report generation and doctor-share to embed the analysis.
  * 
- * Returns the analysis result ONLY if it exists.
- * Staleness is noted but stale results are still returned (stale > missing).
+ * Delegates to selectAnalysisForChannel with the appropriate channel.
+ * Returns the analysis result ONLY if it exists (stale or fresh).
  */
 export async function loadAnalysisForReport(
   fromDate: string,
   toDate: string,
 ): Promise<VoiceAnalysisResult | null> {
-  const cached = await loadCachedAnalysis(fromDate, toDate);
-  if (!cached) return null;
-
-  // Verify it's still valid against current data state
-  const validity = await isCacheValid(cached);
-  if (!validity.valid) {
-    console.info(`[AnalysisCache] Report analysis stale: ${validity.reason}`);
-    // Return it anyway for reports — stale is better than missing.
-    // The analyzedAt timestamp makes the staleness visible.
+  const selection = await selectAnalysisForChannel(fromDate, toDate, 'pdf');
+  if (selection.status === 'stale_accepted') {
+    console.info(`[AnalysisCache] Report using stale analysis (stored=${selection.storedSignature}, current=${selection.currentSignature})`);
   }
-
-  return cached.result;
+  return selection.result;
 }
 
 // ============================================================
