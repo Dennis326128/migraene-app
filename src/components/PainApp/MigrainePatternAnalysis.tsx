@@ -180,10 +180,14 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
       .slice(0, MAX_PATTERNS);
     
     // Intra-pattern dedup: remove patterns that largely repeat an earlier one or summary
+    // Bidirectional: check both "pattern words in summary" AND "summary words in pattern"
     const dedupedPatterns: PatternFinding[] = [];
     for (const p of sorted) {
       const pText = p.title + ' ' + p.description;
-      if (overlapsAny(pText, [result.summary], 0.40)) continue;
+      // Bidirectional overlap: suppress if either direction shows strong overlap
+      const pInSummary = textOverlap(pText, result.summary);
+      const summaryInP = textOverlap(result.summary, pText);
+      if (Math.max(pInSummary, summaryInP) > 0.35) continue;
       if (overlapsAny(pText, dedupedPatterns.map(d => d.title + ' ' + d.description), 0.30)) continue;
       dedupedPatterns.push(p);
     }
