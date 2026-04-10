@@ -494,7 +494,7 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
           </TabsContent>
 
           <TabsContent value="ki-analyse" className="mt-6">
-            <VoiceNotesAIAnalysis onViewReport={onViewAIReport} />
+            <MigrainePatternAnalysis />
           </TabsContent>
         </Tabs>
       </div>
