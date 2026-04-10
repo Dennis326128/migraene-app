@@ -385,6 +385,7 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
         stress,
         sleep,
         energy,
+        fatigueContextTags: energy === 1 ? fatigueContextTags : [],
         nutritionTriggers,
         movementTriggers,
         fluidTriggers,
