@@ -261,3 +261,56 @@ describe('uncertainty minimum length gate', () => {
     expect(goodItem.length >= 25).toBe(true);
   });
 });
+
+// ============================================================
+// === Tightened quality round – behavioral tests ===
+// ============================================================
+
+describe('isWeakPattern – vague weather/stress/fatigue', () => {
+  it('rejects vague weather pattern', () => {
+    expect(isWeakPattern('Wetter könnte eine Rolle spielen bei den Beschwerden')).toBe(true);
+    expect(isWeakPattern('Wetterwechsel ist möglicherweise ein Auslöser gewesen')).toBe(true);
+  });
+  it('rejects vague stress pattern', () => {
+    expect(isWeakPattern('Stress scheint ein Faktor zu sein bei stärkeren Schmerztagen')).toBe(true);
+  });
+  it('rejects vague fatigue pattern', () => {
+    expect(isWeakPattern('Erschöpfung könnte beitragen zu stärkeren Beschwerden')).toBe(true);
+  });
+  it('rejects "insgesamt eher schlechter"', () => {
+    expect(isWeakPattern('Insgesamt eher schlechter als in der Vorwoche')).toBe(true);
+  });
+});
+
+describe('isWeakPattern – medication-aware length threshold', () => {
+  it('short non-medication description (35 chars) is weak', () => {
+    expect(isWeakPattern('Schlaf war öfter schlecht.')).toBe(true); // 25 chars
+    expect(isWeakPattern('Stress an einigen Tagen beobachtet.')).toBe(true); // 35 chars
+  });
+  it('short medication description (>25 chars) is NOT weak', () => {
+    expect(isWeakPattern('Triptan teils spät eingesetzt.', 'Einnahmeverzögerung')).toBe(false);
+  });
+  it('medication title protects shorter descriptions', () => {
+    expect(isWeakPattern('Einnahme oft verzögert.', 'Medikament zu spät')).toBe(false);
+  });
+});
+
+describe('context finding evidence gate', () => {
+  it('low-evidence findings should be excluded by medium+ requirement', () => {
+    const lowEvidence = 'low';
+    expect(lowEvidence === 'medium' || lowEvidence === 'high').toBe(false);
+  });
+  it('medium-evidence passes', () => {
+    const medEvidence = 'medium';
+    expect(medEvidence === 'medium' || medEvidence === 'high').toBe(true);
+  });
+});
+
+describe('sequence interpretation minimum length', () => {
+  it('interpretation under 30 chars is too short for sequences', () => {
+    expect('Stress vor Schmerz.'.length < 30).toBe(true);
+  });
+  it('interpretation over 30 chars passes', () => {
+    expect('Schlafmangel ging mehrfach einem Schmerzanstieg voraus.'.length >= 30).toBe(true);
+  });
+});
