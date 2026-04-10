@@ -6,6 +6,18 @@
  * 
  * Jede sinnvolle Spracheingabe wird IMMER gespeichert,
  * unabhängig davon ob strukturierte Extraktion gelingt.
+ * 
+ * === SAVE CONTRACT ===
+ * 
+ * saveVoiceEvent() has exactly two outcomes:
+ *   1. Returns string (event ID)  → successfully saved
+ *   2. Returns null               → ONLY when input is classified as noise
+ *                                    (intentionally skipped, not an error)
+ *   3. Throws Error               → any real failure (auth, DB, network)
+ *                                    so that saveVoiceEventRobust() can queue for retry
+ * 
+ * IMPORTANT: A meaningful input must NEVER silently return null.
+ * If the DB insert fails, it MUST throw.
  */
 
 import { supabase } from '@/integrations/supabase/client';
@@ -38,6 +50,12 @@ export interface SaveVoiceEventOptions {
   structuredData?: Record<string, unknown>;
   /** Review state override */
   reviewState?: 'auto_saved' | 'reviewed' | 'edited';
+  /** 
+   * Client-generated stable ID for idempotent saves.
+   * If provided, used as the row PK to prevent duplicates
+   * when retry/queue sends the same event again.
+   */
+  clientId?: string;
 }
 
 export interface VoiceEventRecord {
@@ -61,7 +79,10 @@ export interface VoiceEventRecord {
  * Speichert ein Voice Event in der Datenbank.
  * IMMER aufrufen wenn eine sinnvolle Spracheingabe vorliegt.
  * 
- * Returns the saved event ID, or null if the input was noise.
+ * CONTRACT:
+ *   - Returns event ID (string) on success
+ *   - Returns null ONLY for noise (intentionally skipped)
+ *   - THROWS on any real error (auth, DB, network) — never silent null
  */
 export async function saveVoiceEvent(options: SaveVoiceEventOptions): Promise<string | null> {
   const {
@@ -77,6 +98,7 @@ export async function saveVoiceEvent(options: SaveVoiceEventOptions): Promise<st
     segments: preSegments,
     structuredData,
     reviewState,
+    clientId,
   } = options;
 
   // Get user — throw on auth failure so queue can catch it
@@ -89,6 +111,7 @@ export async function saveVoiceEvent(options: SaveVoiceEventOptions): Promise<st
   const classification = preClassification ?? classifyVoiceEvent(rawTranscript);
   
   // Skip noise — return null intentionally (not an error)
+  // This is the ONLY case where null is valid.
   if (!classification.isMeaningful) {
     console.log('[VoiceEvent] Skipping noise:', rawTranscript.slice(0, 50));
     return null;
@@ -121,36 +144,49 @@ export async function saveVoiceEvent(options: SaveVoiceEventOptions): Promise<st
     confidence: s.classification.classifications[0]?.confidence ?? null,
   })) : null;
 
+  // Build insert payload — use clientId as PK if provided (idempotent save)
+  const insertData: Record<string, unknown> = {
+    user_id: user.id,
+    raw_transcript: rawTranscript,
+    cleaned_transcript: cleanedTranscript ?? null,
+    event_timestamp: eventTimestamp.toISOString(),
+    tz: 'Europe/Berlin',
+    event_types: classification.classifications.map(c => c.type),
+    event_subtypes: classification.classifications.filter(c => c.subtype).map(c => c.subtype!),
+    tags: classification.tags,
+    confidence: primaryConf,
+    stt_confidence: sttConfidence ?? null,
+    review_state: finalReviewState,
+    medical_relevance: classification.medicalRelevance,
+    analysis_ready: true,
+    parsing_status: structuredData ? 'completed' : 'classified',
+    related_entry_id: relatedEntryId ?? null,
+    voice_note_id: voiceNoteId ?? null,
+    session_id: sessionId ?? null,
+    structured_data: structuredData ?? null,
+    segments: segmentsJson,
+    source,
+  };
+
+  // Use client-generated ID for idempotent inserts (prevents duplicates on retry)
+  if (clientId) {
+    insertData.id = clientId;
+  }
+
   // Insert — throw on DB error so queue can catch it
   const { data, error } = await (supabase
     .from('voice_events')
-    .insert({
-      user_id: user.id,
-      raw_transcript: rawTranscript,
-      cleaned_transcript: cleanedTranscript ?? null,
-      event_timestamp: eventTimestamp.toISOString(),
-      tz: 'Europe/Berlin',
-      event_types: classification.classifications.map(c => c.type),
-      event_subtypes: classification.classifications.filter(c => c.subtype).map(c => c.subtype!),
-      tags: classification.tags,
-      confidence: primaryConf,
-      stt_confidence: sttConfidence ?? null,
-      review_state: finalReviewState,
-      medical_relevance: classification.medicalRelevance,
-      analysis_ready: true,
-      parsing_status: structuredData ? 'completed' : 'classified',
-      related_entry_id: relatedEntryId ?? null,
-      voice_note_id: voiceNoteId ?? null,
-      session_id: sessionId ?? null,
-      structured_data: structuredData ?? null,
-      segments: segmentsJson,
-      source,
-    } as any)
+    .insert(insertData as any)
     .select('id')
     .single());
 
   if (error) {
-    // Throw so voiceEventQueue can catch and queue for retry
+    // Duplicate key = already saved (idempotent retry success)
+    if (error.code === '23505' && clientId) {
+      console.log(`[VoiceEvent] ✅ Already saved (idempotent): ${clientId}`);
+      return clientId;
+    }
+    // Any other error: throw so voiceEventQueue can catch and queue for retry
     throw new Error(`DB_SAVE_FAILED: ${error.message}`);
   }
 
@@ -162,11 +198,23 @@ export async function saveVoiceEvent(options: SaveVoiceEventOptions): Promise<st
  * Generates a session ID for grouping related voice inputs.
  */
 export function generateVoiceSessionId(): string {
-  // Simple approach: use crypto.randomUUID if available, otherwise timestamp-based
   try {
     return crypto.randomUUID();
   } catch {
     return `vs_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  }
+}
+
+/**
+ * Generates a stable client ID for idempotent voice event saves.
+ * Uses session + timestamp to produce a deterministic-ish key
+ * that survives retry/queue cycles.
+ */
+export function generateVoiceEventClientId(): string {
+  try {
+    return crypto.randomUUID();
+  } catch {
+    return `ve_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
   }
 }
 
