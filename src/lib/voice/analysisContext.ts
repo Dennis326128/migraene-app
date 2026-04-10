@@ -281,7 +281,7 @@ export function buildDayContexts(timeline: TimelineItem[]): DayContext[] {
         const pl = parsePainLevel((item.source.data as PainEntryForAnalysis).pain_level);
         if (pl > maxPainLevel) maxPainLevel = pl;
       }
-      if (item.semanticTags.includes('mecfs_signal')) hasMecfsSignals = true;
+      if (item.semanticTags.some(t => t === 'mecfs_signal' || t === 'mecfs_state')) hasMecfsSignals = true;
       if (item.semanticTags.includes('medication') || item.kind === 'med_intake') {
         hasMedication = true;
       }
