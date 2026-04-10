@@ -104,6 +104,11 @@ const BANAL_CONTENT_RX = [
   /schmerz.*führt.*zu.*einschränk/i, /einschränk.*durch.*schmerz/i,
   /an.*schmerztagen.*weniger.*aktiv/i, /weniger.*aktiv.*an.*schmerztagen/i,
   /müdigkeit.*an.*schmerztagen/i, /erschöpft.*nach.*attacke/i,
+  /normale.*reaktion/i, /daraufhin.*ruhe/i, /danach.*rückzug/i,
+  /beschwerden.*führten.*zu.*schonung/i, /migräne.*führte.*zu.*pause/i,
+  /schmerz.*wurde.*mit.*medikament.*behandelt/i,
+  /dann.*eingenommen/i, /wurde.*dann.*eingenommen/i,
+  /schmerz.*behandelt/i, /medikament.*genommen/i,
 ];
 
 function isTrivialSequence(pattern: string, interpretation?: string): boolean {
