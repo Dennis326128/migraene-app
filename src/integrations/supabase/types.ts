@@ -56,6 +56,7 @@ export type Database = {
       ai_reports: {
         Row: {
           created_at: string
+          data_state_signature: string | null
           dedupe_key: string | null
           from_date: string | null
           id: string
@@ -64,6 +65,7 @@ export type Database = {
           report_type: string
           response_json: Json
           source: string
+          source_updated_at: string | null
           title: string
           to_date: string | null
           updated_at: string
@@ -71,6 +73,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          data_state_signature?: string | null
           dedupe_key?: string | null
           from_date?: string | null
           id?: string
@@ -79,6 +82,7 @@ export type Database = {
           report_type: string
           response_json: Json
           source: string
+          source_updated_at?: string | null
           title: string
           to_date?: string | null
           updated_at?: string
@@ -86,6 +90,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          data_state_signature?: string | null
           dedupe_key?: string | null
           from_date?: string | null
           id?: string
@@ -94,6 +99,7 @@ export type Database = {
           report_type?: string
           response_json?: Json
           source?: string
+          source_updated_at?: string | null
           title?: string
           to_date?: string | null
           updated_at?: string
