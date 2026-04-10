@@ -172,7 +172,10 @@ function generateReport(result: VoiceAnalysisResult): string {
 function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
   const [showReport, setShowReport] = useState(false);
 
-  const { sortedPatterns, filteredSequences, extraContextFindings, uncertainties } = useMemo(() => {
+  const { sortedPatterns, filteredSequences, extraContextFindings, uncertainties, cleanedSummary } = useMemo(() => {
+    // Clean summary filler starters
+    const cleanedSummary = cleanSummaryFiller(result.summary);
+
     // Sort, filter weak, and limit patterns
     let sorted = sortPatterns(result.possiblePatterns)
       .filter(p => !isWeakPattern(p.description, p.title))
@@ -185,10 +188,10 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
     for (const p of sorted) {
       const pText = p.title + ' ' + p.description;
       // Bidirectional overlap: suppress if either direction shows strong overlap
-      const pInSummary = textOverlap(pText, result.summary);
-      const summaryInP = textOverlap(result.summary, pText);
+      const pInSummary = textOverlap(pText, cleanedSummary);
+      const summaryInP = textOverlap(cleanedSummary, pText);
       // Tighter threshold if both summary and pattern are about medication
-      const bothMed = MEDICATION_TITLE_RX.test(result.summary) && MEDICATION_TITLE_RX.test(pText);
+      const bothMed = MEDICATION_TITLE_RX.test(cleanedSummary) && MEDICATION_TITLE_RX.test(pText);
       const summaryThreshold = bothMed ? 0.45 : 0.30;
       if (Math.max(pInSummary, summaryInP) > summaryThreshold) continue;
       if (overlapsAny(pText, dedupedPatterns.map(d => d.title + ' ' + d.description), 0.28)) continue;
