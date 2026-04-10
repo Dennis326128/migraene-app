@@ -12,8 +12,7 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Brain, Loader2, AlertCircle, Lightbulb, RefreshCw, HelpCircle, TrendingUp, FileText, CheckCircle2 } from 'lucide-react';
+import { Brain, Loader2, AlertCircle, RefreshCw, FileText, CheckCircle2 } from 'lucide-react';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { TimeRangeSelector } from './TimeRangeSelector';
 import { runVoicePatternAnalysis } from '@/lib/voice/analysisEngine';
@@ -72,7 +71,20 @@ const TRIVIAL_SEQUENCE_PATTERNS = [
 ];
 
 function isTrivialSequence(pattern: string): boolean {
-  return TRIVIAL_SEQUENCE_PATTERNS.some(rx => rx.test(pattern));
+  const normalized = pattern.replace(/\s+/g, ' ').trim();
+  return TRIVIAL_SEQUENCE_PATTERNS.some(rx => rx.test(normalized));
+}
+
+/** Additional check: phase-based sequences that are too generic */
+function isGenericPhaseSequence(pattern: string): boolean {
+  const p = pattern.toLowerCase().replace(/\s/g, '');
+  const generic = [
+    'pain→medication', 'pain→rest', 'pain→fatigue', 'fatigue→rest',
+    'medication→observation', 'medication→rest', 'pain→observation',
+    'fatigue→medication', 'observation→pain', 'observation→medication',
+    'rest→observation', 'wellbeing→observation',
+  ];
+  return generic.includes(p);
 }
 
 /** Translate English arrow-patterns to German */
@@ -153,12 +165,12 @@ const evidenceLabels: Record<string, string> = {
 
 function EvidenceBadge({ strength }: { strength: string }) {
   const colorMap: Record<string, string> = {
-    high: 'bg-primary/10 text-primary border-primary/20',
-    medium: 'bg-accent text-accent-foreground border-accent',
-    low: 'bg-muted text-muted-foreground border-muted',
+    high: 'bg-primary/8 text-primary',
+    medium: 'bg-muted text-muted-foreground',
+    low: 'bg-muted/50 text-muted-foreground',
   };
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${colorMap[strength] || colorMap.low}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] tracking-wide ${colorMap[strength] || colorMap.low}`}>
       {evidenceLabels[strength] || strength}
     </span>
   );
@@ -188,7 +200,7 @@ function generateReport(result: VoiceAnalysisResult): string {
   }
 
   const sequences = result.recurringSequences
-    .filter(s => !isTrivialSequence(s.pattern))
+    .filter(s => !isTrivialSequence(s.pattern) && !isGenericPhaseSequence(s.pattern))
     .slice(0, MAX_SEQUENCES);
   if (sequences.length > 0) {
     lines.push('Wiederkehrende Muster');
@@ -225,9 +237,9 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
   const { sortedPatterns, filteredSequences, extraContextFindings, uncertainties } = useMemo(() => {
     const sorted = sortPatterns(result.possiblePatterns).slice(0, MAX_PATTERNS);
 
-    // Filter trivial sequences
+    // Filter trivial and generic phase sequences
     const seqs = result.recurringSequences
-      .filter(s => !isTrivialSequence(s.pattern))
+      .filter(s => !isTrivialSequence(s.pattern) && !isGenericPhaseSequence(s.pattern))
       .slice(0, MAX_SEQUENCES);
 
     // Build full dedup reference texts: patterns + sequences + summary
@@ -271,11 +283,11 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
   const hasUncertainties = uncertainties.length > 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-7">
       {/* A) Kurzfazit */}
-      <div className="rounded-lg bg-primary/5 px-5 py-4">
-        <p className="text-sm leading-relaxed text-foreground">{result.summary}</p>
-        <p className="text-xs text-muted-foreground mt-2">
+      <div className="px-1">
+        <p className="text-[13px] leading-[1.7] text-foreground">{result.summary}</p>
+        <p className="text-[11px] text-muted-foreground mt-2">
           {result.scope.daysAnalyzed} Tage analysiert
           {result.scope.painEntryCount > 0 && ` · ${result.scope.painEntryCount} Schmerzeinträge`}
           {result.scope.voiceEventCount > 0 && ` · ${result.scope.voiceEventCount} Notizen`}
@@ -284,21 +296,20 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
 
       {/* B) Auffälligste Hinweise */}
       {hasPatterns && (
-        <section>
-          <div className="flex items-center gap-2 mb-3">
-            <Lightbulb className="h-4 w-4 text-primary" />
-            <h3 className="font-semibold text-sm text-foreground">Auffälligste Hinweise</h3>
-          </div>
-          <div className="space-y-4">
+        <section className="px-1">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4">
+            Auffälligste Hinweise
+          </h3>
+          <div className="space-y-5">
             {sortedPatterns.map((p, i) => (
-              <div key={i} className="pl-4 border-l-2 border-primary/20">
-                <div className="flex items-start justify-between gap-3 mb-0.5">
-                  <h4 className="font-medium text-sm text-foreground leading-snug">{p.title}</h4>
+              <div key={i}>
+                <div className="flex items-start justify-between gap-3 mb-1">
+                  <h4 className="text-[13px] font-medium text-foreground leading-snug">{p.title}</h4>
                   <EvidenceBadge strength={p.evidenceStrength} />
                 </div>
-                <p className="text-sm text-foreground/80 leading-relaxed">{p.description}</p>
+                <p className="text-[13px] text-foreground/75 leading-[1.65]">{p.description}</p>
                 {p.uncertaintyNotes.length > 0 && (
-                  <p className="text-xs text-muted-foreground mt-1 italic">
+                  <p className="text-[11px] text-muted-foreground mt-1.5">
                     {p.uncertaintyNotes[0].reason}
                   </p>
                 )}
@@ -310,24 +321,21 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
 
       {/* C) Wiederkehrende Muster — only non-trivial */}
       {hasSequences && (
-        <section>
-          <div className="flex items-center gap-2 mb-3">
-            <TrendingUp className="h-4 w-4 text-primary/70" />
-            <h3 className="font-semibold text-sm text-foreground">Wiederkehrende Muster</h3>
-          </div>
+        <section className="px-1">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+            Wiederkehrende Muster
+          </h3>
           <div className="space-y-3">
             {filteredSequences.map((seq, i) => (
-              <div key={i} className="pl-4 border-l-2 border-muted-foreground/15">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <span className="text-sm font-medium text-foreground">
-                    {translateSequencePattern(seq.pattern)}
-                  </span>
-                  {seq.count > 1 && (
-                    <span className="text-xs text-muted-foreground">({seq.count}×)</span>
-                  )}
-                </div>
+              <div key={i}>
+                <span className="text-[13px] font-medium text-foreground">
+                  {translateSequencePattern(seq.pattern)}
+                </span>
+                {seq.count > 1 && (
+                  <span className="text-[11px] text-muted-foreground ml-1.5">({seq.count}×)</span>
+                )}
                 {seq.llmInterpretation && (
-                  <p className="text-sm text-foreground/80 leading-relaxed">{seq.llmInterpretation}</p>
+                  <p className="text-[13px] text-foreground/75 leading-[1.65] mt-0.5">{seq.llmInterpretation}</p>
                 )}
               </div>
             ))}
@@ -337,12 +345,14 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
 
       {/* D) Was zusätzlich auffällt — only if real extras exist */}
       {hasExtraContext && (
-        <section>
-          <h3 className="text-sm font-semibold text-foreground/70 mb-2">Was zusätzlich auffällt</h3>
+        <section className="px-1">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2.5">
+            Was zusätzlich auffällt
+          </h3>
           <ul className="space-y-1.5">
             {extraContextFindings.map((f, i) => (
-              <li key={i} className="text-sm text-foreground/80 flex items-start gap-2 leading-relaxed">
-                <span className="mt-1.5 h-1 w-1 rounded-full bg-muted-foreground/40 shrink-0" />
+              <li key={i} className="text-[13px] text-foreground/75 flex items-start gap-2.5 leading-[1.65]">
+                <span className="mt-[9px] h-[3px] w-[3px] rounded-full bg-muted-foreground/30 shrink-0" />
                 <span>{f.observation}</span>
               </li>
             ))}
@@ -352,15 +362,14 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
 
       {/* E) Was noch unklar ist */}
       {hasUncertainties && (
-        <section>
-          <div className="flex items-center gap-2 mb-2">
-            <HelpCircle className="h-3.5 w-3.5 text-muted-foreground" />
-            <h3 className="text-sm font-semibold text-foreground/70">Was noch unklar ist</h3>
-          </div>
+        <section className="px-1">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2.5">
+            Was noch unklar ist
+          </h3>
           <ul className="space-y-1.5">
             {uncertainties.map((item, i) => (
-              <li key={i} className="text-sm text-foreground/80 flex items-start gap-2 leading-relaxed">
-                <span className="mt-1.5 h-1 w-1 rounded-full bg-muted-foreground/40 shrink-0" />
+              <li key={i} className="text-[13px] text-foreground/75 flex items-start gap-2.5 leading-[1.65]">
+                <span className="mt-[9px] h-[3px] w-[3px] rounded-full bg-muted-foreground/30 shrink-0" />
                 <span>{item}</span>
               </li>
             ))}
@@ -369,26 +378,26 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
       )}
 
       {/* F) Report button + disclaimer */}
-      <div className="flex flex-col items-center gap-2 pt-4">
+      <div className="flex flex-col items-center gap-1.5 pt-2 px-1">
         <Button
           variant="ghost"
           size="sm"
           onClick={() => setShowReport(!showReport)}
-          className="text-muted-foreground hover:text-foreground"
+          className="text-muted-foreground hover:text-foreground text-xs"
         >
-          <FileText className="h-3.5 w-3.5 mr-1.5" />
+          <FileText className="h-3 w-3 mr-1.5" />
           {showReport ? 'Bericht schließen' : 'Als Bericht anzeigen'}
         </Button>
-        <p className="text-[11px] text-muted-foreground text-center">
+        <p className="text-[10px] text-muted-foreground/70 text-center">
           Mögliche Zusammenhänge · keine medizinische Diagnose
         </p>
       </div>
 
       {/* Report view */}
       {showReport && (
-        <div className="rounded-lg bg-muted/30 p-4">
+        <div className="rounded-lg bg-muted/20 px-5 py-4 mx-1">
           <div className="flex items-center justify-between mb-3">
-            <h4 className="text-sm font-medium text-foreground">Analysebericht</h4>
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Analysebericht</h4>
             <Button
               variant="ghost"
               size="sm"
@@ -580,9 +589,8 @@ export function MigrainePatternAnalysis() {
             </p>
           )}
           {isCachedResult && isStaleResult && (
-            <p className="text-xs text-amber-600 dark:text-amber-400 text-center flex items-center justify-center gap-1.5">
-              <AlertCircle className="h-3 w-3" />
-              Diese Analyse basiert auf einem älteren Datenstand{cachedAtLabel ? ` (${cachedAtLabel})` : ''}
+            <p className="text-[11px] text-muted-foreground text-center flex items-center justify-center gap-1">
+              Älterer Datenstand{cachedAtLabel ? ` (${cachedAtLabel})` : ''} · erneut analysieren für aktuelle Ergebnisse
             </p>
           )}
         </CardContent>
