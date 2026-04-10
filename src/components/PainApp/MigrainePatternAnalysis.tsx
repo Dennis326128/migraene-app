@@ -175,7 +175,7 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
   const { sortedPatterns, filteredSequences, extraContextFindings, uncertainties } = useMemo(() => {
     // Sort, filter weak, and limit patterns
     let sorted = sortPatterns(result.possiblePatterns)
-      .filter(p => !isWeakPattern(p.description))
+      .filter(p => !isWeakPattern(p.description, p.title))
       .filter(p => !isBanalContent(p.description))
       .slice(0, MAX_PATTERNS);
     
@@ -196,7 +196,7 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
     const seqs = result.recurringSequences
       .filter(s => {
         if (isTrivialSequence(s.pattern, s.llmInterpretation)) return false;
-        if (!s.llmInterpretation || s.llmInterpretation.length < 20) return false;
+        if (!s.llmInterpretation || s.llmInterpretation.length < 30) return false;
         if (isBanalContent(s.llmInterpretation)) return false;
         if (isWeakPattern(s.llmInterpretation)) return false;
         if (overlapsAny(s.llmInterpretation, patternRefTexts, 0.28)) return false;
@@ -223,10 +223,11 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
     const medContext = hasMedPattern ? [] : result.medicationContextFindings;
     const allContext = [...result.painContextFindings, ...fatigueFiltered, ...medContext];
     const finalContext = allContext
+      .filter(f => f.evidenceStrength === 'medium' || f.evidenceStrength === 'high')
       .filter(f => !isBanalContent(f.observation))
       .filter(f => !isWeakPattern(f.observation))
-      .filter(f => f.observation.length >= 30)
-      .filter(f => !overlapsAny(f.observation, allRefTexts, 0.25))
+      .filter(f => f.observation.length >= 35)
+      .filter(f => !overlapsAny(f.observation, allRefTexts, 0.22))
       .slice(0, 1);
 
     // Uncertainties: banal + generic + dedup, max 1 — only show if genuinely actionable
