@@ -384,3 +384,40 @@ describe('isWeakPattern — non-actionable vague observations', () => {
     expect(isWeakPattern('An Tagen nach weniger als 6 Stunden Schlaf traten häufiger Migräneattacken auf.')).toBe(false);
   });
 });
+
+describe('isWeakPattern — medication bypass of WEAK_DESCRIPTION_RX', () => {
+  it('medication pattern with vague phrasing is NOT filtered', () => {
+    // "es deutet darauf" matches WEAK_DESCRIPTION_RX, but medication context must survive
+    expect(isWeakPattern('Es deutet darauf hin, dass Triptan zu spät eingenommen wird.', 'Medikamentenverhalten')).toBe(false);
+  });
+  it('non-medication pattern with same vague phrasing IS filtered', () => {
+    expect(isWeakPattern('Es deutet darauf hin, dass Stress eine Rolle spielen könnte.')).toBe(true);
+  });
+  it('medication pattern matched by description keyword survives weak regex', () => {
+    expect(isWeakPattern('Es scheint als würde die Einnahme oft verzögert erfolgen.')).toBe(false);
+  });
+  it('eskalation keyword is recognized as medication-relevant', () => {
+    expect(isWeakPattern('Eskalation vor Einnahme beobachtet', 'Verlauf')).toBe(false);
+  });
+  it('verzögerte Einnahme keyword is recognized', () => {
+    expect(isWeakPattern('Verzögerte Einnahme bei starken Attacken häufig', 'Timing')).toBe(false);
+  });
+});
+
+describe('isGenericUncertainty — extended patterns', () => {
+  it('rejects "müsste weiter beobachtet werden"', () => {
+    expect(isGenericUncertainty('Das müsste weiter beobachtet werden über einen längeren Zeitraum.')).toBe(true);
+  });
+  it('rejects "bleibt offen"', () => {
+    expect(isGenericUncertainty('Ob ein Zusammenhang besteht, bleibt offen.')).toBe(true);
+  });
+  it('rejects "bedarf weiterer Analyse"', () => {
+    expect(isGenericUncertainty('Dies bedarf weiterer Dokumentation und Analyse.')).toBe(true);
+  });
+  it('rejects "erst mit mehr Daten"', () => {
+    expect(isGenericUncertainty('Erst mit mehr Daten lässt sich das einordnen.')).toBe(true);
+  });
+  it('allows specific actionable uncertainty', () => {
+    expect(isGenericUncertainty('Unklar, ob Sumatriptan bei Aura-Attacken besser wirkt als bei Attacken ohne Aura.')).toBe(false);
+  });
+});
