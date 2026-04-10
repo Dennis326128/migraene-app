@@ -732,6 +732,97 @@ const DoctorReportView: React.FC = () => {
               </Card>
             )}
 
+            {/* KI-Musteranalyse — only shown when included in share settings */}
+            {report.analysis?.patternAnalysis && (() => {
+              const pa = report.analysis.patternAnalysis;
+              const evidenceLabels: Record<string, string> = {
+                high: 'Deutliche Hinweise',
+                medium: 'Mehrere Hinweise',
+                low: 'Wenige Hinweise',
+              };
+              const evidenceStyles: Record<string, string> = {
+                low: 'bg-muted text-muted-foreground',
+                medium: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200',
+                high: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200',
+              };
+              return (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Brain className="w-4 h-4" />
+                      Datenbasierte Musteranalyse (KI)
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* Summary */}
+                    <p className="text-sm leading-relaxed">{pa.summary}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {pa.daysAnalyzed} Tage analysiert · Stand {fmtDate(pa.analyzedAt)}
+                    </p>
+
+                    {/* Patterns */}
+                    {pa.patterns.length > 0 && (
+                      <div className="space-y-2 pt-2">
+                        <div className="flex items-center gap-2">
+                          <Lightbulb className="h-4 w-4 text-primary" />
+                          <h4 className="font-semibold text-sm">Mögliche Einflussfaktoren</h4>
+                        </div>
+                        {pa.patterns.map((p, i) => (
+                          <div key={i} className="p-3 rounded-lg border bg-card">
+                            <div className="flex items-start justify-between gap-2 mb-1">
+                              <span className="font-medium text-sm">{p.title}</span>
+                              <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${evidenceStyles[p.evidenceStrength] || ''}`}>
+                                {evidenceLabels[p.evidenceStrength] || p.evidenceStrength}
+                              </span>
+                            </div>
+                            <p className="text-sm text-muted-foreground">{p.description}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Recurring sequences */}
+                    {pa.recurringSequences.length > 0 && (
+                      <div className="space-y-2 pt-2">
+                        <h4 className="font-semibold text-sm">Wiederkehrende Muster</h4>
+                        {pa.recurringSequences.map((seq, i) => (
+                          <div key={i} className="p-3 rounded-lg border bg-card">
+                            <span className="text-sm font-medium">{seq.pattern}</span>
+                            {seq.count > 1 && <span className="text-xs text-muted-foreground ml-2">({seq.count}×)</span>}
+                            {seq.interpretation && (
+                              <p className="text-sm text-muted-foreground mt-1">{seq.interpretation}</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Open questions */}
+                    {pa.openQuestions.length > 0 && (
+                      <div className="space-y-1.5 pt-2">
+                        <div className="flex items-center gap-2">
+                          <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                          <h4 className="font-semibold text-sm text-muted-foreground">Was noch unklar ist</h4>
+                        </div>
+                        <ul className="space-y-1">
+                          {pa.openQuestions.map((q, i) => (
+                            <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
+                              <span className="mt-1">•</span>
+                              <span>{q}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    <p className="text-xs text-muted-foreground/60 pt-2 border-t">
+                      Mögliche Zusammenhänge – keine medizinische Diagnose.
+                    </p>
+                  </CardContent>
+                </Card>
+              );
+            })()}
+
             {/* Entries List */}
             <Card>
               <CardHeader className="pb-3 flex flex-row items-center justify-between">
