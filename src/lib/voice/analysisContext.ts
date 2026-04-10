@@ -114,24 +114,54 @@ export interface ContextWindow {
 }
 
 /**
+ * Items grouped by session_id (for voice events that share a recording session).
+ */
+export interface SessionBlock {
+  sessionId: string;
+  items: TimelineItem[];
+  startTime: string;
+  endTime: string;
+}
+
+/**
+ * A recurring pattern observed across multiple days.
+ * NOT a medical assertion – just a structural observation for LLM input.
+ */
+export interface RecurringSequence {
+  /** Human-readable label (e.g. "exertion → fatigue") */
+  pattern: string;
+  /** Phase transitions observed (e.g. ['exertion','fatigue','rest']) */
+  phaseSequence: PhaseState[];
+  /** Dates where this sequence occurred */
+  occurrenceDates: string[];
+  /** How many times observed */
+  count: number;
+}
+
+/**
  * Complete LLM-ready analysis context for a date range.
  */
 export interface AnalysisContext {
   days: DayContext[];
   /** Full chronological timeline across all days */
   timeline: TimelineItem[];
+  /** Items grouped by voice recording session */
+  sessions: SessionBlock[];
   /** Pain-centric context windows */
   painWindows: ContextWindow[];
   /** Fatigue/PEM-centric context windows */
   fatigueWindows: ContextWindow[];
   /** Medication-centric context windows */
   medicationWindows: ContextWindow[];
+  /** Recurring phase sequences across days */
+  recurringSequences: RecurringSequence[];
   meta: {
     totalItems: number;
     totalDays: number;
     daysWithPain: number;
     daysWithMecfs: number;
     daysWithMedication: number;
+    sessionCount: number;
   };
 }
 
