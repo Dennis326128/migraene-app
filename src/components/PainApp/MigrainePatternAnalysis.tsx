@@ -307,14 +307,18 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
   const [showReport, setShowReport] = useState(false);
 
   const { sortedPatterns, filteredSequences, extraContextFindings, uncertainties } = useMemo(() => {
-    // Sort and limit patterns
-    let sorted = sortPatterns(result.possiblePatterns).slice(0, MAX_PATTERNS);
+    // Sort, filter weak, and limit patterns
+    let sorted = sortPatterns(result.possiblePatterns)
+      .filter(p => !isWeakPattern(p.description))
+      .slice(0, MAX_PATTERNS);
     
     // Intra-pattern dedup: remove patterns that largely repeat an earlier one
     const dedupedPatterns: PatternFinding[] = [];
     for (const p of sorted) {
       const pText = p.title + ' ' + p.description;
-      if (overlapsAny(pText, dedupedPatterns.map(d => d.title + ' ' + d.description), 0.40)) continue;
+      // Also dedup against summary
+      if (overlapsAny(pText, [result.summary], 0.50)) continue;
+      if (overlapsAny(pText, dedupedPatterns.map(d => d.title + ' ' + d.description), 0.38)) continue;
       dedupedPatterns.push(p);
     }
     sorted = dedupedPatterns;
@@ -327,13 +331,13 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
         if (isTrivialSequence(s.pattern, s.llmInterpretation)) return false;
         if (!s.llmInterpretation || s.llmInterpretation.length < 15) return false;
         if (isBanalContent(s.llmInterpretation)) return false;
-        // Dedup sequence interpretation against pattern descriptions
         if (overlapsAny(s.llmInterpretation, patternRefTexts, 0.35)) return false;
+        if (overlapsAny(s.llmInterpretation, [result.summary], 0.45)) return false;
         return true;
       })
       .slice(0, MAX_SEQUENCES);
 
-    // Reference pool for deduplication: summary + patterns + sequences
+    // Reference pool for deduplication
     const allRefTexts = [
       result.summary,
       ...patternRefTexts,
@@ -349,13 +353,12 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
     const hasMedPattern = sorted.some(p => MEDICATION_PATTERN_TYPES.has(p.patternType) || MEDICATION_TITLE_RX.test(p.title) || MEDICATION_TITLE_RX.test(p.description));
     const medContext = hasMedPattern ? [] : result.medicationContextFindings;
     const allContext = [...result.painContextFindings, ...fatigueFiltered, ...medContext];
-    // Apply banal content filter + strict dedup
     const finalContext = allContext
       .filter(f => !isBanalContent(f.observation))
       .filter(f => !overlapsAny(f.observation, allRefTexts, 0.30))
       .slice(0, 2);
 
-    // Uncertainties: deduplicated against everything + banal filter, max 1
+    // Uncertainties: banal + generic + dedup, max 1
     const fullRef = [
       ...allRefTexts,
       ...finalContext.map(f => f.observation),
