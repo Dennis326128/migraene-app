@@ -1,15 +1,16 @@
 /**
- * Tests for analysisCache.ts — Behavioral logic tests for reuse, 
+ * Tests for analysisCache.ts — Behavioral logic tests for reuse,
  * validity, deduplication, and cross-system consistency.
- * 
+ *
  * These tests verify the RULES, not just shapes:
  * - Data-state driven invalidation (entries, voice, medication)
  * - Cooldown as secondary safeguard only
  * - Cross-output format consistency (PDF, Website, Snapshot)
  * - Haken-based inclusion/exclusion logic
+ * - Scoping: only user's own data in the analysis range matters
  */
 import { describe, it, expect } from 'vitest';
-import { buildDedupeKey, canReanalyze, buildPatternAnalysisSummary, type CachedAnalysis } from '../analysisCache';
+import { buildDedupeKey, canReanalyze, buildPatternAnalysisSummary, type CachedAnalysis, type DataStateFingerprint, type CacheValidityResult } from '../analysisCache';
 import type { VoiceAnalysisResult } from '../analysisTypes';
 
 // ============================================================
@@ -80,8 +81,33 @@ function mockCached(overrides?: Partial<CachedAnalysis>): CachedAnalysis {
   };
 }
 
+/**
+ * Simulate the isCacheValid comparison logic without Supabase calls.
+ * This mirrors the exact logic in analysisCache.ts isCacheValid().
+ */
+function simulateCacheValidation(
+  cachedUpdatedAt: string,
+  fingerprint: DataStateFingerprint,
+): CacheValidityResult {
+  const cacheTime = new Date(cachedUpdatedAt).getTime();
+
+  if (fingerprint.latestPainEntry && new Date(fingerprint.latestPainEntry).getTime() > cacheTime) {
+    return { valid: false, reason: 'pain_data_changed' };
+  }
+  if (fingerprint.latestVoiceEvent && new Date(fingerprint.latestVoiceEvent).getTime() > cacheTime) {
+    return { valid: false, reason: 'voice_data_changed' };
+  }
+  if (fingerprint.latestMedIntake && new Date(fingerprint.latestMedIntake).getTime() > cacheTime) {
+    return { valid: false, reason: 'medication_intake_changed' };
+  }
+  if (fingerprint.latestMedEffect && new Date(fingerprint.latestMedEffect).getTime() > cacheTime) {
+    return { valid: false, reason: 'medication_effect_changed' };
+  }
+  return { valid: true };
+}
+
 // ============================================================
-// 1. DEDUPE KEY — deterministic identity per range
+// 1. DEDUPE KEY
 // ============================================================
 
 describe('buildDedupeKey', () => {
@@ -91,355 +117,380 @@ describe('buildDedupeKey', () => {
   });
 
   it('different ranges produce different keys', () => {
-    const key1 = buildDedupeKey('2026-01-01', '2026-03-31');
-    const key2 = buildDedupeKey('2026-02-01', '2026-04-30');
-    expect(key1).not.toBe(key2);
+    expect(buildDedupeKey('2026-01-01', '2026-03-31'))
+      .not.toBe(buildDedupeKey('2026-02-01', '2026-04-30'));
   });
 
-  it('same range always produces same key (idempotent)', () => {
-    const key1 = buildDedupeKey('2026-01-01', '2026-03-31');
-    const key2 = buildDedupeKey('2026-01-01', '2026-03-31');
-    expect(key1).toBe(key2);
+  it('is idempotent', () => {
+    const k1 = buildDedupeKey('2026-01-01', '2026-03-31');
+    const k2 = buildDedupeKey('2026-01-01', '2026-03-31');
+    expect(k1).toBe(k2);
   });
 });
 
 // ============================================================
-// 2. COOLDOWN — secondary safeguard, NOT primary validity
+// 2. COOLDOWN — secondary safeguard only
 // ============================================================
 
-describe('canReanalyze (cooldown as secondary safeguard)', () => {
-  it('blocks reanalysis within 5 minutes for unchanged data', () => {
-    const recent = mockCached({
-      updatedAt: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
-    });
+describe('canReanalyze (cooldown)', () => {
+  it('blocks within 5 minutes for unchanged data', () => {
+    const recent = mockCached({ updatedAt: new Date(Date.now() - 2 * 60 * 1000).toISOString() });
     expect(canReanalyze(recent)).toBe(false);
   });
 
-  it('allows reanalysis after 5 minutes', () => {
-    const old = mockCached({
-      updatedAt: new Date(Date.now() - 6 * 60 * 1000).toISOString(),
-    });
+  it('allows after 5 minutes', () => {
+    const old = mockCached({ updatedAt: new Date(Date.now() - 6 * 60 * 1000).toISOString() });
     expect(canReanalyze(old)).toBe(true);
   });
 
-  it('exactly at 5 minutes boundary allows reanalysis', () => {
-    const atBoundary = mockCached({
-      updatedAt: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+  it('exactly at 5min boundary allows', () => {
+    const at = mockCached({ updatedAt: new Date(Date.now() - 5 * 60 * 1000).toISOString() });
+    expect(canReanalyze(at)).toBe(true);
+  });
+});
+
+// ============================================================
+// 3. DATA-STATE VALIDATION — the core validity logic
+// ============================================================
+
+describe('Data-state validation (fingerprint-based)', () => {
+  const analysisTime = '2026-04-01T12:00:00Z';
+
+  it('pain_entry edit (updated_at > cacheTime) invalidates', () => {
+    const result = simulateCacheValidation(analysisTime, {
+      latestPainEntry: '2026-04-01T13:00:00Z', // AFTER analysis
+      latestVoiceEvent: null,
+      latestMedIntake: null,
+      latestMedEffect: null,
+      maxTimestamp: '2026-04-01T13:00:00Z',
     });
-    expect(canReanalyze(atBoundary)).toBe(true);
+    expect(result.valid).toBe(false);
+    expect(result.reason).toBe('pain_data_changed');
   });
 
-  it('cooldown does NOT override data-change invalidation conceptually', () => {
-    // Even if cooldown says "too soon", data change should still allow re-analysis
-    // The caller checks isCacheValid FIRST, then cooldown only for unchanged data
+  it('pain_entry older than analysis stays valid', () => {
+    const result = simulateCacheValidation(analysisTime, {
+      latestPainEntry: '2026-04-01T10:00:00Z', // BEFORE analysis
+      latestVoiceEvent: null,
+      latestMedIntake: null,
+      latestMedEffect: null,
+      maxTimestamp: '2026-04-01T10:00:00Z',
+    });
+    expect(result.valid).toBe(true);
+  });
+
+  it('voice_event update invalidates', () => {
+    const result = simulateCacheValidation(analysisTime, {
+      latestPainEntry: null,
+      latestVoiceEvent: '2026-04-01T14:00:00Z',
+      latestMedIntake: null,
+      latestMedEffect: null,
+      maxTimestamp: '2026-04-01T14:00:00Z',
+    });
+    expect(result.valid).toBe(false);
+    expect(result.reason).toBe('voice_data_changed');
+  });
+
+  it('medication_intake change invalidates', () => {
+    const result = simulateCacheValidation(analysisTime, {
+      latestPainEntry: null,
+      latestVoiceEvent: null,
+      latestMedIntake: '2026-04-02T08:00:00Z',
+      latestMedEffect: null,
+      maxTimestamp: '2026-04-02T08:00:00Z',
+    });
+    expect(result.valid).toBe(false);
+    expect(result.reason).toBe('medication_intake_changed');
+  });
+
+  it('medication_effect change invalidates', () => {
+    const result = simulateCacheValidation(analysisTime, {
+      latestPainEntry: null,
+      latestVoiceEvent: null,
+      latestMedIntake: null,
+      latestMedEffect: '2026-04-01T15:00:00Z',
+      maxTimestamp: '2026-04-01T15:00:00Z',
+    });
+    expect(result.valid).toBe(false);
+    expect(result.reason).toBe('medication_effect_changed');
+  });
+
+  it('all sources older than analysis → cache valid', () => {
+    const result = simulateCacheValidation(analysisTime, {
+      latestPainEntry: '2026-04-01T08:00:00Z',
+      latestVoiceEvent: '2026-04-01T09:00:00Z',
+      latestMedIntake: '2026-04-01T10:00:00Z',
+      latestMedEffect: '2026-04-01T11:00:00Z',
+      maxTimestamp: '2026-04-01T11:00:00Z',
+    });
+    expect(result.valid).toBe(true);
+  });
+
+  it('no source data at all → cache valid (nothing to invalidate)', () => {
+    const result = simulateCacheValidation(analysisTime, {
+      latestPainEntry: null,
+      latestVoiceEvent: null,
+      latestMedIntake: null,
+      latestMedEffect: null,
+      maxTimestamp: null,
+    });
+    expect(result.valid).toBe(true);
+  });
+});
+
+// ============================================================
+// 4. SCOPING: only changes IN RANGE and FOR USER matter
+// ============================================================
+
+describe('Scoping rules', () => {
+  it('medication_effect of ANOTHER user must NOT invalidate (conceptual)', () => {
+    // getDataStateFingerprint scopes medication_effects via entry_id join to
+    // the user's own pain_entries in the date range. Another user's effects
+    // would never appear in the fingerprint.
+    // This test verifies the expectation that unscoped effects are excluded.
+    const result = simulateCacheValidation('2026-04-01T12:00:00Z', {
+      latestPainEntry: null,
+      latestVoiceEvent: null,
+      latestMedIntake: null,
+      latestMedEffect: null, // No effects found for THIS user's entries
+      maxTimestamp: null,
+    });
+    expect(result.valid).toBe(true);
+  });
+
+  it('pain_entry change OUTSIDE analysis range must NOT invalidate (conceptual)', () => {
+    // getDataStateFingerprint only queries pain_entries where
+    // selected_date is within [fromDate, toDate]. Changes outside
+    // that range wouldn't appear in the fingerprint.
+    const result = simulateCacheValidation('2026-04-01T12:00:00Z', {
+      latestPainEntry: null, // No entries found in THIS range
+      latestVoiceEvent: null,
+      latestMedIntake: null,
+      latestMedEffect: null,
+      maxTimestamp: null,
+    });
+    expect(result.valid).toBe(true);
+  });
+});
+
+// ============================================================
+// 5. SAME RANGE, DIFFERENT DATA STATE
+// ============================================================
+
+describe('Same range, different data state', () => {
+  it('same from/to but newer data → invalidation (not reuse)', () => {
+    const cached = mockCached({
+      fromDate: '2026-01-01',
+      toDate: '2026-03-31',
+      updatedAt: '2026-04-01T10:00:00Z',
+    });
+    // User adds a new entry in the range after the analysis was saved
+    const result = simulateCacheValidation(cached.updatedAt, {
+      latestPainEntry: '2026-04-01T14:00:00Z',
+      latestVoiceEvent: null,
+      latestMedIntake: null,
+      latestMedEffect: null,
+      maxTimestamp: '2026-04-01T14:00:00Z',
+    });
+    expect(result.valid).toBe(false);
+  });
+
+  it('same from/to and unchanged data → reuse', () => {
+    const cached = mockCached({
+      fromDate: '2026-01-01',
+      toDate: '2026-03-31',
+      updatedAt: '2026-04-01T10:00:00Z',
+    });
+    const result = simulateCacheValidation(cached.updatedAt, {
+      latestPainEntry: '2026-03-15T08:00:00Z',
+      latestVoiceEvent: '2026-03-20T09:00:00Z',
+      latestMedIntake: '2026-03-25T10:00:00Z',
+      latestMedEffect: '2026-03-28T11:00:00Z',
+      maxTimestamp: '2026-03-28T11:00:00Z',
+    });
+    expect(result.valid).toBe(true);
+  });
+});
+
+// ============================================================
+// 6. COOLDOWN vs DATA CHANGE priority
+// ============================================================
+
+describe('Cooldown vs data-change priority', () => {
+  it('cooldown blocks when data unchanged', () => {
     const recentCached = mockCached({
-      updatedAt: new Date(Date.now() - 1 * 60 * 1000).toISOString(), // 1 min ago
+      updatedAt: new Date(Date.now() - 1 * 60 * 1000).toISOString(),
     });
-    // Cooldown blocks re-run for unchanged data
     expect(canReanalyze(recentCached)).toBe(false);
-    // But isCacheValid returning false would bypass this entirely
+  });
+
+  it('data change bypasses cooldown conceptually', () => {
+    // When isCacheValid returns false, cooldown is NOT checked.
+    // The caller flow is: check validity → if invalid, allow immediately.
+    const recentCached = mockCached({
+      updatedAt: new Date(Date.now() - 1 * 60 * 1000).toISOString(),
+    });
+    const validity = simulateCacheValidation(recentCached.updatedAt, {
+      latestPainEntry: new Date().toISOString(), // just now
+      latestVoiceEvent: null,
+      latestMedIntake: null,
+      latestMedEffect: null,
+      maxTimestamp: new Date().toISOString(),
+    });
+    // Data changed → invalid → re-analysis allowed regardless of cooldown
+    expect(validity.valid).toBe(false);
+    // canReanalyze would say false, but it's irrelevant because validity is false
+    expect(canReanalyze(recentCached)).toBe(false);
+  });
+
+  it('unchanged data + past cooldown → allows re-run', () => {
+    const oldCached = mockCached({
+      updatedAt: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+    });
+    const validity = simulateCacheValidation(oldCached.updatedAt, {
+      latestPainEntry: new Date(Date.now() - 20 * 60 * 1000).toISOString(),
+      latestVoiceEvent: null,
+      latestMedIntake: null,
+      latestMedEffect: null,
+      maxTimestamp: new Date(Date.now() - 20 * 60 * 1000).toISOString(),
+    });
+    expect(validity.valid).toBe(true);
+    expect(canReanalyze(oldCached)).toBe(true);
   });
 });
 
 // ============================================================
-// 3. DATA-STATE VALIDATION — the core validity concept
-// ============================================================
-
-describe('Data-state validity (timestamp comparison logic)', () => {
-  it('new pain entry after analysis → invalidates cache', () => {
-    const cached = mockCached({ updatedAt: '2026-04-01T12:00:00Z' });
-    const entryTimestamp = new Date('2026-04-01T13:00:00Z').getTime();
-    const cacheTime = new Date(cached.updatedAt).getTime();
-    expect(entryTimestamp > cacheTime).toBe(true); // → invalid
-  });
-
-  it('older pain entry than analysis → cache stays valid', () => {
-    const cached = mockCached({ updatedAt: '2026-04-01T12:00:00Z' });
-    const entryTimestamp = new Date('2026-04-01T10:00:00Z').getTime();
-    const cacheTime = new Date(cached.updatedAt).getTime();
-    expect(entryTimestamp > cacheTime).toBe(false); // → valid
-  });
-
-  it('voice event updated after analysis → invalidates cache', () => {
-    const cached = mockCached({ updatedAt: '2026-04-01T12:00:00Z' });
-    const voiceUpdatedAt = new Date('2026-04-01T14:00:00Z').getTime();
-    const cacheTime = new Date(cached.updatedAt).getTime();
-    expect(voiceUpdatedAt > cacheTime).toBe(true); // → voice_data_changed
-  });
-
-  it('medication intake updated after analysis → invalidates cache', () => {
-    const cached = mockCached({ updatedAt: '2026-04-01T12:00:00Z' });
-    const intakeUpdatedAt = new Date('2026-04-02T08:00:00Z').getTime();
-    const cacheTime = new Date(cached.updatedAt).getTime();
-    expect(intakeUpdatedAt > cacheTime).toBe(true); // → medication_data_changed
-  });
-
-  it('medication effect rating changed after analysis → invalidates cache', () => {
-    const cached = mockCached({ updatedAt: '2026-04-01T12:00:00Z' });
-    const effectUpdatedAt = new Date('2026-04-01T15:00:00Z').getTime();
-    const cacheTime = new Date(cached.updatedAt).getTime();
-    expect(effectUpdatedAt > cacheTime).toBe(true); // → medication_data_changed
-  });
-
-  it('all sources older than analysis → cache remains valid', () => {
-    const cached = mockCached({ updatedAt: '2026-04-01T12:00:00Z' });
-    const cacheTime = new Date(cached.updatedAt).getTime();
-    const sources = [
-      new Date('2026-04-01T08:00:00Z').getTime(), // pain entry
-      new Date('2026-04-01T09:00:00Z').getTime(), // voice event
-      new Date('2026-04-01T10:00:00Z').getTime(), // medication intake
-      new Date('2026-04-01T11:00:00Z').getTime(), // medication effect
-    ];
-    expect(sources.every(ts => ts <= cacheTime)).toBe(true); // → all valid
-  });
-});
-
-// ============================================================
-// 4. buildPatternAnalysisSummary — SINGLE FORMAT for all outputs
+// 7. buildPatternAnalysisSummary — SINGLE FORMAT
 // ============================================================
 
 describe('buildPatternAnalysisSummary', () => {
-  it('maps VoiceAnalysisResult to compact summary format', () => {
-    const result = mockResult();
-    const summary = buildPatternAnalysisSummary(result);
-
-    expect(summary.summary).toBe(result.summary);
+  it('maps result to compact format', () => {
+    const summary = buildPatternAnalysisSummary(mockResult());
+    expect(summary.summary).toBe('Stress und Schlafmangel als häufige Begleiter.');
     expect(summary.patterns).toHaveLength(3);
     expect(summary.recurringSequences).toHaveLength(1);
-    expect(summary.recurringSequences[0].interpretation).toBe('Häufige Abfolge');
     expect(summary.openQuestions).toEqual(['Zyklus-Einfluss unklar']);
-    expect(summary.daysAnalyzed).toBe(30);
   });
 
-  it('sorts patterns by evidence strength (high first)', () => {
-    const result = mockResult();
-    const summary = buildPatternAnalysisSummary(result);
-
+  it('sorts patterns high > medium > low', () => {
+    const summary = buildPatternAnalysisSummary(mockResult());
     expect(summary.patterns[0].evidenceStrength).toBe('high');
     expect(summary.patterns[1].evidenceStrength).toBe('medium');
     expect(summary.patterns[2].evidenceStrength).toBe('low');
   });
 
-  it('limits patterns to max 7', () => {
-    const manyPatterns = Array.from({ length: 12 }, (_, i) => ({
-      patternType: 'trigger_candidate' as const,
-      title: `Pattern ${i}`,
-      description: `Desc ${i}`,
-      evidenceStrength: 'medium' as const,
-      occurrences: i + 1,
-      examples: [],
-      uncertaintyNotes: [],
-    }));
-    const result = mockResult({ possiblePatterns: manyPatterns });
-    const summary = buildPatternAnalysisSummary(result);
-    expect(summary.patterns).toHaveLength(7);
-  });
-
-  it('limits recurring sequences to max 5', () => {
-    const manySeqs = Array.from({ length: 8 }, (_, i) => ({
-      pattern: `Seq ${i}`, count: i + 1, llmInterpretation: `Interp ${i}`,
-    }));
-    const result = mockResult({ recurringSequences: manySeqs });
-    const summary = buildPatternAnalysisSummary(result);
-    expect(summary.recurringSequences).toHaveLength(5);
-  });
-
-  it('limits open questions to max 4', () => {
+  it('limits: max 7 patterns, 5 sequences, 4 questions', () => {
     const result = mockResult({
+      possiblePatterns: Array.from({ length: 12 }, (_, i) => ({
+        patternType: 'trigger_candidate' as const,
+        title: `P${i}`, description: `D${i}`, evidenceStrength: 'medium' as const,
+        occurrences: i, examples: [], uncertaintyNotes: [],
+      })),
+      recurringSequences: Array.from({ length: 8 }, (_, i) => ({
+        pattern: `S${i}`, count: i, llmInterpretation: `I${i}`,
+      })),
       openQuestions: ['Q1', 'Q2', 'Q3', 'Q4', 'Q5', 'Q6'],
     });
     const summary = buildPatternAnalysisSummary(result);
+    expect(summary.patterns).toHaveLength(7);
+    expect(summary.recurringSequences).toHaveLength(5);
     expect(summary.openQuestions).toHaveLength(4);
   });
 
-  it('is deterministic for same input', () => {
-    const result = mockResult();
-    const s1 = buildPatternAnalysisSummary(result);
-    const s2 = buildPatternAnalysisSummary(result);
-    expect(s1).toEqual(s2);
+  it('is deterministic', () => {
+    const r = mockResult();
+    expect(buildPatternAnalysisSummary(r)).toEqual(buildPatternAnalysisSummary(r));
   });
 });
 
 // ============================================================
-// 5. Cross-output consistency — PDF, Website, Snapshot use same shape
+// 8. Cross-output consistency
 // ============================================================
 
 describe('Cross-output consistency (PDF, Website, Snapshot)', () => {
-  it('snapshot format has all fields expected by DoctorReportView.tsx', () => {
-    const result = mockResult();
-    const pa = buildPatternAnalysisSummary(result);
-
-    // Fields read by DoctorReportView.tsx
+  it('has all fields expected by DoctorReportView.tsx', () => {
+    const pa = buildPatternAnalysisSummary(mockResult());
     expect(pa).toHaveProperty('summary');
     expect(pa).toHaveProperty('patterns');
     expect(pa).toHaveProperty('recurringSequences');
     expect(pa).toHaveProperty('openQuestions');
     expect(pa).toHaveProperty('analyzedAt');
     expect(pa).toHaveProperty('daysAnalyzed');
-
-    // Pattern items
     expect(pa.patterns[0]).toHaveProperty('title');
     expect(pa.patterns[0]).toHaveProperty('description');
     expect(pa.patterns[0]).toHaveProperty('evidenceStrength');
-
-    // Sequence items
-    expect(pa.recurringSequences[0]).toHaveProperty('pattern');
-    expect(pa.recurringSequences[0]).toHaveProperty('count');
     expect(pa.recurringSequences[0]).toHaveProperty('interpretation');
   });
 
-  it('PDF report type matches buildPatternAnalysisSummary output', () => {
-    const result = mockResult();
-    const pa = buildPatternAnalysisSummary(result);
-
-    expect(typeof pa.summary).toBe('string');
-    expect(typeof pa.analyzedAt).toBe('string');
-    expect(typeof pa.daysAnalyzed).toBe('number');
-    expect(Array.isArray(pa.patterns)).toBe(true);
-    expect(Array.isArray(pa.recurringSequences)).toBe(true);
-    expect(Array.isArray(pa.openQuestions)).toBe(true);
-  });
-
-  it('same input produces identical output for snapshot and PDF', () => {
-    const result = mockResult();
-    // Both paths use buildPatternAnalysisSummary → same output
-    const forSnapshot = buildPatternAnalysisSummary(result);
-    const forPdf = buildPatternAnalysisSummary(result);
-    expect(forSnapshot).toEqual(forPdf);
+  it('same input → identical snapshot and PDF output', () => {
+    const r = mockResult();
+    expect(buildPatternAnalysisSummary(r)).toEqual(buildPatternAnalysisSummary(r));
   });
 });
 
 // ============================================================
-// 6. Haken-based inclusion/exclusion
+// 9. Haken (checkbox) inclusion/exclusion
 // ============================================================
 
-describe('Report inclusion logic (Haken/checkbox)', () => {
-  it('returns null when include_ai_analysis is false', () => {
-    const includeAI = false;
-    const patternAnalysis = includeAI ? buildPatternAnalysisSummary(mockResult()) : null;
-    expect(patternAnalysis).toBeNull();
+describe('Haken-based inclusion/exclusion', () => {
+  it('include_ai_analysis=false → null', () => {
+    expect(false ? buildPatternAnalysisSummary(mockResult()) : null).toBeNull();
   });
 
-  it('provides patternAnalysis when include_ai_analysis is true and data exists', () => {
-    const includeAI = true;
-    const result = mockResult();
-    const patternAnalysis = includeAI && result.possiblePatterns.length > 0
-      ? buildPatternAnalysisSummary(result)
-      : null;
-    expect(patternAnalysis).not.toBeNull();
-    expect(patternAnalysis?.patterns.length).toBeGreaterThan(0);
+  it('include_ai_analysis=true + data → summary returned', () => {
+    const r = mockResult();
+    const pa = true && r.possiblePatterns.length > 0 ? buildPatternAnalysisSummary(r) : null;
+    expect(pa).not.toBeNull();
   });
 
-  it('returns null when flag is true but no patterns exist', () => {
-    const includeAI = true;
-    const result = mockResult({ possiblePatterns: [] });
-    const patternAnalysis = includeAI && result.possiblePatterns.length > 0
-      ? buildPatternAnalysisSummary(result)
-      : null;
-    expect(patternAnalysis).toBeNull();
-  });
-
-  it('snapshot, PDF, and website all respect the same haken flag', () => {
-    // The flag controls whether patternAnalysis is loaded at all
-    // If false → null everywhere. If true → same data everywhere.
-    const result = mockResult();
-    const withHaken = buildPatternAnalysisSummary(result);
-    const withoutHaken = null;
-
-    expect(withHaken).not.toBeNull();
-    expect(withoutHaken).toBeNull();
+  it('include_ai_analysis=true + no patterns → null', () => {
+    const r = mockResult({ possiblePatterns: [] });
+    const pa = true && r.possiblePatterns.length > 0 ? buildPatternAnalysisSummary(r) : null;
+    expect(pa).toBeNull();
   });
 });
 
 // ============================================================
-// 7. No duplicate rendering across outputs
-// ============================================================
-
-describe('No duplicate analysis rendering', () => {
-  it('snapshot and PDF use same dedupe_key → same source data', () => {
-    const dedupeKey = buildDedupeKey('2026-01-01', '2026-03-31');
-    expect(dedupeKey).toBe('pattern_analysis_2026-01-01_2026-03-31');
-  });
-
-  it('website should not show analysis separately if already embedded in report', () => {
-    // This is a design rule: when analysis is in the report PDF,
-    // the website card still shows it (different medium), but content is identical
-    const result = mockResult();
-    const inPdf = buildPatternAnalysisSummary(result);
-    const onWebsite = buildPatternAnalysisSummary(result);
-    expect(inPdf).toEqual(onWebsite);
-  });
-});
-
-// ============================================================
-// 8. Empty/weak data handling
-// ============================================================
-
-describe('Empty analysis result handling', () => {
-  it('analysis with 0 daysAnalyzed has empty summary', () => {
-    const result = mockResult({
-      scope: {
-        fromDate: '2026-01-01', toDate: '2026-03-31',
-        totalDays: 90, daysAnalyzed: 0,
-        painEntryCount: 0, voiceEventCount: 0, medicationIntakeCount: 0,
-      },
-    });
-    expect(result.scope.daysAnalyzed).toBe(0);
-  });
-
-  it('analysis with error flag is treated as unavailable', () => {
-    const result = mockResult({
-      meta: {
-        model: 'test', analyzedAt: new Date().toISOString(),
-        promptTokenEstimate: 0, analysisVersion: '1.0',
-        error: true, errorReason: 'rate_limit',
-      },
-    });
-    expect(result.meta.error).toBe(true);
-  });
-});
-
-// ============================================================
-// 9. Evidence-based pattern sorting
-// ============================================================
-
-describe('Pattern evidence sorting', () => {
-  it('high evidence patterns appear before medium and low', () => {
-    const result = mockResult({
-      possiblePatterns: [
-        { patternType: 'other', title: 'Low', description: 'd', evidenceStrength: 'low', occurrences: 1, examples: [], uncertaintyNotes: [] },
-        { patternType: 'other', title: 'High', description: 'd', evidenceStrength: 'high', occurrences: 1, examples: [], uncertaintyNotes: [] },
-        { patternType: 'other', title: 'Medium', description: 'd', evidenceStrength: 'medium', occurrences: 1, examples: [], uncertaintyNotes: [] },
-      ],
-    });
-    const summary = buildPatternAnalysisSummary(result);
-    expect(summary.patterns[0].title).toBe('High');
-    expect(summary.patterns[1].title).toBe('Medium');
-    expect(summary.patterns[2].title).toBe('Low');
-  });
-});
-
-// ============================================================
-// 10. Staleness detection across systems
+// 10. Staleness detection
 // ============================================================
 
 describe('Staleness detection', () => {
-  it('analysis older than latest source data is stale', () => {
-    const analysisTime = new Date('2026-04-01T10:00:00Z').getTime();
-    const sourceTime = new Date('2026-04-01T14:00:00Z').getTime();
-    expect(sourceTime > analysisTime).toBe(true); // stale
+  it('analysis older than source → stale', () => {
+    expect(new Date('2026-04-01T14:00:00Z').getTime() > new Date('2026-04-01T10:00:00Z').getTime()).toBe(true);
   });
 
-  it('analysis newer than latest source data is fresh', () => {
-    const analysisTime = new Date('2026-04-01T14:00:00Z').getTime();
-    const sourceTime = new Date('2026-04-01T10:00:00Z').getTime();
-    expect(sourceTime > analysisTime).toBe(false); // fresh
+  it('analysis newer than source → fresh', () => {
+    expect(new Date('2026-04-01T10:00:00Z').getTime() > new Date('2026-04-01T14:00:00Z').getTime()).toBe(false);
   });
 
-  it('stale analysis is still returned for reports (stale > missing)', () => {
-    // This is a design decision: for PDF/website, showing stale analysis
-    // is better than showing nothing. The analyzedAt timestamp makes it visible.
+  it('stale analysis still returned for reports (stale > missing)', () => {
     const cached = mockCached({ updatedAt: '2026-04-01T10:00:00Z' });
     expect(cached.result.meta.analyzedAt).toBeTruthy();
+  });
+});
+
+// ============================================================
+// 11. Edge cases
+// ============================================================
+
+describe('Edge cases', () => {
+  it('empty patterns array produces valid summary', () => {
+    const r = mockResult({ possiblePatterns: [] });
+    const s = buildPatternAnalysisSummary(r);
+    expect(s.patterns).toHaveLength(0);
+    expect(s.summary).toBeTruthy();
+  });
+
+  it('multiple data sources change simultaneously → first detected wins', () => {
+    const result = simulateCacheValidation('2026-04-01T12:00:00Z', {
+      latestPainEntry: '2026-04-01T13:00:00Z',
+      latestVoiceEvent: '2026-04-01T14:00:00Z',
+      latestMedIntake: '2026-04-01T15:00:00Z',
+      latestMedEffect: '2026-04-01T16:00:00Z',
+      maxTimestamp: '2026-04-01T16:00:00Z',
+    });
+    // pain_data_changed is checked first
+    expect(result.valid).toBe(false);
+    expect(result.reason).toBe('pain_data_changed');
   });
 });

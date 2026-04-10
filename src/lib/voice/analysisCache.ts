@@ -7,16 +7,18 @@
  * === VALIDITY MODEL ===
  * An analysis is "valid" if and only if:
  *   1. It exists for the requested date range (dedupe_key match)
- *   2. No relevant source data in that range has been created or modified
- *      AFTER the analysis was last saved. Source data includes:
- *      - pain_entries (timestamp_created — covers new entries)
- *      - voice_events (updated_at — covers new/edited voice data)
- *      - medication_intakes (updated_at — covers med changes in range)
- *      - medication_effects (updated_at — covers effect rating changes)
+ *   2. The data-state fingerprint matches — meaning no relevant source
+ *      data in that range was created or modified AFTER the analysis.
+ * 
+ * The data-state fingerprint checks FOUR sources (user-scoped, range-scoped):
+ *   - pain_entries.updated_at     — edits AND new entries
+ *   - voice_events.updated_at     — new/edited voice data
+ *   - medication_intakes.updated_at — intake changes in range
+ *   - medication_effects.updated_at — effect ratings for entries in range
  * 
  * The 5-minute cooldown is a SECONDARY safeguard against rapid
- * re-runs, not the primary validity check. If data changed,
- * re-analysis is allowed even within the cooldown.
+ * re-runs when data is unchanged. If data changed, re-analysis
+ * is allowed immediately, even within the cooldown.
  * 
  * Dedupe key format: pattern_analysis_{from}_{to}
  */
@@ -57,7 +59,128 @@ export interface CachedAnalysis {
 
 export interface CacheValidityResult {
   valid: boolean;
-  reason?: 'not_authenticated' | 'data_changed' | 'voice_data_changed' | 'medication_data_changed';
+  reason?: 'not_authenticated' | 'pain_data_changed' | 'voice_data_changed' | 'medication_intake_changed' | 'medication_effect_changed';
+}
+
+/**
+ * Fingerprint of the data state for a given user + date range.
+ * Used to determine if a cached analysis is still valid.
+ */
+export interface DataStateFingerprint {
+  /** Latest updated_at from pain_entries in range */
+  latestPainEntry: string | null;
+  /** Latest updated_at from voice_events in range */
+  latestVoiceEvent: string | null;
+  /** Latest updated_at from medication_intakes in range */
+  latestMedIntake: string | null;
+  /** Latest updated_at from medication_effects for entries in range */
+  latestMedEffect: string | null;
+  /** The single max timestamp across all sources */
+  maxTimestamp: string | null;
+}
+
+// ============================================================
+// === CENTRAL DATA-STATE FINGERPRINT ===
+// ============================================================
+
+/**
+ * Compute the data-state fingerprint for a user's data in a date range.
+ * 
+ * This is the SINGLE SOURCE OF TRUTH for determining whether
+ * source data has changed. Used by:
+ *   - Client-side cache validation (analysisCache.ts)
+ *   - Snapshot builder (doctorReportSnapshot.ts) — via equivalent Deno logic
+ *   - PDF report embedding
+ * 
+ * All queries are scoped to the authenticated user AND the date range.
+ */
+export async function getDataStateFingerprint(
+  fromDate: string,
+  toDate: string,
+): Promise<DataStateFingerprint | null> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const [painResult, voiceResult, intakeResult, effectResult] = await Promise.all([
+    // pain_entries: updated_at tracks both creation AND edits (trigger-backed)
+    supabase
+      .from('pain_entries')
+      .select('updated_at')
+      .eq('user_id', user.id)
+      .gte('selected_date', fromDate)
+      .lte('selected_date', toDate)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+
+    // voice_events: updated_at tracks edits to review_state, structured_data, etc.
+    supabase
+      .from('voice_events')
+      .select('updated_at')
+      .eq('user_id', user.id)
+      .gte('event_timestamp', fromDate + 'T00:00:00Z')
+      .lte('event_timestamp', toDate + 'T23:59:59Z')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+
+    // medication_intakes: scoped to user + date range
+    supabase
+      .from('medication_intakes')
+      .select('updated_at')
+      .eq('user_id', user.id)
+      .gte('taken_date', fromDate)
+      .lte('taken_date', toDate)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+
+    // medication_effects: scoped to user via pain_entries join
+    // We query entries in range, then check their effects
+    supabase
+      .from('pain_entries')
+      .select('id')
+      .eq('user_id', user.id)
+      .gte('selected_date', fromDate)
+      .lte('selected_date', toDate)
+      .order('id', { ascending: false })
+      .limit(500),
+  ]);
+
+  // For medication_effects, we need a second query scoped to the user's entries
+  let latestMedEffect: string | null = null;
+  if (effectResult.data && effectResult.data.length > 0) {
+    const entryIds = effectResult.data.map(e => e.id);
+    const { data: effectData } = await supabase
+      .from('medication_effects')
+      .select('updated_at')
+      .in('entry_id', entryIds)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    latestMedEffect = effectData?.updated_at ?? null;
+  }
+
+  const latestPainEntry = painResult.data?.updated_at ?? null;
+  const latestVoiceEvent = voiceResult.data?.updated_at ?? null;
+  const latestMedIntake = intakeResult.data?.updated_at ?? null;
+
+  // Compute max across all sources
+  const timestamps: number[] = [];
+  if (latestPainEntry) timestamps.push(new Date(latestPainEntry).getTime());
+  if (latestVoiceEvent) timestamps.push(new Date(latestVoiceEvent).getTime());
+  if (latestMedIntake) timestamps.push(new Date(latestMedIntake).getTime());
+  if (latestMedEffect) timestamps.push(new Date(latestMedEffect).getTime());
+
+  return {
+    latestPainEntry,
+    latestVoiceEvent,
+    latestMedIntake,
+    latestMedEffect,
+    maxTimestamp: timestamps.length > 0
+      ? new Date(Math.max(...timestamps)).toISOString()
+      : null,
+  };
 }
 
 // ============================================================
@@ -110,154 +233,33 @@ export async function loadCachedAnalysis(
 // ============================================================
 
 /**
- * Get the latest source data timestamp for a date range.
- * Checks ALL relevant data sources to determine if anything
- * has changed since a given reference point.
+ * Determine if a cached analysis is still valid.
  * 
- * Sources checked:
- * - pain_entries.timestamp_created (new entries in range)
- * - voice_events.updated_at (new/edited voice data in range)
- * - medication_intakes.updated_at (med intake changes in range)
- * - medication_effects.updated_at (effect rating changes)
- */
-export async function getLatestSourceTimestamp(
-  fromDate: string,
-  toDate: string,
-): Promise<string | null> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  const [entryResult, voiceResult, intakeResult, effectResult] = await Promise.all([
-    // pain_entries: timestamp_created is set on creation AND updates (via trigger)
-    supabase
-      .from('pain_entries')
-      .select('timestamp_created')
-      .eq('user_id', user.id)
-      .gte('selected_date', fromDate)
-      .lte('selected_date', toDate)
-      .order('timestamp_created', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-    // voice_events: updated_at tracks edits to review_state, structured_data, etc.
-    supabase
-      .from('voice_events')
-      .select('updated_at')
-      .eq('user_id', user.id)
-      .gte('event_timestamp', fromDate + 'T00:00:00Z')
-      .lte('event_timestamp', toDate + 'T23:59:59Z')
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-    // medication_intakes: updated_at tracks dose/time changes
-    supabase
-      .from('medication_intakes')
-      .select('updated_at')
-      .eq('user_id', user.id)
-      .gte('taken_date', fromDate)
-      .lte('taken_date', toDate)
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-    // medication_effects: updated_at tracks effect rating changes
-    supabase
-      .from('medication_effects')
-      .select('updated_at')
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-  ]);
-
-  const timestamps: number[] = [];
-  if (entryResult.data?.timestamp_created) {
-    timestamps.push(new Date(entryResult.data.timestamp_created).getTime());
-  }
-  if (voiceResult.data?.updated_at) {
-    timestamps.push(new Date(voiceResult.data.updated_at).getTime());
-  }
-  if (intakeResult.data?.updated_at) {
-    timestamps.push(new Date(intakeResult.data.updated_at).getTime());
-  }
-  if (effectResult.data?.updated_at) {
-    timestamps.push(new Date(effectResult.data.updated_at).getTime());
-  }
-
-  if (timestamps.length === 0) return null;
-  return new Date(Math.max(...timestamps)).toISOString();
-}
-
-/**
- * Determine if a cached analysis is still valid or needs refresh.
- * 
- * Primary check: Has ANY relevant source data changed since the analysis was saved?
- * Checks pain_entries, voice_events, medication_intakes, and medication_effects.
+ * PRIMARY CHECK: Has ANY relevant source data changed since the analysis was saved?
+ * Uses getDataStateFingerprint (user-scoped, range-scoped) for all comparisons.
  */
 export async function isCacheValid(
   cached: CachedAnalysis,
 ): Promise<CacheValidityResult> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { valid: false, reason: 'not_authenticated' };
+  const fingerprint = await getDataStateFingerprint(cached.fromDate, cached.toDate);
+  if (!fingerprint) return { valid: false, reason: 'not_authenticated' };
 
   const cacheTime = new Date(cached.updatedAt).getTime();
 
-  // Parallel check ALL relevant data sources
-  const [entryResult, voiceResult, intakeResult, effectResult] = await Promise.all([
-    supabase
-      .from('pain_entries')
-      .select('timestamp_created')
-      .eq('user_id', user.id)
-      .gte('selected_date', cached.fromDate)
-      .lte('selected_date', cached.toDate)
-      .order('timestamp_created', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-    supabase
-      .from('voice_events')
-      .select('updated_at')
-      .eq('user_id', user.id)
-      .gte('event_timestamp', cached.fromDate + 'T00:00:00Z')
-      .lte('event_timestamp', cached.toDate + 'T23:59:59Z')
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-    supabase
-      .from('medication_intakes')
-      .select('updated_at')
-      .eq('user_id', user.id)
-      .gte('taken_date', cached.fromDate)
-      .lte('taken_date', cached.toDate)
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-    supabase
-      .from('medication_effects')
-      .select('updated_at')
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-  ]);
-
-  if (entryResult.data?.timestamp_created) {
-    if (new Date(entryResult.data.timestamp_created).getTime() > cacheTime) {
-      return { valid: false, reason: 'data_changed' };
-    }
+  if (fingerprint.latestPainEntry && new Date(fingerprint.latestPainEntry).getTime() > cacheTime) {
+    return { valid: false, reason: 'pain_data_changed' };
   }
 
-  if (voiceResult.data?.updated_at) {
-    if (new Date(voiceResult.data.updated_at).getTime() > cacheTime) {
-      return { valid: false, reason: 'voice_data_changed' };
-    }
+  if (fingerprint.latestVoiceEvent && new Date(fingerprint.latestVoiceEvent).getTime() > cacheTime) {
+    return { valid: false, reason: 'voice_data_changed' };
   }
 
-  if (intakeResult.data?.updated_at) {
-    if (new Date(intakeResult.data.updated_at).getTime() > cacheTime) {
-      return { valid: false, reason: 'medication_data_changed' };
-    }
+  if (fingerprint.latestMedIntake && new Date(fingerprint.latestMedIntake).getTime() > cacheTime) {
+    return { valid: false, reason: 'medication_intake_changed' };
   }
 
-  if (effectResult.data?.updated_at) {
-    if (new Date(effectResult.data.updated_at).getTime() > cacheTime) {
-      return { valid: false, reason: 'medication_data_changed' };
-    }
+  if (fingerprint.latestMedEffect && new Date(fingerprint.latestMedEffect).getTime() > cacheTime) {
+    return { valid: false, reason: 'medication_effect_changed' };
   }
 
   return { valid: true };

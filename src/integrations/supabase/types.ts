@@ -796,6 +796,7 @@ export type Database = {
           symptoms_source: string
           symptoms_state: string
           timestamp_created: string | null
+          updated_at: string
           user_id: string
           voice_note_id: string | null
           weather_error_at: string | null
@@ -823,6 +824,7 @@ export type Database = {
           symptoms_source?: string
           symptoms_state?: string
           timestamp_created?: string | null
+          updated_at?: string
           user_id: string
           voice_note_id?: string | null
           weather_error_at?: string | null
@@ -850,6 +852,7 @@ export type Database = {
           symptoms_source?: string
           symptoms_state?: string
           timestamp_created?: string | null
+          updated_at?: string
           user_id?: string
           voice_note_id?: string | null
           weather_error_at?: string | null
@@ -2103,6 +2106,7 @@ export type Database = {
           symptoms_source: string
           symptoms_state: string
           timestamp_created: string | null
+          updated_at: string
           user_id: string
           voice_note_id: string | null
           weather_error_at: string | null
