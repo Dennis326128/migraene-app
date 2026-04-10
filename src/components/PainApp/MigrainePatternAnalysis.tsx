@@ -186,7 +186,7 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
   const [showReport, setShowReport] = useState(false);
 
   const { sortedPatterns, extraContextFindings, uncertainties } = useMemo(() => {
-    const sorted = sortPatterns(result.possiblePatterns);
+    const sorted = sortPatterns(result.possiblePatterns).slice(0, MAX_PATTERNS);
 
     // Merge pain + relevant fatigue + medication findings, then deduplicate against patterns
     const painFindings = result.painContextFindings;
@@ -197,7 +197,10 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
     const allContext = [...painFindings, ...fatigueFiltered, ...result.medicationContextFindings];
     const deduped = deduplicateFindings(allContext, sorted);
 
-    const merged = mergeUncertainties(result.openQuestions, result.confidenceNotes);
+    const merged = mergeUncertainties(
+      result.openQuestions.slice(0, MAX_QUESTIONS),
+      result.confidenceNotes,
+    ).slice(0, MAX_QUESTIONS);
 
     return { sortedPatterns: sorted, extraContextFindings: deduped, uncertainties: merged };
   }, [result]);
