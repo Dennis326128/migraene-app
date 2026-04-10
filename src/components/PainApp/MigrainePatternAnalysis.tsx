@@ -318,7 +318,8 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
   }, [result]);
 
   const hasPatterns = sortedPatterns.length > 0;
-  const hasSequences = filteredSequences.length > 0;
+  // Only show sequences if at least 1 has count > 1 OR there are 2+ sequences — prevents weak single leftovers
+  const hasSequences = filteredSequences.length >= 2 || filteredSequences.some(s => s.count > 1);
   const hasExtraContext = extraContextFindings.length > 0;
   const hasUncertainties = uncertainties.length > 0;
 
