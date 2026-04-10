@@ -1589,8 +1589,9 @@ export async function buildDoctorReportSnapshot(
   }
 
   // F) KI Pattern Analysis — load from ai_reports if requested
-  // Uses dedupe_key for exact range match + data_state_signature for freshness.
-  // Aligned with analysisCache.ts central selection logic.
+  // Uses dedupe_key for exact range match + data_state_signature for staleness.
+  // Mapping via buildPatternSummaryFromRaw — mirrors client-side buildPatternAnalysisSummary
+  // with IDENTICAL limits: max 7 patterns, 5 sequences, 4 questions.
   if (includePatternAnalysis) {
     try {
       const dedupeKey = `pattern_analysis_${from}_${to}`;
@@ -1605,42 +1606,23 @@ export async function buildDoctorReportSnapshot(
         .maybeSingle();
 
       if (aiReport?.response_json) {
-        const r = aiReport.response_json as Record<string, unknown>;
-        if (typeof r.summary === "string" && Array.isArray(r.possiblePatterns) && r.possiblePatterns.length > 0) {
-          const evidenceOrder: Record<string, number> = { high: 3, medium: 2, low: 1 };
-          const sortedPatterns = (r.possiblePatterns as Array<Record<string, unknown>>)
-            .sort((a, b) => (evidenceOrder[String(b.evidenceStrength)] || 0) - (evidenceOrder[String(a.evidenceStrength)] || 0));
+        const mapped = buildPatternSummaryFromRaw(aiReport.response_json, aiReport.updated_at);
+        if (mapped) {
+          analysis.patternAnalysis = mapped;
 
-          analysis.patternAnalysis = {
-            summary: r.summary as string,
-            patterns: sortedPatterns.slice(0, 7).map(p => ({
-              title: String(p.title || ""),
-              description: String(p.description || ""),
-              evidenceStrength: String(p.evidenceStrength || "low"),
-            })),
-            recurringSequences: Array.isArray(r.recurringSequences)
-              ? (r.recurringSequences as Array<Record<string, unknown>>).slice(0, 5).map(s => ({
-                  pattern: String(s.pattern || ""),
-                  count: Number(s.count) || 1,
-                  interpretation: String(s.llmInterpretation || s.interpretation || ""),
-                }))
-              : [],
-            openQuestions: Array.isArray(r.openQuestions)
-              ? (r.openQuestions as string[]).slice(0, 4)
-              : [],
-            analyzedAt: aiReport.updated_at,
-            daysAnalyzed: (r.scope as Record<string, unknown>)?.daysAnalyzed
-              ? Number((r.scope as Record<string, unknown>).daysAnalyzed)
-              : 0,
-          };
-
-          // Staleness: compare stored signature against current sourceUpdatedAt
-          const analysisTime = new Date(aiReport.updated_at).getTime();
-          const sourceTime = sourceUpdatedAt ? new Date(sourceUpdatedAt).getTime() : 0;
-          if (sourceTime > analysisTime) {
-            console.warn(`[DoctorReport] PatternAnalysis is stale: analysisAt=${aiReport.updated_at} sourceAt=${sourceUpdatedAt} storedSig=${aiReport.data_state_signature ?? 'none'}`);
+          // Staleness: signature-based (primary) or timestamp fallback
+          if (aiReport.data_state_signature && currentDataStateSignature) {
+            if (aiReport.data_state_signature !== currentDataStateSignature) {
+              console.warn(`[DoctorReport] PatternAnalysis stale: stored=${aiReport.data_state_signature} current=${currentDataStateSignature}`);
+            }
+          } else {
+            const analysisTime = new Date(aiReport.updated_at).getTime();
+            const sourceTime = sourceUpdatedAt ? new Date(sourceUpdatedAt).getTime() : 0;
+            if (sourceTime > analysisTime) {
+              console.warn(`[DoctorReport] PatternAnalysis stale (timestamp fallback): analysisAt=${aiReport.updated_at} sourceAt=${sourceUpdatedAt}`);
+            }
           }
-          console.log(`[DoctorReport] PatternAnalysis: ${analysis.patternAnalysis.patterns.length} patterns loaded (dedupeKey=${dedupeKey})`);
+          console.log(`[DoctorReport] PatternAnalysis: ${mapped.patterns.length} patterns loaded (dedupeKey=${dedupeKey})`);
         }
       }
     } catch (err) {
