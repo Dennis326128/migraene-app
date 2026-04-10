@@ -358,7 +358,7 @@ describe('prompt construction (serializeForLLM)', () => {
       ],
       meta: {
         range: { from: new Date('2025-01-01'), to: new Date('2025-01-07') },
-        voiceEventCount: 2, painEntryCount: 1, medicationIntakeCount: 0,
+        voiceEventCount: 2, painEntryCount: 1, medicationIntakeCount: 0, contextNoteCount: 0,
         linkedVoiceEventCount: 0, unlinkedVoiceEventCount: 2,
       },
     });
@@ -384,7 +384,7 @@ describe('prompt construction (serializeForLLM)', () => {
       ],
       meta: {
         range: { from: new Date('2025-01-01'), to: new Date('2025-01-07') },
-        voiceEventCount: 2, painEntryCount: 0, medicationIntakeCount: 0,
+        voiceEventCount: 2, painEntryCount: 0, medicationIntakeCount: 0, contextNoteCount: 0,
         linkedVoiceEventCount: 0, unlinkedVoiceEventCount: 2,
       },
     });
@@ -404,7 +404,7 @@ describe('prompt construction (serializeForLLM)', () => {
       contextNotes: [],
       meta: {
         range: { from: new Date('2025-01-01'), to: new Date('2025-01-07') },
-        voiceEventCount: 0, painEntryCount: 1, medicationIntakeCount: 1,
+        voiceEventCount: 0, painEntryCount: 1, medicationIntakeCount: 1, contextNoteCount: 0,
         linkedVoiceEventCount: 0, unlinkedVoiceEventCount: 0,
       },
     });
@@ -431,7 +431,7 @@ describe('prompt construction (serializeForLLM)', () => {
       ],
       meta: {
         range: { from: new Date('2025-01-05'), to: new Date('2025-01-06') },
-        voiceEventCount: 6, painEntryCount: 1, medicationIntakeCount: 0,
+        voiceEventCount: 6, painEntryCount: 1, medicationIntakeCount: 0, contextNoteCount: 0,
         linkedVoiceEventCount: 0, unlinkedVoiceEventCount: 6,
       },
     });
