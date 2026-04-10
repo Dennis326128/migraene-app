@@ -72,7 +72,20 @@ const TRIVIAL_SEQUENCE_PATTERNS = [
 ];
 
 function isTrivialSequence(pattern: string): boolean {
-  return TRIVIAL_SEQUENCE_PATTERNS.some(rx => rx.test(pattern));
+  const normalized = pattern.replace(/\s+/g, ' ').trim();
+  return TRIVIAL_SEQUENCE_PATTERNS.some(rx => rx.test(normalized));
+}
+
+/** Additional check: phase-based sequences that are too generic */
+function isGenericPhaseSequence(pattern: string): boolean {
+  const p = pattern.toLowerCase().replace(/\s/g, '');
+  const generic = [
+    'pain→medication', 'pain→rest', 'pain→fatigue', 'fatigue→rest',
+    'medication→observation', 'medication→rest', 'pain→observation',
+    'fatigue→medication', 'observation→pain', 'observation→medication',
+    'rest→observation', 'wellbeing→observation',
+  ];
+  return generic.includes(p);
 }
 
 /** Translate English arrow-patterns to German */
@@ -153,12 +166,12 @@ const evidenceLabels: Record<string, string> = {
 
 function EvidenceBadge({ strength }: { strength: string }) {
   const colorMap: Record<string, string> = {
-    high: 'bg-primary/10 text-primary border-primary/20',
-    medium: 'bg-accent text-accent-foreground border-accent',
-    low: 'bg-muted text-muted-foreground border-muted',
+    high: 'bg-primary/8 text-primary',
+    medium: 'bg-muted text-muted-foreground',
+    low: 'bg-muted/50 text-muted-foreground',
   };
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${colorMap[strength] || colorMap.low}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] tracking-wide ${colorMap[strength] || colorMap.low}`}>
       {evidenceLabels[strength] || strength}
     </span>
   );
