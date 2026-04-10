@@ -14,6 +14,7 @@ function makeDataset(overrides?: Partial<FullAnalysisDataset>): FullAnalysisData
     painEntries: [],
     medicationIntakes: [],
     contextNotes: [],
+    contextNotes: [],
     meta: {
       range: { from: new Date('2025-01-01'), to: new Date('2025-01-07') },
       voiceEventCount: 0,
@@ -401,6 +402,7 @@ describe('prompt construction (serializeForLLM)', () => {
     const dataset = makeDataset({
       painEntries: [makePainEntry(1, '2025-01-05', 'stark', { time: '10:00:00', medications: ['Sumatriptan'] })],
       medicationIntakes: [makeMedIntake('m1', '2025-01-05', 'Sumatriptan', 1, '10:30:00')],
+      contextNotes: [],
       meta: {
         range: { from: new Date('2025-01-01'), to: new Date('2025-01-07') },
         voiceEventCount: 0, painEntryCount: 1, medicationIntakeCount: 1,
