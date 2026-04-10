@@ -86,15 +86,15 @@ const EVENT_PATTERNS: PatternGroup[] = [
   {
     type: 'symptom',
     patterns: [
-      /\bübelkeit/i, /\bübell?\b/i, /\bübel\b/i,
-      /\berbrechen/i, /\bschwindel/i, /\bschwindlig/i,
-      /\blicht(?:empfindlich|scheu)/i,
-      /\bgeräusch(?:empfindlich)/i,
-      /\bsehstörung/i, /\bflimmern/i, /\baura\b/i,
-      /\bkribbeln/i, /\btaub(?:heit)?\b/i,
-      /\bbenommen/i, /\bbenebelt/i,
-      /\bzittrig/i, /\bzittern/i,
-      /\bschwach\b/i, /\bschwäche/i,
+      /übelkeit/i, /(?:^|\s)übel(?:\s|$|[.,!?;:])/i,
+      /erbrechen/i, /schwindel/i, /schwindlig/i,
+      /licht(?:empfindlich|scheu)/i,
+      /geräusch(?:empfindlich)/i,
+      /sehstörung/i, /flimmern/i, /(?:^|\s)aura(?:\s|$)/i,
+      /kribbeln/i, /taub(?:heit)?(?:\s|$)/i,
+      /benommen/i, /benebelt/i,
+      /zittrig/i, /zittern/i,
+      /(?:^|\s)schwach(?:\s|$)/i, /schwäche/i,
     ],
     tags: ['symptom'],
     medicalRelevance: 'high',
@@ -134,7 +134,7 @@ const EVENT_PATTERNS: PatternGroup[] = [
   {
     type: 'sleep_rest',
     patterns: [
-      /\bhingelegt/i, /\blege?\s*(?:mich)?\s*(?:hin|ins\s+bett)/i,
+      /\bhingelegt/i, /\blege?\s*(?:mich\s+)?(?:hin|ins\s+bett)/i,
       /\bgeschlafen/i, /\bschlafe?\b/i,
       /\baufgewacht/i, /\baufgestanden/i,
       /\bpause\b/i, /\bruhe?\b/i, /\bausgeruht/i,
@@ -142,6 +142,8 @@ const EVENT_PATTERNS: PatternGroup[] = [
       /\bdöse?n/i, /\bnickerchen/i, /\bnap\b/i,
       /\beingeschlafen/i, /\bwachgeworden/i,
       /\bdurchgeschlafen/i,
+      /\blege\b.*\bhin/i,
+      /\bleg\s+mich/i,
     ],
     tags: ['schlaf', 'ruhe'],
     medicalRelevance: 'medium',
@@ -153,7 +155,7 @@ const EVENT_PATTERNS: PatternGroup[] = [
     patterns: [
       /\bspazier/i, /\bgelaufen/i, /\bwandern/i,
       /\bduschen?\b/i, /\bgeduscht/i, /\bbaden?\b/i,
-      /\beinkauf/i, /\bshopping/i,
+      /\beinkauf/i, /\bshopping/i, /\bsupermarkt/i, /\bladen\b/i,
       /\barbeiten?\b/i, /\bgearbeitet/i,
       /\btermin\b/i, /\barzt/i,
       /\bhaushalt/i, /\bputzen/i, /\bkochen?\b/i,
@@ -177,7 +179,9 @@ const EVENT_PATTERNS: PatternGroup[] = [
       /\bkalt\b/i, /\bkälte/i, /\bfrieren/i,
       /\bsonne/i, /\bsonnig/i,
       /\bwetter/i, /\bwetterwechsel/i,
-      /\bhell\b/i, /\bhelles\s+licht/i, /\bgrell/i,
+      /\bhell\b/i, /\bhelles?\s+licht/i, /\bgrell/i,
+      /\blicht\b.*\b(?:schlimm|grell|hell|blendet|stört|nervt|unerträglich)/i,
+      /\blicht\b/i,
       /\blaut\b/i, /\blärm/i, /\bleise/i,
       /\bstickig/i, /\bschwül/i,
       /\bmenschen(?:menge|masse)/i, /\bvoll\b/i,
@@ -199,7 +203,8 @@ const EVENT_PATTERNS: PatternGroup[] = [
       /\breizüberflutet/i, /\breizüberflut/i,
       /\bangespannt/i, /\bnervös/i,
       /\bunruhig/i, /\baufgeregt/i,
-      /\bzu\s*viel\b/i, /\balles\s*(?:zu\s*)?viel/i,
+      /\bzu\s*viel\b/i, /\balles\s*(?:zu\s*|etwas\s*)?viel/i,
+      /\betwas\s+viel/i,
       /\bviel\s+um\s+die\s+ohren/i,
       /\bhektisch/i, /\bchaotisch/i,
       /\bsorgen/i, /\bängstlich/i,
@@ -255,8 +260,63 @@ const NOISE_PATTERNS = [
   /^(?:test|hallo|tschüss|stopp?)\s*[.!?]*$/i,
 ];
 
-const MEANINGFUL_MIN_LENGTH = 3;
+/**
+ * Short words that are meaningful despite being <4 chars.
+ * These represent real clinical/everyday signals and must NOT be filtered as noise.
+ */
+const MEANINGFUL_SHORT_WORDS = new Set([
+  // ME/CFS
+  'pem', 'fog',
+  // Symptoms
+  'übel', 'müde', 'wach', 'warm', 'kalt',
+  // Environment
+  'hell', 'laut', 'heiß', 'wind',
+  // Food/drink
+  'tee', 'saft', 'bier', 'wein',
+  // Activities
+  'bad',
+  // States
+  'fit', 'gut', 'ok',
+]);
+
+const MEANINGFUL_MIN_LENGTH = 2;
 const MEANINGFUL_MIN_WORDS = 1;
+
+// ============================================================
+// === HILFSFUNKTIONEN ===
+// ============================================================
+
+/**
+ * Prüft ob ein Text reiner Noise ist (leere Eingabe, Füllwörter).
+ * WICHTIG: Kurze aber sinnvolle Aussagen wie "bin platt", "übel", "pem" 
+ * werden NICHT als Noise gewertet.
+ */
+export function isNoise(text: string): boolean {
+  const trimmed = text.trim();
+  
+  if (trimmed.length < MEANINGFUL_MIN_LENGTH) return true;
+  
+  // Explicit noise patterns
+  for (const pattern of NOISE_PATTERNS) {
+    if (pattern.test(trimmed)) return true;
+  }
+
+  const words = trimmed.split(/\s+/).filter(w => w.length > 0);
+  if (words.length === 0) return true;
+
+  // Single word: check against meaningful short words allowlist
+  if (words.length === 1) {
+    const word = words[0].toLowerCase().replace(/[.!?,;:]+$/, '');
+    // Allow if it's in the short-words allowlist
+    if (MEANINGFUL_SHORT_WORDS.has(word)) return false;
+    // Allow if ≥4 chars (likely a real word)
+    if (word.length >= 4) return false;
+    // Otherwise too short and not in allowlist → noise
+    return true;
+  }
+
+  return false;
+}
 
 // ============================================================
 // === HAUPT-FUNKTION ===
@@ -296,14 +356,12 @@ export function classifyVoiceEvent(text: string): ClassificationResult {
       const match = pattern.exec(norm);
       if (match) {
         matchedTerms.push(match[0]);
-        // Längere Matches = höhere Confidence
         const conf = Math.min(0.95, 0.70 + (match[0].length / norm.length) * 0.3);
         bestConfidence = Math.max(bestConfidence, conf);
       }
     }
 
     if (matchedTerms.length > 0) {
-      // Boost bei mehreren Matches
       const boostedConf = Math.min(0.98, bestConfidence + matchedTerms.length * 0.03);
       
       classifications.push({
@@ -317,7 +375,6 @@ export function classifyVoiceEvent(text: string): ClassificationResult {
         group.tags.forEach(t => allTags.add(t));
       }
 
-      // Medical relevance: höchstes Level gewinnt
       const relOrder = { unknown: 0, low: 1, medium: 2, high: 3 };
       if (relOrder[group.medicalRelevance] > relOrder[maxMedicalRelevance]) {
         maxMedicalRelevance = group.medicalRelevance;
@@ -325,7 +382,7 @@ export function classifyVoiceEvent(text: string): ClassificationResult {
     }
   }
 
-  // Inline-Tag-Extraktion: Erkannte Substantive als Tags
+  // Inline-Tag-Extraktion
   const inlineTags = extractInlineTags(norm);
   inlineTags.forEach(t => allTags.add(t));
 
@@ -344,33 +401,6 @@ export function classifyVoiceEvent(text: string): ClassificationResult {
     medicalRelevance: maxMedicalRelevance,
     isMeaningful: true,
   };
-}
-
-// ============================================================
-// === HILFSFUNKTIONEN ===
-// ============================================================
-
-/**
- * Prüft ob ein Text reiner Noise ist (leere Eingabe, Füllwörter).
- * WICHTIG: Kurze aber sinnvolle Aussagen wie "bin platt" werden NICHT als Noise gewertet.
- */
-export function isNoise(text: string): boolean {
-  const trimmed = text.trim();
-  
-  if (trimmed.length < MEANINGFUL_MIN_LENGTH) return true;
-  
-  const words = trimmed.split(/\s+/).filter(w => w.length > 0);
-  if (words.length < MEANINGFUL_MIN_WORDS) {
-    // Ein einzelnes Wort ist OK wenn es sinnvoll ist (≥4 Zeichen)
-    if (words.length === 1 && words[0].length >= 4) return false;
-    if (words.length === 0) return true;
-  }
-
-  for (const pattern of NOISE_PATTERNS) {
-    if (pattern.test(trimmed)) return true;
-  }
-
-  return false;
 }
 
 /**
@@ -398,6 +428,7 @@ function extractInlineTags(norm: string): string[] {
     [/\bschwimm/i, 'schwimmen'],
     [/\bjoggen/i, 'joggen'],
     [/\bregen/i, 'regen'],
+    [/\bregnet/i, 'regen'],
     [/\bsonne/i, 'sonne'],
     [/\bhitze|heiß/i, 'hitze'],
     [/\bkälte|kalt/i, 'kälte'],

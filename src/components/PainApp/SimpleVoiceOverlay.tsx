@@ -717,12 +717,36 @@ export function SimpleVoiceOverlay({
   const handleDiscard = useCallback(() => {
     clearAllTimers();
     stopRecording();
+    
+    // Save any transcript as voice event before discarding (capture first!)
+    const text = committedTextRef.current?.trim();
+    if (text && text.length >= 3) {
+      saveVoiceEventRobust({
+        rawTranscript: text,
+        source: 'voice',
+        sessionId: voiceSessionIdRef.current,
+        reviewState: 'auto_saved',
+      }).catch(() => {});
+    }
+    
     onOpenChange(false);
   }, [clearAllTimers, stopRecording, onOpenChange]);
 
   const handleClose = useCallback(() => {
     clearAllTimers();
     stopRecording();
+    
+    // Save any transcript as voice event before closing (capture first!)
+    const text = committedTextRef.current?.trim();
+    if (text && text.length >= 3 && stateRef.current === 'recording') {
+      saveVoiceEventRobust({
+        rawTranscript: text,
+        source: 'voice',
+        sessionId: voiceSessionIdRef.current,
+        reviewState: 'auto_saved',
+      }).catch(() => {});
+    }
+    
     onOpenChange(false);
   }, [clearAllTimers, stopRecording, onOpenChange]);
   
