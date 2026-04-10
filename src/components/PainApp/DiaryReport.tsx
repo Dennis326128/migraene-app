@@ -749,22 +749,9 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
           try {
             const cached = await loadAnalysisForReport(from, to);
             if (!cached || !cached.possiblePatterns?.length) return null;
-            return {
-              summary: cached.summary,
-              patterns: cached.possiblePatterns.map(p => ({
-                title: p.title,
-                description: p.description,
-                evidenceStrength: p.evidenceStrength,
-              })),
-              recurringSequences: (cached.recurringSequences || []).map(s => ({
-                pattern: s.pattern,
-                count: s.count,
-                interpretation: s.llmInterpretation || '',
-              })),
-              openQuestions: cached.openQuestions || [],
-              analyzedAt: cached.meta?.analyzedAt || new Date().toISOString(),
-              daysAnalyzed: cached.scope?.daysAnalyzed || 0,
-            };
+            // Use centralized buildPatternAnalysisSummary for consistent mapping
+            const { buildPatternAnalysisSummary } = await import('@/lib/voice/analysisCache');
+            return buildPatternAnalysisSummary(cached);
           } catch (err) {
             console.warn('[PDF Export] Pattern analysis load failed:', err);
             return null;

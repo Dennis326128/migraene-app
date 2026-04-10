@@ -459,19 +459,78 @@ describe('Haken-based inclusion/exclusion', () => {
 });
 
 // ============================================================
-// 12. Edge cases
+// 12. dedupe_key consistency (CRITICAL: edge function + client must match)
+// ============================================================
+
+describe('dedupe_key consistency', () => {
+  it('buildDedupeKey matches expected format used by edge function and snapshot', () => {
+    const key = buildDedupeKey('2026-01-01', '2026-03-31');
+    // Must be: pattern_analysis_{from}_{to} — NO user_id, NO timestamp
+    expect(key).toBe('pattern_analysis_2026-01-01_2026-03-31');
+    expect(key).not.toContain(':');  // old format used colons
+  });
+
+  it('same range always produces same key', () => {
+    expect(buildDedupeKey('2026-01-01', '2026-03-31'))
+      .toBe(buildDedupeKey('2026-01-01', '2026-03-31'));
+  });
+
+  it('different ranges produce different keys', () => {
+    expect(buildDedupeKey('2026-01-01', '2026-03-31'))
+      .not.toBe(buildDedupeKey('2026-02-01', '2026-04-30'));
+  });
+});
+
+// ============================================================
+// 13. buildPatternAnalysisSummary used by ALL channels
+// ============================================================
+
+describe('buildPatternAnalysisSummary is the single mapping layer', () => {
+  it('maps llmInterpretation → interpretation consistently', () => {
+    const result = mockResult();
+    const summary = buildPatternAnalysisSummary(result);
+    // The field must be 'interpretation', not 'llmInterpretation'
+    expect(summary.recurringSequences[0]).toHaveProperty('interpretation');
+    expect(summary.recurringSequences[0]).not.toHaveProperty('llmInterpretation');
+    expect(summary.recurringSequences[0].interpretation).toBe('Häufige Abfolge');
+  });
+
+  it('enforces max limits consistently', () => {
+    const result = mockResult({
+      possiblePatterns: Array.from({ length: 10 }, (_, i) => ({
+        patternType: 'trigger_candidate' as const,
+        title: `Pattern ${i}`,
+        description: `Desc ${i}`,
+        evidenceStrength: 'medium' as const,
+        occurrences: 1,
+        examples: [],
+        uncertaintyNotes: [],
+      })),
+      recurringSequences: Array.from({ length: 8 }, (_, i) => ({
+        pattern: `Seq ${i}`, count: i + 1, llmInterpretation: `Interp ${i}`,
+      })),
+      openQuestions: ['Q1', 'Q2', 'Q3', 'Q4', 'Q5', 'Q6'],
+    });
+    const summary = buildPatternAnalysisSummary(result);
+    expect(summary.patterns.length).toBeLessThanOrEqual(7);
+    expect(summary.recurringSequences.length).toBeLessThanOrEqual(5);
+    expect(summary.openQuestions.length).toBeLessThanOrEqual(4);
+  });
+});
+
+// ============================================================
+// 14. Edge cases
 // ============================================================
 
 describe('Edge cases', () => {
   it('multiple simultaneous changes still detected via signature', () => {
     const cached = mockCached({ dataStateSignature: SIG_A });
-    // All counts changed
     const newSig = buildStateSignature(15, '2026-04-01T16:00:00Z', 8, '2026-04-01T14:00:00Z', 5, '2026-04-01T15:00:00Z', 4, '2026-04-01T16:00:00Z');
     expect(simulateCacheValidation(cached, mockFingerprint({ stateSignature: newSig })).valid).toBe(false);
   });
 
   it('deleted entries reduce count → different signature → invalid', () => {
-    const cached = mockCached({ dataStateSignature: SIG_A }); // 10 entries
+    const cached = mockCached({ dataStateSignature: SIG_A });
     const deletedSig = buildStateSignature(9, '2026-03-15T08:00:00Z', 5, '2026-03-20T09:00:00Z', 3, '2026-03-25T10:00:00Z', 2, '2026-03-28T11:00:00Z');
     expect(simulateCacheValidation(cached, mockFingerprint({ stateSignature: deletedSig })).valid).toBe(false);
   });

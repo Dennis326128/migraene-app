@@ -23,7 +23,7 @@ import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { TimeRangeSelector } from './TimeRangeSelector';
 import { runVoicePatternAnalysis } from '@/lib/voice/analysisEngine';
 import { isAnalysisUnavailable, type VoiceAnalysisResult, type PatternFinding, type ContextFinding } from '@/lib/voice/analysisTypes';
-import { loadCachedAnalysis, isCacheValid, saveAnalysisResult, canReanalyze } from '@/lib/voice/analysisCache';
+import { selectAnalysisForChannel, saveAnalysisResult } from '@/lib/voice/analysisCache';
 import { logError } from '@/lib/utils/errorMessages';
 
 // ============================================================
@@ -396,24 +396,19 @@ export function MigrainePatternAnalysis() {
 
     (async () => {
       try {
-        const cached = await loadCachedAnalysis(from, to);
+        const selection = await selectAnalysisForChannel(from, to, 'app');
         if (cancelled) return;
 
-        if (cached) {
-          const validity = await isCacheValid(cached);
-          if (cancelled) return;
-
-          if (validity.valid) {
-            const r = cached.result;
-            if (isAnalysisUnavailable(r)) {
-              setIsWeakData(true);
-            } else {
-              setResult(r);
-              setIsCachedResult(true);
-              setCachedAt(cached.updatedAt);
-            }
+        if (selection.result) {
+          if (isAnalysisUnavailable(selection.result)) {
+            setIsWeakData(true);
+          } else {
+            setResult(selection.result);
+            setIsCachedResult(true);
+            setCachedAt(selection.result.meta?.analyzedAt || null);
+            // Note: selection.isFresh indicates whether data has changed since analysis
+            // For now we show stale results normally — user can re-run if needed
           }
-          // If invalid, we just show the empty state — user can re-run
         }
       } catch (err) {
         // Cache load failure is non-critical
