@@ -68,6 +68,20 @@ describe('isBanalContent', () => {
     expect(isBanalContent('Normale Reaktion auf die Belastung')).toBe(true);
   });
 
+  it('suppresses fatigue banalities', () => {
+    expect(isBanalContent('War den ganzen Tag müde')).toBe(true);
+    expect(isBanalContent('Hatte wenig Kraft')).toBe(true);
+    expect(isBanalContent('Keine Energie gehabt')).toBe(true);
+    expect(isBanalContent('Generell erschöpft')).toBe(true);
+    expect(isBanalContent('War ein schwerer Tag')).toBe(true);
+    expect(isBanalContent('Anstrengender Tag ohne besonderes')).toBe(true);
+  });
+
+  it('suppresses generic symptom listings', () => {
+    expect(isBanalContent('Die üblichen Beschwerden traten auf')).toBe(true);
+    expect(isBanalContent('Symptome wie üblich')).toBe(true);
+  });
+
   it('allows substantive observations', () => {
     expect(isBanalContent('Schlafmangel korreliert mit stärkeren Attacken am Folgetag')).toBe(false);
     expect(isBanalContent('Triptane werden teils spät eingenommen')).toBe(false);
@@ -100,6 +114,17 @@ describe('isWeakPattern', () => {
     expect(isWeakPattern('Ein eventuell Zusammenhang mit dem Wetter')).toBe(true);
     expect(isWeakPattern('Vereinzelt beobachtet bei hoher Belastung')).toBe(true);
     expect(isWeakPattern('Ein Zusammenhang ist nicht ausgeschlossen')).toBe(true);
+  });
+
+  it('suppresses hedging/vague phrasing', () => {
+    expect(isWeakPattern('Es fällt auf, dass manchmal Stress vorkommt')).toBe(true);
+    expect(isWeakPattern('Es scheint als ob ein Muster vorliegt')).toBe(true);
+    expect(isWeakPattern('Möglicherweise besteht ein Zusammenhang')).toBe(true);
+  });
+
+  it('suppresses too-short descriptions as generic', () => {
+    expect(isWeakPattern('Stress und Wetter')).toBe(true);
+    expect(isWeakPattern('Schlaf relevant')).toBe(true);
   });
 
   it('allows strong descriptions', () => {

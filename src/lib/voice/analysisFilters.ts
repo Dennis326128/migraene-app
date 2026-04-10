@@ -93,6 +93,17 @@ export const BANAL_CONTENT_RX = [
   /daraufhin.*schonung/i, /daraufhin.*pause/i,
   /einfach.*müde/i, /allgemein.*erschöpft/i,
   /schlechter.*tag.*ohne/i,
+  // Additional fatigue banalities
+  /müde.*gewesen/i, /keine.*energie/i, /wenig.*energie/i,
+  /allgemein.*müde/i, /generell.*erschöpft/i,
+  /einfach.*erschöpft/i, /nur.*müde/i,
+  /den.*ganzen.*tag.*müde/i, /tag.*war.*anstrengend/i,
+  /war.*ein.*schwerer.*tag/i, /anstrengender.*tag/i,
+  /hatte.*wenig.*kraft/i, /kaum.*kraft/i,
+  // Generic symptom listings
+  /symptome.*wie.*üblich/i, /wie.*bei.*jeder.*attacke/i,
+  /übliche.*symptome/i, /bekannte.*symptome/i,
+  /die.*üblichen.*beschwerden/i,
 ];
 
 /** Generic uncertainty phrases */
@@ -112,6 +123,10 @@ export const WEAK_DESCRIPTION_RX = [
   /allgemeine.*belastung/i, /eventuell.*zusammenhang/i,
   /vereinzelt.*beobacht/i, /nicht.*ausgeschlossen/i,
   /möglicherweise.*gelegentlich/i,
+  /es.*fällt.*auf.*dass/i, /auffällig.*ist.*dass/i,
+  /es.*scheint.*als/i, /es.*deutet.*darauf/i,
+  /möglicherweise.*besteht/i, /ein.*möglicher/i,
+  /gelegentlich.*zusammen/i, /ab.*und.*zu/i,
 ];
 
 // ============================================================
@@ -136,7 +151,10 @@ export function isGenericUncertainty(text: string): boolean {
 }
 
 export function isWeakPattern(description: string): boolean {
-  return WEAK_DESCRIPTION_RX.some(rx => rx.test(description));
+  if (WEAK_DESCRIPTION_RX.some(rx => rx.test(description))) return true;
+  // Too short descriptions are usually generic
+  if (description.replace(/\s+/g, ' ').trim().length < 25) return true;
+  return false;
 }
 
 /** Medication-related title/description regex */
