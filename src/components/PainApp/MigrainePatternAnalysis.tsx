@@ -88,18 +88,36 @@ const BANAL_INTERPRETATION_RX = [
   /nach.*schmerz.*ruhe/i, /ruhe.*nach.*schmerz/i,
   /beschwerden.*führten.*zu.*rückzug/i, /übliche.*reaktion/i,
   /typische.*begleiter/i, /naheliegende.*reaktion/i,
-  /selbstverständlich/i,
+  /selbstverständlich/i, /typische.*reaktion/i,
+  /naheliegend/i, /erwartbar/i, /nicht.*überraschend/i,
+  /verständlich.*dass/i, /logisch.*dass/i,
+  /natürliche.*folge/i, /häufig.*beobachtet/i,
+  /üblich.*bei.*migräne/i, /bekannt.*dass/i,
+  /wenig.*überraschend/i, /zu.*erwarten/i,
+  /begleitsymptom/i, /begleiterscheinung/i,
+];
+
+/** Banal observation/question text — suppress even in context findings & openQuestions */
+const BANAL_CONTENT_RX = [
+  /übelkeit.*begleit/i, /begleitend.*übelkeit/i,
+  /lichtempfindlich.*bei.*migräne/i, /migräne.*lichtempfindlich/i,
+  /schmerz.*führt.*zu.*einschränk/i, /einschränk.*durch.*schmerz/i,
+  /an.*schmerztagen.*weniger.*aktiv/i, /weniger.*aktiv.*an.*schmerztagen/i,
+  /müdigkeit.*an.*schmerztagen/i, /erschöpft.*nach.*attacke/i,
 ];
 
 function isTrivialSequence(pattern: string, interpretation?: string): boolean {
   const normalized = pattern.replace(/\s+/g, ' ').trim();
   if (TRIVIAL_SEQUENCE_PATTERNS.some(rx => rx.test(normalized))) return true;
-  // Also check as generic phase sequence
   const collapsed = normalized.toLowerCase().replace(/\s/g, '');
   if (GENERIC_PHASE_SEQUENCES.has(collapsed)) return true;
-  // Also check if interpretation itself is banal
   if (interpretation && BANAL_INTERPRETATION_RX.some(rx => rx.test(interpretation))) return true;
   return false;
+}
+
+/** Check if a text (observation, open question) is banal filler */
+function isBanalContent(text: string): boolean {
+  return BANAL_CONTENT_RX.some(rx => rx.test(text)) || BANAL_INTERPRETATION_RX.some(rx => rx.test(text));
 }
 
 /** Translate English arrow-patterns to German */
@@ -171,10 +189,9 @@ function mergeUncertainties(
   const all = [...openQuestions, ...confidenceNotes];
   const unique: string[] = [];
   for (const item of all) {
-    // Skip if overlaps with reference texts (patterns, findings, summary)
-    if (overlapsAny(item, refTexts, 0.5)) continue;
-    // Skip if overlaps with already-added uncertainties
-    if (overlapsAny(item, unique, 0.6)) continue;
+    if (isBanalContent(item)) continue;
+    if (overlapsAny(item, refTexts, 0.45)) continue;
+    if (overlapsAny(item, unique, 0.55)) continue;
     unique.push(item);
   }
   return unique;
@@ -254,9 +271,14 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
   const { sortedPatterns, filteredSequences, extraContextFindings, uncertainties } = useMemo(() => {
     const sorted = sortPatterns(result.possiblePatterns).slice(0, MAX_PATTERNS);
 
-    // Filter trivial sequences strictly, then also check for weak-only leftovers
+    // Filter trivial sequences strictly; also reject if interpretation is banal or too short
     const seqs = result.recurringSequences
-      .filter(s => !isTrivialSequence(s.pattern, s.llmInterpretation) && s.llmInterpretation && s.llmInterpretation.length > 10)
+      .filter(s => {
+        if (isTrivialSequence(s.pattern, s.llmInterpretation)) return false;
+        if (!s.llmInterpretation || s.llmInterpretation.length < 15) return false;
+        if (isBanalContent(s.llmInterpretation)) return false;
+        return true;
+      })
       .slice(0, MAX_SEQUENCES);
 
     // Reference pool for deduplication: summary + patterns + sequences
@@ -266,22 +288,22 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
       ...seqs.map(s => s.pattern + ' ' + (s.llmInterpretation || '')),
     ];
 
-    // Context findings: only migraine-relevant fatigue, deduplicated
     // Fatigue findings: ONLY high evidence, or medium with explicit migraine keywords
     const fatigueFiltered = result.fatigueContextFindings.filter(f =>
       f.evidenceStrength === 'high' ||
       (f.evidenceStrength === 'medium' && /schmerz|kopf|migräne|attacke|triptan/i.test(f.observation))
     );
     // Medication context: skip if any pattern already covers medication topic
-    const hasMedPattern = sorted.some(p => MEDICATION_PATTERN_TYPES.has(p.patternType) || MEDICATION_TITLE_RX.test(p.title));
+    const hasMedPattern = sorted.some(p => MEDICATION_PATTERN_TYPES.has(p.patternType) || MEDICATION_TITLE_RX.test(p.title) || MEDICATION_TITLE_RX.test(p.description));
     const medContext = hasMedPattern ? [] : result.medicationContextFindings;
     const allContext = [...result.painContextFindings, ...fatigueFiltered, ...medContext];
-    // Strict dedup threshold (0.35) to catch more overlaps
+    // Apply banal content filter + strict dedup
     const finalContext = allContext
-      .filter(f => !overlapsAny(f.observation, allRefTexts, 0.35))
+      .filter(f => !isBanalContent(f.observation))
+      .filter(f => !overlapsAny(f.observation, allRefTexts, 0.33))
       .slice(0, 2);
 
-    // Uncertainties: deduplicated against everything above with even stricter threshold
+    // Uncertainties: deduplicated against everything + banal filter
     const fullRef = [
       ...allRefTexts,
       ...finalContext.map(f => f.observation),
@@ -296,7 +318,8 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
   }, [result]);
 
   const hasPatterns = sortedPatterns.length > 0;
-  const hasSequences = filteredSequences.length > 0;
+  // Only show sequences if at least 1 has count > 1 OR there are 2+ sequences — prevents weak single leftovers
+  const hasSequences = filteredSequences.length >= 2 || filteredSequences.some(s => s.count > 1);
   const hasExtraContext = extraContextFindings.length > 0;
   const hasUncertainties = uncertainties.length > 0;
 
