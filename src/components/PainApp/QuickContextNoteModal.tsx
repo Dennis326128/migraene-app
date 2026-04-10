@@ -264,6 +264,7 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
         setStress(values.stress ?? null);
         setSleep(values.sleep ?? null);
         setEnergy(values.energy ?? null);
+        setFatigueContextTags(values.fatigueContextTags ?? []);
         setNutritionTriggers(values.nutritionTriggers ?? []);
         setMovementTriggers(values.movementTriggers ?? []);
         setFluidTriggers(values.fluidTriggers ?? []);
