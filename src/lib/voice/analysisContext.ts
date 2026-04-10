@@ -636,33 +636,64 @@ export function serializeForLLM(ctx: AnalysisContext): string {
     lines.push('');
   }
 
-  // Fatigue/energy context — only include entries on or near pain days
+  // Fatigue/energy context — ONLY include entries near pain days with meaningful tags
   if (ctx.fatigueContextSummary && ctx.fatigueContextSummary.length > 0) {
     const painDates = new Set(ctx.days.filter(d => d.maxPainLevel > 0).map(d => d.date));
-    // Include fatigue entries that fall on a pain day or ±1 day from a pain day
-    const nearPainEntries = ctx.fatigueContextSummary.filter(entry => {
-      if (painDates.has(entry.date)) return true;
-      const d = new Date(entry.date);
+    // Helper: check if a date is within ±1 day of any pain day
+    const isNearPain = (dateStr: string) => {
+      if (painDates.has(dateStr)) return true;
+      const d = new Date(dateStr);
       const prev = new Date(d); prev.setDate(prev.getDate() - 1);
       const next = new Date(d); next.setDate(next.getDate() + 1);
       return painDates.has(prev.toISOString().slice(0, 10)) || painDates.has(next.toISOString().slice(0, 10));
+    };
+    // STRICT: require pain proximity AND meaningful tags (not just "einfach müde")
+    const meaningfulTags = /belastung|reizüberflutet|brain fog|benommen|hinlegen|aktivität/i;
+    const combined = ctx.fatigueContextSummary.filter(entry => {
+      // Must be near a pain day
+      if (!isNearPain(entry.date)) return false;
+      // Must have either meaningful tags, "probable" relevance, or very low energy
+      if (entry.relevance === 'probable') return true;
+      if (entry.tags.some(t => meaningfulTags.test(t))) return true;
+      if (entry.energyLevel === 1 && entry.tags.length > 0) return true;
+      return false;
     });
-    // Also always include entries with relevance "probable" or specific PEM tags
-    const relevantEntries = ctx.fatigueContextSummary.filter(entry =>
-      entry.relevance === 'probable' ||
-      entry.tags.some(t => /belastung|reizüberflutet|brain fog|benommen|hinlegen/i.test(t))
-    );
-    const combined = [...new Map([...nearPainEntries, ...relevantEntries].map(e => [e.date, e])).values()];
 
     if (combined.length > 0) {
       lines.push('=== Erschöpfungskontext (nur migränerelevante Tage) ===');
       lines.push('NUR als ergänzender Kontext nutzen. Nicht als eigenständiges Muster werten.');
       lines.push('');
-      for (const entry of combined.slice(0, 10)) {
+      for (const entry of combined.slice(0, 8)) {
+        const filteredTags = entry.tags.filter(t => t !== 'einfach müde');
         const parts = [`  ${entry.date}: Energie=${entry.energyLevel}`];
         if (entry.stressLevel !== null && entry.stressLevel <= 2) parts.push(`Stress=${entry.stressLevel}/4`);
         if (entry.sleepLevel !== null && entry.sleepLevel <= 2) parts.push(`Schlaf=${entry.sleepLevel}/4`);
-        if (entry.tags.length > 0) parts.push(`(${entry.tags.join(', ')})`);
+        if (filteredTags.length > 0) parts.push(`(${filteredTags.join(', ')})`);
+        lines.push(parts.join(', '));
+      }
+      lines.push('');
+    }
+  }
+
+  // Trigger/stress context — only include entries near pain days
+  if (ctx.triggerContextSummary && ctx.triggerContextSummary.length > 0) {
+    const painDates = new Set(ctx.days.filter(d => d.maxPainLevel > 0).map(d => d.date));
+    const isNearPain = (dateStr: string) => {
+      if (painDates.has(dateStr)) return true;
+      const d = new Date(dateStr);
+      const prev = new Date(d); prev.setDate(prev.getDate() - 1);
+      const next = new Date(d); next.setDate(next.getDate() + 1);
+      return painDates.has(prev.toISOString().slice(0, 10)) || painDates.has(next.toISOString().slice(0, 10));
+    };
+    const nearPainTriggers = ctx.triggerContextSummary.filter(e => isNearPain(e.date) && e.triggers.length > 0);
+
+    if (nearPainTriggers.length > 0) {
+      lines.push('=== Auslöser-Kontext (nur schmerznahe Tage) ===');
+      for (const entry of nearPainTriggers.slice(0, 10)) {
+        const parts = [`  ${entry.date}: Auslöser: ${entry.triggers.join(', ')}`];
+        if (entry.stressLevel !== null && entry.stressLevel <= 2) parts.push(`Stress=${entry.stressLevel}/4`);
+        if (entry.sleepLevel !== null && entry.sleepLevel <= 2) parts.push(`Schlaf=${entry.sleepLevel}/4`);
+        if (entry.notes) parts.push(`Notiz: "${entry.notes.slice(0, 100)}"`);
         lines.push(parts.join(', '));
       }
       lines.push('');
