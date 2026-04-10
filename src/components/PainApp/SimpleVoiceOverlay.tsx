@@ -32,8 +32,85 @@ import { DEFAULT_DOSE_QUARTERS } from '@/lib/utils/doseFormatter';
 import { classifyVoiceEvent, segmentVoiceInput, getClassificationFeedback, getEventTypeIcon, getEventTypeLabel, type ClassificationResult, type VoiceEventType } from '@/lib/voice/eventClassifier';
 import { generateVoiceSessionId, generateVoiceEventClientId, linkVoiceEventToEntry } from '@/lib/voice/voiceEventStore';
 import { saveVoiceEventRobust } from '@/lib/voice/voiceEventQueue';
-import { parseEverydayContent } from '@/lib/voice/everydayParser';
+import { parseEverydayContent, type EverydayParseResult } from '@/lib/voice/everydayParser';
 import { showSuccessToast, showInfoToast } from '@/lib/toastHelpers';
+import type { VoiceParseResult as VPR } from '@/lib/voice/parseVoiceEntry';
+
+// ============================================
+// Structured Data Builders
+// ============================================
+
+/**
+ * Builds consistent structured_data for everyday (non-medical) voice events.
+ * Schema: { categories, entities, timeReferences, causalLinks, mecfsSignals, summary }
+ */
+function buildEverydayStructuredData(
+  everyday: EverydayParseResult,
+  classification: ClassificationResult,
+): Record<string, unknown> {
+  return {
+    _schema: 'everyday_v1',
+    categories: everyday.summary.categories,
+    entities: everyday.entities.map(e => ({
+      category: e.category,
+      value: e.value,
+      detail: e.detail ?? null,
+    })),
+    timeReferences: everyday.timeReferences.map(t => ({
+      text: t.text,
+      type: t.type,
+      hint: t.normalizedHint ?? null,
+    })),
+    causalLinks: everyday.causalLinks.length > 0
+      ? everyday.causalLinks.map(c => ({ cause: c.cause, effect: c.effect }))
+      : null,
+    mecfsSignals: everyday.mecfsSignals
+      ? {
+          trigger: everyday.mecfsSignals.trigger ?? null,
+          state: everyday.mecfsSignals.state,
+          severity: everyday.mecfsSignals.severity,
+          pemSuggested: everyday.mecfsSignals.pemSuggested,
+        }
+      : null,
+    eventTypes: classification.classifications.map(c => c.type),
+    tags: classification.tags,
+  };
+}
+
+/**
+ * Builds consistent structured_data for review-path voice events (pain/medication).
+ * Schema: { painLevel, medications, symptoms, meCfsLevel, everyday, eventTypes, tags }
+ */
+function buildReviewStructuredData(
+  parsed: VPR,
+  everyday: EverydayParseResult,
+  classification: ClassificationResult,
+): Record<string, unknown> {
+  return {
+    _schema: 'review_v1',
+    painLevel: parsed.painLevel ?? null,
+    medications: parsed.medications?.map(m => m.name) ?? [],
+    symptoms: parsed.symptoms ?? [],
+    painLocations: parsed.painLocations ?? [],
+    auraType: parsed.auraType ?? null,
+    meCfsLevel: parsed.meCfsLevel ?? null,
+    timeReferences: everyday.timeReferences.map(t => ({
+      text: t.text,
+      type: t.type,
+      hint: t.normalizedHint ?? null,
+    })),
+    mecfsSignals: everyday.mecfsSignals
+      ? {
+          trigger: everyday.mecfsSignals.trigger ?? null,
+          state: everyday.mecfsSignals.state,
+          severity: everyday.mecfsSignals.severity,
+          pemSuggested: everyday.mecfsSignals.pemSuggested,
+        }
+      : null,
+    eventTypes: classification.classifications.map(c => c.type),
+    tags: classification.tags,
+  };
+}
 
 // ============================================
 // Types
@@ -301,7 +378,7 @@ export function SimpleVoiceOverlay({
           sessionId: voiceSessionIdRef.current,
           classification,
           segments,
-          structuredData: { everyday: everydayData },
+          structuredData: buildEverydayStructuredData(everydayData, classification),
           reviewState: 'auto_saved',
           clientId,
         }).then(result => {
@@ -372,13 +449,7 @@ export function SimpleVoiceOverlay({
           sessionId: voiceSessionIdRef.current,
           classification,
           segments,
-          structuredData: {
-            painLevel: parsed.painLevel,
-            medications: parsed.medications.map(m => m.name),
-            symptoms: parsed.symptoms,
-            meCfsLevel: parsed.meCfsLevel,
-            everyday: everydayData,
-          },
+          structuredData: buildReviewStructuredData(parsed, everydayData, classification),
           reviewState: 'auto_saved',
           clientId: reviewClientId,
         }).then(result => {
