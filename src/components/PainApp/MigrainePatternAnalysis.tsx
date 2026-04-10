@@ -363,13 +363,13 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
           <div className="space-y-5">
             {sortedPatterns.map((p, i) => (
               <div key={i}>
-                <div className="flex items-start justify-between gap-3 mb-0.5">
-                  <h4 className="text-sm font-medium text-foreground leading-snug">{p.title}</h4>
+                <div className="flex items-start justify-between gap-3 mb-1">
+                  <h4 className="text-[13px] font-medium text-foreground leading-snug">{p.title}</h4>
                   <EvidenceBadge strength={p.evidenceStrength} />
                 </div>
-                <p className="text-sm text-foreground/80 leading-relaxed">{p.description}</p>
+                <p className="text-[13px] text-foreground/75 leading-[1.7]">{p.description}</p>
                 {p.uncertaintyNotes.length > 0 && (
-                  <p className="text-[11px] text-muted-foreground mt-1">
+                  <p className="text-[11px] text-muted-foreground/70 mt-1.5">
                     {p.uncertaintyNotes[0].reason}
                   </p>
                 )}
@@ -382,20 +382,20 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
       {/* C) Wiederkehrende Muster — only non-trivial */}
       {hasSequences && (
         <section>
-          <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-2.5">
+          <h3 className="text-[11px] font-medium uppercase tracking-widest text-muted-foreground/80 mb-3">
             Wiederkehrende Muster
           </h3>
-          <div className="space-y-2.5">
+          <div className="space-y-3">
             {filteredSequences.map((seq, i) => (
               <div key={i}>
-                <span className="text-sm font-medium text-foreground">
+                <span className="text-[13px] font-medium text-foreground">
                   {translateSequencePattern(seq.pattern)}
                 </span>
                 {seq.count > 1 && (
-                  <span className="text-[11px] text-muted-foreground ml-1.5">({seq.count}×)</span>
+                  <span className="text-[11px] text-muted-foreground/70 ml-1.5">({seq.count}×)</span>
                 )}
                 {seq.llmInterpretation && (
-                  <p className="text-sm text-foreground/80 leading-relaxed mt-0.5">{seq.llmInterpretation}</p>
+                  <p className="text-[13px] text-foreground/75 leading-[1.7] mt-0.5">{seq.llmInterpretation}</p>
                 )}
               </div>
             ))}
@@ -406,13 +406,13 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
       {/* D) Was zusätzlich auffällt */}
       {hasExtraContext && (
         <section>
-          <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">
+          <h3 className="text-[11px] font-medium uppercase tracking-widest text-muted-foreground/80 mb-2.5">
             Was zusätzlich auffällt
           </h3>
-          <ul className="space-y-1.5">
+          <ul className="space-y-2">
             {extraContextFindings.map((f, i) => (
-              <li key={i} className="text-sm text-foreground/80 flex items-start gap-2 leading-relaxed">
-                <span className="mt-[8px] h-1 w-1 rounded-full bg-muted-foreground/40 shrink-0" />
+              <li key={i} className="text-[13px] text-foreground/75 flex items-start gap-2 leading-[1.7]">
+                <span className="mt-[9px] h-1 w-1 rounded-full bg-muted-foreground/30 shrink-0" />
                 <span>{f.observation}</span>
               </li>
             ))}
@@ -423,13 +423,13 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
       {/* E) Was noch unklar ist */}
       {hasUncertainties && (
         <section>
-          <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">
+          <h3 className="text-[11px] font-medium uppercase tracking-widest text-muted-foreground/80 mb-2.5">
             Was noch unklar ist
           </h3>
-          <ul className="space-y-1.5">
+          <ul className="space-y-2">
             {uncertainties.map((item, i) => (
-              <li key={i} className="text-sm text-foreground/80 flex items-start gap-2 leading-relaxed">
-                <span className="mt-[8px] h-1 w-1 rounded-full bg-muted-foreground/40 shrink-0" />
+              <li key={i} className="text-[13px] text-foreground/75 flex items-start gap-2 leading-[1.7]">
+                <span className="mt-[9px] h-1 w-1 rounded-full bg-muted-foreground/30 shrink-0" />
                 <span>{item}</span>
               </li>
             ))}
