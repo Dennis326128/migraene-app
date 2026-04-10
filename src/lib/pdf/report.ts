@@ -221,6 +221,23 @@ type BuildReportParams = {
   } | null;
   /** Deterministic clinical analysis modules (Phase 1) */
   clinicalAnalysis?: ClinicalAnalysisResult | null;
+  /** Persisted voice pattern analysis (migraine correlations) */
+  patternAnalysis?: {
+    summary: string;
+    patterns: Array<{
+      title: string;
+      description: string;
+      evidenceStrength: string;
+    }>;
+    recurringSequences: Array<{
+      pattern: string;
+      count: number;
+      interpretation: string;
+    }>;
+    openQuestions: string[];
+    analyzedAt: string;
+    daysAnalyzed: number;
+  } | null;
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
