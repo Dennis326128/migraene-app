@@ -348,7 +348,53 @@ export interface PatternAnalysisSummary {
   daysAnalyzed: number;
 }
 
-/** Full analysis block (all optional sub-fields) */
+/**
+ * Build PatternAnalysisSummary from raw ai_reports.response_json.
+ * 
+ * MIRRORS client-side buildPatternAnalysisSummary (analysisCache.ts) exactly:
+ * - Sort: high > medium > low evidence
+ * - Max 7 patterns, 5 recurring sequences, 4 open questions
+ * - Field mapping: llmInterpretation → interpretation
+ * 
+ * This is the ONLY place in the Deno backend that maps raw analysis to summary.
+ */
+function buildPatternSummaryFromRaw(
+  responseJson: unknown,
+  updatedAt: string,
+): PatternAnalysisSummary | null {
+  const r = responseJson as Record<string, unknown>;
+  if (typeof r?.summary !== "string" || !Array.isArray(r?.possiblePatterns) || r.possiblePatterns.length === 0) {
+    return null;
+  }
+
+  const evidenceOrder: Record<string, number> = { high: 3, medium: 2, low: 1 };
+  const sortedPatterns = [...(r.possiblePatterns as Array<Record<string, unknown>>)]
+    .sort((a, b) => (evidenceOrder[String(b.evidenceStrength)] || 0) - (evidenceOrder[String(a.evidenceStrength)] || 0));
+
+  return {
+    summary: r.summary as string,
+    patterns: sortedPatterns.slice(0, 7).map(p => ({
+      title: String(p.title || ""),
+      description: String(p.description || ""),
+      evidenceStrength: String(p.evidenceStrength || "low"),
+    })),
+    recurringSequences: Array.isArray(r.recurringSequences)
+      ? (r.recurringSequences as Array<Record<string, unknown>>).slice(0, 5).map(s => ({
+          pattern: String(s.pattern || ""),
+          count: Number(s.count) || 1,
+          interpretation: String(s.llmInterpretation || s.interpretation || ""),
+        }))
+      : [],
+    openQuestions: Array.isArray(r.openQuestions)
+      ? (r.openQuestions as string[]).slice(0, 4)
+      : [],
+    analyzedAt: updatedAt,
+    daysAnalyzed: (r.scope as Record<string, unknown>)?.daysAnalyzed
+      ? Number((r.scope as Record<string, unknown>).daysAnalyzed)
+      : 0,
+  };
+}
+
 export interface DoctorReportAnalysis {
   symptoms?: SymptomsAnalysis;
   triggers?: TriggersAnalysis;
