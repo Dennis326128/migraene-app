@@ -428,6 +428,7 @@ function extractInlineTags(norm: string): string[] {
     [/\bschwimm/i, 'schwimmen'],
     [/\bjoggen/i, 'joggen'],
     [/\bregen/i, 'regen'],
+    [/\bregnet/i, 'regen'],
     [/\bsonne/i, 'sonne'],
     [/\bhitze|heiß/i, 'hitze'],
     [/\bkälte|kalt/i, 'kälte'],
