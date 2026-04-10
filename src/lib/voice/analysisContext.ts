@@ -445,6 +445,171 @@ export function buildContextWindows(
 }
 
 // ============================================================
+// === SESSION GROUPING ===
+// ============================================================
+
+/**
+ * Group voice timeline items by session_id.
+ * Non-voice items and items without session_id are excluded.
+ */
+export function buildSessionBlocks(timeline: TimelineItem[]): SessionBlock[] {
+  const bySession = new Map<string, TimelineItem[]>();
+
+  for (const item of timeline) {
+    if (item.kind !== 'voice') continue;
+    const sid = (item.source.data as VoiceEventForAnalysis).session_id;
+    if (!sid) continue;
+    if (!bySession.has(sid)) bySession.set(sid, []);
+    bySession.get(sid)!.push(item);
+  }
+
+  const blocks: SessionBlock[] = [];
+  for (const [sessionId, items] of bySession) {
+    if (items.length === 0) continue;
+    blocks.push({
+      sessionId,
+      items,
+      startTime: items[0].timestamp,
+      endTime: items[items.length - 1].timestamp,
+    });
+  }
+
+  blocks.sort((a, b) => a.startTime.localeCompare(b.startTime));
+  return blocks;
+}
+
+// ============================================================
+// === RECURRING SEQUENCES ===
+// ============================================================
+
+/**
+ * Detect recurring phase transition patterns across days.
+ * Returns sequences that appear on 2+ days.
+ *
+ * Example: if "exertion → fatigue → rest" appears on 3 days,
+ * it's returned as a RecurringSequence with count=3.
+ */
+export function detectRecurringSequences(days: DayContext[]): RecurringSequence[] {
+  const signatureMap = new Map<string, { seq: PhaseState[]; dates: string[] }>();
+
+  for (const day of days) {
+    if (day.phases.length < 2) continue;
+    // Build all length-2 and length-3 sub-sequences
+    for (let len = 2; len <= Math.min(day.phases.length, 3); len++) {
+      for (let i = 0; i <= day.phases.length - len; i++) {
+        const seq = day.phases.slice(i, i + len).map(p => p.state);
+        const key = seq.join('→');
+        if (!signatureMap.has(key)) signatureMap.set(key, { seq, dates: [] });
+        const entry = signatureMap.get(key)!;
+        if (!entry.dates.includes(day.date)) entry.dates.push(day.date);
+      }
+    }
+  }
+
+  const results: RecurringSequence[] = [];
+  for (const [pattern, { seq, dates }] of signatureMap) {
+    if (dates.length >= 2) {
+      results.push({ pattern, phaseSequence: seq, occurrenceDates: dates, count: dates.length });
+    }
+  }
+
+  results.sort((a, b) => b.count - a.count);
+  return results;
+}
+
+// ============================================================
+// === LLM PROMPT SERIALIZER ===
+// ============================================================
+
+/**
+ * Serialize an AnalysisContext into a structured, human-readable text
+ * suitable for inclusion in an LLM prompt.
+ *
+ * Design: readable by both humans and LLMs; no internal IDs exposed;
+ * raw transcripts preserved; review status clearly marked.
+ */
+export function serializeForLLM(ctx: AnalysisContext): string {
+  const lines: string[] = [];
+
+  lines.push(`=== Verlaufsdaten (${ctx.meta.totalDays} Tage, ${ctx.meta.totalItems} Ereignisse) ===`);
+  lines.push('');
+
+  for (const day of ctx.days) {
+    lines.push(`--- ${day.date} ---`);
+    if (day.maxPainLevel > 0) lines.push(`  Max. Schmerz: ${day.maxPainLevel}/10`);
+    if (day.hasMecfsSignals) lines.push(`  ME/CFS-Signale vorhanden`);
+    if (day.hasMedication) lines.push(`  Medikation eingenommen`);
+    lines.push('');
+
+    for (const item of day.items) {
+      const timeStr = item.time ? `[${item.time}]` : '[--:--]';
+      const kindLabel = item.kind === 'voice' ? 'Sprache'
+        : item.kind === 'pain_entry' ? 'Eintrag'
+        : 'Medikament';
+
+      let line = `  ${timeStr} (${kindLabel}) ${item.displayText}`;
+
+      // Add review state for voice events
+      if (item.kind === 'voice') {
+        const v = item.source.data as VoiceEventForAnalysis;
+        if (v.review_state === 'edited') line += ' [bearbeitet]';
+        else if (v.review_state === 'reviewed') line += ' [bestätigt]';
+        if (v.related_entry_id !== null) line += ` → Eintrag #${v.related_entry_id}`;
+      }
+
+      // Add pain details for entries
+      if (item.kind === 'pain_entry') {
+        const e = item.source.data as PainEntryForAnalysis;
+        const parts: string[] = [];
+        if (e.pain_level && e.pain_level !== '-') parts.push(`NRS ${e.pain_level}`);
+        if (e.pain_locations?.length) parts.push(`Ort: ${e.pain_locations.join(', ')}`);
+        if (e.aura_type && e.aura_type !== 'keine') parts.push(`Aura: ${e.aura_type}`);
+        if (e.medications?.length) parts.push(`Medikation: ${e.medications.join(', ')}`);
+        if (e.me_cfs_severity_level && e.me_cfs_severity_level !== 'none') {
+          parts.push(`ME/CFS: ${e.me_cfs_severity_level}`);
+        }
+        if (parts.length) line += ` (${parts.join('; ')})`;
+      }
+
+      lines.push(line);
+    }
+
+    // Phase summary
+    if (day.phases.length > 1) {
+      const phaseStr = day.phases.map(p => p.state).join(' → ');
+      lines.push(`  Phasen: ${phaseStr}`);
+    }
+    lines.push('');
+  }
+
+  // Recurring patterns
+  if (ctx.recurringSequences.length > 0) {
+    lines.push('=== Wiederkehrende Muster ===');
+    for (const seq of ctx.recurringSequences.slice(0, 5)) {
+      lines.push(`  ${seq.pattern} (${seq.count}× an Tagen: ${seq.occurrenceDates.join(', ')})`);
+    }
+    lines.push('');
+  }
+
+  // Context windows summary
+  if (ctx.painWindows.length > 0) {
+    lines.push(`=== Schmerz-Kontextfenster (${ctx.painWindows.length}) ===`);
+    for (const w of ctx.painWindows.slice(0, 3)) {
+      lines.push(`  Schmerzereignis: ${w.focal.displayText} [${w.focal.time ?? '--:--'}]`);
+      if (w.preceding.length) {
+        lines.push(`    Vorher (${w.windowHours}h): ${w.preceding.map(p => p.displayText).join(' | ')}`);
+      }
+      if (w.following.length) {
+        lines.push(`    Nachher (${w.windowHours}h): ${w.following.map(f => f.displayText).join(' | ')}`);
+      }
+    }
+    lines.push('');
+  }
+
+  return lines.join('\n');
+}
+
+// ============================================================
 // === MAIN ENTRY POINT ===
 // ============================================================
 
@@ -460,22 +625,21 @@ export function buildAnalysisContext(
 ): AnalysisContext {
   const timeline = buildTimeline(dataset);
   const days = buildDayContexts(timeline);
+  const sessions = buildSessionBlocks(timeline);
+  const recurringSequences = detectRecurringSequences(days);
 
-  // Pain windows: around all pain entries with NRS > 0
   const painWindows = buildContextWindows(
     timeline,
     item => item.semanticTags.includes('pain') || item.semanticTags.includes('severe_pain'),
     windowHours,
   );
 
-  // Fatigue windows: around ME/CFS signals
   const fatigueWindows = buildContextWindows(
     timeline,
     item => item.semanticTags.includes('mecfs_signal') || item.semanticTags.includes('mecfs_state'),
     windowHours,
   );
 
-  // Medication windows: around medication intake events
   const medicationWindows = buildContextWindows(
     timeline,
     item => item.kind === 'med_intake',
@@ -485,15 +649,18 @@ export function buildAnalysisContext(
   return {
     days,
     timeline,
+    sessions,
     painWindows,
     fatigueWindows,
     medicationWindows,
+    recurringSequences,
     meta: {
       totalItems: timeline.length,
       totalDays: days.length,
       daysWithPain: days.filter(d => d.maxPainLevel > 0).length,
       daysWithMecfs: days.filter(d => d.hasMecfsSignals).length,
       daysWithMedication: days.filter(d => d.hasMedication).length,
+      sessionCount: sessions.length,
     },
   };
 }
