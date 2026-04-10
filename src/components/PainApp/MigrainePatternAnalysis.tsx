@@ -343,11 +343,11 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
   const hasUncertainties = uncertainties.length > 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-7">
       {/* A) Kurzfazit */}
-      <div>
-        <p className="text-sm leading-relaxed text-foreground">{result.summary}</p>
-        <p className="text-[11px] text-muted-foreground mt-2">
+      <div className="pb-1">
+        <p className="text-[13px] leading-[1.7] text-foreground">{result.summary}</p>
+        <p className="text-[11px] text-muted-foreground/70 mt-2.5">
           {result.scope.daysAnalyzed} Tage analysiert
           {result.scope.painEntryCount > 0 && ` · ${result.scope.painEntryCount} Schmerzeinträge`}
           {result.scope.voiceEventCount > 0 && ` · ${result.scope.voiceEventCount} Notizen`}
@@ -357,10 +357,10 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
       {/* B) Auffälligste Hinweise */}
       {hasPatterns && (
         <section>
-          <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-3">
+          <h3 className="text-[11px] font-medium uppercase tracking-widest text-muted-foreground/80 mb-3.5">
             Auffälligste Hinweise
           </h3>
-          <div className="space-y-4">
+          <div className="space-y-5">
             {sortedPatterns.map((p, i) => (
               <div key={i}>
                 <div className="flex items-start justify-between gap-3 mb-0.5">
