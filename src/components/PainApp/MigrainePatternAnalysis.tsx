@@ -180,18 +180,23 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
       .slice(0, MAX_PATTERNS);
     
     // Intra-pattern dedup: remove patterns that largely repeat an earlier one or summary
+    // Bidirectional: check both "pattern words in summary" AND "summary words in pattern"
     const dedupedPatterns: PatternFinding[] = [];
     for (const p of sorted) {
       const pText = p.title + ' ' + p.description;
-      if (overlapsAny(pText, [result.summary], 0.40)) continue;
+      // Bidirectional overlap: suppress if either direction shows strong overlap
+      const pInSummary = textOverlap(pText, result.summary);
+      const summaryInP = textOverlap(result.summary, pText);
+      if (Math.max(pInSummary, summaryInP) > 0.35) continue;
       if (overlapsAny(pText, dedupedPatterns.map(d => d.title + ' ' + d.description), 0.30)) continue;
       dedupedPatterns.push(p);
     }
     sorted = dedupedPatterns;
 
     // Filter trivial sequences; also reject if interpretation is banal or too short
-    // Additionally dedup sequences against pattern titles AND descriptions
+    // Additionally dedup sequences against pattern titles, descriptions, AND summary
     const patternRefTexts = sorted.map(p => p.title + ' ' + p.description);
+    const patternDescriptions = sorted.map(p => p.description);
     const patternTitles = sorted.map(p => p.title);
     const seqs = result.recurringSequences
       .filter(s => {
@@ -201,8 +206,9 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
         if (isBanalContent(s.llmInterpretation)) return false;
         if (isWeakPattern(s.llmInterpretation)) return false;
         if (overlapsAny(s.llmInterpretation, patternRefTexts, 0.25)) return false;
+        if (overlapsAny(s.llmInterpretation, patternDescriptions, 0.30)) return false;
         if (overlapsAny(s.llmInterpretation, patternTitles, 0.30)) return false;
-        if (overlapsAny(s.llmInterpretation, [result.summary], 0.30)) return false;
+        if (overlapsAny(s.llmInterpretation, [result.summary], 0.28)) return false;
         return true;
       })
       .slice(0, MAX_SEQUENCES);

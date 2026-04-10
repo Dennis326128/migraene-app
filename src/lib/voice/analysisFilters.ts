@@ -152,6 +152,12 @@ export const WEAK_DESCRIPTION_RX = [
   /erschöpfung.*könnte.*beitragen/i, /müdigkeit.*könnte.*rolle/i,
   /allgemein.*belastet/i, /generell.*mehr.*beschwerden/i,
   /insgesamt.*eher.*schlechter/i, /phasenweise.*stärker/i,
+  // Non-actionable vague observations
+  /es.*gibt.*hinweise/i, /zusammenhang.*möglich/i,
+  /zusammenhang.*denkbar/i, /könnte.*eine.*rolle/i,
+  /möglicherweise.*ein.*faktor/i, /scheint.*zusammen.*hängen/i,
+  /nicht.*eindeutig.*zuordnen/i, /kein.*klares.*muster/i,
+  /ohne.*erkennbar.*zusammenhang/i,
 ];
 
 // ============================================================
