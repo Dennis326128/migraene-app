@@ -16,6 +16,10 @@ import {
   canReanalyze,
   buildPatternAnalysisSummary,
   buildStateSignature,
+  extractCompactSummary,
+  MAX_PATTERNS,
+  MAX_SEQUENCES,
+  MAX_QUESTIONS,
   type CachedAnalysis,
   type DataStateFingerprint,
   type CacheValidityResult,
@@ -380,7 +384,7 @@ describe('buildPatternAnalysisSummary', () => {
     expect(summary.patterns[2].evidenceStrength).toBe('low');
   });
 
-  it('limits: max 7 patterns, 5 sequences, 4 questions', () => {
+  it('limits: max 5 patterns, 3 sequences, 3 questions', () => {
     const result = mockResult({
       possiblePatterns: Array.from({ length: 12 }, (_, i) => ({
         patternType: 'trigger_candidate' as const,
@@ -393,9 +397,9 @@ describe('buildPatternAnalysisSummary', () => {
       openQuestions: ['Q1', 'Q2', 'Q3', 'Q4', 'Q5', 'Q6'],
     });
     const summary = buildPatternAnalysisSummary(result);
-    expect(summary.patterns).toHaveLength(7);
-    expect(summary.recurringSequences).toHaveLength(5);
-    expect(summary.openQuestions).toHaveLength(4);
+    expect(summary.patterns).toHaveLength(5);
+    expect(summary.recurringSequences).toHaveLength(3);
+    expect(summary.openQuestions).toHaveLength(3);
   });
 
   it('is deterministic', () => {
@@ -408,6 +412,38 @@ describe('buildPatternAnalysisSummary', () => {
     const s = buildPatternAnalysisSummary(r);
     expect(s.patterns).toHaveLength(0);
     expect(s.summary).toBeTruthy();
+  });
+
+  it('extractCompactSummary prefers _compactSummary over raw', () => {
+    const r = mockResult();
+    const compact = buildPatternAnalysisSummary(r);
+    const stored = { ...r, _compactSummary: compact };
+    const extracted = extractCompactSummary(stored);
+    expect(extracted).toEqual(compact);
+  });
+
+  it('extractCompactSummary falls back to raw for legacy records', () => {
+    const r = mockResult();
+    const extracted = extractCompactSummary(r);
+    expect(extracted).not.toBeNull();
+    expect(extracted!.patterns).toHaveLength(Math.min(r.possiblePatterns.length, MAX_PATTERNS));
+  });
+
+  it('extractCompactSummary enforces limits on pre-built summary', () => {
+    const oversize = {
+      _compactSummary: {
+        summary: 'test',
+        patterns: Array.from({ length: 10 }, (_, i) => ({ title: `P${i}`, description: `D${i}`, evidenceStrength: 'medium' })),
+        recurringSequences: Array.from({ length: 8 }, (_, i) => ({ pattern: `S${i}`, count: i, interpretation: `I${i}` })),
+        openQuestions: ['Q1','Q2','Q3','Q4','Q5','Q6'],
+        analyzedAt: '2026-04-10T12:00:00Z',
+        daysAnalyzed: 30,
+      }
+    };
+    const extracted = extractCompactSummary(oversize);
+    expect(extracted!.patterns).toHaveLength(MAX_PATTERNS);
+    expect(extracted!.recurringSequences).toHaveLength(MAX_SEQUENCES);
+    expect(extracted!.openQuestions).toHaveLength(MAX_QUESTIONS);
   });
 });
 
@@ -447,7 +483,7 @@ describe('Cross-output consistency (PDF, Website, Snapshot)', () => {
     expect(pa.patterns.map(p => p.evidenceStrength)).toEqual(['high', 'medium', 'low']);
   });
 
-  it('limits are enforced identically (7 patterns, 5 sequences, 4 questions)', () => {
+  it('limits are enforced identically (5 patterns, 3 sequences, 3 questions)', () => {
     const r = mockResult({
       possiblePatterns: Array.from({ length: 12 }, (_, i) => ({
         patternType: 'trigger_candidate' as const, title: `P${i}`, description: `D${i}`,
@@ -459,9 +495,9 @@ describe('Cross-output consistency (PDF, Website, Snapshot)', () => {
       openQuestions: ['Q1', 'Q2', 'Q3', 'Q4', 'Q5', 'Q6', 'Q7'],
     });
     const pa = buildPatternAnalysisSummary(r);
-    expect(pa.patterns).toHaveLength(7);
-    expect(pa.recurringSequences).toHaveLength(5);
-    expect(pa.openQuestions).toHaveLength(4);
+    expect(pa.patterns).toHaveLength(5);
+    expect(pa.recurringSequences).toHaveLength(3);
+    expect(pa.openQuestions).toHaveLength(3);
   });
 
   it('llmInterpretation → interpretation field mapping', () => {

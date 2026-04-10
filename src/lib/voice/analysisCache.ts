@@ -425,6 +425,9 @@ export async function selectAnalysisForChannel(
 /**
  * Save a voice pattern analysis result to ai_reports.
  * Stores the current data_state_signature for later exact-match reuse.
+ * Also persists a pre-built compact summary (_compactSummary) inside
+ * response_json so all channels (App, PDF, Website, Snapshot) can
+ * read the same pre-mapped structure without re-mapping.
  */
 export async function saveAnalysisResult(
   result: VoiceAnalysisResult,
@@ -444,6 +447,13 @@ export async function saveAnalysisResult(
     signature = fp?.stateSignature ?? null;
   }
 
+  // Build compact summary and attach to response_json for SSOT
+  const compactSummary = buildPatternAnalysisSummary(result);
+  const enrichedResult = {
+    ...result,
+    _compactSummary: compactSummary,
+  };
+
   // Check for existing
   const { data: existing } = await supabase
     .from('ai_reports')
@@ -456,7 +466,7 @@ export async function saveAnalysisResult(
     const { error } = await supabase
       .from('ai_reports')
       .update({
-        response_json: result as any,
+        response_json: enrichedResult as any,
         updated_at: new Date().toISOString(),
         title: `KI-Analyse ${fromDate} – ${toDate}`,
         model: result.meta.model,
@@ -481,7 +491,7 @@ export async function saveAnalysisResult(
       from_date: fromDate,
       to_date: toDate,
       source: 'analysis_view',
-      response_json: result as any,
+      response_json: enrichedResult as any,
       model: result.meta.model,
       dedupe_key: dedupeKey,
       data_state_signature: signature,
@@ -521,47 +531,121 @@ export async function loadAnalysisForReport(
 }
 
 // ============================================================
+// === SHARED CONSTANTS ===
+// ============================================================
+
+/** Max patterns shown in any channel */
+export const MAX_PATTERNS = 5;
+/** Max recurring sequences shown */
+export const MAX_SEQUENCES = 3;
+/** Max open questions shown */
+export const MAX_QUESTIONS = 3;
+
+/** Evidence sort order */
+export const EVIDENCE_ORDER: Record<string, number> = { high: 3, medium: 2, low: 1 };
+
+// ============================================================
 // === SHARED SUMMARY FORMAT ===
 // ============================================================
 
 /**
- * Build a PatternAnalysisSummary from a VoiceAnalysisResult.
- * 
- * SINGLE FORMAT for all outputs: Snapshot, Website, PDF.
- * Enforces consistent limits and field mapping.
- * 
- * Limits:
- * - max 7 patterns (sorted by evidence strength)
- * - max 5 recurring sequences
- * - max 4 open questions
+ * Compact summary type used by all output channels.
  */
-export function buildPatternAnalysisSummary(result: VoiceAnalysisResult): {
+export interface PatternAnalysisCompactSummary {
   summary: string;
   patterns: Array<{ title: string; description: string; evidenceStrength: string }>;
   recurringSequences: Array<{ pattern: string; count: number; interpretation: string }>;
   openQuestions: string[];
   analyzedAt: string;
   daysAnalyzed: number;
-} {
-  // Sort patterns: high > medium > low evidence
-  const evidenceOrder: Record<string, number> = { high: 3, medium: 2, low: 1 };
+}
+
+/**
+ * Build a PatternAnalysisSummary from a VoiceAnalysisResult.
+ * 
+ * SINGLE FORMAT for all outputs: App, Snapshot, Website, PDF.
+ * Enforces consistent limits and field mapping.
+ * 
+ * Limits:
+ * - max 5 patterns (sorted by evidence strength, then occurrences)
+ * - max 3 recurring sequences
+ * - max 3 open questions
+ */
+export function buildPatternAnalysisSummary(result: VoiceAnalysisResult): PatternAnalysisCompactSummary {
   const sortedPatterns = [...result.possiblePatterns]
-    .sort((a, b) => (evidenceOrder[b.evidenceStrength] || 0) - (evidenceOrder[a.evidenceStrength] || 0));
+    .sort((a, b) => {
+      const ePri = (EVIDENCE_ORDER[b.evidenceStrength] || 0) - (EVIDENCE_ORDER[a.evidenceStrength] || 0);
+      if (ePri !== 0) return ePri;
+      return b.occurrences - a.occurrences;
+    });
 
   return {
     summary: result.summary,
-    patterns: sortedPatterns.slice(0, 7).map(p => ({
+    patterns: sortedPatterns.slice(0, MAX_PATTERNS).map(p => ({
       title: p.title,
       description: p.description,
       evidenceStrength: p.evidenceStrength,
     })),
-    recurringSequences: result.recurringSequences.slice(0, 5).map(s => ({
+    recurringSequences: result.recurringSequences.slice(0, MAX_SEQUENCES).map(s => ({
       pattern: s.pattern,
       count: s.count,
       interpretation: s.llmInterpretation,
     })),
-    openQuestions: result.openQuestions.slice(0, 4),
+    openQuestions: result.openQuestions.slice(0, MAX_QUESTIONS),
     analyzedAt: result.meta.analyzedAt,
     daysAnalyzed: result.scope.daysAnalyzed,
+  };
+}
+
+/**
+ * Extract the pre-built compact summary from a stored response_json.
+ * Falls back to building from raw if _compactSummary is not present (legacy).
+ */
+export function extractCompactSummary(
+  responseJson: unknown,
+): PatternAnalysisCompactSummary | null {
+  const r = responseJson as Record<string, unknown>;
+  if (!r || typeof r !== 'object') return null;
+
+  // Prefer pre-built compact summary (persisted at save time)
+  if (r._compactSummary && typeof (r._compactSummary as any).summary === 'string') {
+    const cs = r._compactSummary as PatternAnalysisCompactSummary;
+    // Re-enforce limits in case they changed
+    return {
+      summary: cs.summary,
+      patterns: (cs.patterns || []).slice(0, MAX_PATTERNS),
+      recurringSequences: (cs.recurringSequences || []).slice(0, MAX_SEQUENCES),
+      openQuestions: (cs.openQuestions || []).slice(0, MAX_QUESTIONS),
+      analyzedAt: cs.analyzedAt,
+      daysAnalyzed: cs.daysAnalyzed,
+    };
+  }
+
+  // Fallback: build from raw VoiceAnalysisResult shape (legacy records)
+  if (typeof r.summary !== 'string' || !Array.isArray(r.possiblePatterns)) return null;
+  if (r.possiblePatterns.length === 0) return null;
+
+  const sorted = [...(r.possiblePatterns as any[])]
+    .sort((a, b) => (EVIDENCE_ORDER[b.evidenceStrength] || 0) - (EVIDENCE_ORDER[a.evidenceStrength] || 0));
+
+  return {
+    summary: r.summary as string,
+    patterns: sorted.slice(0, MAX_PATTERNS).map((p: any) => ({
+      title: String(p.title || ''),
+      description: String(p.description || ''),
+      evidenceStrength: String(p.evidenceStrength || 'low'),
+    })),
+    recurringSequences: Array.isArray(r.recurringSequences)
+      ? (r.recurringSequences as any[]).slice(0, MAX_SEQUENCES).map((s: any) => ({
+          pattern: String(s.pattern || ''),
+          count: Number(s.count) || 1,
+          interpretation: String(s.llmInterpretation || s.interpretation || ''),
+        }))
+      : [],
+    openQuestions: Array.isArray(r.openQuestions)
+      ? (r.openQuestions as string[]).slice(0, MAX_QUESTIONS)
+      : [],
+    analyzedAt: (r.meta as any)?.analyzedAt || '',
+    daysAnalyzed: (r.scope as any)?.daysAnalyzed || 0,
   };
 }

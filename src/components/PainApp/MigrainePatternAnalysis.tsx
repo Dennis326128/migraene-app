@@ -23,20 +23,17 @@ import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { TimeRangeSelector } from './TimeRangeSelector';
 import { runVoicePatternAnalysis } from '@/lib/voice/analysisEngine';
 import { isAnalysisUnavailable, type VoiceAnalysisResult, type PatternFinding, type ContextFinding } from '@/lib/voice/analysisTypes';
-import { selectAnalysisForChannel, saveAnalysisResult } from '@/lib/voice/analysisCache';
+import { selectAnalysisForChannel, saveAnalysisResult, MAX_PATTERNS, MAX_SEQUENCES, MAX_QUESTIONS, EVIDENCE_ORDER } from '@/lib/voice/analysisCache';
 import { logError } from '@/lib/utils/errorMessages';
 
 // ============================================================
 // === HELPERS ===
 // ============================================================
 
-/** Evidence strength to sort priority (higher = more relevant) */
-const EVIDENCE_PRIORITY: Record<string, number> = { high: 3, medium: 2, low: 1 };
-
 /** Sort patterns: higher evidence first, then by occurrence count */
 function sortPatterns(patterns: PatternFinding[]): PatternFinding[] {
   return [...patterns].sort((a, b) => {
-    const ePri = (EVIDENCE_PRIORITY[b.evidenceStrength] || 0) - (EVIDENCE_PRIORITY[a.evidenceStrength] || 0);
+    const ePri = (EVIDENCE_ORDER[b.evidenceStrength] || 0) - (EVIDENCE_ORDER[a.evidenceStrength] || 0);
     if (ePri !== 0) return ePri;
     return b.occurrences - a.occurrences;
   });
@@ -189,7 +186,7 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
   const [showReport, setShowReport] = useState(false);
 
   const { sortedPatterns, extraContextFindings, uncertainties } = useMemo(() => {
-    const sorted = sortPatterns(result.possiblePatterns);
+    const sorted = sortPatterns(result.possiblePatterns).slice(0, MAX_PATTERNS);
 
     // Merge pain + relevant fatigue + medication findings, then deduplicate against patterns
     const painFindings = result.painContextFindings;
@@ -200,7 +197,10 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
     const allContext = [...painFindings, ...fatigueFiltered, ...result.medicationContextFindings];
     const deduped = deduplicateFindings(allContext, sorted);
 
-    const merged = mergeUncertainties(result.openQuestions, result.confidenceNotes);
+    const merged = mergeUncertainties(
+      result.openQuestions.slice(0, MAX_QUESTIONS),
+      result.confidenceNotes,
+    ).slice(0, MAX_QUESTIONS);
 
     return { sortedPatterns: sorted, extraContextFindings: deduped, uncertainties: merged };
   }, [result]);
@@ -239,7 +239,7 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
         </div>
       )}
 
-      {/* 3. Recurring sequences — only if not already covered by patterns */}
+      {/* 3. Recurring sequences — limited to MAX_SEQUENCES */}
       {hasSequences && (
         <div className="space-y-3">
           <div className="flex items-center gap-2">
@@ -247,7 +247,7 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
             <h3 className="font-semibold text-sm">Wiederkehrende Muster</h3>
           </div>
           <div className="space-y-2">
-            {result.recurringSequences.map((seq, i) => (
+            {result.recurringSequences.slice(0, MAX_SEQUENCES).map((seq, i) => (
               <div key={i} className="p-3 rounded-lg border bg-card">
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-sm font-medium">{seq.pattern}</span>
@@ -382,6 +382,7 @@ export function MigrainePatternAnalysis() {
   const [error, setError] = useState<string | null>(null);
   const [isWeakData, setIsWeakData] = useState(false);
   const [isCachedResult, setIsCachedResult] = useState(false);
+  const [isStaleResult, setIsStaleResult] = useState(false);
   const [cachedAt, setCachedAt] = useState<string | null>(null);
 
   // Load cached analysis on mount or when range changes
@@ -392,6 +393,7 @@ export function MigrainePatternAnalysis() {
     setError(null);
     setIsWeakData(false);
     setIsCachedResult(false);
+    setIsStaleResult(false);
     setCachedAt(null);
 
     (async () => {
@@ -403,11 +405,10 @@ export function MigrainePatternAnalysis() {
           if (isAnalysisUnavailable(selection.result)) {
             setIsWeakData(true);
           } else {
-            setResult(selection.result);
+          setResult(selection.result);
             setIsCachedResult(true);
+            setIsStaleResult(!selection.isFresh);
             setCachedAt(selection.result.meta?.analyzedAt || null);
-            // Note: selection.isFresh indicates whether data has changed since analysis
-            // For now we show stale results normally — user can re-run if needed
           }
         }
       } catch (err) {
@@ -426,6 +427,7 @@ export function MigrainePatternAnalysis() {
     setIsWeakData(false);
     setIsAnalyzing(true);
     setIsCachedResult(false);
+    setIsStaleResult(false);
 
     try {
       const range = {
@@ -514,10 +516,16 @@ export function MigrainePatternAnalysis() {
           </Button>
 
           {/* Cache status indicator */}
-          {isCachedResult && cachedAtLabel && (
+          {isCachedResult && cachedAtLabel && !isStaleResult && (
             <p className="text-xs text-muted-foreground/60 text-center flex items-center justify-center gap-1.5">
               <CheckCircle2 className="h-3 w-3" />
-              Gespeicherte Analyse vom {cachedAtLabel}
+              Analyse vom {cachedAtLabel}
+            </p>
+          )}
+          {isCachedResult && isStaleResult && (
+            <p className="text-xs text-amber-600 dark:text-amber-400 text-center flex items-center justify-center gap-1.5">
+              <AlertCircle className="h-3 w-3" />
+              Diese Analyse basiert auf einem älteren Datenstand{cachedAtLabel ? ` (${cachedAtLabel})` : ''}
             </p>
           )}
         </CardContent>

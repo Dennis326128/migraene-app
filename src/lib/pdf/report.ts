@@ -1863,7 +1863,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
 
       // Patterns
       const evidenceLabels: Record<string, string> = { high: 'Deutliche Hinweise', medium: 'Mehrere Hinweise', low: 'Wenige Hinweise' };
-      for (const p of patternAnalysis.patterns.slice(0, 7)) {
+      for (const p of patternAnalysis.patterns.slice(0, 5)) {
         if (yPos < LAYOUT.margin + 60) {
           page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
           yPos = LAYOUT.pageHeight - LAYOUT.margin;
@@ -1884,7 +1884,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
         yPos -= 4;
         page.drawText('Wiederkehrende Muster:', { x: LAYOUT.margin, y: yPos, size: 9, font: fontBold, color: COLORS.text });
         yPos -= 13;
-        for (const seq of patternAnalysis.recurringSequences.slice(0, 5)) {
+        for (const seq of patternAnalysis.recurringSequences.slice(0, 3)) {
           if (yPos < LAYOUT.margin + 40) {
             page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
             yPos = LAYOUT.pageHeight - LAYOUT.margin;
@@ -1903,7 +1903,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
         yPos -= 4;
         page.drawText('Was noch unklar ist:', { x: LAYOUT.margin, y: yPos, size: 9, font: fontBold, color: COLORS.textLight });
         yPos -= 13;
-        for (const q of patternAnalysis.openQuestions.slice(0, 4)) {
+        for (const q of patternAnalysis.openQuestions.slice(0, 3)) {
           if (yPos < LAYOUT.margin + 40) {
             page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
             yPos = LAYOUT.pageHeight - LAYOUT.margin;
