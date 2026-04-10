@@ -1546,15 +1546,16 @@ export async function buildDoctorReportSnapshot(
   }
 
   // F) KI Pattern Analysis — load from ai_reports if requested
+  // Uses dedupe_key for exact range match, then validates data-state freshness
   if (includePatternAnalysis) {
     try {
+      const dedupeKey = `pattern_analysis_${from}_${to}`;
       const { data: aiReport } = await supabase
         .from("ai_reports")
         .select("response_json, updated_at")
         .eq("user_id", userId)
         .eq("report_type", "pattern_analysis")
-        .gte("from_date", from)
-        .lte("to_date", to)
+        .eq("dedupe_key", dedupeKey)
         .order("updated_at", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -1584,7 +1585,7 @@ export async function buildDoctorReportSnapshot(
               ? Number((r.scope as Record<string, unknown>).daysAnalyzed)
               : 0,
           };
-          console.log(`[DoctorReport] PatternAnalysis: ${analysis.patternAnalysis.patterns.length} patterns loaded from ai_reports`);
+          console.log(`[DoctorReport] PatternAnalysis: ${analysis.patternAnalysis.patterns.length} patterns loaded (dedupeKey=${dedupeKey})`);
         }
       }
     } catch (err) {
