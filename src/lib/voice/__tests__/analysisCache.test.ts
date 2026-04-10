@@ -447,7 +447,7 @@ describe('Cross-output consistency (PDF, Website, Snapshot)', () => {
     expect(pa.patterns.map(p => p.evidenceStrength)).toEqual(['high', 'medium', 'low']);
   });
 
-  it('limits are enforced identically (7 patterns, 5 sequences, 4 questions)', () => {
+  it('limits are enforced identically (5 patterns, 3 sequences, 3 questions)', () => {
     const r = mockResult({
       possiblePatterns: Array.from({ length: 12 }, (_, i) => ({
         patternType: 'trigger_candidate' as const, title: `P${i}`, description: `D${i}`,
@@ -459,9 +459,9 @@ describe('Cross-output consistency (PDF, Website, Snapshot)', () => {
       openQuestions: ['Q1', 'Q2', 'Q3', 'Q4', 'Q5', 'Q6', 'Q7'],
     });
     const pa = buildPatternAnalysisSummary(r);
-    expect(pa.patterns).toHaveLength(7);
-    expect(pa.recurringSequences).toHaveLength(5);
-    expect(pa.openQuestions).toHaveLength(4);
+    expect(pa.patterns).toHaveLength(5);
+    expect(pa.recurringSequences).toHaveLength(3);
+    expect(pa.openQuestions).toHaveLength(3);
   });
 
   it('llmInterpretation → interpretation field mapping', () => {
