@@ -308,10 +308,55 @@ describe('context finding evidence gate', () => {
 });
 
 describe('sequence interpretation minimum length', () => {
-  it('interpretation under 30 chars is too short for sequences', () => {
-    expect('Stress vor Schmerz.'.length < 30).toBe(true);
+  it('interpretation under 35 chars is too short for sequences', () => {
+    expect('Stress vor Schmerz beobachtet.'.length < 35).toBe(true);
   });
-  it('interpretation over 30 chars passes', () => {
-    expect('Schlafmangel ging mehrfach einem Schmerzanstieg voraus.'.length >= 30).toBe(true);
+  it('interpretation over 35 chars passes', () => {
+    expect('Schlafmangel ging mehrfach einem Schmerzanstieg voraus.'.length >= 35).toBe(true);
+  });
+});
+
+// ============================================================
+// === Residual filler / uncertainty suppression tests ===
+// ============================================================
+
+describe('isBanalContent – residual filler sentences', () => {
+  it('rejects "wurde dokumentiert"', () => {
+    expect(isBanalContent('An drei Tagen wurde dokumentiert, dass Schmerzen auftraten')).toBe(true);
+  });
+  it('rejects "im Analysezeitraum"', () => {
+    expect(isBanalContent('Im Analysezeitraum gab es mehrere Schmerzeinträge')).toBe(true);
+  });
+  it('rejects "es zeigt sich"', () => {
+    expect(isBanalContent('Es zeigt sich ein Zusammenhang mit Belastung')).toBe(true);
+  });
+  it('rejects "wie bereits erwähnt"', () => {
+    expect(isBanalContent('Wie bereits erwähnt sind Triptane relevant')).toBe(true);
+  });
+});
+
+describe('isGenericUncertainty – residual vague phrases', () => {
+  it('rejects "ob hier ein Zusammenhang besteht"', () => {
+    expect(isGenericUncertainty('Ob hier ein Zusammenhang besteht, ist unklar')).toBe(true);
+  });
+  it('rejects "bleibt abzuwarten"', () => {
+    expect(isGenericUncertainty('Es bleibt abzuwarten, ob sich das bestätigt')).toBe(true);
+  });
+  it('rejects "kann nicht abschließend"', () => {
+    expect(isGenericUncertainty('Dies kann nicht abschließend beurteilt werden')).toBe(true);
+  });
+  it('rejects "grundsätzlich möglich"', () => {
+    expect(isGenericUncertainty('Ein Zusammenhang ist grundsätzlich möglich')).toBe(true);
+  });
+});
+
+describe('uncertainty minimum length gate (40 chars)', () => {
+  it('items under 40 chars are filtered', () => {
+    expect('Zusammenhang unklar.'.length < 40).toBe(true);
+    expect('Mehr Daten wären hilfreich.'.length < 40).toBe(true);
+  });
+  it('substantive items over 40 chars pass', () => {
+    const good = 'Ob die verzögerte Triptan-Einnahme ursächlich für längere Attacken ist, bleibt offen.';
+    expect(good.length >= 40).toBe(true);
   });
 });
