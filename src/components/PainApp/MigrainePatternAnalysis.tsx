@@ -13,16 +13,17 @@
  * - Patterns sorted by relevance (evidence strength + occurrences)
  */
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { Brain, Loader2, AlertCircle, Lightbulb, RefreshCw, HelpCircle, TrendingUp, FileText, Eye } from 'lucide-react';
+import { Brain, Loader2, AlertCircle, Lightbulb, RefreshCw, HelpCircle, TrendingUp, FileText, Eye, CheckCircle2 } from 'lucide-react';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { TimeRangeSelector } from './TimeRangeSelector';
 import { runVoicePatternAnalysis } from '@/lib/voice/analysisEngine';
 import { isAnalysisUnavailable, type VoiceAnalysisResult, type PatternFinding, type ContextFinding } from '@/lib/voice/analysisTypes';
+import { loadCachedAnalysis, isCacheValid, saveAnalysisResult, canReanalyze } from '@/lib/voice/analysisCache';
 import { logError } from '@/lib/utils/errorMessages';
 
 // ============================================================
