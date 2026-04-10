@@ -667,3 +667,121 @@ describe('Cooldown is secondary to data change', () => {
     expect(result.reason).toBe('signature_mismatch');
   });
 });
+
+// ============================================================
+// 16. extractCompactSummary — edge cases & SSOT contract
+// ============================================================
+
+describe('extractCompactSummary edge cases', () => {
+  it('returns null for null/undefined input', () => {
+    expect(extractCompactSummary(null)).toBeNull();
+    expect(extractCompactSummary(undefined)).toBeNull();
+  });
+
+  it('returns null for non-object input', () => {
+    expect(extractCompactSummary('string')).toBeNull();
+    expect(extractCompactSummary(42)).toBeNull();
+  });
+
+  it('returns null for object without summary or possiblePatterns', () => {
+    expect(extractCompactSummary({ foo: 'bar' })).toBeNull();
+  });
+
+  it('returns null for legacy data with empty possiblePatterns', () => {
+    expect(extractCompactSummary({ summary: 'test', possiblePatterns: [] })).toBeNull();
+  });
+
+  it('prefers _compactSummary even if possiblePatterns also exists', () => {
+    const compact = buildPatternAnalysisSummary(mockResult());
+    const stored = { ...mockResult(), _compactSummary: { ...compact, summary: 'COMPACT VERSION' } };
+    const extracted = extractCompactSummary(stored);
+    expect(extracted!.summary).toBe('COMPACT VERSION');
+  });
+
+  it('legacy fallback maps llmInterpretation → interpretation', () => {
+    const legacy = mockResult();
+    // No _compactSummary — force legacy path
+    const extracted = extractCompactSummary(legacy);
+    expect(extracted!.recurringSequences[0]).toHaveProperty('interpretation');
+    expect((extracted!.recurringSequences[0] as any).llmInterpretation).toBeUndefined();
+  });
+});
+
+// ============================================================
+// 17. Cross-channel SSOT: buildPatternAnalysisSummary ≡ extractCompactSummary
+// ============================================================
+
+describe('Cross-channel SSOT identity', () => {
+  it('extractCompactSummary from _compactSummary equals buildPatternAnalysisSummary output', () => {
+    const result = mockResult();
+    const built = buildPatternAnalysisSummary(result);
+    const stored = { ...result, _compactSummary: built };
+    const extracted = extractCompactSummary(stored);
+    expect(extracted).toEqual(built);
+  });
+
+  it('all channels see identical field names', () => {
+    const result = mockResult();
+    const summary = buildPatternAnalysisSummary(result);
+    const keys = Object.keys(summary).sort();
+    expect(keys).toEqual(['analyzedAt', 'daysAnalyzed', 'openQuestions', 'patterns', 'recurringSequences', 'summary']);
+    // Pattern fields
+    expect(Object.keys(summary.patterns[0]).sort()).toEqual(['description', 'evidenceStrength', 'title']);
+    // Sequence fields
+    expect(Object.keys(summary.recurringSequences[0]).sort()).toEqual(['count', 'interpretation', 'pattern']);
+  });
+
+  it('limits are identical: MAX_PATTERNS=5, MAX_SEQUENCES=3, MAX_QUESTIONS=3', () => {
+    expect(MAX_PATTERNS).toBe(5);
+    expect(MAX_SEQUENCES).toBe(3);
+    expect(MAX_QUESTIONS).toBe(3);
+  });
+});
+
+// ============================================================
+// 18. Migraine prioritization: evidence + occurrences tiebreaker
+// ============================================================
+
+describe('Migraine prioritization in sorting', () => {
+  it('same evidence: higher occurrences sorts first', () => {
+    const r = mockResult({
+      possiblePatterns: [
+        { patternType: 'trigger_candidate', title: 'RarePattern', description: 'd', evidenceStrength: 'medium', occurrences: 1, examples: [], uncertaintyNotes: [] },
+        { patternType: 'trigger_candidate', title: 'FrequentPattern', description: 'd', evidenceStrength: 'medium', occurrences: 8, examples: [], uncertaintyNotes: [] },
+        { patternType: 'trigger_candidate', title: 'MidPattern', description: 'd', evidenceStrength: 'medium', occurrences: 4, examples: [], uncertaintyNotes: [] },
+      ],
+    });
+    const summary = buildPatternAnalysisSummary(r);
+    expect(summary.patterns.map(p => p.title)).toEqual(['FrequentPattern', 'MidPattern', 'RarePattern']);
+  });
+
+  it('evidence trumps occurrences', () => {
+    const r = mockResult({
+      possiblePatterns: [
+        { patternType: 'trigger_candidate', title: 'LowFrequent', description: 'd', evidenceStrength: 'low', occurrences: 20, examples: [], uncertaintyNotes: [] },
+        { patternType: 'trigger_candidate', title: 'HighRare', description: 'd', evidenceStrength: 'high', occurrences: 1, examples: [], uncertaintyNotes: [] },
+      ],
+    });
+    const summary = buildPatternAnalysisSummary(r);
+    expect(summary.patterns[0].title).toBe('HighRare');
+    expect(summary.patterns[1].title).toBe('LowFrequent');
+  });
+
+  it('mixed evidence and occurrences sorted correctly for 5+ patterns', () => {
+    const r = mockResult({
+      possiblePatterns: [
+        { patternType: 'trigger_candidate', title: 'P1', description: 'd', evidenceStrength: 'low', occurrences: 10, examples: [], uncertaintyNotes: [] },
+        { patternType: 'trigger_candidate', title: 'P2', description: 'd', evidenceStrength: 'high', occurrences: 3, examples: [], uncertaintyNotes: [] },
+        { patternType: 'trigger_candidate', title: 'P3', description: 'd', evidenceStrength: 'medium', occurrences: 7, examples: [], uncertaintyNotes: [] },
+        { patternType: 'trigger_candidate', title: 'P4', description: 'd', evidenceStrength: 'high', occurrences: 5, examples: [], uncertaintyNotes: [] },
+        { patternType: 'trigger_candidate', title: 'P5', description: 'd', evidenceStrength: 'medium', occurrences: 2, examples: [], uncertaintyNotes: [] },
+        { patternType: 'trigger_candidate', title: 'P6', description: 'd', evidenceStrength: 'low', occurrences: 1, examples: [], uncertaintyNotes: [] },
+      ],
+    });
+    const summary = buildPatternAnalysisSummary(r);
+    // Max 5 patterns
+    expect(summary.patterns).toHaveLength(5);
+    // Order: high(5), high(3), medium(7), medium(2), low(10) — P6 (low,1) cut
+    expect(summary.patterns.map(p => p.title)).toEqual(['P4', 'P2', 'P3', 'P5', 'P1']);
+  });
+});

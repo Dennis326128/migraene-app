@@ -198,10 +198,22 @@ WICHTIGE REGELN:
    - Jedes Pattern muss einen EIGENSTÄNDIGEN Informationsgehalt haben – keine Wiederholung desselben Inhalts in leicht anderer Form
    - Wenn ein Muster bereits als possiblePattern beschrieben ist, NICHT nochmal in painContextFindings oder fatigueContextFindings wiederholen
    - Sortiere possiblePatterns nach Relevanz: stärkere Evidenz und häufigere Beobachtungen zuerst
-   - Maximal 5-7 possiblePatterns – lieber wenige starke als viele schwache
-   - Maximal 3-4 painContextFindings – nur wenn sie Mehrwert ÜBER die Patterns hinaus bieten
-   - Maximal 2-3 fatigueContextFindings – nur wenn migränerelevant oder evidenzstark
+   - Maximal 5 possiblePatterns – lieber wenige starke als viele schwache
+   - Maximal 3 painContextFindings – nur wenn sie Mehrwert ÜBER die Patterns hinaus bieten
+   - Maximal 2 fatigueContextFindings – nur wenn migränerelevant oder evidenzstark
    - openQuestions und confidenceNotes NICHT redundant: jeder Punkt nur einmal, hilfreich formuliert
+
+3b. MIGRÄNE-PRIORISIERUNG
+   - Die für Migräne relevantesten Faktoren sollen in possiblePatterns OBEN stehen:
+     * Schlaf / Schlafmangel / Schlafrhythmus
+     * Stress / Überlastung / Anspannung
+     * Reizfaktoren (Licht, Lärm, Menschenmengen, Bildschirmzeit)
+     * Medikamente in zeitlicher Beziehung zu Schmerz (Wirkung, Übergebrauch)
+     * Wiederkehrende Vorboten oder Abfolgen vor Schmerzphasen
+     * Ernährungs-/Trinkverhalten nur bei auffälligem Muster
+   - Wetterzusammenhänge nur dann prominent, wenn belastbare Häufigkeit erkennbar (>50% Koinzidenz)
+   - Allgemeine Erschöpfungs-/Stimmungsmuster nur wenn Migränebezug erkennbar
+   - Wenn zu viele mittelmäßige Muster erkannt werden: nur die stärksten 3-5 ausgeben
 
 4. KEIN TAGESBERICHT
    - KEINE Aufzählung einzelner Tage oder Datumslisten
