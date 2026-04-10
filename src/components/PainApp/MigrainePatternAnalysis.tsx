@@ -448,16 +448,16 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
           <FileText className="h-3 w-3 mr-1.5" />
           {showReport ? 'Bericht schließen' : 'Als Bericht anzeigen'}
         </Button>
-        <p className="text-[10px] text-muted-foreground/60 text-center">
+        <p className="text-[10px] text-muted-foreground/50 text-center">
           Mögliche Zusammenhänge · keine medizinische Diagnose
         </p>
       </div>
 
       {/* Report view */}
       {showReport && (
-        <div className="rounded-lg bg-muted/15 px-5 py-4">
+        <div className="rounded-lg bg-muted/10 px-5 py-4">
           <div className="flex items-center justify-between mb-3">
-            <h4 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Analysebericht</h4>
+            <h4 className="text-[11px] font-medium uppercase tracking-widest text-muted-foreground/80">Analysebericht</h4>
             <Button
               variant="ghost"
               size="sm"
