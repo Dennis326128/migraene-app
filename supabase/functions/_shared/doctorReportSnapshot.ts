@@ -996,6 +996,8 @@ export interface BuildSnapshotOptions {
   page?: number;
   pageSize?: number;
   includePatientData?: boolean;
+  /** Whether to load and embed persisted KI pattern analysis from ai_reports */
+  includePatternAnalysis?: boolean;
 }
 
 export async function buildDoctorReportSnapshot(
@@ -1007,6 +1009,7 @@ export async function buildDoctorReportSnapshot(
     range,
     pageSize = MAX_ENTRIES_PER_PAGE,
     includePatientData = true,
+    includePatternAnalysis = false,
   } = options;
 
   const { from, to } = getDateRange(range);
@@ -1540,6 +1543,53 @@ export async function buildDoctorReportSnapshot(
   if (mecfs) {
     analysis.mecfs = mecfs;
     console.log(`[DoctorReport] ME/CFS: ${mecfs.documentedDays} documented, sufficient=${mecfs.sufficient}`);
+  }
+
+  // F) KI Pattern Analysis — load from ai_reports if requested
+  if (includePatternAnalysis) {
+    try {
+      const { data: aiReport } = await supabase
+        .from("ai_reports")
+        .select("response_json, updated_at")
+        .eq("user_id", userId)
+        .eq("report_type", "pattern_analysis")
+        .gte("from_date", from)
+        .lte("to_date", to)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (aiReport?.response_json) {
+        const r = aiReport.response_json as Record<string, unknown>;
+        if (typeof r.summary === "string" && Array.isArray(r.possiblePatterns) && r.possiblePatterns.length > 0) {
+          analysis.patternAnalysis = {
+            summary: r.summary as string,
+            patterns: (r.possiblePatterns as Array<Record<string, unknown>>).slice(0, 7).map(p => ({
+              title: String(p.title || ""),
+              description: String(p.description || ""),
+              evidenceStrength: String(p.evidenceStrength || "low"),
+            })),
+            recurringSequences: Array.isArray(r.recurringSequences)
+              ? (r.recurringSequences as Array<Record<string, unknown>>).slice(0, 5).map(s => ({
+                  pattern: String(s.pattern || ""),
+                  count: Number(s.count) || 1,
+                  interpretation: String(s.llmInterpretation || s.interpretation || ""),
+                }))
+              : [],
+            openQuestions: Array.isArray(r.openQuestions)
+              ? (r.openQuestions as string[]).slice(0, 4)
+              : [],
+            analyzedAt: aiReport.updated_at,
+            daysAnalyzed: (r.scope as Record<string, unknown>)?.daysAnalyzed
+              ? Number((r.scope as Record<string, unknown>).daysAnalyzed)
+              : 0,
+          };
+          console.log(`[DoctorReport] PatternAnalysis: ${analysis.patternAnalysis.patterns.length} patterns loaded from ai_reports`);
+        }
+      }
+    } catch (err) {
+      console.warn("[DoctorReport] Failed to load pattern analysis:", err);
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────────────

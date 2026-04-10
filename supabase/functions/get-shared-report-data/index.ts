@@ -102,6 +102,17 @@ Deno.serve(async (req) => {
     const page = parseInt(url.searchParams.get("page") || "1", 10);
     const wantsLegacy = url.searchParams.get("legacy") === "1" || req.headers.get("x-report-legacy") === "1";
 
+    // Check share settings for AI analysis inclusion
+    let includePatternAnalysis = false;
+    const { data: shareSettings } = await supabase
+      .from("doctor_share_settings")
+      .select("include_ai_analysis")
+      .eq("share_id", shareId)
+      .maybeSingle();
+    if (shareSettings?.include_ai_analysis) {
+      includePatternAnalysis = true;
+    }
+
     // Snapshot flow
     let reportJson: DoctorReportJSON;
     let snapshotId: string | null = null;
@@ -141,7 +152,7 @@ Deno.serve(async (req) => {
     if (needsRebuild) {
       console.log(`[Doctor Report v1] Rebuilding snapshot: reason=${rebuildReason} userId=${userId.substring(0, 8)}... range=${range}`);
       const { reportJson: newReport, sourceUpdatedAt } = await buildDoctorReportSnapshot(supabase, {
-        userId, range, page, includePatientData: true,
+        userId, range, page, includePatientData: true, includePatternAnalysis,
       });
       snapshotId = await upsertSnapshot(supabase, shareId, range, newReport, sourceUpdatedAt, null);
       snapshotGeneratedAt = newReport.meta.generatedAt;
