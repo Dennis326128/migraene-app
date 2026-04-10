@@ -187,7 +187,10 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
       // Bidirectional overlap: suppress if either direction shows strong overlap
       const pInSummary = textOverlap(pText, result.summary);
       const summaryInP = textOverlap(result.summary, pText);
-      if (Math.max(pInSummary, summaryInP) > 0.30) continue;
+      // Tighter threshold if both summary and pattern are about medication
+      const bothMed = MEDICATION_TITLE_RX.test(result.summary) && MEDICATION_TITLE_RX.test(pText);
+      const summaryThreshold = bothMed ? 0.45 : 0.30;
+      if (Math.max(pInSummary, summaryInP) > summaryThreshold) continue;
       if (overlapsAny(pText, dedupedPatterns.map(d => d.title + ' ' + d.description), 0.28)) continue;
       dedupedPatterns.push(p);
     }

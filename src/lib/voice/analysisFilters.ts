@@ -110,6 +110,11 @@ export const BANAL_CONTENT_RX = [
   /im.*beobachtungszeitraum/i, /im.*analysezeitraum/i,
   /es.*wurde.*festgestellt/i, /es.*zeigt.*sich/i,
   /wie.*bereits.*erwähnt/i, /wie.*oben.*beschrieben/i,
+  // Generic observation starters without substance
+  /es.*kam.*zu.*beschwerden/i, /es.*traten.*beschwerden.*auf/i,
+  /insgesamt.*belastet/i, /insgesamt.*ein.*schwieriger/i,
+  /an.*diesen.*tagen.*ging.*es/i, /der.*zustand.*war/i,
+  /es.*war.*ein.*belastender/i, /grundsätzlich.*schwierig/i,
 ];
 
 /** Generic uncertainty phrases */
@@ -163,6 +168,15 @@ export const WEAK_DESCRIPTION_RX = [
   /möglicherweise.*ein.*faktor/i, /scheint.*zusammen.*hängen/i,
   /nicht.*eindeutig.*zuordnen/i, /kein.*klares.*muster/i,
   /ohne.*erkennbar.*zusammenhang/i,
+  // Vague temporal/frequency without substance
+  /an.*manchen.*tagen/i, /manchmal.*stärker/i,
+  /zeitweise.*beobacht/i, /gelegentlich.*stärker/i,
+  /an.*einzelnen.*tagen/i, /nicht.*immer.*gleich/i,
+  /variiert.*stark/i, /unterschiedlich.*stark/i,
+  // Non-actionable generic starters
+  /es.*kam.*vermehrt.*zu/i, /es.*traten.*auf/i,
+  /es.*gab.*phasen/i, /es.*wurden.*beobacht/i,
+  /im.*verlauf.*zeigte.*sich/i, /im.*zeitraum.*fiel.*auf/i,
 ];
 
 // ============================================================
