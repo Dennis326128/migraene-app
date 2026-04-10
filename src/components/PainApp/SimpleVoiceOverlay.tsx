@@ -301,7 +301,7 @@ export function SimpleVoiceOverlay({
           sessionId: voiceSessionIdRef.current,
           classification,
           segments,
-          structuredData: { everyday: everydayData },
+          structuredData: buildEverydayStructuredData(everydayData, classification),
           reviewState: 'auto_saved',
           clientId,
         }).then(result => {
@@ -372,13 +372,7 @@ export function SimpleVoiceOverlay({
           sessionId: voiceSessionIdRef.current,
           classification,
           segments,
-          structuredData: {
-            painLevel: parsed.painLevel,
-            medications: parsed.medications.map(m => m.name),
-            symptoms: parsed.symptoms,
-            meCfsLevel: parsed.meCfsLevel,
-            everyday: everydayData,
-          },
+          structuredData: buildReviewStructuredData(parsed, everydayData, classification),
           reviewState: 'auto_saved',
           clientId: reviewClientId,
         }).then(result => {
