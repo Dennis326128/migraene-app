@@ -23,7 +23,7 @@ import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { TimeRangeSelector } from './TimeRangeSelector';
 import { runVoicePatternAnalysis } from '@/lib/voice/analysisEngine';
 import { isAnalysisUnavailable, type VoiceAnalysisResult, type PatternFinding, type ContextFinding } from '@/lib/voice/analysisTypes';
-import { selectAnalysisForChannel, saveAnalysisResult, canReanalyze, loadCachedAnalysis } from '@/lib/voice/analysisCache';
+import { selectAnalysisForChannel, saveAnalysisResult } from '@/lib/voice/analysisCache';
 import { logError } from '@/lib/utils/errorMessages';
 
 // ============================================================
