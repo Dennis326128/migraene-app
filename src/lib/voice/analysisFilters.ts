@@ -135,6 +135,12 @@ export const WEAK_DESCRIPTION_RX = [
   /nicht.*ganz.*klar/i, /tendenziell/i,
   /gewisse.*hinweise/i, /ohne.*klar.*muster/i,
   /schwer.*einzuordnen/i, /unklar.*ob/i,
+  // Vague weather/stress/fatigue without specifics
+  /wetter.*könnte.*rolle/i, /wetterwechsel.*möglich/i,
+  /stress.*scheint.*faktor/i, /stress.*spielt.*vielleicht/i,
+  /erschöpfung.*könnte.*beitragen/i, /müdigkeit.*könnte.*rolle/i,
+  /allgemein.*belastet/i, /generell.*mehr.*beschwerden/i,
+  /insgesamt.*eher.*schlechter/i, /phasenweise.*stärker/i,
 ];
 
 // ============================================================
@@ -158,10 +164,13 @@ export function isGenericUncertainty(text: string): boolean {
   return GENERIC_UNCERTAINTY_RX.some(rx => rx.test(text));
 }
 
-export function isWeakPattern(description: string): boolean {
+export function isWeakPattern(description: string, title?: string): boolean {
   if (WEAK_DESCRIPTION_RX.some(rx => rx.test(description))) return true;
-  // Too short descriptions are usually generic
-  if (description.replace(/\s+/g, ' ').trim().length < 25) return true;
+  const trimmed = description.replace(/\s+/g, ' ').trim();
+  // Medication patterns get a lower length threshold (25) to avoid filtering real signals
+  const isMed = MEDICATION_TITLE_RX.test(description) || (title && MEDICATION_TITLE_RX.test(title));
+  const minLength = isMed ? 25 : 40;
+  if (trimmed.length < minLength) return true;
   return false;
 }
 
