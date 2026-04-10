@@ -186,7 +186,7 @@ REGELN:
    d) Reize (Licht, Lärm, Bildschirm, Menschenmengen)
    e) Belastung → Verschlechterung → Kopfschmerz
    f) Ernährung/Trinken nur bei klarem Muster
-   g) Erschöpfung/Energie: NUR als unterstützender Kontext, NIEMALS als eigenständiges Thema
+    g) Erschöpfung/Energie: NUR als unterstützender Kontext, NIEMALS als eigenständiges Thema
 
 4. MEDIKAMENTEN-VERMEIDUNGSVERHALTEN (besonders wichtig):
    Wenn die Daten zeigen, dass Akutmedikamente (v.a. Triptane) trotz starker Beschwerden nicht oder spät eingesetzt werden, ist das ein STARKER Hinweis.
@@ -196,17 +196,31 @@ REGELN:
    - "Beschwerden scheinen sich häufiger stärker aufzubauen, bevor ein Akutmedikament eingesetzt wird."
    NICHT belehrend. NICHT als Vorwurf. Wenn dieses Thema als Pattern erscheint, NICHT nochmal in medicationContextFindings, openQuestions oder confidenceNotes wiederholen.
 
-5. AUSGABE-LIMITS (STRIKT):
-   * summary: 2-3 Sätze. Wichtigste Erkenntnis ZUERST. NICHT "es wurden X Tage analysiert". Nicht alles aufzählen.
+5. AUSLÖSER-KONTEXT (falls vorhanden):
+   Der Datensatz kann einen Abschnitt "Auslöser-Kontext" enthalten mit benutzerdefinierten Auslösern (z.B. Schlafmangel, Stress, Bildschirm, Lärm, etc.) an Tagen nahe Kopfschmerz.
+   * Nutze diese Auslöser als ERGÄNZUNG zu den Verlaufsdaten — sie liefern den subjektiven Kontext des Patienten.
+   * Wenn ein Auslöser an mehreren Schmerztagen auftaucht, erwähne das als mögliches Muster.
+   * Wenn ein Auslöser nur einmal vorkommt, nutze ihn nur als unterstützenden Kontext.
+   * NICHT einfach auflisten — nur erwähnen, wenn sich daraus ein migränerelevanter Zusammenhang ergibt.
+
+6. SUMMARY-REGELN (STRIKT):
+   * 2 Sätze, maximal 3. Erste Aussage = wichtigste Erkenntnis.
+   * Wenn Medikamentenverhalten das stärkste Signal ist → summary DAMIT beginnen.
+   * Sonst stärkster Auslöser/Zusammenhang zuerst.
+   * NICHT "Im Analysezeitraum..." oder "Es wurden X Tage analysiert..." als Einleitung.
+   * NICHT wiederholen, was danach in Patterns ausführlicher steht — stattdessen zusammenfassend einordnen.
+   * Formulierung wie ein kurzes klinisches Fazit: knapp, ruhig, präzise.
+
+7. AUSGABE-LIMITS (STRIKT):
    * possiblePatterns: MAX 4, jedes inhaltlich EIGENSTÄNDIG. Medikamentenmuster vor schwachen Kontextbeobachtungen priorisieren.
-   * painContextFindings: MAX 2, nur wenn NICHT schon in Patterns
+   * painContextFindings: MAX 1, nur wenn NICHT schon in Patterns oder Summary
    * fatigueContextFindings: LEER lassen, außer es gibt einen konkreten, belegbaren Zusammenhang zwischen Erschöpfung und Migräneattacke. Allgemeine Müdigkeit, schlechte Tage, wenig Energie = KEIN Eintrag.
    * medicationContextFindings: MAX 1, NUR wenn relevant und NICHT bereits in Patterns enthalten. Wenn Medikamentenvermeidung schon als Pattern steht → LEER lassen.
    * recurringSequences: MAX 2, NUR nicht-triviale Abfolgen mit echtem Erkenntnisgewinn
-   * openQuestions: MAX 2, konkret und hilfreich. NICHT generisch. NICHT wiederholen was schon gesagt wurde.
-   * confidenceNotes: MAX 1. NICHT wiederholen was in openQuestions steht.
+   * openQuestions: MAX 1, nur wenn wirklich konkret und hilfreich. NICHT generisch ("mehr Daten nötig"). NICHT wiederholen was schon gesagt wurde.
+   * confidenceNotes: MAX 1. NICHT wiederholen was in openQuestions steht. Im Zweifel LEER.
 
-6. VERBOTENE TRIVIALE MUSTER – folgendes NIEMALS als Pattern oder Sequenz ausgeben:
+8. VERBOTENE TRIVIALE MUSTER – folgendes NIEMALS als Pattern oder Sequenz ausgeben:
    * Schmerz → Medikament/Triptan/Einnahme (selbstverständliche Reaktion)
    * Kopfschmerz/Migräne → Ruhe/Schlaf/Bett/Hinlegen/Pause/Dunkelheit (selbstverständliche Reaktion)
    * Müdigkeit an Schmerztagen (trivial)
@@ -217,20 +231,25 @@ REGELN:
    * Starker Tag → Rückzug/Ruhe (trivial)
    * Beschwerden → Schonung (trivial)
    * Medikament → Wirkung beobachtet (trivial ohne Kontext)
+   * "Erschöpft an Schmerztagen" (trivial)
+   * "Schlechter Tag" / "wenig Energie" als alleinstehende Beobachtung
    ERLAUBT: Reizüberflutung VOR Schmerzanstieg, schlechter Schlaf → Migräne am Folgetag, Triptan-Zurückhaltung → längere Attacke, Belastung → Verschlechterung → Kopfschmerz
 
-7. ERSCHÖPFUNG: "Erschöpft" oder "müde" allein = KEIN Muster. fatigueContextFindings im Zweifel LEER lassen. Nur relevant wenn Belastung/Reize UND Kopfschmerz zeitlich zusammentreffen UND Erschöpfung einen erkennbaren Zusatzfaktor darstellt.
+9. ERSCHÖPFUNG: "Erschöpft" oder "müde" allein = KEIN Muster. fatigueContextFindings im Zweifel LEER lassen. Nur relevant wenn Belastung/Reize UND Kopfschmerz zeitlich zusammentreffen UND Erschöpfung einen erkennbaren Zusatzfaktor darstellt.
 
-8. DEDUPLIZIERUNG (ABSOLUT ZWINGEND):
-   * Jeder Inhalt NUR EINMAL in der GESAMTEN Ausgabe
-   * Prüfe VOR dem Schreiben jedes Felds, ob der Inhalt schon in einem anderen Feld steht
-   * Pattern steht schon? → NICHT in Findings, NICHT in openQuestions, NICHT in confidenceNotes
-   * summary erwähnt etwas? → Findings dürfen NICHT dieselbe Aussage wiederholen
-   * Medikamententhema schon als Pattern? → medicationContextFindings LEER
-   * Lieber ein Feld KOMPLETT LEER lassen als doppelt
-   * Bei Unsicherheit: WEGLASSEN
+10. ZUSAMMENHANG-KETTEN bevorzugen:
+    Wenn die Daten zeigen, dass mehrere Faktoren zusammenwirken (z.B. "Schlafmangel + Stress → Schmerzanstieg" oder "starke Beschwerden + spätes Medikament → längere Attacke"), fasse diese als EINEN kompakten Zusammenhang zusammen statt als separate lose Punkte.
 
-9. KEIN TAGESBERICHT. Keine Datumslisten. Beispieldaten nur sehr sparsam ("z.B. am 10."). Keine Klammer-Einschübe mit Datumsreihen.
+11. DEDUPLIZIERUNG (ABSOLUT ZWINGEND):
+    * Jeder Inhalt NUR EINMAL in der GESAMTEN Ausgabe
+    * Prüfe VOR dem Schreiben jedes Felds, ob der Inhalt schon in einem anderen Feld steht
+    * Pattern steht schon? → NICHT in Findings, NICHT in openQuestions, NICHT in confidenceNotes
+    * summary erwähnt etwas? → Findings dürfen NICHT dieselbe Aussage wiederholen
+    * Medikamententhema schon als Pattern? → medicationContextFindings LEER
+    * Lieber ein Feld KOMPLETT LEER lassen als doppelt
+    * Bei Unsicherheit: WEGLASSEN
+
+12. KEIN TAGESBERICHT. Keine Datumslisten. Beispieldaten nur sehr sparsam ("z.B. am 10."). Keine Klammer-Einschübe mit Datumsreihen.
 ${thinDataWarning}
 DATENSATZ: ${meta.totalDays} Tage, ${meta.daysWithPain} Schmerztage, ${meta.painEntryCount} Einträge, ${meta.medicationIntakeCount} Medikamenteneinnahmen.
 

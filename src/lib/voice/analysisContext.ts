@@ -652,10 +652,12 @@ export function serializeForLLM(ctx: AnalysisContext): string {
     const combined = ctx.fatigueContextSummary.filter(entry => {
       // Must be near a pain day
       if (!isNearPain(entry.date)) return false;
-      // Must have either meaningful tags, "probable" relevance, or very low energy
-      if (entry.relevance === 'probable') return true;
-      if (entry.tags.some(t => meaningfulTags.test(t))) return true;
-      if (entry.energyLevel === 1 && entry.tags.length > 0) return true;
+      // Filter out entries with only "einfach müde" or "unklar" tags
+      const usefulTags = entry.tags.filter(t => t !== 'einfach müde' && t !== 'unklar');
+      // Must have either meaningful tags, "probable" relevance, or very low energy with useful tags
+      if (entry.relevance === 'probable' && usefulTags.length > 0) return true;
+      if (usefulTags.some(t => meaningfulTags.test(t))) return true;
+      if (entry.energyLevel === 1 && usefulTags.length > 0) return true;
       return false;
     });
 
@@ -689,11 +691,12 @@ export function serializeForLLM(ctx: AnalysisContext): string {
 
     if (nearPainTriggers.length > 0) {
       lines.push('=== Auslöser-Kontext (nur schmerznahe Tage) ===');
-      for (const entry of nearPainTriggers.slice(0, 10)) {
+      lines.push('Nutze diese als ergänzenden Kontext. Nur als Muster erwähnen, wenn derselbe Auslöser an MEHREREN Schmerztagen auftaucht.');
+      lines.push('');
+      for (const entry of nearPainTriggers.slice(0, 8)) {
         const parts = [`  ${entry.date}: Auslöser: ${entry.triggers.join(', ')}`];
         if (entry.stressLevel !== null && entry.stressLevel <= 2) parts.push(`Stress=${entry.stressLevel}/4`);
         if (entry.sleepLevel !== null && entry.sleepLevel <= 2) parts.push(`Schlaf=${entry.sleepLevel}/4`);
-        if (entry.notes) parts.push(`Notiz: "${entry.notes.slice(0, 100)}"`);
         lines.push(parts.join(', '));
       }
       lines.push('');
