@@ -129,6 +129,11 @@ export const GENERIC_UNCERTAINTY_RX = [
   /kann.*nicht.*abschließend/i, /abschließend.*nicht.*beurteil/i,
   /noch.*nicht.*klar.*ob/i, /hierzu.*fehlen/i,
   /grundsätzlich.*möglich/i, /pauschal.*nicht.*sagen/i,
+  // "needs more observation" variants
+  /müsste.*weiter.*beobacht/i, /weiter.*beobacht.*werden/i,
+  /muss.*noch.*geprüft/i, /bleibt.*offen/i,
+  /nicht.*abschließend.*beurteil/i, /bedarf.*weiterer/i,
+  /erst.*mit.*mehr.*daten/i, /bei.*weiterer.*dokumentation/i,
 ];
 
 /** Weak/vague pattern description phrases */
@@ -181,15 +186,15 @@ export function isGenericUncertainty(text: string): boolean {
   return GENERIC_UNCERTAINTY_RX.some(rx => rx.test(text));
 }
 
+/** Medication-related title/description regex */
+export const MEDICATION_TITLE_RX = /triptan|medikament|akutmedikament|übergebrauch|einnahme|vermeidung|zurückhalt|spät.*einn|abwart|eskalat|verzöger.*einn|verlänger.*attacke/i;
+
 export function isWeakPattern(description: string, title?: string): boolean {
-  if (WEAK_DESCRIPTION_RX.some(rx => rx.test(description))) return true;
-  const trimmed = description.replace(/\s+/g, ' ').trim();
-  // Medication patterns get a lower length threshold (25) to avoid filtering real signals
   const isMed = MEDICATION_TITLE_RX.test(description) || (title && MEDICATION_TITLE_RX.test(title));
+  // Medication patterns: skip weak-description regex to protect critical signals
+  if (!isMed && WEAK_DESCRIPTION_RX.some(rx => rx.test(description))) return true;
+  const trimmed = description.replace(/\s+/g, ' ').trim();
   const minLength = isMed ? 25 : 40;
   if (trimmed.length < minLength) return true;
   return false;
 }
-
-/** Medication-related title/description regex */
-export const MEDICATION_TITLE_RX = /triptan|medikament|akutmedikament|übergebrauch|einnahme|vermeidung|zurückhalt|spät.*einn|abwart/i;

@@ -187,8 +187,8 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
       // Bidirectional overlap: suppress if either direction shows strong overlap
       const pInSummary = textOverlap(pText, result.summary);
       const summaryInP = textOverlap(result.summary, pText);
-      if (Math.max(pInSummary, summaryInP) > 0.35) continue;
-      if (overlapsAny(pText, dedupedPatterns.map(d => d.title + ' ' + d.description), 0.30)) continue;
+      if (Math.max(pInSummary, summaryInP) > 0.30) continue;
+      if (overlapsAny(pText, dedupedPatterns.map(d => d.title + ' ' + d.description), 0.28)) continue;
       dedupedPatterns.push(p);
     }
     sorted = dedupedPatterns;
@@ -205,10 +205,10 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
         if (s.count < 2) return false;
         if (isBanalContent(s.llmInterpretation)) return false;
         if (isWeakPattern(s.llmInterpretation)) return false;
-        if (overlapsAny(s.llmInterpretation, patternRefTexts, 0.25)) return false;
-        if (overlapsAny(s.llmInterpretation, patternDescriptions, 0.30)) return false;
-        if (overlapsAny(s.llmInterpretation, patternTitles, 0.30)) return false;
-        if (overlapsAny(s.llmInterpretation, [result.summary], 0.28)) return false;
+        if (overlapsAny(s.llmInterpretation, patternRefTexts, 0.22)) return false;
+        if (overlapsAny(s.llmInterpretation, patternDescriptions, 0.25)) return false;
+        if (overlapsAny(s.llmInterpretation, patternTitles, 0.25)) return false;
+        if (overlapsAny(s.llmInterpretation, [result.summary], 0.22)) return false;
         return true;
       })
       .slice(0, MAX_SEQUENCES);
