@@ -14,6 +14,9 @@ import {
   buildDayContexts,
   detectPhaseBlocks,
   buildContextWindow,
+  buildSessionBlocks,
+  detectRecurringSequences,
+  serializeForLLM,
   buildAnalysisContext,
   type TimelineItem,
 } from '../analysisContext';
