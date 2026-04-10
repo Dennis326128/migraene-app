@@ -821,3 +821,50 @@ function buildFatigueContextSummary(contextNotes: ContextNoteForAnalysis[]): Fat
 
   return entries;
 }
+
+// ============================================================
+// === TRIGGER CONTEXT SUMMARY ===
+// ============================================================
+
+/** German labels for common trigger keys */
+const TRIGGER_LABELS: Record<string, string> = {
+  stress: 'Stress',
+  schlafmangel: 'Schlafmangel',
+  wetter: 'Wetterwechsel',
+  alkohol: 'Alkohol',
+  koffein: 'Koffein',
+  bildschirm: 'Bildschirmarbeit',
+  laerm: 'Lärm',
+  licht: 'Helles Licht',
+  hormone: 'Hormonell',
+  essen: 'Mahlzeit ausgelassen',
+  reise: 'Reise',
+  sport: 'Sport/Anstrengung',
+  geruch: 'Starke Gerüche',
+};
+
+/**
+ * Extract structured trigger context entries from context notes.
+ * Only includes entries with at least one trigger selected.
+ */
+function buildTriggerContextSummary(contextNotes: ContextNoteForAnalysis[]): TriggerContextEntry[] {
+  const entries: TriggerContextEntry[] = [];
+
+  for (const note of contextNotes) {
+    const meta = note.metadata;
+    if (!meta?.triggers?.length) continue;
+
+    const triggers = meta.triggers.map(t => TRIGGER_LABELS[t] ?? t).filter(Boolean);
+    if (triggers.length === 0) continue;
+
+    entries.push({
+      date: note.occurred_at.slice(0, 10),
+      triggers,
+      stressLevel: meta.stress ?? null,
+      sleepLevel: meta.sleep ?? null,
+      notes: note.text?.trim() || null,
+    });
+  }
+
+  return entries;
+}
