@@ -34,7 +34,6 @@ import { generateVoiceSessionId, generateVoiceEventClientId, linkVoiceEventToEnt
 import { saveVoiceEventRobust } from '@/lib/voice/voiceEventQueue';
 import { parseEverydayContent, type EverydayParseResult } from '@/lib/voice/everydayParser';
 import { showSuccessToast, showInfoToast } from '@/lib/toastHelpers';
-import type { ClassificationResult } from '@/lib/voice/eventClassifier';
 import type { VoiceParseResult as VPR } from '@/lib/voice/parseVoiceEntry';
 
 // ============================================
