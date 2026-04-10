@@ -86,7 +86,7 @@ const EVENT_PATTERNS: PatternGroup[] = [
   {
     type: 'symptom',
     patterns: [
-      /\bübelkeit/i, /\bübell?\b/i, /\bübel\b/i,
+      /\bübelkeit/i, /\bübel\b/i,
       /\berbrechen/i, /\bschwindel/i, /\bschwindlig/i,
       /\blicht(?:empfindlich|scheu)/i,
       /\bgeräusch(?:empfindlich)/i,
@@ -134,7 +134,7 @@ const EVENT_PATTERNS: PatternGroup[] = [
   {
     type: 'sleep_rest',
     patterns: [
-      /\bhingelegt/i, /\blege?\s*(?:mich)?\s*(?:hin|ins\s+bett)/i,
+      /\bhingelegt/i, /\blege?\s*(?:mich\s+)?(?:hin|ins\s+bett)/i,
       /\bgeschlafen/i, /\bschlafe?\b/i,
       /\baufgewacht/i, /\baufgestanden/i,
       /\bpause\b/i, /\bruhe?\b/i, /\bausgeruht/i,
@@ -142,6 +142,8 @@ const EVENT_PATTERNS: PatternGroup[] = [
       /\bdöse?n/i, /\bnickerchen/i, /\bnap\b/i,
       /\beingeschlafen/i, /\bwachgeworden/i,
       /\bdurchgeschlafen/i,
+      /\blege\b.*\bhin/i,
+      /\bleg\s+mich/i,
     ],
     tags: ['schlaf', 'ruhe'],
     medicalRelevance: 'medium',
@@ -153,7 +155,7 @@ const EVENT_PATTERNS: PatternGroup[] = [
     patterns: [
       /\bspazier/i, /\bgelaufen/i, /\bwandern/i,
       /\bduschen?\b/i, /\bgeduscht/i, /\bbaden?\b/i,
-      /\beinkauf/i, /\bshopping/i,
+      /\beinkauf/i, /\bshopping/i, /\bsupermarkt/i, /\bladen\b/i,
       /\barbeiten?\b/i, /\bgearbeitet/i,
       /\btermin\b/i, /\barzt/i,
       /\bhaushalt/i, /\bputzen/i, /\bkochen?\b/i,
