@@ -983,6 +983,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     weatherAnalysis,
     prophylaxisData,
     clinicalAnalysis,
+    patternAnalysis,
   } = params;
 
   const pdfDoc = await PDFDocument.create();
