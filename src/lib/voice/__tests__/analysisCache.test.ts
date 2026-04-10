@@ -44,7 +44,7 @@ describe('canReanalyze', () => {
       openQuestions: [],
       confidenceNotes: [],
       scope: { fromDate: '2026-01-01', toDate: '2026-03-31', totalDays: 90, daysAnalyzed: 30, painEntryCount: 10, voiceEventCount: 5, medicationIntakeCount: 3 },
-      meta: { model: 'test', analyzedAt: new Date().toISOString(), fromDate: '2026-01-01', toDate: '2026-03-31' },
+      meta: { model: 'test', analyzedAt: new Date().toISOString() },
     },
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
