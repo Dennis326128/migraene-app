@@ -109,6 +109,28 @@ const BANAL_CONTENT_RX = [
   /schmerz.*wurde.*mit.*medikament.*behandelt/i,
   /dann.*eingenommen/i, /wurde.*dann.*eingenommen/i,
   /schmerz.*behandelt/i, /medikament.*genommen/i,
+  /daraufhin.*schonung/i, /daraufhin.*pause/i,
+  /einfach.*müde/i, /allgemein.*erschöpft/i,
+  /schlechter.*tag.*ohne/i,
+];
+
+/** Generic uncertainty phrases to suppress in openQuestions/confidenceNotes */
+const GENERIC_UNCERTAINTY_RX = [
+  /mehr.*daten.*wären.*hilfreich/i, /mehr.*einträge.*nötig/i,
+  /mehr.*dokumentation/i, /mehr.*beobachtung.*nötig/i,
+  /es.*ist.*unklar/i, /könnte.*zufällig/i,
+  /lässt.*sich.*nicht.*sicher/i, /zu.*wenig.*daten/i,
+  /datenlage.*reicht.*nicht/i, /nicht.*genug.*einträge/i,
+  /schwer.*zu.*beurteilen/i, /bisher.*nicht.*eindeutig/i,
+  /weitere.*daten.*erforderlich/i,
+];
+
+/** Weak/vague pattern description phrases — pattern is too soft to be useful */
+const WEAK_DESCRIPTION_RX = [
+  /tritt.*teilweise.*auf/i, /könnte.*manchmal/i,
+  /allgemeine.*belastung/i, /eventuell.*zusammenhang/i,
+  /vereinzelt.*beobacht/i, /nicht.*ausgeschlossen/i,
+  /möglicherweise.*gelegentlich/i,
 ];
 
 function isTrivialSequence(pattern: string, interpretation?: string): boolean {
@@ -123,6 +145,16 @@ function isTrivialSequence(pattern: string, interpretation?: string): boolean {
 /** Check if a text (observation, open question) is banal filler */
 function isBanalContent(text: string): boolean {
   return BANAL_CONTENT_RX.some(rx => rx.test(text)) || BANAL_INTERPRETATION_RX.some(rx => rx.test(text));
+}
+
+/** Check if an open question / uncertainty is too generic to show */
+function isGenericUncertainty(text: string): boolean {
+  return GENERIC_UNCERTAINTY_RX.some(rx => rx.test(text));
+}
+
+/** Check if a pattern description is too weak/vague to be useful */
+function isWeakPattern(description: string): boolean {
+  return WEAK_DESCRIPTION_RX.some(rx => rx.test(description));
 }
 
 /** Translate English arrow-patterns to German */
