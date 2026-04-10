@@ -649,8 +649,8 @@ export function MigrainePatternAnalysis() {
             </p>
           )}
           {isCachedResult && isStaleResult && (
-            <p className="text-[11px] text-muted-foreground/70 text-center">
-              Älterer Datenstand{cachedAtLabel ? ` (${cachedAtLabel})` : ''} · erneut analysieren für aktuelle Ergebnisse
+            <p className="text-[11px] text-muted-foreground/60 text-center">
+              Basiert auf einem früheren Datenstand{cachedAtLabel ? ` (${cachedAtLabel})` : ''} · für aktuelle Ergebnisse erneut analysieren
             </p>
           )}
         </CardContent>
