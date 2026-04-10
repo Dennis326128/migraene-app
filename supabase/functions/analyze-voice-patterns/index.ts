@@ -52,7 +52,7 @@ const ANALYSIS_TOOL = {
       properties: {
         summary: {
           type: "string",
-          description: "2-5 sentence overall summary of observations. Cautiously worded."
+          description: "2–3 Sätze. Wichtigste Erkenntnis zuerst (Medikamentenverhalten hat Vorrang). Kein Meta-Einleitung. Knapp wie ein klinisches Kurzfazit."
         },
         possiblePatterns: {
           type: "array",
