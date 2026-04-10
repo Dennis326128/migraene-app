@@ -23,20 +23,17 @@ import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { TimeRangeSelector } from './TimeRangeSelector';
 import { runVoicePatternAnalysis } from '@/lib/voice/analysisEngine';
 import { isAnalysisUnavailable, type VoiceAnalysisResult, type PatternFinding, type ContextFinding } from '@/lib/voice/analysisTypes';
-import { selectAnalysisForChannel, saveAnalysisResult } from '@/lib/voice/analysisCache';
+import { selectAnalysisForChannel, saveAnalysisResult, MAX_PATTERNS, MAX_SEQUENCES, MAX_QUESTIONS, EVIDENCE_ORDER } from '@/lib/voice/analysisCache';
 import { logError } from '@/lib/utils/errorMessages';
 
 // ============================================================
 // === HELPERS ===
 // ============================================================
 
-/** Evidence strength to sort priority (higher = more relevant) */
-const EVIDENCE_PRIORITY: Record<string, number> = { high: 3, medium: 2, low: 1 };
-
 /** Sort patterns: higher evidence first, then by occurrence count */
 function sortPatterns(patterns: PatternFinding[]): PatternFinding[] {
   return [...patterns].sort((a, b) => {
-    const ePri = (EVIDENCE_PRIORITY[b.evidenceStrength] || 0) - (EVIDENCE_PRIORITY[a.evidenceStrength] || 0);
+    const ePri = (EVIDENCE_ORDER[b.evidenceStrength] || 0) - (EVIDENCE_ORDER[a.evidenceStrength] || 0);
     if (ePri !== 0) return ePri;
     return b.occurrences - a.occurrences;
   });
