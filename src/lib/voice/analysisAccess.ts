@@ -211,8 +211,8 @@ export async function getAnalysisDataset(range: AnalysisTimeRange): Promise<Full
   const dateFrom = range.from.toISOString().slice(0, 10);
   const dateTo = range.to.toISOString().slice(0, 10);
 
-  // Parallel fetch: voice events + pain entries + medication intakes
-  const [voiceResult, painResult, intakeResult] = await Promise.all([
+  // Parallel fetch: voice events + pain entries + medication intakes + context notes
+  const [voiceResult, painResult, intakeResult, contextResult] = await Promise.all([
     getVoiceEventsForAnalysis(range),
     supabase
       .from('pain_entries')
@@ -226,11 +226,21 @@ export async function getAnalysisDataset(range: AnalysisTimeRange): Promise<Full
       .gte('taken_date', dateFrom)
       .lte('taken_date', dateTo)
       .order('taken_date', { ascending: true }),
+    supabase
+      .from('voice_notes')
+      .select('id, occurred_at, text, context_type, metadata')
+      .eq('context_type', 'tageszustand')
+      .gte('occurred_at', range.from.toISOString())
+      .lte('occurred_at', range.to.toISOString())
+      .is('deleted_at', null)
+      .order('occurred_at', { ascending: true })
+      .limit(500),
   ]);
 
   const voiceEvents = voiceResult;
   const painEntries = (painResult.data ?? []) as PainEntryForAnalysis[];
   const medicationIntakes = (intakeResult.data ?? []) as MedicationIntakeForAnalysis[];
+  const contextNotes = (contextResult.data ?? []) as ContextNoteForAnalysis[];
 
   // Compute linkage metadata
   const linkedCount = voiceEvents.filter(e => e.related_entry_id !== null).length;
@@ -239,11 +249,13 @@ export async function getAnalysisDataset(range: AnalysisTimeRange): Promise<Full
     voiceEvents,
     painEntries,
     medicationIntakes,
+    contextNotes,
     meta: {
       range,
       voiceEventCount: voiceEvents.length,
       painEntryCount: painEntries.length,
       medicationIntakeCount: medicationIntakes.length,
+      contextNoteCount: contextNotes.length,
       linkedVoiceEventCount: linkedCount,
       unlinkedVoiceEventCount: voiceEvents.length - linkedCount,
     },
