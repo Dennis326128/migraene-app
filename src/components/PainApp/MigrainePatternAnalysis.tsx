@@ -12,8 +12,7 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Brain, Loader2, AlertCircle, Lightbulb, RefreshCw, HelpCircle, TrendingUp, FileText, CheckCircle2 } from 'lucide-react';
+import { Brain, Loader2, AlertCircle, RefreshCw, FileText, CheckCircle2 } from 'lucide-react';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { TimeRangeSelector } from './TimeRangeSelector';
 import { runVoicePatternAnalysis } from '@/lib/voice/analysisEngine';
@@ -590,9 +589,8 @@ export function MigrainePatternAnalysis() {
             </p>
           )}
           {isCachedResult && isStaleResult && (
-            <p className="text-xs text-amber-600 dark:text-amber-400 text-center flex items-center justify-center gap-1.5">
-              <AlertCircle className="h-3 w-3" />
-              Diese Analyse basiert auf einem älteren Datenstand{cachedAtLabel ? ` (${cachedAtLabel})` : ''}
+            <p className="text-[11px] text-muted-foreground text-center flex items-center justify-center gap-1">
+              Älterer Datenstand{cachedAtLabel ? ` (${cachedAtLabel})` : ''} · erneut analysieren für aktuelle Ergebnisse
             </p>
           )}
         </CardContent>
