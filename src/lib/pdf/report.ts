@@ -221,6 +221,23 @@ type BuildReportParams = {
   } | null;
   /** Deterministic clinical analysis modules (Phase 1) */
   clinicalAnalysis?: ClinicalAnalysisResult | null;
+  /** Persisted voice pattern analysis (migraine correlations) */
+  patternAnalysis?: {
+    summary: string;
+    patterns: Array<{
+      title: string;
+      description: string;
+      evidenceStrength: string;
+    }>;
+    recurringSequences: Array<{
+      pattern: string;
+      count: number;
+      interpretation: string;
+    }>;
+    openQuestions: string[];
+    analyzedAt: string;
+    daysAnalyzed: number;
+  } | null;
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -966,6 +983,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     weatherAnalysis,
     prophylaxisData,
     clinicalAnalysis,
+    patternAnalysis,
   } = params;
 
   const pdfDoc = await PDFDocument.create();
@@ -1822,6 +1840,89 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     }
 
     yPos -= LAYOUT.sectionGap;
+
+    // ── PATTERN ANALYSIS (from KI-Analyse tab) ──
+    if (patternAnalysis && patternAnalysis.patterns.length > 0) {
+      const paSpaceCheck = ensureSpace(pdfDoc, page, yPos, 120);
+      page = paSpaceCheck.page;
+      yPos = paSpaceCheck.yPos;
+
+      yPos = drawSectionHeader(page, "KI-MUSTERANALYSE: MOEGLICHE ZUSAMMENHAENGE", yPos, fontBold, 10);
+
+      // Summary
+      const summaryLines = wrapText(patternAnalysis.summary, LAYOUT.pageWidth - 2 * LAYOUT.margin, 9, font);
+      for (const line of summaryLines) {
+        if (yPos < LAYOUT.margin + 40) {
+          page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
+          yPos = LAYOUT.pageHeight - LAYOUT.margin;
+        }
+        page.drawText(sanitizeForPDF(line), { x: LAYOUT.margin, y: yPos, size: 9, font, color: COLORS.text });
+        yPos -= 12;
+      }
+      yPos -= 6;
+
+      // Patterns
+      const evidenceLabels: Record<string, string> = { high: 'Deutliche Hinweise', medium: 'Mehrere Hinweise', low: 'Wenige Hinweise' };
+      for (const p of patternAnalysis.patterns.slice(0, 7)) {
+        if (yPos < LAYOUT.margin + 60) {
+          page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
+          yPos = LAYOUT.pageHeight - LAYOUT.margin;
+        }
+        const label = evidenceLabels[p.evidenceStrength] || '';
+        page.drawText(sanitizeForPDF(`${p.title} (${label})`), { x: LAYOUT.margin + 5, y: yPos, size: 9, font: fontBold, color: COLORS.text });
+        yPos -= 12;
+        const descLines = wrapText(p.description, LAYOUT.pageWidth - 2 * LAYOUT.margin - 10, 8, font);
+        for (const line of descLines) {
+          page.drawText(sanitizeForPDF(line), { x: LAYOUT.margin + 10, y: yPos, size: 8, font, color: COLORS.text });
+          yPos -= 11;
+        }
+        yPos -= 4;
+      }
+
+      // Recurring sequences
+      if (patternAnalysis.recurringSequences.length > 0) {
+        yPos -= 4;
+        page.drawText('Wiederkehrende Muster:', { x: LAYOUT.margin, y: yPos, size: 9, font: fontBold, color: COLORS.text });
+        yPos -= 13;
+        for (const seq of patternAnalysis.recurringSequences.slice(0, 5)) {
+          if (yPos < LAYOUT.margin + 40) {
+            page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
+            yPos = LAYOUT.pageHeight - LAYOUT.margin;
+          }
+          const seqText = `- ${seq.pattern}${seq.count > 1 ? ` (${seq.count}x)` : ''}${seq.interpretation ? ': ' + seq.interpretation : ''}`;
+          const seqLines = wrapText(seqText, LAYOUT.pageWidth - 2 * LAYOUT.margin - 10, 8, font);
+          for (const line of seqLines) {
+            page.drawText(sanitizeForPDF(line), { x: LAYOUT.margin + 5, y: yPos, size: 8, font, color: COLORS.text });
+            yPos -= 11;
+          }
+        }
+      }
+
+      // Open questions
+      if (patternAnalysis.openQuestions.length > 0) {
+        yPos -= 4;
+        page.drawText('Was noch unklar ist:', { x: LAYOUT.margin, y: yPos, size: 9, font: fontBold, color: COLORS.textLight });
+        yPos -= 13;
+        for (const q of patternAnalysis.openQuestions.slice(0, 4)) {
+          if (yPos < LAYOUT.margin + 40) {
+            page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
+            yPos = LAYOUT.pageHeight - LAYOUT.margin;
+          }
+          const qLines = wrapText(`- ${q}`, LAYOUT.pageWidth - 2 * LAYOUT.margin - 10, 8, font);
+          for (const line of qLines) {
+            page.drawText(sanitizeForPDF(line), { x: LAYOUT.margin + 5, y: yPos, size: 8, font, color: COLORS.textLight });
+            yPos -= 11;
+          }
+        }
+      }
+
+      // Disclaimer + meta
+      yPos -= 6;
+      page.drawText('Moegliche Zusammenhaenge - keine medizinische Diagnose.', { x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight });
+      yPos -= 10;
+      page.drawText(`KI-Musteranalyse vom ${formatDateGerman(patternAnalysis.analyzedAt)} | ${patternAnalysis.daysAnalyzed} Tage analysiert`, { x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight });
+      yPos -= LAYOUT.sectionGap;
+    }
 
   } else if (isPremiumAIRequested && !hasPremiumAIData) {
     // ── FALLBACK: Premium requested but failed ──
