@@ -30,7 +30,7 @@ import { buildReportData, type ReportData, getEntryDate } from "@/lib/pdf/report
 import { computeClinicalAnalysis, type AnalysisEntry } from '@/lib/pdf/clinicalAnalysis';
 import { uploadPdfToStorage } from '@/lib/pdf/pdfStorageUpload';
 import { buildPdfFilename } from '@/lib/pdf/filenameUtils';
-import { loadAnalysisForReport } from '@/lib/voice/analysisCache';
+import { loadAnalysisForReport, buildPatternAnalysisSummary, extractCompactSummary } from '@/lib/voice/analysisCache';
 
 import { PremiumBadge } from "@/components/ui/premium-badge";
 import { useUserAISettings } from "@/features/draft-composer/hooks/useUserAISettings";
@@ -748,10 +748,11 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
           if (!includePremiumAI) return null;
           try {
             const cached = await loadAnalysisForReport(from, to);
-            if (!cached || !cached.possiblePatterns?.length) return null;
-            // Use centralized buildPatternAnalysisSummary for consistent mapping
-            const { buildPatternAnalysisSummary } = await import('@/lib/voice/analysisCache');
-            return buildPatternAnalysisSummary(cached);
+            if (!cached) return null;
+            // Use extractCompactSummary for SSOT — prefers pre-built _compactSummary
+            const compact = extractCompactSummary(cached);
+            if (!compact || compact.patterns.length === 0) return null;
+            return compact;
           } catch (err) {
             console.warn('[PDF Export] Pattern analysis load failed:', err);
             return null;
