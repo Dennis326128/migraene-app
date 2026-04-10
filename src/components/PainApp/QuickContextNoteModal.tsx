@@ -175,6 +175,7 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
         setStress(meta.stress ?? null);
         setSleep(meta.sleep ?? null);
         setEnergy(meta.energy ?? null);
+        setFatigueContextTags(meta.fatigue_context_tags ?? []);
         setCustomText(meta.notes ?? '');
         
         // Map triggers to correct categories
@@ -355,13 +356,25 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
     const finalText = parts.join(' • ');
     
     // Strukturierte Metadaten für späteres Bearbeiten
+    const fatigueCtx = energy === 1 ? fatigueContextTags : [];
+    const mecfsRelevance = energy === 1 ? deriveMecfsRelevance(fatigueCtx) : 'none' as const;
+    // Supportive signal from free text
+    const noteHasFatigueSignal = energy === 1 && noteContainsFatigueSignals(customText);
+    const finalMecfsRelevance = (mecfsRelevance === 'possible' && noteHasFatigueSignal) 
+      ? 'probable' as const 
+      : (mecfsRelevance === 'unlikely' && noteHasFatigueSignal) 
+        ? 'possible' as const 
+        : mecfsRelevance;
+
     const metadata: ContextMetadata = {
       mood,
       stress,
       sleep,
       energy,
       triggers: allTriggers,
-      notes: customText.trim() || undefined
+      notes: customText.trim() || undefined,
+      fatigue_context_tags: fatigueCtx.length > 0 ? fatigueCtx : undefined,
+      mecfs_relevance: energy === 1 ? finalMecfsRelevance : undefined,
     };
 
     setIsSaving(true);
