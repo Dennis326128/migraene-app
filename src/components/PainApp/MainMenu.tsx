@@ -56,6 +56,7 @@ import { Button } from "@/components/ui/button";
 import { FeedbackButton } from "@/components/Feedback";
 import { useCreateEntry } from "@/features/entries/hooks/useEntryMutations";
 import { format } from "date-fns";
+import { linkVoiceEventToEntry } from "@/lib/voice/voiceEventStore";
 
 
 // Prefill data type for voice-initiated entries
