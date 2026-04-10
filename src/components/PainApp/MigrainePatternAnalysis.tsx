@@ -382,6 +382,7 @@ export function MigrainePatternAnalysis() {
   const [error, setError] = useState<string | null>(null);
   const [isWeakData, setIsWeakData] = useState(false);
   const [isCachedResult, setIsCachedResult] = useState(false);
+  const [isStaleResult, setIsStaleResult] = useState(false);
   const [cachedAt, setCachedAt] = useState<string | null>(null);
 
   // Load cached analysis on mount or when range changes
@@ -392,6 +393,7 @@ export function MigrainePatternAnalysis() {
     setError(null);
     setIsWeakData(false);
     setIsCachedResult(false);
+    setIsStaleResult(false);
     setCachedAt(null);
 
     (async () => {
@@ -403,11 +405,10 @@ export function MigrainePatternAnalysis() {
           if (isAnalysisUnavailable(selection.result)) {
             setIsWeakData(true);
           } else {
-            setResult(selection.result);
+          setResult(selection.result);
             setIsCachedResult(true);
+            setIsStaleResult(!selection.isFresh);
             setCachedAt(selection.result.meta?.analyzedAt || null);
-            // Note: selection.isFresh indicates whether data has changed since analysis
-            // For now we show stale results normally — user can re-run if needed
           }
         }
       } catch (err) {
@@ -426,6 +427,7 @@ export function MigrainePatternAnalysis() {
     setIsWeakData(false);
     setIsAnalyzing(true);
     setIsCachedResult(false);
+    setIsStaleResult(false);
 
     try {
       const range = {
