@@ -267,16 +267,19 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
     ];
 
     // Context findings: only migraine-relevant fatigue, deduplicated
-    // Fatigue findings must have medium+ evidence OR explicit migraine keywords
+    // Fatigue findings: ONLY high evidence, or medium with explicit migraine keywords
     const fatigueFiltered = result.fatigueContextFindings.filter(f =>
       f.evidenceStrength === 'high' ||
       (f.evidenceStrength === 'medium' && /schmerz|kopf|migräne|attacke|triptan/i.test(f.observation))
     );
-    const allContext = [...result.painContextFindings, ...fatigueFiltered, ...result.medicationContextFindings];
-    // Stronger dedup threshold (0.4) to catch more overlaps
+    // Medication context: skip if any pattern already covers medication topic
+    const hasMedPattern = sorted.some(p => MEDICATION_PATTERN_TYPES.has(p.patternType) || MEDICATION_TITLE_RX.test(p.title));
+    const medContext = hasMedPattern ? [] : result.medicationContextFindings;
+    const allContext = [...result.painContextFindings, ...fatigueFiltered, ...medContext];
+    // Strict dedup threshold (0.35) to catch more overlaps
     const finalContext = allContext
-      .filter(f => !overlapsAny(f.observation, allRefTexts, 0.4))
-      .slice(0, 3);
+      .filter(f => !overlapsAny(f.observation, allRefTexts, 0.35))
+      .slice(0, 2);
 
     // Uncertainties: deduplicated against everything above with even stricter threshold
     const fullRef = [
