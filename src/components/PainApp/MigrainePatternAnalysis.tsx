@@ -201,7 +201,7 @@ function generateReport(result: VoiceAnalysisResult): string {
   }
 
   const sequences = result.recurringSequences
-    .filter(s => !isTrivialSequence(s.pattern))
+    .filter(s => !isTrivialSequence(s.pattern) && !isGenericPhaseSequence(s.pattern))
     .slice(0, MAX_SEQUENCES);
   if (sequences.length > 0) {
     lines.push('Wiederkehrende Muster');
@@ -238,9 +238,9 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
   const { sortedPatterns, filteredSequences, extraContextFindings, uncertainties } = useMemo(() => {
     const sorted = sortPatterns(result.possiblePatterns).slice(0, MAX_PATTERNS);
 
-    // Filter trivial sequences
+    // Filter trivial and generic phase sequences
     const seqs = result.recurringSequences
-      .filter(s => !isTrivialSequence(s.pattern))
+      .filter(s => !isTrivialSequence(s.pattern) && !isGenericPhaseSequence(s.pattern))
       .slice(0, MAX_SEQUENCES);
 
     // Build full dedup reference texts: patterns + sequences + summary
