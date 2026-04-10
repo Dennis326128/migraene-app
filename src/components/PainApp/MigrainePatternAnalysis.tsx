@@ -225,9 +225,9 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
   const { sortedPatterns, filteredSequences, extraContextFindings, uncertainties } = useMemo(() => {
     const sorted = sortPatterns(result.possiblePatterns).slice(0, MAX_PATTERNS);
 
-    // Filter trivial sequences strictly
+    // Filter trivial sequences strictly, then also check for weak-only leftovers
     const seqs = result.recurringSequences
-      .filter(s => !isTrivialSequence(s.pattern))
+      .filter(s => !isTrivialSequence(s.pattern) && s.llmInterpretation && s.llmInterpretation.length > 10)
       .slice(0, MAX_SEQUENCES);
 
     // Reference pool for deduplication: summary + patterns + sequences
@@ -238,14 +238,18 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
     ];
 
     // Context findings: only migraine-relevant fatigue, deduplicated
+    // Fatigue findings must have medium+ evidence OR explicit migraine keywords
     const fatigueFiltered = result.fatigueContextFindings.filter(f =>
-      f.evidenceStrength !== 'low' ||
-      /schmerz|kopf|migräne|belastung|reiz/i.test(f.observation)
+      f.evidenceStrength === 'high' ||
+      (f.evidenceStrength === 'medium' && /schmerz|kopf|migräne|attacke|triptan/i.test(f.observation))
     );
     const allContext = [...result.painContextFindings, ...fatigueFiltered, ...result.medicationContextFindings];
-    const finalContext = deduplicateFindings(allContext, sorted, allRefTexts).slice(0, 3);
+    // Stronger dedup threshold (0.4) to catch more overlaps
+    const finalContext = allContext
+      .filter(f => !overlapsAny(f.observation, allRefTexts, 0.4))
+      .slice(0, 3);
 
-    // Uncertainties: deduplicated against everything above
+    // Uncertainties: deduplicated against everything above with even stricter threshold
     const fullRef = [
       ...allRefTexts,
       ...finalContext.map(f => f.observation),
