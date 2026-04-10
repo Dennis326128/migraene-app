@@ -140,6 +140,19 @@ export interface RecurringSequence {
 }
 
 /**
+ * Summarized fatigue/energy context from "Alltag & Auslöser" context notes.
+ * Used as supplementary signal for the LLM — NOT primary data.
+ */
+export interface FatigueContextEntry {
+  date: string;
+  energyLevel: number;
+  stressLevel: number | null;
+  sleepLevel: number | null;
+  tags: string[];
+  relevance: string; // 'none' | 'unlikely' | 'possible' | 'probable'
+}
+
+/**
  * Complete LLM-ready analysis context for a date range.
  */
 export interface AnalysisContext {
@@ -156,6 +169,8 @@ export interface AnalysisContext {
   medicationWindows: ContextWindow[];
   /** Recurring phase sequences across days */
   recurringSequences: RecurringSequence[];
+  /** Fatigue/energy context from "Alltag & Auslöser" form entries */
+  fatigueContextSummary: FatigueContextEntry[];
   meta: {
     totalItems: number;
     totalDays: number;
