@@ -1146,8 +1146,13 @@ export async function buildDoctorReportSnapshot(
 
   // ─────────────────────────────────────────────────────────────────────────
   // 2) SOURCE_UPDATED_AT BERECHNEN (für Staleness-Check)
-  // Covers: pain_entries, medication_courses, medication_intakes, medication_effects
-  // Aligned with analysisCache.ts isCacheValid() data sources
+  // CENTRAL DATA-STATE FINGERPRINT — aligned with analysisCache.ts
+  // Sources (all user-scoped, range-scoped):
+  //   - pain_entries.updated_at    (edits AND new entries, trigger-backed)
+  //   - voice_events.updated_at    (voice data in range)
+  //   - medication_intakes.updated_at (med intake changes in range)
+  //   - medication_effects.updated_at (effect ratings for entries in range)
+  //   - medication_courses.updated_at (prophylaxis changes)
   // ─────────────────────────────────────────────────────────────────────────
 
   let latestTimestamp: Date | null = null;
@@ -1159,16 +1164,48 @@ export async function buildDoctorReportSnapshot(
     }
   };
 
-  allEntries.forEach(e => trackTs(e.timestamp_created));
+  // pain_entries: use updated_at (covers edits via trigger)
+  allEntries.forEach(e => trackTs(e.updated_at ?? e.timestamp_created));
   medicationCourses.forEach(c => trackTs(c.updated_at));
-  // Include medication_intakes and medication_effects timestamps
-  last30Intakes.forEach((i: { medication_name: string; taken_date: string }) => {
-    // taken_date is a date string; use it as approximate change marker
-    trackTs(i.taken_date + 'T23:59:59Z');
-  });
-  rangeEffects.forEach((e: { med_name: string; effect_score: number | null; entry_id: number }) => {
-    // medication_effects don't have updated_at in our fetch, but entry presence matters
-  });
+
+  // medication_intakes: fetch updated_at for entries in range
+  const entryIdsForFingerprint = allEntries.map(e => e.id).filter(Boolean);
+  if (entryIdsForFingerprint.length > 0) {
+    const intakeChunks = [];
+    for (let i = 0; i < entryIdsForFingerprint.length; i += 200) {
+      intakeChunks.push(entryIdsForFingerprint.slice(i, i + 200));
+    }
+    for (const chunk of intakeChunks) {
+      const { data: intakeData } = await supabase
+        .from("medication_intakes")
+        .select("updated_at")
+        .in("entry_id", chunk)
+        .order("updated_at", { ascending: false })
+        .limit(1);
+      if (intakeData?.[0]) trackTs(intakeData[0].updated_at);
+    }
+    for (const chunk of intakeChunks) {
+      const { data: effectData } = await supabase
+        .from("medication_effects")
+        .select("updated_at")
+        .in("entry_id", chunk)
+        .order("updated_at", { ascending: false })
+        .limit(1);
+      if (effectData?.[0]) trackTs(effectData[0].updated_at);
+    }
+  }
+
+  // voice_events in range
+  const { data: latestVoiceInRange } = await supabase
+    .from("voice_events")
+    .select("updated_at")
+    .eq("user_id", userId)
+    .gte("event_timestamp", from + "T00:00:00Z")
+    .lte("event_timestamp", to + "T23:59:59Z")
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (latestVoiceInRange) trackTs(latestVoiceInRange.updated_at);
 
   const sourceUpdatedAt = latestTimestamp?.toISOString() || null;
 
@@ -1761,22 +1798,17 @@ export async function isSnapshotStale(
 
   const { from, to } = getDateRange(range);
 
-  const [latestEntryResult, _entryCountResult, latestCourseResult] = await Promise.all([
+  // Check ALL relevant data sources — aligned with analysisCache.ts fingerprint
+  const [latestEntryResult, latestCourseResult, latestVoiceResult] = await Promise.all([
     supabase
       .from("pain_entries")
-      .select("timestamp_created")
+      .select("updated_at")
       .eq("user_id", userId)
       .gte("selected_date", from)
       .lte("selected_date", to)
-      .order("timestamp_created", { ascending: false })
+      .order("updated_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
-    supabase
-      .from("pain_entries")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", userId)
-      .gte("selected_date", from)
-      .lte("selected_date", to),
     supabase
       .from("medication_courses")
       .select("updated_at")
@@ -1784,17 +1816,31 @@ export async function isSnapshotStale(
       .order("updated_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    supabase
+      .from("voice_events")
+      .select("updated_at")
+      .eq("user_id", userId)
+      .gte("event_timestamp", from + "T00:00:00Z")
+      .lte("event_timestamp", to + "T23:59:59Z")
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   const cachedDate = new Date(cachedSourceUpdatedAt);
 
-  if (latestEntryResult.data?.timestamp_created && new Date(latestEntryResult.data.timestamp_created) > cachedDate) {
-    console.log(`[SnapshotStale] pain_entries newer than snapshot`);
+  if (latestEntryResult.data?.updated_at && new Date(latestEntryResult.data.updated_at) > cachedDate) {
+    console.log(`[SnapshotStale] pain_entries.updated_at newer than snapshot`);
     return true;
   }
 
   if (latestCourseResult.data?.updated_at && new Date(latestCourseResult.data.updated_at) > cachedDate) {
     console.log(`[SnapshotStale] medication_courses newer than snapshot`);
+    return true;
+  }
+
+  if (latestVoiceResult.data?.updated_at && new Date(latestVoiceResult.data.updated_at) > cachedDate) {
+    console.log(`[SnapshotStale] voice_events newer than snapshot`);
     return true;
   }
 
