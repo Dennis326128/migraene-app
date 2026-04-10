@@ -37,6 +37,13 @@ const TRIVIAL_SEQUENCE_PATTERNS = [
   /schmerz.*→.*einnahme/i,
   /migräne.*→.*medikament/i,
   /schmerz.*→.*triptan/i,
+  /müdigkeit.*schmerztag/i,
+  /erschöpfung.*zusammen.*schmerz/i,
+  /fatigue.*→.*rest/i,
+  /müde.*→.*ruhe/i,
+  /erschöpf.*→.*ruhe/i,
+  /schmerz.*→.*bett/i,
+  /schmerz.*→.*liegen/i,
 ];
 
 function isTrivialSequence(pattern: string): boolean {

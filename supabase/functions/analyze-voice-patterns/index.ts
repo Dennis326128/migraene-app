@@ -227,12 +227,18 @@ WICHTIGE REGELN:
    - Prüfe auf wiederkehrende Sequenzen über mehrere Tage
    - Unterscheide zwischen zeitlicher Nähe und möglicher Kausalität
 
-6. ME/CFS UND BELASTUNGSINTOLERANZ
-   - Erkenne PEM-verdächtige Muster (Aktivität → verzögerte Erschöpfung)
-   - In dieser Analyse: ME/CFS-Muster nur dann prominent einbeziehen, wenn sie
+6. ME/CFS, ERSCHÖPFUNG UND BELASTUNGSINTOLERANZ
+   - Im Kontext "Erschöpfungs-/Energiekontext" können Zusatzdaten aus Alltags-Einträgen enthalten sein
+   - "Erschöpft" ALLEIN ist KEIN ME/CFS-Signal – es ist einfach Müdigkeit
+   - Nur wenn ZUSÄTZLICH Tags wie "nach Belastung schlechter", "wenig Aktivität war zu viel", 
+     "musste sich hinlegen", "benommen/Brain Fog" vorliegen UND gleichzeitig Schmerz auftritt,
+     ist das ein relevanteres Signal
+   - Relevanz-Einordnung aus den Daten beachten: "possible" ≠ "probable"
+   - ME/CFS-/PEM-Muster nur dann prominent einbeziehen, wenn sie
      - in zeitlicher Nähe zu Kopfschmerz/Migräne auftreten
      - als Belastungskontext für Migräne relevant wirken
-   - Reine Erschöpfungsmuster ohne Migränebezug eher kurz halten
+   - Reine Erschöpfungsmuster ohne Migränebezug NICHT in possiblePatterns aufnehmen
+   - "Müdigkeit an Schmerztagen" ist TRIVIAL und soll NICHT als Muster gemeldet werden
 
 7. UNSICHERHEIT AKTIV UND HILFREICH KOMMUNIZIEREN
    - Bei weniger als 5 Beobachtungen: evidenceStrength maximal "low"
@@ -244,9 +250,28 @@ WICHTIGE REGELN:
    - Zwei aufeinanderfolgende Ereignisse bedeuten nicht automatisch einen kausalen Zusammenhang
    - Formuliere: "tritt häufig in zeitlicher Nähe auf" statt "führt zu"
 
-9. DATENSCHUTZ
+9. TRIVIALE MUSTER UNTERDRÜCKEN
+   - Folgende Muster sind BANAL und dürfen NICHT in die Ausgabe:
+     * "Schmerz → Medikament" (selbstverständliches Verhalten)
+     * "Kopfschmerz → Ruhe" (trivial)
+     * "Medikament → Schmerz bleibt/geht" (zu unspezifisch)
+     * "Müdigkeit an Schmerztagen" (erwartbar)
+     * "Erschöpfung zusammen mit Schmerz" ohne konkreten Kontext
+   - Stattdessen: nur Muster, die dem Nutzer HELFEN, z.B.:
+     * Reizüberflutung vor Schmerzanstieg
+     * Schlechter Schlaf → Migräne am Folgetag
+     * Belastung → Erschöpfung → Kopfschmerz (3er-Kette)
+     * Triptan-Zurückhaltung → Schmerzverschlimmerung
+
+10. DATENSCHUTZ
    - Nenne keine persönlichen Daten oder Namen
    - Verweise auf Einträge nur über Datum und ungefähre Uhrzeit
+
+11. DEDUPLIZIERUNG
+   - JEDE Beobachtung nur EINMAL in der gesamten Ausgabe
+   - Wenn etwas als possiblePattern genannt wird, NICHT nochmal in painContextFindings oder fatigueContextFindings
+   - Wenn Triptan-Vermeidung als Pattern vorkommt, nicht nochmal als offene Frage
+
 ${thinDataWarning}
 KONTEXT ZUM DATENSATZ:
 - Analysezeitraum: ${meta.totalDays} Tage
