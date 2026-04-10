@@ -183,8 +183,8 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
     const dedupedPatterns: PatternFinding[] = [];
     for (const p of sorted) {
       const pText = p.title + ' ' + p.description;
-      if (overlapsAny(pText, [result.summary], 0.45)) continue;
-      if (overlapsAny(pText, dedupedPatterns.map(d => d.title + ' ' + d.description), 0.35)) continue;
+      if (overlapsAny(pText, [result.summary], 0.40)) continue;
+      if (overlapsAny(pText, dedupedPatterns.map(d => d.title + ' ' + d.description), 0.30)) continue;
       dedupedPatterns.push(p);
     }
     sorted = dedupedPatterns;
@@ -225,10 +225,11 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
     const finalContext = allContext
       .filter(f => !isBanalContent(f.observation))
       .filter(f => !isWeakPattern(f.observation))
-      .filter(f => !overlapsAny(f.observation, allRefTexts, 0.28))
+      .filter(f => f.observation.length >= 30)
+      .filter(f => !overlapsAny(f.observation, allRefTexts, 0.25))
       .slice(0, 1);
 
-    // Uncertainties: banal + generic + dedup, max 1
+    // Uncertainties: banal + generic + dedup, max 1 — only show if genuinely actionable
     const fullRef = [
       ...allRefTexts,
       ...finalContext.map(f => f.observation),
@@ -237,7 +238,7 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
       result.openQuestions.slice(0, MAX_QUESTIONS),
       result.confidenceNotes,
       fullRef,
-    ).slice(0, 1);
+    ).filter(item => item.length >= 25).slice(0, 1);
 
     return { sortedPatterns: sorted, filteredSequences: seqs, extraContextFindings: finalContext, uncertainties: merged };
   }, [result]);
