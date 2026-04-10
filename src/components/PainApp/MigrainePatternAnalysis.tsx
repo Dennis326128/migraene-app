@@ -6,23 +6,79 @@
  * 
  * Design principles:
  * - Focus on migraine correlations, not day-by-day logs
- * - No redundant sections
+ * - No redundant sections — each section has a unique function
  * - Calm, readable, non-technical
  * - No debug info leaks
  * - Sparse, user-friendly dates (e.g. "10. Apr.")
+ * - Patterns sorted by relevance (evidence strength + occurrences)
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { Brain, Loader2, AlertCircle, Lightbulb, RefreshCw, HelpCircle, TrendingUp, Search } from 'lucide-react';
+import { Brain, Loader2, AlertCircle, Lightbulb, RefreshCw, HelpCircle, TrendingUp, FileText, Eye } from 'lucide-react';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { TimeRangeSelector } from './TimeRangeSelector';
 import { runVoicePatternAnalysis } from '@/lib/voice/analysisEngine';
 import { isAnalysisUnavailable, type VoiceAnalysisResult, type PatternFinding, type ContextFinding } from '@/lib/voice/analysisTypes';
 import { logError } from '@/lib/utils/errorMessages';
+
+// ============================================================
+// === HELPERS ===
+// ============================================================
+
+/** Evidence strength to sort priority (higher = more relevant) */
+const EVIDENCE_PRIORITY: Record<string, number> = { high: 3, medium: 2, low: 1 };
+
+/** Sort patterns: higher evidence first, then by occurrence count */
+function sortPatterns(patterns: PatternFinding[]): PatternFinding[] {
+  return [...patterns].sort((a, b) => {
+    const ePri = (EVIDENCE_PRIORITY[b.evidenceStrength] || 0) - (EVIDENCE_PRIORITY[a.evidenceStrength] || 0);
+    if (ePri !== 0) return ePri;
+    return b.occurrences - a.occurrences;
+  });
+}
+
+/** Deduplicate: remove context findings whose observation text closely matches a pattern title or description */
+function deduplicateFindings(
+  findings: ContextFinding[],
+  patterns: PatternFinding[],
+): ContextFinding[] {
+  if (patterns.length === 0) return findings;
+  const patternTexts = patterns.map(p => (p.title + ' ' + p.description).toLowerCase());
+
+  return findings.filter(f => {
+    const obsLower = f.observation.toLowerCase();
+    // If >60% of words in the observation appear in any pattern text → duplicate
+    const words = obsLower.split(/\s+/).filter(w => w.length > 3);
+    if (words.length === 0) return true;
+    return !patternTexts.some(pt => {
+      const matchCount = words.filter(w => pt.includes(w)).length;
+      return matchCount / words.length > 0.6;
+    });
+  });
+}
+
+/** Merge open questions and confidence notes, removing near-duplicates */
+function mergeUncertainties(openQuestions: string[], confidenceNotes: string[]): string[] {
+  const all = [...openQuestions, ...confidenceNotes];
+  const unique: string[] = [];
+  for (const item of all) {
+    const lower = item.toLowerCase();
+    const isDup = unique.some(existing => {
+      const existLower = existing.toLowerCase();
+      // Simple overlap check
+      const words = lower.split(/\s+/).filter(w => w.length > 4);
+      if (words.length === 0) return false;
+      const overlap = words.filter(w => existLower.includes(w)).length;
+      return overlap / words.length > 0.7;
+    });
+    if (!isDup) unique.push(item);
+  }
+  return unique;
+}
 
 // ============================================================
 // === EVIDENCE BADGE ===
@@ -42,7 +98,7 @@ const evidenceStyles: Record<string, string> = {
 
 function EvidenceBadge({ strength }: { strength: string }) {
   return (
-    <Badge variant="outline" className={`text-xs ${evidenceStyles[strength] || ''}`}>
+    <Badge variant="outline" className={`text-xs shrink-0 ${evidenceStyles[strength] || ''}`}>
       {evidenceLabels[strength] || strength}
     </Badge>
   );
@@ -70,16 +126,58 @@ function PatternCard({ pattern }: { pattern: PatternFinding }) {
 }
 
 // ============================================================
-// === CONTEXT FINDING ITEM ===
+// === REPORT GENERATION ===
 // ============================================================
 
-function ContextItem({ finding }: { finding: ContextFinding }) {
-  return (
-    <li className="text-sm text-foreground flex items-start gap-2">
-      <span className="text-muted-foreground mt-1 shrink-0">•</span>
-      <span>{finding.observation}</span>
-    </li>
-  );
+/** Generate a clean, non-redundant text report from the analysis result */
+function generateReport(result: VoiceAnalysisResult): string {
+  const lines: string[] = [];
+
+  lines.push('Mögliche Migräne-Zusammenhänge');
+  lines.push(`Analysezeitraum: ${result.scope.daysAnalyzed} Tage`);
+  lines.push('');
+
+  // Summary
+  lines.push('Einordnung');
+  lines.push(result.summary);
+  lines.push('');
+
+  // Patterns
+  const sorted = sortPatterns(result.possiblePatterns);
+  if (sorted.length > 0) {
+    lines.push('Mögliche Einflussfaktoren');
+    for (const p of sorted) {
+      const label = evidenceLabels[p.evidenceStrength] || '';
+      lines.push(`• ${p.title} (${label})`);
+      lines.push(`  ${p.description}`);
+    }
+    lines.push('');
+  }
+
+  // Recurring sequences
+  if (result.recurringSequences.length > 0) {
+    lines.push('Wiederkehrende Muster');
+    for (const s of result.recurringSequences) {
+      lines.push(`• ${s.pattern}${s.count > 1 ? ` (${s.count}×)` : ''}`);
+      if (s.llmInterpretation) lines.push(`  ${s.llmInterpretation}`);
+    }
+    lines.push('');
+  }
+
+  // Uncertainties
+  const uncertainties = mergeUncertainties(result.openQuestions, result.confidenceNotes);
+  if (uncertainties.length > 0) {
+    lines.push('Was noch unklar ist');
+    for (const u of uncertainties) {
+      lines.push(`• ${u}`);
+    }
+    lines.push('');
+  }
+
+  lines.push('---');
+  lines.push('Hinweis: Mögliche Zusammenhänge – keine medizinische Diagnose.');
+
+  return lines.join('\n');
 }
 
 // ============================================================
@@ -87,45 +185,45 @@ function ContextItem({ finding }: { finding: ContextFinding }) {
 // ============================================================
 
 function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
-  // Merge all context findings, prioritizing pain-related
-  const painFindings = result.painContextFindings;
-  const fatigueFindings = result.fatigueContextFindings.filter(f => 
-    // Only show fatigue findings that relate to headache context
-    f.observation.toLowerCase().includes('schmerz') ||
-    f.observation.toLowerCase().includes('kopf') ||
-    f.observation.toLowerCase().includes('migräne') ||
-    f.observation.toLowerCase().includes('belastung') ||
-    f.observation.toLowerCase().includes('erschöpf') ||
-    // Always show if evidence is medium+
-    f.evidenceStrength !== 'low'
-  );
-  const medFindings = result.medicationContextFindings;
-  const allContextFindings = [...painFindings, ...fatigueFindings, ...medFindings];
+  const [showReport, setShowReport] = useState(false);
 
-  // Deduplicate patterns - remove patterns whose title/description closely match context findings
-  const patterns = result.possiblePatterns;
+  const { sortedPatterns, extraContextFindings, uncertainties } = useMemo(() => {
+    const sorted = sortPatterns(result.possiblePatterns);
 
-  const hasPatterns = patterns.length > 0;
-  const hasContext = allContextFindings.length > 0;
+    // Merge pain + relevant fatigue + medication findings, then deduplicate against patterns
+    const painFindings = result.painContextFindings;
+    const fatigueFiltered = result.fatigueContextFindings.filter(f =>
+      f.evidenceStrength !== 'low' ||
+      /schmerz|kopf|migräne|belastung|erschöpf/i.test(f.observation)
+    );
+    const allContext = [...painFindings, ...fatigueFiltered, ...result.medicationContextFindings];
+    const deduped = deduplicateFindings(allContext, sorted);
+
+    const merged = mergeUncertainties(result.openQuestions, result.confidenceNotes);
+
+    return { sortedPatterns: sorted, extraContextFindings: deduped, uncertainties: merged };
+  }, [result]);
+
+  const hasPatterns = sortedPatterns.length > 0;
+  const hasExtraContext = extraContextFindings.length > 0;
   const hasSequences = result.recurringSequences.length > 0;
-  const hasOpenQuestions = result.openQuestions.length > 0;
-  const hasConfidenceNotes = result.confidenceNotes.length > 0;
+  const hasUncertainties = uncertainties.length > 0;
 
   return (
     <div className="space-y-5">
-      {/* 1. Summary */}
+      {/* 1. Summary — always shown */}
       <Card className="border-primary/20 bg-primary/5">
         <CardContent className="p-4">
           <p className="text-sm leading-relaxed">{result.summary}</p>
-          <p className="text-xs text-muted-foreground mt-2">
-            Basierend auf {result.scope.daysAnalyzed} analysierten Tagen
-            {result.scope.voiceEventCount > 0 && ` · ${result.scope.voiceEventCount} Sprachnotizen`}
+          <p className="text-xs text-muted-foreground/70 mt-2">
+            {result.scope.daysAnalyzed} Tage analysiert
             {result.scope.painEntryCount > 0 && ` · ${result.scope.painEntryCount} Schmerzeinträge`}
+            {result.scope.voiceEventCount > 0 && ` · ${result.scope.voiceEventCount} Sprachnotizen`}
           </p>
         </CardContent>
       </Card>
 
-      {/* 2. Possible patterns / trigger candidates */}
+      {/* 2. Possible patterns / trigger candidates — sorted by relevance */}
       {hasPatterns && (
         <div className="space-y-3">
           <div className="flex items-center gap-2">
@@ -133,14 +231,14 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
             <h3 className="font-semibold text-sm">Mögliche Einflussfaktoren</h3>
           </div>
           <div className="space-y-2">
-            {patterns.map((p, i) => (
+            {sortedPatterns.map((p, i) => (
               <PatternCard key={i} pattern={p} />
             ))}
           </div>
         </div>
       )}
 
-      {/* 3. Recurring sequences */}
+      {/* 3. Recurring sequences — only if not already covered by patterns */}
       {hasSequences && (
         <div className="space-y-3">
           <div className="flex items-center gap-2">
@@ -167,50 +265,107 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
         </div>
       )}
 
-      {/* 4. Context findings (merged, no redundancy) */}
-      {hasContext && !hasPatterns && (
-        <div className="space-y-3">
+      {/* 4. Extra context findings — only those NOT already in patterns */}
+      {hasExtraContext && extraContextFindings.length > 0 && (
+        <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <Search className="h-4 w-4 text-primary" />
-            <h3 className="font-semibold text-sm">Beobachtete Kontexte</h3>
+            <Eye className="h-4 w-4 text-muted-foreground" />
+            <h3 className="font-semibold text-sm text-muted-foreground">Weitere Beobachtungen</h3>
           </div>
-          <ul className="space-y-2">
-            {allContextFindings.slice(0, 8).map((f, i) => (
-              <ContextItem key={i} finding={f} />
+          <ul className="space-y-1.5">
+            {extraContextFindings.slice(0, 5).map((f, i) => (
+              <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
+                <span className="mt-1 shrink-0">•</span>
+                <span>{f.observation}</span>
+              </li>
             ))}
           </ul>
         </div>
       )}
 
-      {/* 5. Open questions & uncertainty */}
-      {(hasOpenQuestions || hasConfidenceNotes) && (
+      {/* 5. What's still unclear — merged, deduplicated */}
+      {hasUncertainties && (
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <HelpCircle className="h-4 w-4 text-muted-foreground" />
             <h3 className="font-semibold text-sm text-muted-foreground">Was noch unklar ist</h3>
           </div>
           <ul className="space-y-1.5">
-            {result.openQuestions.map((q, i) => (
-              <li key={`q-${i}`} className="text-sm text-muted-foreground flex items-start gap-2">
+            {uncertainties.map((item, i) => (
+              <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
                 <span className="mt-1 shrink-0">•</span>
-                <span>{q}</span>
-              </li>
-            ))}
-            {result.confidenceNotes.map((n, i) => (
-              <li key={`c-${i}`} className="text-sm text-muted-foreground flex items-start gap-2">
-                <span className="mt-1 shrink-0">•</span>
-                <span>{n}</span>
+                <span>{item}</span>
               </li>
             ))}
           </ul>
         </div>
       )}
 
-      {/* Disclaimer */}
-      <p className="text-xs text-muted-foreground/60 text-center pt-2 border-t border-border/50">
-        Mögliche Zusammenhänge · keine medizinische Diagnose · Muster können zufällig sein
-      </p>
+      {/* Report action + disclaimer */}
+      <div className="flex flex-col items-center gap-3 pt-2 border-t border-border/50">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowReport(!showReport)}
+        >
+          <FileText className="h-3.5 w-3.5 mr-1.5" />
+          {showReport ? 'Bericht schließen' : 'Als Bericht anzeigen'}
+        </Button>
+        <p className="text-xs text-muted-foreground/60 text-center">
+          Mögliche Zusammenhänge · keine medizinische Diagnose
+        </p>
+      </div>
+
+      {/* Report view */}
+      {showReport && (
+        <Card className="border-border/50">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-medium">Analysebericht</h4>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  const text = generateReport(result);
+                  navigator.clipboard.writeText(text);
+                }}
+              >
+                Kopieren
+              </Button>
+            </div>
+            <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-sans leading-relaxed">
+              {generateReport(result)}
+            </pre>
+          </CardContent>
+        </Card>
+      )}
     </div>
+  );
+}
+
+// ============================================================
+// === WEAK DATA UX ===
+// ============================================================
+
+function WeakDataMessage() {
+  return (
+    <Card className="border-muted bg-muted/20">
+      <CardContent className="p-5">
+        <div className="flex items-start gap-3">
+          <Brain className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
+          <div className="space-y-2">
+            <h4 className="font-medium text-sm">Noch nicht genug Daten für klare Muster</h4>
+            <p className="text-sm text-muted-foreground">
+              Die Analyse braucht mehr dokumentierte Tage, um mögliche Zusammenhänge erkennen zu können.
+              Je regelmäßiger du einträgst, desto aussagekräftiger wird die Auswertung.
+            </p>
+            <p className="text-xs text-muted-foreground/70">
+              Tipp: Auch schmerzfreie Tage und Alltagsbeobachtungen helfen bei der Mustererkennung.
+            </p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -223,9 +378,11 @@ export function MigrainePatternAnalysis() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [result, setResult] = useState<VoiceAnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isWeakData, setIsWeakData] = useState(false);
 
   const runAnalysis = useCallback(async () => {
     setError(null);
+    setIsWeakData(false);
     setIsAnalyzing(true);
 
     try {
@@ -237,7 +394,7 @@ export function MigrainePatternAnalysis() {
       const analysisResult = await runVoicePatternAnalysis(range);
 
       if (isAnalysisUnavailable(analysisResult)) {
-        setError('Zu wenig Daten für eine aussagekräftige Analyse. Dokumentiere weiter und versuche es später erneut.');
+        setIsWeakData(true);
         setResult(null);
       } else {
         setResult(analysisResult);
@@ -245,15 +402,14 @@ export function MigrainePatternAnalysis() {
     } catch (err) {
       logError('MigrainePatternAnalysis.run', err);
       const msg = err instanceof Error ? err.message : 'Analyse fehlgeschlagen';
-      // User-friendly error messages
       if (msg.includes('Rate Limit')) {
         setError('Bitte warte einen Moment, bevor du erneut analysierst.');
       } else if (msg.includes('Guthaben')) {
         setError('Monatliches Analyselimit erreicht. Nächsten Monat stehen dir wieder Analysen zur Verfügung.');
       } else if (msg.includes('Keine Daten')) {
-        setError('Im gewählten Zeitraum sind keine Daten vorhanden. Bitte wähle einen anderen Zeitraum.');
+        setError('Im gewählten Zeitraum sind keine Daten vorhanden.');
       } else {
-        setError('Die Analyse konnte im Moment nicht durchgeführt werden. Bitte versuche es später erneut.');
+        setError('Die Analyse konnte nicht durchgeführt werden. Bitte versuche es später erneut.');
       }
       setResult(null);
     } finally {
@@ -268,10 +424,10 @@ export function MigrainePatternAnalysis() {
         <Brain className="h-4 w-4" />
         <AlertDescription>
           <p className="text-sm text-muted-foreground">
-            Analysiert deine Einträge und Sprachnotizen auf mögliche Zusammenhänge mit Migräne.
+            Sucht in deinen Einträgen nach möglichen Zusammenhängen mit Migräne.
           </p>
           <p className="mt-1 text-xs text-muted-foreground/70">
-            Keine medizinische Diagnose · Ergebnisse sind Hinweise, keine Gewissheit
+            Hinweise, keine Diagnose · Ergebnisse mit Arzt besprechen
           </p>
         </AlertDescription>
       </Alert>
@@ -292,7 +448,7 @@ export function MigrainePatternAnalysis() {
             ) : result ? (
               <><RefreshCw className="h-4 w-4 mr-2" /> Erneut analysieren</>
             ) : (
-              <><Brain className="h-4 w-4 mr-2" /> Muster analysieren</>
+              <><Brain className="h-4 w-4 mr-2" /> Zusammenhänge suchen</>
             )}
           </Button>
         </CardContent>
@@ -321,16 +477,19 @@ export function MigrainePatternAnalysis() {
         </Card>
       )}
 
+      {/* Weak data */}
+      {isWeakData && <WeakDataMessage />}
+
       {/* Results */}
       {result && <AnalysisResults result={result} />}
 
       {/* Empty state */}
-      {!result && !isAnalyzing && !error && (
+      {!result && !isAnalyzing && !error && !isWeakData && (
         <div className="text-center py-10 text-muted-foreground">
           <Brain className="h-10 w-10 mx-auto mb-3 opacity-40" />
           <p className="text-sm">Wähle einen Zeitraum und starte die Analyse</p>
           <p className="text-xs mt-1 opacity-70">
-            Die KI sucht nach möglichen Mustern und Einflussfaktoren
+            Sucht nach möglichen Mustern und Einflussfaktoren für Migräne
           </p>
         </div>
       )}
