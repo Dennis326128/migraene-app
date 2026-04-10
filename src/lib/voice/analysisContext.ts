@@ -607,6 +607,23 @@ export function serializeForLLM(ctx: AnalysisContext): string {
     lines.push('');
   }
 
+  // Fatigue/energy context from "Alltag & Auslöser" notes
+  if (ctx.fatigueContextSummary && ctx.fatigueContextSummary.length > 0) {
+    lines.push('=== Erschöpfungs-/Energiekontext (aus Alltags-Einträgen) ===');
+    lines.push('HINWEIS: Diese Daten sind ERGÄNZEND. "Erschöpft" allein ist KEIN ME/CFS-Signal.');
+    lines.push('Nur als Muster relevant, wenn zusammen mit Kopfschmerz/Migräne auftretend.');
+    lines.push('');
+    for (const entry of ctx.fatigueContextSummary) {
+      const parts = [`  ${entry.date}: Energie=${entry.energyLevel}`];
+      if (entry.stressLevel !== null) parts.push(`Stress=${entry.stressLevel}/4`);
+      if (entry.sleepLevel !== null) parts.push(`Schlaf=${entry.sleepLevel}/4`);
+      if (entry.relevance !== 'none') parts.push(`Relevanz=${entry.relevance}`);
+      if (entry.tags.length > 0) parts.push(`Details: ${entry.tags.join(', ')}`);
+      lines.push(parts.join(', '));
+    }
+    lines.push('');
+  }
+
   return lines.join('\n');
 }
 
