@@ -711,6 +711,8 @@ export function buildAnalysisContext(
 
   // Build fatigue context summary from context notes
   const fatigueContextSummary = buildFatigueContextSummary(dataset.contextNotes ?? []);
+  // Build trigger context summary from context notes
+  const triggerContextSummary = buildTriggerContextSummary(dataset.contextNotes ?? []);
 
   return {
     days,
@@ -721,6 +723,7 @@ export function buildAnalysisContext(
     medicationWindows,
     recurringSequences,
     fatigueContextSummary,
+    triggerContextSummary,
     meta: {
       totalItems: timeline.length,
       totalDays: days.length,
