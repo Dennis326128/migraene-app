@@ -239,7 +239,7 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
         </div>
       )}
 
-      {/* 3. Recurring sequences — only if not already covered by patterns */}
+      {/* 3. Recurring sequences — limited to MAX_SEQUENCES */}
       {hasSequences && (
         <div className="space-y-3">
           <div className="flex items-center gap-2">
@@ -247,7 +247,7 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
             <h3 className="font-semibold text-sm">Wiederkehrende Muster</h3>
           </div>
           <div className="space-y-2">
-            {result.recurringSequences.map((seq, i) => (
+            {result.recurringSequences.slice(0, MAX_SEQUENCES).map((seq, i) => (
               <div key={i} className="p-3 rounded-lg border bg-card">
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-sm font-medium">{seq.pattern}</span>
