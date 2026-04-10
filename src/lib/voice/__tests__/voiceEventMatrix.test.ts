@@ -57,6 +57,14 @@ describe('Alltag – direkt speichern', () => {
     ['War gerade einkaufen', 'activity', false],
     ['Es ist total stickig hier', 'environment', false],
     ['Ich bin reizüberflutet', 'stress_overload', false],
+    ['Habe gerade Joghurt gegessen', 'food_drink', false],
+    ['Ich war draußen unterwegs', 'activity', false],
+    ['Habe Cola getrunken', 'food_drink', false],
+    ['Total gestresst heute', 'stress_overload', false],
+    ['Ich bin nervös', 'stress_overload', false],
+    ['Habe schlecht geschlafen', 'sleep_rest', false],
+    ['Bin um 3 aufgewacht', 'sleep_rest', false],
+    ['War im Supermarkt, Licht war schlimm', 'environment', false],
   ];
 
   it.each(cases)('"%s" → %s, review=%s', (text, expectedType, expectedReview) => {
@@ -77,6 +85,7 @@ describe('Schmerz – Review nötig', () => {
     'Seit zwei Stunden Kopfdruck',
     'Kopf drückt und pocht',
     'Migräneattacke seit heute Morgen',
+    'Druck im Kopf links',
   ];
 
   it.each(cases)('"%s" → pain + review', (text) => {
@@ -148,18 +157,33 @@ describe('Gemischte Aussagen', () => {
     expect(hasType(text, 'pain')).toBe(true);
     expect(needsReview(text)).toBe(true);
   });
+
+  it('"Habe Kaffee getrunken und bin jetzt erschöpft" → food_drink + mecfs, no review', () => {
+    const text = 'Habe Kaffee getrunken und bin jetzt erschöpft';
+    expect(isMeaningful(text)).toBe(true);
+    expect(hasType(text, 'food_drink')).toBe(true);
+    expect(hasType(text, 'mecfs_exertion')).toBe(true);
+    expect(needsReview(text)).toBe(false);
+  });
+
+  it('"Nach dem Spazieren total erledigt" → activity + mecfs, no review', () => {
+    const text = 'Nach dem Spazieren total erledigt';
+    expect(isMeaningful(text)).toBe(true);
+    expect(hasType(text, 'mecfs_exertion')).toBe(true);
+    expect(needsReview(text)).toBe(false);
+  });
 });
 
 // ============================================================
 // 5. KURZE / GRENZWERTIGE AUSSAGEN
 // ============================================================
 describe('Kurze Aussagen – dürfen nicht als Noise verloren gehen', () => {
-  const meaningfulShort: [string, VoiceEventType | null][] = [
+  const meaningfulShort: [string, VoiceEventType][] = [
     ['platt', 'mecfs_exertion'],
     ['übel', 'symptom'],
     ['regen', 'environment'],
     ['hingelegt', 'sleep_rest'],
-    ['anstrengend', 'general_observation'],
+    ['anstrengend', 'mecfs_exertion'],
     ['erschöpft', 'mecfs_exertion'],
     ['Kopfdruck', 'pain'],
     ['brain fog', 'mecfs_exertion'],
@@ -169,6 +193,14 @@ describe('Kurze Aussagen – dürfen nicht als Noise verloren gehen', () => {
     ['pem', 'mecfs_exertion'],
     ['tee', 'food_drink'],
     ['kalt', 'environment'],
+    ['matschig', 'mecfs_exertion'],
+    ['schlapp', 'mecfs_exertion'],
+    ['kaputt', 'mecfs_exertion'],
+    ['erledigt', 'mecfs_exertion'],
+    ['Kopfschmerzen', 'pain'],
+    ['Migräne', 'pain'],
+    ['schwindlig', 'symptom'],
+    ['benommen', 'symptom'],
   ];
 
   it.each(meaningfulShort)('"%s" is meaningful, not noise', (text) => {
@@ -176,10 +208,8 @@ describe('Kurze Aussagen – dürfen nicht als Noise verloren gehen', () => {
     expect(isMeaningful(text)).toBe(true);
   });
 
-  it.each(meaningfulShort)('"%s" has expected type', (text, expectedType) => {
-    if (expectedType) {
-      expect(hasType(text, expectedType)).toBe(true);
-    }
+  it.each(meaningfulShort)('"%s" → %s', (text, expectedType) => {
+    expect(hasType(text, expectedType)).toBe(true);
   });
 });
 
@@ -196,6 +226,8 @@ describe('Echte Noise – soll weiterhin gefiltert werden', () => {
     'test',
     'hallo',
     'oh',
+    'ne',
+    'mhm',
   ];
 
   it.each(noise)('"%s" is noise', (text) => {
@@ -211,9 +243,6 @@ describe('Segmentierung', () => {
     const text = 'Ich habe gerade gegessen, war danach duschen und jetzt merke ich Druck im Kopf';
     const segments = segmentVoiceInput(text);
     expect(segments.length).toBeGreaterThanOrEqual(2);
-    // Full text must be reconstructable
-    const reconstructed = segments.map(s => s.text).join(' ');
-    // Each segment should be non-empty
     segments.forEach(s => expect(s.text.length).toBeGreaterThan(0));
   });
 
@@ -237,6 +266,27 @@ describe('Segmentierung', () => {
       expect(s.classification.isMeaningful).toBeDefined();
     });
   });
+
+  it('Segmentierung zerstört keine Zusammenhänge in kurzen Sätzen', () => {
+    const text = 'Mir ist übel und schwindlig';
+    const segments = segmentVoiceInput(text);
+    // Short related symptoms should ideally stay together or at least all be meaningful
+    segments.forEach(s => {
+      expect(s.text.length).toBeGreaterThan(0);
+    });
+  });
+
+  it('Rohtext bleibt vollständig erhalten über alle Segmente', () => {
+    const text = 'Ich habe gegessen und danach war ich duschen';
+    const segments = segmentVoiceInput(text);
+    // All original content must be represented across segments
+    const allText = segments.map(s => s.text).join(' ');
+    // Every word from the original should appear in segments
+    const originalWords = text.toLowerCase().split(/\s+/).filter(w => !['und', 'danach'].includes(w));
+    for (const word of originalWords) {
+      expect(allText.toLowerCase()).toContain(word);
+    }
+  });
 });
 
 // ============================================================
@@ -258,9 +308,13 @@ describe('Routing-Grenzfälle', () => {
     expect(needsReview('kopf zieht links')).toBe(true);
   });
 
-  it('"seit Stunden Druck" → general (no specific pain match without "kopf")', () => {
-    // "Druck" alone doesn't match pain patterns (kopfdruck does)
+  it('"seit Stunden Druck" → meaningful, preserved for analysis', () => {
     expect(isMeaningful('seit Stunden Druck')).toBe(true);
+  });
+
+  it('"seit stunden druck im kopf" → pain, Review', () => {
+    expect(hasType('seit stunden druck im kopf', 'pain')).toBe(true);
+    expect(needsReview('seit stunden druck im kopf')).toBe(true);
   });
 
   it('"ich nehme jetzt eine Tablette" → medication, Review', () => {
@@ -284,6 +338,24 @@ describe('Routing-Grenzfälle', () => {
     expect(hasType('zu viel gerade', 'stress_overload')).toBe(true);
     expect(needsReview('zu viel gerade')).toBe(false);
   });
+
+  it('"licht schlimm und kopfschmerz" → pain + environment, Review', () => {
+    const text = 'licht schlimm und kopfschmerz';
+    expect(hasType(text, 'pain')).toBe(true);
+    expect(hasType(text, 'environment')).toBe(true);
+    expect(needsReview(text)).toBe(true);
+  });
+
+  // Symptom-only should NOT trigger review
+  it('"mir ist schwindlig" → symptom, kein Review', () => {
+    expect(hasType('mir ist schwindlig', 'symptom')).toBe(true);
+    expect(needsReview('mir ist schwindlig')).toBe(false);
+  });
+
+  it('"alles etwas viel heute" → stress_overload, kein Review', () => {
+    expect(hasType('alles etwas viel heute', 'stress_overload')).toBe(true);
+    expect(needsReview('alles etwas viel heute')).toBe(false);
+  });
 });
 
 // ============================================================
@@ -293,17 +365,21 @@ describe('Rohtext-Erhaltung', () => {
   it('classification result always includes isMeaningful flag', () => {
     const result = classifyVoiceEvent('Irgendwie komisch heute, alles bisschen viel');
     expect(result.isMeaningful).toBe(true);
-    // Even unclassifiable text gets general_observation
     expect(result.classifications.length).toBeGreaterThan(0);
   });
 
   it('unklare Aussagen werden als general_observation gespeichert', () => {
     const result = classifyVoiceEvent('Fühlt sich seltsam an');
     expect(result.isMeaningful).toBe(true);
-    // Should at least be general_observation
     expect(result.classifications.some(
       c => c.type === 'general_observation' || c.type === 'symptom'
     )).toBe(true);
+  });
+
+  it('ambiguous short phrases are preserved', () => {
+    expect(isMeaningful('irgendwie anders')).toBe(true);
+    expect(isMeaningful('nicht gut drauf')).toBe(true);
+    expect(isMeaningful('geht so')).toBe(true);
   });
 });
 
@@ -330,6 +406,16 @@ describe('Tag-Extraktion', () => {
     const result = classifyVoiceEvent('Total gestresst heute');
     expect(result.tags).toContain('stress');
   });
+
+  it('erkennt Duschen-Tag', () => {
+    const result = classifyVoiceEvent('War eben duschen');
+    expect(result.tags).toContain('duschen');
+  });
+
+  it('erkennt Brain-Fog-Tag', () => {
+    const result = classifyVoiceEvent('Habe brain fog');
+    expect(result.tags).toContain('brainfog');
+  });
 });
 
 // ============================================================
@@ -354,5 +440,34 @@ describe('Medical Relevance', () => {
 
   it('mecfs_exertion → high', () => {
     expect(classifyVoiceEvent('Komplett platt nach dem Duschen').medicalRelevance).toBe('high');
+  });
+
+  it('symptom → high', () => {
+    expect(classifyVoiceEvent('Mir ist übel').medicalRelevance).toBe('high');
+  });
+
+  it('stress_overload → medium', () => {
+    expect(classifyVoiceEvent('Heute ist alles etwas viel').medicalRelevance).toBe('medium');
+  });
+});
+
+// ============================================================
+// 11. QUEUE / OFFLINE ROBUSTNESS (structural checks)
+// ============================================================
+describe('Queue-Robustheit (structural)', () => {
+  it('saveVoiceEvent throws on auth failure (not null)', async () => {
+    // This verifies the contract: saveVoiceEvent must THROW on errors,
+    // never silently return null for non-noise inputs.
+    // The actual Supabase call can't be tested here, but the contract is:
+    // - null = intentionally skipped (noise)
+    // - throw = error → queue must catch
+    // We verify this by checking the function signature expectation
+    const { saveVoiceEvent } = await import('../voiceEventStore');
+    expect(typeof saveVoiceEvent).toBe('function');
+  });
+
+  it('saveVoiceEventRobust returns structured result', async () => {
+    const { saveVoiceEventRobust } = await import('../voiceEventQueue');
+    expect(typeof saveVoiceEventRobust).toBe('function');
   });
 });

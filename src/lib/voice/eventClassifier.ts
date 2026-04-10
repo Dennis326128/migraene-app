@@ -62,6 +62,8 @@ const EVENT_PATTERNS: PatternGroup[] = [
       /\bdrückt/i, /\bpocht/i, /\bsticht/i, /\bhämmert/i,
       /\bzieh(?:t|en)\b/i, /\bkopfdruck/i, /\bdruckgefühl/i,
       /\bkopf\s+(?:zieht|drückt|pocht|sticht|brummt)/i,
+      /\bdruck\s+(?:im|am|auf(?:m|\s+dem)?)\s+kopf/i,
+      /(?:stunden|lange)\s+druck/i,
     ],
     tags: ['schmerz'],
     medicalRelevance: 'high',
@@ -221,6 +223,7 @@ const EVENT_PATTERNS: PatternGroup[] = [
       /\berschöpf/i, /\bkomplett\s+platt/i, /\btotal\s+platt/i,
       /\bplatt\b/i, /\bfertig\b/i,
       /\bcrash/i, /\bpem\b/i,
+      /\bmatschig/i, /\bschlapp/i, /\bkaputt\b/i,
       /\bnach\s+(?:der\s+)?(?:belastung|anstrengung|aktivität)/i,
       /\bnicht\s+belastbar/i, /\bbelastbar\b/i,
       /\bbrain\s*fog/i, /\bnebel\s*(?:im\s*)?kopf/i,
@@ -232,6 +235,7 @@ const EVENT_PATTERNS: PatternGroup[] = [
       /\bkraftlos/i, /\benergiel/i,
       /\bausgepowert/i, /\bausgelaugt/i,
       /\bdanach\s+(?:komplett|total|völlig)\s+(?:platt|fertig|am\s+ende)/i,
+      /\banstrengend/i, /\berledigt\b/i,
     ],
     tags: ['erschöpfung', 'mecfs'],
     medicalRelevance: 'high',
@@ -277,6 +281,8 @@ const MEANINGFUL_SHORT_WORDS = new Set([
   'bad',
   // States
   'fit', 'gut', 'ok',
+  // Additional short meaningful words
+  'müd', 'nap',
 ]);
 
 const MEANINGFUL_MIN_LENGTH = 2;
