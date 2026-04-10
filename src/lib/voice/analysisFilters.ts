@@ -115,6 +115,9 @@ export const GENERIC_UNCERTAINTY_RX = [
   /datenlage.*reicht.*nicht/i, /nicht.*genug.*einträge/i,
   /schwer.*zu.*beurteilen/i, /bisher.*nicht.*eindeutig/i,
   /weitere.*daten.*erforderlich/i,
+  /längerer.*zeitraum.*nötig/i, /noch.*nicht.*ausreichend/i,
+  /weitere.*beobachtung/i, /genauere.*dokumentation/i,
+  /regelmäßiger.*eintragen/i, /mehr.*tage.*dokument/i,
 ];
 
 /** Weak/vague pattern description phrases */
@@ -127,6 +130,11 @@ export const WEAK_DESCRIPTION_RX = [
   /es.*scheint.*als/i, /es.*deutet.*darauf/i,
   /möglicherweise.*besteht/i, /ein.*möglicher/i,
   /gelegentlich.*zusammen/i, /ab.*und.*zu/i,
+  // Additional weak hedging
+  /in.*einigen.*fällen/i, /hier.*und.*da/i,
+  /nicht.*ganz.*klar/i, /tendenziell/i,
+  /gewisse.*hinweise/i, /ohne.*klar.*muster/i,
+  /schwer.*einzuordnen/i, /unklar.*ob/i,
 ];
 
 // ============================================================
