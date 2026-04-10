@@ -1036,7 +1036,7 @@ export async function buildDoctorReportSnapshot(
     // All entries for summary/charts — now include symptoms_state and ME/CFS fields
     supabase
       .from("pain_entries")
-      .select("id, selected_date, selected_time, pain_level, medications, aura_type, pain_locations, notes, timestamp_created, entry_note_is_private, symptoms_state, me_cfs_severity_level, me_cfs_severity_score")
+      .select("id, selected_date, selected_time, pain_level, medications, aura_type, pain_locations, notes, timestamp_created, updated_at, entry_note_is_private, symptoms_state, me_cfs_severity_level, me_cfs_severity_score")
       .eq("user_id", userId)
       .gte("selected_date", from)
       .lte("selected_date", to)
