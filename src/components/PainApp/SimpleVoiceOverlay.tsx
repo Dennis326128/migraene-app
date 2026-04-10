@@ -30,7 +30,7 @@ import { EntryReviewSheet, type EntryReviewState } from './EntryReviewSheet';
 import { VoiceDebugOverlay } from './VoiceDebugOverlay';
 import { DEFAULT_DOSE_QUARTERS } from '@/lib/utils/doseFormatter';
 import { classifyVoiceEvent, segmentVoiceInput, getClassificationFeedback, getEventTypeIcon, getEventTypeLabel, type ClassificationResult, type VoiceEventType } from '@/lib/voice/eventClassifier';
-import { generateVoiceSessionId, linkVoiceEventToEntry } from '@/lib/voice/voiceEventStore';
+import { generateVoiceSessionId, generateVoiceEventClientId, linkVoiceEventToEntry } from '@/lib/voice/voiceEventStore';
 import { saveVoiceEventRobust } from '@/lib/voice/voiceEventQueue';
 import { parseEverydayContent } from '@/lib/voice/everydayParser';
 import { showSuccessToast, showInfoToast } from '@/lib/toastHelpers';
@@ -287,6 +287,8 @@ export function SimpleVoiceOverlay({
 
       // === EVERYDAY DIRECT SAVE: Skip review for non-medical entries ===
       if (!needsStructuredReview && currentText && classification.isMeaningful) {
+        // Generate stable client ID for idempotent save (dedup)
+        const clientId = generateVoiceEventClientId();
         // Save voice event robustly (with offline fallback)
         saveVoiceEventRobust({
           rawTranscript: currentText,
@@ -297,6 +299,7 @@ export function SimpleVoiceOverlay({
           segments,
           structuredData: { everyday: everydayData },
           reviewState: 'auto_saved',
+          clientId,
         }).then(result => {
           voiceEventIdRef.current = result.id;
           if (result.queued) {
@@ -355,6 +358,8 @@ export function SimpleVoiceOverlay({
         const { review, painDefaultUsed: pdu, painFromDescriptor: pfd, medsNeedReview: mnr } = buildEntryReviewState(parsed);
         
         // Save voice event FIRST (capture always) with offline fallback
+        // Generate stable client ID for idempotent save (dedup)
+        const reviewClientId = generateVoiceEventClientId();
         saveVoiceEventRobust({
           rawTranscript: currentText,
           cleanedTranscript: parsed.note || currentText,
@@ -371,6 +376,7 @@ export function SimpleVoiceOverlay({
             everyday: everydayData,
           },
           reviewState: 'auto_saved',
+          clientId: reviewClientId,
         }).then(result => {
           voiceEventIdRef.current = result.id;
         }).catch(err => {
