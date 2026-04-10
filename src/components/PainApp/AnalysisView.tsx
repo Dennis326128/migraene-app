@@ -11,7 +11,7 @@ import { TimeDistributionChart } from "./TimeDistributionChart";
 import { AccompanyingSymptomsCard } from "./AccompanyingSymptomsCard";
 import { MeCfsStatisticsCard } from "./MeCfsStatisticsCard";
 import { MeCfsCorrelationCard } from "./MeCfsCorrelationCard";
-import { VoiceNotesAIAnalysis } from "./VoiceNotesAIAnalysis";
+import { MigrainePatternAnalysis } from "./MigrainePatternAnalysis";
 import { MedicationOverviewCard } from "./MedicationOverviewCard";
 import { WeatherAssociationCard } from "./WeatherAssociationCard";
 import { useTimeDistribution } from "@/features/statistics/hooks/useStatistics";
@@ -494,7 +494,7 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
           </TabsContent>
 
           <TabsContent value="ki-analyse" className="mt-6">
-            <VoiceNotesAIAnalysis onViewReport={onViewAIReport} />
+            <MigrainePatternAnalysis />
           </TabsContent>
         </Tabs>
       </div>
