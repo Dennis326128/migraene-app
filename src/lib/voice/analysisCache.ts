@@ -7,8 +7,12 @@
  * === VALIDITY MODEL ===
  * An analysis is "valid" if and only if:
  *   1. It exists for the requested date range (dedupe_key match)
- *   2. No pain_entries or voice_events in that range have been
- *      created/updated AFTER the analysis was last saved
+ *   2. No relevant source data in that range has been created or modified
+ *      AFTER the analysis was last saved. Source data includes:
+ *      - pain_entries (timestamp_created — covers new entries)
+ *      - voice_events (updated_at — covers new/edited voice data)
+ *      - medication_intakes (updated_at — covers med changes in range)
+ *      - medication_effects (updated_at — covers effect rating changes)
  * 
  * The 5-minute cooldown is a SECONDARY safeguard against rapid
  * re-runs, not the primary validity check. If data changed,
@@ -53,7 +57,7 @@ export interface CachedAnalysis {
 
 export interface CacheValidityResult {
   valid: boolean;
-  reason?: 'not_authenticated' | 'data_changed' | 'voice_data_changed';
+  reason?: 'not_authenticated' | 'data_changed' | 'voice_data_changed' | 'medication_data_changed';
 }
 
 // ============================================================
@@ -107,8 +111,14 @@ export async function loadCachedAnalysis(
 
 /**
  * Get the latest source data timestamp for a date range.
- * Checks pain_entries and voice_events to determine if any
- * data has changed since a given reference point.
+ * Checks ALL relevant data sources to determine if anything
+ * has changed since a given reference point.
+ * 
+ * Sources checked:
+ * - pain_entries.timestamp_created (new entries in range)
+ * - voice_events.updated_at (new/edited voice data in range)
+ * - medication_intakes.updated_at (med intake changes in range)
+ * - medication_effects.updated_at (effect rating changes)
  */
 export async function getLatestSourceTimestamp(
   fromDate: string,
@@ -117,8 +127,8 @@ export async function getLatestSourceTimestamp(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  // Parallel: check latest pain entry and latest voice event
-  const [entryResult, voiceResult] = await Promise.all([
+  const [entryResult, voiceResult, intakeResult, effectResult] = await Promise.all([
+    // pain_entries: timestamp_created is set on creation AND updates (via trigger)
     supabase
       .from('pain_entries')
       .select('timestamp_created')
@@ -128,12 +138,30 @@ export async function getLatestSourceTimestamp(
       .order('timestamp_created', { ascending: false })
       .limit(1)
       .maybeSingle(),
+    // voice_events: updated_at tracks edits to review_state, structured_data, etc.
     supabase
       .from('voice_events')
       .select('updated_at')
       .eq('user_id', user.id)
       .gte('event_timestamp', fromDate + 'T00:00:00Z')
       .lte('event_timestamp', toDate + 'T23:59:59Z')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    // medication_intakes: updated_at tracks dose/time changes
+    supabase
+      .from('medication_intakes')
+      .select('updated_at')
+      .eq('user_id', user.id)
+      .gte('taken_date', fromDate)
+      .lte('taken_date', toDate)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    // medication_effects: updated_at tracks effect rating changes
+    supabase
+      .from('medication_effects')
+      .select('updated_at')
       .order('updated_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
@@ -146,6 +174,12 @@ export async function getLatestSourceTimestamp(
   if (voiceResult.data?.updated_at) {
     timestamps.push(new Date(voiceResult.data.updated_at).getTime());
   }
+  if (intakeResult.data?.updated_at) {
+    timestamps.push(new Date(intakeResult.data.updated_at).getTime());
+  }
+  if (effectResult.data?.updated_at) {
+    timestamps.push(new Date(effectResult.data.updated_at).getTime());
+  }
 
   if (timestamps.length === 0) return null;
   return new Date(Math.max(...timestamps)).toISOString();
@@ -154,8 +188,8 @@ export async function getLatestSourceTimestamp(
 /**
  * Determine if a cached analysis is still valid or needs refresh.
  * 
- * Primary check: Has source data changed since the analysis was saved?
- * This is the core validity rule — NOT the cooldown timer.
+ * Primary check: Has ANY relevant source data changed since the analysis was saved?
+ * Checks pain_entries, voice_events, medication_intakes, and medication_effects.
  */
 export async function isCacheValid(
   cached: CachedAnalysis,
@@ -165,8 +199,8 @@ export async function isCacheValid(
 
   const cacheTime = new Date(cached.updatedAt).getTime();
 
-  // Parallel check both data sources
-  const [entryResult, voiceResult] = await Promise.all([
+  // Parallel check ALL relevant data sources
+  const [entryResult, voiceResult, intakeResult, effectResult] = await Promise.all([
     supabase
       .from('pain_entries')
       .select('timestamp_created')
@@ -185,6 +219,21 @@ export async function isCacheValid(
       .order('updated_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
+    supabase
+      .from('medication_intakes')
+      .select('updated_at')
+      .eq('user_id', user.id)
+      .gte('taken_date', cached.fromDate)
+      .lte('taken_date', cached.toDate)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('medication_effects')
+      .select('updated_at')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   if (entryResult.data?.timestamp_created) {
@@ -199,11 +248,23 @@ export async function isCacheValid(
     }
   }
 
+  if (intakeResult.data?.updated_at) {
+    if (new Date(intakeResult.data.updated_at).getTime() > cacheTime) {
+      return { valid: false, reason: 'medication_data_changed' };
+    }
+  }
+
+  if (effectResult.data?.updated_at) {
+    if (new Date(effectResult.data.updated_at).getTime() > cacheTime) {
+      return { valid: false, reason: 'medication_data_changed' };
+    }
+  }
+
   return { valid: true };
 }
 
 /**
- * Check if re-analysis is allowed.
+ * Check if re-analysis is allowed (secondary safeguard).
  * 
  * Rules (in priority order):
  * 1. If data has changed → always allow (caller checks isCacheValid first)
@@ -292,8 +353,8 @@ export async function saveAnalysisResult(
  * Load the most recent valid pattern analysis for a date range.
  * Used by PDF report generation and doctor-share to embed the analysis.
  * 
- * Returns the analysis result ONLY if it's still valid against current data.
- * Falls back to null if no valid analysis exists.
+ * Returns the analysis result ONLY if it exists.
+ * Staleness is noted but stale results are still returned (stale > missing).
  */
 export async function loadAnalysisForReport(
   fromDate: string,
@@ -313,9 +374,20 @@ export async function loadAnalysisForReport(
   return cached.result;
 }
 
+// ============================================================
+// === SHARED SUMMARY FORMAT ===
+// ============================================================
+
 /**
  * Build a PatternAnalysisSummary from a VoiceAnalysisResult.
- * Used to create the compact format for snapshots and reports.
+ * 
+ * SINGLE FORMAT for all outputs: Snapshot, Website, PDF.
+ * Enforces consistent limits and field mapping.
+ * 
+ * Limits:
+ * - max 7 patterns (sorted by evidence strength)
+ * - max 5 recurring sequences
+ * - max 4 open questions
  */
 export function buildPatternAnalysisSummary(result: VoiceAnalysisResult): {
   summary: string;
@@ -325,9 +397,14 @@ export function buildPatternAnalysisSummary(result: VoiceAnalysisResult): {
   analyzedAt: string;
   daysAnalyzed: number;
 } {
+  // Sort patterns: high > medium > low evidence
+  const evidenceOrder: Record<string, number> = { high: 3, medium: 2, low: 1 };
+  const sortedPatterns = [...result.possiblePatterns]
+    .sort((a, b) => (evidenceOrder[b.evidenceStrength] || 0) - (evidenceOrder[a.evidenceStrength] || 0));
+
   return {
     summary: result.summary,
-    patterns: result.possiblePatterns.slice(0, 7).map(p => ({
+    patterns: sortedPatterns.slice(0, 7).map(p => ({
       title: p.title,
       description: p.description,
       evidenceStrength: p.evidenceStrength,

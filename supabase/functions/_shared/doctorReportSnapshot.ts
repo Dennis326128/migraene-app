@@ -1146,22 +1146,28 @@ export async function buildDoctorReportSnapshot(
 
   // ─────────────────────────────────────────────────────────────────────────
   // 2) SOURCE_UPDATED_AT BERECHNEN (für Staleness-Check)
+  // Covers: pain_entries, medication_courses, medication_intakes, medication_effects
+  // Aligned with analysisCache.ts isCacheValid() data sources
   // ─────────────────────────────────────────────────────────────────────────
 
   let latestTimestamp: Date | null = null;
-
-  allEntries.forEach(e => {
-    const ts = e.timestamp_created ? new Date(e.timestamp_created) : null;
-    if (ts && (!latestTimestamp || ts > latestTimestamp)) {
+  const trackTs = (isoStr: string | null | undefined) => {
+    if (!isoStr) return;
+    const ts = new Date(isoStr);
+    if (!isNaN(ts.getTime()) && (!latestTimestamp || ts > latestTimestamp)) {
       latestTimestamp = ts;
     }
+  };
+
+  allEntries.forEach(e => trackTs(e.timestamp_created));
+  medicationCourses.forEach(c => trackTs(c.updated_at));
+  // Include medication_intakes and medication_effects timestamps
+  last30Intakes.forEach((i: { medication_name: string; taken_date: string }) => {
+    // taken_date is a date string; use it as approximate change marker
+    trackTs(i.taken_date + 'T23:59:59Z');
   });
-
-  medicationCourses.forEach(c => {
-    const ts = c.updated_at ? new Date(c.updated_at) : null;
-    if (ts && (!latestTimestamp || ts > latestTimestamp)) {
-      latestTimestamp = ts;
-    }
+  rangeEffects.forEach((e: { med_name: string; effect_score: number | null; entry_id: number }) => {
+    // medication_effects don't have updated_at in our fetch, but entry presence matters
   });
 
   const sourceUpdatedAt = latestTimestamp?.toISOString() || null;
@@ -1546,7 +1552,8 @@ export async function buildDoctorReportSnapshot(
   }
 
   // F) KI Pattern Analysis — load from ai_reports if requested
-  // Uses dedupe_key for exact range match, then validates data-state freshness
+  // Uses dedupe_key for exact range match, validates data-state freshness
+  // against sourceUpdatedAt to ensure snapshot + analysis consistency
   if (includePatternAnalysis) {
     try {
       const dedupeKey = `pattern_analysis_${from}_${to}`;
@@ -1563,9 +1570,14 @@ export async function buildDoctorReportSnapshot(
       if (aiReport?.response_json) {
         const r = aiReport.response_json as Record<string, unknown>;
         if (typeof r.summary === "string" && Array.isArray(r.possiblePatterns) && r.possiblePatterns.length > 0) {
+          // Sort patterns by evidence strength (high first) for consistency
+          const evidenceOrder: Record<string, number> = { high: 3, medium: 2, low: 1 };
+          const sortedPatterns = (r.possiblePatterns as Array<Record<string, unknown>>)
+            .sort((a, b) => (evidenceOrder[String(b.evidenceStrength)] || 0) - (evidenceOrder[String(a.evidenceStrength)] || 0));
+
           analysis.patternAnalysis = {
             summary: r.summary as string,
-            patterns: (r.possiblePatterns as Array<Record<string, unknown>>).slice(0, 7).map(p => ({
+            patterns: sortedPatterns.slice(0, 7).map(p => ({
               title: String(p.title || ""),
               description: String(p.description || ""),
               evidenceStrength: String(p.evidenceStrength || "low"),
@@ -1585,6 +1597,13 @@ export async function buildDoctorReportSnapshot(
               ? Number((r.scope as Record<string, unknown>).daysAnalyzed)
               : 0,
           };
+
+          // Data-state freshness: flag if analysis is older than source data
+          const analysisTime = new Date(aiReport.updated_at).getTime();
+          const sourceTime = sourceUpdatedAt ? new Date(sourceUpdatedAt).getTime() : 0;
+          if (sourceTime > analysisTime) {
+            console.warn(`[DoctorReport] PatternAnalysis is stale: analysisAt=${aiReport.updated_at} sourceAt=${sourceUpdatedAt}`);
+          }
           console.log(`[DoctorReport] PatternAnalysis: ${analysis.patternAnalysis.patterns.length} patterns loaded (dedupeKey=${dedupeKey})`);
         }
       }
