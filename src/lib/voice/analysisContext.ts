@@ -679,6 +679,9 @@ export function buildAnalysisContext(
     windowHours,
   );
 
+  // Build fatigue context summary from context notes
+  const fatigueContextSummary = buildFatigueContextSummary(dataset.contextNotes ?? []);
+
   return {
     days,
     timeline,
@@ -687,6 +690,7 @@ export function buildAnalysisContext(
     fatigueWindows,
     medicationWindows,
     recurringSequences,
+    fatigueContextSummary,
     meta: {
       totalItems: timeline.length,
       totalDays: days.length,
@@ -696,4 +700,60 @@ export function buildAnalysisContext(
       sessionCount: sessions.length,
     },
   };
+}
+
+// ============================================================
+// === FATIGUE CONTEXT SUMMARY ===
+// ============================================================
+
+/** Energy level labels to numeric values */
+const ENERGY_LABELS: Record<string, string> = {
+  '1': 'erschöpft',
+  '2': 'wenig Energie',
+  '3': 'normal',
+  '4': 'viel Energie',
+};
+
+/** German labels for fatigue context tags */
+const FATIGUE_TAG_LABELS: Record<string, string> = {
+  post_exertion: 'nach Belastung schlechter',
+  minimal_activity: 'wenig Aktivität war zu viel',
+  sensory_overload: 'reizüberflutet',
+  just_tired: 'einfach müde',
+  had_to_lie_down: 'musste sich hinlegen',
+  brain_fog: 'benommen/Brain Fog',
+  circulation: 'Kreislauf/Schwäche',
+  dont_know: 'unklar',
+};
+
+/**
+ * Extract structured fatigue context entries from voice_notes metadata.
+ * Only includes entries where energy was recorded (particularly "exhausted").
+ */
+function buildFatigueContextSummary(contextNotes: ContextNoteForAnalysis[]): FatigueContextEntry[] {
+  const entries: FatigueContextEntry[] = [];
+
+  for (const note of contextNotes) {
+    const meta = note.metadata;
+    if (!meta || meta.energy == null) continue;
+
+    // Only include if energy is low (1 = erschöpft, 2 = wenig)
+    if (meta.energy > 2) continue;
+
+    const date = note.occurred_at.slice(0, 10);
+    const tags = (meta.fatigue_context_tags ?? [])
+      .map(t => FATIGUE_TAG_LABELS[t] ?? t)
+      .filter(Boolean);
+
+    entries.push({
+      date,
+      energyLevel: meta.energy,
+      stressLevel: meta.stress ?? null,
+      sleepLevel: meta.sleep ?? null,
+      tags,
+      relevance: meta.mecfs_relevance ?? 'none',
+    });
+  }
+
+  return entries;
 }
