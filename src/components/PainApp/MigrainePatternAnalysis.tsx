@@ -247,7 +247,7 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
 
   const hasPatterns = sortedPatterns.length > 0;
   // Only show sequences if at least one has count > 1
-  const hasSequences = filteredSequences.length > 0 && filteredSequences.some(s => s.count > 1);
+  const hasSequences = filteredSequences.length > 0;
   const hasExtraContext = extraContextFindings.length > 0;
   const hasUncertainties = uncertainties.length > 0;
 
