@@ -274,14 +274,28 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
   const [showReport, setShowReport] = useState(false);
 
   const { sortedPatterns, filteredSequences, extraContextFindings, uncertainties } = useMemo(() => {
-    const sorted = sortPatterns(result.possiblePatterns).slice(0, MAX_PATTERNS);
+    // Sort and limit patterns
+    let sorted = sortPatterns(result.possiblePatterns).slice(0, MAX_PATTERNS);
+    
+    // Intra-pattern dedup: remove patterns that largely repeat an earlier one
+    const dedupedPatterns: PatternFinding[] = [];
+    for (const p of sorted) {
+      const pText = p.title + ' ' + p.description;
+      if (overlapsAny(pText, dedupedPatterns.map(d => d.title + ' ' + d.description), 0.40)) continue;
+      dedupedPatterns.push(p);
+    }
+    sorted = dedupedPatterns;
 
-    // Filter trivial sequences strictly; also reject if interpretation is banal or too short
+    // Filter trivial sequences; also reject if interpretation is banal or too short
+    // Additionally dedup sequences against patterns
+    const patternRefTexts = sorted.map(p => p.title + ' ' + p.description);
     const seqs = result.recurringSequences
       .filter(s => {
         if (isTrivialSequence(s.pattern, s.llmInterpretation)) return false;
         if (!s.llmInterpretation || s.llmInterpretation.length < 15) return false;
         if (isBanalContent(s.llmInterpretation)) return false;
+        // Dedup sequence interpretation against pattern descriptions
+        if (overlapsAny(s.llmInterpretation, patternRefTexts, 0.35)) return false;
         return true;
       })
       .slice(0, MAX_SEQUENCES);
@@ -289,7 +303,7 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
     // Reference pool for deduplication: summary + patterns + sequences
     const allRefTexts = [
       result.summary,
-      ...sorted.map(p => p.title + ' ' + p.description),
+      ...patternRefTexts,
       ...seqs.map(s => s.pattern + ' ' + (s.llmInterpretation || '')),
     ];
 
@@ -305,10 +319,10 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
     // Apply banal content filter + strict dedup
     const finalContext = allContext
       .filter(f => !isBanalContent(f.observation))
-      .filter(f => !overlapsAny(f.observation, allRefTexts, 0.33))
+      .filter(f => !overlapsAny(f.observation, allRefTexts, 0.30))
       .slice(0, 2);
 
-    // Uncertainties: deduplicated against everything + banal filter
+    // Uncertainties: deduplicated against everything + banal filter, max 1
     const fullRef = [
       ...allRefTexts,
       ...finalContext.map(f => f.observation),
@@ -317,13 +331,13 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
       result.openQuestions.slice(0, MAX_QUESTIONS),
       result.confidenceNotes,
       fullRef,
-    ).slice(0, MAX_QUESTIONS);
+    ).slice(0, 1);
 
     return { sortedPatterns: sorted, filteredSequences: seqs, extraContextFindings: finalContext, uncertainties: merged };
   }, [result]);
 
   const hasPatterns = sortedPatterns.length > 0;
-  // Only show sequences if at least 1 has count > 1 OR there are 2+ sequences — prevents weak single leftovers
+  // Only show sequences if at least 1 has count > 1 OR there are 2+ sequences
   const hasSequences = filteredSequences.length >= 2 || filteredSequences.some(s => s.count > 1);
   const hasExtraContext = extraContextFindings.length > 0;
   const hasUncertainties = uncertainties.length > 0;
