@@ -27,23 +27,48 @@ import { logError } from '@/lib/utils/errorMessages';
 
 /** Trivial/tautological sequence patterns to suppress */
 const TRIVIAL_SEQUENCE_PATTERNS = [
+  // Pain → obvious reaction (trivial)
   /schmerz.*→.*medikament/i,
   /medikament.*→.*schmerz/i,
+  /kopfschmerz.*→.*medikament/i,
   /kopfschmerz.*→.*ruhe/i,
+  /kopfschmerz.*→.*schlaf/i,
+  /migräne.*→.*medikament/i,
+  /migräne.*→.*ruhe/i,
+  /schmerz.*stärker.*→.*medikament/i,
+  /schmerz.*→.*einnahme/i,
+  /schmerz.*→.*triptan/i,
+  /schmerz.*→.*bett/i,
+  /schmerz.*→.*liegen/i,
+  /schmerz.*→.*hinlegen/i,
+  /schmerz.*→.*ruhe/i,
+  /schmerz.*→.*schlaf/i,
+  /schmerz.*→.*nichts/i,
+  /schmerz.*→.*pause/i,
+  /schmerz.*→.*dunkel/i,
+  // Fatigue → obvious reaction (trivial)
+  /müdigkeit.*→.*ruhe/i,
+  /müdigkeit.*→.*schlaf/i,
+  /müdigkeit.*→.*bett/i,
+  /müdigkeit.*schmerztag/i,
+  /müde.*→.*ruhe/i,
+  /müde.*→.*schlaf/i,
+  /erschöpf.*→.*ruhe/i,
+  /erschöpf.*→.*schlaf/i,
+  /erschöpf.*→.*bett/i,
+  /erschöpf.*→.*hinlegen/i,
+  /erschöpfung.*zusammen.*schmerz/i,
+  // English variants
   /pain.*→.*medication/i,
   /medication.*→.*pain/i,
   /headache.*→.*rest/i,
-  /schmerz.*stärker.*→.*medikament/i,
-  /schmerz.*→.*einnahme/i,
-  /migräne.*→.*medikament/i,
-  /schmerz.*→.*triptan/i,
-  /müdigkeit.*schmerztag/i,
-  /erschöpfung.*zusammen.*schmerz/i,
   /fatigue.*→.*rest/i,
-  /müde.*→.*ruhe/i,
-  /erschöpf.*→.*ruhe/i,
-  /schmerz.*→.*bett/i,
-  /schmerz.*→.*liegen/i,
+  /fatigue.*→.*sleep/i,
+  // Phase-based trivial sequences
+  /^pain→medication$/i,
+  /^pain→rest$/i,
+  /^fatigue→rest$/i,
+  /^medication→observation$/i,
 ];
 
 function isTrivialSequence(pattern: string): boolean {
@@ -75,21 +100,25 @@ function sortPatterns(patterns: PatternFinding[]): PatternFinding[] {
   });
 }
 
-/** Deduplicate context findings that overlap with pattern descriptions */
+/** Deduplicate context findings that overlap with pattern descriptions or other text pools */
 function deduplicateFindings(
   findings: ContextFinding[],
   patterns: PatternFinding[],
+  additionalTexts: string[] = [],
 ): ContextFinding[] {
-  if (patterns.length === 0) return findings;
-  const patternTexts = patterns.map(p => (p.title + ' ' + p.description).toLowerCase());
+  const refTexts = [
+    ...patterns.map(p => (p.title + ' ' + p.description).toLowerCase()),
+    ...additionalTexts.map(t => t.toLowerCase()),
+  ];
+  if (refTexts.length === 0) return findings;
 
   return findings.filter(f => {
     const obsLower = f.observation.toLowerCase();
     const words = obsLower.split(/\s+/).filter(w => w.length > 3);
     if (words.length === 0) return true;
-    return !patternTexts.some(pt => {
+    return !refTexts.some(pt => {
       const matchCount = words.filter(w => pt.includes(w)).length;
-      return matchCount / words.length > 0.6;
+      return matchCount / words.length > 0.5; // stricter threshold
     });
   });
 }
@@ -201,30 +230,37 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
       .filter(s => !isTrivialSequence(s.pattern))
       .slice(0, MAX_SEQUENCES);
 
-    // Context findings: merge relevant ones, deduplicate against patterns
-    const painFindings = result.painContextFindings;
+    // Build full dedup reference texts: patterns + sequences + summary
+    const seqTexts = seqs.map(s => (s.pattern + ' ' + (s.llmInterpretation || '')));
+    const allRefTexts = [...seqTexts, result.summary];
+
+    // Context findings: merge relevant ones, deduplicate against patterns AND sequences AND summary
     const fatigueFiltered = result.fatigueContextFindings.filter(f =>
       f.evidenceStrength !== 'low' ||
-      /schmerz|kopf|migräne|belastung|erschöpf/i.test(f.observation)
+      /schmerz|kopf|migräne|belastung|reiz/i.test(f.observation)
     );
-    const allContext = [...painFindings, ...fatigueFiltered, ...result.medicationContextFindings];
-    const deduped = deduplicateFindings(allContext, sorted);
-    // Also deduplicate against sequences
-    const seqTexts = seqs.map(s => (s.pattern + ' ' + (s.llmInterpretation || '')).toLowerCase());
-    const finalContext = deduped.filter(f => {
-      const obsLower = f.observation.toLowerCase();
-      const words = obsLower.split(/\s+/).filter(w => w.length > 3);
-      if (words.length === 0) return true;
-      return !seqTexts.some(st => {
-        const matchCount = words.filter(w => st.includes(w)).length;
-        return matchCount / words.length > 0.6;
-      });
-    }).slice(0, 4);
+    const allContext = [...result.painContextFindings, ...fatigueFiltered, ...result.medicationContextFindings];
+    const finalContext = deduplicateFindings(allContext, sorted, allRefTexts).slice(0, 3);
 
+    // Uncertainties: deduplicate against patterns and context findings
+    const allPatternAndContextTexts = [
+      ...sorted.map(p => p.title + ' ' + p.description),
+      ...finalContext.map(f => f.observation),
+      ...seqTexts,
+    ];
     const merged = mergeUncertainties(
       result.openQuestions.slice(0, MAX_QUESTIONS),
       result.confidenceNotes,
-    ).slice(0, MAX_QUESTIONS);
+    ).filter(u => {
+      const uLower = u.toLowerCase();
+      const words = uLower.split(/\s+/).filter(w => w.length > 4);
+      if (words.length === 0) return true;
+      return !allPatternAndContextTexts.some(ref => {
+        const refLower = ref.toLowerCase();
+        const overlap = words.filter(w => refLower.includes(w)).length;
+        return overlap / words.length > 0.6;
+      });
+    }).slice(0, MAX_QUESTIONS);
 
     return { sortedPatterns: sorted, filteredSequences: seqs, extraContextFindings: finalContext, uncertainties: merged };
   }, [result]);
