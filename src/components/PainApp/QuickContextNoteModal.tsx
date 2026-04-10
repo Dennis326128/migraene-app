@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Mic, Utensils, Activity, Droplets, Calendar, Heart, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { saveVoiceNote, updateVoiceNote, ContextMetadata } from '@/lib/voice/saveNote';
+import { FATIGUE_CONTEXT_OPTIONS, deriveMecfsRelevance, noteContainsFatigueSignals } from '@/lib/voice/fatigueClassification';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { FivePointScale, ScaleOption } from './FivePointScale';
