@@ -189,10 +189,9 @@ function mergeUncertainties(
   const all = [...openQuestions, ...confidenceNotes];
   const unique: string[] = [];
   for (const item of all) {
-    // Skip if overlaps with reference texts (patterns, findings, summary)
-    if (overlapsAny(item, refTexts, 0.5)) continue;
-    // Skip if overlaps with already-added uncertainties
-    if (overlapsAny(item, unique, 0.6)) continue;
+    if (isBanalContent(item)) continue;
+    if (overlapsAny(item, refTexts, 0.45)) continue;
+    if (overlapsAny(item, unique, 0.55)) continue;
     unique.push(item);
   }
   return unique;
