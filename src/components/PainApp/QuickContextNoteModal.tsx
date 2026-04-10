@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Mic, Utensils, Activity, Droplets, Calendar, Heart, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { saveVoiceNote, updateVoiceNote, ContextMetadata } from '@/lib/voice/saveNote';
+import { FATIGUE_CONTEXT_OPTIONS, deriveMecfsRelevance, noteContainsFatigueSignals } from '@/lib/voice/fatigueClassification';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { FivePointScale, ScaleOption } from './FivePointScale';
@@ -138,6 +139,9 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
   const [sleep, setSleep] = useState<number | null>(null);
   const [energy, setEnergy] = useState<number | null>(null);
   
+  // Fatigue context (only relevant when energy = 1 "Erschöpft")
+  const [fatigueContextTags, setFatigueContextTags] = useState<string[]>([]);
+  
   // Block B: Trigger (vereinfacht)
   const [nutritionTriggers, setNutritionTriggers] = useState<string[]>([]);
   const [movementTriggers, setMovementTriggers] = useState<string[]>([]);
@@ -153,6 +157,14 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
   // UI state
   const [isSaving, setIsSaving] = useState(false);
   const [showTriggers, setShowTriggers] = useState(false);
+  
+  // Clear fatigue context when energy changes away from "Erschöpft"
+  const handleEnergyChange = (value: number | null) => {
+    setEnergy(value);
+    if (value !== 1) {
+      setFatigueContextTags([]);
+    }
+  };
 
   // Load data when editing existing note
   useEffect(() => {
@@ -163,6 +175,7 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
         setStress(meta.stress ?? null);
         setSleep(meta.sleep ?? null);
         setEnergy(meta.energy ?? null);
+        setFatigueContextTags(meta.fatigue_context_tags ?? []);
         setCustomText(meta.notes ?? '');
         
         // Map triggers to correct categories
@@ -251,6 +264,7 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
         setStress(values.stress ?? null);
         setSleep(values.sleep ?? null);
         setEnergy(values.energy ?? null);
+        setFatigueContextTags(values.fatigueContextTags ?? []);
         setNutritionTriggers(values.nutritionTriggers ?? []);
         setMovementTriggers(values.movementTriggers ?? []);
         setFluidTriggers(values.fluidTriggers ?? []);
@@ -343,13 +357,25 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
     const finalText = parts.join(' • ');
     
     // Strukturierte Metadaten für späteres Bearbeiten
+    const fatigueCtx = energy === 1 ? fatigueContextTags : [];
+    const mecfsRelevance = energy === 1 ? deriveMecfsRelevance(fatigueCtx) : 'none' as const;
+    // Supportive signal from free text
+    const noteHasFatigueSignal = energy === 1 && noteContainsFatigueSignals(customText);
+    const finalMecfsRelevance = (mecfsRelevance === 'possible' && noteHasFatigueSignal) 
+      ? 'probable' as const 
+      : (mecfsRelevance === 'unlikely' && noteHasFatigueSignal) 
+        ? 'possible' as const 
+        : mecfsRelevance;
+
     const metadata: ContextMetadata = {
       mood,
       stress,
       sleep,
       energy,
       triggers: allTriggers,
-      notes: customText.trim() || undefined
+      notes: customText.trim() || undefined,
+      fatigue_context_tags: fatigueCtx.length > 0 ? fatigueCtx : undefined,
+      mecfs_relevance: energy === 1 ? finalMecfsRelevance : undefined,
     };
 
     setIsSaving(true);
@@ -360,6 +386,7 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
         stress,
         sleep,
         energy,
+        fatigueContextTags: energy === 1 ? fatigueContextTags : [],
         nutritionTriggers,
         movementTriggers,
         fluidTriggers,
@@ -419,6 +446,7 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
     setStress(null);
     setSleep(null);
     setEnergy(null);
+    setFatigueContextTags([]);
     setNutritionTriggers([]);
     setMovementTriggers([]);
     setFluidTriggers([]);
@@ -517,8 +545,41 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
               subtitle="Wie energiegeladen fühlst du dich?"
               options={ENERGY_OPTIONS}
               value={energy}
-              onChange={setEnergy}
+              onChange={handleEnergyChange}
             />
+
+            {/* Fatigue context — only when "Erschöpft" */}
+            {energy === 1 && (
+              <div className="space-y-2 pt-1 pl-1">
+                <p className="text-xs text-[#9CA3AF]">Was passt am ehesten dazu?</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {FATIGUE_CONTEXT_OPTIONS.map(option => {
+                    const isSelected = fatigueContextTags.includes(option.id);
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => {
+                          setFatigueContextTags(prev =>
+                            isSelected
+                              ? prev.filter(id => id !== option.id)
+                              : [...prev, option.id]
+                          );
+                        }}
+                        className={cn(
+                          "px-2.5 py-1 rounded-full text-xs font-medium border transition-all duration-150",
+                          isSelected
+                            ? "bg-[#22C55E]/15 border-[#22C55E]/50 text-[#22C55E]"
+                            : "bg-[#0B1220] border-[#1F2937] text-[#9CA3AF] hover:border-[#4B5563] hover:text-[#E5E7EB]"
+                        )}
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Block C: Freitext - ohne separaten Sprach-Button */}
