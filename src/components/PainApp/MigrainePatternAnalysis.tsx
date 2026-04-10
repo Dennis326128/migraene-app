@@ -516,10 +516,16 @@ export function MigrainePatternAnalysis() {
           </Button>
 
           {/* Cache status indicator */}
-          {isCachedResult && cachedAtLabel && (
+          {isCachedResult && cachedAtLabel && !isStaleResult && (
             <p className="text-xs text-muted-foreground/60 text-center flex items-center justify-center gap-1.5">
               <CheckCircle2 className="h-3 w-3" />
-              Gespeicherte Analyse vom {cachedAtLabel}
+              Analyse vom {cachedAtLabel}
+            </p>
+          )}
+          {isCachedResult && isStaleResult && (
+            <p className="text-xs text-amber-600 dark:text-amber-400 text-center flex items-center justify-center gap-1.5">
+              <AlertCircle className="h-3 w-3" />
+              Diese Analyse basiert auf einem älteren Datenstand{cachedAtLabel ? ` (${cachedAtLabel})` : ''}
             </p>
           )}
         </CardContent>
