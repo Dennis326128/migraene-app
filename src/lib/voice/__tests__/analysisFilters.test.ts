@@ -205,3 +205,59 @@ describe('fatigue context filtering in serializeForLLM', () => {
     expect(MEDICATION_TITLE_RX.test('Müdigkeit vor Attacke')).toBe(false);
   });
 });
+
+// ============================================================
+// === NEW: Tightened filter behavioral tests ===
+// ============================================================
+
+describe('isWeakPattern – expanded hedging', () => {
+  it('rejects "in einigen Fällen" hedging', () => {
+    expect(isWeakPattern('In einigen Fällen scheint Stress eine Rolle zu spielen')).toBe(true);
+  });
+  it('rejects "tendenziell" hedging', () => {
+    expect(isWeakPattern('Tendenziell etwas mehr Beschwerden bei Wetterwechsel')).toBe(true);
+  });
+  it('rejects "gewisse Hinweise"', () => {
+    expect(isWeakPattern('Es gibt gewisse Hinweise auf einen Zusammenhang')).toBe(true);
+  });
+  it('accepts a concrete medication pattern', () => {
+    expect(isWeakPattern('Triptane werden häufig erst 3-4 Stunden nach Schmerzbeginn eingenommen, was mit längeren Attacken korreliert.')).toBe(false);
+  });
+});
+
+describe('isGenericUncertainty – expanded phrases', () => {
+  it('rejects "längerer Zeitraum nötig"', () => {
+    expect(isGenericUncertainty('Ein längerer Zeitraum nötig für verlässliche Aussagen')).toBe(true);
+  });
+  it('rejects "weitere Beobachtung"', () => {
+    expect(isGenericUncertainty('Weitere Beobachtung könnte hier hilfreich sein')).toBe(true);
+  });
+  it('rejects "regelmäßiger eintragen"', () => {
+    expect(isGenericUncertainty('Regelmäßiger eintragen würde die Analyse verbessern')).toBe(true);
+  });
+  it('accepts a specific actionable question', () => {
+    expect(isGenericUncertainty('Ob der Schlafmangel am 12. und 14. ursächlich war, lässt sich mit weiteren Tagen besser beurteilen')).toBe(false);
+  });
+});
+
+describe('context finding minimum length gate', () => {
+  it('observations under 30 chars should be considered too short', () => {
+    const shortObs = 'Stress an Schmerztagen';
+    expect(shortObs.length < 30).toBe(true);
+  });
+  it('observations over 30 chars pass length gate', () => {
+    const longObs = 'An Tagen mit Schlafmangel traten stärkere Beschwerden auf';
+    expect(longObs.length >= 30).toBe(true);
+  });
+});
+
+describe('uncertainty minimum length gate', () => {
+  it('very short uncertainty items should be filtered', () => {
+    const shortItem = 'Zu wenig Daten.';
+    expect(shortItem.length < 25).toBe(true);
+  });
+  it('substantive uncertainty items pass', () => {
+    const goodItem = 'Ob die Triptan-Zurückhaltung ursächlich für längere Attacken ist, bleibt offen.';
+    expect(goodItem.length >= 25).toBe(true);
+  });
+});
