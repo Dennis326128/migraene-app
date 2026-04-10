@@ -176,29 +176,32 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
     // Sort, filter weak, and limit patterns
     let sorted = sortPatterns(result.possiblePatterns)
       .filter(p => !isWeakPattern(p.description))
+      .filter(p => !isBanalContent(p.description))
       .slice(0, MAX_PATTERNS);
     
-    // Intra-pattern dedup: remove patterns that largely repeat an earlier one
+    // Intra-pattern dedup: remove patterns that largely repeat an earlier one or summary
     const dedupedPatterns: PatternFinding[] = [];
     for (const p of sorted) {
       const pText = p.title + ' ' + p.description;
-      // Also dedup against summary
-      if (overlapsAny(pText, [result.summary], 0.50)) continue;
-      if (overlapsAny(pText, dedupedPatterns.map(d => d.title + ' ' + d.description), 0.38)) continue;
+      if (overlapsAny(pText, [result.summary], 0.45)) continue;
+      if (overlapsAny(pText, dedupedPatterns.map(d => d.title + ' ' + d.description), 0.35)) continue;
       dedupedPatterns.push(p);
     }
     sorted = dedupedPatterns;
 
     // Filter trivial sequences; also reject if interpretation is banal or too short
-    // Additionally dedup sequences against patterns
+    // Additionally dedup sequences against pattern titles AND descriptions
     const patternRefTexts = sorted.map(p => p.title + ' ' + p.description);
+    const patternTitles = sorted.map(p => p.title);
     const seqs = result.recurringSequences
       .filter(s => {
         if (isTrivialSequence(s.pattern, s.llmInterpretation)) return false;
-        if (!s.llmInterpretation || s.llmInterpretation.length < 15) return false;
+        if (!s.llmInterpretation || s.llmInterpretation.length < 20) return false;
         if (isBanalContent(s.llmInterpretation)) return false;
-        if (overlapsAny(s.llmInterpretation, patternRefTexts, 0.35)) return false;
-        if (overlapsAny(s.llmInterpretation, [result.summary], 0.45)) return false;
+        if (isWeakPattern(s.llmInterpretation)) return false;
+        if (overlapsAny(s.llmInterpretation, patternRefTexts, 0.30)) return false;
+        if (overlapsAny(s.llmInterpretation, patternTitles, 0.40)) return false;
+        if (overlapsAny(s.llmInterpretation, [result.summary], 0.40)) return false;
         return true;
       })
       .slice(0, MAX_SEQUENCES);
@@ -210,10 +213,10 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
       ...seqs.map(s => s.pattern + ' ' + (s.llmInterpretation || '')),
     ];
 
-    // Fatigue findings: ONLY high evidence, or medium with explicit migraine keywords
+    // Fatigue findings: ONLY high evidence with explicit migraine keywords
     const fatigueFiltered = result.fatigueContextFindings.filter(f =>
-      f.evidenceStrength === 'high' ||
-      (f.evidenceStrength === 'medium' && /schmerz|kopf|migräne|attacke|triptan/i.test(f.observation))
+      f.evidenceStrength === 'high' &&
+      /schmerz|kopf|migräne|attacke|triptan/i.test(f.observation)
     );
     // Medication context: skip if any pattern already covers medication topic
     const hasMedPattern = sorted.some(p => MEDICATION_PATTERN_TYPES.has(p.patternType) || MEDICATION_TITLE_RX.test(p.title) || MEDICATION_TITLE_RX.test(p.description));
@@ -221,8 +224,9 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
     const allContext = [...result.painContextFindings, ...fatigueFiltered, ...medContext];
     const finalContext = allContext
       .filter(f => !isBanalContent(f.observation))
-      .filter(f => !overlapsAny(f.observation, allRefTexts, 0.30))
-      .slice(0, 2);
+      .filter(f => !isWeakPattern(f.observation))
+      .filter(f => !overlapsAny(f.observation, allRefTexts, 0.28))
+      .slice(0, 1);
 
     // Uncertainties: banal + generic + dedup, max 1
     const fullRef = [
@@ -239,8 +243,8 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
   }, [result]);
 
   const hasPatterns = sortedPatterns.length > 0;
-  // Only show sequences if at least 1 has count > 1 OR there are 2+ sequences
-  const hasSequences = filteredSequences.length >= 2 || filteredSequences.some(s => s.count > 1);
+  // Only show sequences if at least one has count > 1
+  const hasSequences = filteredSequences.length > 0 && filteredSequences.some(s => s.count > 1);
   const hasExtraContext = extraContextFindings.length > 0;
   const hasUncertainties = uncertainties.length > 0;
 
