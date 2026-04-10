@@ -171,17 +171,18 @@ function translateSequencePattern(pattern: string): string {
 
 /** Medication-related pattern types that get priority boost within same evidence tier */
 const MEDICATION_PATTERN_TYPES = new Set(['medication_context', 'trigger_candidate']);
-const MEDICATION_TITLE_RX = /triptan|medikament|akutmedikament|übergebrauch|einnahme|vermeidung|zurückhalt/i;
+const MEDICATION_TITLE_RX = /triptan|medikament|akutmedikament|übergebrauch|einnahme|vermeidung|zurückhalt|spät.*einn|abwart/i;
 
 /** Sort patterns: higher evidence first, then medication-priority, then by occurrence count */
 function sortPatterns(patterns: PatternFinding[]): PatternFinding[] {
   return [...patterns].sort((a, b) => {
     const ePri = (EVIDENCE_ORDER[b.evidenceStrength] || 0) - (EVIDENCE_ORDER[a.evidenceStrength] || 0);
     if (ePri !== 0) return ePri;
-    // Within same evidence tier: medication patterns first
-    const aMed = MEDICATION_PATTERN_TYPES.has(a.patternType) || MEDICATION_TITLE_RX.test(a.title) ? 1 : 0;
-    const bMed = MEDICATION_PATTERN_TYPES.has(b.patternType) || MEDICATION_TITLE_RX.test(b.title) ? 1 : 0;
-    if (bMed !== aMed) return bMed - aMed;
+    // Within same evidence tier: medication patterns first (check title + description)
+    const isMed = (p: PatternFinding) =>
+      MEDICATION_PATTERN_TYPES.has(p.patternType) || MEDICATION_TITLE_RX.test(p.title) || MEDICATION_TITLE_RX.test(p.description) ? 1 : 0;
+    const medDiff = isMed(b) - isMed(a);
+    if (medDiff !== 0) return medDiff;
     return b.occurrences - a.occurrences;
   });
 }
