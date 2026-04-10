@@ -481,6 +481,16 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             if (Number.isFinite(numericId) && data.voiceEventId) {
               linkVoiceEventToEntry(data.voiceEventId, numericId, {
                 reviewState: data.userEdited ? 'edited' : 'reviewed',
+                structuredData: {
+                  _schema: 'linked_v1',
+                  painLevel: data.painLevel,
+                  medications: data.medications?.map(m => m.name) ?? [],
+                  painLocations: data.painLocations ?? [],
+                  auraType: data.auraType ?? null,
+                  symptoms: data.symptoms ?? [],
+                  meCfsLevel: data.meCfsLevel ?? null,
+                  userEdited: data.userEdited ?? false,
+                },
               }).catch(err => {
                 devError('Voice event linking failed:', err, { context: 'MainMenu' });
               });
