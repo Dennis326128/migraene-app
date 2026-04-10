@@ -543,8 +543,41 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
               subtitle="Wie energiegeladen fühlst du dich?"
               options={ENERGY_OPTIONS}
               value={energy}
-              onChange={setEnergy}
+              onChange={handleEnergyChange}
             />
+
+            {/* Fatigue context — only when "Erschöpft" */}
+            {energy === 1 && (
+              <div className="space-y-2 pt-1 pl-1">
+                <p className="text-xs text-[#9CA3AF]">Was passt am ehesten dazu?</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {FATIGUE_CONTEXT_OPTIONS.map(option => {
+                    const isSelected = fatigueContextTags.includes(option.id);
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => {
+                          setFatigueContextTags(prev =>
+                            isSelected
+                              ? prev.filter(id => id !== option.id)
+                              : [...prev, option.id]
+                          );
+                        }}
+                        className={cn(
+                          "px-2.5 py-1 rounded-full text-xs font-medium border transition-all duration-150",
+                          isSelected
+                            ? "bg-[#22C55E]/15 border-[#22C55E]/50 text-[#22C55E]"
+                            : "bg-[#0B1220] border-[#1F2937] text-[#9CA3AF] hover:border-[#4B5563] hover:text-[#E5E7EB]"
+                        )}
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Block C: Freitext - ohne separaten Sprach-Button */}
