@@ -110,3 +110,6 @@ verify_jwt = false
 
 [functions.backfill-entry-weather]
 verify_jwt = false
+
+[functions.analyze-voice-patterns]
+verify_jwt = true
