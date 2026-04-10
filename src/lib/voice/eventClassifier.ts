@@ -137,7 +137,7 @@ const EVENT_PATTERNS: PatternGroup[] = [
     type: 'sleep_rest',
     patterns: [
       /\bhingelegt/i, /\blege?\s*(?:mich\s+)?(?:hin|ins\s+bett)/i,
-      /\bgeschlafen/i, /\bschlafe?\b/i,
+      /\bgeschlafen/i, /\bschlafe?\b/i, /\bgepennt/i, /\bpennen/i,
       /\baufgewacht/i, /\baufgestanden/i,
       /\bpause\b/i, /\bruhe?\b/i, /\bausgeruht/i,
       /\bins\s*bett/i, /\bim\s*bett/i,
@@ -146,6 +146,7 @@ const EVENT_PATTERNS: PatternGroup[] = [
       /\bdurchgeschlafen/i,
       /\blege\b.*\bhin/i,
       /\bleg\s+mich/i,
+      /\bmüde\b/i,
     ],
     tags: ['schlaf', 'ruhe'],
     medicalRelevance: 'medium',
