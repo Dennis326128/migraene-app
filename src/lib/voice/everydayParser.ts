@@ -96,7 +96,7 @@ const EVERYDAY_PATTERNS: EntityPattern[] = [
     category: 'sleep_rest',
     patterns: [
       { regex: /\bhingelegt/i, value: 'hingelegt' },
-      { regex: /\blege?\s*(?:mich)?\s*hin/i, value: 'hinlegen' },
+      { regex: /\blege?\s*(?:mich\s+)?hin/i, value: 'hinlegen' },
       { regex: /\bins?\s*bett/i, value: 'ins_bett' },
       { regex: /\bgeschlafen/i, value: 'geschlafen' },
       { regex: /\bschlafe?\b/i, value: 'schlafen' },
