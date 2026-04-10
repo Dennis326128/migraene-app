@@ -1255,7 +1255,14 @@ export async function buildDoctorReportSnapshot(
 
   const sourceUpdatedAt = latestTimestamp?.toISOString() || null;
 
-  // ─────────────────────────────────────────────────────────────────────────
+  // Snapshot uses timestamp-based staleness for the overall report.
+  // For pattern analysis specifically, we compare data_state_signature
+  // from the stored ai_report against the current signature if available.
+  // Since snapshot doesn't have exact counts for all 4 sources, we pass null
+  // and fall back to timestamp comparison in the pattern analysis section.
+  const currentDataStateSignature: string | null = null;
+
+  //
   // 3) SUMMARY BERECHNEN
   // ─────────────────────────────────────────────────────────────────────────
 
