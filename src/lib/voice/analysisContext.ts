@@ -21,6 +21,7 @@ import type {
   VoiceEventForAnalysis,
   PainEntryForAnalysis,
   MedicationIntakeForAnalysis,
+  ContextNoteForAnalysis,
   FullAnalysisDataset,
 } from './analysisAccess';
 
@@ -139,6 +140,19 @@ export interface RecurringSequence {
 }
 
 /**
+ * Summarized fatigue/energy context from "Alltag & Auslöser" context notes.
+ * Used as supplementary signal for the LLM — NOT primary data.
+ */
+export interface FatigueContextEntry {
+  date: string;
+  energyLevel: number;
+  stressLevel: number | null;
+  sleepLevel: number | null;
+  tags: string[];
+  relevance: string; // 'none' | 'unlikely' | 'possible' | 'probable'
+}
+
+/**
  * Complete LLM-ready analysis context for a date range.
  */
 export interface AnalysisContext {
@@ -155,6 +169,8 @@ export interface AnalysisContext {
   medicationWindows: ContextWindow[];
   /** Recurring phase sequences across days */
   recurringSequences: RecurringSequence[];
+  /** Fatigue/energy context from "Alltag & Auslöser" form entries */
+  fatigueContextSummary: FatigueContextEntry[];
   meta: {
     totalItems: number;
     totalDays: number;
@@ -606,6 +622,23 @@ export function serializeForLLM(ctx: AnalysisContext): string {
     lines.push('');
   }
 
+  // Fatigue/energy context from "Alltag & Auslöser" notes
+  if (ctx.fatigueContextSummary && ctx.fatigueContextSummary.length > 0) {
+    lines.push('=== Erschöpfungs-/Energiekontext (aus Alltags-Einträgen) ===');
+    lines.push('HINWEIS: Diese Daten sind ERGÄNZEND. "Erschöpft" allein ist KEIN ME/CFS-Signal.');
+    lines.push('Nur als Muster relevant, wenn zusammen mit Kopfschmerz/Migräne auftretend.');
+    lines.push('');
+    for (const entry of ctx.fatigueContextSummary) {
+      const parts = [`  ${entry.date}: Energie=${entry.energyLevel}`];
+      if (entry.stressLevel !== null) parts.push(`Stress=${entry.stressLevel}/4`);
+      if (entry.sleepLevel !== null) parts.push(`Schlaf=${entry.sleepLevel}/4`);
+      if (entry.relevance !== 'none') parts.push(`Relevanz=${entry.relevance}`);
+      if (entry.tags.length > 0) parts.push(`Details: ${entry.tags.join(', ')}`);
+      lines.push(parts.join(', '));
+    }
+    lines.push('');
+  }
+
   return lines.join('\n');
 }
 
@@ -646,6 +679,9 @@ export function buildAnalysisContext(
     windowHours,
   );
 
+  // Build fatigue context summary from context notes
+  const fatigueContextSummary = buildFatigueContextSummary(dataset.contextNotes ?? []);
+
   return {
     days,
     timeline,
@@ -654,6 +690,7 @@ export function buildAnalysisContext(
     fatigueWindows,
     medicationWindows,
     recurringSequences,
+    fatigueContextSummary,
     meta: {
       totalItems: timeline.length,
       totalDays: days.length,
@@ -663,4 +700,60 @@ export function buildAnalysisContext(
       sessionCount: sessions.length,
     },
   };
+}
+
+// ============================================================
+// === FATIGUE CONTEXT SUMMARY ===
+// ============================================================
+
+/** Energy level labels to numeric values */
+const ENERGY_LABELS: Record<string, string> = {
+  '1': 'erschöpft',
+  '2': 'wenig Energie',
+  '3': 'normal',
+  '4': 'viel Energie',
+};
+
+/** German labels for fatigue context tags */
+const FATIGUE_TAG_LABELS: Record<string, string> = {
+  post_exertion: 'nach Belastung schlechter',
+  minimal_activity: 'wenig Aktivität war zu viel',
+  sensory_overload: 'reizüberflutet',
+  just_tired: 'einfach müde',
+  had_to_lie_down: 'musste sich hinlegen',
+  brain_fog: 'benommen/Brain Fog',
+  circulation: 'Kreislauf/Schwäche',
+  dont_know: 'unklar',
+};
+
+/**
+ * Extract structured fatigue context entries from voice_notes metadata.
+ * Only includes entries where energy was recorded (particularly "exhausted").
+ */
+function buildFatigueContextSummary(contextNotes: ContextNoteForAnalysis[]): FatigueContextEntry[] {
+  const entries: FatigueContextEntry[] = [];
+
+  for (const note of contextNotes) {
+    const meta = note.metadata;
+    if (!meta || meta.energy == null) continue;
+
+    // Only include if energy is low (1 = erschöpft, 2 = wenig)
+    if (meta.energy > 2) continue;
+
+    const date = note.occurred_at.slice(0, 10);
+    const tags = (meta.fatigue_context_tags ?? [])
+      .map(t => FATIGUE_TAG_LABELS[t] ?? t)
+      .filter(Boolean);
+
+    entries.push({
+      date,
+      energyLevel: meta.energy,
+      stressLevel: meta.stress ?? null,
+      sleepLevel: meta.sleep ?? null,
+      tags,
+      relevance: meta.mecfs_relevance ?? 'none',
+    });
+  }
+
+  return entries;
 }

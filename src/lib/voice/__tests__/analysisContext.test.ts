@@ -103,11 +103,13 @@ function makeDataset(
     voiceEvents,
     painEntries,
     medicationIntakes,
+    contextNotes: [],
     meta: {
       range,
       voiceEventCount: voiceEvents.length,
       painEntryCount: painEntries.length,
       medicationIntakeCount: medicationIntakes.length,
+      contextNoteCount: 0,
       linkedVoiceEventCount: linked,
       unlinkedVoiceEventCount: voiceEvents.length - linked,
     },
