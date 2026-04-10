@@ -384,7 +384,7 @@ describe('buildPatternAnalysisSummary', () => {
     expect(summary.patterns[2].evidenceStrength).toBe('low');
   });
 
-  it('limits: max 7 patterns, 5 sequences, 4 questions', () => {
+  it('limits: max 5 patterns, 3 sequences, 3 questions', () => {
     const result = mockResult({
       possiblePatterns: Array.from({ length: 12 }, (_, i) => ({
         patternType: 'trigger_candidate' as const,
@@ -397,9 +397,9 @@ describe('buildPatternAnalysisSummary', () => {
       openQuestions: ['Q1', 'Q2', 'Q3', 'Q4', 'Q5', 'Q6'],
     });
     const summary = buildPatternAnalysisSummary(result);
-    expect(summary.patterns).toHaveLength(7);
-    expect(summary.recurringSequences).toHaveLength(5);
-    expect(summary.openQuestions).toHaveLength(4);
+    expect(summary.patterns).toHaveLength(5);
+    expect(summary.recurringSequences).toHaveLength(3);
+    expect(summary.openQuestions).toHaveLength(3);
   });
 
   it('is deterministic', () => {
