@@ -18,7 +18,7 @@ import { TimeRangeSelector } from './TimeRangeSelector';
 import { runVoicePatternAnalysis } from '@/lib/voice/analysisEngine';
 import { isAnalysisUnavailable, type VoiceAnalysisResult, type PatternFinding, type ContextFinding } from '@/lib/voice/analysisTypes';
 import { selectAnalysisForChannel, saveAnalysisResult, MAX_PATTERNS, MAX_SEQUENCES, MAX_QUESTIONS, EVIDENCE_ORDER } from '@/lib/voice/analysisCache';
-import { isTrivialSequence, isBanalContent, isGenericUncertainty, isWeakPattern, GENERIC_PHASE_SEQUENCES, BANAL_INTERPRETATION_RX, MEDICATION_TITLE_RX } from '@/lib/voice/analysisFilters';
+import { isTrivialSequence, isBanalContent, isGenericUncertainty, isWeakPattern, cleanSummaryFiller, GENERIC_PHASE_SEQUENCES, BANAL_INTERPRETATION_RX, MEDICATION_TITLE_RX } from '@/lib/voice/analysisFilters';
 import { logError } from '@/lib/utils/errorMessages';
 
 // Filter logic is centralized in analysisFilters.ts for testability
@@ -172,7 +172,10 @@ function generateReport(result: VoiceAnalysisResult): string {
 function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
   const [showReport, setShowReport] = useState(false);
 
-  const { sortedPatterns, filteredSequences, extraContextFindings, uncertainties } = useMemo(() => {
+  const { sortedPatterns, filteredSequences, extraContextFindings, uncertainties, cleanedSummary } = useMemo(() => {
+    // Clean summary filler starters
+    const cleanedSummary = cleanSummaryFiller(result.summary);
+
     // Sort, filter weak, and limit patterns
     let sorted = sortPatterns(result.possiblePatterns)
       .filter(p => !isWeakPattern(p.description, p.title))
@@ -185,10 +188,10 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
     for (const p of sorted) {
       const pText = p.title + ' ' + p.description;
       // Bidirectional overlap: suppress if either direction shows strong overlap
-      const pInSummary = textOverlap(pText, result.summary);
-      const summaryInP = textOverlap(result.summary, pText);
+      const pInSummary = textOverlap(pText, cleanedSummary);
+      const summaryInP = textOverlap(cleanedSummary, pText);
       // Tighter threshold if both summary and pattern are about medication
-      const bothMed = MEDICATION_TITLE_RX.test(result.summary) && MEDICATION_TITLE_RX.test(pText);
+      const bothMed = MEDICATION_TITLE_RX.test(cleanedSummary) && MEDICATION_TITLE_RX.test(pText);
       const summaryThreshold = bothMed ? 0.45 : 0.30;
       if (Math.max(pInSummary, summaryInP) > summaryThreshold) continue;
       if (overlapsAny(pText, dedupedPatterns.map(d => d.title + ' ' + d.description), 0.28)) continue;
@@ -211,14 +214,14 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
         if (overlapsAny(s.llmInterpretation, patternRefTexts, 0.22)) return false;
         if (overlapsAny(s.llmInterpretation, patternDescriptions, 0.25)) return false;
         if (overlapsAny(s.llmInterpretation, patternTitles, 0.25)) return false;
-        if (overlapsAny(s.llmInterpretation, [result.summary], 0.22)) return false;
+        if (overlapsAny(s.llmInterpretation, [cleanedSummary], 0.22)) return false;
         return true;
       })
       .slice(0, MAX_SEQUENCES);
 
     // Reference pool for deduplication
     const allRefTexts = [
-      result.summary,
+      cleanedSummary,
       ...patternRefTexts,
       ...seqs.map(s => s.pattern + ' ' + (s.llmInterpretation || '')),
     ];
@@ -228,9 +231,10 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
       f.evidenceStrength === 'high' &&
       /schmerz|kopf|migräne|attacke|triptan/i.test(f.observation)
     );
-    // Medication context: skip if any pattern already covers medication topic
+    // Medication context: skip if any pattern OR summary already covers medication topic
     const hasMedPattern = sorted.some(p => MEDICATION_PATTERN_TYPES.has(p.patternType) || MEDICATION_TITLE_RX.test(p.title) || MEDICATION_TITLE_RX.test(p.description));
-    const medContext = hasMedPattern ? [] : result.medicationContextFindings;
+    const hasMedSummary = MEDICATION_TITLE_RX.test(cleanedSummary);
+    const medContext = (hasMedPattern || hasMedSummary) ? [] : result.medicationContextFindings;
     const allContext = [...result.painContextFindings, ...fatigueFiltered, ...medContext];
     const finalContext = allContext
       .filter(f => f.evidenceStrength === 'medium' || f.evidenceStrength === 'high')
@@ -251,7 +255,7 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
       fullRef,
     ).filter(item => item.length >= 40 && !isBanalContent(item)).slice(0, 1);
 
-    return { sortedPatterns: sorted, filteredSequences: seqs, extraContextFindings: finalContext, uncertainties: merged };
+    return { sortedPatterns: sorted, filteredSequences: seqs, extraContextFindings: finalContext, uncertainties: merged, cleanedSummary };
   }, [result]);
 
   const hasPatterns = sortedPatterns.length > 0;
@@ -264,7 +268,7 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
     <div className="space-y-7">
       {/* A) Kurzfazit */}
       <div className="pb-1">
-        <p className="text-[13px] leading-[1.7] text-foreground">{result.summary}</p>
+        <p className="text-[13px] leading-[1.7] text-foreground">{cleanedSummary}</p>
         <p className="text-[11px] text-muted-foreground/70 mt-2.5">
           {result.scope.daysAnalyzed} Tage analysiert
           {result.scope.painEntryCount > 0 && ` · ${result.scope.painEntryCount} Schmerzeinträge`}

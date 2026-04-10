@@ -180,6 +180,43 @@ export const WEAK_DESCRIPTION_RX = [
 ];
 
 // ============================================================
+// === SUMMARY FILLER STARTERS ===
+// ============================================================
+
+/** Filler phrases that add no value at the start of a summary */
+export const SUMMARY_FILLER_STARTERS: RegExp[] = [
+  /^im\s+zeitraum\s+fiel\s+auf,?\s+(dass\s+)?/i,
+  /^es\s+zeigt\s+sich,?\s+(dass\s+)?/i,
+  /^es\s+gibt\s+hinweise,?\s+(dass\s+)?/i,
+  /^es\s+fällt\s+auf,?\s+(dass\s+)?/i,
+  /^auffällig\s+ist,?\s+(dass\s+)?/i,
+  /^im\s+analysezeitraum\s+(zeigt\s+sich|fällt\s+auf|wurde\s+beobachtet),?\s*(dass\s+)?/i,
+  /^im\s+beobachtungszeitraum\s+(zeigt\s+sich|fällt\s+auf|wurde\s+beobachtet),?\s*(dass\s+)?/i,
+  /^insgesamt\s+(zeigt\s+sich|lässt\s+sich\s+sagen),?\s*(dass\s+)?/i,
+  /^zusammenfassend\s+(zeigt\s+sich|lässt\s+sich\s+sagen),?\s*(dass\s+)?/i,
+];
+
+/**
+ * Strip filler starter phrases from a summary, capitalizing the remainder.
+ * Returns the cleaned summary text.
+ */
+export function cleanSummaryFiller(summary: string): string {
+  let cleaned = summary.trim();
+  for (const rx of SUMMARY_FILLER_STARTERS) {
+    const match = cleaned.match(rx);
+    if (match) {
+      cleaned = cleaned.slice(match[0].length).trim();
+      // Capitalize first character
+      if (cleaned.length > 0) {
+        cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+      }
+      break; // Only strip one starter
+    }
+  }
+  return cleaned;
+}
+
+// ============================================================
 // === FILTER FUNCTIONS ===
 // ============================================================
 

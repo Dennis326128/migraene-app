@@ -7,6 +7,7 @@ import {
   isBanalContent,
   isGenericUncertainty,
   isWeakPattern,
+  cleanSummaryFiller,
   MEDICATION_TITLE_RX,
 } from '../analysisFilters';
 
@@ -446,5 +447,32 @@ describe('isBanalContent — generic observation starters', () => {
   });
   it('rejects "der Zustand war belastend"', () => {
     expect(isBanalContent('Der Zustand war insgesamt belastend')).toBe(true);
+});
+
+describe('cleanSummaryFiller', () => {
+  it('strips "Im Zeitraum fiel auf, dass" from start', () => {
+    const result = cleanSummaryFiller('Im Zeitraum fiel auf, dass die Einnahme verzögert wurde.');
+    expect(result).toBe('Die Einnahme verzögert wurde.');
   });
+  it('strips "Es zeigt sich, dass" from start', () => {
+    const result = cleanSummaryFiller('Es zeigt sich, dass Triptan häufig spät eingenommen wird.');
+    expect(result).toBe('Triptan häufig spät eingenommen wird.');
+  });
+  it('strips "Es gibt Hinweise, dass" from start', () => {
+    const result = cleanSummaryFiller('Es gibt Hinweise, dass Stress ein Auslöser ist.');
+    expect(result).toBe('Stress ein Auslöser ist.');
+  });
+  it('strips "Zusammenfassend zeigt sich, dass" from start', () => {
+    const result = cleanSummaryFiller('Zusammenfassend zeigt sich, dass das Einnahmeverhalten auffällig ist.');
+    expect(result).toBe('Das Einnahmeverhalten auffällig ist.');
+  });
+  it('returns clean summaries unchanged', () => {
+    const input = 'Triptan wird regelmäßig zu spät eingenommen.';
+    expect(cleanSummaryFiller(input)).toBe(input);
+  });
+  it('capitalizes first character after stripping', () => {
+    const result = cleanSummaryFiller('Es fällt auf, dass mehrere Attacken verlängert waren.');
+    expect(result.charAt(0)).toBe('M');
+  });
+});
 });
