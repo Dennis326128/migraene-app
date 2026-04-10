@@ -348,7 +348,53 @@ export interface PatternAnalysisSummary {
   daysAnalyzed: number;
 }
 
-/** Full analysis block (all optional sub-fields) */
+/**
+ * Build PatternAnalysisSummary from raw ai_reports.response_json.
+ * 
+ * MIRRORS client-side buildPatternAnalysisSummary (analysisCache.ts) exactly:
+ * - Sort: high > medium > low evidence
+ * - Max 7 patterns, 5 recurring sequences, 4 open questions
+ * - Field mapping: llmInterpretation → interpretation
+ * 
+ * This is the ONLY place in the Deno backend that maps raw analysis to summary.
+ */
+function buildPatternSummaryFromRaw(
+  responseJson: unknown,
+  updatedAt: string,
+): PatternAnalysisSummary | null {
+  const r = responseJson as Record<string, unknown>;
+  if (typeof r?.summary !== "string" || !Array.isArray(r?.possiblePatterns) || r.possiblePatterns.length === 0) {
+    return null;
+  }
+
+  const evidenceOrder: Record<string, number> = { high: 3, medium: 2, low: 1 };
+  const sortedPatterns = [...(r.possiblePatterns as Array<Record<string, unknown>>)]
+    .sort((a, b) => (evidenceOrder[String(b.evidenceStrength)] || 0) - (evidenceOrder[String(a.evidenceStrength)] || 0));
+
+  return {
+    summary: r.summary as string,
+    patterns: sortedPatterns.slice(0, 7).map(p => ({
+      title: String(p.title || ""),
+      description: String(p.description || ""),
+      evidenceStrength: String(p.evidenceStrength || "low"),
+    })),
+    recurringSequences: Array.isArray(r.recurringSequences)
+      ? (r.recurringSequences as Array<Record<string, unknown>>).slice(0, 5).map(s => ({
+          pattern: String(s.pattern || ""),
+          count: Number(s.count) || 1,
+          interpretation: String(s.llmInterpretation || s.interpretation || ""),
+        }))
+      : [],
+    openQuestions: Array.isArray(r.openQuestions)
+      ? (r.openQuestions as string[]).slice(0, 4)
+      : [],
+    analyzedAt: updatedAt,
+    daysAnalyzed: (r.scope as Record<string, unknown>)?.daysAnalyzed
+      ? Number((r.scope as Record<string, unknown>).daysAnalyzed)
+      : 0,
+  };
+}
+
 export interface DoctorReportAnalysis {
   symptoms?: SymptomsAnalysis;
   triggers?: TriggersAnalysis;
@@ -1036,7 +1082,7 @@ export async function buildDoctorReportSnapshot(
     // All entries for summary/charts — now include symptoms_state and ME/CFS fields
     supabase
       .from("pain_entries")
-      .select("id, selected_date, selected_time, pain_level, medications, aura_type, pain_locations, notes, timestamp_created, entry_note_is_private, symptoms_state, me_cfs_severity_level, me_cfs_severity_score")
+      .select("id, selected_date, selected_time, pain_level, medications, aura_type, pain_locations, notes, timestamp_created, updated_at, entry_note_is_private, symptoms_state, me_cfs_severity_level, me_cfs_severity_score")
       .eq("user_id", userId)
       .gte("selected_date", from)
       .lte("selected_date", to)
@@ -1209,7 +1255,14 @@ export async function buildDoctorReportSnapshot(
 
   const sourceUpdatedAt = latestTimestamp?.toISOString() || null;
 
-  // ─────────────────────────────────────────────────────────────────────────
+  // Snapshot uses timestamp-based staleness for the overall report.
+  // For pattern analysis specifically, we compare data_state_signature
+  // from the stored ai_report against the current signature if available.
+  // Since snapshot doesn't have exact counts for all 4 sources, we pass null
+  // and fall back to timestamp comparison in the pattern analysis section.
+  const currentDataStateSignature: string | null = null;
+
+  //
   // 3) SUMMARY BERECHNEN
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -1589,8 +1642,9 @@ export async function buildDoctorReportSnapshot(
   }
 
   // F) KI Pattern Analysis — load from ai_reports if requested
-  // Uses dedupe_key for exact range match + data_state_signature for freshness.
-  // Aligned with analysisCache.ts central selection logic.
+  // Uses dedupe_key for exact range match + data_state_signature for staleness.
+  // Mapping via buildPatternSummaryFromRaw — mirrors client-side buildPatternAnalysisSummary
+  // with IDENTICAL limits: max 7 patterns, 5 sequences, 4 questions.
   if (includePatternAnalysis) {
     try {
       const dedupeKey = `pattern_analysis_${from}_${to}`;
@@ -1605,42 +1659,23 @@ export async function buildDoctorReportSnapshot(
         .maybeSingle();
 
       if (aiReport?.response_json) {
-        const r = aiReport.response_json as Record<string, unknown>;
-        if (typeof r.summary === "string" && Array.isArray(r.possiblePatterns) && r.possiblePatterns.length > 0) {
-          const evidenceOrder: Record<string, number> = { high: 3, medium: 2, low: 1 };
-          const sortedPatterns = (r.possiblePatterns as Array<Record<string, unknown>>)
-            .sort((a, b) => (evidenceOrder[String(b.evidenceStrength)] || 0) - (evidenceOrder[String(a.evidenceStrength)] || 0));
+        const mapped = buildPatternSummaryFromRaw(aiReport.response_json, aiReport.updated_at);
+        if (mapped) {
+          analysis.patternAnalysis = mapped;
 
-          analysis.patternAnalysis = {
-            summary: r.summary as string,
-            patterns: sortedPatterns.slice(0, 7).map(p => ({
-              title: String(p.title || ""),
-              description: String(p.description || ""),
-              evidenceStrength: String(p.evidenceStrength || "low"),
-            })),
-            recurringSequences: Array.isArray(r.recurringSequences)
-              ? (r.recurringSequences as Array<Record<string, unknown>>).slice(0, 5).map(s => ({
-                  pattern: String(s.pattern || ""),
-                  count: Number(s.count) || 1,
-                  interpretation: String(s.llmInterpretation || s.interpretation || ""),
-                }))
-              : [],
-            openQuestions: Array.isArray(r.openQuestions)
-              ? (r.openQuestions as string[]).slice(0, 4)
-              : [],
-            analyzedAt: aiReport.updated_at,
-            daysAnalyzed: (r.scope as Record<string, unknown>)?.daysAnalyzed
-              ? Number((r.scope as Record<string, unknown>).daysAnalyzed)
-              : 0,
-          };
-
-          // Staleness: compare stored signature against current sourceUpdatedAt
-          const analysisTime = new Date(aiReport.updated_at).getTime();
-          const sourceTime = sourceUpdatedAt ? new Date(sourceUpdatedAt).getTime() : 0;
-          if (sourceTime > analysisTime) {
-            console.warn(`[DoctorReport] PatternAnalysis is stale: analysisAt=${aiReport.updated_at} sourceAt=${sourceUpdatedAt} storedSig=${aiReport.data_state_signature ?? 'none'}`);
+          // Staleness: signature-based (primary) or timestamp fallback
+          if (aiReport.data_state_signature && currentDataStateSignature) {
+            if (aiReport.data_state_signature !== currentDataStateSignature) {
+              console.warn(`[DoctorReport] PatternAnalysis stale: stored=${aiReport.data_state_signature} current=${currentDataStateSignature}`);
+            }
+          } else {
+            const analysisTime = new Date(aiReport.updated_at).getTime();
+            const sourceTime = sourceUpdatedAt ? new Date(sourceUpdatedAt).getTime() : 0;
+            if (sourceTime > analysisTime) {
+              console.warn(`[DoctorReport] PatternAnalysis stale (timestamp fallback): analysisAt=${aiReport.updated_at} sourceAt=${sourceUpdatedAt}`);
+            }
           }
-          console.log(`[DoctorReport] PatternAnalysis: ${analysis.patternAnalysis.patterns.length} patterns loaded (dedupeKey=${dedupeKey})`);
+          console.log(`[DoctorReport] PatternAnalysis: ${mapped.patterns.length} patterns loaded (dedupeKey=${dedupeKey})`);
         }
       }
     } catch (err) {

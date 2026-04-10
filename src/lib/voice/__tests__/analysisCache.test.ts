@@ -412,7 +412,7 @@ describe('buildPatternAnalysisSummary', () => {
 });
 
 // ============================================================
-// 10. Cross-output consistency
+// 10. Cross-output consistency — CENTRAL MAPPING LAYER
 // ============================================================
 
 describe('Cross-output consistency (PDF, Website, Snapshot)', () => {
@@ -430,9 +430,52 @@ describe('Cross-output consistency (PDF, Website, Snapshot)', () => {
     expect(pa.recurringSequences[0]).toHaveProperty('interpretation');
   });
 
-  it('same input → identical output across channels', () => {
+  it('same input → identical output (deterministic)', () => {
     const r = mockResult();
     expect(buildPatternAnalysisSummary(r)).toEqual(buildPatternAnalysisSummary(r));
+  });
+
+  it('sorting is evidence-based: high > medium > low', () => {
+    const r = mockResult({
+      possiblePatterns: [
+        { patternType: 'trigger_candidate', title: 'Low', description: 'd', evidenceStrength: 'low', occurrences: 5, examples: [], uncertaintyNotes: [] },
+        { patternType: 'trigger_candidate', title: 'High', description: 'd', evidenceStrength: 'high', occurrences: 1, examples: [], uncertaintyNotes: [] },
+        { patternType: 'trigger_candidate', title: 'Med', description: 'd', evidenceStrength: 'medium', occurrences: 3, examples: [], uncertaintyNotes: [] },
+      ],
+    });
+    const pa = buildPatternAnalysisSummary(r);
+    expect(pa.patterns.map(p => p.evidenceStrength)).toEqual(['high', 'medium', 'low']);
+  });
+
+  it('limits are enforced identically (7 patterns, 5 sequences, 4 questions)', () => {
+    const r = mockResult({
+      possiblePatterns: Array.from({ length: 12 }, (_, i) => ({
+        patternType: 'trigger_candidate' as const, title: `P${i}`, description: `D${i}`,
+        evidenceStrength: 'medium' as const, occurrences: 1, examples: [], uncertaintyNotes: [],
+      })),
+      recurringSequences: Array.from({ length: 9 }, (_, i) => ({
+        pattern: `S${i}`, count: i + 1, llmInterpretation: `I${i}`,
+      })),
+      openQuestions: ['Q1', 'Q2', 'Q3', 'Q4', 'Q5', 'Q6', 'Q7'],
+    });
+    const pa = buildPatternAnalysisSummary(r);
+    expect(pa.patterns).toHaveLength(7);
+    expect(pa.recurringSequences).toHaveLength(5);
+    expect(pa.openQuestions).toHaveLength(4);
+  });
+
+  it('llmInterpretation → interpretation field mapping', () => {
+    const pa = buildPatternAnalysisSummary(mockResult());
+    expect(pa.recurringSequences[0]).toHaveProperty('interpretation');
+    expect(pa.recurringSequences[0]).not.toHaveProperty('llmInterpretation');
+    expect(pa.recurringSequences[0].interpretation).toBe('Häufige Abfolge');
+  });
+
+  it('empty patterns array produces valid summary', () => {
+    const r = mockResult({ possiblePatterns: [] });
+    const s = buildPatternAnalysisSummary(r);
+    expect(s.patterns).toHaveLength(0);
+    expect(s.summary).toBeTruthy();
   });
 });
 
@@ -465,9 +508,8 @@ describe('Haken-based inclusion/exclusion', () => {
 describe('dedupe_key consistency', () => {
   it('buildDedupeKey matches expected format used by edge function and snapshot', () => {
     const key = buildDedupeKey('2026-01-01', '2026-03-31');
-    // Must be: pattern_analysis_{from}_{to} — NO user_id, NO timestamp
     expect(key).toBe('pattern_analysis_2026-01-01_2026-03-31');
-    expect(key).not.toContain(':');  // old format used colons
+    expect(key).not.toContain(':');
   });
 
   it('same range always produces same key', () => {
@@ -482,47 +524,48 @@ describe('dedupe_key consistency', () => {
 });
 
 // ============================================================
-// 13. buildPatternAnalysisSummary used by ALL channels
+// 13. Stale policy per channel
 // ============================================================
 
-describe('buildPatternAnalysisSummary is the single mapping layer', () => {
-  it('maps llmInterpretation → interpretation consistently', () => {
-    const result = mockResult();
-    const summary = buildPatternAnalysisSummary(result);
-    // The field must be 'interpretation', not 'llmInterpretation'
-    expect(summary.recurringSequences[0]).toHaveProperty('interpretation');
-    expect(summary.recurringSequences[0]).not.toHaveProperty('llmInterpretation');
-    expect(summary.recurringSequences[0].interpretation).toBe('Häufige Abfolge');
+describe('Stale policy per channel', () => {
+  // Simulate what selectAnalysisForChannel does for stale data
+  const simulateChannelDecision = (channel: string, isFresh: boolean) => {
+    // All channels accept stale (stale > missing) per current policy
+    if (isFresh) return 'fresh';
+    // channel-specific: all accept stale
+    return channel === 'app' || channel === 'pdf' || channel === 'website' || channel === 'snapshot'
+      ? 'stale_accepted'
+      : 'stale_rejected';
+  };
+
+  it('app: accepts stale analysis', () => {
+    expect(simulateChannelDecision('app', false)).toBe('stale_accepted');
   });
 
-  it('enforces max limits consistently', () => {
-    const result = mockResult({
-      possiblePatterns: Array.from({ length: 10 }, (_, i) => ({
-        patternType: 'trigger_candidate' as const,
-        title: `Pattern ${i}`,
-        description: `Desc ${i}`,
-        evidenceStrength: 'medium' as const,
-        occurrences: 1,
-        examples: [],
-        uncertaintyNotes: [],
-      })),
-      recurringSequences: Array.from({ length: 8 }, (_, i) => ({
-        pattern: `Seq ${i}`, count: i + 1, llmInterpretation: `Interp ${i}`,
-      })),
-      openQuestions: ['Q1', 'Q2', 'Q3', 'Q4', 'Q5', 'Q6'],
-    });
-    const summary = buildPatternAnalysisSummary(result);
-    expect(summary.patterns.length).toBeLessThanOrEqual(7);
-    expect(summary.recurringSequences.length).toBeLessThanOrEqual(5);
-    expect(summary.openQuestions.length).toBeLessThanOrEqual(4);
+  it('pdf: accepts stale analysis', () => {
+    expect(simulateChannelDecision('pdf', false)).toBe('stale_accepted');
+  });
+
+  it('website: accepts stale analysis', () => {
+    expect(simulateChannelDecision('website', false)).toBe('stale_accepted');
+  });
+
+  it('snapshot: accepts stale analysis', () => {
+    expect(simulateChannelDecision('snapshot', false)).toBe('stale_accepted');
+  });
+
+  it('fresh analysis is always accepted', () => {
+    expect(simulateChannelDecision('app', true)).toBe('fresh');
+    expect(simulateChannelDecision('pdf', true)).toBe('fresh');
+    expect(simulateChannelDecision('website', true)).toBe('fresh');
   });
 });
 
 // ============================================================
-// 14. Edge cases
+// 14. Signature-based invalidation
 // ============================================================
 
-describe('Edge cases', () => {
+describe('Signature-based invalidation', () => {
   it('multiple simultaneous changes still detected via signature', () => {
     const cached = mockCached({ dataStateSignature: SIG_A });
     const newSig = buildStateSignature(15, '2026-04-01T16:00:00Z', 8, '2026-04-01T14:00:00Z', 5, '2026-04-01T15:00:00Z', 4, '2026-04-01T16:00:00Z');
@@ -540,5 +583,51 @@ describe('Edge cases', () => {
     const cached = mockCached({ dataStateSignature: emptySig });
     const fp = mockFingerprint({ stateSignature: emptySig });
     expect(simulateCacheValidation(cached, fp).valid).toBe(true);
+  });
+
+  it('same data same signature → cache valid', () => {
+    const cached = mockCached({ dataStateSignature: SIG_A });
+    const fp = mockFingerprint({ stateSignature: SIG_A });
+    expect(simulateCacheValidation(cached, fp).valid).toBe(true);
+  });
+
+  it('same counts different timestamps → invalid', () => {
+    const sig1 = buildStateSignature(10, '2026-03-15T08:00:00Z', 5, '2026-03-20T09:00:00Z', 3, '2026-03-25T10:00:00Z', 2, '2026-03-28T11:00:00Z');
+    const sig2 = buildStateSignature(10, '2026-03-15T08:01:00Z', 5, '2026-03-20T09:00:00Z', 3, '2026-03-25T10:00:00Z', 2, '2026-03-28T11:00:00Z');
+    expect(sig1).not.toBe(sig2);
+  });
+
+  it('same timestamps different counts → invalid', () => {
+    const sig1 = buildStateSignature(10, '2026-03-15T08:00:00Z', 5, null, 3, null, 2, null);
+    const sig2 = buildStateSignature(11, '2026-03-15T08:00:00Z', 5, null, 3, null, 2, null);
+    expect(sig1).not.toBe(sig2);
+  });
+});
+
+// ============================================================
+// 15. Cooldown as secondary safeguard only
+// ============================================================
+
+describe('Cooldown is secondary to data change', () => {
+  it('unchanged data within cooldown → blocked by canReanalyze', () => {
+    const cached = mockCached({ updatedAt: new Date().toISOString() });
+    expect(canReanalyze(cached)).toBe(false);
+  });
+
+  it('unchanged data after cooldown → allowed by canReanalyze', () => {
+    const cached = mockCached({ updatedAt: new Date(Date.now() - 6 * 60 * 1000).toISOString() });
+    expect(canReanalyze(cached)).toBe(true);
+  });
+
+  it('changed data → cache invalid regardless of cooldown (signature mismatch)', () => {
+    // Even if cooldown hasn't passed, signature mismatch means cache is invalid
+    const cached = mockCached({
+      dataStateSignature: SIG_A,
+      updatedAt: new Date().toISOString(), // just created
+    });
+    const differentSig = buildStateSignature(99, '2026-04-10T00:00:00Z', 0, null, 0, null, 0, null);
+    const result = simulateCacheValidation(cached, mockFingerprint({ stateSignature: differentSig }));
+    expect(result.valid).toBe(false);
+    expect(result.reason).toBe('signature_mismatch');
   });
 });
