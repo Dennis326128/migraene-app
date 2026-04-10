@@ -214,7 +214,7 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
         if (overlapsAny(s.llmInterpretation, patternRefTexts, 0.22)) return false;
         if (overlapsAny(s.llmInterpretation, patternDescriptions, 0.25)) return false;
         if (overlapsAny(s.llmInterpretation, patternTitles, 0.25)) return false;
-        if (overlapsAny(s.llmInterpretation, [result.summary], 0.22)) return false;
+        if (overlapsAny(s.llmInterpretation, [cleanedSummary], 0.22)) return false;
         return true;
       })
       .slice(0, MAX_SEQUENCES);
@@ -231,9 +231,10 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
       f.evidenceStrength === 'high' &&
       /schmerz|kopf|migräne|attacke|triptan/i.test(f.observation)
     );
-    // Medication context: skip if any pattern already covers medication topic
+    // Medication context: skip if any pattern OR summary already covers medication topic
     const hasMedPattern = sorted.some(p => MEDICATION_PATTERN_TYPES.has(p.patternType) || MEDICATION_TITLE_RX.test(p.title) || MEDICATION_TITLE_RX.test(p.description));
-    const medContext = hasMedPattern ? [] : result.medicationContextFindings;
+    const hasMedSummary = MEDICATION_TITLE_RX.test(cleanedSummary);
+    const medContext = (hasMedPattern || hasMedSummary) ? [] : result.medicationContextFindings;
     const allContext = [...result.painContextFindings, ...fatigueFiltered, ...medContext];
     const finalContext = allContext
       .filter(f => f.evidenceStrength === 'medium' || f.evidenceStrength === 'high')
