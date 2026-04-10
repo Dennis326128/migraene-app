@@ -721,10 +721,12 @@ export function SimpleVoiceOverlay({
     // Save any transcript as voice event before discarding (capture first!)
     const text = committedTextRef.current?.trim();
     if (text && text.length >= 3) {
+      const classification = classifyVoiceEvent(text);
       saveVoiceEventRobust({
         rawTranscript: text,
         source: 'voice',
         sessionId: voiceSessionIdRef.current,
+        classification: classification.isMeaningful ? classification : undefined,
         reviewState: 'auto_saved',
       }).catch(() => {});
     }
@@ -737,12 +739,15 @@ export function SimpleVoiceOverlay({
     stopRecording();
     
     // Save any transcript as voice event before closing (capture first!)
+    // Save in recording OR paused state — both mean user hasn't completed the flow
     const text = committedTextRef.current?.trim();
-    if (text && text.length >= 3 && stateRef.current === 'recording') {
+    if (text && text.length >= 3 && (stateRef.current === 'recording' || stateRef.current === 'paused')) {
+      const classification = classifyVoiceEvent(text);
       saveVoiceEventRobust({
         rawTranscript: text,
         source: 'voice',
         sessionId: voiceSessionIdRef.current,
+        classification: classification.isMeaningful ? classification : undefined,
         reviewState: 'auto_saved',
       }).catch(() => {});
     }
