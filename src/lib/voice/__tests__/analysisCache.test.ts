@@ -384,7 +384,7 @@ describe('buildPatternAnalysisSummary', () => {
     expect(summary.patterns[2].evidenceStrength).toBe('low');
   });
 
-  it('limits: max 5 patterns, 3 sequences, 3 questions', () => {
+  it('limits: max 4 patterns, 2 sequences, 2 questions', () => {
     const result = mockResult({
       possiblePatterns: Array.from({ length: 12 }, (_, i) => ({
         patternType: 'trigger_candidate' as const,
@@ -483,7 +483,7 @@ describe('Cross-output consistency (PDF, Website, Snapshot)', () => {
     expect(pa.patterns.map(p => p.evidenceStrength)).toEqual(['high', 'medium', 'low']);
   });
 
-  it('limits are enforced identically (5 patterns, 3 sequences, 3 questions)', () => {
+  it('limits are enforced identically (4 patterns, 2 sequences, 2 questions)', () => {
     const r = mockResult({
       possiblePatterns: Array.from({ length: 12 }, (_, i) => ({
         patternType: 'trigger_candidate' as const, title: `P${i}`, description: `D${i}`,
