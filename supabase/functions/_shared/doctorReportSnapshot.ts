@@ -330,6 +330,24 @@ export interface MeCfsAnalysis {
   dataQualityNote?: string | null;
 }
 
+/** Pattern analysis from KI-Analyse (persisted in ai_reports) */
+export interface PatternAnalysisSummary {
+  summary: string;
+  patterns: Array<{
+    title: string;
+    description: string;
+    evidenceStrength: string;
+  }>;
+  recurringSequences: Array<{
+    pattern: string;
+    count: number;
+    interpretation: string;
+  }>;
+  openQuestions: string[];
+  analyzedAt: string;
+  daysAnalyzed: number;
+}
+
 /** Full analysis block (all optional sub-fields) */
 export interface DoctorReportAnalysis {
   symptoms?: SymptomsAnalysis;
@@ -337,6 +355,8 @@ export interface DoctorReportAnalysis {
   headacheDayDonut?: HeadacheDayDonut;
   weather?: WeatherAnalysis;
   mecfs?: MeCfsAnalysis;
+  /** KI pattern analysis (migraine correlations) */
+  patternAnalysis?: PatternAnalysisSummary;
 }
 
 // ════════════════════════════════════════════════════════════════════════════
