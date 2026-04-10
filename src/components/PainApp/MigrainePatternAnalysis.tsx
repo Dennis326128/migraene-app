@@ -221,7 +221,7 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
 
     // Reference pool for deduplication
     const allRefTexts = [
-      result.summary,
+      cleanedSummary,
       ...patternRefTexts,
       ...seqs.map(s => s.pattern + ' ' + (s.llmInterpretation || '')),
     ];
