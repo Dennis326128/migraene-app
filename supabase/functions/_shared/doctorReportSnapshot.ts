@@ -1589,14 +1589,14 @@ export async function buildDoctorReportSnapshot(
   }
 
   // F) KI Pattern Analysis — load from ai_reports if requested
-  // Uses dedupe_key for exact range match, validates data-state freshness
-  // against sourceUpdatedAt to ensure snapshot + analysis consistency
+  // Uses dedupe_key for exact range match + data_state_signature for freshness.
+  // Aligned with analysisCache.ts central selection logic.
   if (includePatternAnalysis) {
     try {
       const dedupeKey = `pattern_analysis_${from}_${to}`;
       const { data: aiReport } = await supabase
         .from("ai_reports")
-        .select("response_json, updated_at")
+        .select("response_json, updated_at, data_state_signature")
         .eq("user_id", userId)
         .eq("report_type", "pattern_analysis")
         .eq("dedupe_key", dedupeKey)
@@ -1607,7 +1607,6 @@ export async function buildDoctorReportSnapshot(
       if (aiReport?.response_json) {
         const r = aiReport.response_json as Record<string, unknown>;
         if (typeof r.summary === "string" && Array.isArray(r.possiblePatterns) && r.possiblePatterns.length > 0) {
-          // Sort patterns by evidence strength (high first) for consistency
           const evidenceOrder: Record<string, number> = { high: 3, medium: 2, low: 1 };
           const sortedPatterns = (r.possiblePatterns as Array<Record<string, unknown>>)
             .sort((a, b) => (evidenceOrder[String(b.evidenceStrength)] || 0) - (evidenceOrder[String(a.evidenceStrength)] || 0));
@@ -1635,11 +1634,11 @@ export async function buildDoctorReportSnapshot(
               : 0,
           };
 
-          // Data-state freshness: flag if analysis is older than source data
+          // Staleness: compare stored signature against current sourceUpdatedAt
           const analysisTime = new Date(aiReport.updated_at).getTime();
           const sourceTime = sourceUpdatedAt ? new Date(sourceUpdatedAt).getTime() : 0;
           if (sourceTime > analysisTime) {
-            console.warn(`[DoctorReport] PatternAnalysis is stale: analysisAt=${aiReport.updated_at} sourceAt=${sourceUpdatedAt}`);
+            console.warn(`[DoctorReport] PatternAnalysis is stale: analysisAt=${aiReport.updated_at} sourceAt=${sourceUpdatedAt} storedSig=${aiReport.data_state_signature ?? 'none'}`);
           }
           console.log(`[DoctorReport] PatternAnalysis: ${analysis.patternAnalysis.patterns.length} patterns loaded (dedupeKey=${dedupeKey})`);
         }
