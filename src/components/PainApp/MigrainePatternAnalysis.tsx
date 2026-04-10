@@ -109,12 +109,15 @@ const BANAL_CONTENT_RX = [
 function isTrivialSequence(pattern: string, interpretation?: string): boolean {
   const normalized = pattern.replace(/\s+/g, ' ').trim();
   if (TRIVIAL_SEQUENCE_PATTERNS.some(rx => rx.test(normalized))) return true;
-  // Also check as generic phase sequence
   const collapsed = normalized.toLowerCase().replace(/\s/g, '');
   if (GENERIC_PHASE_SEQUENCES.has(collapsed)) return true;
-  // Also check if interpretation itself is banal
   if (interpretation && BANAL_INTERPRETATION_RX.some(rx => rx.test(interpretation))) return true;
   return false;
+}
+
+/** Check if a text (observation, open question) is banal filler */
+function isBanalContent(text: string): boolean {
+  return BANAL_CONTENT_RX.some(rx => rx.test(text)) || BANAL_INTERPRETATION_RX.some(rx => rx.test(text));
 }
 
 /** Translate English arrow-patterns to German */
