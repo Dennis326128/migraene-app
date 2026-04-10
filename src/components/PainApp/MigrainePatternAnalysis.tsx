@@ -254,7 +254,7 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
       fullRef,
     ).filter(item => item.length >= 40 && !isBanalContent(item)).slice(0, 1);
 
-    return { sortedPatterns: sorted, filteredSequences: seqs, extraContextFindings: finalContext, uncertainties: merged };
+    return { sortedPatterns: sorted, filteredSequences: seqs, extraContextFindings: finalContext, uncertainties: merged, cleanedSummary };
   }, [result]);
 
   const hasPatterns = sortedPatterns.length > 0;
@@ -267,7 +267,7 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
     <div className="space-y-7">
       {/* A) Kurzfazit */}
       <div className="pb-1">
-        <p className="text-[13px] leading-[1.7] text-foreground">{result.summary}</p>
+        <p className="text-[13px] leading-[1.7] text-foreground">{cleanedSummary}</p>
         <p className="text-[11px] text-muted-foreground/70 mt-2.5">
           {result.scope.daysAnalyzed} Tage analysiert
           {result.scope.painEntryCount > 0 && ` · ${result.scope.painEntryCount} Schmerzeinträge`}
