@@ -351,42 +351,63 @@ export interface PatternAnalysisSummary {
 /**
  * Build PatternAnalysisSummary from raw ai_reports.response_json.
  * 
- * MIRRORS client-side buildPatternAnalysisSummary (analysisCache.ts) exactly:
- * - Sort: high > medium > low evidence
- * - Max 7 patterns, 5 recurring sequences, 4 open questions
- * - Field mapping: llmInterpretation → interpretation
+ * Prefers _compactSummary (persisted at save time by client).
+ * Falls back to building from raw possiblePatterns (legacy records).
  * 
- * This is the ONLY place in the Deno backend that maps raw analysis to summary.
+ * CONSISTENT LIMITS (must match client analysisCache.ts):
+ * - Max 5 patterns, 3 recurring sequences, 3 open questions
+ * - Sort: high > medium > low evidence, then by occurrences
+ * - Field mapping: llmInterpretation → interpretation
  */
+const MAX_PATTERNS = 5;
+const MAX_SEQUENCES = 3;
+const MAX_QUESTIONS = 3;
+const EVIDENCE_ORDER: Record<string, number> = { high: 3, medium: 2, low: 1 };
+
 function buildPatternSummaryFromRaw(
   responseJson: unknown,
   updatedAt: string,
 ): PatternAnalysisSummary | null {
   const r = responseJson as Record<string, unknown>;
-  if (typeof r?.summary !== "string" || !Array.isArray(r?.possiblePatterns) || r.possiblePatterns.length === 0) {
+  if (!r || typeof r !== 'object') return null;
+
+  // Prefer pre-built compact summary (persisted at save time)
+  if (r._compactSummary && typeof (r._compactSummary as any).summary === 'string') {
+    const cs = r._compactSummary as PatternAnalysisSummary;
+    return {
+      summary: cs.summary,
+      patterns: (cs.patterns || []).slice(0, MAX_PATTERNS),
+      recurringSequences: (cs.recurringSequences || []).slice(0, MAX_SEQUENCES),
+      openQuestions: (cs.openQuestions || []).slice(0, MAX_QUESTIONS),
+      analyzedAt: cs.analyzedAt || updatedAt,
+      daysAnalyzed: cs.daysAnalyzed || 0,
+    };
+  }
+
+  // Fallback: build from raw VoiceAnalysisResult shape (legacy records)
+  if (typeof r.summary !== "string" || !Array.isArray(r.possiblePatterns) || r.possiblePatterns.length === 0) {
     return null;
   }
 
-  const evidenceOrder: Record<string, number> = { high: 3, medium: 2, low: 1 };
   const sortedPatterns = [...(r.possiblePatterns as Array<Record<string, unknown>>)]
-    .sort((a, b) => (evidenceOrder[String(b.evidenceStrength)] || 0) - (evidenceOrder[String(a.evidenceStrength)] || 0));
+    .sort((a, b) => (EVIDENCE_ORDER[String(b.evidenceStrength)] || 0) - (EVIDENCE_ORDER[String(a.evidenceStrength)] || 0));
 
   return {
     summary: r.summary as string,
-    patterns: sortedPatterns.slice(0, 7).map(p => ({
+    patterns: sortedPatterns.slice(0, MAX_PATTERNS).map(p => ({
       title: String(p.title || ""),
       description: String(p.description || ""),
       evidenceStrength: String(p.evidenceStrength || "low"),
     })),
     recurringSequences: Array.isArray(r.recurringSequences)
-      ? (r.recurringSequences as Array<Record<string, unknown>>).slice(0, 5).map(s => ({
+      ? (r.recurringSequences as Array<Record<string, unknown>>).slice(0, MAX_SEQUENCES).map(s => ({
           pattern: String(s.pattern || ""),
           count: Number(s.count) || 1,
           interpretation: String(s.llmInterpretation || s.interpretation || ""),
         }))
       : [],
     openQuestions: Array.isArray(r.openQuestions)
-      ? (r.openQuestions as string[]).slice(0, 4)
+      ? (r.openQuestions as string[]).slice(0, MAX_QUESTIONS)
       : [],
     analyzedAt: updatedAt,
     daysAnalyzed: (r.scope as Record<string, unknown>)?.daysAnalyzed
