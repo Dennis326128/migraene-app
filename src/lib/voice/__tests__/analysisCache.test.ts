@@ -397,9 +397,9 @@ describe('buildPatternAnalysisSummary', () => {
       openQuestions: ['Q1', 'Q2', 'Q3', 'Q4', 'Q5', 'Q6'],
     });
     const summary = buildPatternAnalysisSummary(result);
-    expect(summary.patterns).toHaveLength(5);
-    expect(summary.recurringSequences).toHaveLength(3);
-    expect(summary.openQuestions).toHaveLength(3);
+    expect(summary.patterns).toHaveLength(4);
+    expect(summary.recurringSequences).toHaveLength(2);
+    expect(summary.openQuestions).toHaveLength(2);
   });
 
   it('is deterministic', () => {
@@ -495,9 +495,9 @@ describe('Cross-output consistency (PDF, Website, Snapshot)', () => {
       openQuestions: ['Q1', 'Q2', 'Q3', 'Q4', 'Q5', 'Q6', 'Q7'],
     });
     const pa = buildPatternAnalysisSummary(r);
-    expect(pa.patterns).toHaveLength(5);
-    expect(pa.recurringSequences).toHaveLength(3);
-    expect(pa.openQuestions).toHaveLength(3);
+    expect(pa.patterns).toHaveLength(4);
+    expect(pa.recurringSequences).toHaveLength(2);
+    expect(pa.openQuestions).toHaveLength(2);
   });
 
   it('llmInterpretation → interpretation field mapping', () => {
@@ -779,9 +779,9 @@ describe('Migraine prioritization in sorting', () => {
       ],
     });
     const summary = buildPatternAnalysisSummary(r);
-    // Max 5 patterns
-    expect(summary.patterns).toHaveLength(5);
-    // Order: high(5), high(3), medium(7), medium(2), low(10) — P6 (low,1) cut
-    expect(summary.patterns.map(p => p.title)).toEqual(['P4', 'P2', 'P3', 'P5', 'P1']);
+    // Max 4 patterns
+    expect(summary.patterns).toHaveLength(4);
+    // Order: high(5), high(3), medium(7), medium(2) — P1 (low,10) and P6 (low,1) cut
+    expect(summary.patterns.map(p => p.title)).toEqual(['P4', 'P2', 'P3', 'P5']);
   });
 });
