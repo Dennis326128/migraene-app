@@ -37,7 +37,6 @@ function translateSequencePattern(pattern: string): string {
 
 /** Medication-related pattern types that get priority boost within same evidence tier */
 const MEDICATION_PATTERN_TYPES = new Set(['medication_context', 'trigger_candidate']);
-const MEDICATION_TITLE_RX = /triptan|medikament|akutmedikament|übergebrauch|einnahme|vermeidung|zurückhalt|spät.*einn|abwart/i;
 
 /** Sort patterns: higher evidence first, then medication-priority, then by occurrence count */
 function sortPatterns(patterns: PatternFinding[]): PatternFinding[] {
