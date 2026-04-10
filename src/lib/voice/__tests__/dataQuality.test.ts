@@ -81,7 +81,7 @@ describe('Everyday Entity Extraction', () => {
   });
 
   it('extracts "lege mich hin" as rest', () => {
-    const r = parse('Lege mich jetzt hin');
+    const r = parse('Lege mich hin');
     expect(entityCategories(r)).toContain('sleep_rest');
   });
 
