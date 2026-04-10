@@ -360,3 +360,27 @@ describe('uncertainty minimum length gate (40 chars)', () => {
     expect(good.length >= 40).toBe(true);
   });
 });
+
+describe('isWeakPattern — non-actionable vague observations', () => {
+  it('rejects "es gibt Hinweise"', () => {
+    expect(isWeakPattern('Es gibt Hinweise auf einen möglichen Zusammenhang mit Stress.')).toBe(true);
+  });
+  it('rejects "Zusammenhang möglich"', () => {
+    expect(isWeakPattern('Ein Zusammenhang möglich zwischen Wetter und Kopfschmerz.')).toBe(true);
+  });
+  it('rejects "könnte eine Rolle spielen"', () => {
+    expect(isWeakPattern('Schlafmangel könnte eine Rolle bei den Attacken spielen.')).toBe(true);
+  });
+  it('rejects "scheint zusammenzuhängen"', () => {
+    expect(isWeakPattern('Stress scheint zusammen zu hängen mit stärkeren Tagen.')).toBe(true);
+  });
+  it('rejects "kein klares Muster"', () => {
+    expect(isWeakPattern('Es zeigt sich kein klares Muster bei der Ernährung.')).toBe(true);
+  });
+  it('preserves medication patterns despite vague-sounding language', () => {
+    expect(isWeakPattern('Triptan wird teils spät eingesetzt', 'Medikamentenverhalten')).toBe(false);
+  });
+  it('preserves strong specific patterns', () => {
+    expect(isWeakPattern('An Tagen nach weniger als 6 Stunden Schlaf traten häufiger Migräneattacken auf.')).toBe(false);
+  });
+});
