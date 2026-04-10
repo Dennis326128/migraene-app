@@ -93,7 +93,7 @@ export const BANAL_CONTENT_RX = [
   /daraufhin.*schonung/i, /daraufhin.*pause/i,
   /einfach.*müde/i, /allgemein.*erschöpft/i,
   /schlechter.*tag.*ohne/i,
-  // Additional fatigue banalities
+  // Fatigue banalities
   /müde.*gewesen/i, /keine.*energie/i, /wenig.*energie/i,
   /allgemein.*müde/i, /generell.*erschöpft/i,
   /einfach.*erschöpft/i, /nur.*müde/i,
@@ -104,6 +104,12 @@ export const BANAL_CONTENT_RX = [
   /symptome.*wie.*üblich/i, /wie.*bei.*jeder.*attacke/i,
   /übliche.*symptome/i, /bekannte.*symptome/i,
   /die.*üblichen.*beschwerden/i,
+  // Residual filler sentences
+  /an.*mehreren.*tagen.*dokumentiert/i, /wurde.*dokumentiert/i,
+  /laut.*einträgen/i, /den.*einträgen.*zufolge/i,
+  /im.*beobachtungszeitraum/i, /im.*analysezeitraum/i,
+  /es.*wurde.*festgestellt/i, /es.*zeigt.*sich/i,
+  /wie.*bereits.*erwähnt/i, /wie.*oben.*beschrieben/i,
 ];
 
 /** Generic uncertainty phrases */
@@ -118,6 +124,11 @@ export const GENERIC_UNCERTAINTY_RX = [
   /längerer.*zeitraum.*nötig/i, /noch.*nicht.*ausreichend/i,
   /weitere.*beobachtung/i, /genauere.*dokumentation/i,
   /regelmäßiger.*eintragen/i, /mehr.*tage.*dokument/i,
+  // Residual vague uncertainty
+  /ob.*hier.*ein.*zusammenhang/i, /bleibt.*abzuwarten/i,
+  /kann.*nicht.*abschließend/i, /abschließend.*nicht.*beurteil/i,
+  /noch.*nicht.*klar.*ob/i, /hierzu.*fehlen/i,
+  /grundsätzlich.*möglich/i, /pauschal.*nicht.*sagen/i,
 ];
 
 /** Weak/vague pattern description phrases */
