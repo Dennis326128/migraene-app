@@ -535,11 +535,11 @@ export async function loadAnalysisForReport(
 // ============================================================
 
 /** Max patterns shown in any channel */
-export const MAX_PATTERNS = 5;
+export const MAX_PATTERNS = 4;
 /** Max recurring sequences shown */
-export const MAX_SEQUENCES = 3;
+export const MAX_SEQUENCES = 2;
 /** Max open questions shown */
-export const MAX_QUESTIONS = 3;
+export const MAX_QUESTIONS = 2;
 
 /** Evidence sort order */
 export const EVIDENCE_ORDER: Record<string, number> = { high: 3, medium: 2, low: 1 };
@@ -567,9 +567,9 @@ export interface PatternAnalysisCompactSummary {
  * Enforces consistent limits and field mapping.
  * 
  * Limits:
- * - max 5 patterns (sorted by evidence strength, then occurrences)
- * - max 3 recurring sequences
- * - max 3 open questions
+ * - max 4 patterns (sorted by evidence strength, medication priority, then occurrences)
+ * - max 2 recurring sequences
+ * - max 2 open questions
  */
 export function buildPatternAnalysisSummary(result: VoiceAnalysisResult): PatternAnalysisCompactSummary {
   const sortedPatterns = [...result.possiblePatterns]

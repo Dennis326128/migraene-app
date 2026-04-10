@@ -384,7 +384,7 @@ describe('buildPatternAnalysisSummary', () => {
     expect(summary.patterns[2].evidenceStrength).toBe('low');
   });
 
-  it('limits: max 5 patterns, 3 sequences, 3 questions', () => {
+  it('limits: max 4 patterns, 2 sequences, 2 questions', () => {
     const result = mockResult({
       possiblePatterns: Array.from({ length: 12 }, (_, i) => ({
         patternType: 'trigger_candidate' as const,
@@ -397,9 +397,9 @@ describe('buildPatternAnalysisSummary', () => {
       openQuestions: ['Q1', 'Q2', 'Q3', 'Q4', 'Q5', 'Q6'],
     });
     const summary = buildPatternAnalysisSummary(result);
-    expect(summary.patterns).toHaveLength(5);
-    expect(summary.recurringSequences).toHaveLength(3);
-    expect(summary.openQuestions).toHaveLength(3);
+    expect(summary.patterns).toHaveLength(4);
+    expect(summary.recurringSequences).toHaveLength(2);
+    expect(summary.openQuestions).toHaveLength(2);
   });
 
   it('is deterministic', () => {
@@ -483,7 +483,7 @@ describe('Cross-output consistency (PDF, Website, Snapshot)', () => {
     expect(pa.patterns.map(p => p.evidenceStrength)).toEqual(['high', 'medium', 'low']);
   });
 
-  it('limits are enforced identically (5 patterns, 3 sequences, 3 questions)', () => {
+  it('limits are enforced identically (4 patterns, 2 sequences, 2 questions)', () => {
     const r = mockResult({
       possiblePatterns: Array.from({ length: 12 }, (_, i) => ({
         patternType: 'trigger_candidate' as const, title: `P${i}`, description: `D${i}`,
@@ -495,9 +495,9 @@ describe('Cross-output consistency (PDF, Website, Snapshot)', () => {
       openQuestions: ['Q1', 'Q2', 'Q3', 'Q4', 'Q5', 'Q6', 'Q7'],
     });
     const pa = buildPatternAnalysisSummary(r);
-    expect(pa.patterns).toHaveLength(5);
-    expect(pa.recurringSequences).toHaveLength(3);
-    expect(pa.openQuestions).toHaveLength(3);
+    expect(pa.patterns).toHaveLength(4);
+    expect(pa.recurringSequences).toHaveLength(2);
+    expect(pa.openQuestions).toHaveLength(2);
   });
 
   it('llmInterpretation → interpretation field mapping', () => {
@@ -731,10 +731,10 @@ describe('Cross-channel SSOT identity', () => {
     expect(Object.keys(summary.recurringSequences[0]).sort()).toEqual(['count', 'interpretation', 'pattern']);
   });
 
-  it('limits are identical: MAX_PATTERNS=5, MAX_SEQUENCES=3, MAX_QUESTIONS=3', () => {
-    expect(MAX_PATTERNS).toBe(5);
-    expect(MAX_SEQUENCES).toBe(3);
-    expect(MAX_QUESTIONS).toBe(3);
+  it('limits are identical: MAX_PATTERNS=4, MAX_SEQUENCES=2, MAX_QUESTIONS=2', () => {
+    expect(MAX_PATTERNS).toBe(4);
+    expect(MAX_SEQUENCES).toBe(2);
+    expect(MAX_QUESTIONS).toBe(2);
   });
 });
 
@@ -779,9 +779,9 @@ describe('Migraine prioritization in sorting', () => {
       ],
     });
     const summary = buildPatternAnalysisSummary(r);
-    // Max 5 patterns
-    expect(summary.patterns).toHaveLength(5);
-    // Order: high(5), high(3), medium(7), medium(2), low(10) — P6 (low,1) cut
-    expect(summary.patterns.map(p => p.title)).toEqual(['P4', 'P2', 'P3', 'P5', 'P1']);
+    // Max 4 patterns
+    expect(summary.patterns).toHaveLength(4);
+    // Order: high(5), high(3), medium(7), medium(2) — P1 (low,10) and P6 (low,1) cut
+    expect(summary.patterns.map(p => p.title)).toEqual(['P4', 'P2', 'P3', 'P5']);
   });
 });
