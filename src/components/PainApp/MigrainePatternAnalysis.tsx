@@ -18,112 +18,10 @@ import { TimeRangeSelector } from './TimeRangeSelector';
 import { runVoicePatternAnalysis } from '@/lib/voice/analysisEngine';
 import { isAnalysisUnavailable, type VoiceAnalysisResult, type PatternFinding, type ContextFinding } from '@/lib/voice/analysisTypes';
 import { selectAnalysisForChannel, saveAnalysisResult, MAX_PATTERNS, MAX_SEQUENCES, MAX_QUESTIONS, EVIDENCE_ORDER } from '@/lib/voice/analysisCache';
+import { isTrivialSequence, isBanalContent, isGenericUncertainty, isWeakPattern, GENERIC_PHASE_SEQUENCES, BANAL_INTERPRETATION_RX, MEDICATION_TITLE_RX } from '@/lib/voice/analysisFilters';
 import { logError } from '@/lib/utils/errorMessages';
 
-// ============================================================
-// === CONTENT FILTERING & HELPERS ===
-// ============================================================
-
-/** Trivial/tautological sequence patterns to suppress */
-const TRIVIAL_SEQUENCE_PATTERNS = [
-  // Pain → obvious reaction
-  /schmerz.*→.*medikament/i, /medikament.*→.*schmerz/i,
-  /kopfschmerz.*→.*medikament/i, /kopfschmerz.*→.*ruhe/i, /kopfschmerz.*→.*schlaf/i,
-  /migräne.*→.*medikament/i, /migräne.*→.*ruhe/i, /migräne.*→.*schlaf/i,
-  /schmerz.*stärker.*→.*medikament/i, /schmerz.*→.*einnahme/i, /schmerz.*→.*triptan/i,
-  /schmerz.*→.*bett/i, /schmerz.*→.*liegen/i, /schmerz.*→.*hinlegen/i,
-  /schmerz.*→.*ruhe/i, /schmerz.*→.*schlaf/i,
-  /schmerz.*→.*nichts/i, /schmerz.*→.*pause/i, /schmerz.*→.*dunkel/i,
-  /schmerz.*→.*erbrechen/i, /schmerz.*→.*übelkeit/i,
-  /schmerz.*→.*rückzug/i, /schmerz.*→.*schonung/i,
-  // Strong day → retreat (trivial)
-  /stark.*tag.*→.*ruhe/i, /stark.*tag.*→.*rückzug/i, /stark.*tag.*→.*bett/i,
-  /beschwerden.*→.*schonung/i, /beschwerden.*→.*rückzug/i, /beschwerden.*→.*ruhe/i,
-  /belastung.*→.*ruhe/i, /belastung.*→.*pause/i,
-  // Fatigue → obvious reaction
-  /müdigkeit.*→.*ruhe/i, /müdigkeit.*→.*schlaf/i, /müdigkeit.*→.*bett/i,
-  /müdigkeit.*schmerztag/i, /müde.*→.*ruhe/i, /müde.*→.*schlaf/i,
-  /erschöpf.*→.*ruhe/i, /erschöpf.*→.*schlaf/i, /erschöpf.*→.*bett/i,
-  /erschöpf.*→.*hinlegen/i, /erschöpfung.*zusammen.*schmerz/i,
-  /erschöpf.*→.*pause/i, /erschöpf.*→.*nichts/i,
-  /erschöpf.*→.*rückzug/i, /erschöpf.*→.*schonung/i,
-  // Medication → obvious observation
-  /medikament.*→.*wirkung/i, /medikament.*→.*besser/i,
-  /medikament.*→.*keine.*wirkung/i, /triptan.*→.*besser/i,
-  /einnahme.*→.*wirkung/i, /einnahme.*→.*besser/i,
-  /medikament.*→.*beobacht/i, /einnahme.*→.*beobacht/i,
-  // English variants
-  /pain.*→.*medication/i, /medication.*→.*pain/i,
-  /headache.*→.*rest/i, /fatigue.*→.*rest/i, /fatigue.*→.*sleep/i,
-  /pain.*→.*rest/i, /pain.*→.*sleep/i,
-  // Generic co-occurrence (not a pattern)
-  /schmerz.*müdigkeit/i, /müdigkeit.*schmerz/i,
-  /schmerz.*erschöpf/i, /erschöpf.*schmerz/i,
-  // Additional banalities
-  /attacke.*→.*ruhe/i, /attacke.*→.*bett/i, /attacke.*→.*schlaf/i,
-  /anfall.*→.*ruhe/i, /anfall.*→.*medikament/i,
-  /beschwerd.*→.*medikament/i, /beschwerd.*→.*bett/i,
-  /schmerz.*→.*abbruch/i, /schmerz.*→.*absage/i,
-  /übelkeit.*→.*ruhe/i, /übelkeit.*→.*bett/i,
-  /kopfschmerz.*→.*rückzug/i, /kopfschmerz.*→.*schonung/i,
-  /migräne.*→.*rückzug/i, /migräne.*→.*schonung/i, /migräne.*→.*bett/i,
-  /migräne.*→.*dunkel/i, /migräne.*→.*hinlegen/i,
-];
-
-/** Phase-state arrow patterns that are always generic */
-const GENERIC_PHASE_SEQUENCES = new Set([
-  'pain→medication', 'pain→rest', 'pain→fatigue', 'pain→observation',
-  'fatigue→rest', 'fatigue→medication', 'fatigue→observation',
-  'medication→observation', 'medication→rest', 'medication→pain',
-  'observation→pain', 'observation→medication', 'observation→rest',
-  'rest→observation', 'rest→pain', 'wellbeing→observation',
-  'pain→medication→rest', 'pain→medication→observation',
-  'medication→rest→observation', 'fatigue→rest→observation',
-  'pain→rest→observation',
-]);
-
-/** Banal llmInterpretation phrases that add no insight */
-const BANAL_INTERPRETATION_RX = [
-  /wurde.*medikament.*eingenommen/i, /medikament.*eingenommen.*bei.*schmerz/i,
-  /nach.*schmerz.*ruhe/i, /ruhe.*nach.*schmerz/i,
-  /beschwerden.*führten.*zu.*rückzug/i, /übliche.*reaktion/i,
-  /typische.*begleiter/i, /naheliegende.*reaktion/i,
-  /selbstverständlich/i, /typische.*reaktion/i,
-  /naheliegend/i, /erwartbar/i, /nicht.*überraschend/i,
-  /verständlich.*dass/i, /logisch.*dass/i,
-  /natürliche.*folge/i, /häufig.*beobachtet/i,
-  /üblich.*bei.*migräne/i, /bekannt.*dass/i,
-  /wenig.*überraschend/i, /zu.*erwarten/i,
-  /begleitsymptom/i, /begleiterscheinung/i,
-];
-
-/** Banal observation/question text — suppress even in context findings & openQuestions */
-const BANAL_CONTENT_RX = [
-  /übelkeit.*begleit/i, /begleitend.*übelkeit/i,
-  /lichtempfindlich.*bei.*migräne/i, /migräne.*lichtempfindlich/i,
-  /schmerz.*führt.*zu.*einschränk/i, /einschränk.*durch.*schmerz/i,
-  /an.*schmerztagen.*weniger.*aktiv/i, /weniger.*aktiv.*an.*schmerztagen/i,
-  /müdigkeit.*an.*schmerztagen/i, /erschöpft.*nach.*attacke/i,
-  /normale.*reaktion/i, /daraufhin.*ruhe/i, /danach.*rückzug/i,
-  /beschwerden.*führten.*zu.*schonung/i, /migräne.*führte.*zu.*pause/i,
-  /schmerz.*wurde.*mit.*medikament.*behandelt/i,
-  /dann.*eingenommen/i, /wurde.*dann.*eingenommen/i,
-  /schmerz.*behandelt/i, /medikament.*genommen/i,
-];
-
-function isTrivialSequence(pattern: string, interpretation?: string): boolean {
-  const normalized = pattern.replace(/\s+/g, ' ').trim();
-  if (TRIVIAL_SEQUENCE_PATTERNS.some(rx => rx.test(normalized))) return true;
-  const collapsed = normalized.toLowerCase().replace(/\s/g, '');
-  if (GENERIC_PHASE_SEQUENCES.has(collapsed)) return true;
-  if (interpretation && BANAL_INTERPRETATION_RX.some(rx => rx.test(interpretation))) return true;
-  return false;
-}
-
-/** Check if a text (observation, open question) is banal filler */
-function isBanalContent(text: string): boolean {
-  return BANAL_CONTENT_RX.some(rx => rx.test(text)) || BANAL_INTERPRETATION_RX.some(rx => rx.test(text));
-}
+// Filter logic is centralized in analysisFilters.ts for testability
 
 /** Translate English arrow-patterns to German */
 function translateSequencePattern(pattern: string): string {
@@ -139,17 +37,17 @@ function translateSequencePattern(pattern: string): string {
 
 /** Medication-related pattern types that get priority boost within same evidence tier */
 const MEDICATION_PATTERN_TYPES = new Set(['medication_context', 'trigger_candidate']);
-const MEDICATION_TITLE_RX = /triptan|medikament|akutmedikament|übergebrauch|einnahme|vermeidung|zurückhalt/i;
 
 /** Sort patterns: higher evidence first, then medication-priority, then by occurrence count */
 function sortPatterns(patterns: PatternFinding[]): PatternFinding[] {
   return [...patterns].sort((a, b) => {
     const ePri = (EVIDENCE_ORDER[b.evidenceStrength] || 0) - (EVIDENCE_ORDER[a.evidenceStrength] || 0);
     if (ePri !== 0) return ePri;
-    // Within same evidence tier: medication patterns first
-    const aMed = MEDICATION_PATTERN_TYPES.has(a.patternType) || MEDICATION_TITLE_RX.test(a.title) ? 1 : 0;
-    const bMed = MEDICATION_PATTERN_TYPES.has(b.patternType) || MEDICATION_TITLE_RX.test(b.title) ? 1 : 0;
-    if (bMed !== aMed) return bMed - aMed;
+    // Within same evidence tier: medication patterns first (check title + description)
+    const isMed = (p: PatternFinding) =>
+      MEDICATION_PATTERN_TYPES.has(p.patternType) || MEDICATION_TITLE_RX.test(p.title) || MEDICATION_TITLE_RX.test(p.description) ? 1 : 0;
+    const medDiff = isMed(b) - isMed(a);
+    if (medDiff !== 0) return medDiff;
     return b.occurrences - a.occurrences;
   });
 }
@@ -195,8 +93,9 @@ function mergeUncertainties(
   const unique: string[] = [];
   for (const item of all) {
     if (isBanalContent(item)) continue;
-    if (overlapsAny(item, refTexts, 0.45)) continue;
-    if (overlapsAny(item, unique, 0.55)) continue;
+    if (isGenericUncertainty(item)) continue;
+    if (overlapsAny(item, refTexts, 0.40)) continue;
+    if (overlapsAny(item, unique, 0.50)) continue;
     unique.push(item);
   }
   return unique;
@@ -274,14 +173,18 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
   const [showReport, setShowReport] = useState(false);
 
   const { sortedPatterns, filteredSequences, extraContextFindings, uncertainties } = useMemo(() => {
-    // Sort and limit patterns
-    let sorted = sortPatterns(result.possiblePatterns).slice(0, MAX_PATTERNS);
+    // Sort, filter weak, and limit patterns
+    let sorted = sortPatterns(result.possiblePatterns)
+      .filter(p => !isWeakPattern(p.description))
+      .slice(0, MAX_PATTERNS);
     
     // Intra-pattern dedup: remove patterns that largely repeat an earlier one
     const dedupedPatterns: PatternFinding[] = [];
     for (const p of sorted) {
       const pText = p.title + ' ' + p.description;
-      if (overlapsAny(pText, dedupedPatterns.map(d => d.title + ' ' + d.description), 0.40)) continue;
+      // Also dedup against summary
+      if (overlapsAny(pText, [result.summary], 0.50)) continue;
+      if (overlapsAny(pText, dedupedPatterns.map(d => d.title + ' ' + d.description), 0.38)) continue;
       dedupedPatterns.push(p);
     }
     sorted = dedupedPatterns;
@@ -294,13 +197,13 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
         if (isTrivialSequence(s.pattern, s.llmInterpretation)) return false;
         if (!s.llmInterpretation || s.llmInterpretation.length < 15) return false;
         if (isBanalContent(s.llmInterpretation)) return false;
-        // Dedup sequence interpretation against pattern descriptions
         if (overlapsAny(s.llmInterpretation, patternRefTexts, 0.35)) return false;
+        if (overlapsAny(s.llmInterpretation, [result.summary], 0.45)) return false;
         return true;
       })
       .slice(0, MAX_SEQUENCES);
 
-    // Reference pool for deduplication: summary + patterns + sequences
+    // Reference pool for deduplication
     const allRefTexts = [
       result.summary,
       ...patternRefTexts,
@@ -316,13 +219,12 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
     const hasMedPattern = sorted.some(p => MEDICATION_PATTERN_TYPES.has(p.patternType) || MEDICATION_TITLE_RX.test(p.title) || MEDICATION_TITLE_RX.test(p.description));
     const medContext = hasMedPattern ? [] : result.medicationContextFindings;
     const allContext = [...result.painContextFindings, ...fatigueFiltered, ...medContext];
-    // Apply banal content filter + strict dedup
     const finalContext = allContext
       .filter(f => !isBanalContent(f.observation))
       .filter(f => !overlapsAny(f.observation, allRefTexts, 0.30))
       .slice(0, 2);
 
-    // Uncertainties: deduplicated against everything + banal filter, max 1
+    // Uncertainties: banal + generic + dedup, max 1
     const fullRef = [
       ...allRefTexts,
       ...finalContext.map(f => f.observation),
