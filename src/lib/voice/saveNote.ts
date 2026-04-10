@@ -3,6 +3,9 @@ import { supabase } from '@/integrations/supabase/client';
 
 export type ContextType = 'tageszustand' | 'notiz';
 
+/** ME/CFS relevance classification derived from fatigue context tags */
+export type MecfsRelevance = 'none' | 'unlikely' | 'possible' | 'probable';
+
 export interface ContextMetadata {
   mood?: number | null;
   stress?: number | null;
@@ -10,6 +13,10 @@ export interface ContextMetadata {
   energy?: number | null;
   triggers?: string[];
   notes?: string;
+  /** Tags selected when energy = "Erschöpft" — describes the type of exhaustion */
+  fatigue_context_tags?: string[];
+  /** Derived classification: how likely is this a ME/CFS-relevant signal */
+  mecfs_relevance?: MecfsRelevance;
 }
 
 export interface SaveVoiceNoteOptions {
