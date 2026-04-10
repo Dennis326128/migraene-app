@@ -7,6 +7,23 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
+// ============================================================
+// === CONSTANTS ===
+// ============================================================
+
+/** Max input context chars (~30k tokens for Gemini). Safety margin below 128k context. */
+const MAX_CONTEXT_CHARS = 120_000;
+/** Warn threshold */
+const WARN_CONTEXT_CHARS = 80_000;
+/** Minimum data to attempt analysis */
+const MIN_VOICE_EVENTS_OR_ENTRIES = 1;
+/** LLM call timeout in ms */
+const LLM_TIMEOUT_MS = 90_000;
+
+// ============================================================
+// === INPUT SCHEMA ===
+// ============================================================
+
 const RequestSchema = z.object({
   serializedContext: z.string().min(10),
   meta: z.object({
@@ -147,6 +164,14 @@ const ANALYSIS_TOOL = {
 // ============================================================
 
 function buildSystemPrompt(meta: z.infer<typeof RequestSchema>['meta']): string {
+  const thinData = (meta.voiceEventCount + meta.painEntryCount) < 10;
+  const thinDataWarning = thinData
+    ? `\nACHTUNG: Dieser Datensatz ist SEHR KLEIN (${meta.voiceEventCount} Spracheinträge, ${meta.painEntryCount} Einträge). 
+Sei besonders vorsichtig mit Musteraussagen. Setze evidenceStrength maximal auf "low". 
+Betone in confidenceNotes explizit die geringe Datenmenge.
+Bei weniger als 3 Beobachtungen eines Musters formuliere: "Einzelbeobachtung – kein belastbares Muster ableitbar."\n`
+    : '';
+
   return `Du bist ein medizinischer Datenanalyst für ein Migräne- und ME/CFS-Tagebuch.
 Du analysierst Verlaufsdaten aus Sprachnotizen, strukturierten Einträgen und Medikamentenprotokollen.
 
@@ -190,7 +215,7 @@ WICHTIGE REGELN:
 7. DATENSCHUTZ
    - Nenne keine persönlichen Daten oder Namen
    - Verweise auf Einträge nur über Datum und ungefähre Uhrzeit
-
+${thinDataWarning}
 KONTEXT ZUM DATENSATZ:
 - Analysezeitraum: ${meta.totalDays} Tage
 - Spracheinträge: ${meta.voiceEventCount}
@@ -200,6 +225,104 @@ KONTEXT ZUM DATENSATZ:
 - Tage mit ME/CFS-Signalen: ${meta.daysWithMecfs}
 
 Antworte auf Deutsch. Verwende die bereitgestellte Funktion submit_voice_analysis für deine strukturierte Antwort.`;
+}
+
+// ============================================================
+// === HELPERS ===
+// ============================================================
+
+function jsonResponse(body: Record<string, unknown>, status: number) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
+/**
+ * Build a controlled error/unavailable result that does NOT pretend
+ * to be a real analysis but uses the same structure shape.
+ */
+function buildUnavailableResult(
+  reason: string,
+  meta: z.infer<typeof RequestSchema>['meta'],
+  fromDate: string,
+  toDate: string,
+): Record<string, unknown> {
+  return {
+    summary: `Die Analyse konnte nicht durchgeführt werden: ${reason}`,
+    possiblePatterns: [],
+    painContextFindings: [],
+    fatigueContextFindings: [],
+    medicationContextFindings: [],
+    recurringSequences: [],
+    openQuestions: [],
+    confidenceNotes: [reason],
+    scope: {
+      fromDate,
+      toDate,
+      totalDays: meta.totalDays,
+      daysAnalyzed: 0,
+      voiceEventCount: meta.voiceEventCount,
+      painEntryCount: meta.painEntryCount,
+      medicationIntakeCount: meta.medicationIntakeCount,
+    },
+    meta: {
+      model: 'none',
+      analyzedAt: new Date().toISOString(),
+      promptTokenEstimate: 0,
+      analysisVersion: '1.0.0',
+      error: true,
+      errorReason: reason,
+    },
+  };
+}
+
+/**
+ * Try to extract a valid analysis result from LLM response.
+ * Handles: tool_calls, plain JSON content, partial failures.
+ */
+function extractAnalysisFromLLMResponse(llmData: Record<string, unknown>): Record<string, unknown> | null {
+  // Path 1: tool_calls (expected)
+  const toolCall = (llmData as any)?.choices?.[0]?.message?.tool_calls?.[0];
+  if (toolCall?.function?.arguments) {
+    try {
+      const parsed = JSON.parse(toolCall.function.arguments);
+      if (parsed && typeof parsed === 'object' && typeof parsed.summary === 'string') {
+        return parsed;
+      }
+    } catch {
+      console.error('[analyze-voice-patterns] Failed to parse tool_call arguments');
+    }
+  }
+
+  // Path 2: content as JSON (fallback if LLM ignores tool_choice)
+  const content = (llmData as any)?.choices?.[0]?.message?.content;
+  if (typeof content === 'string' && content.trim().startsWith('{')) {
+    try {
+      const parsed = JSON.parse(content);
+      if (parsed && typeof parsed === 'object' && typeof parsed.summary === 'string') {
+        console.warn('[analyze-voice-patterns] Extracted from content instead of tool_call');
+        return parsed;
+      }
+    } catch {
+      // not valid JSON in content
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Validate the extracted analysis has all required array fields.
+ */
+function validateExtractedResult(result: Record<string, unknown>): boolean {
+  if (typeof result.summary !== 'string' || result.summary.length < 5) return false;
+  const requiredArrays = ['possiblePatterns', 'painContextFindings', 'fatigueContextFindings',
+    'medicationContextFindings', 'openQuestions', 'confidenceNotes'];
+  for (const key of requiredArrays) {
+    if (!Array.isArray(result[key])) return false;
+  }
+  return true;
 }
 
 // ============================================================
@@ -215,9 +338,7 @@ serve(async (req) => {
     // Auth
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Nicht authentifiziert' }), {
-        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return jsonResponse({ error: 'Nicht authentifiziert' }, 401);
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -228,9 +349,7 @@ serve(async (req) => {
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: 'Authentifizierung fehlgeschlagen' }), {
-        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return jsonResponse({ error: 'Authentifizierung fehlgeschlagen' }, 401);
     }
 
     // Check AI enabled
@@ -241,43 +360,77 @@ serve(async (req) => {
       .single();
 
     if (profile && !profile.ai_enabled) {
-      return new Response(JSON.stringify({ error: 'AI-Analyse ist deaktiviert' }), {
-        status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return jsonResponse({ error: 'AI-Analyse ist deaktiviert' }, 403);
     }
 
     // Parse request
-    const body = await req.json();
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return jsonResponse({ error: 'Ungültiger JSON-Body' }, 400);
+    }
+
     const parsed = RequestSchema.safeParse(body);
     if (!parsed.success) {
-      return new Response(JSON.stringify({ error: 'Ungültige Anfrage', details: parsed.error.flatten().fieldErrors }), {
-        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return jsonResponse({ error: 'Ungültige Anfrage', details: parsed.error.flatten().fieldErrors }, 400);
     }
 
     const { serializedContext, meta, fromDate, toDate } = parsed.data;
 
-    // Call LLM
+    // === DATA SUFFICIENCY CHECK ===
+    if ((meta.voiceEventCount + meta.painEntryCount) < MIN_VOICE_EVENTS_OR_ENTRIES) {
+      console.warn(`[analyze-voice-patterns] Insufficient data: ${meta.voiceEventCount} voice, ${meta.painEntryCount} pain`);
+      const result = buildUnavailableResult(
+        'Zu wenig Daten für eine sinnvolle Analyse. Bitte mindestens einige Tage dokumentieren.',
+        meta, fromDate, toDate,
+      );
+      return jsonResponse(result, 200);
+    }
+
+    // === CONTEXT SIZE CHECK ===
+    const contextChars = serializedContext.length;
+    const tokenEstimate = Math.ceil(contextChars / 4);
+
+    if (contextChars > MAX_CONTEXT_CHARS) {
+      console.error(`[analyze-voice-patterns] Context too large: ${contextChars} chars (~${tokenEstimate} tokens)`);
+      return jsonResponse({
+        error: 'Analysezeitraum zu groß. Bitte einen kürzeren Zeitraum wählen.',
+        contextChars,
+        tokenEstimate,
+        maxChars: MAX_CONTEXT_CHARS,
+      }, 413);
+    }
+
+    if (contextChars > WARN_CONTEXT_CHARS) {
+      console.warn(`[analyze-voice-patterns] Large context: ${contextChars} chars (~${tokenEstimate} tokens)`);
+    }
+
+    // === LLM CALL ===
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
       throw new Error('LOVABLE_API_KEY nicht konfiguriert');
     }
 
     const systemPrompt = buildSystemPrompt(meta);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
 
-    const llmResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          {
-            role: 'user',
-            content: `Analysiere die folgenden Verlaufsdaten aus dem Patiententagebuch (${meta.totalDays} Tage, ${fromDate.slice(0, 10)} bis ${toDate.slice(0, 10)}).
+    let llmResponse: Response;
+    try {
+      llmResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'google/gemini-2.5-flash',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            {
+              role: 'user',
+              content: `Analysiere die folgenden Verlaufsdaten aus dem Patiententagebuch (${meta.totalDays} Tage, ${fromDate.slice(0, 10)} bis ${toDate.slice(0, 10)}).
 
 Bitte identifiziere:
 1. Mögliche wiederkehrende Muster (Trigger-Kandidaten, zeitliche Sequenzen)
@@ -289,49 +442,90 @@ Bitte identifiziere:
 VERLAUFSDATEN:
 
 ${serializedContext}`
-          },
-        ],
-        tools: [ANALYSIS_TOOL],
-        tool_choice: { type: 'function', function: { name: 'submit_voice_analysis' } },
-      }),
-    });
+            },
+          ],
+          tools: [ANALYSIS_TOOL],
+          tool_choice: { type: 'function', function: { name: 'submit_voice_analysis' } },
+        }),
+        signal: controller.signal,
+      });
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      const isTimeout = fetchError instanceof DOMException && fetchError.name === 'AbortError';
+      console.error(`[analyze-voice-patterns] LLM fetch ${isTimeout ? 'timeout' : 'error'}:`, fetchError);
 
+      if (isTimeout) {
+        const result = buildUnavailableResult(
+          'Die Analyse hat zu lange gedauert. Bitte einen kürzeren Zeitraum wählen oder es später erneut versuchen.',
+          meta, fromDate, toDate,
+        );
+        return jsonResponse(result, 504);
+      }
+      throw fetchError;
+    }
+    clearTimeout(timeoutId);
+
+    // === HANDLE LLM HTTP ERRORS ===
     if (!llmResponse.ok) {
       const status = llmResponse.status;
       const errText = await llmResponse.text();
-      console.error(`LLM error ${status}:`, errText);
+      console.error(`[analyze-voice-patterns] LLM error ${status}:`, errText.slice(0, 500));
 
       if (status === 429) {
-        return new Response(JSON.stringify({ error: 'Rate Limit erreicht. Bitte später erneut versuchen.' }), {
-          status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        return jsonResponse({ error: 'Rate Limit erreicht. Bitte später erneut versuchen.' }, 429);
       }
       if (status === 402) {
-        return new Response(JSON.stringify({ error: 'Guthaben aufgebraucht. Bitte Credits hinzufügen.' }), {
-          status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        return jsonResponse({ error: 'Guthaben aufgebraucht. Bitte Credits hinzufügen.' }, 402);
       }
+
+      // For 5xx: return unavailable result instead of crashing
+      if (status >= 500) {
+        const result = buildUnavailableResult(
+          'Der KI-Dienst ist vorübergehend nicht verfügbar. Bitte später erneut versuchen.',
+          meta, fromDate, toDate,
+        );
+        return jsonResponse(result, 502);
+      }
+
       throw new Error(`LLM request failed: ${status}`);
     }
 
-    const llmData = await llmResponse.json();
-
-    // Extract tool call result
-    const toolCall = llmData.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall?.function?.arguments) {
-      console.error('No tool call in LLM response:', JSON.stringify(llmData).slice(0, 500));
-      throw new Error('LLM returned no structured analysis');
-    }
-
-    let analysisResult: Record<string, unknown>;
+    // === PARSE LLM RESPONSE ===
+    let llmData: Record<string, unknown>;
     try {
-      analysisResult = JSON.parse(toolCall.function.arguments);
+      llmData = await llmResponse.json();
     } catch {
-      console.error('Failed to parse tool call arguments:', toolCall.function.arguments.slice(0, 500));
-      throw new Error('LLM returned invalid JSON');
+      console.error('[analyze-voice-patterns] Failed to parse LLM response as JSON');
+      const result = buildUnavailableResult(
+        'Die KI-Antwort konnte nicht verarbeitet werden.',
+        meta, fromDate, toDate,
+      );
+      return jsonResponse(result, 200);
     }
 
-    // Attach meta
+    // === EXTRACT STRUCTURED ANALYSIS ===
+    const analysisResult = extractAnalysisFromLLMResponse(llmData);
+
+    if (!analysisResult) {
+      console.error('[analyze-voice-patterns] No valid analysis in LLM response:', JSON.stringify(llmData).slice(0, 500));
+      const result = buildUnavailableResult(
+        'Die KI hat keine strukturierte Analyse zurückgegeben. Bitte erneut versuchen.',
+        meta, fromDate, toDate,
+      );
+      return jsonResponse(result, 200);
+    }
+
+    // === VALIDATE EXTRACTED RESULT ===
+    if (!validateExtractedResult(analysisResult)) {
+      console.error('[analyze-voice-patterns] Extracted result failed validation:', JSON.stringify(analysisResult).slice(0, 500));
+      const result = buildUnavailableResult(
+        'Die KI-Analyse war unvollständig. Bitte erneut versuchen.',
+        meta, fromDate, toDate,
+      );
+      return jsonResponse(result, 200);
+    }
+
+    // === ATTACH META & SCOPE ===
     const result = {
       ...analysisResult,
       scope: {
@@ -346,23 +540,18 @@ ${serializedContext}`
       meta: {
         model: 'google/gemini-2.5-flash',
         analyzedAt: new Date().toISOString(),
-        promptTokenEstimate: Math.ceil(serializedContext.length / 4),
+        promptTokenEstimate: tokenEstimate,
         analysisVersion: '1.0.0',
       },
     };
 
-    return new Response(JSON.stringify(result), {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    console.log(`[analyze-voice-patterns] Success: ${meta.totalDays}d, ~${tokenEstimate}tok, ${(analysisResult.possiblePatterns as unknown[])?.length ?? 0} patterns`);
+
+    return jsonResponse(result, 200);
 
   } catch (error) {
-    console.error('analyze-voice-patterns error:', error);
+    console.error('[analyze-voice-patterns] Unhandled error:', error);
     const msg = error instanceof Error ? error.message : 'Unbekannter Fehler';
-    const status = msg.includes('429') ? 429 : msg.includes('402') ? 402 : 500;
-    return new Response(JSON.stringify({ error: msg }), {
-      status,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ error: msg }, 500);
   }
 });
