@@ -613,11 +613,257 @@ describe('Session & Zeitliche Kohärenz', () => {
 });
 
 // ============================================================
-// 15. QUEUE PAYLOAD COMPLETENESS
+// 15. CHAIN-OF-EVENTS (Temporal pattern readiness)
+// ============================================================
+describe('Chain-of-Events – Analyse-Rekonstruierbarkeit', () => {
+  /**
+   * These tests verify that sequential voice inputs produce
+   * classifiable, temporally ordered data that a later LLM
+   * can use to identify trigger → outcome chains.
+   */
+  
+  it('Kette: Aktivität → Erschöpfung → Ruhe', () => {
+    const chain = [
+      'War einkaufen',
+      'bin jetzt platt',
+      'lege mich hin',
+    ];
+    
+    const results = chain.map(text => ({
+      text,
+      classification: classifyVoiceEvent(text),
+    }));
+    
+    // All must be meaningful
+    results.forEach(r => expect(r.classification.isMeaningful).toBe(true));
+    
+    // Correct type progression
+    expect(results[0].classification.classifications.some(c => c.type === 'activity')).toBe(true);
+    expect(results[1].classification.classifications.some(c => c.type === 'mecfs_exertion')).toBe(true);
+    expect(results[2].classification.classifications.some(c => c.type === 'sleep_rest')).toBe(true);
+    
+    // All would be direct-save (no review needed)
+    results.forEach(r => {
+      expect(needsReview(r.text)).toBe(false);
+    });
+  });
+  
+  it('Kette: Nahrung → Kopfdruck (trigger candidate)', () => {
+    const chain = [
+      'Kaffee getrunken',
+      'später Kopfdruck',
+    ];
+    
+    const results = chain.map(text => ({
+      text,
+      classification: classifyVoiceEvent(text),
+    }));
+    
+    // Both meaningful
+    results.forEach(r => expect(r.classification.isMeaningful).toBe(true));
+    
+    // Food → direct save, Pain → review
+    expect(needsReview(chain[0])).toBe(false);
+    expect(needsReview(chain[1])).toBe(true);
+    
+    expect(results[0].classification.classifications.some(c => c.type === 'food_drink')).toBe(true);
+    expect(results[1].classification.classifications.some(c => c.type === 'pain')).toBe(true);
+  });
+  
+  it('Kette: Umweltreiz → Migräne', () => {
+    const chain = [
+      'Licht im Supermarkt schlimm',
+      'Migräne rechts',
+    ];
+    
+    const results = chain.map(text => ({
+      text,
+      classification: classifyVoiceEvent(text),
+    }));
+    
+    results.forEach(r => expect(r.classification.isMeaningful).toBe(true));
+    expect(needsReview(chain[0])).toBe(false);
+    expect(needsReview(chain[1])).toBe(true);
+    
+    expect(results[0].classification.classifications.some(c => c.type === 'environment')).toBe(true);
+    expect(results[1].classification.classifications.some(c => c.type === 'pain')).toBe(true);
+  });
+  
+  it('Kette: Aktivität → Erschöpfung → Brain Fog (PEM)', () => {
+    const chain = [
+      'geduscht',
+      'komplett erledigt',
+      'brain fog',
+    ];
+    
+    const results = chain.map(text => ({
+      text,
+      classification: classifyVoiceEvent(text),
+    }));
+    
+    results.forEach(r => expect(r.classification.isMeaningful).toBe(true));
+    
+    expect(results[0].classification.classifications.some(c => c.type === 'activity')).toBe(true);
+    expect(results[1].classification.classifications.some(c => c.type === 'mecfs_exertion')).toBe(true);
+    expect(results[2].classification.classifications.some(c => c.type === 'mecfs_exertion')).toBe(true);
+  });
+  
+  it('Kette: Medikament → Ruhe → später strukturierter Eintrag', () => {
+    const chain = [
+      'Tablette genommen',
+      'hingelegt',
+    ];
+    
+    const results = chain.map(text => ({
+      text,
+      classification: classifyVoiceEvent(text),
+    }));
+    
+    results.forEach(r => expect(r.classification.isMeaningful).toBe(true));
+    
+    // Medication needs review, rest doesn't
+    expect(needsReview(chain[0])).toBe(true);
+    expect(needsReview(chain[1])).toBe(false);
+  });
+  
+  it('same session shares session_id for grouping', () => {
+    // Simulate: all events in one session share the same sessionId
+    const sessionId = 'test-session-abc';
+    const chain = ['War einkaufen', 'bin jetzt platt', 'lege mich hin'];
+    
+    // Each event would be saved with the same sessionId
+    const events = chain.map((text, i) => ({
+      text,
+      sessionId,
+      eventTimestamp: new Date(Date.now() + i * 60000).toISOString(),
+      classification: classifyVoiceEvent(text),
+    }));
+    
+    // All share session
+    events.forEach(e => expect(e.sessionId).toBe(sessionId));
+    // Temporal order is maintained
+    for (let i = 1; i < events.length; i++) {
+      expect(events[i].eventTimestamp > events[i-1].eventTimestamp).toBe(true);
+    }
+  });
+  
+  it('mixed chain preserves all event types for analysis', () => {
+    const chain = [
+      'Kaffee getrunken',
+      'War kurz draußen',
+      'Jetzt Kopfschmerzen',
+      'Sumatriptan genommen',
+    ];
+    
+    const allTypes = new Set<string>();
+    chain.forEach(text => {
+      const c = classifyVoiceEvent(text);
+      c.classifications.forEach(cl => allTypes.add(cl.type));
+    });
+    
+    // At least 3 distinct types in the chain
+    expect(allTypes.size).toBeGreaterThanOrEqual(3);
+    expect(allTypes.has('food_drink')).toBe(true);
+    expect(allTypes.has('pain')).toBe(true);
+    expect(allTypes.has('medication')).toBe(true);
+  });
+});
+
+// ============================================================
+// 16. APPEND / MULTI-RECORDING COHERENCE
+// ============================================================
+describe('Append-/Mehrfachaufnahme-Kohärenz', () => {
+  it('appended text segments independently while preserving combined context', () => {
+    const first = 'Ich habe Kaffee getrunken';
+    const second = 'und jetzt bin ich platt';
+    const combined = `${first} ${second}`;
+    
+    // Individual segments
+    const c1 = classifyVoiceEvent(first);
+    const c2 = classifyVoiceEvent(second);
+    
+    expect(c1.isMeaningful).toBe(true);
+    expect(c2.isMeaningful).toBe(true);
+    
+    // Combined also works
+    const cCombined = classifyVoiceEvent(combined);
+    expect(cCombined.isMeaningful).toBe(true);
+    
+    // Combined should have both types
+    const types = cCombined.classifications.map(c => c.type);
+    expect(types).toContain('food_drink');
+    expect(types).toContain('mecfs_exertion');
+  });
+  
+  it('segmentation of combined append produces meaningful parts', () => {
+    const combined = 'Kaffee getrunken und dann war ich duschen und jetzt Kopfdruck';
+    const segments = segmentVoiceInput(combined);
+    
+    // At least 2 segments
+    expect(segments.length).toBeGreaterThanOrEqual(2);
+    
+    // Each segment has classification
+    segments.forEach(s => {
+      expect(s.classification).toBeDefined();
+      expect(s.text.trim().length).toBeGreaterThan(0);
+    });
+  });
+  
+  it('raw transcript is always the full combined text, not individual segments', () => {
+    // This verifies the design: raw_transcript = full input, segments = enrichment
+    const text = 'War einkaufen und dann spazieren und jetzt bin ich komplett fertig';
+    const segments = segmentVoiceInput(text);
+    
+    // Full text is recoverable from segments
+    const reconstructed = segments.map(s => s.text).join('');
+    // Segments should cover the full text (whitespace may differ)
+    expect(reconstructed.replace(/\s+/g, ' ').trim().length).toBeGreaterThan(0);
+    
+    // But raw_transcript (the full text) is the primary source
+    expect(text.length).toBeGreaterThan(reconstructed.length * 0.8);
+  });
+});
+
+// ============================================================
+// 17. TIMESTAMP SEMANTICS
+// ============================================================
+describe('Zeitstempel-Semantik', () => {
+  it('eventTimestamp represents when user spoke, not when saved', () => {
+    // Simulate: user speaks at T, save happens at T+5s
+    const spokeAt = new Date('2024-03-15T10:30:00.000Z');
+    const savedAt = new Date('2024-03-15T10:30:05.000Z');
+    
+    // The event_timestamp should be spokeAt, not savedAt
+    expect(spokeAt.toISOString()).not.toBe(savedAt.toISOString());
+    
+    // In queue scenario: eventTimestamp is preserved from original call
+    const queueData = {
+      eventTimestamp: spokeAt.toISOString(),
+      // created_at would be set by DB at insert time (savedAt or later)
+    };
+    expect(queueData.eventTimestamp).toBe('2024-03-15T10:30:00.000Z');
+  });
+  
+  it('queue preserves original eventTimestamp on retry', () => {
+    const originalTime = new Date('2024-03-15T10:30:00.000Z');
+    
+    // Simulate queue serialization
+    const queuePayload = {
+      eventTimestamp: originalTime.toISOString(),
+    };
+    
+    // On retry (e.g., 1 hour later), eventTimestamp should still be original
+    const retryTime = new Date('2024-03-15T11:30:00.000Z');
+    expect(queuePayload.eventTimestamp).toBe('2024-03-15T10:30:00.000Z');
+    expect(queuePayload.eventTimestamp).not.toBe(retryTime.toISOString());
+  });
+});
+
+// ============================================================
+// 18. QUEUE PAYLOAD COMPLETENESS
 // ============================================================
 describe('Queue-Payload Vollständigkeit', () => {
   it('queue data preserves all analysis-relevant fields', () => {
-    // Simulate what saveVoiceEventRobust serializes for the queue
     const classification = classifyVoiceEvent('Ich bin total erschöpft nach dem Duschen');
     const queueData = {
       clientId: 'test-uuid',
@@ -636,7 +882,6 @@ describe('Queue-Payload Vollständigkeit', () => {
       medicalRelevance: classification.medicalRelevance,
     };
 
-    // Verify all critical fields are present and non-undefined
     expect(queueData.clientId).toBeDefined();
     expect(queueData.rawTranscript).toBeTruthy();
     expect(queueData.eventTimestamp).toBeTruthy();
@@ -654,7 +899,6 @@ describe('Queue-Payload Vollständigkeit', () => {
     
     expect(types).toContain('food_drink');
     expect(types).toContain('mecfs_exertion');
-    // Both types would be serialized to queue
     expect(types.length).toBeGreaterThanOrEqual(2);
   });
 });

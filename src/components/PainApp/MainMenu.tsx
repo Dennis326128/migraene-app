@@ -56,6 +56,7 @@ import { Button } from "@/components/ui/button";
 import { FeedbackButton } from "@/components/Feedback";
 import { useCreateEntry } from "@/features/entries/hooks/useEntryMutations";
 import { format } from "date-fns";
+import { linkVoiceEventToEntry } from "@/lib/voice/voiceEventStore";
 
 
 // Prefill data type for voice-initiated entries
@@ -474,8 +475,18 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           try {
             const savedId = await createEntryMut.mutateAsync(payload);
             
-            // Sync medication intakes with doses
             const numericId = Number(savedId);
+            
+            // Link voice event to the newly created pain entry
+            if (Number.isFinite(numericId) && data.voiceEventId) {
+              linkVoiceEventToEntry(data.voiceEventId, numericId, {
+                reviewState: data.userEdited ? 'edited' : 'reviewed',
+              }).catch(err => {
+                devError('Voice event linking failed:', err, { context: 'MainMenu' });
+              });
+            }
+            
+            // Sync medication intakes with doses
             if (Number.isFinite(numericId) && data.medications && data.medications.length > 0) {
               const { data: { user } } = await supabase.auth.getUser();
               if (user) {

@@ -18,6 +18,19 @@
  * 
  * IMPORTANT: A meaningful input must NEVER silently return null.
  * If the DB insert fails, it MUST throw.
+ * 
+ * === REVIEW STATE SEMANTICS ===
+ * 
+ *   'auto_saved'   – saved automatically, no user interaction
+ *   'reviewed'     – user saw the review sheet but didn't change anything
+ *   'edited'       – user modified fields in the review sheet
+ *   
+ * === PARSING STATUS SEMANTICS ===
+ * 
+ *   'classified'   – classified by event classifier, no structured extraction
+ *   'completed'    – structured data extracted (pain, meds, etc.)
+ *   'linked'       – linked to a structured pain_entry via related_entry_id
+ *   'queued_sync'  – saved via offline queue (not yet fully processed)
  */
 
 import { supabase } from '@/integrations/supabase/client';
@@ -207,8 +220,6 @@ export function generateVoiceSessionId(): string {
 
 /**
  * Generates a stable client ID for idempotent voice event saves.
- * Uses session + timestamp to produce a deterministic-ish key
- * that survives retry/queue cycles.
  */
 export function generateVoiceEventClientId(): string {
   try {
@@ -220,19 +231,66 @@ export function generateVoiceEventClientId(): string {
 
 /**
  * Links a voice event to a structured pain entry after creation.
+ * 
+ * ROBUSTNESS:
+ * - Retries once on transient failure
+ * - Logs clearly on permanent failure (but does NOT throw,
+ *   since the pain_entry is already saved — linking is best-effort enrichment)
+ * - Updates both related_entry_id AND parsing_status
+ * 
+ * The voice event remains fully analyzable even if linking fails,
+ * because raw_transcript and structured_data are already persisted.
  */
-export async function linkVoiceEventToEntry(voiceEventId: string, entryId: number): Promise<void> {
+export async function linkVoiceEventToEntry(
+  voiceEventId: string,
+  entryId: number,
+  options?: {
+    /** Update review_state when linking after user review */
+    reviewState?: 'reviewed' | 'edited';
+    /** Updated structured data from the review sheet */
+    structuredData?: Record<string, unknown>;
+  }
+): Promise<boolean> {
+  const updateData: Record<string, unknown> = {
+    related_entry_id: entryId,
+    parsing_status: 'linked',
+  };
+
+  if (options?.reviewState) {
+    updateData.review_state = options.reviewState;
+  }
+  if (options?.structuredData) {
+    updateData.structured_data = options.structuredData;
+  }
+
+  // First attempt
   const { error } = await (supabase
     .from('voice_events')
-    .update({
-      related_entry_id: entryId,
-      parsing_status: 'linked',
-    } as any)
+    .update(updateData as any)
     .eq('id', voiceEventId));
 
-  if (error) {
-    console.error('[VoiceEvent] Link failed:', error);
+  if (!error) {
+    console.log(`[VoiceEvent] ✅ Linked ${voiceEventId} → entry #${entryId}`);
+    return true;
   }
+
+  // Retry once on transient failure
+  console.warn(`[VoiceEvent] Link failed (retrying): ${error.message}`);
+  await new Promise(r => setTimeout(r, 500));
+
+  const { error: retryError } = await (supabase
+    .from('voice_events')
+    .update(updateData as any)
+    .eq('id', voiceEventId));
+
+  if (retryError) {
+    console.error(`[VoiceEvent] ❌ Link permanently failed: ${retryError.message}`,
+      { voiceEventId, entryId });
+    return false;
+  }
+
+  console.log(`[VoiceEvent] ✅ Linked (retry) ${voiceEventId} → entry #${entryId}`);
+  return true;
 }
 
 /**

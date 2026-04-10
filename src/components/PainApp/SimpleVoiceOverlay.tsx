@@ -55,6 +55,10 @@ export interface VoiceSavePayload {
   symptoms?: string[];
   meCfsLevel?: string;
   isPrivate?: boolean;
+  /** Voice event ID for linking back to the voice_events table */
+  voiceEventId?: string | null;
+  /** Whether user edited any field in the review sheet */
+  userEdited?: boolean;
 }
 
 interface SimpleVoiceOverlayProps {
@@ -699,6 +703,8 @@ export function SimpleVoiceOverlay({
         })
       );
 
+      const hasEdited = userEdited.pain || userEdited.meds || userEdited.notes;
+      
       onSave({
         painLevel: reviewState.painLevel,
         date: reviewState.occurredAt.date,
@@ -710,6 +716,8 @@ export function SimpleVoiceOverlay({
         symptoms: reviewState.symptoms,
         meCfsLevel: reviewState.meCfsLevel,
         isPrivate: reviewState.isPrivate,
+        voiceEventId: voiceEventIdRef.current,
+        userEdited: hasEdited,
       });
       
       onOpenChange(false);
