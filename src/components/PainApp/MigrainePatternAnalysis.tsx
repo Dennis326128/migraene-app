@@ -228,8 +228,9 @@ function mergeUncertainties(
   const unique: string[] = [];
   for (const item of all) {
     if (isBanalContent(item)) continue;
-    if (overlapsAny(item, refTexts, 0.45)) continue;
-    if (overlapsAny(item, unique, 0.55)) continue;
+    if (isGenericUncertainty(item)) continue;
+    if (overlapsAny(item, refTexts, 0.40)) continue;
+    if (overlapsAny(item, unique, 0.50)) continue;
     unique.push(item);
   }
   return unique;
