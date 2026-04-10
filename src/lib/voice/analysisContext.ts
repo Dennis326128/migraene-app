@@ -153,6 +153,18 @@ export interface FatigueContextEntry {
 }
 
 /**
+ * Structured trigger context from "Alltag & Auslöser" form.
+ * Serialized into the LLM prompt only when near pain days.
+ */
+export interface TriggerContextEntry {
+  date: string;
+  triggers: string[];
+  stressLevel: number | null;
+  sleepLevel: number | null;
+  notes: string | null;
+}
+
+/**
  * Complete LLM-ready analysis context for a date range.
  */
 export interface AnalysisContext {
@@ -171,6 +183,8 @@ export interface AnalysisContext {
   recurringSequences: RecurringSequence[];
   /** Fatigue/energy context from "Alltag & Auslöser" form entries */
   fatigueContextSummary: FatigueContextEntry[];
+  /** Trigger/stress context from "Alltag & Auslöser" form entries */
+  triggerContextSummary: TriggerContextEntry[];
   meta: {
     totalItems: number;
     totalDays: number;
