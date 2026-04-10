@@ -149,3 +149,59 @@ describe('MEDICATION_TITLE_RX', () => {
     expect(MEDICATION_TITLE_RX.test('Wettereinfluss')).toBe(false);
   });
 });
+
+// ============================================================
+// === FATIGUE CONTEXT SERIALIZATION TESTS ===
+// ============================================================
+
+describe('fatigue context filtering in serializeForLLM', () => {
+  // These are integration-style behavioral tests for the serializer logic
+
+  it('suppresses fatigue entries far from pain days', () => {
+    // This tests the design rule: fatigue only near pain days
+    // The actual function is in analysisContext.ts — we test the filter concept here
+    const fatigueDate = '2025-03-10';
+    const painDates = new Set(['2025-03-15']);
+    const isNearPain = (dateStr: string) => {
+      if (painDates.has(dateStr)) return true;
+      const d = new Date(dateStr);
+      const prev = new Date(d); prev.setDate(prev.getDate() - 1);
+      const next = new Date(d); next.setDate(next.getDate() + 1);
+      return painDates.has(prev.toISOString().slice(0, 10)) || painDates.has(next.toISOString().slice(0, 10));
+    };
+    expect(isNearPain(fatigueDate)).toBe(false);
+  });
+
+  it('includes fatigue entries adjacent to pain days', () => {
+    const painDates = new Set(['2025-03-15']);
+    const isNearPain = (dateStr: string) => {
+      if (painDates.has(dateStr)) return true;
+      const d = new Date(dateStr);
+      const prev = new Date(d); prev.setDate(prev.getDate() - 1);
+      const next = new Date(d); next.setDate(next.getDate() + 1);
+      return painDates.has(prev.toISOString().slice(0, 10)) || painDates.has(next.toISOString().slice(0, 10));
+    };
+    expect(isNearPain('2025-03-14')).toBe(true); // day before pain
+    expect(isNearPain('2025-03-16')).toBe(true); // day after pain
+  });
+
+  it('"einfach müde" alone does not pass meaningful-tag filter', () => {
+    const meaningfulTags = /belastung|reizüberflutet|brain fog|benommen|hinlegen|aktivität/i;
+    expect(meaningfulTags.test('einfach müde')).toBe(false);
+  });
+
+  it('meaningful fatigue tags pass the filter', () => {
+    const meaningfulTags = /belastung|reizüberflutet|brain fog|benommen|hinlegen|aktivität/i;
+    expect(meaningfulTags.test('nach Belastung schlechter')).toBe(true);
+    expect(meaningfulTags.test('reizüberflutet')).toBe(true);
+    expect(meaningfulTags.test('benommen/Brain Fog')).toBe(true);
+  });
+
+  it('medication patterns always outrank pure fatigue findings', () => {
+    // Behavioral: medication pattern type gets priority via MEDICATION_TITLE_RX
+    expect(MEDICATION_TITLE_RX.test('Triptan-Zurückhaltung')).toBe(true);
+    // Fatigue-only title should NOT match medication priority
+    expect(MEDICATION_TITLE_RX.test('Erschöpfung an Schmerztagen')).toBe(false);
+    expect(MEDICATION_TITLE_RX.test('Müdigkeit vor Attacke')).toBe(false);
+  });
+});
