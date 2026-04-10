@@ -827,15 +827,14 @@ Antworte NUR mit dem JSON-Objekt, kein Markdown-Wrapper.`;
 
     // ============== PERSIST TO AI_REPORTS (only for real LLM calls) ==============
     if (aiAvailable) {
-      // Generate dedupe_key: hash of user_id + report_type + from_date + to_date + latest_source_updated_at
-      const dedupeKey = `${user.id}:pattern_analysis:${fromDateStr}:${toDateStr}:${latestSourceUpdatedAt.toISOString()}`;
+      // Dedupe key: MUST match client format (analysisCache.ts buildDedupeKey)
+      // Format: pattern_analysis_{fromDate}_{toDate}
+      const dedupeKey = `pattern_analysis_${fromDateStr}_${toDateStr}`;
       
-      // Format title
-      const fromFormatted = new Date(fromDate).toLocaleDateString('de-DE', { day: 'numeric', month: 'short' });
-      const toFormatted = new Date(toDate).toLocaleDateString('de-DE', { day: 'numeric', month: 'short', year: 'numeric' });
-      const reportTitle = `KI-Analysebericht: ${fromFormatted} – ${toFormatted}`;
+      const reportTitle = `KI-Analyse ${fromDateStr} – ${toDateStr}`;
       
-      // Upsert into ai_reports
+      // Upsert into ai_reports — client's saveAnalysisResult may also update this later
+      // with data_state_signature. We save source_updated_at for staleness tracking.
       const { error: reportError } = await supabaseAdmin
         .from('ai_reports')
         .upsert({
@@ -855,6 +854,7 @@ Antworte NUR mit dem JSON-Objekt, kein Markdown-Wrapper.`;
           response_json: responsePayload,
           model: 'google/gemini-2.5-flash',
           dedupe_key: dedupeKey,
+          source_updated_at: latestSourceUpdatedAt.toISOString(),
           updated_at: new Date().toISOString()
         }, {
           onConflict: 'user_id,dedupe_key'
