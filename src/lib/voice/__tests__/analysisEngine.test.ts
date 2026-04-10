@@ -507,7 +507,7 @@ describe('context size handling', () => {
   it('serialized output grows with more events', () => {
     const smallDataset = makeDataset({
       voiceEvents: [makeVoiceEvent('v1', 'Eintrag 1', '2025-01-05T08:00:00')],
-      meta: { range: { from: new Date('2025-01-05'), to: new Date('2025-01-05') }, voiceEventCount: 1, painEntryCount: 0, medicationIntakeCount: 0, linkedVoiceEventCount: 0, unlinkedVoiceEventCount: 1 },
+      meta: { range: { from: new Date('2025-01-05'), to: new Date('2025-01-05') }, voiceEventCount: 1, painEntryCount: 0, medicationIntakeCount: 0, contextNoteCount: 0, linkedVoiceEventCount: 0, unlinkedVoiceEventCount: 1 },
     });
 
     const largeVoiceEvents = Array.from({ length: 50 }, (_, i) =>
@@ -515,7 +515,7 @@ describe('context size handling', () => {
     );
     const largeDataset = makeDataset({
       voiceEvents: largeVoiceEvents,
-      meta: { range: { from: new Date('2025-01-05'), to: new Date('2025-01-05') }, voiceEventCount: 50, painEntryCount: 0, medicationIntakeCount: 0, linkedVoiceEventCount: 0, unlinkedVoiceEventCount: 50 },
+      meta: { range: { from: new Date('2025-01-05'), to: new Date('2025-01-05') }, voiceEventCount: 50, painEntryCount: 0, medicationIntakeCount: 0, contextNoteCount: 0, linkedVoiceEventCount: 0, unlinkedVoiceEventCount: 50 },
     });
 
     const smallSerialized = serializeForLLM(buildAnalysisContext(smallDataset));
