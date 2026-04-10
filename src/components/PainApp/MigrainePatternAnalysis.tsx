@@ -88,7 +88,22 @@ const BANAL_INTERPRETATION_RX = [
   /nach.*schmerz.*ruhe/i, /ruhe.*nach.*schmerz/i,
   /beschwerden.*führten.*zu.*rückzug/i, /übliche.*reaktion/i,
   /typische.*begleiter/i, /naheliegende.*reaktion/i,
-  /selbstverständlich/i,
+  /selbstverständlich/i, /typische.*reaktion/i,
+  /naheliegend/i, /erwartbar/i, /nicht.*überraschend/i,
+  /verständlich.*dass/i, /logisch.*dass/i,
+  /natürliche.*folge/i, /häufig.*beobachtet/i,
+  /üblich.*bei.*migräne/i, /bekannt.*dass/i,
+  /wenig.*überraschend/i, /zu.*erwarten/i,
+  /begleitsymptom/i, /begleiterscheinung/i,
+];
+
+/** Banal observation/question text — suppress even in context findings & openQuestions */
+const BANAL_CONTENT_RX = [
+  /übelkeit.*begleit/i, /begleitend.*übelkeit/i,
+  /lichtempfindlich.*bei.*migräne/i, /migräne.*lichtempfindlich/i,
+  /schmerz.*führt.*zu.*einschränk/i, /einschränk.*durch.*schmerz/i,
+  /an.*schmerztagen.*weniger.*aktiv/i, /weniger.*aktiv.*an.*schmerztagen/i,
+  /müdigkeit.*an.*schmerztagen/i, /erschöpft.*nach.*attacke/i,
 ];
 
 function isTrivialSequence(pattern: string, interpretation?: string): boolean {
