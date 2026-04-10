@@ -79,17 +79,16 @@ export async function saveVoiceEvent(options: SaveVoiceEventOptions): Promise<st
     reviewState,
   } = options;
 
-  // Get user
+  // Get user — throw on auth failure so queue can catch it
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    console.warn('[VoiceEvent] Not authenticated, skipping save');
-    return null;
+    throw new Error('NOT_AUTHENTICATED');
   }
 
   // Classify if not pre-classified
   const classification = preClassification ?? classifyVoiceEvent(rawTranscript);
   
-  // Skip noise
+  // Skip noise — return null intentionally (not an error)
   if (!classification.isMeaningful) {
     console.log('[VoiceEvent] Skipping noise:', rawTranscript.slice(0, 50));
     return null;
@@ -101,12 +100,11 @@ export async function saveVoiceEvent(options: SaveVoiceEventOptions): Promise<st
   // Determine review state
   let finalReviewState = reviewState ?? 'auto_saved';
   if (classification.medicalRelevance === 'high') {
-    // Medical content defaults to needing review (unless explicitly set)
     if (!reviewState) {
       const hasMed = classification.classifications.some(c => c.type === 'medication');
       const hasPain = classification.classifications.some(c => c.type === 'pain');
       if (hasMed || hasPain) {
-        finalReviewState = 'auto_saved'; // Still save, but mark for attention
+        finalReviewState = 'auto_saved';
       }
     }
   }
@@ -123,7 +121,7 @@ export async function saveVoiceEvent(options: SaveVoiceEventOptions): Promise<st
     confidence: s.classification.classifications[0]?.confidence ?? null,
   })) : null;
 
-  // Insert
+  // Insert — throw on DB error so queue can catch it
   const { data, error } = await (supabase
     .from('voice_events')
     .insert({
@@ -152,9 +150,8 @@ export async function saveVoiceEvent(options: SaveVoiceEventOptions): Promise<st
     .single());
 
   if (error) {
-    console.error('[VoiceEvent] Save failed:', error);
-    // Don't throw – voice event persistence should never block the main flow
-    return null;
+    // Throw so voiceEventQueue can catch and queue for retry
+    throw new Error(`DB_SAVE_FAILED: ${error.message}`);
   }
 
   console.log(`[VoiceEvent] ✅ Saved: ${data.id} (types: ${classification.classifications.map(c => c.type).join(', ')})`);

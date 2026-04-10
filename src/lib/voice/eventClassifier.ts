@@ -177,7 +177,9 @@ const EVENT_PATTERNS: PatternGroup[] = [
       /\bkalt\b/i, /\bkälte/i, /\bfrieren/i,
       /\bsonne/i, /\bsonnig/i,
       /\bwetter/i, /\bwetterwechsel/i,
-      /\bhell\b/i, /\bhelles\s+licht/i, /\bgrell/i,
+      /\bhell\b/i, /\bhelles?\s+licht/i, /\bgrell/i,
+      /\blicht\b.*\b(?:schlimm|grell|hell|blendet|stört|nervt|unerträglich)/i,
+      /\blicht\b/i,
       /\blaut\b/i, /\blärm/i, /\bleise/i,
       /\bstickig/i, /\bschwül/i,
       /\bmenschen(?:menge|masse)/i, /\bvoll\b/i,
@@ -255,96 +257,27 @@ const NOISE_PATTERNS = [
   /^(?:test|hallo|tschüss|stopp?)\s*[.!?]*$/i,
 ];
 
-const MEANINGFUL_MIN_LENGTH = 3;
-const MEANINGFUL_MIN_WORDS = 1;
-
-// ============================================================
-// === HAUPT-FUNKTION ===
-// ============================================================
-
 /**
- * Klassifiziert eine Spracheingabe in Event-Typen.
- * Multi-Label: Eine Aussage kann mehrere Typen haben.
- * 
- * Entscheidet NICHT ob etwas gespeichert wird.
- * Nur ergänzende Hilfsschicht für spätere Analyse.
+ * Short words that are meaningful despite being <4 chars.
+ * These represent real clinical/everyday signals and must NOT be filtered as noise.
  */
-export function classifyVoiceEvent(text: string): ClassificationResult {
-  const trimmed = text.trim();
-  
-  // Noise-Check
-  if (isNoise(trimmed)) {
-    return {
-      classifications: [],
-      tags: [],
-      medicalRelevance: 'unknown',
-      isMeaningful: false,
-    };
-  }
+const MEANINGFUL_SHORT_WORDS = new Set([
+  // ME/CFS
+  'pem', 'fog',
+  // Symptoms
+  'übel', 'müde', 'wach', 'warm', 'kalt',
+  // Environment
+  'hell', 'laut', 'heiß', 'wind',
+  // Food/drink
+  'tee', 'saft', 'bier', 'wein',
+  // Activities
+  'bad',
+  // States
+  'fit', 'gut', 'ok',
+]);
 
-  const classifications: EventClassification[] = [];
-  const allTags = new Set<string>();
-  let maxMedicalRelevance: 'unknown' | 'low' | 'medium' | 'high' = 'unknown';
-
-  const norm = trimmed.toLowerCase();
-
-  for (const group of EVENT_PATTERNS) {
-    const matchedTerms: string[] = [];
-    let bestConfidence = 0;
-
-    for (const pattern of group.patterns) {
-      const match = pattern.exec(norm);
-      if (match) {
-        matchedTerms.push(match[0]);
-        // Längere Matches = höhere Confidence
-        const conf = Math.min(0.95, 0.70 + (match[0].length / norm.length) * 0.3);
-        bestConfidence = Math.max(bestConfidence, conf);
-      }
-    }
-
-    if (matchedTerms.length > 0) {
-      // Boost bei mehreren Matches
-      const boostedConf = Math.min(0.98, bestConfidence + matchedTerms.length * 0.03);
-      
-      classifications.push({
-        type: group.type,
-        confidence: boostedConf,
-        matchedTerms,
-        subtype: group.subtype,
-      });
-
-      if (group.tags) {
-        group.tags.forEach(t => allTags.add(t));
-      }
-
-      // Medical relevance: höchstes Level gewinnt
-      const relOrder = { unknown: 0, low: 1, medium: 2, high: 3 };
-      if (relOrder[group.medicalRelevance] > relOrder[maxMedicalRelevance]) {
-        maxMedicalRelevance = group.medicalRelevance;
-      }
-    }
-  }
-
-  // Inline-Tag-Extraktion: Erkannte Substantive als Tags
-  const inlineTags = extractInlineTags(norm);
-  inlineTags.forEach(t => allTags.add(t));
-
-  // Wenn keine Klassifikation → general_observation
-  if (classifications.length === 0) {
-    classifications.push({
-      type: 'general_observation',
-      confidence: 0.50,
-      matchedTerms: [],
-    });
-  }
-
-  return {
-    classifications,
-    tags: Array.from(allTags),
-    medicalRelevance: maxMedicalRelevance,
-    isMeaningful: true,
-  };
-}
+const MEANINGFUL_MIN_LENGTH = 2;
+const MEANINGFUL_MIN_WORDS = 1;
 
 // ============================================================
 // === HILFSFUNKTIONEN ===
@@ -352,22 +285,31 @@ export function classifyVoiceEvent(text: string): ClassificationResult {
 
 /**
  * Prüft ob ein Text reiner Noise ist (leere Eingabe, Füllwörter).
- * WICHTIG: Kurze aber sinnvolle Aussagen wie "bin platt" werden NICHT als Noise gewertet.
+ * WICHTIG: Kurze aber sinnvolle Aussagen wie "bin platt", "übel", "pem" 
+ * werden NICHT als Noise gewertet.
  */
 export function isNoise(text: string): boolean {
   const trimmed = text.trim();
   
   if (trimmed.length < MEANINGFUL_MIN_LENGTH) return true;
   
-  const words = trimmed.split(/\s+/).filter(w => w.length > 0);
-  if (words.length < MEANINGFUL_MIN_WORDS) {
-    // Ein einzelnes Wort ist OK wenn es sinnvoll ist (≥4 Zeichen)
-    if (words.length === 1 && words[0].length >= 4) return false;
-    if (words.length === 0) return true;
-  }
-
+  // Explicit noise patterns
   for (const pattern of NOISE_PATTERNS) {
     if (pattern.test(trimmed)) return true;
+  }
+
+  const words = trimmed.split(/\s+/).filter(w => w.length > 0);
+  if (words.length === 0) return true;
+
+  // Single word: check against meaningful short words allowlist
+  if (words.length === 1) {
+    const word = words[0].toLowerCase().replace(/[.!?,;:]+$/, '');
+    // Allow if it's in the short-words allowlist
+    if (MEANINGFUL_SHORT_WORDS.has(word)) return false;
+    // Allow if ≥4 chars (likely a real word)
+    if (word.length >= 4) return false;
+    // Otherwise too short and not in allowlist → noise
+    return true;
   }
 
   return false;
