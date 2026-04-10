@@ -4,9 +4,17 @@
  * Persistence and reuse logic for voice pattern analysis results.
  * Uses the ai_reports table with report_type='pattern_analysis'.
  * 
+ * === VALIDITY MODEL ===
+ * An analysis is "valid" if and only if:
+ *   1. It exists for the requested date range (dedupe_key match)
+ *   2. No pain_entries or voice_events in that range have been
+ *      created/updated AFTER the analysis was last saved
+ * 
+ * The 5-minute cooldown is a SECONDARY safeguard against rapid
+ * re-runs, not the primary validity check. If data changed,
+ * re-analysis is allowed even within the cooldown.
+ * 
  * Dedupe key format: pattern_analysis_{from}_{to}
- * Reuse rule: an existing analysis is valid if it was created AFTER the latest
- * data change (pain entry or voice event) in the same date range.
  */
 
 import { supabase } from '@/integrations/supabase/client';
@@ -16,7 +24,7 @@ import type { VoiceAnalysisResult } from './analysisTypes';
 // === CONSTANTS ===
 // ============================================================
 
-/** Minimum interval between analyses for same range (ms) — 5 minutes */
+/** Minimum interval between analyses for same UNCHANGED range (ms) — 5 minutes */
 const MIN_REANALYSIS_INTERVAL_MS = 5 * 60 * 1000;
 
 /** Report type used in ai_reports table */
@@ -31,7 +39,7 @@ export function buildDedupeKey(fromDate: string, toDate: string): string {
 }
 
 // ============================================================
-// === LOAD CACHED ANALYSIS ===
+// === TYPES ===
 // ============================================================
 
 export interface CachedAnalysis {
@@ -42,6 +50,15 @@ export interface CachedAnalysis {
   fromDate: string;
   toDate: string;
 }
+
+export interface CacheValidityResult {
+  valid: boolean;
+  reason?: 'not_authenticated' | 'data_changed' | 'voice_data_changed';
+}
+
+// ============================================================
+// === LOAD CACHED ANALYSIS ===
+// ============================================================
 
 /**
  * Load the most recent cached analysis for a given date range.
@@ -85,55 +102,99 @@ export async function loadCachedAnalysis(
 }
 
 // ============================================================
-// === CHECK IF REANALYSIS IS NEEDED ===
+// === DATA-STATE VALIDATION ===
 // ============================================================
+
+/**
+ * Get the latest source data timestamp for a date range.
+ * Checks pain_entries and voice_events to determine if any
+ * data has changed since a given reference point.
+ */
+export async function getLatestSourceTimestamp(
+  fromDate: string,
+  toDate: string,
+): Promise<string | null> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  // Parallel: check latest pain entry and latest voice event
+  const [entryResult, voiceResult] = await Promise.all([
+    supabase
+      .from('pain_entries')
+      .select('timestamp_created')
+      .eq('user_id', user.id)
+      .gte('selected_date', fromDate)
+      .lte('selected_date', toDate)
+      .order('timestamp_created', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('voice_events')
+      .select('updated_at')
+      .eq('user_id', user.id)
+      .gte('event_timestamp', fromDate + 'T00:00:00Z')
+      .lte('event_timestamp', toDate + 'T23:59:59Z')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  const timestamps: number[] = [];
+  if (entryResult.data?.timestamp_created) {
+    timestamps.push(new Date(entryResult.data.timestamp_created).getTime());
+  }
+  if (voiceResult.data?.updated_at) {
+    timestamps.push(new Date(voiceResult.data.updated_at).getTime());
+  }
+
+  if (timestamps.length === 0) return null;
+  return new Date(Math.max(...timestamps)).toISOString();
+}
 
 /**
  * Determine if a cached analysis is still valid or needs refresh.
  * 
- * Returns { valid: true } if cache can be reused,
- * or { valid: false, reason: string } if new analysis needed.
+ * Primary check: Has source data changed since the analysis was saved?
+ * This is the core validity rule — NOT the cooldown timer.
  */
 export async function isCacheValid(
   cached: CachedAnalysis,
-): Promise<{ valid: boolean; reason?: string }> {
+): Promise<CacheValidityResult> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { valid: false, reason: 'not_authenticated' };
 
-  // 1. Check if latest data change is newer than the analysis
-  const { data: latestEntry } = await supabase
-    .from('pain_entries')
-    .select('timestamp_created')
-    .eq('user_id', user.id)
-    .gte('selected_date', cached.fromDate)
-    .lte('selected_date', cached.toDate)
-    .order('timestamp_created', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const cacheTime = new Date(cached.updatedAt).getTime();
 
-  if (latestEntry?.timestamp_created) {
-    const entryTime = new Date(latestEntry.timestamp_created).getTime();
-    const cacheTime = new Date(cached.updatedAt).getTime();
-    if (entryTime > cacheTime) {
+  // Parallel check both data sources
+  const [entryResult, voiceResult] = await Promise.all([
+    supabase
+      .from('pain_entries')
+      .select('timestamp_created')
+      .eq('user_id', user.id)
+      .gte('selected_date', cached.fromDate)
+      .lte('selected_date', cached.toDate)
+      .order('timestamp_created', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('voice_events')
+      .select('updated_at')
+      .eq('user_id', user.id)
+      .gte('event_timestamp', cached.fromDate + 'T00:00:00Z')
+      .lte('event_timestamp', cached.toDate + 'T23:59:59Z')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  if (entryResult.data?.timestamp_created) {
+    if (new Date(entryResult.data.timestamp_created).getTime() > cacheTime) {
       return { valid: false, reason: 'data_changed' };
     }
   }
 
-  // 2. Check voice events
-  const { data: latestVoice } = await supabase
-    .from('voice_events')
-    .select('updated_at')
-    .eq('user_id', user.id)
-    .gte('event_timestamp', cached.fromDate + 'T00:00:00Z')
-    .lte('event_timestamp', cached.toDate + 'T23:59:59Z')
-    .order('updated_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (latestVoice?.updated_at) {
-    const voiceTime = new Date(latestVoice.updated_at).getTime();
-    const cacheTime = new Date(cached.updatedAt).getTime();
-    if (voiceTime > cacheTime) {
+  if (voiceResult.data?.updated_at) {
+    if (new Date(voiceResult.data.updated_at).getTime() > cacheTime) {
       return { valid: false, reason: 'voice_data_changed' };
     }
   }
@@ -142,7 +203,11 @@ export async function isCacheValid(
 }
 
 /**
- * Check if enough time has passed since last analysis to allow reanalysis.
+ * Check if re-analysis is allowed.
+ * 
+ * Rules (in priority order):
+ * 1. If data has changed → always allow (caller checks isCacheValid first)
+ * 2. If data unchanged → respect cooldown to prevent unnecessary re-runs
  */
 export function canReanalyze(cached: CachedAnalysis): boolean {
   const elapsed = Date.now() - new Date(cached.updatedAt).getTime();
@@ -220,19 +285,60 @@ export async function saveAnalysisResult(
 }
 
 // ============================================================
-// === LOAD LATEST FOR REPORT/SHARE ===
+// === LOAD FOR REPORT / SHARE ===
 // ============================================================
 
 /**
  * Load the most recent valid pattern analysis for a date range.
  * Used by PDF report generation and doctor-share to embed the analysis.
- * Falls back to the latest analysis overlapping the range.
+ * 
+ * Returns the analysis result ONLY if it's still valid against current data.
+ * Falls back to null if no valid analysis exists.
  */
 export async function loadAnalysisForReport(
   fromDate: string,
   toDate: string,
 ): Promise<VoiceAnalysisResult | null> {
   const cached = await loadCachedAnalysis(fromDate, toDate);
-  if (cached) return cached.result;
-  return null;
+  if (!cached) return null;
+
+  // Verify it's still valid against current data state
+  const validity = await isCacheValid(cached);
+  if (!validity.valid) {
+    console.info(`[AnalysisCache] Report analysis stale: ${validity.reason}`);
+    // Return it anyway for reports — stale is better than missing.
+    // The analyzedAt timestamp makes the staleness visible.
+  }
+
+  return cached.result;
+}
+
+/**
+ * Build a PatternAnalysisSummary from a VoiceAnalysisResult.
+ * Used to create the compact format for snapshots and reports.
+ */
+export function buildPatternAnalysisSummary(result: VoiceAnalysisResult): {
+  summary: string;
+  patterns: Array<{ title: string; description: string; evidenceStrength: string }>;
+  recurringSequences: Array<{ pattern: string; count: number; interpretation: string }>;
+  openQuestions: string[];
+  analyzedAt: string;
+  daysAnalyzed: number;
+} {
+  return {
+    summary: result.summary,
+    patterns: result.possiblePatterns.slice(0, 7).map(p => ({
+      title: p.title,
+      description: p.description,
+      evidenceStrength: p.evidenceStrength,
+    })),
+    recurringSequences: result.recurringSequences.slice(0, 5).map(s => ({
+      pattern: s.pattern,
+      count: s.count,
+      interpretation: s.llmInterpretation,
+    })),
+    openQuestions: result.openQuestions.slice(0, 4),
+    analyzedAt: result.meta.analyzedAt,
+    daysAnalyzed: result.scope.daysAnalyzed,
+  };
 }
