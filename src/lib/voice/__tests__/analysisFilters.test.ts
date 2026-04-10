@@ -421,3 +421,30 @@ describe('isGenericUncertainty — extended patterns', () => {
     expect(isGenericUncertainty('Unklar, ob Sumatriptan bei Aura-Attacken besser wirkt als bei Attacken ohne Aura.')).toBe(false);
   });
 });
+
+describe('isWeakPattern — vague temporal/frequency phrases', () => {
+  it('rejects "an manchen Tagen stärker" as too vague', () => {
+    expect(isWeakPattern('An manchen Tagen stärker als an anderen, variiert stark.')).toBe(true);
+  });
+  it('rejects "zeitweise beobachtet" as non-actionable', () => {
+    expect(isWeakPattern('Zeitweise beobachtet, dass Beschwerden zunehmen ohne klaren Auslöser.')).toBe(true);
+  });
+  it('rejects "im Zeitraum fiel auf" generic starter', () => {
+    expect(isWeakPattern('Im Zeitraum fiel auf, dass es phasenweise schlechter ging.')).toBe(true);
+  });
+  it('preserves medication pattern with vague-sounding words', () => {
+    expect(isWeakPattern('Triptan-Einnahme wurde an manchen Tagen deutlich verzögert', 'Einnahmeverhalten')).toBe(false);
+  });
+});
+
+describe('isBanalContent — generic observation starters', () => {
+  it('rejects "es kam zu Beschwerden"', () => {
+    expect(isBanalContent('Es kam zu Beschwerden an mehreren Tagen')).toBe(true);
+  });
+  it('rejects "insgesamt ein schwieriger Zeitraum"', () => {
+    expect(isBanalContent('Insgesamt ein schwieriger Zeitraum für die Patientin')).toBe(true);
+  });
+  it('rejects "der Zustand war belastend"', () => {
+    expect(isBanalContent('Der Zustand war insgesamt belastend')).toBe(true);
+  });
+});
