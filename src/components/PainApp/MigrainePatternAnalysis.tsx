@@ -272,9 +272,14 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
   const { sortedPatterns, filteredSequences, extraContextFindings, uncertainties } = useMemo(() => {
     const sorted = sortPatterns(result.possiblePatterns).slice(0, MAX_PATTERNS);
 
-    // Filter trivial sequences strictly, then also check for weak-only leftovers
+    // Filter trivial sequences strictly; also reject if interpretation is banal or too short
     const seqs = result.recurringSequences
-      .filter(s => !isTrivialSequence(s.pattern, s.llmInterpretation) && s.llmInterpretation && s.llmInterpretation.length > 10)
+      .filter(s => {
+        if (isTrivialSequence(s.pattern, s.llmInterpretation)) return false;
+        if (!s.llmInterpretation || s.llmInterpretation.length < 15) return false;
+        if (isBanalContent(s.llmInterpretation)) return false;
+        return true;
+      })
       .slice(0, MAX_SEQUENCES);
 
     // Reference pool for deduplication: summary + patterns + sequences
@@ -284,22 +289,22 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
       ...seqs.map(s => s.pattern + ' ' + (s.llmInterpretation || '')),
     ];
 
-    // Context findings: only migraine-relevant fatigue, deduplicated
     // Fatigue findings: ONLY high evidence, or medium with explicit migraine keywords
     const fatigueFiltered = result.fatigueContextFindings.filter(f =>
       f.evidenceStrength === 'high' ||
       (f.evidenceStrength === 'medium' && /schmerz|kopf|migräne|attacke|triptan/i.test(f.observation))
     );
     // Medication context: skip if any pattern already covers medication topic
-    const hasMedPattern = sorted.some(p => MEDICATION_PATTERN_TYPES.has(p.patternType) || MEDICATION_TITLE_RX.test(p.title));
+    const hasMedPattern = sorted.some(p => MEDICATION_PATTERN_TYPES.has(p.patternType) || MEDICATION_TITLE_RX.test(p.title) || MEDICATION_TITLE_RX.test(p.description));
     const medContext = hasMedPattern ? [] : result.medicationContextFindings;
     const allContext = [...result.painContextFindings, ...fatigueFiltered, ...medContext];
-    // Strict dedup threshold (0.35) to catch more overlaps
+    // Apply banal content filter + strict dedup
     const finalContext = allContext
-      .filter(f => !overlapsAny(f.observation, allRefTexts, 0.35))
+      .filter(f => !isBanalContent(f.observation))
+      .filter(f => !overlapsAny(f.observation, allRefTexts, 0.33))
       .slice(0, 2);
 
-    // Uncertainties: deduplicated against everything above with even stricter threshold
+    // Uncertainties: deduplicated against everything + banal filter
     const fullRef = [
       ...allRefTexts,
       ...finalContext.map(f => f.observation),
