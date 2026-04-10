@@ -297,11 +297,11 @@ describe('isWeakPattern – medication-aware length threshold', () => {
 
 describe('context finding evidence gate', () => {
   it('low-evidence findings should be excluded by medium+ requirement', () => {
-    const lowEvidence = 'low';
+    const lowEvidence: string = 'low';
     expect(lowEvidence === 'medium' || lowEvidence === 'high').toBe(false);
   });
   it('medium-evidence passes', () => {
-    const medEvidence = 'medium';
+    const medEvidence: string = 'medium';
     expect(medEvidence === 'medium' || medEvidence === 'high').toBe(true);
   });
 });
