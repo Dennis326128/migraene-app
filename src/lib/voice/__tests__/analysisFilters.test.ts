@@ -291,7 +291,8 @@ describe('isWeakPattern – medication-aware length threshold', () => {
     expect(isWeakPattern('Triptan teils spät eingesetzt.', 'Einnahmeverzögerung')).toBe(false);
   });
   it('medication title protects shorter descriptions', () => {
-    expect(isWeakPattern('Einnahme oft verzögert.', 'Medikament zu spät')).toBe(false);
+    // 26 chars - passes 25-char med threshold but would fail 40-char general threshold
+    expect(isWeakPattern('Einnahme wurde oft verzögert.', 'Medikament zu spät')).toBe(false);
   });
 });
 
