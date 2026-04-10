@@ -731,10 +731,10 @@ describe('Cross-channel SSOT identity', () => {
     expect(Object.keys(summary.recurringSequences[0]).sort()).toEqual(['count', 'interpretation', 'pattern']);
   });
 
-  it('limits are identical: MAX_PATTERNS=5, MAX_SEQUENCES=3, MAX_QUESTIONS=3', () => {
-    expect(MAX_PATTERNS).toBe(5);
-    expect(MAX_SEQUENCES).toBe(3);
-    expect(MAX_QUESTIONS).toBe(3);
+  it('limits are identical: MAX_PATTERNS=4, MAX_SEQUENCES=2, MAX_QUESTIONS=2', () => {
+    expect(MAX_PATTERNS).toBe(4);
+    expect(MAX_SEQUENCES).toBe(2);
+    expect(MAX_QUESTIONS).toBe(2);
   });
 });
 

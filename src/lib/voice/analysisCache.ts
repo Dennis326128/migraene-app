@@ -567,9 +567,9 @@ export interface PatternAnalysisCompactSummary {
  * Enforces consistent limits and field mapping.
  * 
  * Limits:
- * - max 5 patterns (sorted by evidence strength, then occurrences)
- * - max 3 recurring sequences
- * - max 3 open questions
+ * - max 4 patterns (sorted by evidence strength, medication priority, then occurrences)
+ * - max 2 recurring sequences
+ * - max 2 open questions
  */
 export function buildPatternAnalysisSummary(result: VoiceAnalysisResult): PatternAnalysisCompactSummary {
   const sortedPatterns = [...result.possiblePatterns]
