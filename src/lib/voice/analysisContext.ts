@@ -21,6 +21,7 @@ import type {
   VoiceEventForAnalysis,
   PainEntryForAnalysis,
   MedicationIntakeForAnalysis,
+  ContextNoteForAnalysis,
   FullAnalysisDataset,
 } from './analysisAccess';
 
