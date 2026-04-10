@@ -139,6 +139,9 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
   const [sleep, setSleep] = useState<number | null>(null);
   const [energy, setEnergy] = useState<number | null>(null);
   
+  // Fatigue context (only relevant when energy = 1 "Erschöpft")
+  const [fatigueContextTags, setFatigueContextTags] = useState<string[]>([]);
+  
   // Block B: Trigger (vereinfacht)
   const [nutritionTriggers, setNutritionTriggers] = useState<string[]>([]);
   const [movementTriggers, setMovementTriggers] = useState<string[]>([]);
@@ -154,6 +157,14 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
   // UI state
   const [isSaving, setIsSaving] = useState(false);
   const [showTriggers, setShowTriggers] = useState(false);
+  
+  // Clear fatigue context when energy changes away from "Erschöpft"
+  const handleEnergyChange = (value: number | null) => {
+    setEnergy(value);
+    if (value !== 1) {
+      setFatigueContextTags([]);
+    }
+  };
 
   // Load data when editing existing note
   useEffect(() => {
