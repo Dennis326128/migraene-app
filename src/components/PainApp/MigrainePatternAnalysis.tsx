@@ -1,12 +1,12 @@
 /**
  * MigrainePatternAnalysis.tsx
  * 
- * Premium, calm display of AI migraine pattern analysis.
+ * Calm, high-quality display of AI migraine pattern analysis.
  * Structure: Kurzfazit → Auffälligste Hinweise → Wiederkehrende Muster →
  *            Was zusätzlich auffällt → Was noch unklar ist → Disclaimer
  * 
- * Design: no card borders on individual items, strong typography hierarchy,
- *         readable text (not washed-out grey), German-only UI.
+ * Design: no card borders, strong readable typography, German-only.
+ * Sections are hidden if they have no meaningful content.
  */
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
@@ -26,80 +26,63 @@ import { logError } from '@/lib/utils/errorMessages';
 
 /** Trivial/tautological sequence patterns to suppress */
 const TRIVIAL_SEQUENCE_PATTERNS = [
-  // Pain → obvious reaction (trivial)
-  /schmerz.*→.*medikament/i,
-  /medikament.*→.*schmerz/i,
-  /kopfschmerz.*→.*medikament/i,
-  /kopfschmerz.*→.*ruhe/i,
-  /kopfschmerz.*→.*schlaf/i,
-  /migräne.*→.*medikament/i,
-  /migräne.*→.*ruhe/i,
-  /schmerz.*stärker.*→.*medikament/i,
-  /schmerz.*→.*einnahme/i,
-  /schmerz.*→.*triptan/i,
-  /schmerz.*→.*bett/i,
-  /schmerz.*→.*liegen/i,
-  /schmerz.*→.*hinlegen/i,
-  /schmerz.*→.*ruhe/i,
-  /schmerz.*→.*schlaf/i,
-  /schmerz.*→.*nichts/i,
-  /schmerz.*→.*pause/i,
-  /schmerz.*→.*dunkel/i,
-  // Fatigue → obvious reaction (trivial)
-  /müdigkeit.*→.*ruhe/i,
-  /müdigkeit.*→.*schlaf/i,
-  /müdigkeit.*→.*bett/i,
-  /müdigkeit.*schmerztag/i,
-  /müde.*→.*ruhe/i,
-  /müde.*→.*schlaf/i,
-  /erschöpf.*→.*ruhe/i,
-  /erschöpf.*→.*schlaf/i,
-  /erschöpf.*→.*bett/i,
-  /erschöpf.*→.*hinlegen/i,
-  /erschöpfung.*zusammen.*schmerz/i,
+  // Pain → obvious reaction
+  /schmerz.*→.*medikament/i, /medikament.*→.*schmerz/i,
+  /kopfschmerz.*→.*medikament/i, /kopfschmerz.*→.*ruhe/i, /kopfschmerz.*→.*schlaf/i,
+  /migräne.*→.*medikament/i, /migräne.*→.*ruhe/i,
+  /schmerz.*stärker.*→.*medikament/i, /schmerz.*→.*einnahme/i, /schmerz.*→.*triptan/i,
+  /schmerz.*→.*bett/i, /schmerz.*→.*liegen/i, /schmerz.*→.*hinlegen/i,
+  /schmerz.*→.*ruhe/i, /schmerz.*→.*schlaf/i,
+  /schmerz.*→.*nichts/i, /schmerz.*→.*pause/i, /schmerz.*→.*dunkel/i,
+  /schmerz.*→.*erbrechen/i, /schmerz.*→.*übelkeit/i,
+  // Fatigue → obvious reaction
+  /müdigkeit.*→.*ruhe/i, /müdigkeit.*→.*schlaf/i, /müdigkeit.*→.*bett/i,
+  /müdigkeit.*schmerztag/i, /müde.*→.*ruhe/i, /müde.*→.*schlaf/i,
+  /erschöpf.*→.*ruhe/i, /erschöpf.*→.*schlaf/i, /erschöpf.*→.*bett/i,
+  /erschöpf.*→.*hinlegen/i, /erschöpfung.*zusammen.*schmerz/i,
+  /erschöpf.*→.*pause/i, /erschöpf.*→.*nichts/i,
+  // Medication → obvious observation
+  /medikament.*→.*wirkung/i, /medikament.*→.*besser/i,
+  /medikament.*→.*keine.*wirkung/i, /triptan.*→.*besser/i,
+  /einnahme.*→.*wirkung/i, /einnahme.*→.*besser/i,
   // English variants
-  /pain.*→.*medication/i,
-  /medication.*→.*pain/i,
-  /headache.*→.*rest/i,
-  /fatigue.*→.*rest/i,
-  /fatigue.*→.*sleep/i,
-  // Phase-based trivial sequences
-  /^pain→medication$/i,
-  /^pain→rest$/i,
-  /^fatigue→rest$/i,
-  /^medication→observation$/i,
+  /pain.*→.*medication/i, /medication.*→.*pain/i,
+  /headache.*→.*rest/i, /fatigue.*→.*rest/i, /fatigue.*→.*sleep/i,
+  /pain.*→.*rest/i, /pain.*→.*sleep/i,
+  // Generic observations
+  /schmerz.*müdigkeit/i, /müdigkeit.*schmerz/i,
+  /schmerz.*erschöpf/i, /erschöpf.*schmerz/i,
 ];
+
+/** Phase-state arrow patterns that are always generic */
+const GENERIC_PHASE_SEQUENCES = new Set([
+  'pain→medication', 'pain→rest', 'pain→fatigue', 'pain→observation',
+  'fatigue→rest', 'fatigue→medication', 'fatigue→observation',
+  'medication→observation', 'medication→rest', 'medication→pain',
+  'observation→pain', 'observation→medication', 'observation→rest',
+  'rest→observation', 'rest→pain', 'wellbeing→observation',
+  'pain→medication→rest', 'pain→medication→observation',
+  'medication→rest→observation', 'fatigue→rest→observation',
+  'pain→rest→observation',
+]);
 
 function isTrivialSequence(pattern: string): boolean {
   const normalized = pattern.replace(/\s+/g, ' ').trim();
-  return TRIVIAL_SEQUENCE_PATTERNS.some(rx => rx.test(normalized));
-}
-
-/** Additional check: phase-based sequences that are too generic */
-function isGenericPhaseSequence(pattern: string): boolean {
-  const p = pattern.toLowerCase().replace(/\s/g, '');
-  const generic = [
-    'pain→medication', 'pain→rest', 'pain→fatigue', 'fatigue→rest',
-    'medication→observation', 'medication→rest', 'pain→observation',
-    'fatigue→medication', 'observation→pain', 'observation→medication',
-    'rest→observation', 'wellbeing→observation',
-  ];
-  return generic.includes(p);
+  if (TRIVIAL_SEQUENCE_PATTERNS.some(rx => rx.test(normalized))) return true;
+  // Also check as generic phase sequence
+  const collapsed = normalized.toLowerCase().replace(/\s/g, '');
+  return GENERIC_PHASE_SEQUENCES.has(collapsed);
 }
 
 /** Translate English arrow-patterns to German */
 function translateSequencePattern(pattern: string): string {
   return pattern
-    .replace(/pain/gi, 'Schmerz')
-    .replace(/medication/gi, 'Medikament')
-    .replace(/headache/gi, 'Kopfschmerz')
-    .replace(/rest/gi, 'Ruhe')
-    .replace(/sleep/gi, 'Schlaf')
-    .replace(/stress/gi, 'Stress')
-    .replace(/fatigue/gi, 'Erschöpfung')
-    .replace(/light/gi, 'Licht')
-    .replace(/noise/gi, 'Lärm')
-    .replace(/weather/gi, 'Wetter')
+    .replace(/pain/gi, 'Schmerz').replace(/medication/gi, 'Medikament')
+    .replace(/headache/gi, 'Kopfschmerz').replace(/rest/gi, 'Ruhe')
+    .replace(/sleep/gi, 'Schlaf').replace(/stress/gi, 'Stress')
+    .replace(/fatigue/gi, 'Erschöpfung').replace(/light/gi, 'Licht')
+    .replace(/noise/gi, 'Lärm').replace(/weather/gi, 'Wetter')
+    .replace(/observation/gi, 'Beobachtung').replace(/exertion/gi, 'Belastung')
     .replace(/→/g, ' → ');
 }
 
@@ -112,43 +95,51 @@ function sortPatterns(patterns: PatternFinding[]): PatternFinding[] {
   });
 }
 
-/** Deduplicate context findings that overlap with pattern descriptions or other text pools */
+/**
+ * Compute word-overlap ratio between two texts.
+ * Returns 0–1 where 1 = all significant words of `a` found in `b`.
+ */
+function textOverlap(a: string, b: string): number {
+  const wordsA = a.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+  if (wordsA.length === 0) return 0;
+  const bLower = b.toLowerCase();
+  const matched = wordsA.filter(w => bLower.includes(w)).length;
+  return matched / wordsA.length;
+}
+
+/** Check if text significantly overlaps with any reference text */
+function overlapsAny(text: string, refs: string[], threshold = 0.45): boolean {
+  return refs.some(ref => textOverlap(text, ref) > threshold);
+}
+
+/** Deduplicate context findings against patterns, sequences, summary */
 function deduplicateFindings(
   findings: ContextFinding[],
   patterns: PatternFinding[],
   additionalTexts: string[] = [],
 ): ContextFinding[] {
   const refTexts = [
-    ...patterns.map(p => (p.title + ' ' + p.description).toLowerCase()),
-    ...additionalTexts.map(t => t.toLowerCase()),
+    ...patterns.map(p => (p.title + ' ' + p.description)),
+    ...additionalTexts,
   ];
   if (refTexts.length === 0) return findings;
-
-  return findings.filter(f => {
-    const obsLower = f.observation.toLowerCase();
-    const words = obsLower.split(/\s+/).filter(w => w.length > 3);
-    if (words.length === 0) return true;
-    return !refTexts.some(pt => {
-      const matchCount = words.filter(w => pt.includes(w)).length;
-      return matchCount / words.length > 0.5; // stricter threshold
-    });
-  });
+  return findings.filter(f => !overlapsAny(f.observation, refTexts));
 }
 
-/** Merge and deduplicate uncertainties */
-function mergeUncertainties(openQuestions: string[], confidenceNotes: string[]): string[] {
+/** Merge and deduplicate uncertainties against each other AND against reference texts */
+function mergeUncertainties(
+  openQuestions: string[],
+  confidenceNotes: string[],
+  refTexts: string[] = [],
+): string[] {
   const all = [...openQuestions, ...confidenceNotes];
   const unique: string[] = [];
   for (const item of all) {
-    const lower = item.toLowerCase();
-    const isDup = unique.some(existing => {
-      const existLower = existing.toLowerCase();
-      const words = lower.split(/\s+/).filter(w => w.length > 4);
-      if (words.length === 0) return false;
-      const overlap = words.filter(w => existLower.includes(w)).length;
-      return overlap / words.length > 0.7;
-    });
-    if (!isDup) unique.push(item);
+    // Skip if overlaps with reference texts (patterns, findings, summary)
+    if (overlapsAny(item, refTexts, 0.5)) continue;
+    // Skip if overlaps with already-added uncertainties
+    if (overlapsAny(item, unique, 0.6)) continue;
+    unique.push(item);
   }
   return unique;
 }
@@ -170,7 +161,7 @@ function EvidenceBadge({ strength }: { strength: string }) {
     low: 'bg-muted/50 text-muted-foreground',
   };
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] tracking-wide ${colorMap[strength] || colorMap.low}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] tracking-wide shrink-0 ${colorMap[strength] || colorMap.low}`}>
       {evidenceLabels[strength] || strength}
     </span>
   );
@@ -200,7 +191,7 @@ function generateReport(result: VoiceAnalysisResult): string {
   }
 
   const sequences = result.recurringSequences
-    .filter(s => !isTrivialSequence(s.pattern) && !isGenericPhaseSequence(s.pattern))
+    .filter(s => !isTrivialSequence(s.pattern))
     .slice(0, MAX_SEQUENCES);
   if (sequences.length > 0) {
     lines.push('Wiederkehrende Muster');
@@ -212,23 +203,13 @@ function generateReport(result: VoiceAnalysisResult): string {
     lines.push('');
   }
 
-  const uncertainties = mergeUncertainties(
-    result.openQuestions.slice(0, MAX_QUESTIONS),
-    result.confidenceNotes,
-  ).slice(0, MAX_QUESTIONS);
-  if (uncertainties.length > 0) {
-    lines.push('Was noch unklar ist');
-    for (const u of uncertainties) lines.push(`• ${u}`);
-    lines.push('');
-  }
-
   lines.push('---');
   lines.push('Hinweis: Mögliche Zusammenhänge – keine medizinische Diagnose.');
   return lines.join('\n');
 }
 
 // ============================================================
-// === RESULTS DISPLAY — NEW CALM STRUCTURE ===
+// === RESULTS DISPLAY ===
 // ============================================================
 
 function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
@@ -237,16 +218,19 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
   const { sortedPatterns, filteredSequences, extraContextFindings, uncertainties } = useMemo(() => {
     const sorted = sortPatterns(result.possiblePatterns).slice(0, MAX_PATTERNS);
 
-    // Filter trivial and generic phase sequences
+    // Filter trivial sequences strictly
     const seqs = result.recurringSequences
-      .filter(s => !isTrivialSequence(s.pattern) && !isGenericPhaseSequence(s.pattern))
+      .filter(s => !isTrivialSequence(s.pattern))
       .slice(0, MAX_SEQUENCES);
 
-    // Build full dedup reference texts: patterns + sequences + summary
-    const seqTexts = seqs.map(s => (s.pattern + ' ' + (s.llmInterpretation || '')));
-    const allRefTexts = [...seqTexts, result.summary];
+    // Reference pool for deduplication: summary + patterns + sequences
+    const allRefTexts = [
+      result.summary,
+      ...sorted.map(p => p.title + ' ' + p.description),
+      ...seqs.map(s => s.pattern + ' ' + (s.llmInterpretation || '')),
+    ];
 
-    // Context findings: merge relevant ones, deduplicate against patterns AND sequences AND summary
+    // Context findings: only migraine-relevant fatigue, deduplicated
     const fatigueFiltered = result.fatigueContextFindings.filter(f =>
       f.evidenceStrength !== 'low' ||
       /schmerz|kopf|migräne|belastung|reiz/i.test(f.observation)
@@ -254,25 +238,16 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
     const allContext = [...result.painContextFindings, ...fatigueFiltered, ...result.medicationContextFindings];
     const finalContext = deduplicateFindings(allContext, sorted, allRefTexts).slice(0, 3);
 
-    // Uncertainties: deduplicate against patterns and context findings
-    const allPatternAndContextTexts = [
-      ...sorted.map(p => p.title + ' ' + p.description),
+    // Uncertainties: deduplicated against everything above
+    const fullRef = [
+      ...allRefTexts,
       ...finalContext.map(f => f.observation),
-      ...seqTexts,
     ];
     const merged = mergeUncertainties(
       result.openQuestions.slice(0, MAX_QUESTIONS),
       result.confidenceNotes,
-    ).filter(u => {
-      const uLower = u.toLowerCase();
-      const words = uLower.split(/\s+/).filter(w => w.length > 4);
-      if (words.length === 0) return true;
-      return !allPatternAndContextTexts.some(ref => {
-        const refLower = ref.toLowerCase();
-        const overlap = words.filter(w => refLower.includes(w)).length;
-        return overlap / words.length > 0.6;
-      });
-    }).slice(0, MAX_QUESTIONS);
+      fullRef,
+    ).slice(0, MAX_QUESTIONS);
 
     return { sortedPatterns: sorted, filteredSequences: seqs, extraContextFindings: finalContext, uncertainties: merged };
   }, [result]);
@@ -283,10 +258,10 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
   const hasUncertainties = uncertainties.length > 0;
 
   return (
-    <div className="space-y-7">
+    <div className="space-y-6">
       {/* A) Kurzfazit */}
-      <div className="px-1">
-        <p className="text-[13px] leading-[1.7] text-foreground">{result.summary}</p>
+      <div>
+        <p className="text-sm leading-relaxed text-foreground">{result.summary}</p>
         <p className="text-[11px] text-muted-foreground mt-2">
           {result.scope.daysAnalyzed} Tage analysiert
           {result.scope.painEntryCount > 0 && ` · ${result.scope.painEntryCount} Schmerzeinträge`}
@@ -296,20 +271,20 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
 
       {/* B) Auffälligste Hinweise */}
       {hasPatterns && (
-        <section className="px-1">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4">
+        <section>
+          <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-3">
             Auffälligste Hinweise
           </h3>
-          <div className="space-y-5">
+          <div className="space-y-4">
             {sortedPatterns.map((p, i) => (
               <div key={i}>
-                <div className="flex items-start justify-between gap-3 mb-1">
-                  <h4 className="text-[13px] font-medium text-foreground leading-snug">{p.title}</h4>
+                <div className="flex items-start justify-between gap-3 mb-0.5">
+                  <h4 className="text-sm font-medium text-foreground leading-snug">{p.title}</h4>
                   <EvidenceBadge strength={p.evidenceStrength} />
                 </div>
-                <p className="text-[13px] text-foreground/75 leading-[1.65]">{p.description}</p>
+                <p className="text-sm text-foreground/80 leading-relaxed">{p.description}</p>
                 {p.uncertaintyNotes.length > 0 && (
-                  <p className="text-[11px] text-muted-foreground mt-1.5">
+                  <p className="text-[11px] text-muted-foreground mt-1">
                     {p.uncertaintyNotes[0].reason}
                   </p>
                 )}
@@ -321,21 +296,21 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
 
       {/* C) Wiederkehrende Muster — only non-trivial */}
       {hasSequences && (
-        <section className="px-1">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+        <section>
+          <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-2.5">
             Wiederkehrende Muster
           </h3>
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {filteredSequences.map((seq, i) => (
               <div key={i}>
-                <span className="text-[13px] font-medium text-foreground">
+                <span className="text-sm font-medium text-foreground">
                   {translateSequencePattern(seq.pattern)}
                 </span>
                 {seq.count > 1 && (
                   <span className="text-[11px] text-muted-foreground ml-1.5">({seq.count}×)</span>
                 )}
                 {seq.llmInterpretation && (
-                  <p className="text-[13px] text-foreground/75 leading-[1.65] mt-0.5">{seq.llmInterpretation}</p>
+                  <p className="text-sm text-foreground/80 leading-relaxed mt-0.5">{seq.llmInterpretation}</p>
                 )}
               </div>
             ))}
@@ -343,16 +318,16 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
         </section>
       )}
 
-      {/* D) Was zusätzlich auffällt — only if real extras exist */}
+      {/* D) Was zusätzlich auffällt */}
       {hasExtraContext && (
-        <section className="px-1">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2.5">
+        <section>
+          <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">
             Was zusätzlich auffällt
           </h3>
           <ul className="space-y-1.5">
             {extraContextFindings.map((f, i) => (
-              <li key={i} className="text-[13px] text-foreground/75 flex items-start gap-2.5 leading-[1.65]">
-                <span className="mt-[9px] h-[3px] w-[3px] rounded-full bg-muted-foreground/30 shrink-0" />
+              <li key={i} className="text-sm text-foreground/80 flex items-start gap-2 leading-relaxed">
+                <span className="mt-[8px] h-1 w-1 rounded-full bg-muted-foreground/40 shrink-0" />
                 <span>{f.observation}</span>
               </li>
             ))}
@@ -362,14 +337,14 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
 
       {/* E) Was noch unklar ist */}
       {hasUncertainties && (
-        <section className="px-1">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2.5">
+        <section>
+          <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">
             Was noch unklar ist
           </h3>
           <ul className="space-y-1.5">
             {uncertainties.map((item, i) => (
-              <li key={i} className="text-[13px] text-foreground/75 flex items-start gap-2.5 leading-[1.65]">
-                <span className="mt-[9px] h-[3px] w-[3px] rounded-full bg-muted-foreground/30 shrink-0" />
+              <li key={i} className="text-sm text-foreground/80 flex items-start gap-2 leading-relaxed">
+                <span className="mt-[8px] h-1 w-1 rounded-full bg-muted-foreground/40 shrink-0" />
                 <span>{item}</span>
               </li>
             ))}
@@ -378,7 +353,7 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
       )}
 
       {/* F) Report button + disclaimer */}
-      <div className="flex flex-col items-center gap-1.5 pt-2 px-1">
+      <div className="flex flex-col items-center gap-1.5 pt-1">
         <Button
           variant="ghost"
           size="sm"
@@ -388,16 +363,16 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
           <FileText className="h-3 w-3 mr-1.5" />
           {showReport ? 'Bericht schließen' : 'Als Bericht anzeigen'}
         </Button>
-        <p className="text-[10px] text-muted-foreground/70 text-center">
+        <p className="text-[10px] text-muted-foreground/60 text-center">
           Mögliche Zusammenhänge · keine medizinische Diagnose
         </p>
       </div>
 
       {/* Report view */}
       {showReport && (
-        <div className="rounded-lg bg-muted/20 px-5 py-4 mx-1">
+        <div className="rounded-lg bg-muted/15 px-5 py-4">
           <div className="flex items-center justify-between mb-3">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Analysebericht</h4>
+            <h4 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Analysebericht</h4>
             <Button
               variant="ghost"
               size="sm"
@@ -589,7 +564,7 @@ export function MigrainePatternAnalysis() {
             </p>
           )}
           {isCachedResult && isStaleResult && (
-            <p className="text-[11px] text-muted-foreground text-center flex items-center justify-center gap-1">
+            <p className="text-[11px] text-muted-foreground/70 text-center">
               Älterer Datenstand{cachedAtLabel ? ` (${cachedAtLabel})` : ''} · erneut analysieren für aktuelle Ergebnisse
             </p>
           )}
