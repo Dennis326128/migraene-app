@@ -315,6 +315,91 @@ export function isNoise(text: string): boolean {
   return false;
 }
 
+// ============================================================
+// === HAUPT-FUNKTION ===
+// ============================================================
+
+/**
+ * Klassifiziert eine Spracheingabe in Event-Typen.
+ * Multi-Label: Eine Aussage kann mehrere Typen haben.
+ * 
+ * Entscheidet NICHT ob etwas gespeichert wird.
+ * Nur ergänzende Hilfsschicht für spätere Analyse.
+ */
+export function classifyVoiceEvent(text: string): ClassificationResult {
+  const trimmed = text.trim();
+  
+  // Noise-Check
+  if (isNoise(trimmed)) {
+    return {
+      classifications: [],
+      tags: [],
+      medicalRelevance: 'unknown',
+      isMeaningful: false,
+    };
+  }
+
+  const classifications: EventClassification[] = [];
+  const allTags = new Set<string>();
+  let maxMedicalRelevance: 'unknown' | 'low' | 'medium' | 'high' = 'unknown';
+
+  const norm = trimmed.toLowerCase();
+
+  for (const group of EVENT_PATTERNS) {
+    const matchedTerms: string[] = [];
+    let bestConfidence = 0;
+
+    for (const pattern of group.patterns) {
+      const match = pattern.exec(norm);
+      if (match) {
+        matchedTerms.push(match[0]);
+        const conf = Math.min(0.95, 0.70 + (match[0].length / norm.length) * 0.3);
+        bestConfidence = Math.max(bestConfidence, conf);
+      }
+    }
+
+    if (matchedTerms.length > 0) {
+      const boostedConf = Math.min(0.98, bestConfidence + matchedTerms.length * 0.03);
+      
+      classifications.push({
+        type: group.type,
+        confidence: boostedConf,
+        matchedTerms,
+        subtype: group.subtype,
+      });
+
+      if (group.tags) {
+        group.tags.forEach(t => allTags.add(t));
+      }
+
+      const relOrder = { unknown: 0, low: 1, medium: 2, high: 3 };
+      if (relOrder[group.medicalRelevance] > relOrder[maxMedicalRelevance]) {
+        maxMedicalRelevance = group.medicalRelevance;
+      }
+    }
+  }
+
+  // Inline-Tag-Extraktion
+  const inlineTags = extractInlineTags(norm);
+  inlineTags.forEach(t => allTags.add(t));
+
+  // Wenn keine Klassifikation → general_observation
+  if (classifications.length === 0) {
+    classifications.push({
+      type: 'general_observation',
+      confidence: 0.50,
+      matchedTerms: [],
+    });
+  }
+
+  return {
+    classifications,
+    tags: Array.from(allTags),
+    medicalRelevance: maxMedicalRelevance,
+    isMeaningful: true,
+  };
+}
+
 /**
  * Extrahiert inline Tags aus dem Text (Getränke, Speisen, Zustände etc.)
  */
