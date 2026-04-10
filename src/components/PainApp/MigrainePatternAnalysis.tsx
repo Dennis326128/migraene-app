@@ -377,14 +377,60 @@ function WeakDataMessage() {
 export function MigrainePatternAnalysis() {
   const { from, to } = useTimeRange();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isLoadingCache, setIsLoadingCache] = useState(true);
   const [result, setResult] = useState<VoiceAnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isWeakData, setIsWeakData] = useState(false);
+  const [isCachedResult, setIsCachedResult] = useState(false);
+  const [cachedAt, setCachedAt] = useState<string | null>(null);
+
+  // Load cached analysis on mount or when range changes
+  useEffect(() => {
+    let cancelled = false;
+    setIsLoadingCache(true);
+    setResult(null);
+    setError(null);
+    setIsWeakData(false);
+    setIsCachedResult(false);
+    setCachedAt(null);
+
+    (async () => {
+      try {
+        const cached = await loadCachedAnalysis(from, to);
+        if (cancelled) return;
+
+        if (cached) {
+          const validity = await isCacheValid(cached);
+          if (cancelled) return;
+
+          if (validity.valid) {
+            const r = cached.result;
+            if (isAnalysisUnavailable(r)) {
+              setIsWeakData(true);
+            } else {
+              setResult(r);
+              setIsCachedResult(true);
+              setCachedAt(cached.updatedAt);
+            }
+          }
+          // If invalid, we just show the empty state — user can re-run
+        }
+      } catch (err) {
+        // Cache load failure is non-critical
+        console.warn('[MigrainePatternAnalysis] Cache load failed:', err);
+      } finally {
+        if (!cancelled) setIsLoadingCache(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [from, to]);
 
   const runAnalysis = useCallback(async () => {
     setError(null);
     setIsWeakData(false);
     setIsAnalyzing(true);
+    setIsCachedResult(false);
 
     try {
       const range = {
@@ -399,6 +445,11 @@ export function MigrainePatternAnalysis() {
         setResult(null);
       } else {
         setResult(analysisResult);
+
+        // Persist result (fire-and-forget)
+        saveAnalysisResult(analysisResult, from, to)
+          .then(() => setCachedAt(new Date().toISOString()))
+          .catch(err => console.warn('[MigrainePatternAnalysis] Save failed:', err));
       }
     } catch (err) {
       logError('MigrainePatternAnalysis.run', err);
@@ -417,6 +468,20 @@ export function MigrainePatternAnalysis() {
       setIsAnalyzing(false);
     }
   }, [from, to]);
+
+  // Format cached-at date for display
+  const cachedAtLabel = useMemo(() => {
+    if (!cachedAt) return null;
+    try {
+      const d = new Date(cachedAt);
+      const day = d.getDate();
+      const months = ['Jan.', 'Feb.', 'Mär.', 'Apr.', 'Mai', 'Jun.', 'Jul.', 'Aug.', 'Sep.', 'Okt.', 'Nov.', 'Dez.'];
+      const time = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+      return `${day}. ${months[d.getMonth()]} ${time}`;
+    } catch {
+      return null;
+    }
+  }, [cachedAt]);
 
   return (
     <div className="space-y-5">
@@ -440,7 +505,7 @@ export function MigrainePatternAnalysis() {
           
           <Button
             onClick={runAnalysis}
-            disabled={isAnalyzing}
+            disabled={isAnalyzing || isLoadingCache}
             className="w-full"
             size="lg"
           >
@@ -452,8 +517,23 @@ export function MigrainePatternAnalysis() {
               <><Brain className="h-4 w-4 mr-2" /> Zusammenhänge suchen</>
             )}
           </Button>
+
+          {/* Cache status indicator */}
+          {isCachedResult && cachedAtLabel && (
+            <p className="text-xs text-muted-foreground/60 text-center flex items-center justify-center gap-1.5">
+              <CheckCircle2 className="h-3 w-3" />
+              Gespeicherte Analyse vom {cachedAtLabel}
+            </p>
+          )}
         </CardContent>
       </Card>
+
+      {/* Loading cache */}
+      {isLoadingCache && (
+        <div className="flex justify-center py-8">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      )}
 
       {/* Error */}
       {error && (
@@ -485,7 +565,7 @@ export function MigrainePatternAnalysis() {
       {result && <AnalysisResults result={result} />}
 
       {/* Empty state */}
-      {!result && !isAnalyzing && !error && !isWeakData && (
+      {!result && !isAnalyzing && !isLoadingCache && !error && !isWeakData && (
         <div className="text-center py-10 text-muted-foreground">
           <Brain className="h-10 w-10 mx-auto mb-3 opacity-40" />
           <p className="text-sm">Wähle einen Zeitraum und starte die Analyse</p>
