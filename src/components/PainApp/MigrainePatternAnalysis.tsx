@@ -199,9 +199,9 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
         if (!s.llmInterpretation || s.llmInterpretation.length < 20) return false;
         if (isBanalContent(s.llmInterpretation)) return false;
         if (isWeakPattern(s.llmInterpretation)) return false;
-        if (overlapsAny(s.llmInterpretation, patternRefTexts, 0.30)) return false;
-        if (overlapsAny(s.llmInterpretation, patternTitles, 0.40)) return false;
-        if (overlapsAny(s.llmInterpretation, [result.summary], 0.40)) return false;
+        if (overlapsAny(s.llmInterpretation, patternRefTexts, 0.28)) return false;
+        if (overlapsAny(s.llmInterpretation, patternTitles, 0.35)) return false;
+        if (overlapsAny(s.llmInterpretation, [result.summary], 0.35)) return false;
         return true;
       })
       .slice(0, MAX_SEQUENCES);
