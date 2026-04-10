@@ -22,6 +22,9 @@ import {
   ChevronLeft,
   ChevronRight,
   User,
+  Brain,
+  Lightbulb,
+  HelpCircle,
 } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
