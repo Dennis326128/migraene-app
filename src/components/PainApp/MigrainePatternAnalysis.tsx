@@ -194,8 +194,9 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
     sorted = dedupedPatterns;
 
     // Filter trivial sequences; also reject if interpretation is banal or too short
-    // Additionally dedup sequences against pattern titles AND descriptions
+    // Additionally dedup sequences against pattern titles, descriptions, AND summary
     const patternRefTexts = sorted.map(p => p.title + ' ' + p.description);
+    const patternDescriptions = sorted.map(p => p.description);
     const patternTitles = sorted.map(p => p.title);
     const seqs = result.recurringSequences
       .filter(s => {
@@ -205,8 +206,9 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
         if (isBanalContent(s.llmInterpretation)) return false;
         if (isWeakPattern(s.llmInterpretation)) return false;
         if (overlapsAny(s.llmInterpretation, patternRefTexts, 0.25)) return false;
+        if (overlapsAny(s.llmInterpretation, patternDescriptions, 0.30)) return false;
         if (overlapsAny(s.llmInterpretation, patternTitles, 0.30)) return false;
-        if (overlapsAny(s.llmInterpretation, [result.summary], 0.30)) return false;
+        if (overlapsAny(s.llmInterpretation, [result.summary], 0.28)) return false;
         return true;
       })
       .slice(0, MAX_SEQUENCES);
