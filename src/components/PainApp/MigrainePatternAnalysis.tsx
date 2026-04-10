@@ -59,6 +59,15 @@ const TRIVIAL_SEQUENCE_PATTERNS = [
   // Generic co-occurrence (not a pattern)
   /schmerz.*müdigkeit/i, /müdigkeit.*schmerz/i,
   /schmerz.*erschöpf/i, /erschöpf.*schmerz/i,
+  // Additional banalities
+  /attacke.*→.*ruhe/i, /attacke.*→.*bett/i, /attacke.*→.*schlaf/i,
+  /anfall.*→.*ruhe/i, /anfall.*→.*medikament/i,
+  /beschwerd.*→.*medikament/i, /beschwerd.*→.*bett/i,
+  /schmerz.*→.*abbruch/i, /schmerz.*→.*absage/i,
+  /übelkeit.*→.*ruhe/i, /übelkeit.*→.*bett/i,
+  /kopfschmerz.*→.*rückzug/i, /kopfschmerz.*→.*schonung/i,
+  /migräne.*→.*rückzug/i, /migräne.*→.*schonung/i, /migräne.*→.*bett/i,
+  /migräne.*→.*dunkel/i, /migräne.*→.*hinlegen/i,
 ];
 
 /** Phase-state arrow patterns that are always generic */
@@ -73,12 +82,24 @@ const GENERIC_PHASE_SEQUENCES = new Set([
   'pain→rest→observation',
 ]);
 
-function isTrivialSequence(pattern: string): boolean {
+/** Banal llmInterpretation phrases that add no insight */
+const BANAL_INTERPRETATION_RX = [
+  /wurde.*medikament.*eingenommen/i, /medikament.*eingenommen.*bei.*schmerz/i,
+  /nach.*schmerz.*ruhe/i, /ruhe.*nach.*schmerz/i,
+  /beschwerden.*führten.*zu.*rückzug/i, /übliche.*reaktion/i,
+  /typische.*begleiter/i, /naheliegende.*reaktion/i,
+  /selbstverständlich/i,
+];
+
+function isTrivialSequence(pattern: string, interpretation?: string): boolean {
   const normalized = pattern.replace(/\s+/g, ' ').trim();
   if (TRIVIAL_SEQUENCE_PATTERNS.some(rx => rx.test(normalized))) return true;
   // Also check as generic phase sequence
   const collapsed = normalized.toLowerCase().replace(/\s/g, '');
-  return GENERIC_PHASE_SEQUENCES.has(collapsed);
+  if (GENERIC_PHASE_SEQUENCES.has(collapsed)) return true;
+  // Also check if interpretation itself is banal
+  if (interpretation && BANAL_INTERPRETATION_RX.some(rx => rx.test(interpretation))) return true;
+  return false;
 }
 
 /** Translate English arrow-patterns to German */
@@ -93,11 +114,19 @@ function translateSequencePattern(pattern: string): string {
     .replace(/→/g, ' → ');
 }
 
-/** Sort patterns: higher evidence first, then by occurrence count */
+/** Medication-related pattern types that get priority boost within same evidence tier */
+const MEDICATION_PATTERN_TYPES = new Set(['medication_context', 'trigger_candidate']);
+const MEDICATION_TITLE_RX = /triptan|medikament|akutmedikament|übergebrauch|einnahme|vermeidung|zurückhalt/i;
+
+/** Sort patterns: higher evidence first, then medication-priority, then by occurrence count */
 function sortPatterns(patterns: PatternFinding[]): PatternFinding[] {
   return [...patterns].sort((a, b) => {
     const ePri = (EVIDENCE_ORDER[b.evidenceStrength] || 0) - (EVIDENCE_ORDER[a.evidenceStrength] || 0);
     if (ePri !== 0) return ePri;
+    // Within same evidence tier: medication patterns first
+    const aMed = MEDICATION_PATTERN_TYPES.has(a.patternType) || MEDICATION_TITLE_RX.test(a.title) ? 1 : 0;
+    const bMed = MEDICATION_PATTERN_TYPES.has(b.patternType) || MEDICATION_TITLE_RX.test(b.title) ? 1 : 0;
+    if (bMed !== aMed) return bMed - aMed;
     return b.occurrences - a.occurrences;
   });
 }
@@ -115,7 +144,7 @@ function textOverlap(a: string, b: string): number {
 }
 
 /** Check if text significantly overlaps with any reference text */
-function overlapsAny(text: string, refs: string[], threshold = 0.45): boolean {
+function overlapsAny(text: string, refs: string[], threshold = 0.38): boolean {
   return refs.some(ref => textOverlap(text, ref) > threshold);
 }
 
@@ -198,7 +227,7 @@ function generateReport(result: VoiceAnalysisResult): string {
   }
 
   const sequences = result.recurringSequences
-    .filter(s => !isTrivialSequence(s.pattern))
+    .filter(s => !isTrivialSequence(s.pattern, s.llmInterpretation))
     .slice(0, MAX_SEQUENCES);
   if (sequences.length > 0) {
     lines.push('Wiederkehrende Muster');
@@ -227,7 +256,7 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
 
     // Filter trivial sequences strictly, then also check for weak-only leftovers
     const seqs = result.recurringSequences
-      .filter(s => !isTrivialSequence(s.pattern) && s.llmInterpretation && s.llmInterpretation.length > 10)
+      .filter(s => !isTrivialSequence(s.pattern, s.llmInterpretation) && s.llmInterpretation && s.llmInterpretation.length > 10)
       .slice(0, MAX_SEQUENCES);
 
     // Reference pool for deduplication: summary + patterns + sequences
