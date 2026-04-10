@@ -14,6 +14,9 @@ import {
   buildDayContexts,
   detectPhaseBlocks,
   buildContextWindow,
+  buildSessionBlocks,
+  detectRecurringSequences,
+  serializeForLLM,
   buildAnalysisContext,
   type TimelineItem,
 } from '../analysisContext';
@@ -382,5 +385,133 @@ describe('Medication context scenario', () => {
     const mw = ctx.medicationWindows[0];
     expect(mw.preceding.length).toBeGreaterThanOrEqual(1); // Kopf zieht
     expect(mw.following.length).toBeGreaterThanOrEqual(1); // hingelegt
+  });
+});
+
+// ============================================================
+// === SESSION BLOCKS ===
+// ============================================================
+
+describe('buildSessionBlocks', () => {
+  it('groups voice items by session_id', () => {
+    const ds = makeDataset([
+      makeVoice({ id: 'v1', event_timestamp: '2025-03-20T08:00:00Z', session_id: 'sess-A' }),
+      makeVoice({ id: 'v2', event_timestamp: '2025-03-20T08:05:00Z', session_id: 'sess-A' }),
+      makeVoice({ id: 'v3', event_timestamp: '2025-03-20T10:00:00Z', session_id: 'sess-B' }),
+    ]);
+    const tl = buildTimeline(ds);
+    const sessions = buildSessionBlocks(tl);
+
+    expect(sessions).toHaveLength(2);
+    expect(sessions[0].sessionId).toBe('sess-A');
+    expect(sessions[0].items).toHaveLength(2);
+    expect(sessions[1].sessionId).toBe('sess-B');
+  });
+
+  it('excludes non-voice items', () => {
+    const ds = makeDataset(
+      [makeVoice({ id: 'v1', session_id: 'sess-A' })],
+      [makePain({ id: 1 })],
+    );
+    const sessions = buildSessionBlocks(buildTimeline(ds));
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].items).toHaveLength(1);
+  });
+});
+
+// ============================================================
+// === RECURRING SEQUENCES ===
+// ============================================================
+
+describe('detectRecurringSequences', () => {
+  it('detects exertion→fatigue pattern across multiple days', () => {
+    const ds = makeDataset([
+      // Day 1: exertion → fatigue
+      makeVoice({ id: 'v1', event_timestamp: '2025-03-20T10:00:00Z', event_types: ['activity'] }),
+      makeVoice({ id: 'v2', event_timestamp: '2025-03-20T11:00:00Z', event_types: ['mecfs_state'] }),
+      // Day 2: exertion → fatigue
+      makeVoice({ id: 'v3', event_timestamp: '2025-03-21T09:00:00Z', event_types: ['activity'] }),
+      makeVoice({ id: 'v4', event_timestamp: '2025-03-21T10:00:00Z', event_types: ['mecfs_state'] }),
+      // Day 3: different pattern
+      makeVoice({ id: 'v5', event_timestamp: '2025-03-22T08:00:00Z', event_types: ['food_drink'] }),
+    ]);
+    const days = buildDayContexts(buildTimeline(ds));
+    const recurring = detectRecurringSequences(days);
+
+    expect(recurring.length).toBeGreaterThanOrEqual(1);
+    const exFat = recurring.find(r => r.pattern === 'exertion→fatigue');
+    expect(exFat).toBeDefined();
+    expect(exFat!.count).toBe(2);
+    expect(exFat!.occurrenceDates).toContain('2025-03-20');
+    expect(exFat!.occurrenceDates).toContain('2025-03-21');
+  });
+
+  it('returns empty for days with no repeated patterns', () => {
+    const ds = makeDataset([
+      makeVoice({ id: 'v1', event_timestamp: '2025-03-20T10:00:00Z', event_types: ['activity'] }),
+      makeVoice({ id: 'v2', event_timestamp: '2025-03-21T10:00:00Z', event_types: ['food_drink'] }),
+    ]);
+    const days = buildDayContexts(buildTimeline(ds));
+    expect(detectRecurringSequences(days)).toHaveLength(0);
+  });
+});
+
+// ============================================================
+// === LLM SERIALIZER ===
+// ============================================================
+
+describe('serializeForLLM', () => {
+  it('produces readable text with day headers and items', () => {
+    const ds = makeDataset(
+      [
+        makeVoice({ id: 'v1', event_timestamp: '2025-03-20T08:00:00Z', raw_transcript: 'Kaffee getrunken', event_types: ['food_drink'] }),
+        makeVoice({ id: 'v2', event_timestamp: '2025-03-20T14:30:00Z', raw_transcript: 'Kopf drückt', event_types: ['symptom'], review_state: 'edited', related_entry_id: 1 }),
+      ],
+      [makePain({ id: 1, selected_date: '2025-03-20', selected_time: '14:00', pain_level: '7', pain_locations: ['rechts'], medications: ['Sumatriptan'] })],
+    );
+
+    const ctx = buildAnalysisContext(ds, 6);
+    const text = serializeForLLM(ctx);
+
+    expect(text).toContain('2025-03-20');
+    expect(text).toContain('Kaffee getrunken');
+    expect(text).toContain('[bearbeitet]');
+    expect(text).toContain('Eintrag #1');
+    expect(text).toContain('NRS 7');
+    expect(text).toContain('Sumatriptan');
+    expect(text).toContain('Max. Schmerz: 7/10');
+  });
+
+  it('includes recurring sequences when present', () => {
+    const ds = makeDataset([
+      makeVoice({ id: 'v1', event_timestamp: '2025-03-20T10:00:00Z', event_types: ['activity'] }),
+      makeVoice({ id: 'v2', event_timestamp: '2025-03-20T11:00:00Z', event_types: ['mecfs_state'] }),
+      makeVoice({ id: 'v3', event_timestamp: '2025-03-21T10:00:00Z', event_types: ['activity'] }),
+      makeVoice({ id: 'v4', event_timestamp: '2025-03-21T11:00:00Z', event_types: ['mecfs_state'] }),
+    ]);
+    const text = serializeForLLM(buildAnalysisContext(ds));
+    expect(text).toContain('Wiederkehrende Muster');
+    expect(text).toContain('exertion→fatigue');
+  });
+});
+
+// ============================================================
+// === FULL CONTEXT: sessions + recurring in buildAnalysisContext ===
+// ============================================================
+
+describe('buildAnalysisContext extended', () => {
+  it('includes sessions and recurring sequences in output', () => {
+    const ds = makeDataset([
+      makeVoice({ id: 'v1', event_timestamp: '2025-03-20T10:00:00Z', session_id: 's1', event_types: ['activity'] }),
+      makeVoice({ id: 'v2', event_timestamp: '2025-03-20T10:30:00Z', session_id: 's1', event_types: ['mecfs_state'] }),
+      makeVoice({ id: 'v3', event_timestamp: '2025-03-21T09:00:00Z', session_id: 's2', event_types: ['activity'] }),
+      makeVoice({ id: 'v4', event_timestamp: '2025-03-21T09:30:00Z', session_id: 's2', event_types: ['mecfs_state'] }),
+    ]);
+
+    const ctx = buildAnalysisContext(ds);
+
+    expect(ctx.sessions).toHaveLength(2);
+    expect(ctx.meta.sessionCount).toBe(2);
+    expect(ctx.recurringSequences.length).toBeGreaterThanOrEqual(1);
   });
 });
