@@ -744,6 +744,32 @@ export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void
         symptomData,
         meCfsData,
         clinicalAnalysis: clinicalAnalysisResult,
+        patternAnalysis: await (async () => {
+          if (!includePremiumAI) return null;
+          try {
+            const cached = await loadAnalysisForReport(from, to);
+            if (!cached || !cached.possiblePatterns?.length) return null;
+            return {
+              summary: cached.summary,
+              patterns: cached.possiblePatterns.map(p => ({
+                title: p.title,
+                description: p.description,
+                evidenceStrength: p.evidenceStrength,
+              })),
+              recurringSequences: (cached.recurringSequences || []).map(s => ({
+                pattern: s.pattern,
+                count: s.count,
+                interpretation: s.llmInterpretation || '',
+              })),
+              openQuestions: cached.openQuestions || [],
+              analyzedAt: cached.meta?.analyzedAt || new Date().toISOString(),
+              daysAnalyzed: cached.scope?.daysAnalyzed || 0,
+            };
+          } catch (err) {
+            console.warn('[PDF Export] Pattern analysis load failed:', err);
+            return null;
+          }
+        })(),
       });
 
       // Fire-and-forget: cache PDF in Supabase Storage for doctor-share lookups
