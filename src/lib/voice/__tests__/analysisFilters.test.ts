@@ -7,6 +7,7 @@ import {
   isBanalContent,
   isGenericUncertainty,
   isWeakPattern,
+  cleanSummaryFiller,
   MEDICATION_TITLE_RX,
 } from '../analysisFilters';
 
