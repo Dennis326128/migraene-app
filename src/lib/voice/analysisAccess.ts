@@ -77,6 +77,23 @@ export interface MedicationIntakeForAnalysis {
   dose_quarters: number;
 }
 
+/** Context note from "Alltag & Auslöser" form (voice_notes with context_type) */
+export interface ContextNoteForAnalysis {
+  id: string;
+  occurred_at: string;
+  text: string;
+  context_type: string | null;
+  metadata: {
+    mood?: number | null;
+    stress?: number | null;
+    sleep?: number | null;
+    energy?: number | null;
+    triggers?: string[];
+    fatigue_context_tags?: string[];
+    mecfs_relevance?: string;
+  } | null;
+}
+
 export interface AnalysisTimeRange {
   from: Date;
   to: Date;
@@ -95,12 +112,15 @@ export interface FullAnalysisDataset {
   painEntries: PainEntryForAnalysis[];
   /** All medication intake records (granular dose tracking) */
   medicationIntakes: MedicationIntakeForAnalysis[];
+  /** Context notes from "Alltag & Auslöser" (with fatigue/energy metadata) */
+  contextNotes: ContextNoteForAnalysis[];
   /** Metadata for the dataset */
   meta: {
     range: AnalysisTimeRange;
     voiceEventCount: number;
     painEntryCount: number;
     medicationIntakeCount: number;
+    contextNoteCount: number;
     /** Voice events that are linked to a pain_entry */
     linkedVoiceEventCount: number;
     /** Voice events without a structured counterpart (everyday observations) */
