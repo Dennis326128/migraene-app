@@ -149,6 +149,27 @@ interface PatientData {
   email: string | null;
 }
 
+interface PatternAnalysisSummary {
+  summary: string;
+  patterns: Array<{
+    title: string;
+    description: string;
+    evidenceStrength: string;
+  }>;
+  recurringSequences: Array<{
+    pattern: string;
+    count: number;
+    interpretation: string;
+  }>;
+  openQuestions: string[];
+  analyzedAt: string;
+  daysAnalyzed: number;
+}
+
+interface ReportAnalysis {
+  patternAnalysis?: PatternAnalysisSummary;
+}
+
 interface DoctorReportJSON {
   meta: ReportMeta;
   summary: ReportSummary;
@@ -168,6 +189,7 @@ interface DoctorReportJSON {
   optional: {
     patientData?: PatientData;
   };
+  analysis?: ReportAnalysis;
 }
 
 interface DoctorReportResponse {
