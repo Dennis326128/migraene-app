@@ -30,6 +30,7 @@ import { buildReportData, type ReportData, getEntryDate } from "@/lib/pdf/report
 import { computeClinicalAnalysis, type AnalysisEntry } from '@/lib/pdf/clinicalAnalysis';
 import { uploadPdfToStorage } from '@/lib/pdf/pdfStorageUpload';
 import { buildPdfFilename } from '@/lib/pdf/filenameUtils';
+import { loadAnalysisForReport } from '@/lib/voice/analysisCache';
 
 import { PremiumBadge } from "@/components/ui/premium-badge";
 import { useUserAISettings } from "@/features/draft-composer/hooks/useUserAISettings";
