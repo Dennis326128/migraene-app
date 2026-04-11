@@ -447,6 +447,7 @@ describe('isBanalContent — generic observation starters', () => {
   });
   it('rejects "der Zustand war belastend"', () => {
     expect(isBanalContent('Der Zustand war insgesamt belastend')).toBe(true);
+  });
 });
 
 describe('cleanSummaryFiller', () => {
@@ -466,6 +467,18 @@ describe('cleanSummaryFiller', () => {
     const result = cleanSummaryFiller('Zusammenfassend zeigt sich, dass das Einnahmeverhalten auffällig ist.');
     expect(result).toBe('Das Einnahmeverhalten auffällig ist.');
   });
+  it('strips "Die Analyse zeigt, dass" from start', () => {
+    const result = cleanSummaryFiller('Die Analyse zeigt, dass Triptan häufig zu spät eingenommen wird.');
+    expect(result).toBe('Triptan häufig zu spät eingenommen wird.');
+  });
+  it('strips "Basierend auf den Daten" from start', () => {
+    const result = cleanSummaryFiller('Basierend auf den Daten zeigt sich, dass Schlafmangel ein Faktor ist.');
+    expect(result).toBe('Schlafmangel ein Faktor ist.');
+  });
+  it('strips "Laut den Einträgen" from start', () => {
+    const result = cleanSummaryFiller('Laut den Einträgen wird Triptan zurückhaltend eingenommen.');
+    expect(result).toBe('Wird Triptan zurückhaltend eingenommen.');
+  });
   it('returns clean summaries unchanged', () => {
     const input = 'Triptan wird regelmäßig zu spät eingenommen.';
     expect(cleanSummaryFiller(input)).toBe(input);
@@ -475,4 +488,31 @@ describe('cleanSummaryFiller', () => {
     expect(result.charAt(0)).toBe('M');
   });
 });
+
+describe('isGenericUncertainty — sequence interpretation filtering', () => {
+  it('rejects vague sequence interpretation', () => {
+    expect(isGenericUncertainty('Ob hier ein Zusammenhang besteht, bleibt abzuwarten.')).toBe(true);
+  });
+  it('rejects "müsste weiter beobachtet werden"', () => {
+    expect(isGenericUncertainty('Das Muster müsste weiter beobachtet werden.')).toBe(true);
+  });
+  it('allows concrete sequence interpretation', () => {
+    expect(isGenericUncertainty('Schlafmangel tritt regelmäßig 12–24h vor schweren Attacken auf.')).toBe(false);
+  });
+});
+
+describe('medication signal protection in filters', () => {
+  it('concrete medication pattern survives isWeakPattern even with hedging words', () => {
+    expect(isWeakPattern('Triptan-Einnahme erfolgte an manchen Tagen erst nach Eskalation der Beschwerden auf NRS 8.')).toBe(false);
+  });
+  it('weak non-medication pattern with hedging is filtered', () => {
+    expect(isWeakPattern('An manchen Tagen war es etwas schlechter als an anderen.')).toBe(true);
+  });
+  it('concrete sleep trigger pattern survives filters', () => {
+    expect(isWeakPattern('Schlafmangel unter 5 Stunden ging in 4 von 6 Fällen einer Attacke am Folgetag voraus.')).toBe(false);
+    expect(isBanalContent('Schlafmangel unter 5 Stunden ging in 4 von 6 Fällen einer Attacke am Folgetag voraus.')).toBe(false);
+  });
+  it('concrete stress trigger pattern survives filters', () => {
+    expect(isWeakPattern('Nach beruflichen Belastungsspitzen traten regelmäßig Migräneattacken innerhalb von 24h auf.')).toBe(false);
+  });
 });

@@ -210,6 +210,7 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
         if (!s.llmInterpretation || s.llmInterpretation.length < 35) return false;
         if (s.count < 2) return false;
         if (isBanalContent(s.llmInterpretation)) return false;
+        if (isGenericUncertainty(s.llmInterpretation)) return false;
         if (isWeakPattern(s.llmInterpretation)) return false;
         if (overlapsAny(s.llmInterpretation, patternRefTexts, 0.22)) return false;
         if (overlapsAny(s.llmInterpretation, patternDescriptions, 0.25)) return false;
