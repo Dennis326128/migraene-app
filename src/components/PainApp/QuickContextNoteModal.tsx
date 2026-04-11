@@ -470,31 +470,48 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className={cn(
-        "max-w-2xl max-h-[90vh] overflow-y-auto overflow-x-hidden modern-scrollbar",
+        "max-w-2xl overflow-x-hidden",
         "bg-[#0B1220] border-[#1F2937]",
-        isMobile && "max-w-[95vw]"
+        isMobile
+          ? "max-w-[97vw] max-h-[92vh] overflow-y-auto p-4 pb-safe"
+          : "max-h-[90vh] overflow-y-auto modern-scrollbar"
       )}>
-        <DialogHeader>
-          <DialogTitle className="text-xl text-[#E5E7EB]">
+        <DialogHeader className={cn(isMobile && "pb-1")}>
+          <DialogTitle className={cn(
+            "text-[#E5E7EB]",
+            isMobile ? "text-lg" : "text-xl"
+          )}>
             {isEditMode ? 'Tageszustand bearbeiten' : 'Alltag & Auslöser eintragen'}
           </DialogTitle>
-          <DialogDescription className="text-sm text-[#9CA3AF]">
+          <DialogDescription className={cn(
+            "text-[#9CA3AF]",
+            isMobile ? "text-xs" : "text-sm"
+          )}>
             Erfasse schnell deine wichtigsten Tagesfaktoren. Alle Angaben sind optional.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
+        <div className={cn(
+          "py-2",
+          isMobile ? "space-y-5" : "space-y-4"
+        )}>
           {/* Formweite Spracheingabe - prominent oben */}
           <button
             onClick={handleVoiceClick}
-            className="w-full flex items-center gap-4 p-4 rounded-lg bg-[#14B8A6]/10 border border-[#14B8A6]/30 hover:bg-[#14B8A6]/20 hover:border-[#14B8A6]/50 transition-all duration-150 group"
+            className={cn(
+              "w-full flex items-center rounded-lg bg-[#14B8A6]/10 border border-[#14B8A6]/30 hover:bg-[#14B8A6]/20 hover:border-[#14B8A6]/50 transition-all duration-150 group",
+              isMobile ? "gap-3 p-3" : "gap-4 p-4"
+            )}
           >
-            <div className="flex-shrink-0 w-10 h-10 rounded-full bg-[#14B8A6]/20 flex items-center justify-center group-hover:bg-[#14B8A6]/30 transition-colors">
-              <Mic className="h-5 w-5 text-[#14B8A6]" />
+            <div className={cn(
+              "flex-shrink-0 rounded-full bg-[#14B8A6]/20 flex items-center justify-center group-hover:bg-[#14B8A6]/30 transition-colors",
+              isMobile ? "w-9 h-9" : "w-10 h-10"
+            )}>
+              <Mic className={cn(isMobile ? "h-4 w-4" : "h-5 w-5", "text-[#14B8A6]")} />
             </div>
             <div className="flex-1 text-left">
-              <div className="text-sm font-semibold text-[#14B8A6]">Spracheingabe</div>
-              <div className="text-xs text-[#9CA3AF]">Einfach alles sagen.</div>
+              <div className={cn("font-semibold text-[#14B8A6]", isMobile ? "text-xs" : "text-sm")}>Spracheingabe</div>
+              <div className={cn("text-[#9CA3AF]", isMobile ? "text-[11px]" : "text-xs")}>Einfach alles sagen.</div>
             </div>
           </button>
 
@@ -510,9 +527,15 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
           )}
 
           {/* Block A: Tageszustand - Immer sichtbar */}
-          <div className="space-y-3 p-4 bg-[#111827]/50 rounded-lg border border-[#1F2937]/50">
-            <h2 className="text-base font-semibold text-[#E5E7EB] flex items-center gap-2">
-              <Heart className="h-4 w-4" />
+          <div className={cn(
+            "bg-[#111827]/50 rounded-lg border border-[#1F2937]/50",
+            isMobile ? "space-y-4 p-3" : "space-y-3 p-4"
+          )}>
+            <h2 className={cn(
+              "font-semibold text-[#E5E7EB] flex items-center gap-2",
+              isMobile ? "text-sm" : "text-base"
+            )}>
+              <Heart className={cn(isMobile ? "h-3.5 w-3.5" : "h-4 w-4")} />
               Tageszustand
             </h2>
             
@@ -582,46 +605,57 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
             )}
           </div>
 
-          {/* Block C: Freitext - ohne separaten Sprach-Button */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-[#E5E7EB]">
+          {/* Block C: Freitext */}
+          <div className={cn("space-y-2", isMobile && "space-y-1.5")}>
+            <label className={cn(
+              "font-medium text-[#E5E7EB]",
+              isMobile ? "text-xs" : "text-sm"
+            )}>
               Eigene Notiz (optional)
             </label>
             <Textarea
               placeholder="z.B. Reise, Streit, viel Arbeit, Kindergeburtstag …"
               value={customText}
               onChange={(e) => setCustomText(e.target.value)}
-              className="min-h-[80px] bg-[#0B1220] border-[#1F2937] text-[#E5E7EB] placeholder:text-[#4B5563] focus:border-[#22C55E]/50 focus:ring-[#22C55E]/20"
-              rows={3}
+              className={cn(
+                "bg-[#0B1220] border-[#1F2937] text-[#E5E7EB] placeholder:text-[#4B5563] focus:border-[#22C55E]/50 focus:ring-[#22C55E]/20",
+                isMobile ? "min-h-[64px] text-sm" : "min-h-[80px]"
+              )}
+              rows={isMobile ? 2 : 3}
             />
           </div>
 
-          {/* Block B: Trigger - Einklappbar, standardmäßig geschlossen */}
-          <div className="space-y-3 p-4 bg-[#111827]/50 rounded-lg border border-[#1F2937]/50">
+          {/* Block B: Trigger - Einklappbar */}
+          <div className={cn(
+            "bg-[#111827]/50 rounded-lg border border-[#1F2937]/50",
+            isMobile ? "space-y-3 p-3" : "space-y-3 p-4"
+          )}>
             <button
               onClick={() => setShowTriggers(!showTriggers)}
-              className="w-full flex items-center justify-between text-base font-semibold text-[#E5E7EB] hover:text-[#22C55E] transition-colors"
+              className={cn(
+                "w-full flex items-center justify-between font-semibold text-[#E5E7EB] hover:text-[#22C55E] transition-colors",
+                isMobile ? "text-sm" : "text-base"
+              )}
             >
-              <span className="flex items-center gap-2">
-                <Activity className="h-4 w-4" />
-                Was war heute besonders? (optional)
+              <span className="flex items-center gap-2 flex-1 min-w-0">
+                <Activity className={cn(isMobile ? "h-3.5 w-3.5 flex-shrink-0" : "h-4 w-4 flex-shrink-0")} />
+                <span className="truncate">Was war heute besonders?</span>
                 {hasAnyTriggers && (
-                  <span className="text-xs font-normal text-[#22C55E] bg-[#22C55E]/10 px-2 py-0.5 rounded-full">
-                    {nothingSpecial ? '1' : (nutritionTriggers.length + movementTriggers.length + fluidTriggers.length + environmentTriggers.length + cycleTriggers.length + wellbeingTriggers.length)} ausgewählt
+                  <span className="text-[10px] font-normal text-[#22C55E] bg-[#22C55E]/10 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                    {nothingSpecial ? '1' : (nutritionTriggers.length + movementTriggers.length + fluidTriggers.length + environmentTriggers.length + cycleTriggers.length + wellbeingTriggers.length)}
                   </span>
                 )}
               </span>
-              {showTriggers ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              {showTriggers ? <ChevronUp className="h-4 w-4 flex-shrink-0" /> : <ChevronDown className="h-4 w-4 flex-shrink-0" />}
             </button>
             
             {showTriggers && (
-              <div className="space-y-5 pt-3">
-                {/* "Heute nichts Besonderes" als normaler Chip */}
-                <div className="flex flex-wrap gap-2">
+              <div className={cn(isMobile ? "space-y-4 pt-2" : "space-y-5 pt-3")}>
+                <div className="flex flex-wrap gap-1.5">
                   <button
                     onClick={handleNothingSpecialToggle}
                     className={cn(
-                      "px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-150",
+                      "px-2.5 py-1.5 rounded-full text-xs font-medium border transition-all duration-150",
                       nothingSpecial
                         ? "bg-[#22C55E]/15 border-[#22C55E]/50 text-[#22C55E]"
                         : "bg-[#0B1220] border-[#1F2937] text-[#9CA3AF] hover:border-[#4B5563] hover:text-[#E5E7EB]"
@@ -685,21 +719,29 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
           </div>
 
           {/* Footer */}
-          <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-[#1F2937]">
+          <div className={cn(
+            "flex gap-3 border-t border-[#1F2937]",
+            isMobile
+              ? "flex-col pt-4 pb-2"
+              : "flex-col sm:flex-row pt-4"
+          )}>
+            <SaveButton
+              onClick={handleSave}
+              loading={isSaving}
+              className={cn(isMobile ? "w-full min-h-[48px]" : "min-w-[140px]", "order-1 sm:order-2")}
+            />
             <Button
               variant="ghost"
               onClick={handleReset}
               disabled={!hasAnyData}
-              className="text-[#9CA3AF] hover:text-[#E5E7EB] hover:bg-[#111827]"
+              className={cn(
+                "text-[#9CA3AF] hover:text-[#E5E7EB] hover:bg-[#111827]",
+                isMobile ? "w-full min-h-[44px]" : "",
+                "order-2 sm:order-1"
+              )}
             >
               Zurücksetzen
             </Button>
-            <div className="flex-1" />
-            <SaveButton
-              onClick={handleSave}
-              loading={isSaving}
-              className="min-w-[140px]"
-            />
           </div>
         </div>
       </DialogContent>
