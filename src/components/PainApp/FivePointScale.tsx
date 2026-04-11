@@ -1,5 +1,6 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 export interface ScaleOption {
   value: number;
@@ -73,22 +74,29 @@ export const FivePointScale: React.FC<FivePointScaleProps> = ({
   onChange,
   showFillEffect = true,
 }) => {
+  const isMobile = useIsMobile();
+  
   const handleClick = (optionValue: number) => {
-    // Toggle: if same value clicked again, deselect
     onChange(value === optionValue ? null : optionValue);
   };
 
   return (
-    <div className="space-y-2">
-      <div className="space-y-1">
-        <h3 className="text-base font-semibold text-[#E5E7EB]">{title}</h3>
+    <div className={cn("space-y-2", isMobile && "space-y-1.5")}>
+      <div className="space-y-0.5">
+        <h3 className={cn(
+          "font-semibold text-[#E5E7EB]",
+          isMobile ? "text-sm" : "text-base"
+        )}>{title}</h3>
         {subtitle && (
-          <p className="text-xs text-[#9CA3AF] leading-tight">{subtitle}</p>
+          <p className={cn(
+            "text-[#9CA3AF] leading-tight",
+            isMobile ? "text-[11px]" : "text-xs"
+          )}>{subtitle}</p>
         )}
       </div>
       
-      <div className="flex gap-2 w-full">
-        {options.map((option, index) => {
+      <div className={cn("flex w-full", isMobile ? "gap-1.5" : "gap-2")}>
+        {options.map((option) => {
           const isSelected = value === option.value;
           const isFilled = showFillEffect && value !== null && option.value <= value;
           const colors = colorMap[option.color];
@@ -99,10 +107,11 @@ export const FivePointScale: React.FC<FivePointScaleProps> = ({
               onClick={() => handleClick(option.value)}
               className={cn(
                 'flex-1 flex flex-col items-center justify-center',
-                'min-h-[48px] px-2 py-2.5 rounded-full',
-                'border transition-all duration-150',
+                'rounded-full border transition-all duration-150',
                 'touch-manipulation select-none',
-                'focus:outline-none focus:ring-2 focus:ring-[#22C55E]/50 focus:ring-offset-2 focus:ring-offset-[#020617]',
+                'focus:outline-none focus:ring-2 focus:ring-[#22C55E]/50 focus:ring-offset-1 focus:ring-offset-[#020617]',
+                // Mobile: more compact but still tappable
+                isMobile ? 'min-h-[44px] px-1 py-1.5' : 'min-h-[48px] px-2 py-2.5',
                 isSelected ? [
                   colors.selectedBg,
                   colors.selectedBorder,
@@ -118,18 +127,22 @@ export const FivePointScale: React.FC<FivePointScaleProps> = ({
                   'text-[#E5E7EB]',
                   'hover:bg-[#111827]/70',
                 ],
-                'active:scale-[0.98]',
+                'active:scale-[0.96]',
               )}
               aria-label={`${title}: ${option.label}`}
               aria-pressed={isSelected}
             >
               {option.emoji && (
-                <span className="text-lg mb-0.5" aria-hidden="true">
+                <span className={cn(
+                  "mb-0.5",
+                  isMobile ? "text-base" : "text-lg"
+                )} aria-hidden="true">
                   {option.emoji}
                 </span>
               )}
               <span className={cn(
-                'text-xs font-medium text-center leading-tight',
+                'font-medium text-center leading-tight',
+                isMobile ? 'text-[10px]' : 'text-xs',
                 isSelected && 'font-semibold'
               )}>
                 {option.label}
