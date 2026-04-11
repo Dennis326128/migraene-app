@@ -196,7 +196,7 @@ export const SUMMARY_FILLER_STARTERS: RegExp[] = [
   /^zusammenfassend\s+(zeigt\s+sich|lässt\s+sich\s+sagen),?\s*(dass\s+)?/i,
   /^die\s+analyse\s+(zeigt|ergibt|legt\s+nahe),?\s*(dass\s+)?/i,
   /^basierend\s+auf\s+(den\s+)?(daten|einträgen|notizen),?\s*(zeigt\s+sich|fällt\s+auf|lässt\s+sich\s+sagen)?,?\s*(dass\s+)?/i,
-  /^laut\s+(den\s+)?(daten|einträgen|vorliegenden),?\s*/i,
+  /^laut\s+(den\s+)?(daten|einträgen|vorliegenden)\s*/i,
   /^die\s+(daten|einträge)\s+(zeigen|deuten\s+darauf\s+hin|legen\s+nahe),?\s*(dass\s+)?/i,
   /^bei\s+betrachtung\s+der\s+(daten|einträge),?\s*(zeigt\s+sich|fällt\s+auf)?,?\s*(dass\s+)?/i,
 ];
