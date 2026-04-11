@@ -477,7 +477,7 @@ describe('cleanSummaryFiller', () => {
   });
   it('strips "Laut den Einträgen" from start', () => {
     const result = cleanSummaryFiller('Laut den Einträgen wird Triptan zurückhaltend eingenommen.');
-    expect(result).toBe('Triptan zurückhaltend eingenommen.');
+    expect(result).toBe('Wird Triptan zurückhaltend eingenommen.');
   });
   it('returns clean summaries unchanged', () => {
     const input = 'Triptan wird regelmäßig zu spät eingenommen.';
