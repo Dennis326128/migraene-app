@@ -12,7 +12,7 @@
  * Idempotent: Erneutes Aktivieren verlängert/erneuert expires_at + Snapshot.
  */
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { createClient } from "jsr:@supabase/supabase-js@2";
 import {
   buildDoctorReportSnapshot,
   upsertSnapshot,
