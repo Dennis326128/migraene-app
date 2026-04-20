@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { LegalLinks } from "@/components/ui/legal-links";
 import { ConsentManagementSection } from "@/features/consent/components/ConsentManagementSection";
+import { AIConsentToggle } from "./AIConsentToggle";
 import { supabase } from "@/integrations/supabase/client";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -52,6 +53,9 @@ export const SettingsPrivacy = () => {
 
   return (
     <div className="space-y-4">
+      {/* AI Consent Toggle - DSGVO Art. 9 */}
+      <AIConsentToggle />
+
       {/* Consent Management - Art. 9 DSGVO */}
       <ConsentManagementSection />
 

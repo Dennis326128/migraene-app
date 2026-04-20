@@ -192,6 +192,11 @@ serve(async (req) => {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) throw new Error('Authentifizierung fehlgeschlagen');
 
+    // AI CONSENT GATE (DSGVO Art. 9)
+    const { requireAiConsent } = await import('../_shared/aiConsentGate.ts');
+    const consentBlock = await requireAiConsent(supabase, user.id, corsHeaders);
+    if (consentBlock) return consentBlock;
+
     // Check if AI analysis is enabled
     const { data: profile } = await supabase
       .from('user_profiles')

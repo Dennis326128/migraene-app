@@ -38,7 +38,7 @@ type WeatherDay = {
   lat?: number; 
   lon?: number; 
   city?: string;
-  source: "openweather" | "open-meteo";
+  source: "open-meteo";
   tempMin?: number; 
   tempMax?: number;
   pressure?: number; 

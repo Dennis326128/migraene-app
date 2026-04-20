@@ -26,7 +26,7 @@ const SettingsPage = ({ onBack }: { onBack: () => void }) => {
   const getTitle = () => {
     switch (section) {
       case 'privacy':
-        return t('settings.privacy');
+        return 'Datenschutz & Konto';
       case 'account':
         return t('settings.account');
       case 'doctors':

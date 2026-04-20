@@ -1223,6 +1223,9 @@ export type Database = {
       }
       user_consents: {
         Row: {
+          ai_processing_consent: boolean
+          ai_processing_consent_at: string | null
+          ai_processing_consent_version: string | null
           consent_withdrawn_at: string | null
           created_at: string
           health_data_consent: boolean | null
@@ -1241,6 +1244,9 @@ export type Database = {
           withdrawal_reason: string | null
         }
         Insert: {
+          ai_processing_consent?: boolean
+          ai_processing_consent_at?: string | null
+          ai_processing_consent_version?: string | null
           consent_withdrawn_at?: string | null
           created_at?: string
           health_data_consent?: boolean | null
@@ -1259,6 +1265,9 @@ export type Database = {
           withdrawal_reason?: string | null
         }
         Update: {
+          ai_processing_consent?: boolean
+          ai_processing_consent_at?: string | null
+          ai_processing_consent_version?: string | null
           consent_withdrawn_at?: string | null
           created_at?: string
           health_data_consent?: boolean | null
@@ -2070,6 +2079,7 @@ export type Database = {
           use_count: number
         }[]
       }
+      has_ai_consent: { Args: { p_user_id: string }; Returns: boolean }
       reactivate_user_account: { Args: never; Returns: undefined }
       record_med_effect: {
         Args: {

@@ -90,6 +90,13 @@ serve(async (req) => {
       });
     }
 
+    // AI CONSENT GATE (DSGVO Art. 9)
+    {
+      const { requireAiConsent } = await import("../_shared/aiConsentGate.ts");
+      const consentBlock = await requireAiConsent(supabase, user.id, corsHeaders);
+      if (consentBlock) return consentBlock;
+    }
+
     const { text, timezone = "Europe/Berlin" } = await req.json();
     if (!text || typeof text !== "string") {
       return new Response(JSON.stringify({ error: "Missing text parameter" }), {

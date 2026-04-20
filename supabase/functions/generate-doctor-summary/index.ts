@@ -57,6 +57,13 @@ Deno.serve(async (req) => {
       );
     }
 
+    // AI CONSENT GATE (DSGVO Art. 9)
+    {
+      const { requireAiConsent } = await import('../_shared/aiConsentGate.ts');
+      const consentBlock = await requireAiConsent(supabaseClient, user.id, corsHeaders);
+      if (consentBlock) return consentBlock;
+    }
+
     const { fromDate, toDate, includeContextNotes = false } = await req.json();
 
     if (!fromDate || !toDate) {
