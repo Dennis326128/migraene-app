@@ -245,6 +245,16 @@ serve(async (req) => {
 
     console.log(`[${requestId}] User authenticated: ${user.id}`);
 
+    // ============== AI CONSENT GATE (DSGVO Art. 9) ==============
+    {
+      const { requireAiConsent } = await import('../_shared/aiConsentGate.ts');
+      const consentBlock = await requireAiConsent(supabaseAdmin, user.id, corsHeaders);
+      if (consentBlock) {
+        console.warn(`[${requestId}] AI consent missing for user ${user.id}`);
+        return consentBlock;
+      }
+    }
+
     // ============== PROFILE + QUOTA CHECK ==============
     const { data: profile } = await supabase
       .from('user_profiles')
