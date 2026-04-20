@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { requireAiConsent } from '../_shared/aiConsentGate.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -32,7 +33,6 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-    const { requireAiConsent } = await import('../_shared/aiConsentGate.ts');
     const consentBlock = await requireAiConsent(supabase, user.id, corsHeaders);
     if (consentBlock) return consentBlock;
 
