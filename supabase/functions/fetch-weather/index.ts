@@ -98,7 +98,7 @@ serve(async (req) => {
             temperature_c: c.temperature_2m ?? null,
             pressure_mb: c.surface_pressure ?? null,
             humidity: c.relative_humidity_2m ?? null,
-            wind_kph: typeof c.wind_speed_10m === 'number' ? c.wind_speed_10m * 3.6 : null,
+            wind_kph: typeof c.wind_speed_10m === 'number' ? c.wind_speed_10m : null, // Open-Meteo default unit is km/h
             condition_text: 'Current weather (Open-Meteo)',
             condition_icon: null,
           };
@@ -129,8 +129,8 @@ serve(async (req) => {
             pressure_mb: data.hourly.surface_pressure?.[bestIdx] ?? null,
             humidity: data.hourly.relative_humidity_2m?.[bestIdx] ?? null,
             wind_kph: typeof data.hourly.wind_speed_10m?.[bestIdx] === 'number'
-              ? data.hourly.wind_speed_10m[bestIdx] * 3.6
-              : null,
+              ? data.hourly.wind_speed_10m[bestIdx]
+              : null, // Open-Meteo default unit is km/h
             condition_text: 'Historical (Open-Meteo)',
             condition_icon: null,
           };

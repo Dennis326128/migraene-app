@@ -209,7 +209,7 @@ serve(async (req) => {
               pressure_mb = d.hourly.surface_pressure?.[bestIdx] ?? null;
               humidity = d.hourly.relative_humidity_2m?.[bestIdx] ?? null;
               const ws = d.hourly.wind_speed_10m?.[bestIdx];
-              wind_kph = typeof ws === 'number' ? ws * 3.6 : null;
+              wind_kph = typeof ws === 'number' ? ws : null; // Open-Meteo default unit is km/h
               condition_text = 'Historical (Open-Meteo)';
             }
           } else {
@@ -223,7 +223,7 @@ serve(async (req) => {
               temperature_c = c.temperature_2m ?? null;
               pressure_mb = c.surface_pressure ?? null;
               humidity = c.relative_humidity_2m ?? null;
-              wind_kph = typeof c.wind_speed_10m === 'number' ? c.wind_speed_10m * 3.6 : null;
+              wind_kph = typeof c.wind_speed_10m === 'number' ? c.wind_speed_10m : null; // Open-Meteo default unit is km/h
               condition_text = 'Current (Open-Meteo)';
             }
           }
