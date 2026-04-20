@@ -3,7 +3,7 @@
  * Used by get-shared-report-data and get-shared-report-pdf.
  */
 
-import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import type { SupabaseClient } from "jsr:@supabase/supabase-js@2";
 import {
   verifyDoctorAccessToken,
   getDoctorAccessSecret,

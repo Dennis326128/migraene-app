@@ -7,7 +7,7 @@
  * WICHTIG: Diese Logik ist NUR für Doctor-Share und ändert NICHT die App-Report-Pipeline!
  */
 
-import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import type { SupabaseClient } from "jsr:@supabase/supabase-js@2";
 
 // ════════════════════════════════════════════════════════════════════════════
 // TYPES: Report JSON Shape (stabil & websitefreundlich)
