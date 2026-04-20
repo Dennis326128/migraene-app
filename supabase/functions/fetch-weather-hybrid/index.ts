@@ -294,7 +294,7 @@ serve(async (req) => {
             humidity: data.current.relative_humidity_2m,
             pressure_mb: data.current.surface_pressure,
             pressure_change_24h: pressureChange24h,
-            wind_kph: data.current.wind_speed_10m * 3.6, // Convert m/s to km/h
+            wind_kph: data.current.wind_speed_10m, // Open-Meteo default unit is km/h
             dewpoint_c: data.current.dewpoint_2m,
             condition_text: 'Current weather',
             location: `${lat.toFixed(2)}, ${lon.toFixed(2)}`
@@ -346,7 +346,7 @@ serve(async (req) => {
                 humidity: data.hourly.relative_humidity_2m[closestIndex],
                 pressure_mb: data.hourly.surface_pressure[closestIndex],
                 pressure_change_24h: null, // Will be calculated below from DB
-                wind_kph: data.hourly.wind_speed_10m[closestIndex] * 3.6,
+                wind_kph: data.hourly.wind_speed_10m[closestIndex], // Open-Meteo default unit is km/h
                 dewpoint_c: data.hourly.dewpoint_2m?.[closestIndex],
                 condition_text: `Historical data (${formattedTime})`,
                 location: `${lat.toFixed(2)}, ${lon.toFixed(2)}`
