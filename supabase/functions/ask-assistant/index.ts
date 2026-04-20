@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from 'jsr:@supabase/supabase-js@2';
+import { requireAiConsent } from '../_shared/aiConsentGate.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -56,7 +57,6 @@ Deno.serve(async (req) => {
 
     // AI CONSENT GATE (DSGVO Art. 9)
     {
-      const { requireAiConsent } = await import('../_shared/aiConsentGate.ts');
       const consentBlock = await requireAiConsent(supabaseClient, user.id, corsHeaders);
       if (consentBlock) return consentBlock;
     }

@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
+import { requireAiConsent } from '../_shared/aiConsentGate.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -247,7 +248,6 @@ serve(async (req) => {
 
     // ============== AI CONSENT GATE (DSGVO Art. 9) ==============
     {
-      const { requireAiConsent } = await import('../_shared/aiConsentGate.ts');
       const consentBlock = await requireAiConsent(supabaseAdmin, user.id, corsHeaders);
       if (consentBlock) {
         console.warn(`[${requestId}] AI consent missing for user ${user.id}`);
