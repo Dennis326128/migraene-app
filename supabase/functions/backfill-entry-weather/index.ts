@@ -54,13 +54,7 @@ serve(async (req) => {
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SB_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-    const openWeatherApiKey = Deno.env.get('OPENWEATHERMAP_API_KEY');
-    if (!openWeatherApiKey) {
-      return new Response(JSON.stringify({ error: 'OPENWEATHERMAP_API_KEY not set' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    // Privacy: Uses Open-Meteo only (no API key, EU-friendly).
 
     // Find entries needing weather (last 30 days, max 50 per run)
     // Target: weather_status IN (null, 'pending', 'failed') OR weather_id IS NULL
@@ -181,15 +175,65 @@ serve(async (req) => {
           }
         }
 
-        // Fetch weather from OpenWeatherMap
-        const currentUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${openWeatherApiKey}&units=metric`;
-        const response = await fetch(currentUrl);
+        // Fetch weather from Open-Meteo (privacy-friendly, EU-based, no API key)
+        // Use hourly archive for historical accuracy; falls back to current API for today.
+        let temperature_c: number | null = null;
+        let pressure_mb: number | null = null;
+        let humidity: number | null = null;
+        let wind_kph: number | null = null;
+        let condition_text: string | null = null;
 
-        if (!response.ok) {
-          throw new Error(`API ${response.status}`);
+        try {
+          const today = new Date().toISOString().split('T')[0];
+          const isToday = entryDate === today;
+
+          if (!isToday && entryDate) {
+            // Hourly archive for past entries
+            const hour = entry.selected_time
+              ? parseInt(String(entry.selected_time).split(':')[0] || '12', 10)
+              : 12;
+            const archiveUrl = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${entryDate}&end_date=${entryDate}&hourly=temperature_2m,relative_humidity_2m,surface_pressure,wind_speed_10m&timezone=auto`;
+            const r = await fetch(archiveUrl);
+            if (!r.ok) throw new Error(`Open-Meteo archive ${r.status}`);
+            const d = await r.json();
+            const times: string[] = d?.hourly?.time ?? [];
+            if (times.length) {
+              let bestIdx = 0;
+              let bestDiff = Infinity;
+              for (let i = 0; i < times.length; i++) {
+                const h = new Date(times[i]).getHours();
+                const diff = Math.abs(h - hour);
+                if (diff < bestDiff) { bestDiff = diff; bestIdx = i; }
+              }
+              temperature_c = d.hourly.temperature_2m?.[bestIdx] ?? null;
+              pressure_mb = d.hourly.surface_pressure?.[bestIdx] ?? null;
+              humidity = d.hourly.relative_humidity_2m?.[bestIdx] ?? null;
+              const ws = d.hourly.wind_speed_10m?.[bestIdx];
+              wind_kph = typeof ws === 'number' ? ws * 3.6 : null;
+              condition_text = 'Historical (Open-Meteo)';
+            }
+          } else {
+            // Current weather for today
+            const currentUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,surface_pressure,wind_speed_10m&timezone=auto`;
+            const r = await fetch(currentUrl);
+            if (!r.ok) throw new Error(`Open-Meteo current ${r.status}`);
+            const d = await r.json();
+            const c = d?.current;
+            if (c) {
+              temperature_c = c.temperature_2m ?? null;
+              pressure_mb = c.surface_pressure ?? null;
+              humidity = c.relative_humidity_2m ?? null;
+              wind_kph = typeof c.wind_speed_10m === 'number' ? c.wind_speed_10m * 3.6 : null;
+              condition_text = 'Current (Open-Meteo)';
+            }
+          }
+        } catch (e) {
+          throw new Error(`Open-Meteo error: ${(e as Error).message}`);
         }
 
-        const weatherData = await response.json();
+        if (temperature_c === null && pressure_mb === null) {
+          throw new Error('No weather data');
+        }
 
         // Insert weather log — pressure_change_24h = NULL (never fabricate 0)
         const { data: insertedLog, error: insertError } = await supabase
@@ -198,14 +242,14 @@ serve(async (req) => {
             user_id: entry.user_id,
             latitude: lat,
             longitude: lon,
-            temperature_c: weatherData.main?.temp ?? null,
-            pressure_mb: weatherData.main?.pressure ?? null,
-            humidity: weatherData.main?.humidity ?? null,
-            wind_kph: weatherData.wind?.speed ? weatherData.wind.speed * 3.6 : null,
-            condition_text: weatherData.weather?.[0]?.description ?? null,
-            condition_icon: weatherData.weather?.[0]?.icon ?? null,
+            temperature_c,
+            pressure_mb,
+            humidity,
+            wind_kph,
+            condition_text,
+            condition_icon: null,
             snapshot_date: entryDate,
-            pressure_change_24h: null, // Never fabricate — must be calculated properly
+            pressure_change_24h: null,
           })
           .select('id')
           .single();
