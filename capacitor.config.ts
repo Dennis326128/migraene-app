@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'de.migraina.app',
-  appName: 'Migraina',
+  appId: 'de.miary.app',
+  appName: 'Miary',
   webDir: 'dist',
   
   // For development: uncomment to enable hot-reload from Lovable preview
