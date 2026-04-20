@@ -9,7 +9,7 @@
  * Auth: Header x-doctor-access (signed HMAC token)
  */
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { createClient } from "jsr:@supabase/supabase-js@2";
 import { getCorsHeaders, handlePreflight } from "../_shared/cors.ts";
 import { verifyDoctorAccess } from "../_shared/doctorAccessGuard.ts";
 import { getLinkedHistoryDiaryReportById } from "../_shared/doctorSharedHistoryReport.ts";

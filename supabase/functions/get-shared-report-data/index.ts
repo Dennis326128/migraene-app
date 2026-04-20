@@ -5,7 +5,7 @@
  * Every request verifies token signature + DB share status.
  */
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { createClient } from "jsr:@supabase/supabase-js@2";
 import {
   buildDoctorReportSnapshot,
   getCachedSnapshot,
