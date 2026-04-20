@@ -11,7 +11,11 @@
  *   const block = await requireAiConsent(supabase, userId, corsHeaders);
  *   if (block) return block;
  */
-import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+// Use a type-only loose definition to avoid pulling supabase-js into this shared module's bundle.
+// The actual client is created in the calling edge function.
+type SupabaseClient = {
+  rpc: (fn: string, params: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>;
+};
 
 export const AI_CONSENT_MISSING_MESSAGE =
   "KI-Analyse erfordert deine Zustimmung. Bitte in den Einstellungen aktivieren.";
