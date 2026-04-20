@@ -381,6 +381,11 @@ serve(async (req) => {
       return jsonResponse({ error: 'Authentifizierung fehlgeschlagen' }, 401);
     }
 
+    // AI CONSENT GATE (DSGVO Art. 9)
+    const { requireAiConsent } = await import('../_shared/aiConsentGate.ts');
+    const consentBlock = await requireAiConsent(supabase, user.id, corsHeaders);
+    if (consentBlock) return consentBlock;
+
     // Check AI enabled
     const { data: profile } = await supabase
       .from('user_profiles')
