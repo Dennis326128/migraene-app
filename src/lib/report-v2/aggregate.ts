@@ -16,7 +16,7 @@ import type {
 import { isHeadacheDay, isTreatmentDay, computeMeCfsMax, computeMohRiskFlag } from './definitions';
 import { normalizeOptions, clampRange } from './normalize';
 import { buildCharts } from './charts';
-import { isTriptan } from '@/lib/medications/isTriptan';
+import { isGepant, isTriptan } from '@/lib/medications/classifyMedication';
 
 /**
  * Primary SSOT aggregation function.
@@ -37,6 +37,7 @@ export function computeMiaryReport(input: ComputeReportInput): MiaryReportV2 {
     painMax: number | null;
     acuteMedUsed: boolean;
     triptanUsed: boolean;
+    gepantUsed: boolean;
     meCfsLevels: Array<MeCfsSeverity | null | undefined>;
     medications: Array<{ medicationId: string; name: string; effect?: number | null }>;
   }>();
@@ -49,6 +50,7 @@ export function computeMiaryReport(input: ComputeReportInput): MiaryReportV2 {
         painMax: entry.painMax,
         acuteMedUsed: entry.acuteMedUsed,
         triptanUsed: entry.triptanUsed,
+        gepantUsed: entry.gepantUsed ?? false,
         meCfsLevels: entry.meCfsLevels ? [...entry.meCfsLevels] : [],
         medications: entry.medications ? [...entry.medications] : [],
       });
@@ -62,6 +64,7 @@ export function computeMiaryReport(input: ComputeReportInput): MiaryReportV2 {
       }
       if (entry.acuteMedUsed) existing.acuteMedUsed = true;
       if (entry.triptanUsed) existing.triptanUsed = true;
+      if (entry.gepantUsed) existing.gepantUsed = true;
       if (entry.meCfsLevels) {
         existing.meCfsLevels.push(...entry.meCfsLevels);
       }
@@ -78,6 +81,8 @@ export function computeMiaryReport(input: ComputeReportInput): MiaryReportV2 {
   let treatmentDays = 0;
   let triptanDays = 0;
   let totalTriptanIntakes = 0;
+  let gepantDays = 0;
+  let totalGepantIntakes = 0;
   let acuteMedDays = 0;
   let painSum = 0;
   let painCount = 0;
@@ -98,6 +103,7 @@ export function computeMiaryReport(input: ComputeReportInput): MiaryReportV2 {
       painMax: day.painMax,
       meCfsMax,
       triptanUsed: day.triptanUsed,
+      gepantUsed: day.gepantUsed,
       acuteMedUsed: day.acuteMedUsed,
     });
 
@@ -120,6 +126,11 @@ export function computeMiaryReport(input: ComputeReportInput): MiaryReportV2 {
         // Count individual triptan intakes from medications array
         const triptanMeds = day.medications.filter(m => isTriptan(m.name));
         totalTriptanIntakes += Math.max(1, triptanMeds.length);
+      }
+      if (day.gepantUsed) {
+        gepantDays++;
+        const gepantMeds = day.medications.filter(m => isGepant(m.name));
+        totalGepantIntakes += Math.max(1, gepantMeds.length);
       }
     }
   }
@@ -145,6 +156,8 @@ export function computeMiaryReport(input: ComputeReportInput): MiaryReportV2 {
     maxPain,
     triptanDays,
     totalTriptanIntakes,
+    gepantDays,
+    totalGepantIntakes,
     acuteMedDays,
     preventiveMedActive: false, // must be set by caller context
     mohRiskFlag,
