@@ -26,6 +26,7 @@ import type { PainEntry, MedicationIntakeInfo } from "@/types/painApp";
 import { formatDoseFromQuarters, DEFAULT_DOSE_QUARTERS } from "@/lib/utils/doseFormatter";
 import { formatPainLocation, normalizePainLevel as normalizePainLevelImport } from "@/lib/utils/pain";
 import { isTriptan } from "@/lib/medications/isTriptan";
+import { isGepant } from "@/lib/medications/classifyMedication";
 import { computeHeadacheTreatmentDayDistribution, type HeadacheTreatmentDayResult } from "@/lib/analytics/headacheDays/computeHeadacheTreatmentDayDistribution";
 import { drawPieChartWithLegend } from "@/lib/pdf/pieChart";
 import type { ClinicalAnalysisResult } from "@/lib/pdf/clinicalAnalysis";
@@ -1157,8 +1158,10 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     const painDaysSet = new Set<string>();
     const migraineDaysSet = new Set<string>();
     const triptanDaysSet = new Set<string>();
+    const gepantDaysSet = new Set<string>();
     const acuteMedDaysSet = new Set<string>();
     let triptanIntakesTotal = 0;
+    let gepantIntakesTotal = 0;
     
     entries.forEach(entry => {
       const date = entry.selected_date || entry.timestamp_created?.split('T')[0] || '';
@@ -1178,6 +1181,10 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
             hasTriptan = true;
             triptanIntakesTotal++;
           }
+          if (isGepant(med)) {
+            gepantDaysSet.add(date);
+            gepantIntakesTotal++;
+          }
         });
         if (hasTriptan) triptanDaysSet.add(date);
       }
@@ -1192,6 +1199,8 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     const migrainePerMonth = daysCount > 0 ? Math.round((migraineDaysSet.size / daysCount) * 30 * 10) / 10 : 0;
     const triptanDaysPerMonth = daysCount > 0 ? Math.round((triptanDaysSet.size / daysCount) * 30 * 10) / 10 : 0;
     const triptanIntakesPerMonth = daysCount > 0 ? Math.round((triptanIntakesTotal / daysCount) * 30 * 10) / 10 : 0;
+    const gepantDaysPerMonth = daysCount > 0 ? Math.round((gepantDaysSet.size / daysCount) * 30 * 10) / 10 : 0;
+    const gepantIntakesPerMonth = daysCount > 0 ? Math.round((gepantIntakesTotal / daysCount) * 30 * 10) / 10 : 0;
     const acutePerMonth = daysCount > 0 ? Math.round((acuteMedDaysSet.size / daysCount) * 30 * 10) / 10 : 0;
     
     const validPainLevels = entries.map(e => painLevelToNumericValue(e.pain_level)).filter(l => l > 0);
@@ -1245,7 +1254,10 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     page.drawText("Triptan-Tage / 30T", { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY, size: 8, font: fontBold, color: COLORS.text });
     page.drawText(formatGermanDecimal(triptanDaysPerMonth, 1), { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY - 20, size: 18, font: fontBold, color: COLORS.primary });
     page.drawText(`Einnahmen/30T: ${formatGermanDecimal(triptanIntakesPerMonth, 1)}`, { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY - 32, size: 7, font: fontBold, color: COLORS.textLight });
-    page.drawText(`Akutmed.-Tage/30T: ${formatGermanDecimal(acutePerMonth, 1)}`, { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY - 42, size: 7, font, color: COLORS.textLight });
+    page.drawText(gepantIntakesTotal > 0 ? `Gepante/30T: ${formatGermanDecimal(gepantIntakesPerMonth, 1)} Einnahmen` : `Akutmed.-Tage/30T: ${formatGermanDecimal(acutePerMonth, 1)}`, { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY - 42, size: 7, font, color: COLORS.textLight });
+    if (gepantIntakesTotal > 0) {
+      page.drawText(`Gepant-Tage/30T: ${formatGermanDecimal(gepantDaysPerMonth, 1)} | Akutmed.-Tage/30T: ${formatGermanDecimal(acutePerMonth, 1)}`, { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY - 52, size: 7, font, color: COLORS.textLight });
+    }
     
     // KPI 3: Intensity + Attacks
     page.drawText("\u00D8 Schmerzintensit\u00E4t (NRS)", { x: LAYOUT.margin + boxPadding + 2 * colWidth, y: kpiY, size: 8, font: fontBold, color: COLORS.text });
