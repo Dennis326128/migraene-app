@@ -123,11 +123,32 @@ export const HeadacheDaysPie: React.FC<HeadacheDaysPieProps> = ({
   const pct = (v: number) => chartTotalDays > 0 ? Math.round((v / chartTotalDays) * 1000) / 10 : 0;
 
   return (
-    <div className={`flex ${fullscreen ? 'flex-col sm:flex-row items-center gap-8' : compact ? 'flex-row items-center gap-3' : 'flex-col sm:flex-row items-center sm:items-center gap-4'}`}>
+    <div className="w-full space-y-3">
+      {showBasisToggle && !compact && (
+        <div className="flex flex-col xs:flex-row xs:items-center gap-2 text-xs">
+          <span className="text-muted-foreground whitespace-nowrap">Tage berücksichtigen</span>
+          <div className="inline-flex w-full xs:w-auto rounded-full bg-secondary p-1 border border-border overflow-hidden">
+            {([
+              ['all', 'Alle'],
+              ['documented', 'Nur dokumentierte'],
+            ] as const).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => handleBasisChange(value)}
+                className={`flex-1 xs:flex-none whitespace-nowrap rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors ${basis === value ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      <div className={`flex ${fullscreen ? 'flex-col sm:flex-row items-center gap-8' : compact ? 'flex-row items-center gap-3' : 'flex-col sm:flex-row items-center sm:items-center gap-4'}`}>
       {/* SVG Pie Chart */}
       <div className="relative shrink-0" style={{ width: size, height: size }}>
         <svg viewBox="0 0 120 120" width={size} height={size}>
-          {totalDays === 0 ? (
+          {chartTotalDays === 0 ? (
             <circle cx="60" cy="60" r="55" fill="hsl(var(--muted))" />
           ) : (
             paths.map(p => (
@@ -138,7 +159,7 @@ export const HeadacheDaysPie: React.FC<HeadacheDaysPieProps> = ({
           <circle cx="60" cy="60" r="32" fill="hsl(var(--card))" />
           {/* Center text */}
           <text x="60" y={fullscreen ? 55 : 56} textAnchor="middle" className="fill-foreground" fontSize={centerFontSize} fontWeight="bold">
-            {totalDays}
+            {chartTotalDays}
           </text>
           <text x="60" y={fullscreen ? 73 : 72} textAnchor="middle" className="fill-muted-foreground" fontSize={centerSubFontSize}>
             Tage
@@ -166,13 +187,14 @@ export const HeadacheDaysPie: React.FC<HeadacheDaysPieProps> = ({
               <span className="text-foreground">{slice.label}</span>
               <span className="text-muted-foreground ml-auto tabular-nums">
                 {slice.value}
-                {showPercent && totalDays > 0 && (
+                {showPercent && chartTotalDays > 0 && (
                   <span className="ml-1">({pct(slice.value)}%)</span>
                 )}
               </span>
             </div>
           );
         })}
+      </div>
       </div>
     </div>
   );
