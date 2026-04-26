@@ -114,6 +114,26 @@ describe('computeHeadacheTreatmentDayDistribution', () => {
     expect(result.painDaysNoTriptan).toBe(0);
   });
 
+  it('counts gepant as headache with medication but not as triptan day', () => {
+    const result = computeHeadacheTreatmentDayDistribution('2026-01-01', '2026-01-01', [
+      { selected_date: '2026-01-01', pain_level: '5', entry_kind: 'pain', medications: ['Vydura 75 mg'] },
+    ]);
+
+    expect(result.painDaysWithMedication).toBe(1);
+    expect(result.gepantDays).toBe(1);
+    expect(result.triptanDays).toBe(0);
+  });
+
+  it('uses medication_intakes as medication source when present', () => {
+    const result = computeHeadacheTreatmentDayDistribution('2026-01-01', '2026-01-01', [
+      { selected_date: '2026-01-01', pain_level: '5', entry_kind: 'pain', medications: [], medication_intakes: [{ medication_name: 'Nurtec ODT' }] },
+    ]);
+
+    expect(result.painDaysWithMedication).toBe(1);
+    expect(result.gepantDays).toBe(1);
+    expect(result.triptanDays).toBe(0);
+  });
+
   it('merges multiple entries per day — highest priority wins', () => {
     const result = computeHeadacheTreatmentDayDistribution('2026-01-01', '2026-01-01', [
       { selected_date: '2026-01-01', pain_level: '0', entry_kind: 'pain' },
