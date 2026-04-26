@@ -21,6 +21,7 @@ describe('computeHeadacheTreatmentDayDistribution', () => {
     expect(result.painFreeDays).toBe(3);
     expect(result.painDaysNoMedication).toBe(37);
     expect(result.painDaysWithMedication).toBe(50);
+    expect(result.triptanDays).toBe(0);
     expect(result.undocumentedDays).toBe(0);
     expect(result.painFreeDays + result.painDaysNoMedication + result.painDaysWithMedication + result.undocumentedDays).toBe(90);
   });
@@ -93,14 +94,24 @@ describe('computeHeadacheTreatmentDayDistribution', () => {
     expect(result.undocumentedDays).toBe(2);
   });
 
-  it('classifies medication day with highest priority', () => {
+  it('classifies ibuprofen as headache with medication but not as triptan day', () => {
     const result = computeHeadacheTreatmentDayDistribution('2026-01-01', '2026-01-01', [
       { selected_date: '2026-01-01', pain_level: 'stark', entry_kind: 'pain', medications: ['Ibuprofen'] },
     ]);
-    expect(result.triptanDays).toBe(1);
     expect(result.painDaysWithMedication).toBe(1);
-    expect(result.painDaysNoTriptan).toBe(0);
+    expect(result.triptanDays).toBe(0);
+    expect(result.painDaysNoTriptan).toBe(1);
     expect(result.painFreeDays).toBe(0);
+  });
+
+  it('classifies sumatriptan as both headache with medication and true triptan day', () => {
+    const result = computeHeadacheTreatmentDayDistribution('2026-01-01', '2026-01-01', [
+      { selected_date: '2026-01-01', pain_level: '5', entry_kind: 'pain', medications: ['Sumatriptan'] },
+    ]);
+
+    expect(result.painDaysWithMedication).toBe(1);
+    expect(result.triptanDays).toBe(1);
+    expect(result.painDaysNoTriptan).toBe(0);
   });
 
   it('merges multiple entries per day — highest priority wins', () => {
