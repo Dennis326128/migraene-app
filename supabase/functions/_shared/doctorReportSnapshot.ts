@@ -459,7 +459,7 @@ const TRIPTAN_KEYWORDS = [
   "naratriptan", "rizatriptan", "sumatriptan", "zolmitriptan",
   "suma", "riza", "zolmi", "nara", "almo", "ele", "frova",
   "imigran", "maxalt", "ascotop", "naramig", "almogran",
-  "relpax", "allegro", "dolotriptan", "formigran"
+  "relpax", "allegro", "dolotriptan", "formigran", "sumavel", "zomig"
 ];
 
 // ── Symptom classification (mirrored from src/lib/pdf/symptomSection.ts) ──
@@ -555,8 +555,15 @@ function painLevelToLabel(level: string): string {
 }
 
 function isTriptan(medName: string): boolean {
-  const lower = medName.toLowerCase();
-  return TRIPTAN_KEYWORDS.some(kw => lower.includes(kw));
+  const normalized = medName
+    .toLowerCase()
+    .trim()
+    .replace(/ä/g, "ae")
+    .replace(/ö/g, "oe")
+    .replace(/ü/g, "ue")
+    .replace(/ß/g, "ss")
+    .replace(/[^a-z0-9]/g, "");
+  return TRIPTAN_KEYWORDS.some(kw => normalized.includes(kw));
 }
 
 /**
