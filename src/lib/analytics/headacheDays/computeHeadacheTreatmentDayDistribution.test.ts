@@ -40,6 +40,36 @@ describe('computeHeadacheTreatmentDayDistribution', () => {
     expect(result.painFreeDays + result.painDaysNoMedication + result.painDaysWithMedication).toBe(80);
   });
 
+  it('keeps documented-only and all-days donut bases internally consistent', () => {
+    const entries = [
+      { selected_date: '2026-01-01', pain_level: '0', entry_kind: 'pain' },
+      { selected_date: '2026-01-02', pain_level: '4', entry_kind: 'pain' },
+      { selected_date: '2026-01-03', pain_level: '7', entry_kind: 'pain', medications: ['Ibuprofen'] },
+    ];
+
+    const result = computeHeadacheTreatmentDayDistribution('2026-01-01', '2026-01-05', entries);
+    const allDaysSum = result.painFreeDays + result.painDaysNoMedication + result.painDaysWithMedication + result.undocumentedDays;
+    const documentedDaysSum = result.painFreeDays + result.painDaysNoMedication + result.painDaysWithMedication;
+
+    expect(result.totalDays).toBe(5);
+    expect(result.documentedDays).toBe(3);
+    expect(allDaysSum).toBe(result.totalDays);
+    expect(documentedDaysSum).toBe(result.documentedDays);
+    expect(result.percentages.undocumented).toBe(40);
+  });
+
+  it('does not treat medication on a pain-free documented day as headache with medication', () => {
+    const result = computeHeadacheTreatmentDayDistribution('2026-01-01', '2026-01-02', [
+      { selected_date: '2026-01-01', pain_level: '0', entry_kind: 'pain', medications: ['Magnesium'] },
+      { selected_date: '2026-01-02', pain_level: '5', entry_kind: 'pain' },
+    ]);
+
+    expect(result.painFreeDays).toBe(1);
+    expect(result.painDaysNoMedication).toBe(1);
+    expect(result.painDaysWithMedication).toBe(0);
+    expect(result.painFreeDays + result.painDaysNoMedication + result.painDaysWithMedication).toBe(result.documentedDays);
+  });
+
   it('counts total days correctly for a 30-day range', () => {
     const result = computeHeadacheTreatmentDayDistribution('2026-01-01', '2026-01-30', []);
     expect(result.totalDays).toBe(30);
