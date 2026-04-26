@@ -629,8 +629,8 @@ const DoctorReportView: React.FC = () => {
                 entry_kind: 'pain',
               }));
               const dayBuckets = computeHeadacheTreatmentDayDistribution(
-                report.meta.period.from,
-                report.meta.period.to,
+                report.meta.period.fromDate,
+                report.meta.period.toDate,
                 distributionEntries,
               );
 
