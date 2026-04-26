@@ -196,7 +196,6 @@ export function buildReportData(params: BuildReportDataParams): ReportData {
   const migraineDaysPerMonth = Math.round((migraineDaysCount / daysInRange) * 30 * 10) / 10;
   const triptanDaysPerMonth = Math.round((ssotReport.kpis.triptanDays / daysInRange) * 30 * 10) / 10;
   const triptanIntakesPerMonth = Math.round((totalTriptanIntakes / daysInRange) * 30 * 10) / 10;
-  const gepantIntakesPerMonth = Math.round((totalGepantIntakes / daysInRange) * 30 * 10) / 10;
   const acuteMedDaysPerMonth = Math.round((ssotReport.kpis.acuteMedDays / daysInRange) * 30 * 10) / 10;
 
   const coreKPIs: CoreMedicalKPIs = {
