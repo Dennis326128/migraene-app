@@ -89,6 +89,14 @@ export function getEntryDate(entry: PainEntry): string {
   return '';
 }
 
+function getMedicationNames(entry: PainEntry): string[] {
+  const intakeNames = entry.medication_intakes
+    ?.map(intake => intake.medication_name?.trim())
+    .filter((name): name is string => Boolean(name));
+  if (intakeNames?.length) return intakeNames;
+  return entry.medications?.map(med => med.trim()).filter(Boolean) ?? [];
+}
+
 function mapEffectRatingToScore(rating: string): number {
   const map: Record<string, number> = {
     'none': 0,
@@ -165,16 +173,10 @@ export function buildReportData(params: BuildReportDataParams): ReportData {
   let totalTriptanIntakes = 0;
   let totalGepantIntakes = 0;
   entries.forEach(entry => {
-    if (entry.medications && entry.medications.length > 0) {
-      entry.medications.forEach(med => {
-        if (isTriptanMedication(med)) {
-          totalTriptanIntakes++;
-        }
-        if (isGepant(med)) {
-          totalGepantIntakes++;
-        }
-      });
-    }
+    getMedicationNames(entry).forEach(med => {
+      if (isTriptanMedication(med)) totalTriptanIntakes++;
+      if (isGepant(med)) totalGepantIntakes++;
+    });
   });
 
   const kpis: ReportKPIs = {
@@ -250,7 +252,7 @@ export function buildReportData(params: BuildReportDataParams): ReportData {
       (entry.medication_intakes || []).map(i => [i.medication_name, i.dose_quarters])
     );
 
-    entry.medications?.forEach(med => {
+    getMedicationNames(entry).forEach(med => {
       if (!medStats.has(med)) {
         medStats.set(med, { totalUnits: 0, last30Units: 0, effectScores: [] });
       }

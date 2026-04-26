@@ -134,7 +134,10 @@ export function buildAppAnalysisReport(args: AppAnalysisReportArgs): AppAnalysis
     const painMax = hasPain ? (painNumeric ?? 0) : null;
 
     // Medications
-    const meds = entry.medications || [];
+    const medsFromIntakes = entry.medication_intakes
+      ?.map(intake => intake.medication_name?.trim())
+      .filter((name): name is string => Boolean(name));
+    const meds = medsFromIntakes?.length ? medsFromIntakes : (entry.medications || []);
     const acuteMedUsed = meds.length > 0;
     let triptanUsed = false;
     let gepantUsed = false;

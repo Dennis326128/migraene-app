@@ -279,6 +279,14 @@ function formatMedicationsWithDose(
   }).join("; ");
 }
 
+function getMedicationNamesForEntry(entry: PainEntry): string[] {
+  const intakeNames = entry.medication_intakes
+    ?.map(intake => intake.medication_name?.trim())
+    .filter((name): name is string => Boolean(name));
+  if (intakeNames?.length) return intakeNames;
+  return entry.medications?.map(med => med.trim()).filter(Boolean) ?? [];
+}
+
 function formatDateGerman(dateStr: string): string {
   try {
     const date = new Date(dateStr);
@@ -1009,12 +1017,13 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   const medCombinationsMap = new Map<string, Map<string, number>>(); // med → co-med → count
   entries.forEach(entry => {
     const date = entry.selected_date || entry.timestamp_created?.split('T')[0] || '';
-    if (!date || !entry.medications || entry.medications.length === 0) return;
-    entry.medications.forEach(med => {
+    const medicationNames = getMedicationNamesForEntry(entry);
+    if (!date || medicationNames.length === 0) return;
+    medicationNames.forEach(med => {
       if (!medDaysMap.has(med)) medDaysMap.set(med, new Set());
       medDaysMap.get(med)!.add(date);
       // Track combinations
-      entry.medications!.forEach(otherMed => {
+      medicationNames.forEach(otherMed => {
         if (otherMed === med) return;
         if (!medCombinationsMap.has(med)) medCombinationsMap.set(med, new Map());
         const comboMap = medCombinationsMap.get(med)!;
@@ -1171,12 +1180,13 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       if (painLevel > 0) painDaysSet.add(date);
       
       const hasAura = entry.aura_type && entry.aura_type !== "keine";
-      const hasMeds = entry.medications && entry.medications.length > 0;
+      const medicationNames = getMedicationNamesForEntry(entry);
+      const hasMeds = medicationNames.length > 0;
       
       let hasTriptan = false;
       if (hasMeds) {
         acuteMedDaysSet.add(date);
-        entry.medications!.forEach(med => {
+        medicationNames.forEach(med => {
           if (isTriptan(med)) {
             hasTriptan = true;
             triptanIntakesTotal++;
@@ -1253,8 +1263,8 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     // KPI 2: Triptans + Acute Med
     page.drawText("Triptan-Tage / 30T", { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY, size: 8, font: fontBold, color: COLORS.text });
     page.drawText(formatGermanDecimal(triptanDaysPerMonth, 1), { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY - 20, size: 18, font: fontBold, color: COLORS.primary });
-    page.drawText(`Einnahmen/30T: ${formatGermanDecimal(triptanIntakesPerMonth, 1)}`, { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY - 32, size: 7, font: fontBold, color: COLORS.textLight });
-    page.drawText(gepantIntakesTotal > 0 ? `Gepante/30T: ${formatGermanDecimal(gepantIntakesPerMonth, 1)} Einnahmen` : `Akutmed.-Tage/30T: ${formatGermanDecimal(acutePerMonth, 1)}`, { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY - 42, size: 7, font, color: COLORS.textLight });
+    page.drawText(`Triptan-Einn./30T: ${formatGermanDecimal(triptanIntakesPerMonth, 1)}`, { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY - 32, size: 7, font: fontBold, color: COLORS.textLight });
+    page.drawText(gepantIntakesTotal > 0 ? `Gepant-Einn./30T: ${formatGermanDecimal(gepantIntakesPerMonth, 1)}` : `Akutmed.-Tage/30T: ${formatGermanDecimal(acutePerMonth, 1)}`, { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY - 42, size: 7, font, color: COLORS.textLight });
     if (gepantIntakesTotal > 0) {
       page.drawText(`Gepant-Tage/30T: ${formatGermanDecimal(gepantDaysPerMonth, 1)} | Akutmed.-Tage/30T: ${formatGermanDecimal(acutePerMonth, 1)}`, { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY - 52, size: 7, font, color: COLORS.textLight });
     }
