@@ -139,11 +139,13 @@ export function computeHeadacheTreatmentDayDistribution(
   let painDaysNoMedication = 0;
   let painDaysWithMedication = 0;
   let undocumentedDays = 0;
+  let triptanDays = 0;
 
   for (const date of allDates) {
     const dayEntries = entriesByDate.get(date) || [];
     const classification = classifyDay(dayEntries);
     byDate[date] = classification;
+    if (hasTriptan(dayEntries)) triptanDays++;
     switch (classification) {
       case 'painFree': painFreeDays++; break;
       case 'painNoMedication': painDaysNoMedication++; break;
@@ -162,14 +164,14 @@ export function computeHeadacheTreatmentDayDistribution(
     painDaysWithMedication,
     undocumentedDays,
     painDaysNoTriptan: painDaysNoMedication,
-    triptanDays: painDaysWithMedication,
+    triptanDays,
     percentages: {
       painFree: pct(painFreeDays),
       painNoMedication: pct(painDaysNoMedication),
       withMedication: pct(painDaysWithMedication),
       undocumented: pct(undocumentedDays),
       painNoTriptan: pct(painDaysNoMedication),
-      triptan: pct(painDaysWithMedication),
+      triptan: pct(triptanDays),
     },
     byDate,
     debug: {
