@@ -72,10 +72,12 @@ interface CoreKPIs {
   painDays: number;
   migraineDays: number;
   triptanDays: number;
+  gepantDays?: number;
   acuteMedDays: number;
   auraDays: number;
   avgIntensity: number;
   totalTriptanIntakes: number;
+  totalGepantIntakes?: number;
 }
 
 interface NormalizedKPIs {
@@ -83,6 +85,8 @@ interface NormalizedKPIs {
   migraineDaysPer30: number;
   triptanDaysPer30: number;
   triptanIntakesPer30: number;
+  gepantDaysPer30?: number;
+  gepantIntakesPer30?: number;
   acuteMedDaysPer30: number;
 }
 
@@ -91,6 +95,7 @@ interface ReportSummary {
   headacheDays: number;
   migraineDays: number;
   triptanDays: number;
+  gepantDays?: number;
   acuteMedDays: number;
   auraDays: number;
   avgIntensity: number;
@@ -98,6 +103,7 @@ interface ReportSummary {
   kpis: CoreKPIs;
   normalizedKPIs: NormalizedKPIs;
   totalTriptanIntakes: number;
+  totalGepantIntakes?: number;
   documentationGaps: { gapDays: number; message: string };
 }
 
