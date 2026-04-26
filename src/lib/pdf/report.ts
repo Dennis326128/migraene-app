@@ -1263,8 +1263,8 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     // KPI 2: Triptans + Acute Med
     page.drawText("Triptan-Tage / 30T", { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY, size: 8, font: fontBold, color: COLORS.text });
     page.drawText(formatGermanDecimal(triptanDaysPerMonth, 1), { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY - 20, size: 18, font: fontBold, color: COLORS.primary });
-    page.drawText(`Einnahmen/30T: ${formatGermanDecimal(triptanIntakesPerMonth, 1)}`, { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY - 32, size: 7, font: fontBold, color: COLORS.textLight });
-    page.drawText(gepantIntakesTotal > 0 ? `Gepante/30T: ${formatGermanDecimal(gepantIntakesPerMonth, 1)} Einnahmen` : `Akutmed.-Tage/30T: ${formatGermanDecimal(acutePerMonth, 1)}`, { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY - 42, size: 7, font, color: COLORS.textLight });
+    page.drawText(`Triptan-Einn./30T: ${formatGermanDecimal(triptanIntakesPerMonth, 1)}`, { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY - 32, size: 7, font: fontBold, color: COLORS.textLight });
+    page.drawText(gepantIntakesTotal > 0 ? `Gepant-Einn./30T: ${formatGermanDecimal(gepantIntakesPerMonth, 1)}` : `Akutmed.-Tage/30T: ${formatGermanDecimal(acutePerMonth, 1)}`, { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY - 42, size: 7, font, color: COLORS.textLight });
     if (gepantIntakesTotal > 0) {
       page.drawText(`Gepant-Tage/30T: ${formatGermanDecimal(gepantDaysPerMonth, 1)} | Akutmed.-Tage/30T: ${formatGermanDecimal(acutePerMonth, 1)}`, { x: LAYOUT.margin + boxPadding + colWidth, y: kpiY - 52, size: 7, font, color: COLORS.textLight });
     }
