@@ -421,6 +421,14 @@ export function TherapyMedicationPage({ onBack, onEditEntry }: TherapyMedication
               icon={Pill}
               highlight={Number(kpis.triptanPerMonth) >= 10}
             />
+            {(kpis.gepantIntakes > 0 || kpis.gepantDays > 0) && (
+              <KPICard
+                label="Ø Gepante / Monat"
+                value={kpis.gepantPerMonth}
+                subValue={`${kpis.gepantIntakes} Einnahmen gesamt`}
+                icon={Pill}
+              />
+            )}
             <KPICard
               label="Ø Intensität"
               value={`${kpis.avgIntensity} / 10`}
