@@ -8,8 +8,6 @@ interface HeadacheDaysPieProps {
   painDaysNoMedication?: number;
   painDaysWithMedication?: number;
   undocumentedDays?: number;
-  painDaysNoTriptan?: number;
-  triptanDays?: number;
   showPercent?: boolean;
   compact?: boolean;
   /** Render at larger size for fullscreen views */
@@ -66,8 +64,6 @@ export const HeadacheDaysPie: React.FC<HeadacheDaysPieProps> = ({
   painDaysNoMedication,
   painDaysWithMedication,
   undocumentedDays = 0,
-  painDaysNoTriptan,
-  triptanDays,
   showPercent = true,
   compact = false,
   fullscreen = false,
@@ -78,8 +74,8 @@ export const HeadacheDaysPie: React.FC<HeadacheDaysPieProps> = ({
     return window.localStorage.getItem(STORAGE_KEY) === 'documented' ? 'documented' : 'all';
   });
 
-  const noMedicationDays = painDaysNoMedication ?? painDaysNoTriptan ?? 0;
-  const withMedicationDays = painDaysWithMedication ?? triptanDays ?? 0;
+  const noMedicationDays = painDaysNoMedication ?? 0;
+  const withMedicationDays = painDaysWithMedication ?? 0;
   const documentedTotal = documentedDays ?? Math.max(0, totalDays - undocumentedDays);
   const chartTotalDays = basis === 'documented' ? documentedTotal : totalDays;
 
