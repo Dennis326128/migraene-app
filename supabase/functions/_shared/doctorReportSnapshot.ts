@@ -457,8 +457,7 @@ const SNAPSHOT_TTL_MS = 10 * 60 * 1000;
 const TRIPTAN_KEYWORDS = [
   "triptan", "almotriptan", "eletriptan", "frovatriptan",
   "naratriptan", "rizatriptan", "sumatriptan", "zolmitriptan",
-  "suma", "riza", "zolmi", "nara", "almo", "ele", "frova",
-  "imigran", "maxalt", "ascotop", "naramig", "almogran",
+  "frova", "imigran", "maxalt", "ascotop", "naramig", "almogran",
   "relpax", "allegro", "dolotriptan", "formigran", "sumavel", "zomig"
 ];
 
