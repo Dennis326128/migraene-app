@@ -621,20 +621,30 @@ const DoctorReportView: React.FC = () => {
 
             {/* Pie Chart */}
             {daysInRange > 0 && (() => {
-              const headacheDays = kpis?.painDays ?? summary.headacheDays;
-              const triptanDays = kpis?.triptanDays ?? summary.triptanDays;
-              const painNoTriptan = Math.max(0, headacheDays - triptanDays);
-              const painFree = Math.max(0, daysInRange - headacheDays);
+              const distributionEntries: ReportEntryForDayDistribution[] = (report.tables.entries ?? []).map(entry => ({
+                selected_date: entry.date,
+                timestamp_created: entry.createdAt,
+                pain_level: String(entry.intensity ?? 0),
+                medications: entry.medications ?? [],
+                entry_kind: 'pain',
+              }));
+              const dayBuckets = computeHeadacheTreatmentDayDistribution(
+                report.meta.period.from,
+                report.meta.period.to,
+                distributionEntries,
+              );
 
               return (
                 <Card>
                   <CardContent className="p-4">
                     <p className="text-sm font-medium text-muted-foreground mb-3">Tagesverteilung</p>
                     <HeadacheDaysPie
-                      totalDays={daysInRange}
-                      painFreeDays={painFree}
-                      painDaysNoTriptan={painNoTriptan}
-                      triptanDays={triptanDays}
+                      totalDays={dayBuckets.totalDays}
+                      documentedDays={dayBuckets.documentedDays}
+                      painFreeDays={dayBuckets.painFreeDays}
+                      painDaysNoMedication={dayBuckets.painDaysNoMedication}
+                      painDaysWithMedication={dayBuckets.painDaysWithMedication}
+                      undocumentedDays={dayBuckets.undocumentedDays}
                     />
                   </CardContent>
                 </Card>
