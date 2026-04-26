@@ -52,10 +52,12 @@ export interface CoreKPIs {
   painDays: number;
   migraineDays: number;
   triptanDays: number;
+  gepantDays: number;
   acuteMedDays: number;
   auraDays: number;
   avgIntensity: number;
   totalTriptanIntakes: number;
+  totalGepantIntakes: number;
 }
 
 export interface NormalizedKPIs {
@@ -63,6 +65,8 @@ export interface NormalizedKPIs {
   migraineDaysPer30: number;
   triptanDaysPer30: number;
   triptanIntakesPer30: number;
+  gepantDaysPer30: number;
+  gepantIntakesPer30: number;
   acuteMedDaysPer30: number;
 }
 
@@ -71,6 +75,7 @@ export interface DoctorReportSummary {
   headacheDays: number;
   migraineDays: number;
   triptanDays: number;
+  gepantDays: number;
   acuteMedDays: number;
   auraDays: number;
   avgIntensity: number;
@@ -82,6 +87,7 @@ export interface DoctorReportSummary {
   normalizedKPIs: NormalizedKPIs;
   /** Total triptan intakes (not days) */
   totalTriptanIntakes: number;
+  totalGepantIntakes: number;
 }
 
 export interface IntensityDataPoint {
