@@ -1324,11 +1324,13 @@ export async function buildDoctorReportSnapshot(
   const painDaysSet = new Set<string>();
   const migraineDaysSet = new Set<string>();
   const triptanDaysSet = new Set<string>();
+  const gepantDaysSet = new Set<string>();
   const acuteMedDaysSet = new Set<string>();
   const auraDaysSet = new Set<string>();
   const documentedDatesSet = new Set<string>();
   const dailyMaxIntensity = new Map<string, number>();
   let totalTriptanIntakes = 0;
+  let totalGepantIntakes = 0;
 
   allEntries.forEach(entry => {
     const date = entry.selected_date;
@@ -1358,6 +1360,10 @@ export async function buildDoctorReportSnapshot(
         if (isTriptan(med)) {
           triptanDaysSet.add(date);
           totalTriptanIntakes++;
+        }
+        if (isGepant(med)) {
+          gepantDaysSet.add(date);
+          totalGepantIntakes++;
         }
       });
     }
@@ -1398,10 +1404,12 @@ export async function buildDoctorReportSnapshot(
     painDays: painDaysSet.size,
     migraineDays: migraineDaysSet.size,
     triptanDays: triptanDaysSet.size,
+    gepantDays: gepantDaysSet.size,
     acuteMedDays: acuteMedDaysSet.size,
     auraDays: auraDaysSet.size,
     avgIntensity,
     totalTriptanIntakes,
+    totalGepantIntakes,
   };
 
   const normalizedKPIs: NormalizedKPIs = {
@@ -1409,6 +1417,8 @@ export async function buildDoctorReportSnapshot(
     migraineDaysPer30: normalize30(migraineDaysSet.size),
     triptanDaysPer30: normalize30(triptanDaysSet.size),
     triptanIntakesPer30: normalize30(totalTriptanIntakes),
+    gepantDaysPer30: normalize30(gepantDaysSet.size),
+    gepantIntakesPer30: normalize30(totalGepantIntakes),
     acuteMedDaysPer30: normalize30(acuteMedDaysSet.size),
   };
 
@@ -1417,6 +1427,7 @@ export async function buildDoctorReportSnapshot(
     headacheDays: painDaysSet.size,
     migraineDays: migraineDaysSet.size,
     triptanDays: triptanDaysSet.size,
+    gepantDays: gepantDaysSet.size,
     acuteMedDays: acuteMedDaysSet.size,
     auraDays: auraDaysSet.size,
     avgIntensity,
@@ -1425,6 +1436,7 @@ export async function buildDoctorReportSnapshot(
     kpis,
     normalizedKPIs,
     totalTriptanIntakes,
+    totalGepantIntakes,
   };
 
   // ─────────────────────────────────────────────────────────────────────────
