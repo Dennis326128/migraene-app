@@ -49,7 +49,16 @@ interface EntryForClassification {
   timestamp_created?: string | null;
   pain_level?: string | null;
   medications?: string[] | null;
+  medication_intakes?: Array<{ medication_name?: string | null }> | null;
   entry_kind?: string | null;
+}
+
+function getMedicationNames(entry: EntryForClassification): string[] {
+  const intakeNames = entry.medication_intakes
+    ?.map(intake => intake.medication_name?.trim())
+    .filter((name): name is string => Boolean(name));
+  if (intakeNames?.length) return intakeNames;
+  return entry.medications?.map(med => med.trim()).filter(Boolean) ?? [];
 }
 
 /** Enumerate all dates [start, end] inclusive as YYYY-MM-DD. */
@@ -85,7 +94,7 @@ function classifyDay(entriesForDay: EntryForClassification[]): DayClassification
 
   for (const entry of entriesForDay) {
     if (hasPainLevelAtLeastOne(entry.pain_level)) hasPain = true;
-    if (entry.medications?.some(med => med.trim().length > 0)) hasMedication = true;
+    if (getMedicationNames(entry).length > 0) hasMedication = true;
   }
 
   if (hasPain && hasMedication) return 'withMedication';
@@ -94,11 +103,11 @@ function classifyDay(entriesForDay: EntryForClassification[]): DayClassification
 }
 
 function hasTriptan(entriesForDay: EntryForClassification[]): boolean {
-  return entriesForDay.some(entry => entry.medications?.some(med => isTriptan(med)) ?? false);
+  return entriesForDay.some(entry => getMedicationNames(entry).some(med => isTriptan(med)));
 }
 
 function hasGepant(entriesForDay: EntryForClassification[]): boolean {
-  return entriesForDay.some(entry => entry.medications?.some(med => isGepant(med)) ?? false);
+  return entriesForDay.some(entry => getMedicationNames(entry).some(med => isGepant(med)));
 }
 
 function hasHeadache(entriesForDay: EntryForClassification[]): boolean {
