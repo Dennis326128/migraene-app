@@ -1291,10 +1291,19 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
         radius: 40,
         totalDays: buckets.totalDays,
         painFreeDays: buckets.painFreeDays,
-        painDaysNoTriptan: buckets.painDaysNoTriptan,
-        triptanDays: buckets.triptanDays,
+        painDaysNoMedication: buckets.painDaysNoMedication,
+        painDaysWithMedication: buckets.painDaysWithMedication,
+        undocumentedDays: buckets.undocumentedDays,
         font,
         fontBold,
+      });
+
+      page.drawText("Basis: alle Tage im Zeitraum", {
+        x: LAYOUT.margin,
+        y: yPos + 4,
+        size: 8,
+        font,
+        color: COLORS.textLight,
       });
 
       yPos -= LAYOUT.sectionGap;
