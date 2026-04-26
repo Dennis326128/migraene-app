@@ -5,7 +5,8 @@ describe('computeHeadacheTreatmentDayDistribution', () => {
   it('counts total days correctly for a 30-day range', () => {
     const result = computeHeadacheTreatmentDayDistribution('2026-01-01', '2026-01-30', []);
     expect(result.totalDays).toBe(30);
-    expect(result.painFreeDays).toBe(30);
+    expect(result.painFreeDays).toBe(0);
+    expect(result.undocumentedDays).toBe(30);
     expect(result.triptanDays).toBe(0);
   });
 
@@ -18,16 +19,18 @@ describe('computeHeadacheTreatmentDayDistribution', () => {
     const result = computeHeadacheTreatmentDayDistribution('2026-01-01', '2026-01-03', [
       { selected_date: '2026-01-02', pain_level: 'mittel', entry_kind: 'pain' },
     ]);
-    expect(result.painFreeDays).toBe(2);
+    expect(result.painFreeDays).toBe(0);
     expect(result.painDaysNoTriptan).toBe(1);
     expect(result.triptanDays).toBe(0);
+    expect(result.undocumentedDays).toBe(2);
   });
 
-  it('classifies triptan day with highest priority', () => {
+  it('classifies medication day with highest priority', () => {
     const result = computeHeadacheTreatmentDayDistribution('2026-01-01', '2026-01-01', [
-      { selected_date: '2026-01-01', pain_level: 'stark', entry_kind: 'pain', medications: ['Sumatriptan'] },
+      { selected_date: '2026-01-01', pain_level: 'stark', entry_kind: 'pain', medications: ['Ibuprofen'] },
     ]);
     expect(result.triptanDays).toBe(1);
+    expect(result.painDaysWithMedication).toBe(1);
     expect(result.painDaysNoTriptan).toBe(0);
     expect(result.painFreeDays).toBe(0);
   });
@@ -46,7 +49,7 @@ describe('computeHeadacheTreatmentDayDistribution', () => {
       { selected_date: '2025-12-31', pain_level: 'stark', entry_kind: 'pain' },
       { selected_date: '2026-01-04', pain_level: 'stark', entry_kind: 'pain' },
     ]);
-    expect(result.painFreeDays).toBe(3);
+    expect(result.undocumentedDays).toBe(3);
     expect(result.debug.entryCount).toBe(0);
   });
 
@@ -55,7 +58,7 @@ describe('computeHeadacheTreatmentDayDistribution', () => {
       { selected_date: '2026-01-02', pain_level: 'leicht', entry_kind: 'pain' },
       { selected_date: '2026-01-05', pain_level: 'stark', entry_kind: 'pain', medications: ['Sumatriptan'] },
     ]);
-    expect(result.painFreeDays + result.painDaysNoTriptan + result.triptanDays).toBe(result.totalDays);
+    expect(result.painFreeDays + result.painDaysNoTriptan + result.triptanDays + result.undocumentedDays).toBe(result.totalDays);
     expect(result.totalDays).toBe(10);
   });
 });
