@@ -95,6 +95,10 @@ function hasTriptan(entriesForDay: EntryForClassification[]): boolean {
   return entriesForDay.some(entry => entry.medications?.some(med => isTriptan(med)) ?? false);
 }
 
+function hasHeadache(entriesForDay: EntryForClassification[]): boolean {
+  return entriesForDay.some(entry => hasPainLevelAtLeastOne(entry.pain_level));
+}
+
 /** Extract YYYY-MM-DD from an entry. */
 function getEntryDate(entry: EntryForClassification): string {
   return entry.selected_date || entry.timestamp_created?.split('T')[0] || '';
@@ -140,12 +144,15 @@ export function computeHeadacheTreatmentDayDistribution(
   let painDaysWithMedication = 0;
   let undocumentedDays = 0;
   let triptanDays = 0;
+  let painDaysNoTriptan = 0;
 
   for (const date of allDates) {
     const dayEntries = entriesByDate.get(date) || [];
     const classification = classifyDay(dayEntries);
     byDate[date] = classification;
-    if (hasTriptan(dayEntries)) triptanDays++;
+    const dayHasTriptan = hasTriptan(dayEntries);
+    if (dayHasTriptan) triptanDays++;
+    if (hasHeadache(dayEntries) && !dayHasTriptan) painDaysNoTriptan++;
     switch (classification) {
       case 'painFree': painFreeDays++; break;
       case 'painNoMedication': painDaysNoMedication++; break;
@@ -163,14 +170,14 @@ export function computeHeadacheTreatmentDayDistribution(
     painDaysNoMedication,
     painDaysWithMedication,
     undocumentedDays,
-    painDaysNoTriptan: painDaysNoMedication,
+    painDaysNoTriptan,
     triptanDays,
     percentages: {
       painFree: pct(painFreeDays),
       painNoMedication: pct(painDaysNoMedication),
       withMedication: pct(painDaysWithMedication),
       undocumented: pct(undocumentedDays),
-      painNoTriptan: pct(painDaysNoMedication),
+      painNoTriptan: pct(painDaysNoTriptan),
       triptan: pct(triptanDays),
     },
     byDate,
