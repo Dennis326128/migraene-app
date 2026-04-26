@@ -1180,12 +1180,13 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       if (painLevel > 0) painDaysSet.add(date);
       
       const hasAura = entry.aura_type && entry.aura_type !== "keine";
-      const hasMeds = entry.medications && entry.medications.length > 0;
+      const medicationNames = getMedicationNamesForEntry(entry);
+      const hasMeds = medicationNames.length > 0;
       
       let hasTriptan = false;
       if (hasMeds) {
         acuteMedDaysSet.add(date);
-        entry.medications!.forEach(med => {
+        medicationNames.forEach(med => {
           if (isTriptan(med)) {
             hasTriptan = true;
             triptanIntakesTotal++;
