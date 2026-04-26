@@ -5,7 +5,7 @@
  * No screen may compute this independently.
  */
 
-import { isTriptan } from '@/lib/medications/isTriptan';
+import { isGepant, isTriptan } from '@/lib/medications/classifyMedication';
 
 export type DayClassification = 'painFree' | 'painNoMedication' | 'withMedication' | 'undocumented';
 
@@ -20,6 +20,8 @@ export interface HeadacheTreatmentDayResult {
   painDaysNoTriptan: number;
   /** True calendar days with at least one real triptan. Do not use for the acute-medication donut. */
   triptanDays: number;
+  /** True calendar days with at least one gepant. Do not use for triptan KPIs. */
+  gepantDays: number;
   percentages: {
     painFree: number;
     painNoMedication: number;
@@ -95,6 +97,10 @@ function hasTriptan(entriesForDay: EntryForClassification[]): boolean {
   return entriesForDay.some(entry => entry.medications?.some(med => isTriptan(med)) ?? false);
 }
 
+function hasGepant(entriesForDay: EntryForClassification[]): boolean {
+  return entriesForDay.some(entry => entry.medications?.some(med => isGepant(med)) ?? false);
+}
+
 function hasHeadache(entriesForDay: EntryForClassification[]): boolean {
   return entriesForDay.some(entry => hasPainLevelAtLeastOne(entry.pain_level));
 }
@@ -144,6 +150,7 @@ export function computeHeadacheTreatmentDayDistribution(
   let painDaysWithMedication = 0;
   let undocumentedDays = 0;
   let triptanDays = 0;
+  let gepantDays = 0;
   let painDaysNoTriptan = 0;
 
   for (const date of allDates) {
@@ -151,7 +158,9 @@ export function computeHeadacheTreatmentDayDistribution(
     const classification = classifyDay(dayEntries);
     byDate[date] = classification;
     const dayHasTriptan = hasTriptan(dayEntries);
+    const dayHasGepant = hasGepant(dayEntries);
     if (dayHasTriptan) triptanDays++;
+    if (dayHasGepant) gepantDays++;
     if (hasHeadache(dayEntries) && !dayHasTriptan) painDaysNoTriptan++;
     switch (classification) {
       case 'painFree': painFreeDays++; break;
@@ -172,6 +181,7 @@ export function computeHeadacheTreatmentDayDistribution(
     undocumentedDays,
     painDaysNoTriptan,
     triptanDays,
+    gepantDays,
     percentages: {
       painFree: pct(painFreeDays),
       painNoMedication: pct(painDaysNoMedication),
