@@ -279,6 +279,14 @@ function formatMedicationsWithDose(
   }).join("; ");
 }
 
+function getMedicationNamesForEntry(entry: PainEntry): string[] {
+  const intakeNames = entry.medication_intakes
+    ?.map(intake => intake.medication_name?.trim())
+    .filter((name): name is string => Boolean(name));
+  if (intakeNames?.length) return intakeNames;
+  return entry.medications?.map(med => med.trim()).filter(Boolean) ?? [];
+}
+
 function formatDateGerman(dateStr: string): string {
   try {
     const date = new Date(dateStr);
@@ -1009,12 +1017,13 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   const medCombinationsMap = new Map<string, Map<string, number>>(); // med → co-med → count
   entries.forEach(entry => {
     const date = entry.selected_date || entry.timestamp_created?.split('T')[0] || '';
-    if (!date || !entry.medications || entry.medications.length === 0) return;
-    entry.medications.forEach(med => {
+    const medicationNames = getMedicationNamesForEntry(entry);
+    if (!date || medicationNames.length === 0) return;
+    medicationNames.forEach(med => {
       if (!medDaysMap.has(med)) medDaysMap.set(med, new Set());
       medDaysMap.get(med)!.add(date);
       // Track combinations
-      entry.medications!.forEach(otherMed => {
+      medicationNames.forEach(otherMed => {
         if (otherMed === med) return;
         if (!medCombinationsMap.has(med)) medCombinationsMap.set(med, new Map());
         const comboMap = medCombinationsMap.get(med)!;
