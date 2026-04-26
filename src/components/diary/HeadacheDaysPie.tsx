@@ -125,9 +125,9 @@ export const HeadacheDaysPie: React.FC<HeadacheDaysPieProps> = ({
   return (
     <div className="w-full space-y-3">
       {showBasisToggle && !compact && (
-        <div className="flex flex-col xs:flex-row xs:items-center gap-2 text-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 text-xs">
           <span className="text-muted-foreground whitespace-nowrap">Tage berücksichtigen</span>
-          <div className="inline-flex w-full xs:w-auto rounded-full bg-secondary p-1 border border-border overflow-hidden">
+          <div className="inline-flex w-full sm:w-auto rounded-full bg-secondary p-1 border border-border overflow-hidden">
             {([
               ['all', 'Alle'],
               ['documented', 'Nur dokumentierte'],
@@ -136,7 +136,7 @@ export const HeadacheDaysPie: React.FC<HeadacheDaysPieProps> = ({
                 key={value}
                 type="button"
                 onClick={() => handleBasisChange(value)}
-                className={`flex-1 xs:flex-none whitespace-nowrap rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors ${basis === value ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                className={`flex-1 sm:flex-none whitespace-nowrap rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors ${basis === value ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
               >
                 {label}
               </button>
