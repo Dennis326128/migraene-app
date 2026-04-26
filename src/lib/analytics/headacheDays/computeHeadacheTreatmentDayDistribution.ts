@@ -5,6 +5,8 @@
  * No screen may compute this independently.
  */
 
+import { isTriptan } from '@/lib/medications/isTriptan';
+
 export type DayClassification = 'painFree' | 'painNoMedication' | 'withMedication' | 'undocumented';
 
 export interface HeadacheTreatmentDayResult {
@@ -16,7 +18,7 @@ export interface HeadacheTreatmentDayResult {
   undocumentedDays: number;
   /** @deprecated Use painDaysNoMedication. Kept for older call sites. */
   painDaysNoTriptan: number;
-  /** @deprecated Use painDaysWithMedication. Kept for older call sites. */
+  /** True calendar days with at least one real triptan. Do not use for the acute-medication donut. */
   triptanDays: number;
   percentages: {
     painFree: number;
@@ -25,7 +27,7 @@ export interface HeadacheTreatmentDayResult {
     undocumented: number;
     /** @deprecated */
     painNoTriptan: number;
-    /** @deprecated */
+    /** True triptan-day percentage on all calendar days. Do not use for the acute-medication donut. */
     triptan: number;
   };
   byDate: Record<string, DayClassification>;
@@ -87,6 +89,10 @@ function classifyDay(entriesForDay: EntryForClassification[]): DayClassification
   if (hasPain && hasMedication) return 'withMedication';
   if (hasPain) return 'painNoMedication';
   return 'painFree';
+}
+
+function hasTriptan(entriesForDay: EntryForClassification[]): boolean {
+  return entriesForDay.some(entry => entry.medications?.some(med => isTriptan(med)) ?? false);
 }
 
 /** Extract YYYY-MM-DD from an entry. */
