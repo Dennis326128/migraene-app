@@ -19,12 +19,15 @@ const TRIPTAN_HANDELSNAMEN = [
   'imigran',
   'maxalt',
   'ascotop',
+  'zomig',
   'naramig',
   'almogran',
   'relpax',
   'allegro',
+  'frova',
   'dolotriptan',
   'formigran',
+  'sumavel',
 ] as const;
 
 const ALL_TRIPTAN_KEYWORDS = [

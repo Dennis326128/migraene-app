@@ -14,6 +14,9 @@
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
+import { isTriptan } from '@/lib/medications/isTriptan';
+
+
 /**
  * OFFIZIELLE SEKTIONSREIHENFOLGE für Kopfschmerztagebuch
  * 
@@ -202,6 +205,10 @@ export const TRIPTAN_MEDICATIONS = [
   'almogran',
   'relpax',
   'allegro',
+  'dolotriptan',
+  'formigran',
+  'sumavel',
+  'zomig',
 ] as const;
 
 /**
@@ -210,17 +217,7 @@ export const TRIPTAN_MEDICATIONS = [
  * z.B. Sumatriptan, Rizatriptan, Naratriptan → true
  */
 export function isTriptanMedication(medicationName: string): boolean {
-  const normalized = medicationName.toLowerCase().trim();
-  
-  // KRITISCH: Prüfe ob "triptan" im Namen enthalten ist
-  if (normalized.includes('triptan')) {
-    return true;
-  }
-  
-  // Zusätzlich: bekannte Handelsnamen prüfen
-  return TRIPTAN_MEDICATIONS.some(triptan => 
-    normalized.includes(triptan)
-  );
+  return isTriptan(medicationName);
 }
 
 /**

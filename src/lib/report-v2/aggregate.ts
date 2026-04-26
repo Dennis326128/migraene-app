@@ -16,6 +16,7 @@ import type {
 import { isHeadacheDay, isTreatmentDay, computeMeCfsMax, computeMohRiskFlag } from './definitions';
 import { normalizeOptions, clampRange } from './normalize';
 import { buildCharts } from './charts';
+import { isTriptan } from '@/lib/medications/isTriptan';
 
 /**
  * Primary SSOT aggregation function.
@@ -117,11 +118,7 @@ export function computeMiaryReport(input: ComputeReportInput): MiaryReportV2 {
       if (day.triptanUsed) {
         triptanDays++;
         // Count individual triptan intakes from medications array
-        const triptanMeds = day.medications.filter(m =>
-          m.name.toLowerCase().includes('triptan') ||
-          ['imigran','maxalt','ascotop','naramig','almogran','relpax','allegro','dolotriptan','formigran']
-            .some(t => m.name.toLowerCase().includes(t))
-        );
+        const triptanMeds = day.medications.filter(m => isTriptan(m.name));
         totalTriptanIntakes += Math.max(1, triptanMeds.length);
       }
     }

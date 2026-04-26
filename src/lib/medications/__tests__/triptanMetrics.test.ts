@@ -34,15 +34,45 @@ describe('computeTriptanMetrics', () => {
     expect(result.triptanDays).toBe(0);
   });
 
-  it('recognizes trade names (Imigran, Maxalt, Ascotop)', () => {
+  it('recognizes trade names and composed names', () => {
     const entries = [
       { selected_date: '2025-01-15', medications: ['Imigran 50mg'] },
-      { selected_date: '2025-01-16', medications: ['Maxalt 10mg'] },
-      { selected_date: '2025-01-17', medications: ['Ascotop 2.5mg'] },
+      { selected_date: '2025-01-16', medications: ['Maxalt lingua'] },
+      { selected_date: '2025-01-17', medications: ['AscoTop nasal'] },
+      { selected_date: '2025-01-18', medications: ['Zomig nasal'] },
+      { selected_date: '2025-01-19', medications: ['Sumavel DosePro'] },
     ];
     const result = computeTriptanMetrics(entries);
-    expect(result.triptanIntakes).toBe(3);
-    expect(result.triptanDays).toBe(3);
+    expect(result.triptanIntakes).toBe(5);
+    expect(result.triptanDays).toBe(5);
+  });
+
+  it('recognizes active ingredients with dose and route additions', () => {
+    const entries = [
+      { selected_date: '2025-01-15', medications: ['Sumatriptan 50 mg'] },
+      { selected_date: '2025-01-16', medications: ['Rizatriptan 10mg'] },
+      { selected_date: '2025-01-17', medications: ['Zolmitriptan nasal'] },
+      { selected_date: '2025-01-18', medications: ['Naratriptan Hexal'] },
+      { selected_date: '2025-01-19', medications: ['Almotriptan'] },
+      { selected_date: '2025-01-20', medications: ['Eletriptan'] },
+      { selected_date: '2025-01-21', medications: ['Frovatriptan'] },
+    ];
+    const result = computeTriptanMetrics(entries);
+    expect(result.triptanIntakes).toBe(7);
+    expect(result.triptanDays).toBe(7);
+  });
+
+  it('does not count common non-triptans as triptans', () => {
+    const entries = [
+      { selected_date: '2025-01-15', medications: ['Ibuprofen', 'Naproxen', 'Paracetamol'] },
+      { selected_date: '2025-01-16', medications: ['ASS', 'Metamizol', 'Diclofenac'] },
+      { selected_date: '2025-01-17', medications: ['Vomex', 'MCP', 'Magnesium'] },
+      { selected_date: '2025-01-18', medications: ['Topiramat', 'Amitriptylin', 'Betablocker'] },
+      { selected_date: '2025-01-19', medications: ['Botox', 'Ajovy', 'Aimovig'] },
+    ];
+    const result = computeTriptanMetrics(entries);
+    expect(result.triptanIntakes).toBe(0);
+    expect(result.triptanDays).toBe(0);
   });
 
   it('handles mixed triptan and non-triptan in same entry', () => {
