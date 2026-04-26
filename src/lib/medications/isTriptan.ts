@@ -24,6 +24,7 @@ const TRIPTAN_HANDELSNAMEN = [
   'almogran',
   'relpax',
   'allegro',
+  'frova',
   'dolotriptan',
   'formigran',
   'sumavel',
