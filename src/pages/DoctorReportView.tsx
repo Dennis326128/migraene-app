@@ -590,6 +590,22 @@ const DoctorReportView: React.FC = () => {
                 </CardContent>
               </Card>
 
+              {((kpis?.totalGepantIntakes ?? summary.totalGepantIntakes ?? 0) > 0 || (kpis?.gepantDays ?? summary.gepantDays ?? 0) > 0) && (
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                      <Pill className="w-4 h-4" />
+                      <span className="text-xs">
+                        {nkpis?.gepantIntakesPer30 != null ? "Gepant-Einnahmen / 30 Tage" : "Gepanttage / 30 Tage"}
+                      </span>
+                    </div>
+                    <p className="text-2xl font-bold">
+                      {nkpis?.gepantIntakesPer30?.toFixed(1) ?? nkpis?.gepantDaysPer30?.toFixed(1) ?? "-"}
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+
               <Card>
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2 text-muted-foreground mb-1">
@@ -690,6 +706,18 @@ const DoctorReportView: React.FC = () => {
                           <td className="py-2 text-muted-foreground">Triptan-Einnahmen gesamt</td>
                           <td className="py-2 text-right font-medium">{summary.totalTriptanIntakes}</td>
                         </tr>
+                      )}
+                      {((summary.totalGepantIntakes ?? 0) > 0 || (summary.gepantDays ?? 0) > 0) && (
+                        <>
+                          <tr className="border-b">
+                            <td className="py-2 text-muted-foreground">Gepanttage (roh)</td>
+                            <td className="py-2 text-right font-medium">{summary.gepantDays ?? 0}</td>
+                          </tr>
+                          <tr className="border-b">
+                            <td className="py-2 text-muted-foreground">Gepant-Einnahmen gesamt</td>
+                            <td className="py-2 text-right font-medium">{summary.totalGepantIntakes ?? 0}</td>
+                          </tr>
+                        </>
                       )}
                       <tr>
                         <td className="py-2 text-muted-foreground">Ø pro 30 Tage (normiert)</td>
