@@ -129,7 +129,10 @@ export function buildPdfReport(args: BuildPdfReportArgs): PdfReportResult {
       ? (entry.pain_level != null ? normalizePainLevel(entry.pain_level as string | number) : 0)
       : null;
 
-    const meds = entry.medications || [];
+    const medsFromIntakes = entry.medication_intakes
+      ?.map(intake => intake.medication_name?.trim())
+      .filter((name): name is string => Boolean(name));
+    const meds = medsFromIntakes?.length ? medsFromIntakes : (entry.medications || []);
     const acuteMedUsed = meds.length > 0;
     let triptanUsed = false;
     let gepantUsed = false;
