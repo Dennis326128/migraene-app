@@ -46,6 +46,9 @@ export interface ReportKPIsV2 {
   triptanDays: number;
   /** Total individual triptan intakes (NOT days — one day can have multiple intakes) */
   totalTriptanIntakes: number;
+  gepantDays: number;
+  /** Total individual gepant intakes (NOT days — one day can have multiple intakes) */
+  totalGepantIntakes: number;
   acuteMedDays: number;
   preventiveMedActive: boolean;
   mohRiskFlag: MohRiskFlag;
@@ -126,6 +129,8 @@ export interface DayCountRecord {
   meCfsMax?: MeCfsSeverity | null;
   /** Whether triptan was used on this day */
   triptanUsed?: boolean;
+  /** Whether gepant was used on this day */
+  gepantUsed?: boolean;
   /** Whether any acute medication was used on this day */
   acuteMedUsed?: boolean;
 }
@@ -160,6 +165,7 @@ export interface ReportEntryInput {
   painMax: number | null;
   acuteMedUsed: boolean;
   triptanUsed: boolean;
+  gepantUsed?: boolean;
   meCfsLevels?: Array<MeCfsSeverity | null | undefined>;
   medications?: Array<{
     medicationId: string;
