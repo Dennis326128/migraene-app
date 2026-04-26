@@ -3,21 +3,29 @@ import { PIE_COLORS_CSS, PIE_LABELS } from '@/lib/theme/pieColors';
 
 interface HeadacheDaysPieProps {
   totalDays: number;
+  documentedDays?: number;
   painFreeDays: number;
-  painDaysNoTriptan: number;
-  triptanDays: number;
+  painDaysNoMedication?: number;
+  painDaysWithMedication?: number;
+  undocumentedDays?: number;
+  painDaysNoTriptan?: number;
+  triptanDays?: number;
   showPercent?: boolean;
   compact?: boolean;
   /** Render at larger size for fullscreen views */
   fullscreen?: boolean;
+  showBasisToggle?: boolean;
 }
 
 interface SliceData {
-  key: 'painFree' | 'painNoTriptan' | 'triptan';
+  key: 'painFree' | 'painNoMedication' | 'withMedication' | 'undocumented';
   value: number;
   color: string;
   label: string;
 }
+
+type DayBasis = 'all' | 'documented';
+const STORAGE_KEY = 'headache_days_pie_basis';
 
 function describeArc(cx: number, cy: number, r: number, startAngle: number, endAngle: number): string {
   // Full circle special case
@@ -53,44 +61,66 @@ function describeArc(cx: number, cy: number, r: number, startAngle: number, endA
 
 export const HeadacheDaysPie: React.FC<HeadacheDaysPieProps> = ({
   totalDays,
+  documentedDays,
   painFreeDays,
+  painDaysNoMedication,
+  painDaysWithMedication,
+  undocumentedDays = 0,
   painDaysNoTriptan,
   triptanDays,
   showPercent = true,
   compact = false,
   fullscreen = false,
+  showBasisToggle = true,
 }) => {
+  const [basis, setBasis] = React.useState<DayBasis>(() => {
+    if (typeof window === 'undefined') return 'all';
+    return window.localStorage.getItem(STORAGE_KEY) === 'documented' ? 'documented' : 'all';
+  });
+
+  const noMedicationDays = painDaysNoMedication ?? painDaysNoTriptan ?? 0;
+  const withMedicationDays = painDaysWithMedication ?? triptanDays ?? 0;
+  const documentedTotal = documentedDays ?? Math.max(0, totalDays - undocumentedDays);
+  const chartTotalDays = basis === 'documented' ? documentedTotal : totalDays;
+
+  const handleBasisChange = (nextBasis: DayBasis) => {
+    setBasis(nextBasis);
+    if (typeof window !== 'undefined') window.localStorage.setItem(STORAGE_KEY, nextBasis);
+  };
 
   const slices = useMemo<SliceData[]>(() => {
     const all: SliceData[] = [
       { key: 'painFree', value: painFreeDays, color: PIE_COLORS_CSS.painFree, label: PIE_LABELS.painFree },
-      { key: 'painNoTriptan', value: painDaysNoTriptan, color: PIE_COLORS_CSS.painNoTriptan, label: PIE_LABELS.painNoTriptan },
-      { key: 'triptan', value: triptanDays, color: PIE_COLORS_CSS.triptan, label: PIE_LABELS.triptan },
+      { key: 'painNoMedication', value: noMedicationDays, color: PIE_COLORS_CSS.painNoMedication, label: PIE_LABELS.painNoMedication },
+      { key: 'withMedication', value: withMedicationDays, color: PIE_COLORS_CSS.withMedication, label: PIE_LABELS.withMedication },
     ];
+    if (basis === 'all') {
+      all.push({ key: 'undocumented', value: undocumentedDays, color: PIE_COLORS_CSS.undocumented, label: PIE_LABELS.undocumented });
+    }
     return all;
-  }, [painFreeDays, painDaysNoTriptan, triptanDays]);
+  }, [basis, painFreeDays, noMedicationDays, withMedicationDays, undocumentedDays]);
 
   const activeSlices = useMemo(() => slices.filter(s => s.value > 0), [slices]);
 
   const paths = useMemo(() => {
-    if (totalDays === 0) return [];
+    if (chartTotalDays === 0) return [];
     const cx = 60, cy = 60, r = 55;
     let currentAngle = -Math.PI / 2; // Start at top
     
     return activeSlices.map(slice => {
-      const sweepAngle = (slice.value / totalDays) * Math.PI * 2;
+      const sweepAngle = (slice.value / chartTotalDays) * Math.PI * 2;
       const d = describeArc(cx, cy, r, currentAngle, currentAngle + sweepAngle);
       currentAngle += sweepAngle;
       return { ...slice, d };
     });
-  }, [activeSlices, totalDays]);
+  }, [activeSlices, chartTotalDays]);
 
   const size = fullscreen ? 220 : compact ? 100 : 120;
   const fontSize = fullscreen ? 'text-base' : compact ? 'text-xs' : 'text-sm';
   const swatchSize = fullscreen ? 14 : compact ? 10 : 12;
   const centerFontSize = fullscreen ? 20 : 18;
   const centerSubFontSize = fullscreen ? 11 : 10;
-  const pct = (v: number) => totalDays > 0 ? Math.round((v / totalDays) * 1000) / 10 : 0;
+  const pct = (v: number) => chartTotalDays > 0 ? Math.round((v / chartTotalDays) * 1000) / 10 : 0;
 
   return (
     <div className={`flex ${fullscreen ? 'flex-col sm:flex-row items-center gap-8' : compact ? 'flex-row items-center gap-3' : 'flex-col sm:flex-row items-center sm:items-center gap-4'}`}>
