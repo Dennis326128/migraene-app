@@ -29,7 +29,7 @@ export function useHeadacheTreatmentDays(): UseHeadacheTreatmentDaysResult {
   const { data: allEntries = [], isLoading, error } = useEntries({ limit: entriesLimit });
 
   const data = useMemo(() => {
-    if (!from || !to || allEntries.length === 0) return null;
+    if (!from || !to) return null;
     return computeHeadacheTreatmentDayDistribution(from, to, allEntries);
   }, [from, to, allEntries]);
 

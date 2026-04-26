@@ -386,9 +386,11 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
                   </div>
                   <HeadacheDaysPie
                     totalDays={dayBuckets?.totalDays ?? 0}
+                    documentedDays={dayBuckets?.documentedDays ?? 0}
                     painFreeDays={dayBuckets?.painFreeDays ?? 0}
-                    painDaysNoTriptan={dayBuckets?.painDaysNoTriptan ?? 0}
-                    triptanDays={dayBuckets?.triptanDays ?? 0}
+                    painDaysNoMedication={dayBuckets?.painDaysNoMedication ?? 0}
+                    painDaysWithMedication={dayBuckets?.painDaysWithMedication ?? 0}
+                    undocumentedDays={dayBuckets?.undocumentedDays ?? 0}
                   />
                 </Card>
 
@@ -510,9 +512,11 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
         <div className="flex items-center justify-center h-full">
           <HeadacheDaysPie
             totalDays={dayBuckets?.totalDays ?? 0}
+            documentedDays={dayBuckets?.documentedDays ?? 0}
             painFreeDays={dayBuckets?.painFreeDays ?? 0}
-            painDaysNoTriptan={dayBuckets?.painDaysNoTriptan ?? 0}
-            triptanDays={dayBuckets?.triptanDays ?? 0}
+            painDaysNoMedication={dayBuckets?.painDaysNoMedication ?? 0}
+            painDaysWithMedication={dayBuckets?.painDaysWithMedication ?? 0}
+            undocumentedDays={dayBuckets?.undocumentedDays ?? 0}
             fullscreen
           />
         </div>

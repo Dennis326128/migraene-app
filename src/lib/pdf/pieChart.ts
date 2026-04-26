@@ -18,8 +18,9 @@ interface PieSlice {
 /** Farben passend zu PIE_COLORS_CSS */
 export const PDF_PIE_COLORS = {
   painFree: rgb(0.086, 0.639, 0.290),       // #16a34a
-  painNoTriptan: rgb(0.961, 0.620, 0.043),   // #f59e0b
-  triptan: rgb(0.937, 0.267, 0.267),          // #ef4444
+  painNoMedication: rgb(0.961, 0.620, 0.043), // #f59e0b
+  withMedication: rgb(0.937, 0.267, 0.267),   // #ef4444
+  undocumented: rgb(0.459, 0.478, 0.502),     // neutral gray
 };
 
 /**
@@ -37,8 +38,9 @@ export function drawPieChartWithLegend(
     radius?: number;     // Standard: 45
     totalDays: number;
     painFreeDays: number;
-    painDaysNoTriptan: number;
-    triptanDays: number;
+    painDaysNoMedication: number;
+    painDaysWithMedication: number;
+    undocumentedDays: number;
     font: PDFFont;
     fontBold: PDFFont;
   }
@@ -46,7 +48,7 @@ export function drawPieChartWithLegend(
   const {
     x, y, 
     radius = 45,
-    totalDays, painFreeDays, painDaysNoTriptan, triptanDays,
+    totalDays, painFreeDays, painDaysNoMedication, painDaysWithMedication, undocumentedDays,
     font, fontBold,
   } = opts;
 
@@ -54,8 +56,9 @@ export function drawPieChartWithLegend(
 
   const slices: PieSlice[] = [
     { value: painFreeDays, color: PDF_PIE_COLORS.painFree, label: 'Schmerzfrei' },
-    { value: painDaysNoTriptan, color: PDF_PIE_COLORS.painNoTriptan, label: 'Kopfschmerz ohne Akutmedikation' },
-    { value: triptanDays, color: PDF_PIE_COLORS.triptan, label: 'Kopfschmerz mit Akutmedikation' },
+    { value: painDaysNoMedication, color: PDF_PIE_COLORS.painNoMedication, label: 'Kopfschmerz ohne Akutmedikation' },
+    { value: painDaysWithMedication, color: PDF_PIE_COLORS.withMedication, label: 'Kopfschmerz mit Akutmedikation' },
+    { value: undocumentedDays, color: PDF_PIE_COLORS.undocumented, label: 'Nicht dokumentiert' },
   ];
 
   const activeSlices = slices.filter(s => s.value > 0);

@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { HeadacheDaysPie } from "@/components/diary/HeadacheDaysPie";
+import { computeHeadacheTreatmentDayDistribution } from "@/lib/analytics/headacheDays";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -111,6 +112,14 @@ interface ReportEntry {
   note: string | null;
   aura: string | null;
   painLocations: string[];
+}
+
+interface ReportEntryForDayDistribution {
+  selected_date: string;
+  timestamp_created: string | null;
+  pain_level: string;
+  medications: string[];
+  entry_kind: string;
 }
 
 interface MedicationStat {
@@ -612,20 +621,30 @@ const DoctorReportView: React.FC = () => {
 
             {/* Pie Chart */}
             {daysInRange > 0 && (() => {
-              const headacheDays = kpis?.painDays ?? summary.headacheDays;
-              const triptanDays = kpis?.triptanDays ?? summary.triptanDays;
-              const painNoTriptan = Math.max(0, headacheDays - triptanDays);
-              const painFree = Math.max(0, daysInRange - headacheDays);
+              const distributionEntries: ReportEntryForDayDistribution[] = (report.tables.entries ?? []).map(entry => ({
+                selected_date: entry.date,
+                timestamp_created: entry.createdAt,
+                pain_level: String(entry.intensity ?? 0),
+                medications: entry.medications ?? [],
+                entry_kind: 'pain',
+              }));
+              const dayBuckets = computeHeadacheTreatmentDayDistribution(
+                report.meta.period.fromDate,
+                report.meta.period.toDate,
+                distributionEntries,
+              );
 
               return (
                 <Card>
                   <CardContent className="p-4">
                     <p className="text-sm font-medium text-muted-foreground mb-3">Tagesverteilung</p>
                     <HeadacheDaysPie
-                      totalDays={daysInRange}
-                      painFreeDays={painFree}
-                      painDaysNoTriptan={painNoTriptan}
-                      triptanDays={triptanDays}
+                      totalDays={dayBuckets.totalDays}
+                      documentedDays={dayBuckets.documentedDays}
+                      painFreeDays={dayBuckets.painFreeDays}
+                      painDaysNoMedication={dayBuckets.painDaysNoMedication}
+                      painDaysWithMedication={dayBuckets.painDaysWithMedication}
+                      undocumentedDays={dayBuckets.undocumentedDays}
                     />
                   </CardContent>
                 </Card>
