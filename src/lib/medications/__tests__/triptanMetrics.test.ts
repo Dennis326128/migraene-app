@@ -38,6 +38,18 @@ describe('computeTriptanMetrics', () => {
     expect(result.gepantIntakes).toBe(2);
   });
 
+  it('uses medication_intakes as SSOT when present', () => {
+    const result = computeMigraineAcuteMetrics([
+      { selected_date: '2025-01-15', medications: [], medication_intakes: [{ medication_name: 'Vydura 75 mg' }] },
+      { selected_date: '2025-01-16', medications: ['Ibuprofen'], medication_intakes: [{ medication_name: 'Sumatriptan 50 mg' }] },
+    ]);
+
+    expect(result.triptanDays).toBe(1);
+    expect(result.triptanIntakes).toBe(1);
+    expect(result.gepantDays).toBe(1);
+    expect(result.gepantIntakes).toBe(1);
+  });
+
   it('counts multiple triptan intakes on same day', () => {
     const entries = [
       { selected_date: '2025-01-15', medications: ['Sumatriptan 50mg', 'Rizatriptan 10mg'] },
