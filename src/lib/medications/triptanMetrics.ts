@@ -15,7 +15,7 @@
  * - "Triptan-Einnahmen" / "Einnahmen gesamt"      → triptanIntakes
  */
 
-import { isTriptan } from './isTriptan';
+import { isGepant, isTriptan } from './classifyMedication';
 
 export interface TriptanMetrics {
   /** Number of distinct calendar days with ≥1 triptan intake */
@@ -26,6 +26,17 @@ export interface TriptanMetrics {
   triptanDates: Set<string>;
   /** Breakdown by medication name */
   byMedication: Map<string, { intakes: number; days: Set<string> }>;
+}
+
+export interface MigraineAcuteMetrics extends TriptanMetrics {
+  /** Number of distinct calendar days with ≥1 gepant intake */
+  gepantDays: number;
+  /** Total number of individual gepant intakes */
+  gepantIntakes: number;
+  /** Set of dates (YYYY-MM-DD) with gepant use */
+  gepantDates: Set<string>;
+  /** Breakdown by gepant medication name */
+  gepantByMedication: Map<string, { intakes: number; days: Set<string> }>;
 }
 
 interface EntryForTriptanMetrics {
@@ -48,29 +59,54 @@ function getDateKey(entry: EntryForTriptanMetrics): string | null {
  * @returns TriptanMetrics with both day-count and intake-count
  */
 export function computeTriptanMetrics(entries: EntryForTriptanMetrics[]): TriptanMetrics {
+  const metrics = computeMigraineAcuteMetrics(entries);
+  return {
+    triptanDays: metrics.triptanDays,
+    triptanIntakes: metrics.triptanIntakes,
+    triptanDates: metrics.triptanDates,
+    byMedication: metrics.byMedication,
+  };
+}
+
+export function computeMigraineAcuteMetrics(entries: EntryForTriptanMetrics[]): MigraineAcuteMetrics {
   const triptanDates = new Set<string>();
+  const gepantDates = new Set<string>();
   let triptanIntakes = 0;
+  let gepantIntakes = 0;
   const byMedication = new Map<string, { intakes: number; days: Set<string> }>();
+  const gepantByMedication = new Map<string, { intakes: number; days: Set<string> }>();
 
   for (const entry of entries) {
     const dateKey = getDateKey(entry);
     if (!entry.medications?.length) continue;
 
     for (const med of entry.medications) {
-      if (!isTriptan(med)) continue;
+      if (isTriptan(med)) {
+        triptanIntakes++;
+        if (dateKey) triptanDates.add(dateKey);
+        const existing = byMedication.get(med);
+        if (existing) {
+          existing.intakes++;
+          if (dateKey) existing.days.add(dateKey);
+        } else {
+          const days = new Set<string>();
+          if (dateKey) days.add(dateKey);
+          byMedication.set(med, { intakes: 1, days });
+        }
+      }
 
-      triptanIntakes++;
-      if (dateKey) triptanDates.add(dateKey);
-
-      // Per-medication breakdown
-      const existing = byMedication.get(med);
-      if (existing) {
-        existing.intakes++;
-        if (dateKey) existing.days.add(dateKey);
-      } else {
-        const days = new Set<string>();
-        if (dateKey) days.add(dateKey);
-        byMedication.set(med, { intakes: 1, days });
+      if (isGepant(med)) {
+        gepantIntakes++;
+        if (dateKey) gepantDates.add(dateKey);
+        const existing = gepantByMedication.get(med);
+        if (existing) {
+          existing.intakes++;
+          if (dateKey) existing.days.add(dateKey);
+        } else {
+          const days = new Set<string>();
+          if (dateKey) days.add(dateKey);
+          gepantByMedication.set(med, { intakes: 1, days });
+        }
       }
     }
   }
@@ -80,6 +116,10 @@ export function computeTriptanMetrics(entries: EntryForTriptanMetrics[]): Tripta
     triptanIntakes,
     triptanDates,
     byMedication,
+    gepantDays: gepantDates.size,
+    gepantIntakes,
+    gepantDates,
+    gepantByMedication,
   };
 }
 

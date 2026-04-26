@@ -2,9 +2,42 @@
  * Tests for central triptan metrics SSOT
  */
 import { describe, it, expect } from 'vitest';
-import { computeTriptanMetrics, normalizeTriptanPer30 } from '../triptanMetrics';
+import { isGepant, isTriptan } from '../classifyMedication';
+import { computeMigraineAcuteMetrics, computeTriptanMetrics, normalizeTriptanPer30 } from '../triptanMetrics';
 
 describe('computeTriptanMetrics', () => {
+  it('separates triptans from gepants and common non-migraine-acutes', () => {
+    const triptans = ['Sumatriptan 50 mg', 'Maxalt lingua', 'Zomig nasal'];
+    const gepants = ['Vydura 75 mg', 'Nurtec ODT', 'Rimegepant', 'Atogepant 60mg', 'Qulipta', 'Ubrelvy', 'Zavegepant nasal', 'Zavzpret'];
+    const others = ['Ibuprofen', 'Naproxen', 'Paracetamol', 'Metamizol', 'Diclofenac', 'Magnesium', 'Topiramat', 'Ajovy', 'Aimovig', 'Emgality', 'Botox'];
+
+    triptans.forEach(name => {
+      expect(isTriptan(name)).toBe(true);
+      expect(isGepant(name)).toBe(false);
+    });
+    gepants.forEach(name => {
+      expect(isGepant(name)).toBe(true);
+      expect(isTriptan(name)).toBe(false);
+    });
+    others.forEach(name => {
+      expect(isTriptan(name)).toBe(false);
+      expect(isGepant(name)).toBe(false);
+    });
+  });
+
+  it('counts gepants separately from triptans', () => {
+    const result = computeMigraineAcuteMetrics([
+      { selected_date: '2025-01-15', medications: ['Vydura 75 mg'] },
+      { selected_date: '2025-01-16', medications: ['Sumatriptan 50 mg'] },
+      { selected_date: '2025-01-16', medications: ['Nurtec ODT'] },
+    ]);
+
+    expect(result.triptanDays).toBe(1);
+    expect(result.triptanIntakes).toBe(1);
+    expect(result.gepantDays).toBe(2);
+    expect(result.gepantIntakes).toBe(2);
+  });
+
   it('counts multiple triptan intakes on same day', () => {
     const entries = [
       { selected_date: '2025-01-15', medications: ['Sumatriptan 50mg', 'Rizatriptan 10mg'] },

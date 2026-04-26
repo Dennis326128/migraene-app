@@ -17,7 +17,7 @@ import { useMedicationUsageStats } from "@/features/medication-intakes/hooks/use
 import { useActiveMeds } from "@/features/meds/hooks/useMeds";
 import { useMedicationCourses } from "@/features/medication-courses/hooks/useMedicationCourses";
 import { TimeRangeSelector } from "@/components/PainApp/TimeRangeSelector";
-import { isTriptan as isTriptanMedication } from "@/lib/medications/isTriptan";
+import { isGepant, isTriptan as isTriptanMedication } from "@/lib/medications/classifyMedication";
 import { normalizePainLevel } from "@/lib/utils/pain";
 import { formatNumberSmart } from "@/lib/formatters/dateRangeFormatter";
 import { format, parseISO, isWithinInterval } from "date-fns";
@@ -261,8 +261,10 @@ export function TherapyMedicationPage({ onBack, onEditEntry }: TherapyMedication
     
     // TRIPTAN & AKUT — from medication_intakes table (usageStats), not from limited entries
     let triptanIntakes = 0;
+    let gepantIntakes = 0;
     let acuteMedIntakes = 0;
     const triptanDaysSet = new Set<string>();
+    const gepantDaysSet = new Set<string>();
     const acuteDaysSet = new Set<string>();
     
     usageStats.forEach(stat => {
@@ -271,6 +273,9 @@ export function TherapyMedicationPage({ onBack, onEditEntry }: TherapyMedication
       // We can't get individual dates here, so we use the count
       if (isTriptanMedication(stat.medication_name)) {
         triptanIntakes += stat.intake_count;
+      }
+      if (isGepant(stat.medication_name)) {
+        gepantIntakes += stat.intake_count;
       }
     });
 
@@ -282,11 +287,15 @@ export function TherapyMedicationPage({ onBack, onEditEntry }: TherapyMedication
         if (isTriptanMedication(med)) {
           if (dateKey) triptanDaysSet.add(dateKey);
         }
+        if (isGepant(med)) {
+          if (dateKey) gepantDaysSet.add(dateKey);
+        }
         if (dateKey) acuteDaysSet.add(dateKey);
       });
     });
     
     const triptanDays = triptanDaysSet.size;
+    const gepantDays = gepantDaysSet.size;
     const acuteMedDays = acuteDaysSet.size;
     
     // Normiert auf 30 Tage — intake-based (not day-based)
@@ -296,6 +305,9 @@ export function TherapyMedicationPage({ onBack, onEditEntry }: TherapyMedication
     const acutePerMonth = days >= 30 
       ? formatNumberSmart((acuteMedIntakes / days) * 30) 
       : acuteMedIntakes;
+    const gepantPerMonth = days >= 30 
+      ? formatNumberSmart((gepantIntakes / days) * 30) 
+      : gepantIntakes;
     
     return {
       painDays,
@@ -304,6 +316,9 @@ export function TherapyMedicationPage({ onBack, onEditEntry }: TherapyMedication
       triptanIntakes,
       triptanDays,
       triptanPerMonth,
+      gepantIntakes,
+      gepantDays,
+      gepantPerMonth,
       acuteMedIntakes,
       acuteMedDays,
       acutePerMonth,
@@ -406,6 +421,14 @@ export function TherapyMedicationPage({ onBack, onEditEntry }: TherapyMedication
               icon={Pill}
               highlight={Number(kpis.triptanPerMonth) >= 10}
             />
+            {(kpis.gepantIntakes > 0 || kpis.gepantDays > 0) && (
+              <KPICard
+                label="Ø Gepante / Monat"
+                value={kpis.gepantPerMonth}
+                subValue={`${kpis.gepantIntakes} Einnahmen gesamt`}
+                icon={Pill}
+              />
+            )}
             <KPICard
               label="Ø Intensität"
               value={`${kpis.avgIntensity} / 10`}

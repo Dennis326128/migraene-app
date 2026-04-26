@@ -52,10 +52,12 @@ export interface CoreKPIs {
   painDays: number;
   migraineDays: number;
   triptanDays: number;
+  gepantDays: number;
   acuteMedDays: number;
   auraDays: number;
   avgIntensity: number;
   totalTriptanIntakes: number;
+  totalGepantIntakes: number;
 }
 
 export interface NormalizedKPIs {
@@ -63,6 +65,8 @@ export interface NormalizedKPIs {
   migraineDaysPer30: number;
   triptanDaysPer30: number;
   triptanIntakesPer30: number;
+  gepantDaysPer30: number;
+  gepantIntakesPer30: number;
   acuteMedDaysPer30: number;
 }
 
@@ -71,6 +75,7 @@ export interface DoctorReportSummary {
   headacheDays: number;
   migraineDays: number;
   triptanDays: number;
+  gepantDays: number;
   acuteMedDays: number;
   auraDays: number;
   avgIntensity: number;
@@ -82,6 +87,7 @@ export interface DoctorReportSummary {
   normalizedKPIs: NormalizedKPIs;
   /** Total triptan intakes (not days) */
   totalTriptanIntakes: number;
+  totalGepantIntakes: number;
 }
 
 export interface IntensityDataPoint {
@@ -461,6 +467,11 @@ const TRIPTAN_KEYWORDS = [
   "relpax", "allegro", "dolotriptan", "formigran", "sumavel", "zomig"
 ];
 
+const GEPANT_KEYWORDS = [
+  "vydura", "nurtec", "rimegepant", "atogepant", "ubrogepant",
+  "zavegepant", "qulipta", "ubrelvy", "zavzpret",
+];
+
 // ── Symptom classification (mirrored from src/lib/pdf/symptomSection.ts) ──
 const MIGRAINE_SYMPTOMS = [
   'lichtempfindlichkeit', 'photophobie',
@@ -562,7 +573,20 @@ function isTriptan(medName: string): boolean {
     .replace(/ü/g, "ue")
     .replace(/ß/g, "ss")
     .replace(/[^a-z0-9]/g, "");
+  if (isGepant(medName)) return false;
   return TRIPTAN_KEYWORDS.some(kw => normalized.includes(kw));
+}
+
+function isGepant(medName: string): boolean {
+  const normalized = medName
+    .toLowerCase()
+    .trim()
+    .replace(/ä/g, "ae")
+    .replace(/ö/g, "oe")
+    .replace(/ü/g, "ue")
+    .replace(/ß/g, "ss")
+    .replace(/[^a-z0-9]/g, "");
+  return GEPANT_KEYWORDS.some(kw => normalized.includes(kw));
 }
 
 /**
@@ -1300,11 +1324,13 @@ export async function buildDoctorReportSnapshot(
   const painDaysSet = new Set<string>();
   const migraineDaysSet = new Set<string>();
   const triptanDaysSet = new Set<string>();
+  const gepantDaysSet = new Set<string>();
   const acuteMedDaysSet = new Set<string>();
   const auraDaysSet = new Set<string>();
   const documentedDatesSet = new Set<string>();
   const dailyMaxIntensity = new Map<string, number>();
   let totalTriptanIntakes = 0;
+  let totalGepantIntakes = 0;
 
   allEntries.forEach(entry => {
     const date = entry.selected_date;
@@ -1334,6 +1360,10 @@ export async function buildDoctorReportSnapshot(
         if (isTriptan(med)) {
           triptanDaysSet.add(date);
           totalTriptanIntakes++;
+        }
+        if (isGepant(med)) {
+          gepantDaysSet.add(date);
+          totalGepantIntakes++;
         }
       });
     }
@@ -1374,10 +1404,12 @@ export async function buildDoctorReportSnapshot(
     painDays: painDaysSet.size,
     migraineDays: migraineDaysSet.size,
     triptanDays: triptanDaysSet.size,
+    gepantDays: gepantDaysSet.size,
     acuteMedDays: acuteMedDaysSet.size,
     auraDays: auraDaysSet.size,
     avgIntensity,
     totalTriptanIntakes,
+    totalGepantIntakes,
   };
 
   const normalizedKPIs: NormalizedKPIs = {
@@ -1385,6 +1417,8 @@ export async function buildDoctorReportSnapshot(
     migraineDaysPer30: normalize30(migraineDaysSet.size),
     triptanDaysPer30: normalize30(triptanDaysSet.size),
     triptanIntakesPer30: normalize30(totalTriptanIntakes),
+    gepantDaysPer30: normalize30(gepantDaysSet.size),
+    gepantIntakesPer30: normalize30(totalGepantIntakes),
     acuteMedDaysPer30: normalize30(acuteMedDaysSet.size),
   };
 
@@ -1393,6 +1427,7 @@ export async function buildDoctorReportSnapshot(
     headacheDays: painDaysSet.size,
     migraineDays: migraineDaysSet.size,
     triptanDays: triptanDaysSet.size,
+    gepantDays: gepantDaysSet.size,
     acuteMedDays: acuteMedDaysSet.size,
     auraDays: auraDaysSet.size,
     avgIntensity,
@@ -1401,6 +1436,7 @@ export async function buildDoctorReportSnapshot(
     kpis,
     normalizedKPIs,
     totalTriptanIntakes,
+    totalGepantIntakes,
   };
 
   // ─────────────────────────────────────────────────────────────────────────

@@ -11,7 +11,7 @@ import type { ReportEntryInput, MiaryReportV2 } from '../types';
 import { computeMiaryReport } from '../aggregate';
 import { isPainEntry } from '@/lib/diary/isPainEntry';
 import { normalizePainLevel } from '@/lib/utils/pain';
-import { isTriptan } from '@/lib/medications/isTriptan';
+import { isGepant, isTriptan } from '@/lib/medications/classifyMedication';
 
 // ─── Input Types (loose, matching what AnalysisView already has) ──────────
 
@@ -137,11 +137,13 @@ export function buildAppAnalysisReport(args: AppAnalysisReportArgs): AppAnalysis
     const meds = entry.medications || [];
     const acuteMedUsed = meds.length > 0;
     let triptanUsed = false;
+    let gepantUsed = false;
 
     const entryEffects = effectsByEntry.get(Number(entry.id));
 
     const medications = meds.map(medName => {
       if (isTriptan(medName)) triptanUsed = true;
+      if (isGepant(medName)) gepantUsed = true;
       const effect = entryEffects?.get(medName) ?? null;
       const intake = entry.medication_intakes?.find(i => i.medication_name === medName);
       return {
@@ -159,6 +161,7 @@ export function buildAppAnalysisReport(args: AppAnalysisReportArgs): AppAnalysis
       painMax,
       acuteMedUsed,
       triptanUsed,
+      gepantUsed,
       meCfsLevels: meCfsLevels.length > 0 ? meCfsLevels : undefined,
       medications: medications.length > 0 ? medications : undefined,
       documented: true, // Every entry = documented

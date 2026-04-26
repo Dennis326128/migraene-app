@@ -10,7 +10,7 @@
 
 import type { PainEntry } from "@/types/painApp";
 import { parseISO, startOfDay, endOfDay, isWithinInterval, subDays, differenceInDays } from "date-fns";
-import { isTriptan as isTriptanMedication } from "@/lib/medications/isTriptan";
+import { isGepant, isTriptan as isTriptanMedication } from "@/lib/medications/classifyMedication";
 import { MEDICATION_THRESHOLDS } from "./reportStructure";
 import { buildPdfReport } from "@/lib/report-v2/adapters/buildPdfReport";
 
@@ -45,6 +45,7 @@ export interface CoreMedicalKPIs {
   totalAttacks: number;
   daysWithMedication: number;
   totalTriptanIntakes: number;
+  totalGepantIntakes: number;
   documentedDays: number;
 }
 
@@ -55,6 +56,7 @@ export interface ReportKPIs {
   daysWithAcuteMedication: number;
   daysInRange: number;
   totalTriptanIntakes: number;
+  totalGepantIntakes: number;
 }
 
 export interface ObservationFact {
@@ -161,11 +163,15 @@ export function buildReportData(params: BuildReportDataParams): ReportData {
   // Triptan INTAKES (not days) — needed for CoreMedicalKPIs normalization
   // SSOT counts triptanDays (distinct days). For intakes we still count from entries.
   let totalTriptanIntakes = 0;
+  let totalGepantIntakes = 0;
   entries.forEach(entry => {
     if (entry.medications && entry.medications.length > 0) {
       entry.medications.forEach(med => {
         if (isTriptanMedication(med)) {
           totalTriptanIntakes++;
+        }
+        if (isGepant(med)) {
+          totalGepantIntakes++;
         }
       });
     }
@@ -178,6 +184,7 @@ export function buildReportData(params: BuildReportDataParams): ReportData {
     daysWithAcuteMedication: ssotReport.kpis.acuteMedDays,
     daysInRange,
     totalTriptanIntakes,
+    totalGepantIntakes,
   };
 
   // Normiert auf 30 Tage
@@ -201,6 +208,7 @@ export function buildReportData(params: BuildReportDataParams): ReportData {
     totalAttacks: kpis.totalAttacks,
     daysWithMedication: kpis.daysWithAcuteMedication,
     totalTriptanIntakes,
+    totalGepantIntakes,
     documentedDays: ssotReport.meta.basis.documentedDays,
   };
 
