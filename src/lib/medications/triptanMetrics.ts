@@ -43,6 +43,7 @@ interface EntryForTriptanMetrics {
   selected_date?: string | null;
   timestamp_created?: string | null;
   medications?: string[] | null;
+  medication_intakes?: Array<{ medication_name?: string | null }> | null;
 }
 
 /**
@@ -50,6 +51,14 @@ interface EntryForTriptanMetrics {
  */
 function getDateKey(entry: EntryForTriptanMetrics): string | null {
   return entry.selected_date || entry.timestamp_created?.split('T')[0] || null;
+}
+
+function getMedicationNames(entry: EntryForTriptanMetrics): string[] {
+  const intakeNames = entry.medication_intakes
+    ?.map(intake => intake.medication_name?.trim())
+    .filter((name): name is string => Boolean(name));
+  if (intakeNames?.length) return intakeNames;
+  return entry.medications?.map(med => med.trim()).filter(Boolean) ?? [];
 }
 
 /**
@@ -78,9 +87,10 @@ export function computeMigraineAcuteMetrics(entries: EntryForTriptanMetrics[]): 
 
   for (const entry of entries) {
     const dateKey = getDateKey(entry);
-    if (!entry.medications?.length) continue;
+    const medicationNames = getMedicationNames(entry);
+    if (!medicationNames.length) continue;
 
-    for (const med of entry.medications) {
+    for (const med of medicationNames) {
       if (isTriptan(med)) {
         triptanIntakes++;
         if (dateKey) triptanDates.add(dateKey);
