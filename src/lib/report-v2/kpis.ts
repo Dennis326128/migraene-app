@@ -71,6 +71,8 @@ export function computeKPIs(input: KpiInput): ReportKPIsV2 {
     maxPain,
     triptanDays: 0, // overridden in aggregate
     totalTriptanIntakes: 0, // overridden in aggregate
+    gepantDays: 0, // overridden in aggregate
+    totalGepantIntakes: 0, // overridden in aggregate
     acuteMedDays,
     preventiveMedActive,
     mohRiskFlag,
