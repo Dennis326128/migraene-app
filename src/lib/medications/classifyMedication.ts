@@ -15,6 +15,7 @@ export const TRIPTAN_WIRKSTOFFE = [
 export const TRIPTAN_HANDELSNAMEN = [
   'imigran', 'maxalt', 'ascotop', 'zomig', 'naramig', 'almogran',
   'relpax', 'allegro', 'frova', 'dolotriptan', 'formigran', 'sumavel',
+  'eletrip',
 ] as const;
 
 export const GEPANT_KEYWORDS = [
