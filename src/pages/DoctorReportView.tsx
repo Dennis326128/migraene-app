@@ -644,18 +644,8 @@ const DoctorReportView: React.FC = () => {
 
             {/* Pie Chart */}
             {daysInRange > 0 && (() => {
-              const distributionEntries: ReportEntryForDayDistribution[] = (report.tables.entries ?? []).map(entry => ({
-                selected_date: entry.date,
-                timestamp_created: entry.createdAt,
-                pain_level: String(entry.intensity ?? 0),
-                medications: entry.medications ?? [],
-                entry_kind: 'pain',
-              }));
-              const dayBuckets = computeHeadacheTreatmentDayDistribution(
-                report.meta.period.fromDate,
-                report.meta.period.toDate,
-                distributionEntries,
-              );
+              const dayBuckets = report.analysis?.headacheDayDonut;
+              if (!dayBuckets) return null;
 
               return (
                 <Card>
@@ -663,11 +653,11 @@ const DoctorReportView: React.FC = () => {
                     <p className="text-sm font-medium text-muted-foreground mb-3">Tagesverteilung</p>
                     <HeadacheDaysPie
                       totalDays={dayBuckets.totalDays}
-                      documentedDays={dayBuckets.documentedDays}
+                      documentedDays={dayBuckets.documentedDays ?? Math.max(0, dayBuckets.totalDays - (dayBuckets.undocumentedDays ?? 0))}
                       painFreeDays={dayBuckets.painFreeDays}
-                      painDaysNoMedication={dayBuckets.painDaysNoMedication}
-                      painDaysWithMedication={dayBuckets.painDaysWithMedication}
-                      undocumentedDays={dayBuckets.undocumentedDays}
+                      painDaysNoMedication={dayBuckets.painDaysNoMedication ?? dayBuckets.painDaysNoTriptan ?? 0}
+                      painDaysWithMedication={dayBuckets.painDaysWithMedication ?? dayBuckets.triptanDays ?? 0}
+                      undocumentedDays={dayBuckets.undocumentedDays ?? 0}
                     />
                   </CardContent>
                 </Card>
