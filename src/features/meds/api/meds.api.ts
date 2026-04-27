@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabaseClient";
+import { createMedicationCategoryBackfillPlan } from "@/lib/medications/categoryBackfill";
 
 // Extended Med type with all BMP fields + structured dosing + intolerance
 export type Med = { 
@@ -105,6 +106,35 @@ const LIST_SELECT = `
 // Full select for detail views
 const DETAIL_SELECT = '*';
 
+async function backfillMissingMedicationCategories(medications: Med[]): Promise<void> {
+  const plan = createMedicationCategoryBackfillPlan(medications);
+  if (plan.contradictions.length > 0) {
+    console.warn('[MedicationCategoryBackfill] Widersprüchliche bestehende Kategorien erkannt; keine automatische Überschreibung.', plan.contradictions);
+  }
+  if (plan.updates.length === 0) return;
+
+  const results = await Promise.allSettled(
+    plan.updates.map(update =>
+      supabase
+        .from('user_medications')
+        .update({ effect_category: update.effect_category })
+        .eq('id', update.id)
+        .or('effect_category.is.null,effect_category.eq.')
+    )
+  );
+
+  const failed = results.filter(result => result.status === 'rejected').length;
+  const queryErrors = results.filter(
+    (result): result is PromiseFulfilledResult<{ error: unknown }> =>
+      result.status === 'fulfilled' && Boolean(result.value.error)
+  );
+  if (failed || queryErrors.length) {
+    console.warn('[MedicationCategoryBackfill] Einige Kategorien konnten nicht nachgetragen werden.', { failed, queryErrors });
+  } else {
+    console.info(`[MedicationCategoryBackfill] ${plan.updates.length} bestehende Medikamente nachklassifiziert.`);
+  }
+}
+
 export async function listMeds(): Promise<Med[]> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return [];
@@ -114,7 +144,12 @@ export async function listMeds(): Promise<Med[]> {
     .eq("user_id", user.id)
     .order("name", { ascending: true });
   if (error) throw error;
-  return (data || []) as Med[];
+  const meds = (data || []) as Med[];
+  await backfillMissingMedicationCategories(meds);
+  return meds.map(med => {
+    const backfill = createMedicationCategoryBackfillPlan([med]).updates[0];
+    return backfill ? { ...med, effect_category: backfill.effect_category } : med;
+  });
 }
 
 export async function listActiveMeds(): Promise<Med[]> {
