@@ -600,6 +600,18 @@ function isGepant(medName: string): boolean {
   return GEPANT_KEYWORDS.some(kw => normalized.includes(kw));
 }
 
+function getEntryDate(entry: RawEntry): string | null {
+  return entry.selected_date || entry.timestamp_created?.split('T')[0] || null;
+}
+
+function getMedicationNamesForEntry(entry: RawEntry, intakesByEntryId: Map<number, RawMedicationIntake[]>): string[] {
+  const intakeNames = intakesByEntryId.get(entry.id)
+    ?.map(intake => intake.medication_name?.trim())
+    .filter((name): name is string => Boolean(name));
+  if (intakeNames?.length) return intakeNames;
+  return entry.medications?.map(med => med.trim()).filter(Boolean) ?? [];
+}
+
 /**
  * Fixed rolling-window date ranges — SSOT aligned with App (rangeResolver.ts PRESET_DAYS).
  * 1m=30d, 3m=90d, 6m=180d, 12m=365d. End = yesterday (effectiveToday).
