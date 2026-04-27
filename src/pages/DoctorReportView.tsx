@@ -6,7 +6,6 @@
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { HeadacheDaysPie } from "@/components/diary/HeadacheDaysPie";
-import { computeHeadacheTreatmentDayDistribution } from "@/lib/analytics/headacheDays";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -120,14 +119,6 @@ interface ReportEntry {
   painLocations: string[];
 }
 
-interface ReportEntryForDayDistribution {
-  selected_date: string;
-  timestamp_created: string | null;
-  pain_level: string;
-  medications: string[];
-  entry_kind: string;
-}
-
 interface MedicationStat {
   name: string;
   intakeCount: number;
@@ -185,6 +176,16 @@ interface PatternAnalysisSummary {
 }
 
 interface ReportAnalysis {
+  headacheDayDonut?: {
+    totalDays: number;
+    documentedDays?: number;
+    painFreeDays: number;
+    painDaysNoMedication?: number;
+    painDaysWithMedication?: number;
+    undocumentedDays?: number;
+    painDaysNoTriptan?: number;
+    triptanDays?: number;
+  };
   patternAnalysis?: PatternAnalysisSummary;
 }
 
