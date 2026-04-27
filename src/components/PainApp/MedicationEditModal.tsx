@@ -763,6 +763,56 @@ export const MedicationEditModal = ({ medication, open, onOpenChange }: Medicati
             {/* COLLAPSIBLE SECTIONS */}
             {/* ═══════════════════════════════════════════════════════════════════════════ */}
             <div className="space-y-2">
+              <CollapsibleSection
+                title="Weitere Optionen"
+                icon={<Calendar className="h-4 w-4" />}
+                hint="Startdatum und Archivierung"
+              >
+                <div className="space-y-3 p-3 rounded-lg bg-muted/20 border border-border/30">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium">Startdatum hinzufügen</Label>
+                      <p className="text-xs text-muted-foreground">Optional für den Therapieverlauf</p>
+                    </div>
+                    <Switch checked={hasStartDate} onCheckedChange={handleStartDateToggle} />
+                  </div>
+                  {hasStartDate && (
+                    <div className="space-y-2 pt-2 border-t border-border/30">
+                      <Label htmlFor="start_date" className="text-sm">Startdatum</Label>
+                      <Input
+                        id="start_date"
+                        type="date"
+                        value={formData.start_date || ""}
+                        onChange={(e) => updateField("start_date", e.target.value)}
+                        className="h-9"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-3 p-3 rounded-lg bg-muted/20 border border-border/30">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium">Archiviert</Label>
+                      <p className="text-xs text-muted-foreground">Aus aktueller Liste entfernen</p>
+                    </div>
+                    <Switch checked={!isActive} onCheckedChange={(archived) => handleActiveToggle(!archived)} />
+                  </div>
+                  {!isActive && (
+                    <div className="space-y-2 pt-2 border-t border-border/30">
+                      <Label htmlFor="end_date" className="text-sm">Ende der Einnahme</Label>
+                      <Input
+                        id="end_date"
+                        type="date"
+                        value={formData.end_date || ""}
+                        onChange={(e) => updateField("end_date", e.target.value)}
+                        className="h-9"
+                      />
+                    </div>
+                  )}
+                </div>
+              </CollapsibleSection>
+
               {/* Pharmazeutische Details */}
               <CollapsibleSection
                 title="Pharmazeutische Details"
