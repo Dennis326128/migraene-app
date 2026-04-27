@@ -252,14 +252,25 @@ export interface TriggersAnalysis {
   notesAnalyzed: number;
 }
 
-/** Detailed headache/treatment day donut (3-bucket: painFree/painNoTriptan/triptan) */
+/** Detailed headache/treatment day donut (SSOT buckets: pain-free / headache without meds / headache with meds / undocumented) */
 export interface HeadacheDayDonut {
   painFreeDays: number;
+  painDaysNoMedication: number;
+  painDaysWithMedication: number;
+  undocumentedDays: number;
+  /** @deprecated Use painDaysNoMedication. Kept only for older cached snapshots. */
   painDaysNoTriptan: number;
+  /** True Triptan days; not used as donut bucket. */
   triptanDays: number;
+  gepantDays: number;
   totalDays: number;
+  documentedDays: number;
   percentages: {
     painFree: number;
+    painNoMedication: number;
+    withMedication: number;
+    undocumented: number;
+    /** @deprecated */
     painNoTriptan: number;
     triptan: number;
   };
@@ -589,6 +600,18 @@ function isGepant(medName: string): boolean {
   return GEPANT_KEYWORDS.some(kw => normalized.includes(kw));
 }
 
+function getEntryDate(entry: RawEntry): string | null {
+  return entry.selected_date || entry.timestamp_created?.split('T')[0] || null;
+}
+
+function getMedicationNamesForEntry(entry: RawEntry, intakesByEntryId: Map<number, RawMedicationIntake[]>): string[] {
+  const intakeNames = intakesByEntryId.get(entry.id)
+    ?.map(intake => intake.medication_name?.trim())
+    .filter((name): name is string => Boolean(name));
+  if (intakeNames?.length) return intakeNames;
+  return entry.medications?.map(med => med.trim()).filter(Boolean) ?? [];
+}
+
 /**
  * Fixed rolling-window date ranges — SSOT aligned with App (rangeResolver.ts PRESET_DAYS).
  * 1m=30d, 3m=90d, 6m=180d, 12m=365d. End = yesterday (effectiveToday).
@@ -648,10 +671,19 @@ interface RawEntry {
   pain_locations: string[] | null;
   notes: string | null;
   timestamp_created: string | null;
+  updated_at?: string | null;
   entry_note_is_private?: boolean;
   symptoms_state?: string;
   me_cfs_severity_level?: string;
   me_cfs_severity_score?: number;
+}
+
+interface RawMedicationIntake {
+  entry_id: number;
+  medication_id?: string | null;
+  medication_name: string;
+  taken_date?: string | null;
+  updated_at?: string | null;
 }
 
 /**
@@ -745,13 +777,14 @@ function buildTriggersAnalysis(allEntries: RawEntry[]): TriggersAnalysis {
 }
 
 /**
- * Build detailed headache day donut (painFree / painNoTriptan / triptan).
- * Same logic as computeHeadacheTreatmentDayDistribution SSOT.
+ * Build detailed headache day donut using the same medication-source rule as PDF:
+ * medication_intakes first, legacy pain_entries.medications only as fallback per entry.
  */
-function buildHeadacheDayDonut(
+export function buildHeadacheDayDonut(
   from: string,
   to: string,
-  allEntries: RawEntry[]
+  allEntries: RawEntry[],
+  intakesByEntryId: Map<number, RawMedicationIntake[]> = new Map()
 ): HeadacheDayDonut {
   // Group entries by date
   const entriesByDate = new Map<string, RawEntry[]>();
@@ -766,13 +799,23 @@ function buildHeadacheDayDonut(
   const allDates = enumerateDatesInclusive(from, to);
   const totalDays = allDates.length;
   let painFreeDays = 0;
+  let painDaysNoMedication = 0;
+  let painDaysWithMedication = 0;
+  let undocumentedDays = 0;
   let painDaysNoTriptan = 0;
-  let triptanDaysCount = 0;
+  let triptanDays = 0;
+  let gepantDays = 0;
 
   for (const date of allDates) {
     const dayEntries = entriesByDate.get(date) || [];
+    if (dayEntries.length === 0) {
+      undocumentedDays++;
+      continue;
+    }
     let hasPain = false;
+    let hasMedication = false;
     let hasTriptan = false;
+    let hasGepant = false;
 
     for (const entry of dayEntries) {
       // Pain: pain_level not '-' and not 'keine' and not '0' and not empty
@@ -781,16 +824,19 @@ function buildHeadacheDayDonut(
         const num = painLevelToNumber(pl);
         if (num > 0) hasPain = true;
       }
-      // Triptan check
-      if (entry.medications?.length) {
-        for (const med of entry.medications) {
-          if (isTriptan(med)) { hasTriptan = true; break; }
-        }
+      const medicationNames = getMedicationNamesForEntry(entry, intakesByEntryId);
+      if (medicationNames.length > 0) hasMedication = true;
+      for (const med of medicationNames) {
+        if (isTriptan(med)) hasTriptan = true;
+        if (isGepant(med)) hasGepant = true;
       }
     }
 
-    if (hasTriptan) triptanDaysCount++;
-    else if (hasPain) painDaysNoTriptan++;
+    if (hasTriptan) triptanDays++;
+    if (hasGepant) gepantDays++;
+    if (hasPain && !hasTriptan) painDaysNoTriptan++;
+    if (hasPain && hasMedication) painDaysWithMedication++;
+    else if (hasPain) painDaysNoMedication++;
     else painFreeDays++;
   }
 
@@ -798,13 +844,21 @@ function buildHeadacheDayDonut(
 
   return {
     painFreeDays,
+    painDaysNoMedication,
+    painDaysWithMedication,
+    undocumentedDays,
     painDaysNoTriptan,
-    triptanDays: triptanDaysCount,
+    triptanDays,
+    gepantDays,
     totalDays,
+    documentedDays: totalDays - undocumentedDays,
     percentages: {
       painFree: pct(painFreeDays),
+      painNoMedication: pct(painDaysNoMedication),
+      withMedication: pct(painDaysWithMedication),
+      undocumented: pct(undocumentedDays),
       painNoTriptan: pct(painDaysNoTriptan),
-      triptan: pct(triptanDaysCount),
+      triptan: pct(triptanDays),
     },
   };
 }
@@ -1128,6 +1182,7 @@ export async function buildDoctorReportSnapshot(
     weatherLogsResult,
     symptomBurdenResult,
     medicationEffectsResult,
+    medicationIntakesResult,
     medicationIntakesLast30Result,
   ] = await Promise.all([
     // All entries for summary/charts — now include symptoms_state and ME/CFS fields
@@ -1198,6 +1253,13 @@ export async function buildDoctorReportSnapshot(
       .select("med_name, effect_score, entry_id")
       .not("effect_score", "is", null),
 
+    // Medication intakes for the full range — SSOT for intake/day medication counts.
+    supabase
+      .from("medication_intakes")
+      .select("entry_id, medication_id, medication_name, taken_date, updated_at")
+      .eq("user_id", userId)
+      .or(`and(taken_date.gte.${from},taken_date.lte.${to}),taken_date.is.null`),
+
     // NEW: Medication intakes in last 30 days of range
     (() => {
       const last30From = new Date(new Date(to).getTime() - 29 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -1219,7 +1281,14 @@ export async function buildDoctorReportSnapshot(
   const weatherLogs = weatherLogsResult.data || [];
   const symptomBurdenData = (symptomBurdenResult.data || []) as Array<{ symptom_key: string; burden_level: number | null }>;
   const allMedEffects = (medicationEffectsResult.data || []) as Array<{ med_name: string; effect_score: number | null; entry_id: number }>;
+  const allMedicationIntakes = (medicationIntakesResult.data || []) as RawMedicationIntake[];
   const last30Intakes = (medicationIntakesLast30Result.data || []) as Array<{ medication_name: string; taken_date: string }>;
+
+  const intakesByEntryId = new Map<number, RawMedicationIntake[]>();
+  for (const intake of allMedicationIntakes) {
+    if (!intakesByEntryId.has(intake.entry_id)) intakesByEntryId.set(intake.entry_id, []);
+    intakesByEntryId.get(intake.entry_id)!.push(intake);
+  }
 
   // Filter medication_effects to only entries in range
   const entryIdSet = new Set(allEntries.map(e => e.id));
@@ -1265,7 +1334,10 @@ export async function buildDoctorReportSnapshot(
   allEntries.forEach(e => trackTs(e.updated_at ?? e.timestamp_created));
   medicationCourses.forEach(c => trackTs(c.updated_at));
 
-  // medication_intakes: fetch updated_at for entries in range
+  // medication_intakes: fetched for the full range and used as SSOT for medication counts
+  allMedicationIntakes.forEach(intake => trackTs(intake.updated_at));
+
+  // medication_intakes fallback fingerprint by entry id for legacy rows without taken_date
   const entryIdsForFingerprint = allEntries.map(e => e.id).filter(Boolean);
   if (entryIdsForFingerprint.length > 0) {
     const intakeChunks = [];
@@ -1333,14 +1405,14 @@ export async function buildDoctorReportSnapshot(
   let totalGepantIntakes = 0;
 
   allEntries.forEach(entry => {
-    const date = entry.selected_date;
+    const date = getEntryDate(entry);
     if (!date) return;
 
     documentedDatesSet.add(date);
 
     const intensity = painLevelToNumber(entry.pain_level);
 
-    if (entry.pain_level && entry.pain_level !== "-") {
+    if (intensity > 0) {
       painDaysSet.add(date);
       const currentMax = dailyMaxIntensity.get(date) || 0;
       if (intensity > currentMax) {
@@ -1348,15 +1420,18 @@ export async function buildDoctorReportSnapshot(
       }
     }
 
+    const medicationNames = getMedicationNamesForEntry(entry, intakesByEntryId);
+    const hasTriptanForEntry = medicationNames.some((med: string) => isTriptan(med));
+
     const isMigraineCandidate = intensity >= 7
       || (entry.aura_type && entry.aura_type !== "keine")
-      || (entry.medications?.some((med: string) => isTriptan(med)));
+      || hasTriptanForEntry;
     if (isMigraineCandidate && intensity > 0) {
       migraineDaysSet.add(date);
     }
 
-    if (entry.medications?.length) {
-      entry.medications.forEach((med: string) => {
+    if (medicationNames.length > 0) {
+      medicationNames.forEach((med: string) => {
         if (isTriptan(med)) {
           triptanDaysSet.add(date);
           totalTriptanIntakes++;
@@ -1368,7 +1443,7 @@ export async function buildDoctorReportSnapshot(
       });
     }
 
-    if (entry.medications && entry.medications.length > 0) {
+    if (medicationNames.length > 0) {
       acuteMedDaysSet.add(date);
     }
 
@@ -1484,7 +1559,7 @@ export async function buildDoctorReportSnapshot(
 
   const medCountMap = new Map<string, number>();
   allEntries.forEach(entry => {
-    entry.medications?.forEach((med: string) => {
+    getMedicationNamesForEntry(entry, intakesByEntryId).forEach((med: string) => {
       medCountMap.set(med, (medCountMap.get(med) || 0) + 1);
     });
   });
@@ -1521,7 +1596,7 @@ export async function buildDoctorReportSnapshot(
       createdAt: e.timestamp_created || new Date().toISOString(),
       intensity: painLevelToNumber(e.pain_level),
       intensityLabel: painLevelToLabel(e.pain_level),
-      medications: e.medications || [],
+      medications: getMedicationNamesForEntry(e, intakesByEntryId),
       note: e.notes || null,
       aura: e.aura_type && e.aura_type !== "keine" ? e.aura_type : null,
       painLocations: e.pain_locations || [],
@@ -1577,8 +1652,8 @@ export async function buildDoctorReportSnapshot(
 
   const medEffectMap = new Map<string, { count: number; daysUsed: Set<string>; effects: number[] }>();
   allEntries.forEach(entry => {
-    const date = entry.selected_date;
-    entry.medications?.forEach((med: string) => {
+    const date = getEntryDate(entry);
+    getMedicationNamesForEntry(entry, intakesByEntryId).forEach((med: string) => {
       if (!medEffectMap.has(med)) {
         medEffectMap.set(med, { count: 0, daysUsed: new Set(), effects: [] });
       }
@@ -1687,8 +1762,8 @@ export async function buildDoctorReportSnapshot(
   }
 
   // C) Detailed headache day donut
-  analysis.headacheDayDonut = buildHeadacheDayDonut(from, to, allEntries);
-  console.log(`[DoctorReport] Donut: painFree=${analysis.headacheDayDonut.painFreeDays} painNoTriptan=${analysis.headacheDayDonut.painDaysNoTriptan} triptan=${analysis.headacheDayDonut.triptanDays}`);
+  analysis.headacheDayDonut = buildHeadacheDayDonut(from, to, allEntries, intakesByEntryId);
+  console.log(`[DoctorReport] Donut: painFree=${analysis.headacheDayDonut.painFreeDays} headacheWithoutMedication=${analysis.headacheDayDonut.painDaysNoMedication} headacheWithMedication=${analysis.headacheDayDonut.painDaysWithMedication} undocumented=${analysis.headacheDayDonut.undocumentedDays}`);
 
   // D) Weather
   const weatherAnalysis = buildWeatherAnalysis(from, to, allEntries, weatherLogs);

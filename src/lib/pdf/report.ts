@@ -266,13 +266,16 @@ function formatMedicationsWithDose(
   medications: string[] | undefined,
   intakes: MedicationIntakeInfo[] | undefined
 ): string {
-  if (!medications || medications.length === 0) return '-';
+  const medicationNames = medications && medications.length > 0
+    ? medications
+    : (intakes || []).map(i => i.medication_name).filter(Boolean);
+  if (medicationNames.length === 0) return '-';
   
   const intakeMap = new Map(
     (intakes || []).map(i => [i.medication_name, i.dose_quarters])
   );
   
-  return medications.map(med => {
+  return medicationNames.map(med => {
     const quarters = intakeMap.get(med) ?? DEFAULT_DOSE_QUARTERS;
     const doseStr = formatDoseFromQuarters(quarters);
     return `${med} ${doseStr}`;
@@ -1299,6 +1302,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
           timestamp_created: e.timestamp_created,
           pain_level: e.pain_level,
           medications: e.medications,
+          medication_intakes: e.medication_intakes,
           entry_kind: e.entry_kind,
         })),
       );
