@@ -391,7 +391,7 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
       const newMed = await addMed.mutateAsync(medInput);
       
       // Create reminders directly if enabled and presets selected (inline, no extra prompt)
-      const shouldCreateReminders = reminderEnabled && selectedReminderPresets.length > 0 && !looksLikePrn;
+      const shouldCreateReminders = reminderEnabled && selectedReminderPresets.length > 0 && newIntakeType === "regular";
       
       if (shouldCreateReminders && newMed) {
         const times = getTimesForPresets(selectedReminderPresets);
