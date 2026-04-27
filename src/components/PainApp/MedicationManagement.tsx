@@ -837,7 +837,7 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
                 <Input
                   ref={inputRef}
                   id="med-name"
-                  placeholder="z.B. Ibuprofen 400 mg"
+                  placeholder="z.B. Sumatriptan"
                   value={voiceState.isRecording ? voiceState.transcript || medicationName : medicationName}
                   onChange={(e) => setMedicationName(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && !addMed.isPending && medicationName.trim() && handleAddMedication()}
@@ -862,6 +862,60 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
                     <Mic className="h-5 w-5" />
                   )}
                 </button>
+              </div>
+              <div className="grid grid-cols-[1fr_96px] gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="new-strength" className="text-sm">Stärke</Label>
+                  <Input
+                    id="new-strength"
+                    value={newStrengthValue}
+                    onChange={(e) => setNewStrengthValue(e.target.value)}
+                    placeholder="z.B. 100"
+                    inputMode="decimal"
+                    className="h-10"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm">Einheit</Label>
+                  <Select value={newStrengthUnit} onValueChange={setNewStrengthUnit}>
+                    <SelectTrigger className="h-10">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {['mg', 'µg', 'g', 'ml', 'IE'].map((unit) => (
+                        <SelectItem key={unit} value={unit}>{unit}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm">Art der Einnahme</Label>
+                <Select value={newIntakeType} onValueChange={(value) => setNewIntakeType(value as "as_needed" | "regular")}>
+                  <SelectTrigger className="h-10">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="as_needed">Bei Bedarf</SelectItem>
+                    <SelectItem value="regular">Regelmäßig</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm">Kategorie</Label>
+                <Select value={newCategory} onValueChange={(value) => {
+                  setNewCategory(value as "none" | "triptan" | "gepant");
+                  setNewCategoryTouched(true);
+                }}>
+                  <SelectTrigger className="h-10">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Kein Triptan/Gepant</SelectItem>
+                    <SelectItem value="triptan">Triptan</SelectItem>
+                    <SelectItem value="gepant">Gepant</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               
               {/* Voice recording hint */}
