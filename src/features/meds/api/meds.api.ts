@@ -124,9 +124,8 @@ async function backfillMissingMedicationCategories(medications: Med[]): Promise<
   );
 
   const failed = results.filter(result => result.status === 'rejected').length;
-  const queryErrors = results.filter(
-    (result): result is PromiseFulfilledResult<{ error: unknown }> =>
-      result.status === 'fulfilled' && Boolean(result.value.error)
+  const queryErrors = results.filter(result =>
+    result.status === 'fulfilled' && Boolean(result.value.error)
   );
   if (failed || queryErrors.length) {
     console.warn('[MedicationCategoryBackfill] Einige Kategorien konnten nicht nachgetragen werden.', { failed, queryErrors });
