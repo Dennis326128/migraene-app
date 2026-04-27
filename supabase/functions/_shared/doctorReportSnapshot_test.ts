@@ -67,3 +67,17 @@ Deno.test("doctor donut separates undocumented days and keeps legacy medications
   assertEquals(result.triptanDays, 1);
   assertEquals(result.painDaysWithMedication, 1);
 });
+
+Deno.test("doctor classification recognizes Eletrip alias and does not classify Ajovy as gepant", () => {
+  const result = buildHeadacheDayDonut("2026-01-01", "2026-01-02", [
+    entry(1, "2026-01-01", "5", []),
+    entry(2, "2026-01-02", "5", []),
+  ], intakes([
+    { entry_id: 1, medication_name: "Eletrip Hormosan 80mg", taken_date: "2026-01-01" },
+    { entry_id: 2, medication_name: "Fremanezumab (Ajovy)", taken_date: "2026-01-02" },
+  ]));
+
+  assertEquals(result.triptanDays, 1);
+  assertEquals(result.gepantDays, 0);
+  assertEquals(result.painDaysWithMedication, 2);
+});
