@@ -475,7 +475,8 @@ const TRIPTAN_KEYWORDS = [
   "triptan", "almotriptan", "eletriptan", "frovatriptan",
   "naratriptan", "rizatriptan", "sumatriptan", "zolmitriptan",
   "frova", "imigran", "maxalt", "ascotop", "naramig", "almogran",
-  "relpax", "allegro", "dolotriptan", "formigran", "sumavel", "zomig"
+  "relpax", "allegro", "dolotriptan", "formigran", "sumavel", "zomig",
+  "eletrip"
 ];
 
 const GEPANT_KEYWORDS = [
