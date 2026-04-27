@@ -300,6 +300,16 @@ export async function discontinueMed(id: string): Promise<Med> {
   });
 }
 
+export async function reactivateMed(id: string, input: UpdateMedInput = {}): Promise<Med> {
+  return updateMed(id, {
+    ...input,
+    is_active: true,
+    discontinued_at: null,
+    end_date: null,
+    medication_status: "active",
+  });
+}
+
 /**
  * Mark medication as intolerant
  */
