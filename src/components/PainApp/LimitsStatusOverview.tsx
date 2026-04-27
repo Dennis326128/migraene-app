@@ -233,9 +233,6 @@ export function LimitsStatusOverview({ onSwitchToLimitsTab }: LimitsStatusOvervi
                       {check.current_count}
                       <span className="text-muted-foreground font-normal text-sm"> / {check.limit_count}</span>
                     </p>
-                    <p className="text-xs text-muted-foreground/90 tabular-nums -mt-0.5">
-                      {check.current_count} von {check.limit_count} genutzt
-                    </p>
                     <Badge className={cn("text-xs mt-1 border-0 shadow-none", cfg.color, cfg.badgeTint)}>
                       <StatusIcon className="h-3 w-3 mr-1" />
                       {cfg.label}
