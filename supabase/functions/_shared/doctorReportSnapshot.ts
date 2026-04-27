@@ -780,7 +780,7 @@ function buildTriggersAnalysis(allEntries: RawEntry[]): TriggersAnalysis {
  * Build detailed headache day donut using the same medication-source rule as PDF:
  * medication_intakes first, legacy pain_entries.medications only as fallback per entry.
  */
-function buildHeadacheDayDonut(
+export function buildHeadacheDayDonut(
   from: string,
   to: string,
   allEntries: RawEntry[],
@@ -1412,7 +1412,7 @@ export async function buildDoctorReportSnapshot(
 
     const intensity = painLevelToNumber(entry.pain_level);
 
-    if (entry.pain_level && entry.pain_level !== "-") {
+    if (intensity > 0) {
       painDaysSet.add(date);
       const currentMax = dailyMaxIntensity.get(date) || 0;
       if (intensity > currentMax) {
