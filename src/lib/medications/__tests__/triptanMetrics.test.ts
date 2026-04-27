@@ -7,9 +7,9 @@ import { computeMigraineAcuteMetrics, computeTriptanMetrics, normalizeTriptanPer
 
 describe('computeTriptanMetrics', () => {
   it('separates triptans from gepants and common non-migraine-acutes', () => {
-    const triptans = ['Sumatriptan 50 mg', 'Maxalt lingua', 'Zomig nasal'];
-    const gepants = ['Vydura 75 mg', 'Nurtec ODT', 'Rimegepant', 'Atogepant 60mg', 'Qulipta', 'Ubrelvy', 'Zavegepant nasal', 'Zavzpret'];
-    const others = ['Ibuprofen', 'Naproxen', 'Paracetamol', 'Metamizol', 'Diclofenac', 'Magnesium', 'Topiramat', 'Ajovy', 'Aimovig', 'Emgality', 'Botox'];
+    const triptans = ['Sumatriptan', 'Sumatriptan 100mg', 'Rizatriptan 10mg', 'Naratriptan', 'Eletrip Hormosan 80mg', 'Zomig nasal'];
+    const gepants = ['Vydura', 'Vydura 75 mg', 'Nurtec ODT', 'Rimegepant', 'Atogepant 60mg', 'Qulipta', 'Ubrelvy', 'Zavegepant nasal', 'Zavzpret'];
+    const others = ['Ibuprofen 800 mg', 'Ibuprofen 800mg', 'Paracetamol 500mg', 'Aspirin 1000 mg', 'Naproxen', 'Diazepam 10mg', 'Zopiclon 7,5 mg', 'Metoprolol', 'Eliquis 5 mg', 'Magnesiumcitrat', 'Ajovy 225mg', 'Fremanezumab (Ajovy)', 'Waffel'];
 
     triptans.forEach(name => {
       expect(isTriptan(name)).toBe(true);
@@ -86,10 +86,11 @@ describe('computeTriptanMetrics', () => {
       { selected_date: '2025-01-17', medications: ['AscoTop nasal'] },
       { selected_date: '2025-01-18', medications: ['Zomig nasal'] },
       { selected_date: '2025-01-19', medications: ['Sumavel DosePro'] },
+      { selected_date: '2025-01-20', medications: ['Eletrip Hormosan 80mg'] },
     ];
     const result = computeTriptanMetrics(entries);
-    expect(result.triptanIntakes).toBe(5);
-    expect(result.triptanDays).toBe(5);
+    expect(result.triptanIntakes).toBe(6);
+    expect(result.triptanDays).toBe(6);
   });
 
   it('recognizes active ingredients with dose and route additions', () => {
