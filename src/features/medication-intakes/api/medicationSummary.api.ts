@@ -5,7 +5,7 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
-import { yesterdayStr } from "@/lib/dateRange/rangeResolver";
+import { todayStr, yesterdayStr } from "@/lib/dateRange/rangeResolver";
 import { subDays, format } from "date-fns";
 import { countMedicationUsageInRange, getMedicationUsageDate } from "@/lib/medications/medicationUsage";
 
@@ -129,7 +129,7 @@ export async function fetchMedicationLimitUsages(limits: MedicationLimitUsageInp
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
 
-  const today = format(new Date(), "yyyy-MM-dd");
+  const today = todayStr();
   const periodStartFor = (periodType: string) => {
     const anchor = new Date(today + "T12:00:00");
     if (periodType === 'day') return today;
