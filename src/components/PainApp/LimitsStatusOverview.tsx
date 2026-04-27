@@ -221,7 +221,7 @@ export function LimitsStatusOverview({ onSwitchToLimitsTab }: LimitsStatusOvervi
                     <div className={cn("mt-0.5 h-3 w-3 rounded-full shrink-0", cfg.dotColor)} />
                     <div className="min-w-0">
                       <p className="font-medium truncate">{check.medication_name}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
+                      <p className="text-sm text-muted-foreground/90 mt-0.5">
                         {periodLabels[check.period_type] ?? check.period_type}
                       </p>
                     </div>
@@ -232,6 +232,9 @@ export function LimitsStatusOverview({ onSwitchToLimitsTab }: LimitsStatusOvervi
                     <p className="text-lg font-bold tabular-nums">
                       {check.current_count}
                       <span className="text-muted-foreground font-normal text-sm"> / {check.limit_count}</span>
+                    </p>
+                    <p className="text-xs text-muted-foreground/90 tabular-nums -mt-0.5">
+                      {check.current_count} von {check.limit_count} genutzt
                     </p>
                     <Badge className={cn("text-xs mt-1 border-0 shadow-none", cfg.color, cfg.badgeTint)}>
                       <StatusIcon className="h-3 w-3 mr-1" />
@@ -249,7 +252,7 @@ export function LimitsStatusOverview({ onSwitchToLimitsTab }: LimitsStatusOvervi
                 </div>
 
                 {/* Sub text */}
-                <p className="text-xs text-muted-foreground mt-2">{cfg.sub}</p>
+                <p className="text-sm text-muted-foreground/90 mt-2">{cfg.sub}</p>
               </CardContent>
             </Card>
           );
