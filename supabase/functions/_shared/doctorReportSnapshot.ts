@@ -252,14 +252,25 @@ export interface TriggersAnalysis {
   notesAnalyzed: number;
 }
 
-/** Detailed headache/treatment day donut (3-bucket: painFree/painNoTriptan/triptan) */
+/** Detailed headache/treatment day donut (SSOT buckets: pain-free / headache without meds / headache with meds / undocumented) */
 export interface HeadacheDayDonut {
   painFreeDays: number;
+  painDaysNoMedication: number;
+  painDaysWithMedication: number;
+  undocumentedDays: number;
+  /** @deprecated Use painDaysNoMedication. Kept only for older cached snapshots. */
   painDaysNoTriptan: number;
+  /** True Triptan days; not used as donut bucket. */
   triptanDays: number;
+  gepantDays: number;
   totalDays: number;
+  documentedDays: number;
   percentages: {
     painFree: number;
+    painNoMedication: number;
+    withMedication: number;
+    undocumented: number;
+    /** @deprecated */
     painNoTriptan: number;
     triptan: number;
   };
@@ -648,10 +659,19 @@ interface RawEntry {
   pain_locations: string[] | null;
   notes: string | null;
   timestamp_created: string | null;
+  updated_at?: string | null;
   entry_note_is_private?: boolean;
   symptoms_state?: string;
   me_cfs_severity_level?: string;
   me_cfs_severity_score?: number;
+}
+
+interface RawMedicationIntake {
+  entry_id: number;
+  medication_id?: string | null;
+  medication_name: string;
+  taken_date?: string | null;
+  updated_at?: string | null;
 }
 
 /**
