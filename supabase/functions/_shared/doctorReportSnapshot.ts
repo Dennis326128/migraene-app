@@ -1258,8 +1258,7 @@ export async function buildDoctorReportSnapshot(
       .from("medication_intakes")
       .select("entry_id, medication_id, medication_name, taken_date, updated_at")
       .eq("user_id", userId)
-      .gte("taken_date", from)
-      .lte("taken_date", to),
+      .or(`and(taken_date.gte.${from},taken_date.lte.${to}),taken_date.is.null`),
 
     // NEW: Medication intakes in last 30 days of range
     (() => {
