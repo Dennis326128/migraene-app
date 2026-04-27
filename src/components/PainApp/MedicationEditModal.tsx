@@ -658,9 +658,8 @@ export const MedicationEditModal = ({ medication, open, onOpenChange }: Medicati
                 </Select>
               </div>
 
-              {/* Quick Dosage Fields based on intake type */}
-              {!isRegular ? (
-                // Bei Bedarf: show standard dose + max per 24h
+              {/* Quick Dosage Fields for as-needed medications */}
+              {!isRegular && (
                 <div className="space-y-3 p-4 rounded-lg bg-muted/30 border border-border/30">
                   <p className="text-sm font-medium text-muted-foreground">Dosierung (Bei Bedarf)</p>
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -686,73 +685,6 @@ export const MedicationEditModal = ({ medication, open, onOpenChange }: Medicati
                         placeholder="z.B. 2"
                         className="h-9"
                       />
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                // Regular: show schedule type + doses
-                <div className="space-y-4 p-4 rounded-lg bg-muted/30 border border-border/30">
-                  <p className="text-sm font-medium text-muted-foreground">Einnahmeplan (Regelmäßig)</p>
-                  
-                  {/* Schedule Type Selector */}
-                  <div className="space-y-2">
-                    <Label className="text-sm">Frequenz</Label>
-                    <Select
-                      value={scheduleType}
-                      onValueChange={(v) => handleScheduleTypeChange(v as "daily" | "weekdays")}
-                    >
-                      <SelectTrigger className="h-9">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="daily">Täglich</SelectItem>
-                        <SelectItem value="weekdays">Bestimmte Wochentage</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  {/* Weekday Picker (only when weekdays selected) */}
-                  {scheduleType === "weekdays" && (
-                    <div className="space-y-2">
-                      <Label className="text-sm">Einnahme an</Label>
-                      <WeekdayPicker
-                        value={(formData.regular_weekdays || []) as Weekday[]}
-                        onChange={handleWeekdaysChange}
-                        size="sm"
-                      />
-                      {formData.regular_weekdays?.length === 0 && (
-                        <p className="text-xs text-amber-500">
-                          Bitte mindestens einen Tag auswählen
-                        </p>
-                      )}
-                      {formData.regular_weekdays && formData.regular_weekdays.length > 0 && (
-                        <p className="text-xs text-muted-foreground">
-                          {formatWeekdays(formData.regular_weekdays as Weekday[])}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                  
-                  {/* Time-based doses */}
-                  <div className="space-y-2 pt-2 border-t border-border/30">
-                    <Label className="text-sm">Dosierung pro Einnahme</Label>
-                    <div className="grid grid-cols-4 gap-2">
-                      {[
-                        { key: "dosis_morgens", label: "Mo" },
-                        { key: "dosis_mittags", label: "Mi" },
-                        { key: "dosis_abends", label: "Ab" },
-                        { key: "dosis_nacht", label: "Na" },
-                      ].map(({ key, label }) => (
-                        <div key={key} className="space-y-1">
-                          <Label className="text-xs text-center block">{label}</Label>
-                          <Input
-                            value={(formData as any)[key] || ""}
-                            onChange={(e) => updateField(key as any, e.target.value)}
-                            placeholder="0"
-                            className="text-center h-9"
-                          />
-                        </div>
-                      ))}
                     </div>
                   </div>
                 </div>
