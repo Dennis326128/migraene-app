@@ -144,9 +144,10 @@ export async function listMeds(): Promise<Med[]> {
     .order("name", { ascending: true });
   if (error) throw error;
   const meds = (data || []) as Med[];
+  const plan = createMedicationCategoryBackfillPlan(meds);
   await backfillMissingMedicationCategories(meds);
   return meds.map(med => {
-    const backfill = createMedicationCategoryBackfillPlan([med]).updates[0];
+    const backfill = plan.updates.find(update => update.id === med.id);
     return backfill ? { ...med, effect_category: backfill.effect_category } : med;
   });
 }
