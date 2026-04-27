@@ -9,6 +9,7 @@ import {
   deleteMed, 
   deleteMedById,
   discontinueMed,
+  reactivateMed,
   markMedAsIntolerant,
   listRecentMeds, 
   type Med, 
@@ -114,6 +115,17 @@ export function useDiscontinueMed() {
     mutationFn: discontinueMed,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: MED_QUERY_KEY });
+    },
+  });
+}
+
+export function useReactivateMed() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input?: UpdateMedInput }) => reactivateMed(id, input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: MED_QUERY_KEY });
+      qc.invalidateQueries({ queryKey: RECENT_MED_QUERY_KEY });
     },
   });
 }

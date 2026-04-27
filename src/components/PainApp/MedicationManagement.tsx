@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { useMeds, useAddMed, useDeleteMed, type Med, type CreateMedInput } from "@/features/meds/hooks/useMeds";
+import { useMeds, useAddMed, useDeleteMed, useReactivateMed, useUpdateMed, type Med, type CreateMedInput } from "@/features/meds/hooks/useMeds";
 import { useCreateReminder, useCreateMultipleReminders } from "@/features/reminders/hooks/useReminders";
 import { useMedicationsReminderMap, useCoursesReminderMap, type MedicationReminderStatus } from "@/features/reminders/hooks/useMedicationReminders";
 import { useToggleMedicationReminders } from "@/features/reminders/hooks/useToggleMedicationReminder";
@@ -39,6 +39,7 @@ import { cn } from "@/lib/utils";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { isBrowserSttSupported } from "@/lib/voice/sttConfig";
 import { classifyMedication } from "@/lib/medications/classifyMedication";
+import { findMedicationDuplicate } from "@/lib/medications/medicationDuplicate";
 // MedicationLimitsCompactCard and MedicationLimitsSheet removed - Limits now has its own screen
 // AccordionMedicationCard and AccordionMedicationCourseCard removed - Now using tap-to-detail pattern
 import { SimpleMedicationRow } from "./SimpleMedicationRow";
@@ -58,6 +59,8 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
   const { data: medicationCourses } = useMedicationCourses();
   const { data: medicationLimits } = useMedicationLimits();
   const addMed = useAddMed();
+  const updateMed = useUpdateMed();
+  const reactivateMed = useReactivateMed();
   const deleteMed = useDeleteMed();
   const createReminder = useCreateReminder();
   const createMultipleReminders = useCreateMultipleReminders();
@@ -172,6 +175,13 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
       resetTranscript();
       await startRecording();
     }
+  };
+
+  const closeAddDialog = () => {
+    setShowAddDialog(false);
+    setMedicationName("");
+    resetTranscript();
+    setVoiceError(null);
   };
 
   // Categorize medications
@@ -379,14 +389,66 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
 
     try {
       // Convert parsed info to medication input
+      const detectedCategory = newCategory === "none" ? undefined : newCategory;
       const medInput: CreateMedInput = {
         ...parsedToMedInput(parsed),
         intake_type: newIntakeType,
         art: newIntakeType === "regular" ? "regelmaessig" : "bedarf",
         strength_value: newStrengthValue || parsed.doseValue?.toString(),
         strength_unit: newStrengthUnit || parsed.doseUnit || "mg",
-        effect_category: newCategory === "none" ? undefined : newCategory,
+        effect_category: detectedCategory,
       };
+
+      const duplicate = findMedicationDuplicate(medications || [], {
+        name: medInput.name,
+        strengthValue: medInput.strength_value,
+        strengthUnit: medInput.strength_unit,
+      }, detectedCategory);
+
+      if (duplicate) {
+        const existingMed = duplicate.medication as Med;
+        const categoryInput = duplicate.hasMissingCategory && detectedCategory
+          ? { effect_category: detectedCategory }
+          : undefined;
+
+        if (duplicate.isArchived) {
+          toast.warning("Dieses Medikament ist archiviert. Du kannst es wieder aktivieren.", {
+            action: {
+              label: "Wieder aktivieren",
+              onClick: async () => {
+                const reactivated = await reactivateMed.mutateAsync({ id: existingMed.id, input: categoryInput });
+                toast.success("Medikament wieder aktiviert");
+                closeAddDialog();
+                setSelectedMedication(reactivated);
+                setShowEditModal(true);
+              },
+            },
+          });
+          if (categoryInput) {
+            await updateMed.mutateAsync({ id: existingMed.id, input: categoryInput });
+          }
+          return;
+        }
+
+        if (categoryInput) {
+          await updateMed.mutateAsync({ id: existingMed.id, input: categoryInput });
+        }
+
+        toast.info("Dieses Medikament existiert bereits.", {
+          description: duplicate.hasMissingCategory
+            ? `Kategorie wurde erkannt: ${detectedCategory === "triptan" ? "Triptan" : "Gepant"}. Du kannst das vorhandene Medikament bearbeiten.`
+            : "Du kannst das vorhandene Medikament bearbeiten.",
+          action: {
+            label: "Bearbeiten",
+            onClick: () => {
+              closeAddDialog();
+              setSelectedMedication({ ...existingMed, ...categoryInput });
+              setShowEditModal(true);
+            },
+          },
+        });
+        return;
+      }
       
       const newMed = await addMed.mutateAsync(medInput);
       
@@ -422,14 +484,14 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
         toast.success("Medikament hinzugefügt");
       }
       
-      setMedicationName("");
-      setShowAddDialog(false);
+      closeAddDialog();
       
       if (editAfterAdd && newMed) {
         setSelectedMedication(newMed);
         setShowEditModal(true);
       }
     } catch (error) {
+      console.error("Error adding medication:", error);
       toast.error("Fehler beim Hinzufügen des Medikaments.");
     }
   };
@@ -999,22 +1061,17 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
           <DialogFooter className="flex-row gap-3 sm:gap-3 pt-2">
             <Button 
               variant="outline" 
-              onClick={() => {
-                setShowAddDialog(false);
-                setMedicationName("");
-                resetTranscript();
-                setVoiceError(null);
-              }}
+              onClick={closeAddDialog}
               className="flex-1 h-12 text-base text-muted-foreground hover:text-foreground"
             >
               Abbrechen
             </Button>
             <Button 
               onClick={handleAddMedication} 
-              disabled={!medicationName.trim() || addMed.isPending || voiceState.isRecording}
+              disabled={!medicationName.trim() || addMed.isPending || updateMed.isPending || reactivateMed.isPending || voiceState.isRecording}
               className="flex-1 h-12 text-base font-medium"
             >
-              {addMed.isPending ? (
+              {addMed.isPending || updateMed.isPending || reactivateMed.isPending ? (
                 <Loader2 className="h-5 w-5 animate-spin mr-2" />
               ) : null}
               Hinzufügen
