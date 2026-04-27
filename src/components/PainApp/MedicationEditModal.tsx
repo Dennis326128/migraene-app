@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { WeekdayPicker, type Weekday, formatWeekdays } from "@/components/ui/weekday-picker";
 import { MedicationReminderSheet } from "@/components/Reminders/MedicationReminderSheet";
 import { format } from "date-fns";
+import { classifyMedication } from "@/lib/medications/classifyMedication";
 
 interface MedicationEditModalProps {
   medication: Med | null;
@@ -53,6 +54,14 @@ const INTAKE_TYPES = [
   { value: "as_needed", label: "Bei Bedarf" },
   { value: "regular", label: "Regelmäßig" },
 ];
+
+const MIGRAINE_CATEGORIES = [
+  { value: "none", label: "Kein Triptan/Gepant" },
+  { value: "triptan", label: "Triptan" },
+  { value: "gepant", label: "Gepant" },
+] as const;
+
+type MigraineCategory = typeof MIGRAINE_CATEGORIES[number]["value"];
 
 const TYPICAL_INDICATIONS = [
   "Akute Migräneattacke",
