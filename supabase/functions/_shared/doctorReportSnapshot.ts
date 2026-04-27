@@ -1403,7 +1403,7 @@ export async function buildDoctorReportSnapshot(
   let totalGepantIntakes = 0;
 
   allEntries.forEach(entry => {
-    const date = entry.selected_date;
+    const date = getEntryDate(entry);
     if (!date) return;
 
     documentedDatesSet.add(date);
@@ -1418,15 +1418,18 @@ export async function buildDoctorReportSnapshot(
       }
     }
 
+    const medicationNames = getMedicationNamesForEntry(entry, intakesByEntryId);
+    const hasTriptanForEntry = medicationNames.some((med: string) => isTriptan(med));
+
     const isMigraineCandidate = intensity >= 7
       || (entry.aura_type && entry.aura_type !== "keine")
-      || (entry.medications?.some((med: string) => isTriptan(med)));
+      || hasTriptanForEntry;
     if (isMigraineCandidate && intensity > 0) {
       migraineDaysSet.add(date);
     }
 
-    if (entry.medications?.length) {
-      entry.medications.forEach((med: string) => {
+    if (medicationNames.length > 0) {
+      medicationNames.forEach((med: string) => {
         if (isTriptan(med)) {
           triptanDaysSet.add(date);
           totalTriptanIntakes++;
@@ -1438,7 +1441,7 @@ export async function buildDoctorReportSnapshot(
       });
     }
 
-    if (entry.medications && entry.medications.length > 0) {
+    if (medicationNames.length > 0) {
       acuteMedDaysSet.add(date);
     }
 
