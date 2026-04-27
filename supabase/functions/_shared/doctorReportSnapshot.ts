@@ -1335,7 +1335,10 @@ export async function buildDoctorReportSnapshot(
   allEntries.forEach(e => trackTs(e.updated_at ?? e.timestamp_created));
   medicationCourses.forEach(c => trackTs(c.updated_at));
 
-  // medication_intakes: fetch updated_at for entries in range
+  // medication_intakes: fetched for the full range and used as SSOT for medication counts
+  allMedicationIntakes.forEach(intake => trackTs(intake.updated_at));
+
+  // medication_intakes fallback fingerprint by entry id for legacy rows without taken_date
   const entryIdsForFingerprint = allEntries.map(e => e.id).filter(Boolean);
   if (entryIdsForFingerprint.length > 0) {
     const intakeChunks = [];
@@ -1760,8 +1763,8 @@ export async function buildDoctorReportSnapshot(
   }
 
   // C) Detailed headache day donut
-  analysis.headacheDayDonut = buildHeadacheDayDonut(from, to, allEntries);
-  console.log(`[DoctorReport] Donut: painFree=${analysis.headacheDayDonut.painFreeDays} painNoTriptan=${analysis.headacheDayDonut.painDaysNoTriptan} triptan=${analysis.headacheDayDonut.triptanDays}`);
+  analysis.headacheDayDonut = buildHeadacheDayDonut(from, to, allEntries, intakesByEntryId);
+  console.log(`[DoctorReport] Donut: painFree=${analysis.headacheDayDonut.painFreeDays} headacheWithoutMedication=${analysis.headacheDayDonut.painDaysNoMedication} headacheWithMedication=${analysis.headacheDayDonut.painDaysWithMedication} undocumented=${analysis.headacheDayDonut.undocumentedDays}`);
 
   // D) Weather
   const weatherAnalysis = buildWeatherAnalysis(from, to, allEntries, weatherLogs);
