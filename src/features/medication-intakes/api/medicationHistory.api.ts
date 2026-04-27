@@ -4,6 +4,7 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
+import { countMedicationUsageInRange } from "@/lib/medications/medicationUsage";
 
 export interface MedicationHistoryEntry {
   id: string;
@@ -128,14 +129,26 @@ export async function countMedicationIntakesInRange(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
 
-  const { count, error } = await supabase
-    .from("medication_intakes")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", user.id)
-    .eq("medication_name", medicationName)
-    .gte("taken_date", from)
-    .lte("taken_date", to);
+  const [intakesResult, entriesResult] = await Promise.all([
+    supabase
+      .from("medication_intakes")
+      .select("entry_id, medication_name, taken_date, taken_at")
+      .eq("user_id", user.id),
+    supabase
+      .from("pain_entries")
+      .select("id, selected_date, timestamp_created, medications")
+      .eq("user_id", user.id)
+      .not("medications", "is", null),
+  ]);
 
-  if (error) throw error;
-  return count ?? 0;
+  if (intakesResult.error) throw intakesResult.error;
+  if (entriesResult.error) throw entriesResult.error;
+
+  return countMedicationUsageInRange(
+    medicationName,
+    from,
+    to,
+    intakesResult.data || [],
+    entriesResult.data || [],
+  );
 }
