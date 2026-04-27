@@ -604,7 +604,7 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
       {/* Header */}
       <AppHeader
         title="Medikamente"
-        subtitle={`${totalActive} aktive Medikamente`}
+        subtitle={`${totalActive} Medikamente`}
         onBack={onBack}
         sticky
       />
