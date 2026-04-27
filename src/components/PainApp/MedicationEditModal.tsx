@@ -166,6 +166,7 @@ export const MedicationEditModal = ({ medication, open, onOpenChange }: Medicati
   const [hasStartDate, setHasStartDate] = useState(false);
   const [scheduleType, setScheduleType] = useState<"daily" | "weekdays">("daily");
   const [showReminderSheet, setShowReminderSheet] = useState(false);
+  const [categoryTouched, setCategoryTouched] = useState(false);
 
   const [formData, setFormData] = useState<UpdateMedInput>({
     name: "",
@@ -266,14 +267,17 @@ export const MedicationEditModal = ({ medication, open, onOpenChange }: Medicati
         regular_weekdays: medication.regular_weekdays || [],
         regular_notes: medication.regular_notes || "",
         medication_status: medication.medication_status || "active",
+        effect_category: medication.effect_category || "",
         start_date: medication.start_date || "",
         end_date: medication.end_date || "",
         is_active: medication.is_active !== false,
       });
+      setCategoryTouched(Boolean(medication.effect_category));
     } else {
       // Reset for new medication
       setHasStartDate(false);
       setScheduleType("daily");
+      setCategoryTouched(false);
     }
   }, [medication]);
 
@@ -281,6 +285,10 @@ export const MedicationEditModal = ({ medication, open, onOpenChange }: Medicati
   const handleNameChange = (newName: string) => {
     setFormData(prev => {
       const updated = { ...prev, name: newName };
+      if (!categoryTouched) {
+        const detected = classifyMedication(newName);
+        updated.effect_category = detected.isGepant ? "gepant" : detected.isTriptan ? "triptan" : "";
+      }
       
       // Only auto-fill if the fields are currently empty
       if (!prev.strength_value && !prev.wirkstoff) {
