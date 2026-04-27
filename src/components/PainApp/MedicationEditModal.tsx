@@ -698,8 +698,54 @@ export const MedicationEditModal = ({ medication, open, onOpenChange }: Medicati
               <CollapsibleSection
                 title="Weitere Optionen"
                 icon={<Calendar className="h-4 w-4" />}
-                hint="Startdatum und Archivierung"
+                hint="Startdatum, Archivierung und Einnahmeplan"
               >
+                {isRegular && (
+                  <div className="space-y-4 p-3 rounded-lg bg-muted/20 border border-border/30">
+                    <p className="text-sm font-medium text-muted-foreground">Einnahmeplan</p>
+                    <div className="space-y-2">
+                      <Label className="text-sm">Frequenz</Label>
+                      <Select value={scheduleType} onValueChange={(v) => handleScheduleTypeChange(v as "daily" | "weekdays")}>
+                        <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="daily">Täglich</SelectItem>
+                          <SelectItem value="weekdays">Bestimmte Wochentage</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {scheduleType === "weekdays" && (
+                      <div className="space-y-2">
+                        <Label className="text-sm">Einnahme an</Label>
+                        <WeekdayPicker value={(formData.regular_weekdays || []) as Weekday[]} onChange={handleWeekdaysChange} size="sm" />
+                        {formData.regular_weekdays && formData.regular_weekdays.length > 0 && (
+                          <p className="text-xs text-muted-foreground">{formatWeekdays(formData.regular_weekdays as Weekday[])}</p>
+                        )}
+                      </div>
+                    )}
+                    <div className="space-y-2 pt-2 border-t border-border/30">
+                      <Label className="text-sm">Dosierung pro Einnahme</Label>
+                      <div className="grid grid-cols-4 gap-2">
+                        {[
+                          { key: "dosis_morgens", label: "Mo" },
+                          { key: "dosis_mittags", label: "Mi" },
+                          { key: "dosis_abends", label: "Ab" },
+                          { key: "dosis_nacht", label: "Na" },
+                        ].map(({ key, label }) => (
+                          <div key={key} className="space-y-1">
+                            <Label className="text-xs text-center block">{label}</Label>
+                            <Input
+                              value={(formData as any)[key] || ""}
+                              onChange={(e) => updateField(key as any, e.target.value)}
+                              placeholder="0"
+                              className="text-center h-9"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-3 p-3 rounded-lg bg-muted/20 border border-border/30">
                   <div className="flex items-center justify-between gap-3">
                     <div className="space-y-0.5">
