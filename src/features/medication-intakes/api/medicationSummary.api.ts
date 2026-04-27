@@ -7,7 +7,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { yesterdayStr } from "@/lib/dateRange/rangeResolver";
 import { subDays, format } from "date-fns";
-import { getMedicationUsageDate, normalizeMedicationNameForUsage } from "@/lib/medications/medicationUsage";
+import { countMedicationUsageInRange, getMedicationUsageDate } from "@/lib/medications/medicationUsage";
 
 export interface MedicationSummary {
   medication_name: string;
@@ -169,30 +169,7 @@ export async function fetchMedicationLimitUsages(limits: MedicationLimitUsageInp
 
   return limits.map((limit) => {
     const periodStart = periodStartFor(limit.period_type);
-    const target = normalizeMedicationNameForUsage(limit.medication_name);
-    let currentCount = 0;
-    const intakeEntryMedicationKeys = new Set<string>();
-
-    for (const intake of intakes) {
-      const date = getMedicationUsageDate(intake);
-      if (!date || date < periodStart || date > today) continue;
-      const normalizedName = normalizeMedicationNameForUsage(intake.medication_name);
-      if (normalizedName !== target) continue;
-      currentCount++;
-      if (intake.entry_id != null) intakeEntryMedicationKeys.add(`${intake.entry_id}:${normalizedName}`);
-    }
-
-    for (const entry of legacyEntries) {
-      const date = getMedicationUsageDate(entry);
-      if (!date || date < periodStart || date > today) continue;
-      for (const legacyName of entry.medications || []) {
-        const normalizedName = normalizeMedicationNameForUsage(legacyName);
-        if (normalizedName !== target) continue;
-        const key = entry.id != null ? `${entry.id}:${normalizedName}` : null;
-        if (key && intakeEntryMedicationKeys.has(key)) continue;
-        currentCount++;
-      }
-    }
+    const currentCount = countMedicationUsageInRange(limit.medication_name, periodStart, today, intakes, legacyEntries);
 
     return { ...limit, current_count: currentCount, period_start: periodStart };
   });
