@@ -20,12 +20,23 @@ const getSimpleBadge = (med: Med) => {
   if (med.is_active === false || med.discontinued_at) {
     return <Badge variant="secondary" className="text-xs">Abgesetzt</Badge>;
   }
+  const chipClass = "border-transparent bg-muted text-muted-foreground hover:bg-muted text-xs font-medium";
   // Regular medications (prophylaxe, regelmaessig)
   if (med.art === "prophylaxe" || med.art === "regelmaessig" || med.intake_type === "regular") {
-    return <Badge variant="default" className="text-xs bg-primary/80">Regelmäßig</Badge>;
+    return <Badge variant="secondary" className={chipClass}>Regelmäßig</Badge>;
   }
   // On-demand / PRN medications
-  return <Badge variant="outline" className="text-xs">Bedarf</Badge>;
+  return <Badge variant="secondary" className={chipClass}>Bedarf</Badge>;
+};
+
+const getMigraineCategoryBadge = (med: Med) => {
+  if (med.effect_category === "triptan") {
+    return <Badge variant="secondary" className="border-transparent bg-muted text-muted-foreground hover:bg-muted text-xs font-medium">Triptan</Badge>;
+  }
+  if (med.effect_category === "gepant") {
+    return <Badge variant="secondary" className="border-transparent bg-muted text-muted-foreground hover:bg-muted text-xs font-medium">Gepant</Badge>;
+  }
+  return null;
 };
 
 /**
@@ -35,6 +46,8 @@ const formatMedDisplay = (med: Med): { name: string; strength: string | null } =
   let strength: string | null = null;
   if (med.staerke && !med.name.includes(med.staerke)) {
     strength = med.staerke;
+  } else if (med.strength_value && med.strength_unit && !med.name.includes(med.strength_value)) {
+    strength = `${med.strength_value} ${med.strength_unit}`;
   }
   return { name: med.name, strength };
 };
@@ -42,7 +55,7 @@ const formatMedDisplay = (med: Med): { name: string; strength: string | null } =
 /**
  * SimpleMedicationRow - Minimalist medication row with tap-to-detail
  * 
- * Shows only: Name, Strength, Type Badge (Regelmäßig/Bedarf), Active status
+ * Shows only: Name, Strength, Type Badge (Regelmäßig/Bedarf), optional migraine category
  * Tap opens detail/edit screen
  */
 export const SimpleMedicationRow: React.FC<SimpleMedicationRowProps> = ({
@@ -88,9 +101,7 @@ export const SimpleMedicationRow: React.FC<SimpleMedicationRowProps> = ({
             {/* Badges row */}
             <div className="flex items-center gap-2 mt-1">
               {getSimpleBadge(med)}
-              {med.is_active !== false && !med.discontinued_at && !med.intolerance_flag && (
-                <Badge variant="default" className="text-xs bg-green-600/80">Aktiv</Badge>
-              )}
+              {getMigraineCategoryBadge(med)}
             </div>
           </div>
           

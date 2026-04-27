@@ -33,7 +33,7 @@ const formatCourseDisplay = (course: MedicationCourse): { name: string; dose: st
 /**
  * SimpleCourseRow - Minimalist course row with tap-to-detail
  * 
- * Shows only: Name, Dose, "Regelmäßig" badge, Active status, Next date (if reminder)
+ * Shows only: Name, Dose, "Regelmäßig" badge, stopped status, Next date (if reminder)
  * Tap opens detail/edit wizard
  */
 export const SimpleCourseRow: React.FC<SimpleCourseRowProps> = ({
@@ -76,10 +76,7 @@ export const SimpleCourseRow: React.FC<SimpleCourseRowProps> = ({
             
             {/* Badges row */}
             <div className="flex items-center gap-2 mt-1">
-              <Badge variant="default" className="text-xs bg-primary/80">Regelmäßig</Badge>
-              {course.is_active && (
-                <Badge variant="default" className="text-xs bg-green-600/80">Aktiv</Badge>
-              )}
+              <Badge variant="secondary" className="border-transparent bg-muted text-muted-foreground hover:bg-muted text-xs font-medium">Regelmäßig</Badge>
               {!course.is_active && (
                 <Badge variant="secondary" className="text-xs">Abgesetzt</Badge>
               )}

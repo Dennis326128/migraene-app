@@ -204,6 +204,7 @@ export async function addMed(input: CreateMedInput): Promise<Med> {
       regular_weekdays: input.regular_weekdays || null,
       regular_notes: input.regular_notes || null,
       medication_status: input.medication_status || "active",
+      effect_category: input.effect_category || null,
       // Therapy history dates
       start_date: input.start_date || null,
       end_date: input.end_date || null,

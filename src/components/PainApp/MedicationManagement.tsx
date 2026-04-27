@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { MedicationReminderSheet } from "@/components/Reminders/MedicationReminderSheet";
 import { ReminderTimePresets, getTimesForPresets, DEFAULT_TIME_PRESETS } from "@/components/Reminders/ReminderTimePresets";
@@ -37,6 +38,7 @@ import { DoctorSelectionDialog, type Doctor } from "./DoctorSelectionDialog";
 import { cn } from "@/lib/utils";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { isBrowserSttSupported } from "@/lib/voice/sttConfig";
+import { classifyMedication } from "@/lib/medications/classifyMedication";
 // MedicationLimitsCompactCard and MedicationLimitsSheet removed - Limits now has its own screen
 // AccordionMedicationCard and AccordionMedicationCourseCard removed - Now using tap-to-detail pattern
 import { SimpleMedicationRow } from "./SimpleMedicationRow";
@@ -95,6 +97,11 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
   const [selectedMedication, setSelectedMedication] = useState<Med | null>(null);
   const [selectedCourse, setSelectedCourse] = useState<MedicationCourse | null>(null);
   const [medicationName, setMedicationName] = useState("");
+  const [newStrengthValue, setNewStrengthValue] = useState("");
+  const [newStrengthUnit, setNewStrengthUnit] = useState("mg");
+  const [newIntakeType, setNewIntakeType] = useState<"as_needed" | "regular">("as_needed");
+  const [newCategory, setNewCategory] = useState<"none" | "triptan" | "gepant">("none");
+  const [newCategoryTouched, setNewCategoryTouched] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   
   // Determine if current medication name looks like a PRN medication
@@ -107,8 +114,19 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
     if (showAddDialog) {
       setReminderEnabled(true);
       setSelectedReminderPresets(['morning']);
+      setNewStrengthValue("");
+      setNewStrengthUnit("mg");
+      setNewIntakeType("as_needed");
+      setNewCategory("none");
+      setNewCategoryTouched(false);
     }
   }, [showAddDialog]);
+
+  useEffect(() => {
+    if (newCategoryTouched) return;
+    const detected = classifyMedication(medicationName);
+    setNewCategory(detected.isGepant ? "gepant" : detected.isTriptan ? "triptan" : "none");
+  }, [medicationName, newCategoryTouched]);
   
   // Remember user preference for "edit after add" in localStorage
   const [editAfterAdd, setEditAfterAdd] = useState(() => {
@@ -346,14 +364,15 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
 
     // Parse the input to extract structured medication info
     const parsed = parseMedicationInput(rawInput);
+    const displayName = parsed.displayName;
     
-    if (!parsed.displayName) {
+    if (!displayName) {
       toast.error("Medikamentenname konnte nicht erkannt werden");
       return;
     }
 
     // Validate extracted display name
-    if (!/^[a-zA-ZäöüÄÖÜß0-9\s\-/().µ]+$/.test(parsed.displayName)) {
+    if (!/^[a-zA-ZäöüÄÖÜß0-9\s\-/().µ]+$/.test(displayName)) {
       toast.error("Medikamentenname enthält ungültige Zeichen.");
       return;
     }
@@ -362,14 +381,17 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
       // Convert parsed info to medication input
       const medInput: CreateMedInput = {
         ...parsedToMedInput(parsed),
-        // Set art based on isPrn
-        art: parsed.isPrn ? "bedarf" : (parsed.frequencyPerDay && parsed.frequencyPerDay > 0 ? "regelmaessig" : "bedarf"),
+        intake_type: newIntakeType,
+        art: newIntakeType === "regular" ? "regelmaessig" : "bedarf",
+        strength_value: newStrengthValue || parsed.doseValue?.toString(),
+        strength_unit: newStrengthUnit || parsed.doseUnit || "mg",
+        effect_category: newCategory === "none" ? undefined : newCategory,
       };
       
       const newMed = await addMed.mutateAsync(medInput);
       
       // Create reminders directly if enabled and presets selected (inline, no extra prompt)
-      const shouldCreateReminders = reminderEnabled && selectedReminderPresets.length > 0 && !looksLikePrn;
+      const shouldCreateReminders = reminderEnabled && selectedReminderPresets.length > 0 && newIntakeType === "regular";
       
       if (shouldCreateReminders && newMed) {
         const times = getTimesForPresets(selectedReminderPresets);
@@ -582,7 +604,7 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
       {/* Header */}
       <AppHeader
         title="Medikamente"
-        subtitle={`${totalActive} aktive Medikamente`}
+        subtitle={`${totalActive} Medikamente`}
         onBack={onBack}
         sticky
       />
@@ -815,7 +837,7 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
                 <Input
                   ref={inputRef}
                   id="med-name"
-                  placeholder="z.B. Ibuprofen 400 mg"
+                  placeholder="z.B. Sumatriptan"
                   value={voiceState.isRecording ? voiceState.transcript || medicationName : medicationName}
                   onChange={(e) => setMedicationName(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && !addMed.isPending && medicationName.trim() && handleAddMedication()}
@@ -841,6 +863,60 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
                   )}
                 </button>
               </div>
+              <div className="grid grid-cols-[1fr_96px] gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="new-strength" className="text-sm">Stärke</Label>
+                  <Input
+                    id="new-strength"
+                    value={newStrengthValue}
+                    onChange={(e) => setNewStrengthValue(e.target.value)}
+                    placeholder="z.B. 100"
+                    inputMode="decimal"
+                    className="h-10"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm">Einheit</Label>
+                  <Select value={newStrengthUnit} onValueChange={setNewStrengthUnit}>
+                    <SelectTrigger className="h-10">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {['mg', 'µg', 'g', 'ml', 'IE'].map((unit) => (
+                        <SelectItem key={unit} value={unit}>{unit}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm">Art der Einnahme</Label>
+                <Select value={newIntakeType} onValueChange={(value) => setNewIntakeType(value as "as_needed" | "regular")}>
+                  <SelectTrigger className="h-10">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="as_needed">Bei Bedarf</SelectItem>
+                    <SelectItem value="regular">Regelmäßig</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm">Kategorie</Label>
+                <Select value={newCategory} onValueChange={(value) => {
+                  setNewCategory(value as "none" | "triptan" | "gepant");
+                  setNewCategoryTouched(true);
+                }}>
+                  <SelectTrigger className="h-10">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Kein Triptan/Gepant</SelectItem>
+                    <SelectItem value="triptan">Triptan</SelectItem>
+                    <SelectItem value="gepant">Gepant</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               
               {/* Voice recording hint */}
               {voiceState.isRecording && (
@@ -859,7 +935,7 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
             </div>
             
             {/* Inline Reminder Configuration - only show for non-PRN medications */}
-            {!looksLikePrn && medicationName.trim() && (
+            {newIntakeType === "regular" && medicationName.trim() && (
               <div className="space-y-3 pt-2 border-t border-border/50">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -892,7 +968,7 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
             )}
             
             {/* PRN medication hint */}
-            {looksLikePrn && medicationName.trim() && (
+            {newIntakeType === "as_needed" && medicationName.trim() && (
               <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2 border-t border-border/50">
                 <Clock className="h-3.5 w-3.5" />
                 <span>Bedarfsmedikament – Erinnerung später über 🔔 möglich</span>

@@ -31,12 +31,13 @@ const getSimpleBadge = (med: Med) => {
   if (med.is_active === false || med.discontinued_at) {
     return <Badge variant="secondary" className="text-xs">Abgesetzt</Badge>;
   }
+  const chipClass = "border-transparent bg-muted text-muted-foreground hover:bg-muted text-xs font-medium";
   // Regular medications (prophylaxe, regelmaessig)
   if (med.art === "prophylaxe" || med.art === "regelmaessig" || med.intake_type === "regular") {
-    return <Badge variant="default" className="text-xs bg-primary/80">Regelmäßig</Badge>;
+    return <Badge variant="secondary" className={chipClass}>Regelmäßig</Badge>;
   }
   // On-demand / PRN medications - explicit badge
-  return <Badge variant="outline" className="text-xs">Bedarf</Badge>;
+  return <Badge variant="secondary" className={chipClass}>Bedarf</Badge>;
 };
 
 /**
@@ -126,10 +127,6 @@ export const AccordionMedicationCard: React.FC<AccordionMedicationCardProps> = (
               </span>
               {/* Simplified Badge */}
               {getSimpleBadge(med)}
-              {/* Active status only if relevant */}
-              {med.is_active !== false && !med.discontinued_at && !med.intolerance_flag && (
-                <Badge variant="default" className="text-xs bg-green-600/80">Aktiv</Badge>
-              )}
             </div>
             
             {/* Optional: Next date for interval meds (collapsed view only) */}

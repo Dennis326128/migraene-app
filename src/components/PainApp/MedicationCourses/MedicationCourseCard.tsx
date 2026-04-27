@@ -82,11 +82,6 @@ export const MedicationCourseCard: React.FC<MedicationCourseCardProps> = ({
               >
                 {TYPE_LABELS[course.type]}
               </Badge>
-              {course.is_active && (
-                <Badge variant="default" className="text-xs bg-green-600">
-                  Aktiv
-                </Badge>
-              )}
             </div>
 
             {/* Dosierung */}
