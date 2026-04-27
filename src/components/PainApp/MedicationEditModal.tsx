@@ -638,67 +638,24 @@ export const MedicationEditModal = ({ medication, open, onOpenChange }: Medicati
                 </Select>
               </div>
 
-              {/* Start Date Toggle */}
-              <div className="space-y-3 p-4 rounded-lg bg-muted/30 border border-border/30">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label className="text-sm font-medium">Startdatum hinzufügen</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Nur falls du dokumentieren möchtest, seit wann du es nimmst
-                    </p>
-                  </div>
-                  <Switch
-                    checked={hasStartDate}
-                    onCheckedChange={handleStartDateToggle}
-                  />
-                </div>
-                
-                {hasStartDate && (
-                  <div className="space-y-2 pt-2 border-t border-border/30">
-                    <Label htmlFor="start_date" className="text-sm">Startdatum</Label>
-                    <Input
-                      id="start_date"
-                      type="date"
-                      value={formData.start_date || ""}
-                      onChange={(e) => updateField("start_date", e.target.value)}
-                      className="h-9"
-                    />
-                  </div>
-                )}
-              </div>
-
-              {/* Active Toggle + End Date */}
-              <div className="space-y-3 p-4 rounded-lg bg-muted/30 border border-border/30">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label className="text-sm font-medium">Medikament ist aktiv</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Aktive Medikamente erscheinen im Medikationsplan
-                    </p>
-                  </div>
-                  <Switch
-                    checked={isActive}
-                    onCheckedChange={handleActiveToggle}
-                  />
-                </div>
-                
-                {!isActive && (
-                  <div className="space-y-2 pt-2 border-t border-border/30">
-                    <Label htmlFor="end_date" className="text-sm">Ende der Einnahme</Label>
-                    <Input
-                      id="end_date"
-                      type="date"
-                      value={formData.end_date || ""}
-                      onChange={(e) => updateField("end_date", e.target.value)}
-                      className="h-9"
-                    />
-                    {!formData.end_date && (
-                      <p className="text-xs text-amber-500">
-                        Bitte ein Enddatum angeben für den Therapieverlauf
-                      </p>
-                    )}
-                  </div>
-                )}
+              <div className="space-y-2">
+                <Label>Kategorie</Label>
+                <Select
+                  value={(formData.effect_category as MigraineCategory) || "none"}
+                  onValueChange={(value) => {
+                    setCategoryTouched(true);
+                    updateField("effect_category", value === "none" ? "" : value);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MIGRAINE_CATEGORIES.map((category) => (
+                      <SelectItem key={category.value} value={category.value}>{category.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               {/* Quick Dosage Fields based on intake type */}
