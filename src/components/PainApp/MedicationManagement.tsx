@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { MedicationReminderSheet } from "@/components/Reminders/MedicationReminderSheet";
 import { ReminderTimePresets, getTimesForPresets, DEFAULT_TIME_PRESETS } from "@/components/Reminders/ReminderTimePresets";
@@ -37,6 +38,7 @@ import { DoctorSelectionDialog, type Doctor } from "./DoctorSelectionDialog";
 import { cn } from "@/lib/utils";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { isBrowserSttSupported } from "@/lib/voice/sttConfig";
+import { classifyMedication } from "@/lib/medications/classifyMedication";
 // MedicationLimitsCompactCard and MedicationLimitsSheet removed - Limits now has its own screen
 // AccordionMedicationCard and AccordionMedicationCourseCard removed - Now using tap-to-detail pattern
 import { SimpleMedicationRow } from "./SimpleMedicationRow";
@@ -95,6 +97,11 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
   const [selectedMedication, setSelectedMedication] = useState<Med | null>(null);
   const [selectedCourse, setSelectedCourse] = useState<MedicationCourse | null>(null);
   const [medicationName, setMedicationName] = useState("");
+  const [newStrengthValue, setNewStrengthValue] = useState("");
+  const [newStrengthUnit, setNewStrengthUnit] = useState("mg");
+  const [newIntakeType, setNewIntakeType] = useState<"as_needed" | "regular">("as_needed");
+  const [newCategory, setNewCategory] = useState<"none" | "triptan" | "gepant">("none");
+  const [newCategoryTouched, setNewCategoryTouched] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   
   // Determine if current medication name looks like a PRN medication
@@ -107,8 +114,19 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
     if (showAddDialog) {
       setReminderEnabled(true);
       setSelectedReminderPresets(['morning']);
+      setNewStrengthValue("");
+      setNewStrengthUnit("mg");
+      setNewIntakeType("as_needed");
+      setNewCategory("none");
+      setNewCategoryTouched(false);
     }
   }, [showAddDialog]);
+
+  useEffect(() => {
+    if (newCategoryTouched) return;
+    const detected = classifyMedication(medicationName);
+    setNewCategory(detected.isGepant ? "gepant" : detected.isTriptan ? "triptan" : "none");
+  }, [medicationName, newCategoryTouched]);
   
   // Remember user preference for "edit after add" in localStorage
   const [editAfterAdd, setEditAfterAdd] = useState(() => {
