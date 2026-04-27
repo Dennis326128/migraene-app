@@ -935,7 +935,7 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
             </div>
             
             {/* Inline Reminder Configuration - only show for non-PRN medications */}
-            {!looksLikePrn && medicationName.trim() && (
+            {newIntakeType === "regular" && medicationName.trim() && (
               <div className="space-y-3 pt-2 border-t border-border/50">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -968,7 +968,7 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
             )}
             
             {/* PRN medication hint */}
-            {looksLikePrn && medicationName.trim() && (
+            {newIntakeType === "as_needed" && medicationName.trim() && (
               <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2 border-t border-border/50">
                 <Clock className="h-3.5 w-3.5" />
                 <span>Bedarfsmedikament – Erinnerung später über 🔔 möglich</span>
