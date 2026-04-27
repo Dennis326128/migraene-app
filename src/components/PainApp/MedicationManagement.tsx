@@ -364,14 +364,15 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
 
     // Parse the input to extract structured medication info
     const parsed = parseMedicationInput(rawInput);
+    const displayName = parsed.displayName;
     
-    if (!parsed.displayName) {
+    if (!displayName) {
       toast.error("Medikamentenname konnte nicht erkannt werden");
       return;
     }
 
     // Validate extracted display name
-    if (!/^[a-zA-ZäöüÄÖÜß0-9\s\-/().µ]+$/.test(parsed.displayName)) {
+    if (!/^[a-zA-ZäöüÄÖÜß0-9\s\-/().µ]+$/.test(displayName)) {
       toast.error("Medikamentenname enthält ungültige Zeichen.");
       return;
     }
@@ -380,8 +381,11 @@ export const MedicationManagement: React.FC<MedicationManagementProps> = ({ onBa
       // Convert parsed info to medication input
       const medInput: CreateMedInput = {
         ...parsedToMedInput(parsed),
-        // Set art based on isPrn
-        art: parsed.isPrn ? "bedarf" : (parsed.frequencyPerDay && parsed.frequencyPerDay > 0 ? "regelmaessig" : "bedarf"),
+        intake_type: newIntakeType,
+        art: newIntakeType === "regular" ? "regelmaessig" : "bedarf",
+        strength_value: newStrengthValue || parsed.doseValue?.toString(),
+        strength_unit: newStrengthUnit || parsed.doseUnit || "mg",
+        effect_category: newCategory === "none" ? undefined : newCategory,
       };
       
       const newMed = await addMed.mutateAsync(medInput);
