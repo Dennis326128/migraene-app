@@ -777,13 +777,14 @@ function buildTriggersAnalysis(allEntries: RawEntry[]): TriggersAnalysis {
 }
 
 /**
- * Build detailed headache day donut (painFree / painNoTriptan / triptan).
- * Same logic as computeHeadacheTreatmentDayDistribution SSOT.
+ * Build detailed headache day donut using the same medication-source rule as PDF:
+ * medication_intakes first, legacy pain_entries.medications only as fallback per entry.
  */
 function buildHeadacheDayDonut(
   from: string,
   to: string,
-  allEntries: RawEntry[]
+  allEntries: RawEntry[],
+  intakesByEntryId: Map<number, RawMedicationIntake[]> = new Map()
 ): HeadacheDayDonut {
   // Group entries by date
   const entriesByDate = new Map<string, RawEntry[]>();
@@ -798,13 +799,23 @@ function buildHeadacheDayDonut(
   const allDates = enumerateDatesInclusive(from, to);
   const totalDays = allDates.length;
   let painFreeDays = 0;
+  let painDaysNoMedication = 0;
+  let painDaysWithMedication = 0;
+  let undocumentedDays = 0;
   let painDaysNoTriptan = 0;
-  let triptanDaysCount = 0;
+  let triptanDays = 0;
+  let gepantDays = 0;
 
   for (const date of allDates) {
     const dayEntries = entriesByDate.get(date) || [];
+    if (dayEntries.length === 0) {
+      undocumentedDays++;
+      continue;
+    }
     let hasPain = false;
+    let hasMedication = false;
     let hasTriptan = false;
+    let hasGepant = false;
 
     for (const entry of dayEntries) {
       // Pain: pain_level not '-' and not 'keine' and not '0' and not empty
@@ -813,16 +824,19 @@ function buildHeadacheDayDonut(
         const num = painLevelToNumber(pl);
         if (num > 0) hasPain = true;
       }
-      // Triptan check
-      if (entry.medications?.length) {
-        for (const med of entry.medications) {
-          if (isTriptan(med)) { hasTriptan = true; break; }
-        }
+      const medicationNames = getMedicationNamesForEntry(entry, intakesByEntryId);
+      if (medicationNames.length > 0) hasMedication = true;
+      for (const med of medicationNames) {
+        if (isTriptan(med)) hasTriptan = true;
+        if (isGepant(med)) hasGepant = true;
       }
     }
 
-    if (hasTriptan) triptanDaysCount++;
-    else if (hasPain) painDaysNoTriptan++;
+    if (hasTriptan) triptanDays++;
+    if (hasGepant) gepantDays++;
+    if (hasPain && !hasTriptan) painDaysNoTriptan++;
+    if (hasPain && hasMedication) painDaysWithMedication++;
+    else if (hasPain) painDaysNoMedication++;
     else painFreeDays++;
   }
 
@@ -830,13 +844,21 @@ function buildHeadacheDayDonut(
 
   return {
     painFreeDays,
+    painDaysNoMedication,
+    painDaysWithMedication,
+    undocumentedDays,
     painDaysNoTriptan,
-    triptanDays: triptanDaysCount,
+    triptanDays,
+    gepantDays,
     totalDays,
+    documentedDays: totalDays - undocumentedDays,
     percentages: {
       painFree: pct(painFreeDays),
+      painNoMedication: pct(painDaysNoMedication),
+      withMedication: pct(painDaysWithMedication),
+      undocumented: pct(undocumentedDays),
       painNoTriptan: pct(painDaysNoTriptan),
-      triptan: pct(triptanDaysCount),
+      triptan: pct(triptanDays),
     },
   };
 }
