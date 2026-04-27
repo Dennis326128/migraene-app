@@ -1557,7 +1557,7 @@ export async function buildDoctorReportSnapshot(
 
   const medCountMap = new Map<string, number>();
   allEntries.forEach(entry => {
-    entry.medications?.forEach((med: string) => {
+    getMedicationNamesForEntry(entry, intakesByEntryId).forEach((med: string) => {
       medCountMap.set(med, (medCountMap.get(med) || 0) + 1);
     });
   });
@@ -1594,7 +1594,7 @@ export async function buildDoctorReportSnapshot(
       createdAt: e.timestamp_created || new Date().toISOString(),
       intensity: painLevelToNumber(e.pain_level),
       intensityLabel: painLevelToLabel(e.pain_level),
-      medications: e.medications || [],
+      medications: getMedicationNamesForEntry(e, intakesByEntryId),
       note: e.notes || null,
       aura: e.aura_type && e.aura_type !== "keine" ? e.aura_type : null,
       painLocations: e.pain_locations || [],
@@ -1650,8 +1650,8 @@ export async function buildDoctorReportSnapshot(
 
   const medEffectMap = new Map<string, { count: number; daysUsed: Set<string>; effects: number[] }>();
   allEntries.forEach(entry => {
-    const date = entry.selected_date;
-    entry.medications?.forEach((med: string) => {
+    const date = getEntryDate(entry);
+    getMedicationNamesForEntry(entry, intakesByEntryId).forEach((med: string) => {
       if (!medEffectMap.has(med)) {
         medEffectMap.set(med, { count: 0, daysUsed: new Set(), effects: [] });
       }
