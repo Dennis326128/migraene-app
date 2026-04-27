@@ -106,7 +106,7 @@ const LIST_SELECT = `
 // Full select for detail views
 const DETAIL_SELECT = '*';
 
-async function backfillMissingMedicationCategories(medications: Med[]): Promise<void> {
+async function backfillMissingMedicationCategories(userId: string, medications: Med[]): Promise<void> {
   const plan = createMedicationCategoryBackfillPlan(medications);
   if (plan.contradictions.length > 0) {
     console.warn('[MedicationCategoryBackfill] Widersprüchliche bestehende Kategorien erkannt; keine automatische Überschreibung.', plan.contradictions);
@@ -119,6 +119,7 @@ async function backfillMissingMedicationCategories(medications: Med[]): Promise<
         .from('user_medications')
         .update({ effect_category: update.effect_category })
         .eq('id', update.id)
+        .eq('user_id', userId)
         .or('effect_category.is.null,effect_category.eq.')
     )
   );
@@ -145,7 +146,7 @@ export async function listMeds(): Promise<Med[]> {
   if (error) throw error;
   const meds = (data || []) as Med[];
   const plan = createMedicationCategoryBackfillPlan(meds);
-  await backfillMissingMedicationCategories(meds);
+  await backfillMissingMedicationCategories(user.id, meds);
   return meds.map(med => {
     const backfill = plan.updates.find(update => update.id === med.id);
     return backfill ? { ...med, effect_category: backfill.effect_category } : med;
