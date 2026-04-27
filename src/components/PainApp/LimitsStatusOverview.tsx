@@ -33,7 +33,7 @@ function getStatusConfig(check: LimitCheck) {
       bgTint: "bg-destructive/5",
       dotColor: "bg-destructive",
       barColor: "bg-destructive",
-      label: "Überschritten",
+      label: "Über Limit",
       sub: `${Math.abs(remaining)} über Limit`,
       icon: XCircle,
     };
@@ -45,8 +45,8 @@ function getStatusConfig(check: LimitCheck) {
       bgTint: "bg-warning/5",
       dotColor: "bg-warning",
       barColor: "bg-warning",
-      label: "Erreicht",
-      sub: "Limit erreicht",
+      label: "Bald am Limit",
+      sub: "Noch 0 übrig",
       icon: AlertTriangle,
     };
   }
@@ -57,8 +57,8 @@ function getStatusConfig(check: LimitCheck) {
       bgTint: "bg-warning/5",
       dotColor: "bg-warning",
       barColor: "bg-warning",
-      label: "Achtung",
-      sub: `Noch ${remaining} Einnahme`,
+      label: "Bald am Limit",
+      sub: `Noch ${remaining} übrig`,
       icon: AlertTriangle,
     };
   }
@@ -69,7 +69,7 @@ function getStatusConfig(check: LimitCheck) {
     dotColor: "bg-success",
     barColor: "bg-success",
     label: "OK",
-    sub: `Noch ${remaining}`,
+    sub: `Noch ${remaining} übrig`,
     icon: CheckCircle,
   };
 }
@@ -173,13 +173,13 @@ export function LimitsStatusOverview({ onSwitchToLimitsTab }: LimitsStatusOvervi
     <div className="space-y-4">
       {/* Last updated + refresh */}
       <div className="flex items-center justify-between">
-        <p className="text-xs text-muted-foreground">
+        <p className="text-sm text-muted-foreground/90">
           Deine Einnahmen im eingestellten Zeitraum.
         </p>
         <button
           onClick={doFetch}
           disabled={checking}
-          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          className="flex items-center gap-1 text-sm text-muted-foreground/90 hover:text-foreground transition-colors"
         >
           <RefreshCw className={cn("h-3 w-3", checking && "animate-spin")} />
           {lastFetchedAt > 0 && (
@@ -189,17 +189,17 @@ export function LimitsStatusOverview({ onSwitchToLimitsTab }: LimitsStatusOvervi
       </div>
 
       {/* Summary banner */}
-      <Card className={cn(hasIssues ? "bg-amber-500/5" : "bg-emerald-500/5")}>
+      <Card className={cn(hasIssues ? "bg-warning/5" : "bg-success/5")}>
         <CardContent className="p-4 flex items-center gap-3">
           {hasIssues ? (
             <>
-              <AlertTriangle className="h-5 w-5 text-amber-400 shrink-0" />
-              <span className="text-sm font-medium">Achtung bei einigen Medikamenten</span>
+              <AlertTriangle className="h-5 w-5 text-warning shrink-0" />
+              <span className="text-sm font-medium">Einige Limits fast erreicht oder überschritten</span>
             </>
           ) : (
             <>
-              <CheckCircle className="h-5 w-5 text-emerald-400 shrink-0" />
-              <span className="text-sm font-medium">Alles im grünen Bereich</span>
+              <CheckCircle className="h-5 w-5 text-success shrink-0" />
+              <span className="text-sm font-medium">Alle Limits im grünen Bereich</span>
             </>
           )}
         </CardContent>
