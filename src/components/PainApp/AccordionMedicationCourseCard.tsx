@@ -86,11 +86,7 @@ export const AccordionMedicationCourseCard: React.FC<AccordionMedicationCourseCa
                 {formatCourseNameWithDose(course)}
               </span>
               {/* Simplified Badge - always "Regelmäßig" for courses */}
-              <Badge variant="default" className="text-xs bg-primary/80">Regelmäßig</Badge>
-              {/* Active status */}
-              {course.is_active && (
-                <Badge variant="default" className="text-xs bg-green-600/80">Aktiv</Badge>
-              )}
+              <Badge variant="secondary" className="border-transparent bg-muted text-muted-foreground hover:bg-muted text-xs font-medium">Regelmäßig</Badge>
             </div>
             
             {/* Optional: Next date for interval meds (collapsed view only) */}
