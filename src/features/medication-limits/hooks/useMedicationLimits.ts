@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabaseClient";
+import { fetchMedicationLimitUsages } from "@/features/medication-intakes/api/medicationSummary.api";
+import { getLimitStatus } from "@/lib/utils/medicationLimitStatus";
 
 export interface MedicationLimit {
   id: string;
@@ -111,18 +113,25 @@ async function deleteMedicationLimit(id: string): Promise<void> {
 }
 
 async function checkMedicationLimits(medications: string[]): Promise<LimitCheck[]> {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) throw new Error('Nicht authentifiziert');
+  const limits = (await getMedicationLimits()).filter(
+    (limit) => limit.is_active && medications.includes(limit.medication_name)
+  );
 
-  const { data, error } = await supabase.functions.invoke('check-medication-limits', {
-    body: { medications },
-    headers: {
-      Authorization: `Bearer ${session.access_token}`,
-    },
-  });
+  const usages = await fetchMedicationLimitUsages(limits.map((limit) => ({
+    medication_name: limit.medication_name,
+    period_type: limit.period_type,
+    limit_count: limit.limit_count,
+  })));
 
-  if (error) throw error;
-  return data || [];
+  return usages.map((usage) => ({
+    medication_name: usage.medication_name,
+    current_count: usage.current_count,
+    limit_count: usage.limit_count,
+    period_type: usage.period_type,
+    percentage: usage.limit_count > 0 ? Math.round((usage.current_count / usage.limit_count) * 100) : 0,
+    status: getLimitStatus(usage.current_count, usage.limit_count),
+    period_start: usage.period_start,
+  }));
 }
 
 export function useMedicationLimits() {

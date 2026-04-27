@@ -28,10 +28,11 @@ function getStatusConfig(check: LimitCheck) {
 
   if (check.status === "exceeded") {
     return {
-      color: "text-red-400",
-      bgTint: "bg-red-500/8",
-      dotColor: "bg-red-500",
-      barColor: "bg-red-500",
+      color: "text-destructive",
+      badgeTint: "bg-destructive/10",
+      bgTint: "bg-destructive/5",
+      dotColor: "bg-destructive",
+      barColor: "bg-destructive",
       label: "Überschritten",
       sub: `${Math.abs(remaining)} über Limit`,
       icon: XCircle,
@@ -39,10 +40,11 @@ function getStatusConfig(check: LimitCheck) {
   }
   if (check.status === "reached") {
     return {
-      color: "text-amber-400",
-      bgTint: "bg-amber-500/8",
-      dotColor: "bg-amber-500",
-      barColor: "bg-amber-500",
+      color: "text-warning",
+      badgeTint: "bg-warning/10",
+      bgTint: "bg-warning/5",
+      dotColor: "bg-warning",
+      barColor: "bg-warning",
       label: "Erreicht",
       sub: "Limit erreicht",
       icon: AlertTriangle,
@@ -50,20 +52,22 @@ function getStatusConfig(check: LimitCheck) {
   }
   if (check.status === "warning") {
     return {
-      color: "text-amber-400",
-      bgTint: "bg-amber-500/6",
-      dotColor: "bg-amber-400",
-      barColor: "bg-amber-400",
+      color: "text-warning",
+      badgeTint: "bg-warning/10",
+      bgTint: "bg-warning/5",
+      dotColor: "bg-warning",
+      barColor: "bg-warning",
       label: "Achtung",
       sub: `Noch ${remaining} Einnahme`,
       icon: AlertTriangle,
     };
   }
   return {
-    color: "text-emerald-400",
-    bgTint: "bg-emerald-500/6",
-    dotColor: "bg-emerald-500",
-    barColor: "bg-emerald-500",
+    color: "text-success",
+    badgeTint: "bg-success/10",
+    bgTint: "bg-success/5",
+    dotColor: "bg-success",
+    barColor: "bg-success",
     label: "OK",
     sub: `Noch ${remaining}`,
     icon: CheckCircle,
@@ -229,10 +233,7 @@ export function LimitsStatusOverview({ onSwitchToLimitsTab }: LimitsStatusOvervi
                       {check.current_count}
                       <span className="text-muted-foreground font-normal text-sm"> / {check.limit_count}</span>
                     </p>
-                    <Badge
-                      variant="outline"
-                      className={cn("text-xs mt-1", cfg.color, "border-current/20")}
-                    >
+                    <Badge className={cn("text-xs mt-1 border-0 shadow-none", cfg.color, cfg.badgeTint)}>
                       <StatusIcon className="h-3 w-3 mr-1" />
                       {cfg.label}
                     </Badge>
