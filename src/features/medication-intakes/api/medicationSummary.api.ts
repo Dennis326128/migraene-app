@@ -7,6 +7,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { yesterdayStr } from "@/lib/dateRange/rangeResolver";
 import { subDays, format } from "date-fns";
+import { getMedicationUsageDate, normalizeMedicationNameForUsage } from "@/lib/medications/medicationUsage";
 
 export interface MedicationSummary {
   medication_name: string;
@@ -111,4 +112,88 @@ export async function fetchMedicationSummaries(): Promise<MedicationSummary[]> {
       if (a.last_intake_at && b.last_intake_at) return b.last_intake_at.localeCompare(a.last_intake_at);
       return a.last_intake_at ? -1 : 1;
     });
+}
+
+export interface MedicationLimitUsageInput {
+  medication_name: string;
+  period_type: 'day' | 'week' | 'month';
+  limit_count: number;
+}
+
+export interface MedicationLimitUsageResult extends MedicationLimitUsageInput {
+  current_count: number;
+  period_start: string;
+}
+
+export async function fetchMedicationLimitUsages(limits: MedicationLimitUsageInput[]): Promise<MedicationLimitUsageResult[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const today = format(new Date(), "yyyy-MM-dd");
+  const periodStartFor = (periodType: string) => {
+    const anchor = new Date(today + "T12:00:00");
+    if (periodType === 'day') return today;
+    if (periodType === 'week') return format(subDays(anchor, 6), "yyyy-MM-dd");
+    return format(subDays(anchor, 29), "yyyy-MM-dd");
+  };
+
+  const earliestFrom = limits.reduce((earliest, limit) => {
+    const start = periodStartFor(limit.period_type);
+    return start < earliest ? start : earliest;
+  }, today);
+
+  const [intakesResult, entriesResult] = await Promise.all([
+    supabase
+      .from("medication_intakes")
+      .select("entry_id, medication_name, taken_at, taken_date")
+      .eq("user_id", user.id)
+      .limit(5000),
+    supabase
+      .from("pain_entries")
+      .select("id, selected_date, timestamp_created, medications")
+      .eq("user_id", user.id)
+      .not("medications", "is", null),
+  ]);
+
+  if (intakesResult.error) throw intakesResult.error;
+  if (entriesResult.error) throw entriesResult.error;
+
+  const intakes = (intakesResult.data || []).filter((row) => {
+    const date = getMedicationUsageDate(row);
+    return date && date >= earliestFrom && date <= today;
+  });
+  const legacyEntries = (entriesResult.data || []).filter((row) => {
+    const date = getMedicationUsageDate(row);
+    return date && date >= earliestFrom && date <= today;
+  });
+
+  return limits.map((limit) => {
+    const periodStart = periodStartFor(limit.period_type);
+    const target = normalizeMedicationNameForUsage(limit.medication_name);
+    let currentCount = 0;
+    const intakeEntryMedicationKeys = new Set<string>();
+
+    for (const intake of intakes) {
+      const date = getMedicationUsageDate(intake);
+      if (!date || date < periodStart || date > today) continue;
+      const normalizedName = normalizeMedicationNameForUsage(intake.medication_name);
+      if (normalizedName !== target) continue;
+      currentCount++;
+      if (intake.entry_id != null) intakeEntryMedicationKeys.add(`${intake.entry_id}:${normalizedName}`);
+    }
+
+    for (const entry of legacyEntries) {
+      const date = getMedicationUsageDate(entry);
+      if (!date || date < periodStart || date > today) continue;
+      for (const legacyName of entry.medications || []) {
+        const normalizedName = normalizeMedicationNameForUsage(legacyName);
+        if (normalizedName !== target) continue;
+        const key = entry.id != null ? `${entry.id}:${normalizedName}` : null;
+        if (key && intakeEntryMedicationKeys.has(key)) continue;
+        currentCount++;
+      }
+    }
+
+    return { ...limit, current_count: currentCount, period_start: periodStart };
+  });
 }
