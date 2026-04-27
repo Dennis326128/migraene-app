@@ -1160,6 +1160,7 @@ export async function buildDoctorReportSnapshot(
     weatherLogsResult,
     symptomBurdenResult,
     medicationEffectsResult,
+    medicationIntakesResult,
     medicationIntakesLast30Result,
   ] = await Promise.all([
     // All entries for summary/charts — now include symptoms_state and ME/CFS fields
@@ -1230,6 +1231,14 @@ export async function buildDoctorReportSnapshot(
       .select("med_name, effect_score, entry_id")
       .not("effect_score", "is", null),
 
+    // Medication intakes for the full range — SSOT for intake/day medication counts.
+    supabase
+      .from("medication_intakes")
+      .select("entry_id, medication_id, medication_name, taken_date, updated_at")
+      .eq("user_id", userId)
+      .gte("taken_date", from)
+      .lte("taken_date", to),
+
     // NEW: Medication intakes in last 30 days of range
     (() => {
       const last30From = new Date(new Date(to).getTime() - 29 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -1251,7 +1260,14 @@ export async function buildDoctorReportSnapshot(
   const weatherLogs = weatherLogsResult.data || [];
   const symptomBurdenData = (symptomBurdenResult.data || []) as Array<{ symptom_key: string; burden_level: number | null }>;
   const allMedEffects = (medicationEffectsResult.data || []) as Array<{ med_name: string; effect_score: number | null; entry_id: number }>;
+  const allMedicationIntakes = (medicationIntakesResult.data || []) as RawMedicationIntake[];
   const last30Intakes = (medicationIntakesLast30Result.data || []) as Array<{ medication_name: string; taken_date: string }>;
+
+  const intakesByEntryId = new Map<number, RawMedicationIntake[]>();
+  for (const intake of allMedicationIntakes) {
+    if (!intakesByEntryId.has(intake.entry_id)) intakesByEntryId.set(intake.entry_id, []);
+    intakesByEntryId.get(intake.entry_id)!.push(intake);
+  }
 
   // Filter medication_effects to only entries in range
   const entryIdSet = new Set(allEntries.map(e => e.id));
