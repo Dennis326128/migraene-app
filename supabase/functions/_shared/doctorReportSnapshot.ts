@@ -1377,7 +1377,7 @@ export async function buildDoctorReportSnapshot(
     .maybeSingle();
   if (latestVoiceInRange) trackTs(latestVoiceInRange.updated_at);
 
-  const sourceUpdatedAt = latestTimestamp?.toISOString() || null;
+  const sourceUpdatedAt = latestTimestamp ? (latestTimestamp as Date).toISOString() : null;
 
   // Snapshot uses timestamp-based staleness for the overall report.
   // For pattern analysis specifically, we compare data_state_signature
@@ -1592,7 +1592,7 @@ export async function buildDoctorReportSnapshot(
   const entries: DoctorReportEntry[] = allEntries
     .map(e => ({
       id: e.id,
-      date: e.selected_date,
+      date: getEntryDate(e) || e.timestamp_created?.split('T')[0] || new Date().toISOString().split('T')[0],
       time: formatTime(e.selected_time),
       createdAt: e.timestamp_created || new Date().toISOString(),
       intensity: painLevelToNumber(e.pain_level),
