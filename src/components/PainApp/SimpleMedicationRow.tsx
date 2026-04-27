@@ -46,6 +46,8 @@ const formatMedDisplay = (med: Med): { name: string; strength: string | null } =
   let strength: string | null = null;
   if (med.staerke && !med.name.includes(med.staerke)) {
     strength = med.staerke;
+  } else if (med.strength_value && med.strength_unit && !med.name.includes(med.strength_value)) {
+    strength = `${med.strength_value} ${med.strength_unit}`;
   }
   return { name: med.name, strength };
 };
