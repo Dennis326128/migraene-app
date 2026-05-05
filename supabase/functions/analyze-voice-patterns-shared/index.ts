@@ -147,7 +147,12 @@ Deno.serve(async (req) => {
     // 8. Persist as ai_reports so subsequent read-only fetch (snapshot) sees it
     try {
       const dedupeKey = `pattern_analysis_${from}_${to}`;
-      await supabase.from('ai_reports').upsert({
+      await supabase.from('ai_reports')
+        .delete()
+        .eq('user_id', ownerUserId)
+        .eq('report_type', 'pattern_analysis')
+        .eq('dedupe_key', dedupeKey);
+      await supabase.from('ai_reports').insert({
         user_id: ownerUserId,
         report_type: 'pattern_analysis',
         source: 'doctor_share',
@@ -157,7 +162,7 @@ Deno.serve(async (req) => {
         dedupe_key: dedupeKey,
         response_json: llm.body,
         model: 'google/gemini-2.5-flash',
-      }, { onConflict: 'user_id,report_type,dedupe_key' as any });
+      });
     } catch (persistErr) {
       console.error(`[shared-ai] persist_failed owner=${shortId(ownerUserId)}:`, persistErr);
       // non-fatal — still return the analysis to the doctor
