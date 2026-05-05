@@ -921,6 +921,41 @@ const DoctorReportView: React.FC = () => {
               );
             })()}
 
+            {/* KI-Analyse on demand — when no analysis is present */}
+            {!report.analysis?.patternAnalysis && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Brain className="w-4 h-4" />
+                    Datenbasierte Musteranalyse (KI)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    Für diese Freigabe liegt aktuell keine KI-Musteranalyse vor.
+                    Sie kann hier auf Anfrage erstellt werden, sofern der Patient
+                    die KI-Verarbeitung in seiner App freigegeben hat.
+                  </p>
+                  <Button
+                    onClick={handleGenerateAi}
+                    disabled={aiGenerating}
+                    variant="secondary"
+                    size="sm"
+                  >
+                    {aiGenerating ? "Analyse läuft …" : "KI-Analyse jetzt erstellen"}
+                  </Button>
+                  {aiError && (
+                    <div className="text-sm text-destructive border border-destructive/30 bg-destructive/5 rounded-md p-3">
+                      {aiError}
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground/60 pt-2 border-t">
+                    Mögliche Zusammenhänge – keine medizinische Diagnose.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Entries List */}
             <Card>
               <CardHeader className="pb-3 flex flex-row items-center justify-between">
