@@ -435,6 +435,7 @@ export function MigrainePatternAnalysis() {
   const [isLoadingCache, setIsLoadingCache] = useState(true);
   const [result, setResult] = useState<VoiceAnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [isWeakData, setIsWeakData] = useState(false);
   const [isCachedResult, setIsCachedResult] = useState(false);
   const [isStaleResult, setIsStaleResult] = useState(false);
