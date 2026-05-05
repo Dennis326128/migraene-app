@@ -261,6 +261,8 @@ const DoctorReportView: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   const fmtDate = (dateStr: string | null | undefined) =>
     safeDateFormat(dateStr, (d) => format(d, "d. MMM yyyy", { locale: de }));
@@ -339,6 +341,58 @@ const DoctorReportView: React.FC = () => {
     setRange(newRange);
     setPage(1);
   };
+
+  // ─── AI analysis on demand (Hybrid C) ──────────────────────
+  const handleGenerateAi = useCallback(async () => {
+    setAiGenerating(true);
+    setAiError(null);
+    try {
+      const response = await fetch(
+        `${SUPABASE_FUNCTIONS_BASE_URL}/analyze-voice-patterns-shared`,
+        {
+          method: "POST",
+          ...buildDoctorFetchInit({
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({}),
+          }),
+        }
+      );
+
+      let body: any = null;
+      try { body = await response.json(); } catch { /* ignore */ }
+
+      if (!response.ok) {
+        const code = body?.code as string | undefined;
+        if (code === "AI_CONSENT_REQUIRED") {
+          setAiError("Der Patient hat die KI-Verarbeitung nicht freigegeben. Die Analyse kann nur erstellt werden, wenn die Einwilligung in der App des Patienten erteilt wurde.");
+        } else if (code === "AI_NOT_ENABLED_FOR_SHARE") {
+          setAiError("Die KI-Analyse ist für diese Freigabe nicht aktiviert.");
+        } else if (code === "AI_NOT_ENABLED_FOR_OWNER") {
+          setAiError("Die KI-Analyse ist im Account des Patienten deaktiviert.");
+        } else if (code === "INVALID_SHARE_CODE" || code === "INVALID_SHARE_SESSION" || code === "SHARE_EXPIRED" || response.status === 401) {
+          doctorAccessStore.clear();
+          navigate("/doctor?expired=1");
+          return;
+        } else if (response.status === 429) {
+          setAiError("Zu viele Anfragen. Bitte später erneut versuchen.");
+        } else if (response.status === 402) {
+          setAiError("Das KI-Kontingent ist aufgebraucht.");
+        } else {
+          setAiError(body?.error ?? "Die KI-Analyse konnte nicht erstellt werden.");
+        }
+        return;
+      }
+
+      toast.success("KI-Analyse erstellt");
+      // Reload report so the new analysis shows up via the snapshot path
+      await loadData(range, page);
+    } catch (err) {
+      console.error("[DoctorReportView] AI generate error:", err);
+      setAiError("Die KI-Analyse konnte nicht erstellt werden.");
+    } finally {
+      setAiGenerating(false);
+    }
+  }, [navigate, loadData, range, page]);
 
   // ─── PDF Download ──────────────────────────────────────────
   const handleDownloadPdf = async () => {
@@ -866,6 +920,41 @@ const DoctorReportView: React.FC = () => {
                 </Card>
               );
             })()}
+
+            {/* KI-Analyse on demand — when no analysis is present */}
+            {!report.analysis?.patternAnalysis && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Brain className="w-4 h-4" />
+                    Datenbasierte Musteranalyse (KI)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    Für diese Freigabe liegt aktuell keine KI-Musteranalyse vor.
+                    Sie kann hier auf Anfrage erstellt werden, sofern der Patient
+                    die KI-Verarbeitung in seiner App freigegeben hat.
+                  </p>
+                  <Button
+                    onClick={handleGenerateAi}
+                    disabled={aiGenerating}
+                    variant="secondary"
+                    size="sm"
+                  >
+                    {aiGenerating ? "Analyse läuft …" : "KI-Analyse jetzt erstellen"}
+                  </Button>
+                  {aiError && (
+                    <div className="text-sm text-destructive border border-destructive/30 bg-destructive/5 rounded-md p-3">
+                      {aiError}
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground/60 pt-2 border-t">
+                    Mögliche Zusammenhänge – keine medizinische Diagnose.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Entries List */}
             <Card>
