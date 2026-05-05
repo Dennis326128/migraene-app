@@ -477,6 +477,7 @@ export function MigrainePatternAnalysis() {
 
   const runAnalysis = useCallback(async () => {
     setError(null);
+    setErrorCode(null);
     setIsWeakData(false);
     setIsAnalyzing(true);
     setIsCachedResult(false);
