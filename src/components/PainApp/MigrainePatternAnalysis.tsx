@@ -501,11 +501,17 @@ export function MigrainePatternAnalysis() {
       }
     } catch (err) {
       logError('MigrainePatternAnalysis.run', err);
+      const code = (err as any)?.code as string | undefined;
       const msg = err instanceof Error ? err.message : 'Analyse fehlgeschlagen';
-      if (msg.includes('Rate Limit')) {
+      setErrorCode(code ?? null);
+      if (code === 'AI_CONSENT_REQUIRED') {
+        setError('Bitte erteile zuerst deine Einwilligung zur KI-Verarbeitung in den Datenschutz-Einstellungen.');
+      } else if (code === 'RATE_LIMIT_EXCEEDED' || msg.includes('Rate Limit')) {
         setError('Bitte warte einen Moment, bevor du erneut analysierst.');
-      } else if (msg.includes('Guthaben')) {
+      } else if (code === 'INSUFFICIENT_CREDITS' || msg.includes('Guthaben')) {
         setError('Monatliches Analyselimit erreicht. Nächsten Monat stehen dir wieder Analysen zur Verfügung.');
+      } else if (code === 'AUTH_REQUIRED') {
+        setError('Sitzung abgelaufen. Bitte erneut anmelden.');
       } else if (msg.includes('Keine Daten')) {
         setError('Im gewählten Zeitraum sind keine Daten vorhanden.');
       } else {
