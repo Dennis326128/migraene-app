@@ -229,15 +229,10 @@ export interface RunLLMOptions {
   apiKey: string;
 }
 
-export interface RunLLMResult {
-  ok: true;
-  body: Record<string, unknown>;
-  status: 200;
-} | {
-  ok: false;
-  body: Record<string, unknown>;
-  status: number;
-};
+export type RunLLMResult =
+  | { ok: true; body: Record<string, unknown>; status: 200 }
+  | { ok: false; body: Record<string, unknown>; status: number };
+
 
 /**
  * Run the full LLM call → extract → validate pipeline.
