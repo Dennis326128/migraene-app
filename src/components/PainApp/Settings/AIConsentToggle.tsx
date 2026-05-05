@@ -60,6 +60,9 @@ export const AIConsentToggle = () => {
         ai_processing_consent: next,
         ai_processing_consent_at: next ? new Date().toISOString() : null,
         ai_processing_consent_version: "1.0",
+        // When (re-)activating AI consent, clear any prior withdrawal so
+        // has_ai_consent() (which filters consent_withdrawn_at IS NULL) returns true.
+        ...(next ? { consent_withdrawn_at: null, withdrawal_reason: null } : {}),
       };
 
       if (existing?.id) {
