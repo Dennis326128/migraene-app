@@ -261,6 +261,8 @@ const DoctorReportView: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   const fmtDate = (dateStr: string | null | undefined) =>
     safeDateFormat(dateStr, (d) => format(d, "d. MMM yyyy", { locale: de }));
