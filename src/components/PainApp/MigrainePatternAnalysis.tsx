@@ -601,15 +601,21 @@ export function MigrainePatternAnalysis() {
             <AlertCircle className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
             <div>
               <p className="text-sm text-foreground/80">{error}</p>
-              <Button
-                onClick={runAnalysis}
-                variant="ghost"
-                size="sm"
-                className="mt-2"
-                disabled={isAnalyzing}
-              >
-                <RefreshCw className="h-3 w-3 mr-1" /> Erneut versuchen
-              </Button>
+              {errorCode === 'AI_CONSENT_REQUIRED' ? (
+                <p className="text-xs text-muted-foreground mt-2">
+                  Einstellungen → Datenschutz & Konto → „KI-Analyse erlauben"
+                </p>
+              ) : (
+                <Button
+                  onClick={runAnalysis}
+                  variant="ghost"
+                  size="sm"
+                  className="mt-2"
+                  disabled={isAnalyzing}
+                >
+                  <RefreshCw className="h-3 w-3 mr-1" /> Erneut versuchen
+                </Button>
+              )}
             </div>
           </div>
         </div>
