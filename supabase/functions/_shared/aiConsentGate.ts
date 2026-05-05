@@ -24,17 +24,21 @@ export async function hasAiConsent(
   supabase: SupabaseClient,
   userId: string
 ): Promise<boolean> {
+  const shortId = userId ? `${userId.slice(0, 8)}…` : "<no-user>";
   try {
+    console.log(`[aiConsentGate] check user=${shortId}`);
     const { data, error } = await supabase.rpc("has_ai_consent", {
       p_user_id: userId,
     });
     if (error) {
-      console.error("[aiConsentGate] has_ai_consent RPC error:", error);
+      console.error(`[aiConsentGate] has_ai_consent RPC error user=${shortId}:`, error);
       return false;
     }
-    return data === true;
+    const ok = data === true;
+    if (!ok) console.log(`[aiConsentGate] AI_CONSENT_REQUIRED user=${shortId}`);
+    return ok;
   } catch (err) {
-    console.error("[aiConsentGate] Unexpected error:", err);
+    console.error(`[aiConsentGate] Unexpected error user=${shortId}:`, err);
     return false;
   }
 }

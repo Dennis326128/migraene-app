@@ -169,12 +169,54 @@ export async function runVoicePatternAnalysis(
   if (fnError) {
     console.error('[AnalysisEngine] Edge function error:', fnError);
 
-    // Check for specific error codes
-    const msg = typeof fnError === 'object' && fnError.message ? fnError.message : String(fnError);
-    if (msg.includes('429')) throw new Error('Rate Limit erreicht. Bitte später erneut versuchen.');
-    if (msg.includes('402')) throw new Error('Guthaben aufgebraucht. Bitte Credits hinzufügen.');
+    // Try to read the actual response body (Supabase FunctionsHttpError exposes it via context.response)
+    let status: number | null = null;
+    let bodyCode: string | null = null;
+    let bodyError: string | null = null;
+    try {
+      const ctx = (fnError as any)?.context;
+      const resp: Response | undefined = ctx?.response ?? (ctx instanceof Response ? ctx : undefined);
+      if (resp) {
+        status = resp.status;
+        const text = await resp.clone().text();
+        if (text) {
+          try {
+            const parsed = JSON.parse(text);
+            bodyCode = parsed?.code ?? null;
+            bodyError = parsed?.error ?? null;
+          } catch { /* not JSON */ }
+        }
+      }
+    } catch (e) {
+      console.warn('[AnalysisEngine] Could not parse edge function error body:', e);
+    }
 
-    throw new Error(`Analyse fehlgeschlagen: ${msg}`);
+    const msg = typeof fnError === 'object' && (fnError as any).message ? (fnError as any).message : String(fnError);
+
+    if (bodyCode === 'AI_CONSENT_REQUIRED' || status === 403) {
+      const err = new Error(
+        bodyError ?? 'Bitte erteile zuerst deine Einwilligung zur KI-Verarbeitung in den Datenschutz-Einstellungen.'
+      );
+      (err as any).code = 'AI_CONSENT_REQUIRED';
+      throw err;
+    }
+    if (status === 429 || msg.includes('429')) {
+      const err = new Error('Rate Limit erreicht. Bitte später erneut versuchen.');
+      (err as any).code = 'RATE_LIMIT_EXCEEDED';
+      throw err;
+    }
+    if (status === 402 || msg.includes('402')) {
+      const err = new Error('Guthaben aufgebraucht. Bitte Credits hinzufügen.');
+      (err as any).code = 'INSUFFICIENT_CREDITS';
+      throw err;
+    }
+    if (status === 401) {
+      const err = new Error('Sitzung abgelaufen. Bitte erneut anmelden.');
+      (err as any).code = 'AUTH_REQUIRED';
+      throw err;
+    }
+
+    throw new Error(`Analyse fehlgeschlagen: ${bodyError ?? msg}`);
   }
 
   // 5: Validate result

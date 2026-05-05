@@ -435,6 +435,7 @@ export function MigrainePatternAnalysis() {
   const [isLoadingCache, setIsLoadingCache] = useState(true);
   const [result, setResult] = useState<VoiceAnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [isWeakData, setIsWeakData] = useState(false);
   const [isCachedResult, setIsCachedResult] = useState(false);
   const [isStaleResult, setIsStaleResult] = useState(false);
@@ -476,6 +477,7 @@ export function MigrainePatternAnalysis() {
 
   const runAnalysis = useCallback(async () => {
     setError(null);
+    setErrorCode(null);
     setIsWeakData(false);
     setIsAnalyzing(true);
     setIsCachedResult(false);
@@ -499,11 +501,17 @@ export function MigrainePatternAnalysis() {
       }
     } catch (err) {
       logError('MigrainePatternAnalysis.run', err);
+      const code = (err as any)?.code as string | undefined;
       const msg = err instanceof Error ? err.message : 'Analyse fehlgeschlagen';
-      if (msg.includes('Rate Limit')) {
+      setErrorCode(code ?? null);
+      if (code === 'AI_CONSENT_REQUIRED') {
+        setError('Bitte erteile zuerst deine Einwilligung zur KI-Verarbeitung in den Datenschutz-Einstellungen.');
+      } else if (code === 'RATE_LIMIT_EXCEEDED' || msg.includes('Rate Limit')) {
         setError('Bitte warte einen Moment, bevor du erneut analysierst.');
-      } else if (msg.includes('Guthaben')) {
+      } else if (code === 'INSUFFICIENT_CREDITS' || msg.includes('Guthaben')) {
         setError('Monatliches Analyselimit erreicht. Nächsten Monat stehen dir wieder Analysen zur Verfügung.');
+      } else if (code === 'AUTH_REQUIRED') {
+        setError('Sitzung abgelaufen. Bitte erneut anmelden.');
       } else if (msg.includes('Keine Daten')) {
         setError('Im gewählten Zeitraum sind keine Daten vorhanden.');
       } else {
@@ -593,15 +601,21 @@ export function MigrainePatternAnalysis() {
             <AlertCircle className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
             <div>
               <p className="text-sm text-foreground/80">{error}</p>
-              <Button
-                onClick={runAnalysis}
-                variant="ghost"
-                size="sm"
-                className="mt-2"
-                disabled={isAnalyzing}
-              >
-                <RefreshCw className="h-3 w-3 mr-1" /> Erneut versuchen
-              </Button>
+              {errorCode === 'AI_CONSENT_REQUIRED' ? (
+                <p className="text-xs text-muted-foreground mt-2">
+                  Einstellungen → Datenschutz & Konto → „KI-Analyse erlauben"
+                </p>
+              ) : (
+                <Button
+                  onClick={runAnalysis}
+                  variant="ghost"
+                  size="sm"
+                  className="mt-2"
+                  disabled={isAnalyzing}
+                >
+                  <RefreshCw className="h-3 w-3 mr-1" /> Erneut versuchen
+                </Button>
+              )}
             </div>
           </div>
         </div>
