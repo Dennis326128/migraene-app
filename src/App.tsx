@@ -6,7 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 import { Session, User } from "@supabase/supabase-js";
 import ErrorBoundary from "./components/ErrorBoundary";
-import { CookieConsent } from "./components/CookieConsent";
+
 
 import Index from "./pages/Index";
 import AuthPage from "./pages/AuthPage";
@@ -233,9 +233,6 @@ function App() {
 
               <Route path="*" element={<NotFound />} />
             </Routes>
-
-            {/* MUSS innerhalb des Routers sein (nutzt <Link>) */}
-            <CookieConsent />
 
             <Toaster />
           </TooltipProvider>
