@@ -279,7 +279,124 @@ REGELN:
 ${thinDataWarning}
 DATENSATZ: ${meta.totalDays} Tage, ${meta.daysWithPain} Schmerztage, ${meta.painEntryCount} Einträge, ${meta.medicationIntakeCount} Medikamenteneinnahmen, ME/CFS-Tage: ${meta.daysWithMecfs}.
 
-Verwende submit_voice_analysis. Halte die Mindestmengen ein.`;
+=== V2.1 ZUSATZAUFGABE: llm_expanded_findings ===
+Du bekommst zusätzlich:
+1. eine deterministische Voranalyse (_preAnalysis) mit Wetter/Zeit/ME-CFS/Medikamenten-Aggregaten
+2. strukturierte deterministische V2.1-Findings (analysisV21.findings) mit IDs, evidence_level und Datenbasis
+3. die aggregierten Verlaufsdaten oben
+
+Erkenne daraus möglichst viele relevante Zusammenhänge, aber vorsichtig formuliert.
+Du DARFST: Hypothesen aus zeitlichen Mustern ableiten, schwache Zusammenhänge nennen (klar als schwach markiert), unklare Datenlage benennen, Folgefragen vorschlagen, Interaktionen beschreiben (Wetter+Schlaf, Stress+Schlaf, Belastung+Crash, Medikament+Wirkung).
+Du DARFST NICHT: Diagnosen stellen, Therapieanweisungen geben, Zahlen erfinden, Kausalität behaupten, private Notizen/Transkripte/Audio-URLs verwenden, fehlende Daten durch Allgemeinwissen ersetzen.
+
+REGELN für llm_expanded_findings:
+- 8–20 Findings.
+- Jedes Finding MUSS source_basis setzen: deterministic_finding | preanalysis | aggregated_daily_data | data_gap.
+- related_deterministic_finding_ids enthält IDs aus analysisV21.findings, falls vorhanden.
+- evidence_level NIE höher als die zugehörige deterministische Evidenz, außer mehrere unabhängige Hinweise existieren.
+- Wenn keine Datenbasis vorhanden ist → Finding nur als source_basis="data_gap" mit evidence_level="insufficient".
+- Keine Duplikate, jeder Inhalt nur einmal.
+- Schwache Findings sind willkommen, aber mit evidence_level="low".
+
+PFLICHTBEREICHE (jeweils mind. ein Finding ODER ein data_gap):
+1) Krankheitslast / Verlauf (burden, chronification)
+2) Medikamente Einnahmehäufigkeit (medication_use)
+3) Medikamente Wirkung/Nebenwirkung/Wiederkehr (medication_effect)
+4) Wetter (weather)
+5) ME/CFS / Energie / PEM 24–72h (mecfs_energy_pem)
+6) Schlaf (sleep)
+7) Stress / Stimmung (stress_mood)
+8) Symptome / Aura (symptoms_aura)
+9) Zeitmuster (time_pattern)
+10) Alltag / Trigger (lifestyle_triggers)
+11) Interaktionen, z.B. Wetter+Schlaf, Stress+Schlaf, Belastung+Crash (interaction)
+12) Datenqualität (data_quality)
+13) Offene Fragen / red_flag bei klaren Warnsignalen (red_flag)
+
+Verwende submit_voice_analysis. Halte ALLE Mindestmengen ein – inklusive llm_expanded_findings.`;
+}
+
+// ============================================================
+// === V2.1 EXPANDED FINDINGS POSTPROCESSING ===
+// ============================================================
+
+interface ExpandedFinding {
+  id: string;
+  category: string;
+  title: string;
+  evidence_level: string;
+  source_basis: string;
+  related_deterministic_finding_ids: string[];
+  summary: string;
+  reasoning: string;
+  limitations: string[];
+  patient_relevance: string;
+  doctor_relevance: string;
+  recommended_tracking_next: string[;
+  doctor_discussion_points: string[];
+}
+
+export function postprocessExpandedFindings(
+  raw: unknown,
+  deterministicFindingIds: Set<string>,
+): ExpandedFinding[] {
+  if (!Array.isArray(raw)) return [];
+  const cats = new Set<string>(V21_CATEGORIES);
+  const evi = new Set<string>(V21_EVIDENCE);
+  const src = new Set<string>(V21_SOURCE_BASIS);
+  const rel = new Set<string>(V21_RELEVANCE);
+
+  const out: ExpandedFinding[] = [];
+  const seen = new Set<string>();
+
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const f = item as Record<string, unknown>;
+    const id = typeof f.id === 'string' && f.id.trim() ? f.id.trim() : '';
+    const title = typeof f.title === 'string' ? f.title.trim() : '';
+    const summary = typeof f.summary === 'string' ? f.summary.trim() : '';
+    if (!title || !summary) continue;
+
+    const sourceBasis = typeof f.source_basis === 'string' && src.has(f.source_basis) ? f.source_basis : null;
+    if (!sourceBasis) continue;
+
+    // No basis allowed only for explicit data_gap findings
+    const reasoning = typeof f.reasoning === 'string' ? f.reasoning.trim() : '';
+    if (sourceBasis !== 'data_gap' && reasoning.length < 5) continue;
+
+    let category = typeof f.category === 'string' && cats.has(f.category) ? f.category : 'data_quality';
+    let evidenceLevel = typeof f.evidence_level === 'string' && evi.has(f.evidence_level) ? f.evidence_level : 'insufficient';
+    if (sourceBasis === 'data_gap') evidenceLevel = 'insufficient';
+
+    const related = Array.isArray(f.related_deterministic_finding_ids)
+      ? (f.related_deterministic_finding_ids as unknown[])
+          .filter((x): x is string => typeof x === 'string' && deterministicFindingIds.has(x))
+      : [];
+
+    // Dedupe key: category + normalized title
+    const key = category + '::' + title.toLowerCase().slice(0, 80);
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    out.push({
+      id: id || `${category}.llm.${out.length + 1}`,
+      category,
+      title,
+      evidence_level: evidenceLevel,
+      source_basis: sourceBasis,
+      related_deterministic_finding_ids: related,
+      summary,
+      reasoning,
+      limitations: Array.isArray(f.limitations) ? (f.limitations as unknown[]).filter((x): x is string => typeof x === 'string') : [],
+      patient_relevance: typeof f.patient_relevance === 'string' && rel.has(f.patient_relevance) ? f.patient_relevance : 'low',
+      doctor_relevance: typeof f.doctor_relevance === 'string' && rel.has(f.doctor_relevance) ? f.doctor_relevance : 'low',
+      recommended_tracking_next: Array.isArray(f.recommended_tracking_next) ? (f.recommended_tracking_next as unknown[]).filter((x): x is string => typeof x === 'string') : [],
+      doctor_discussion_points: Array.isArray(f.doctor_discussion_points) ? (f.doctor_discussion_points as unknown[]).filter((x): x is string => typeof x === 'string') : [],
+    });
+
+    if (out.length >= 20) break;
+  }
+  return out;
 }
 
 // ============================================================
