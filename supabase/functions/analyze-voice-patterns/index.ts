@@ -709,6 +709,13 @@ ${detFindings.length > 0 ? JSON.stringify(detFindings, null, 2).slice(0, 12000) 
       return jsonResponse({ error: 'Die KI-Analyse war unvollständig. Bitte erneut versuchen.', code: 'LLM_UNAVAILABLE', errorCode: 'LLM_UNAVAILABLE' }, 502);
     }
 
+    // === POSTPROCESS V2.1 EXPANDED FINDINGS ===
+    const expandedFindings = postprocessExpandedFindings(
+      (analysisResult as any).llm_expanded_findings,
+      detFindingIds,
+    );
+    (analysisResult as any).llm_expanded_findings = expandedFindings;
+
     // === ATTACH META & SCOPE ===
     const result = {
       ...analysisResult,
@@ -729,6 +736,7 @@ ${detFindings.length > 0 ? JSON.stringify(detFindings, null, 2).slice(0, 12000) 
       },
       schema_version: '2.1',
       analysis_version: '2.1.0',
+      llm_expanded_findings: expandedFindings,
     };
 
     // === COMMIT QUOTA (only on success + validation OK) ===
