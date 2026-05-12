@@ -413,7 +413,27 @@ export async function runVoicePatternAnalysis(
     throw new Error('Keine Daten im gewählten Zeitraum vorhanden.');
   }
 
-  // 4: Call edge function
+  // 3.5: Build deterministic V2.1 report BEFORE the LLM call so the LLM
+  //      receives the structured findings as evidence base.
+  const rangeDays = Math.max(
+    1,
+    Math.round((range.to.getTime() - range.from.getTime()) / 86400000),
+  );
+  let reportV21Pre: ReturnType<typeof buildAnalysisReportV21> | null = null;
+  try {
+    reportV21Pre = buildAnalysisReportV21({
+      fromISO: range.from.toISOString(),
+      toISO: range.to.toISOString(),
+      timezone: 'Europe/Berlin',
+      daysTotal: rangeDays,
+      preAnalysis: promptData.preAnalysis,
+      meta: promptData.meta,
+    });
+  } catch (e) {
+    console.warn('[AnalysisEngine] Pre-LLM V2.1 build failed:', e);
+  }
+
+  // 4: Call edge function (passes preAnalysis + deterministicFindings to LLM)
   const { data: fnData, error: fnError } = await supabase.functions.invoke(
     'analyze-voice-patterns',
     {
@@ -422,6 +442,8 @@ export async function runVoicePatternAnalysis(
         meta: promptData.meta,
         fromDate: range.from.toISOString(),
         toDate: range.to.toISOString(),
+        preAnalysis: promptData.preAnalysis,
+        deterministicFindings: reportV21Pre?.findings ?? [],
       },
     },
   );
