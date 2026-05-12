@@ -40,7 +40,14 @@ export interface AnalysisGateDecision {
 
 export const FREE_PATTERN_ANALYSIS_LIMIT = 3;
 export const COOLDOWN_SECONDS = 5 * 60;
-export const STALE_AFTER_DAYS = 14;
+/**
+ * Time-based staleness threshold (days).
+ * Rationale: 3 days balances "fresh enough for clinical relevance" against
+ * "don't nag the user every few hours". A migraine pattern picture rarely
+ * shifts meaningfully within 72h unless data actually changed (covered
+ * separately via data_state_signature).
+ */
+export const STALE_AFTER_DAYS = 3;
 
 export function gateDecision(input: AnalysisGateInput): AnalysisGateDecision {
   if (!input.hasConsent) {
