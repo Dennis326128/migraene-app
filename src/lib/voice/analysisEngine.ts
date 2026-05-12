@@ -483,6 +483,7 @@ export async function runVoicePatternAnalysis(
 
   // Enrich meta with prompt info
   result.meta.promptTokenEstimate = promptData.tokenEstimate;
+  (result as any)._preAnalysis = promptData.preAnalysis;
 
   return result;
 }
