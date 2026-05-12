@@ -25,6 +25,7 @@ import { gateDecision, isCacheStaleByAge, berlinDayStart, berlinDayEnd, STALE_AF
 import { useAnalysisGateState } from '@/lib/voice/useAnalysisGateState';
 import { AIConsentToggle } from './Settings/AIConsentToggle';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 // Filter logic is centralized in analysisFilters.ts for testability
 
@@ -616,15 +617,20 @@ export function MigrainePatternAnalysis() {
               onClick={async () => {
                 try {
                   const { data: { user } } = await supabase.auth.getUser();
-                  if (!user) return;
+                  if (!user) {
+                    toast.error('Nicht angemeldet.');
+                    return;
+                  }
                   const { error } = await supabase
                     .from('user_profiles')
                     .update({ ai_enabled: true })
                     .eq('user_id', user.id);
                   if (error) throw error;
+                  toast.success('KI-Analyse aktiviert');
                   setGateRefresh(n => n + 1);
-                } catch (e) {
+                } catch (e: any) {
                   console.error('[MigrainePatternAnalysis] enable AI error', e);
+                  toast.error(e?.message ?? 'Aktivieren fehlgeschlagen.');
                 }
               }}
             >
