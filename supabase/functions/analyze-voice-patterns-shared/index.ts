@@ -121,6 +121,13 @@ Deno.serve(async (req) => {
     const range = shareSettings?.range_preset ?? shareRow?.default_range ?? '3m';
     const { from, to } = rangeToDates(range);
 
+    // 5b. Quota check on PATIENT account (no cooldown for Doctor-Share)
+    const quotaCheck = await checkPatternAnalysisQuota(supabase, ownerUserId, { enforceCooldown: false });
+    if (!quotaCheck.allowed) {
+      console.log(`[shared-ai] quota_blocked owner=${shortId(ownerUserId)} reason=${quotaCheck.blockedReason}`);
+      return json(quotaErrorBody(quotaCheck), quotaCheck.status ?? 429);
+    }
+
     // 6. Build dataset
     const dataset = await buildServerAnalysisDataset(supabase, ownerUserId, from, to);
     console.log(`[shared-ai] dataset owner=${shortId(ownerUserId)} range=${range} days=${dataset.meta.totalDays} voice=${dataset.meta.voiceEventCount} pain=${dataset.meta.painEntryCount}`);
