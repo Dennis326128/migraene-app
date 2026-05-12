@@ -132,7 +132,7 @@ export async function getDataStateFingerprint(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const [painResult, voiceResult, intakeResult, entryIdsResult] = await Promise.all([
+  const [painResult, voiceResult, intakeResult, entryIdsResult, contextResult] = await Promise.all([
     // pain_entries: count + latest updated_at
     supabase
       .from('pain_entries')
@@ -172,6 +172,17 @@ export async function getDataStateFingerprint(
       .lte('selected_date', toDate)
       .order('id', { ascending: false })
       .limit(500),
+
+    // voice_notes (Tageszustand etc.): count + latest updated_at
+    supabase
+      .from('voice_notes')
+      .select('updated_at', { count: 'exact' })
+      .eq('user_id', user.id)
+      .is('deleted_at', null)
+      .gte('occurred_at', fromDate + 'T00:00:00Z')
+      .lte('occurred_at', toDate + 'T23:59:59Z')
+      .order('updated_at', { ascending: false })
+      .limit(1),
   ]);
 
   // medication_effects: scoped to the user's entries in range
@@ -195,6 +206,8 @@ export async function getDataStateFingerprint(
   const latestVoiceEvent = voiceResult.data?.[0]?.updated_at ?? null;
   const medIntakeCount = intakeResult.count ?? 0;
   const latestMedIntake = intakeResult.data?.[0]?.updated_at ?? null;
+  const contextNoteCount = contextResult.count ?? 0;
+  const latestContextNote = (contextResult.data?.[0] as { updated_at?: string } | undefined)?.updated_at ?? null;
 
   // Compute max across all sources
   const timestamps: number[] = [];
@@ -202,12 +215,14 @@ export async function getDataStateFingerprint(
   if (latestVoiceEvent) timestamps.push(new Date(latestVoiceEvent).getTime());
   if (latestMedIntake) timestamps.push(new Date(latestMedIntake).getTime());
   if (latestMedEffect) timestamps.push(new Date(latestMedEffect).getTime());
+  if (latestContextNote) timestamps.push(new Date(latestContextNote).getTime());
 
   const stateSignature = buildStateSignature(
     painEntryCount, latestPainEntry,
     voiceEventCount, latestVoiceEvent,
     medIntakeCount, latestMedIntake,
     medEffectCount, latestMedEffect,
+    contextNoteCount, latestContextNote,
   );
 
   return {
@@ -219,6 +234,8 @@ export async function getDataStateFingerprint(
     latestMedIntake,
     medEffectCount,
     latestMedEffect,
+    contextNoteCount,
+    latestContextNote,
     maxTimestamp: timestamps.length > 0
       ? new Date(Math.max(...timestamps)).toISOString()
       : null,
