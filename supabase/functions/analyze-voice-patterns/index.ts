@@ -251,6 +251,31 @@ REGELN:
     * Bei Unsicherheit: WEGLASSEN
 
 12. KEIN TAGESBERICHT. Keine Datumslisten. Beispieldaten nur sehr sparsam ("z.B. am 10."). Keine Klammer-Einschübe mit Datumsreihen.
+
+13. TAGESFAKTOREN (Alltag & Auslöser) — falls der Datensatz einen Block "=== Tagesfaktoren (Alltag & Auslöser) ===" enthält:
+    Strukturierte Felder pro Tag: mood (Stimmung 1-5), stress (1-5), sleep (Schlaf 1-5), energy (Energie 1-5), triggers (Liste), fatigue_context_tags, optional notes (privater Freitext).
+    * Prüfe Korrelationen mit Schmerz/Migräne in folgenden Zeitbezügen:
+      - gleicher Tag (T0)
+      - Vortag (T-1) und 24-48h vorher (T-2)
+      - Folgetag (T+1) — bei ME/CFS/PEM auch T+2 / T+3
+    * Multifaktor-Muster bevorzugen: z.B. "schlechter Schlaf (sleep≤2) + Stress (stress≥4) + Luftdruckabfall am Vortag", "Belastung/PEM-Kontext + Schmerz am Folgetag", "Triggerwort 'Bildschirm' + Reizüberflutung → Schmerzanstieg".
+    * Wetter (Δp 24h) UND Tagesfaktoren gemeinsam betrachten, wenn beides vorhanden ist.
+    * Medikamenten-Einnahmen relativ zu Schmerzbeginn: Onset-Verzögerung, Wiederholungen, mögliche Hinweise auf unzureichende Wirkung oder häufige Einnahme.
+    * ME/CFS / Fatigue / PEM: zeitverzögerte Verschlechterung nach Belastung beachten.
+
+14. EVIDENZ-STUFEN (zwingend unterscheiden):
+    * "starker Hinweis" / evidenceStrength="high": ≥3 unabhängige Vorkommen mit klarer zeitlicher Nähe.
+    * "möglicher Zusammenhang" / "medium": 2 Vorkommen oder gemischtes Bild.
+    * "unklar / Daten reichen nicht" / "low": 1 Vorkommen, lückenhafte Daten, mehrdeutige Zeitbezüge.
+
+15. ZAHLEN-DISZIPLIN (zwingend):
+    * NUR Zahlen verwenden, die im DATENSATZ tatsächlich vorkommen.
+    * KEINE erfundenen Prozente, Korrelationskoeffizienten oder Häufigkeiten.
+    * Wenn keine Zahl aus dem Datensatz belegbar ist → Aussage qualitativ formulieren.
+
+16. DATENQUALITÄT: Fehlende Werte, niedrige Fallzahlen, unklare Zusammenhänge knapp in confidenceNotes erwähnen (max 1 Hinweis, nicht doppelt).
+
+17. MEDIZINISCHE VORSICHT: Keine Diagnose, keine Therapieempfehlung. Nur Hinweise/Korrelationen. Bei klinisch relevanten Auffälligkeiten ggf. Hinweis "mit Ärztin/Arzt besprechen" (max einmal).
 ${thinDataWarning}
 DATENSATZ: ${meta.totalDays} Tage, ${meta.daysWithPain} Schmerztage, ${meta.painEntryCount} Einträge, ${meta.medicationIntakeCount} Medikamenteneinnahmen.
 
