@@ -134,14 +134,45 @@ export async function buildAnalysisPromptData(range: AnalysisTimeRange): Promise
   const ctx = buildAnalysisContext(dataset);
   let serialized = serializeForLLM(ctx);
 
-  // === ENRICH: Weather + time aggregates + data quality ===
-  // Pure prompt extension; no schema/type changes.
+  // === ENRICH: Pre-analysis + weather + time aggregates + data quality ===
+  const rangeDays = Math.max(1, Math.round((range.to.getTime() - range.from.getTime()) / 86400000));
+  const preAnalysis: PreAnalysis = {
+    weather: {
+      daysWithData: 0, pressureDropDays: 0, pressureRiseDays: 0,
+      painOnDropDays: 0, painOnRiseDays: 0, painOnStableDays: 0, stableDays: 0,
+      pressureMin: null, pressureMax: null, tempMin: null, tempMax: null,
+      note: 'Keine Wetterdaten im Zeitraum vorhanden.',
+    },
+    time: {
+      topWeekday: null, topWeekdayShare: 0, topPhase: null, topPhaseShare: 0,
+      weekdayCount: 0, weekendCount: 0, withTime: 0,
+      note: 'Keine Zeitdaten verfügbar.',
+    },
+    mecfs: {
+      daysWithMecfs: ctx.meta.daysWithMecfs ?? 0,
+      contextNoteCount: dataset.meta.contextNoteCount ?? 0,
+      note: '',
+    },
+    medication: {
+      intakeCount: dataset.meta.medicationIntakeCount ?? 0,
+      highPainEntries: 0, highPainWithMed: 0, highPainWithoutMed: 0,
+      note: '',
+    },
+    dataQuality: {
+      painEntries: dataset.meta.painEntryCount,
+      voiceEvents: dataset.meta.voiceEventCount,
+      weatherDays: 0,
+      rangeDays,
+      note: '',
+    },
+  };
+
   try {
     const fromDate = range.from.toISOString().slice(0, 10);
     const toDate = range.to.toISOString().slice(0, 10);
     const enrichments: string[] = [];
 
-    // --- Time-pattern aggregate (weekday × tagesphase) from pain entries ---
+    // --- Time-pattern aggregate ---
     if (dataset.painEntries.length > 0) {
       const WD = ['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag'];
       const phaseOf = (h: number) => h < 6 ? 'Nacht' : h < 12 ? 'Morgen' : h < 18 ? 'Mittag/Nachmittag' : 'Abend';
@@ -162,18 +193,27 @@ export async function buildAnalysisPromptData(range: AnalysisTimeRange): Promise
           }
         }
       }
-      const wdLine = Array.from(wdCount.entries()).sort((a,b)=>b[1]-a[1])
-        .map(([k,v])=>`${k}=${v}`).join(', ');
-      const phaseLine = Array.from(phaseCount.entries()).sort((a,b)=>b[1]-a[1])
-        .map(([k,v])=>`${k}=${v}`).join(', ');
+      const wdSorted = Array.from(wdCount.entries()).sort((a,b)=>b[1]-a[1]);
+      const phaseSorted = Array.from(phaseCount.entries()).sort((a,b)=>b[1]-a[1]);
+      const totalWd = wdSorted.reduce((s,[,v])=>s+v,0);
+      preAnalysis.time = {
+        topWeekday: wdSorted[0]?.[0] ?? null,
+        topWeekdayShare: totalWd > 0 ? (wdSorted[0]?.[1] ?? 0) / totalWd : 0,
+        topPhase: phaseSorted[0]?.[0] ?? null,
+        topPhaseShare: withTime > 0 ? (phaseSorted[0]?.[1] ?? 0) / withTime : 0,
+        weekdayCount: weekday, weekendCount: weekend, withTime,
+        note: phaseSorted[0]
+          ? `Häufigster Wochentag: ${wdSorted[0][0]} (${wdSorted[0][1]}/${totalWd}). Häufigste Tagesphase: ${phaseSorted[0][0]} (${phaseSorted[0][1]}/${withTime}).`
+          : `Wochentag-Verteilung erfasst (n=${totalWd}). Uhrzeitdaten nur für ${withTime} Einträge.`,
+      };
       enrichments.push('=== Zeitaggregat Schmerzeinträge ===');
-      enrichments.push(`Wochentage: ${wdLine || 'keine Daten'}`);
+      enrichments.push(`Wochentage: ${wdSorted.map(([k,v])=>`${k}=${v}`).join(', ') || 'keine Daten'}`);
       enrichments.push(`Werktag vs. Wochenende: Werktag=${weekday}, Wochenende=${weekend}`);
-      enrichments.push(`Tagesphasen (nur Einträge mit Uhrzeit, n=${withTime}): ${phaseLine || 'keine Uhrzeitdaten'}`);
+      enrichments.push(`Tagesphasen (n=${withTime} mit Uhrzeit): ${phaseSorted.map(([k,v])=>`${k}=${v}`).join(', ') || 'keine Uhrzeitdaten'}`);
       enrichments.push('');
     }
 
-    // --- Weather block: fetch weather_logs in range, snapshot per day ---
+    // --- Weather block + correlation ---
     try {
       const { data: wRows } = await supabase
         .from('weather_logs')
@@ -209,13 +249,35 @@ export async function buildAnalysisPromptData(range: AnalysisTimeRange): Promise
         const press = sortedDays.map(d => byDay.get(d)!.pressure_mb).filter((v): v is number => v != null);
         const delta = sortedDays.map(d => byDay.get(d)!.pressure_change_24h).filter((v): v is number => v != null);
         const temp = sortedDays.map(d => byDay.get(d)!.temperature_c).filter((v): v is number => v != null);
-        if (press.length) enrichments.push(`Luftdruck: min=${Math.min(...press).toFixed(0)} mb, max=${Math.max(...press).toFixed(0)} mb, n=${press.length}`);
-        if (delta.length) {
-          const drops = delta.filter(d => d <= -3);
-          enrichments.push(`Luftdruckänderung 24h: min=${Math.min(...delta).toFixed(1)} mb, max=${Math.max(...delta).toFixed(1)} mb, Tage mit Abfall ≥3 mb: ${drops.length}`);
+
+        // Correlation buckets
+        let drop = 0, rise = 0, stable = 0;
+        let painDrop = 0, painRise = 0, painStable = 0;
+        for (const d of sortedDays) {
+          const dp = byDay.get(d)!.pressure_change_24h;
+          if (dp == null) continue;
+          const isPain = painDates.has(d);
+          if (dp <= -3) { drop++; if (isPain) painDrop++; }
+          else if (dp >= 3) { rise++; if (isPain) painRise++; }
+          else { stable++; if (isPain) painStable++; }
         }
+        const pct = (n: number, d: number) => d > 0 ? `${Math.round((n/d)*100)}%` : '–';
+        preAnalysis.weather = {
+          daysWithData: byDay.size,
+          pressureDropDays: drop, pressureRiseDays: rise, stableDays: stable,
+          painOnDropDays: painDrop, painOnRiseDays: painRise, painOnStableDays: painStable,
+          pressureMin: press.length ? Math.min(...press) : null,
+          pressureMax: press.length ? Math.max(...press) : null,
+          tempMin: temp.length ? Math.min(...temp) : null,
+          tempMax: temp.length ? Math.max(...temp) : null,
+          note: `Wetterabdeckung ${byDay.size}/${rangeDays} Tage. Druckabfall (Δ24h ≤ -3 hPa): ${drop} Tage, davon ${painDrop} mit Schmerz (${pct(painDrop,drop)}). Druckanstieg (≥ +3 hPa): ${rise} Tage, ${painRise} mit Schmerz (${pct(painRise,rise)}). Stabil: ${stable} Tage, ${painStable} mit Schmerz (${pct(painStable,stable)}).`,
+        };
+
+        if (press.length) enrichments.push(`Luftdruck: min=${Math.min(...press).toFixed(0)} mb, max=${Math.max(...press).toFixed(0)} mb, n=${press.length}`);
+        if (delta.length) enrichments.push(`Luftdruckänderung 24h: min=${Math.min(...delta).toFixed(1)} mb, max=${Math.max(...delta).toFixed(1)} mb`);
         if (temp.length) enrichments.push(`Temperatur: min=${Math.min(...temp).toFixed(1)} °C, max=${Math.max(...temp).toFixed(1)} °C`);
-        enrichments.push(`Wetterabdeckung: ${byDay.size} Tage mit Wetterdaten`);
+        enrichments.push(`Wetterabdeckung: ${byDay.size}/${rangeDays} Tage`);
+        enrichments.push(`Druck-Korrelation: Abfall=${drop}T (${painDrop} Schmerz), Anstieg=${rise}T (${painRise} Schmerz), Stabil=${stable}T (${painStable} Schmerz)`);
         enrichments.push('');
         enrichments.push('Tageswerte (Datum | Druck mb | Δ24h mb | Temp °C | Feuchte % | Bedingung | Schmerztag?):');
         for (const d of sortedDays.slice(-90)) {
@@ -232,6 +294,42 @@ export async function buildAnalysisPromptData(range: AnalysisTimeRange): Promise
       enrichments.push('');
     }
 
+    // --- Medication timing (deterministic) ---
+    let highPain = 0, highPainMed = 0;
+    for (const p of dataset.painEntries) {
+      const lvl = typeof p.pain_level === 'string' && /^\d+$/.test(p.pain_level) ? parseInt(p.pain_level, 10) : null;
+      if (lvl != null && lvl >= 7) {
+        highPain++;
+        const meds = (p as any).medications;
+        if (Array.isArray(meds) && meds.length > 0) highPainMed++;
+      }
+    }
+    preAnalysis.medication.highPainEntries = highPain;
+    preAnalysis.medication.highPainWithMed = highPainMed;
+    preAnalysis.medication.highPainWithoutMed = highPain - highPainMed;
+    preAnalysis.medication.note = highPain > 0
+      ? `Schmerz ≥ 7: ${highPain} Einträge, davon mit dokumentiertem Akutmedikament: ${highPainMed} (${Math.round((highPainMed/highPain)*100)}%). Ohne Medikament: ${highPain - highPainMed}. Insgesamt ${dataset.meta.medicationIntakeCount} Medikamenteneinnahmen erfasst.`
+      : `Keine Einträge mit Schmerz ≥ 7 im Zeitraum. Insgesamt ${dataset.meta.medicationIntakeCount} Medikamenteneinnahmen erfasst.`;
+
+    // --- ME/CFS coverage ---
+    preAnalysis.mecfs.note = preAnalysis.mecfs.daysWithMecfs > 0
+      ? `${preAnalysis.mecfs.daysWithMecfs} Tage mit ME/CFS-/Energie-Signal dokumentiert. Tagesfaktoren-Einträge: ${preAnalysis.mecfs.contextNoteCount}.`
+      : `Keine ME/CFS-/PEM-Daten im Zeitraum dokumentiert. Tagesfaktoren-Einträge: ${preAnalysis.mecfs.contextNoteCount}.`;
+
+    preAnalysis.dataQuality.weatherDays = preAnalysis.weather.daysWithData;
+    preAnalysis.dataQuality.note = `${dataset.meta.painEntryCount} Schmerzeinträge über ${ctx.meta.totalDays} Tage (Range ${rangeDays} Tage). Wetterdaten: ${preAnalysis.weather.daysWithData}/${rangeDays} Tage. Tagesfaktoren: ${preAnalysis.mecfs.contextNoteCount} Einträge. Voice-Events: ${dataset.meta.voiceEventCount}.`;
+
+    // --- Top deterministic block (LLM reads first) ---
+    const head = [
+      '=== Deterministische Vorab-Auswertung ===',
+      `Zeitmuster: ${preAnalysis.time.note}`,
+      `Wetter: ${preAnalysis.weather.note}`,
+      `Medikamente: ${preAnalysis.medication.note}`,
+      `ME/CFS / Energie: ${preAnalysis.mecfs.note}`,
+      `Datenqualität: ${preAnalysis.dataQuality.note}`,
+      '',
+    ];
+
     // --- Data quality block ---
     enrichments.push('=== Datenqualität ===');
     enrichments.push(`Schmerzeinträge: ${dataset.meta.painEntryCount}`);
@@ -241,7 +339,7 @@ export async function buildAnalysisPromptData(range: AnalysisTimeRange): Promise
     enrichments.push(`Tage mit Daten: ${ctx.meta.totalDays}, davon Schmerztage: ${ctx.meta.daysWithPain}, ME/CFS-Signal: ${ctx.meta.daysWithMecfs}`);
     enrichments.push('');
 
-    serialized = enrichments.join('\n') + '\n' + serialized;
+    serialized = head.join('\n') + '\n' + enrichments.join('\n') + '\n' + serialized;
   } catch (e) {
     console.warn('[AnalysisEngine] Enrichment failed (non-fatal):', e);
   }
@@ -251,7 +349,6 @@ export async function buildAnalysisPromptData(range: AnalysisTimeRange): Promise
   // === CONTEXT SIZE GUARD ===
   if (serialized.length > MAX_CONTEXT_CHARS) {
     console.warn(`[AnalysisEngine] Context too large (${serialized.length} chars), truncating to ${MAX_CONTEXT_CHARS}`);
-    // Truncate at a line boundary to avoid cutting mid-sentence
     const truncated = serialized.slice(0, MAX_CONTEXT_CHARS);
     const lastNewline = truncated.lastIndexOf('\n');
     serialized = (lastNewline > MAX_CONTEXT_CHARS * 0.9 ? truncated.slice(0, lastNewline) : truncated)
@@ -267,6 +364,7 @@ export async function buildAnalysisPromptData(range: AnalysisTimeRange): Promise
     serialized,
     tokenEstimate,
     wasTruncated,
+    preAnalysis,
     meta: {
       totalDays: ctx.meta.totalDays,
       voiceEventCount: dataset.meta.voiceEventCount,
