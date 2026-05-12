@@ -30,7 +30,6 @@ export interface EditingContextNote {
 export interface QuickContextNoteModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onStartVoice?: () => void;
   // Pre-filled data from voice input
   prefillData?: {
     mood?: number | null;
