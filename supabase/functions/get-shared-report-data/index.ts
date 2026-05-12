@@ -195,6 +195,39 @@ Deno.serve(async (req) => {
       meta: { ...pagedReport.meta, schemaVersion: "v1" },
     };
 
+    // ─────────────────────────────────────────────────────────────────
+    // SSOT extension: latestAiReport, dataStateSignature, dayFactors, share, quotaState
+    // ─────────────────────────────────────────────────────────────────
+    const fromDate = enrichedReport.meta.fromDate;
+    const toDate = enrichedReport.meta.toDate;
+
+    const [
+      dataState,
+      loadedLatest,
+      aiConsentState,
+      aiEnabledState,
+      quotaState,
+    ] = await Promise.all([
+      computeDataStateSignature(supabase, userId, fromDate, toDate),
+      includePatternAnalysis
+        ? loadLatestPatternAnalysis(supabase, userId, fromDate, toDate)
+        : Promise.resolve(null),
+      resolveAiConsentState(supabase, userId),
+      resolveAiEnabledState(supabase, userId),
+      loadQuotaState(supabase, userId),
+    ]);
+
+    const latestAiReport = loadedLatest?.report ?? null;
+    const isStale = computeIsStale(
+      latestAiReport,
+      dataState.signature,
+      loadedLatest?.storedSignature ?? null,
+    );
+
+    const dayFactors = shareDayFactors
+      ? await loadDayFactors(supabase, userId, fromDate, toDate)
+      : undefined;
+
     const responseBody: Record<string, unknown> = {
       report: enrichedReport,
       snapshotId,
@@ -203,7 +236,19 @@ Deno.serve(async (req) => {
       historyDiaryCreatedAt: linkedHistoryReport?.createdAt ?? null,
       pdfFilePath: linkedHistoryReport?.pdfFilePath ?? null,
       isTodayDiary: linkedHistoryReport?.isTodayDiary ?? false,
+      share: {
+        allowAiGenerate,
+        shareDayFactors,
+        aiConsentState,
+        aiEnabledState,
+      },
+      quotaState,
+      latestAiReport,
+      latestRelevantDataAt: dataState.latestRelevantDataAt,
+      dataStateSignature: dataState.signature,
+      isStale,
     };
+    if (dayFactors) responseBody.dayFactors = dayFactors;
     if (wantsLegacy) Object.assign(responseBody, buildLegacyFields(enrichedReport, userId));
 
     return new Response(
