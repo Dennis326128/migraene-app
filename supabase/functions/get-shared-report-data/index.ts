@@ -18,6 +18,15 @@ import {
 import { getLinkedHistoryDiaryReport } from "../_shared/doctorSharedHistoryReport.ts";
 import { getCorsHeaders, handlePreflight } from "../_shared/cors.ts";
 import { verifyDoctorAccess } from "../_shared/doctorAccessGuard.ts";
+import {
+  computeDataStateSignature,
+  computeIsStale,
+  loadDayFactors,
+  loadLatestPatternAnalysis,
+  loadQuotaState,
+  resolveAiConsentState,
+  resolveAiEnabledState,
+} from "../_shared/doctorShareSsot.ts";
 
 // Legacy response builder
 function buildLegacyFields(reportJson: DoctorReportJSON, userId: string) {
