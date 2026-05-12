@@ -12,7 +12,9 @@
  *     "Was war heute besonders?" raw input.
  */
 
-import type { SupabaseClient } from "jsr:@supabase/supabase-js@2";
+// SupabaseClient typed as `any` (we use service-role generic queries only).
+// Avoids pulling the npm graph into Deno test runs.
+type SupabaseClient = any;
 import { checkPatternAnalysisQuota } from "./aiQuotaGate.ts";
 
 // ─────────────────────────────────────────────────────────────────────────
