@@ -23,6 +23,7 @@ import { isTrivialSequence, isBanalContent, isGenericUncertainty, isWeakPattern,
 import { logError } from '@/lib/utils/errorMessages';
 import { gateDecision, isCacheStaleByAge, berlinDayStart, berlinDayEnd, STALE_AFTER_DAYS } from '@/lib/voice/analysisGate';
 import { useAnalysisGateState } from '@/lib/voice/useAnalysisGateState';
+import { AIConsentToggle } from './Settings/AIConsentToggle';
 
 // Filter logic is centralized in analysisFilters.ts for testability
 
