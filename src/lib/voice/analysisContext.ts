@@ -906,3 +906,38 @@ function buildTriggerContextSummary(contextNotes: ContextNoteForAnalysis[]): Tri
 
   return entries;
 }
+
+// ============================================================
+// === DAILY FACTORS (full Tageszustand entries) ===
+// ============================================================
+
+/**
+ * Build full daily-factor entries from voice_notes(context_type='tageszustand').
+ * Returns one entry per row, NEVER filtered by pain proximity — the LLM gets
+ * the complete signal so it can detect prodromal/T-1/T-2 correlations itself.
+ *
+ * Privacy: free-text notes are included for the App-side analysis. Doctor-share
+ * pipeline must strip metadata.notes separately.
+ */
+function buildDailyFactors(contextNotes: ContextNoteForAnalysis[]): DailyFactorEntry[] {
+  const entries: DailyFactorEntry[] = [];
+  for (const note of contextNotes) {
+    const meta = note.metadata ?? {};
+    const triggers = (meta.triggers ?? []).map(t => TRIGGER_LABELS[t] ?? t);
+    const fatigueTags = (meta.fatigue_context_tags ?? []).map(t => FATIGUE_TAG_LABELS[t] ?? t);
+    const rawNotes = (meta as { notes?: string | null }).notes;
+    entries.push({
+      date: note.occurred_at.slice(0, 10),
+      mood: meta.mood ?? null,
+      stress: meta.stress ?? null,
+      sleep: meta.sleep ?? null,
+      energy: meta.energy ?? null,
+      triggers,
+      fatigueTags,
+      notes: typeof rawNotes === 'string' && rawNotes.trim() ? rawNotes.trim() : null,
+    });
+  }
+  // Stable sort by date asc
+  entries.sort((a, b) => a.date.localeCompare(b.date));
+  return entries;
+}
