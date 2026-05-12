@@ -38,7 +38,13 @@ const RequestSchema = z.object({
   }),
   fromDate: z.string(),
   toDate: z.string(),
+  /** V2.1: deterministic pre-analysis summary (passed to LLM as evidence base) */
+  preAnalysis: z.any().optional(),
+  /** V2.1: deterministic findings already produced client-side */
+  deterministicFindings: z.array(z.any()).optional(),
 });
+
+import { postprocessExpandedFindings, V21_CATEGORIES, V21_EVIDENCE, V21_SOURCE_BASIS, V21_RELEVANCE } from './postprocess.ts';
 
 // ============================================================
 // === TOOL SCHEMA FOR STRUCTURED OUTPUT ===
@@ -149,12 +155,41 @@ const ANALYSIS_TOOL = {
           type: "array",
           items: { type: "string" },
           description: "Notes about data gaps, limits, possible biases"
+        },
+        llm_expanded_findings: {
+          type: "array",
+          description: "V2.1 expanded findings derived from deterministic findings + preAnalysis + aggregated data. 8–20 entries. Cover all required areas; produce data_gap finding if no basis.",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "string", description: "Stable id like 'weather.pressure_drop.llm' or 'interaction.sleep_stress'" },
+              category: { type: "string", enum: [...V21_CATEGORIES] },
+              title: { type: "string" },
+              evidence_level: { type: "string", enum: [...V21_EVIDENCE] },
+              source_basis: { type: "string", enum: [...V21_SOURCE_BASIS] },
+              related_deterministic_finding_ids: { type: "array", items: { type: "string" } },
+              summary: { type: "string", description: "1–2 sentences, plain German, cautious." },
+              reasoning: { type: "string", description: "Short explanation of which data this is grounded in. No invented numbers." },
+              limitations: { type: "array", items: { type: "string" } },
+              patient_relevance: { type: "string", enum: [...V21_RELEVANCE] },
+              doctor_relevance: { type: "string", enum: [...V21_RELEVANCE] },
+              recommended_tracking_next: { type: "array", items: { type: "string" } },
+              doctor_discussion_points: { type: "array", items: { type: "string" } }
+            },
+            required: [
+              "id", "category", "title", "evidence_level", "source_basis",
+              "related_deterministic_finding_ids", "summary", "reasoning",
+              "limitations", "patient_relevance", "doctor_relevance",
+              "recommended_tracking_next", "doctor_discussion_points"
+            ]
+          }
         }
       },
       required: [
         "summary", "possiblePatterns", "painContextFindings",
         "fatigueContextFindings", "medicationContextFindings",
-        "recurringSequences", "openQuestions", "confidenceNotes"
+        "recurringSequences", "openQuestions", "confidenceNotes",
+        "llm_expanded_findings"
       ],
       additionalProperties: false
     }
@@ -235,8 +270,44 @@ REGELN:
 ${thinDataWarning}
 DATENSATZ: ${meta.totalDays} Tage, ${meta.daysWithPain} Schmerztage, ${meta.painEntryCount} Einträge, ${meta.medicationIntakeCount} Medikamenteneinnahmen, ME/CFS-Tage: ${meta.daysWithMecfs}.
 
-Verwende submit_voice_analysis. Halte die Mindestmengen ein.`;
+=== V2.1 ZUSATZAUFGABE: llm_expanded_findings ===
+Du bekommst zusätzlich:
+1. eine deterministische Voranalyse (_preAnalysis) mit Wetter/Zeit/ME-CFS/Medikamenten-Aggregaten
+2. strukturierte deterministische V2.1-Findings (analysisV21.findings) mit IDs, evidence_level und Datenbasis
+3. die aggregierten Verlaufsdaten oben
+
+Erkenne daraus möglichst viele relevante Zusammenhänge, aber vorsichtig formuliert.
+Du DARFST: Hypothesen aus zeitlichen Mustern ableiten, schwache Zusammenhänge nennen (klar als schwach markiert), unklare Datenlage benennen, Folgefragen vorschlagen, Interaktionen beschreiben (Wetter+Schlaf, Stress+Schlaf, Belastung+Crash, Medikament+Wirkung).
+Du DARFST NICHT: Diagnosen stellen, Therapieanweisungen geben, Zahlen erfinden, Kausalität behaupten, private Notizen/Transkripte/Audio-URLs verwenden, fehlende Daten durch Allgemeinwissen ersetzen.
+
+REGELN für llm_expanded_findings:
+- 8–20 Findings.
+- Jedes Finding MUSS source_basis setzen: deterministic_finding | preanalysis | aggregated_daily_data | data_gap.
+- related_deterministic_finding_ids enthält IDs aus analysisV21.findings, falls vorhanden.
+- evidence_level NIE höher als die zugehörige deterministische Evidenz, außer mehrere unabhängige Hinweise existieren.
+- Wenn keine Datenbasis vorhanden ist → Finding nur als source_basis="data_gap" mit evidence_level="insufficient".
+- Keine Duplikate, jeder Inhalt nur einmal.
+- Schwache Findings sind willkommen, aber mit evidence_level="low".
+
+PFLICHTBEREICHE (jeweils mind. ein Finding ODER ein data_gap):
+1) Krankheitslast / Verlauf (burden, chronification)
+2) Medikamente Einnahmehäufigkeit (medication_use)
+3) Medikamente Wirkung/Nebenwirkung/Wiederkehr (medication_effect)
+4) Wetter (weather)
+5) ME/CFS / Energie / PEM 24–72h (mecfs_energy_pem)
+6) Schlaf (sleep)
+7) Stress / Stimmung (stress_mood)
+8) Symptome / Aura (symptoms_aura)
+9) Zeitmuster (time_pattern)
+10) Alltag / Trigger (lifestyle_triggers)
+11) Interaktionen, z.B. Wetter+Schlaf, Stress+Schlaf, Belastung+Crash (interaction)
+12) Datenqualität (data_quality)
+13) Offene Fragen / red_flag bei klaren Warnsignalen (red_flag)
+
+Verwende submit_voice_analysis. Halte ALLE Mindestmengen ein – inklusive llm_expanded_findings.`;
 }
+
+// V2.1 expanded findings postprocessing lives in ./postprocess.ts
 
 // ============================================================
 // === HELPERS ===
@@ -392,7 +463,11 @@ serve(async (req) => {
       return jsonResponse({ error: 'Ungültige Anfrage', details: parsed.error.flatten().fieldErrors }, 400);
     }
 
-    const { serializedContext, meta, fromDate, toDate } = parsed.data;
+    const { serializedContext, meta, fromDate, toDate, preAnalysis, deterministicFindings } = parsed.data;
+    const detFindings = Array.isArray(deterministicFindings) ? deterministicFindings : [];
+    const detFindingIds = new Set<string>(
+      detFindings.map((f: any) => (typeof f?.id === 'string' ? f.id : '')).filter((s: string) => !!s),
+    );
 
     // === DATA SUFFICIENCY CHECK ===
     if ((meta.voiceEventCount + meta.painEntryCount) < MIN_VOICE_EVENTS_OR_ENTRIES) {
@@ -466,7 +541,13 @@ WICHTIG:
 
 VERLAUFSDATEN:
 
-${serializedContext}`
+${serializedContext}
+
+=== Deterministische Voranalyse (_preAnalysis) ===
+${preAnalysis ? JSON.stringify(preAnalysis, null, 2).slice(0, 8000) : '(keine bereitgestellt)'}
+
+=== Deterministische V2.1-Findings (analysisV21.findings) ===
+${detFindings.length > 0 ? JSON.stringify(detFindings, null, 2).slice(0, 12000) : '(keine bereitgestellt)'}`
             },
           ],
           tools: [ANALYSIS_TOOL],
@@ -538,6 +619,13 @@ ${serializedContext}`
       return jsonResponse({ error: 'Die KI-Analyse war unvollständig. Bitte erneut versuchen.', code: 'LLM_UNAVAILABLE', errorCode: 'LLM_UNAVAILABLE' }, 502);
     }
 
+    // === POSTPROCESS V2.1 EXPANDED FINDINGS ===
+    const expandedFindings = postprocessExpandedFindings(
+      (analysisResult as any).llm_expanded_findings,
+      detFindingIds,
+    );
+    (analysisResult as any).llm_expanded_findings = expandedFindings;
+
     // === ATTACH META & SCOPE ===
     const result = {
       ...analysisResult,
@@ -558,6 +646,7 @@ ${serializedContext}`
       },
       schema_version: '2.1',
       analysis_version: '2.1.0',
+      llm_expanded_findings: expandedFindings,
     };
 
     // === COMMIT QUOTA (only on success + validation OK) ===
