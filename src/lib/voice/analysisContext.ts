@@ -779,6 +779,8 @@ export function buildAnalysisContext(
   const fatigueContextSummary = buildFatigueContextSummary(dataset.contextNotes ?? []);
   // Build trigger context summary from context notes
   const triggerContextSummary = buildTriggerContextSummary(dataset.contextNotes ?? []);
+  // Build full daily-factors list (mood/stress/sleep/energy/triggers/notes for ALL Tageszustand entries)
+  const dailyFactors = buildDailyFactors(dataset.contextNotes ?? []);
 
   return {
     days,
@@ -790,6 +792,7 @@ export function buildAnalysisContext(
     recurringSequences,
     fatigueContextSummary,
     triggerContextSummary,
+    dailyFactors,
     meta: {
       totalItems: timeline.length,
       totalDays: days.length,
