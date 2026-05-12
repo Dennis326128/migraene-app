@@ -132,16 +132,22 @@ export async function buildServerAnalysisDataset(
   const voiceEvents = (voiceRes.data ?? []) as VoiceEventRow[];
   const painEntries = (painRes.data ?? []) as PainEntryRow[];
   const medIntakes = (medRes.data ?? []) as MedicationIntakeRow[];
+  const ctxNotes = (ctxRes.data ?? []) as Array<{
+    occurred_at: string;
+    context_type: string | null;
+    metadata: Record<string, unknown> | null;
+  }>;
 
   // === GROUP BY DAY ===
   const days = new Map<string, {
     voice: VoiceEventRow[];
     pain: PainEntryRow[];
     meds: MedicationIntakeRow[];
+    factors: Array<{ mood: number|null; stress: number|null; sleep: number|null; energy: number|null; triggers: string[] }>;
   }>();
 
   function ensure(day: string) {
-    if (!days.has(day)) days.set(day, { voice: [], pain: [], meds: [] });
+    if (!days.has(day)) days.set(day, { voice: [], pain: [], meds: [], factors: [] });
     return days.get(day)!;
   }
 
@@ -156,6 +162,18 @@ export async function buildServerAnalysisDataset(
   for (const m of medIntakes) {
     const k = dayKey(m.taken_date ?? m.taken_at);
     if (k) ensure(k).meds.push(m);
+  }
+  for (const c of ctxNotes) {
+    const k = dayKey(c.occurred_at);
+    if (!k) continue;
+    const meta = (c.metadata ?? {}) as Record<string, unknown>;
+    ensure(k).factors.push({
+      mood: typeof meta.mood === 'number' ? meta.mood : null,
+      stress: typeof meta.stress === 'number' ? meta.stress : null,
+      sleep: typeof meta.sleep === 'number' ? meta.sleep : null,
+      energy: typeof meta.energy === 'number' ? meta.energy : null,
+      triggers: Array.isArray(meta.triggers) ? (meta.triggers as string[]) : [],
+    });
   }
 
   let daysWithPain = 0;
