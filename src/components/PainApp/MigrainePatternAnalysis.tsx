@@ -591,9 +591,7 @@ export function MigrainePatternAnalysis() {
                 <p className="text-xs text-muted-foreground">DSGVO Art. 9 (Gesundheitsdaten). Du kannst dies jederzeit widerrufen.</p>
               </div>
             </div>
-            <Button asChild size="sm" className="w-full">
-              <Link to="/consent-required">Einwilligung verwalten</Link>
-            </Button>
+            <AIConsentToggle onChanged={(next) => { if (next) setGateRefresh(n => n + 1); }} />
           </CardContent>
         </Card>
       )}
