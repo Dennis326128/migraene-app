@@ -1,18 +1,47 @@
-import React from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Shield, LogIn, ArrowRight, AlertTriangle } from "lucide-react";
+import { Shield, LogIn, ArrowRight, AlertTriangle, Loader2, AlertCircle } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
+import { useSaveHealthDataConsent } from "@/features/consent/hooks/useConsent";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function ConsentRequiredPage() {
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const saveConsent = useSaveHealthDataConsent();
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleLogin = () => {
     navigate("/auth");
   };
 
-  const handleRetryConsent = () => {
-    navigate("/auth");
+  const handleGrantConsent = async () => {
+    setError(null);
+    setSaving(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        // Not signed in: send to auth so they can log in first
+        navigate("/auth");
+        return;
+      }
+      await saveConsent.mutateAsync(true);
+      toast({
+        title: "Einwilligung gespeichert",
+        description: "Du kannst die App jetzt nutzen.",
+      });
+      navigate("/");
+    } catch (e: any) {
+      console.error("[ConsentRequiredPage] save error", e);
+      const msg = e?.message ?? "Speichern fehlgeschlagen. Bitte erneut versuchen.";
+      setError(msg);
+      toast({ title: "Fehler", description: msg, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -31,21 +60,17 @@ export default function ConsentRequiredPage() {
             <div className="flex items-start gap-3">
               <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
               <div>
-                <p className="font-medium">
-                  Diese App verarbeitet Gesundheitsdaten
-                </p>
+                <p className="font-medium">Diese App verarbeitet Gesundheitsdaten</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Um die App nutzen zu können, ist Ihre ausdrückliche Einwilligung 
-                  zur Verarbeitung Ihrer Gesundheitsdaten nach Art. 9 DSGVO erforderlich.
+                  Um die App nutzen zu können, ist deine ausdrückliche Einwilligung
+                  zur Verarbeitung deiner Gesundheitsdaten nach Art. 9 DSGVO erforderlich.
                 </p>
               </div>
             </div>
           </div>
 
           <div className="text-sm text-muted-foreground space-y-2">
-            <p>
-              <strong>Ohne Einwilligung können Sie:</strong>
-            </p>
+            <p><strong>Ohne Einwilligung kannst du:</strong></p>
             <ul className="list-disc list-inside space-y-1 ml-2">
               <li>Keine Schmerzeinträge erstellen</li>
               <li>Keine Medikamente dokumentieren</li>
@@ -55,18 +80,28 @@ export default function ConsentRequiredPage() {
 
           <div className="text-sm text-muted-foreground">
             <p>
-              Ihre Entscheidung wird respektiert. Wenn Sie die App nicht nutzen 
-              möchten, werden keine Daten von Ihnen gespeichert.
+              Deine Entscheidung wird respektiert. Du kannst die Einwilligung jederzeit
+              in den Einstellungen widerrufen.
             </p>
           </div>
 
+          {error && (
+            <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 flex items-start gap-2">
+              <AlertCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+              <p className="text-sm text-destructive">{error}</p>
+            </div>
+          )}
+
           <div className="space-y-3 pt-2">
-            <Button onClick={handleRetryConsent} className="w-full">
-              <ArrowRight className="h-4 w-4 mr-2" />
-              Einwilligung erteilen
+            <Button onClick={handleGrantConsent} disabled={saving} className="w-full">
+              {saving ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Wird gespeichert …</>
+              ) : (
+                <><ArrowRight className="h-4 w-4 mr-2" /> Einwilligung erteilen</>
+              )}
             </Button>
-            
-            <Button variant="outline" onClick={handleLogin} className="w-full">
+
+            <Button variant="outline" onClick={handleLogin} disabled={saving} className="w-full">
               <LogIn className="h-4 w-4 mr-2" />
               Zur Anmeldung
             </Button>
