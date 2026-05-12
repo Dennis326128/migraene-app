@@ -1,5 +1,5 @@
 import { assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts';
-import { postprocessExpandedFindings } from './index.ts';
+import { postprocessExpandedFindings } from './postprocess.ts';
 
 const detIds = new Set(['weather.pressure_drop', 'medication.acute_intakes']);
 
