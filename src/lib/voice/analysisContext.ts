@@ -165,6 +165,21 @@ export interface TriggerContextEntry {
 }
 
 /**
+ * Full per-day Tagesfaktoren entry (mood/stress/sleep/energy/triggers/notes).
+ * One entry per voice_notes row with context_type='tageszustand'.
+ */
+export interface DailyFactorEntry {
+  date: string;
+  mood: number | null;
+  stress: number | null;
+  sleep: number | null;
+  energy: number | null;
+  triggers: string[];
+  fatigueTags: string[];
+  notes: string | null;
+}
+
+/**
  * Complete LLM-ready analysis context for a date range.
  */
 export interface AnalysisContext {
