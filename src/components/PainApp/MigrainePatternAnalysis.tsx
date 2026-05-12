@@ -677,9 +677,9 @@ export function MigrainePatternAnalysis() {
             <div>
               <p className="text-sm text-foreground/80">{error}</p>
               {errorCode === 'AI_CONSENT_REQUIRED' ? (
-                <Button asChild variant="ghost" size="sm" className="mt-2">
-                  <Link to="/consent-required">Einwilligung verwalten</Link>
-                </Button>
+                <div className="mt-2">
+                  <AIConsentToggle onChanged={(next) => { if (next) setGateRefresh(n => n + 1); }} />
+                </div>
               ) : errorCode === 'QUOTA_EXCEEDED' || errorCode === 'COOLDOWN_ACTIVE' ? null : (
                 <Button onClick={runAnalysis} variant="ghost" size="sm" className="mt-2" disabled={buttonDisabled}>
                   <RefreshCw className="h-3 w-3 mr-1" /> Erneut versuchen
