@@ -496,9 +496,9 @@ describe('Cross-output consistency (PDF, Website, Snapshot)', () => {
       openQuestions: ['Q1', 'Q2', 'Q3', 'Q4', 'Q5', 'Q6', 'Q7'],
     });
     const pa = buildPatternAnalysisSummary(r);
-    expect(pa.patterns).toHaveLength(4);
-    expect(pa.recurringSequences).toHaveLength(2);
-    expect(pa.openQuestions).toHaveLength(2);
+    expect(pa.patterns).toHaveLength(MAX_PATTERNS);
+    expect(pa.recurringSequences).toHaveLength(MAX_SEQUENCES);
+    expect(pa.openQuestions).toHaveLength(MAX_QUESTIONS);
   });
 
   it('llmInterpretation → interpretation field mapping', () => {
