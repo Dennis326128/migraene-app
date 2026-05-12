@@ -271,9 +271,37 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
   const hasExtraContext = extraContextFindings.length > 0;
   const hasUncertainties = uncertainties.length > 0;
 
+  const pre = (result as any)._preAnalysis as undefined | {
+    weather: { daysWithData: number; pressureDropDays: number; pressureRiseDays: number; painOnDropDays: number; painOnRiseDays: number; painOnStableDays: number; stableDays: number; pressureMin: number | null; pressureMax: number | null; tempMin: number | null; tempMax: number | null; note: string };
+    time: { topWeekday: string | null; topWeekdayShare: number; topPhase: string | null; topPhaseShare: number; weekdayCount: number; weekendCount: number; withTime: number; note: string };
+    mecfs: { daysWithMecfs: number; contextNoteCount: number; note: string };
+    medication: { intakeCount: number; highPainEntries: number; highPainWithMed: number; highPainWithoutMed: number; note: string };
+    dataQuality: { painEntries: number; voiceEvents: number; weatherDays: number; rangeDays: number; note: string };
+  };
+
+  // Keyword filters for routing context findings into themed sections
+  const RX = {
+    weather: /wetter|luftdruck|hpa|temperatur|föhn|niederschlag|feucht|barometr|witterung/i,
+    time: /uhrzeit|tageszeit|tagesphase|wochentag|werktag|wochenende|nachts?|morgens?|abend|nachmittag/i,
+    mecfs: /me\/cfs|me-cfs|mecfs|fatigue|pem|crash|erschöpf|energie|belastungsintoler/i,
+    medication: /medika|triptan|akutmittel|tablette|spray|wirkst|moh|übergebr|schmerzmitt/i,
+  };
+  const findInContext = (rx: RegExp) =>
+    extraContextFindings.filter(f => rx.test(f.observation));
+  const findInPatterns = (rx: RegExp) =>
+    sortedPatterns.filter(p => rx.test(p.title) || rx.test(p.description));
+
+  const weatherFromLLM = [...findInPatterns(RX.weather), ...findInContext(RX.weather)];
+  const timeFromLLM = [...findInPatterns(RX.time), ...findInContext(RX.time)];
+  const mecfsFromLLM = [
+    ...findInPatterns(RX.mecfs),
+    ...result.fatigueContextFindings.filter(f => f.observation.length >= 10),
+  ];
+  const medFromLLM = [...findInPatterns(RX.medication), ...result.medicationContextFindings];
+
   return (
     <div className="space-y-7">
-      {/* A) Kurzfazit */}
+      {/* 1. Einordnung */}
       <div className="pb-1">
         <p className="text-[13px] leading-[1.7] text-foreground">{cleanedSummary}</p>
         <p className="text-[11px] text-muted-foreground/70 mt-2.5">
@@ -283,64 +311,35 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
         </p>
       </div>
 
-      {/* B) Auffälligste Hinweise */}
-      {hasPatterns && (
-        <section>
-          <h3 className="text-[11px] font-medium uppercase tracking-widest text-muted-foreground/80 mb-3.5">
-            Auffälligste Hinweise
-          </h3>
+      {/* 2. Auffälligste Hinweise */}
+      <SectionWrapper title="Auffälligste Hinweise">
+        {hasPatterns ? (
           <div className="space-y-5">
-            {sortedPatterns.map((p, i) => (
-              <div key={i}>
-                <div className="flex items-start justify-between gap-3 mb-1">
-                  <h4 className="text-[13px] font-medium text-foreground leading-snug">{p.title}</h4>
-                  <EvidenceBadge strength={p.evidenceStrength} />
-                </div>
-                <p className="text-[13px] text-foreground/75 leading-[1.7]">{p.description}</p>
-                {p.uncertaintyNotes.length > 0 && (
-                  <p className="text-[11px] text-muted-foreground/70 mt-1.5">
-                    {p.uncertaintyNotes[0].reason}
-                  </p>
-                )}
-              </div>
+            {sortedPatterns.filter(p => p.evidenceStrength !== 'low').map((p, i) => (
+              <PatternBlock key={i} p={p} />
             ))}
+            {sortedPatterns.filter(p => p.evidenceStrength !== 'low').length === 0 && (
+              <EmptyHint>Keine Hauptmuster mit mittlerer/hoher Evidenz erkannt.</EmptyHint>
+            )}
           </div>
-        </section>
-      )}
+        ) : (
+          <EmptyHint>Kein klares Hauptmuster erkennbar.</EmptyHint>
+        )}
+      </SectionWrapper>
 
-      {/* C) Wiederkehrende Muster — only non-trivial */}
-      {hasSequences && (
-        <section>
-          <h3 className="text-[11px] font-medium uppercase tracking-widest text-muted-foreground/80 mb-3">
-            Wiederkehrende Muster
-          </h3>
-          <div className="space-y-3">
-            {filteredSequences.map((seq, i) => (
-              <div key={i}>
-                <span className="text-[13px] font-medium text-foreground">
-                  {translateSequencePattern(seq.pattern)}
-                </span>
-                {seq.count > 1 && (
-                  <span className="text-[11px] text-muted-foreground/70 ml-1.5">({seq.count}×)</span>
-                )}
-                {seq.llmInterpretation && (
-                  <p className="text-[13px] text-foreground/75 leading-[1.7] mt-0.5">{seq.llmInterpretation}</p>
-                )}
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* D) Was zusätzlich auffällt */}
-      {hasExtraContext && (
-        <section>
-          <h3 className="text-[11px] font-medium uppercase tracking-widest text-muted-foreground/80 mb-2.5">
-            Weitere mögliche Zusammenhänge
-          </h3>
-          <ul className="space-y-2">
-            {extraContextFindings.map((f, i) => (
-              <li key={i} className="text-[13px] text-foreground/75 flex items-start gap-2 leading-[1.7]">
+      {/* 3. Weitere mögliche Zusammenhänge (low evidence + extra context) */}
+      <SectionWrapper title="Weitere mögliche Zusammenhänge">
+        {(() => {
+          const lowPatterns = sortedPatterns.filter(p => p.evidenceStrength === 'low');
+          const items = [
+            ...lowPatterns.map((p, i) => (
+              <li key={`p-${i}`} className="text-[13px] text-foreground/75 flex items-start gap-2 leading-[1.7]">
+                <span className="mt-[9px] h-1 w-1 rounded-full bg-muted-foreground/30 shrink-0" />
+                <span><span className="text-[10px] uppercase tracking-wider text-muted-foreground/70 mr-1.5">schwacher Hinweis ·</span>{p.title}: {p.description}</span>
+              </li>
+            )),
+            ...extraContextFindings.map((f, i) => (
+              <li key={`f-${i}`} className="text-[13px] text-foreground/75 flex items-start gap-2 leading-[1.7]">
                 <span className="mt-[9px] h-1 w-1 rounded-full bg-muted-foreground/30 shrink-0" />
                 <span>
                   {f.evidenceStrength === 'low' && (
@@ -349,17 +348,91 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
                   {f.observation}
                 </span>
               </li>
+            )),
+          ];
+          return items.length > 0 ? <ul className="space-y-2">{items}</ul> : <EmptyHint>Keine weiteren Hinweise erkennbar.</EmptyHint>;
+        })()}
+      </SectionWrapper>
+
+      {/* 4. Wiederkehrende Sequenzen */}
+      {hasSequences && (
+        <SectionWrapper title="Wiederkehrende Muster">
+          <div className="space-y-3">
+            {filteredSequences.map((seq, i) => (
+              <div key={i}>
+                <span className="text-[13px] font-medium text-foreground">{translateSequencePattern(seq.pattern)}</span>
+                {seq.count > 1 && <span className="text-[11px] text-muted-foreground/70 ml-1.5">({seq.count}×)</span>}
+                {seq.llmInterpretation && <p className="text-[13px] text-foreground/75 leading-[1.7] mt-0.5">{seq.llmInterpretation}</p>}
+              </div>
             ))}
-          </ul>
-        </section>
+          </div>
+        </SectionWrapper>
       )}
 
-      {/* E) Was noch unklar ist */}
-      {hasUncertainties && (
-        <section>
-          <h3 className="text-[11px] font-medium uppercase tracking-widest text-muted-foreground/80 mb-2.5">
-            Was noch unklar ist
-          </h3>
+      {/* 5. Wetter & Umwelt */}
+      <SectionWrapper title="Wetter & Umwelt">
+        {weatherFromLLM.length > 0 ? (
+          <ContextList items={weatherFromLLM.map(it => 'observation' in it ? it.observation : `${it.title}: ${it.description}`)} />
+        ) : pre && pre.weather.daysWithData > 0 ? (
+          <p className="text-[13px] text-foreground/75 leading-[1.7]">{pre.weather.note}</p>
+        ) : (
+          <EmptyHint>{pre ? pre.weather.note : 'Daten nicht ausreichend.'}</EmptyHint>
+        )}
+      </SectionWrapper>
+
+      {/* 6. Zeitmuster */}
+      <SectionWrapper title="Zeitmuster">
+        {timeFromLLM.length > 0 ? (
+          <ContextList items={timeFromLLM.map(it => 'observation' in it ? it.observation : `${it.title}: ${it.description}`)} />
+        ) : pre && (pre.time.topWeekday || pre.time.withTime > 0) ? (
+          <p className="text-[13px] text-foreground/75 leading-[1.7]">{pre.time.note}</p>
+        ) : (
+          <EmptyHint>Kein Zeitmuster erkennbar.</EmptyHint>
+        )}
+      </SectionWrapper>
+
+      {/* 7. ME/CFS & Energie */}
+      <SectionWrapper title="ME/CFS & Energie">
+        {mecfsFromLLM.length > 0 ? (
+          <ContextList items={mecfsFromLLM.map(it => 'observation' in it ? it.observation : `${it.title}: ${it.description}`)} />
+        ) : pre ? (
+          <p className="text-[13px] text-foreground/75 leading-[1.7]">{pre.mecfs.note}</p>
+        ) : (
+          <EmptyHint>Daten nicht ausreichend dokumentiert.</EmptyHint>
+        )}
+      </SectionWrapper>
+
+      {/* 8. Medikamente */}
+      <SectionWrapper title="Medikamente">
+        {medFromLLM.length > 0 ? (
+          <ContextList items={medFromLLM.map(it => 'observation' in it ? it.observation : `${it.title}: ${it.description}`)} />
+        ) : pre ? (
+          <p className="text-[13px] text-foreground/75 leading-[1.7]">{pre.medication.note}</p>
+        ) : (
+          <EmptyHint>Keine Medikamenten-Auffälligkeiten erkennbar.</EmptyHint>
+        )}
+      </SectionWrapper>
+
+      {/* 9. Datenqualität — immer sichtbar */}
+      <SectionWrapper title="Datenqualität">
+        <div className="space-y-1.5">
+          {pre && <p className="text-[13px] text-foreground/75 leading-[1.7]">{pre.dataQuality.note}</p>}
+          {result.confidenceNotes.length > 0 && (
+            <ul className="space-y-1.5 mt-1">
+              {result.confidenceNotes.slice(0, 4).map((n, i) => (
+                <li key={i} className="text-[12px] text-foreground/65 flex items-start gap-2 leading-[1.6]">
+                  <span className="mt-[8px] h-1 w-1 rounded-full bg-muted-foreground/30 shrink-0" />
+                  <span>{n}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </SectionWrapper>
+
+      {/* 10. Was unklar bleibt */}
+      <SectionWrapper title="Was unklar bleibt">
+        {hasUncertainties ? (
           <ul className="space-y-2">
             {uncertainties.map((item, i) => (
               <li key={i} className="text-[13px] text-foreground/75 flex items-start gap-2 leading-[1.7]">
@@ -368,10 +441,12 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
               </li>
             ))}
           </ul>
-        </section>
-      )}
+        ) : (
+          <EmptyHint>Keine offenen Fragen vermerkt.</EmptyHint>
+        )}
+      </SectionWrapper>
 
-      {/* F) Report button + disclaimer */}
+      {/* Report button + disclaimer */}
       <div className="flex flex-col items-center gap-1.5 pt-1">
         <Button
           variant="ghost"
@@ -396,9 +471,7 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
               variant="ghost"
               size="sm"
               className="text-xs"
-              onClick={() => {
-                navigator.clipboard.writeText(generateReport(result));
-              }}
+              onClick={() => { navigator.clipboard.writeText(generateReport(result)); }}
             >
               Kopieren
             </Button>
@@ -410,6 +483,48 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
       )}
     </div>
   );
+}
+
+// === Section helper components ===
+function SectionWrapper({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section>
+      <h3 className="text-[11px] font-medium uppercase tracking-widest text-muted-foreground/80 mb-3">{title}</h3>
+      {children}
+    </section>
+  );
+}
+
+function PatternBlock({ p }: { p: PatternFinding }) {
+  return (
+    <div>
+      <div className="flex items-start justify-between gap-3 mb-1">
+        <h4 className="text-[13px] font-medium text-foreground leading-snug">{p.title}</h4>
+        <EvidenceBadge strength={p.evidenceStrength} />
+      </div>
+      <p className="text-[13px] text-foreground/75 leading-[1.7]">{p.description}</p>
+      {p.uncertaintyNotes.length > 0 && (
+        <p className="text-[11px] text-muted-foreground/70 mt-1.5">{p.uncertaintyNotes[0].reason}</p>
+      )}
+    </div>
+  );
+}
+
+function ContextList({ items }: { items: string[] }) {
+  return (
+    <ul className="space-y-2">
+      {items.map((it, i) => (
+        <li key={i} className="text-[13px] text-foreground/75 flex items-start gap-2 leading-[1.7]">
+          <span className="mt-[9px] h-1 w-1 rounded-full bg-muted-foreground/30 shrink-0" />
+          <span>{it}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function EmptyHint({ children }: { children: React.ReactNode }) {
+  return <p className="text-[12px] text-muted-foreground/70 italic leading-[1.6]">{children}</p>;
 }
 
 // ============================================================

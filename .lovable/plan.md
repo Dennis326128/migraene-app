@@ -1,90 +1,91 @@
-## Ziel
-Website (Doctor-Share) zeigt gespeicherte App-Analysen aus `ai_reports` (SSOT) und darf nur mit explizitem Patientenrecht eine neue Analyse erstellen.
+## Root Cause (vorab, da kritisch)
 
-## A) DB-Migration (neu)
+Der Live-Prompt in `supabase/functions/analyze-voice-patterns/index.ts` enthält harte Maximalgrenzen:
+- `possiblePatterns: MAX 4`
+- `painContextFindings: MAX 1`
+- `fatigueContextFindings: LEER lassen`
+- `medicationContextFindings: MAX 1`
+- `recurringSequences: MAX 2`
+- `openQuestions: MAX 1`
+- `confidenceNotes: MAX 1`
 
-`doctor_share_settings`:
-- `allow_ai_generate boolean NOT NULL DEFAULT false` — Website darf neue Analyse triggern.
-- `share_day_factors boolean NOT NULL DEFAULT false` — Strukturierte Tagesfaktoren ausliefern.
+Mein vorheriger Patch hat `_shared/analysisCore.ts` umgebaut — diese Datei wird aber **nicht** von der Edge-Function importiert. Die Live-Function nutzt einen eigenen Inline-Prompt, deshalb liefert das LLM weiter nur 2–3 Findings.
 
-Bestehend bleibt: `include_ai_analysis` (= gespeicherte Analyse anzeigen).
+Zusätzlich fehlt im Edge-Function-Kontext jegliche deterministische Pre-Analyse (Wetter-Druckabfälle, Tagesfaktoren-Signale, Medikamenten-Timing). Das Frontend reicht zwar Wetter-/Zeitaggregate mit, aber das LLM ignoriert sie wegen des restriktiven Prompts.
 
-Keine Defaults für bestehende Codes ändern → automatisch `false` (sicher).
+Drittens hat die UI keine festen Sektionen — wenn das LLM eine Kategorie leer lässt, wird die Sektion komplett unterdrückt statt „kein Muster" zu zeigen.
 
-## B) Neuer Shared-Helper
+## Änderungen
 
-`supabase/functions/_shared/doctorShareSsot.ts`:
-- `loadLatestPatternAnalysis(supabase, userId, from, to)` → liest neuesten Eintrag aus `ai_reports` (`report_type='pattern_analysis'`, Zeitraum ⊆ from/to oder `from_date<=from && to_date>=to` bevorzugt; sonst neuester überlappender), erzeugt `summaryMd` aus `response_json` (Markdown-Builder: top-Insights, Korrelationen, Empfehlungen, plus `validation`).
-- `computeDataStateSignature(supabase, userId, from, to, opts)` → SHA-256 Hash über: max(updated_at) von `pain_entries`, `medication_intakes`, `weather_logs`, `voice_notes(context_type='tageszustand')`, `voice_events`. Liefert `{signature, latestRelevantDataAt}`.
-- `loadDayFactors(supabase, userId, from, to)` → strukturierte Tagesfaktoren mit `{daily, aggregates}`. Whitelist: `mood, stress, sleep, sleepQuality, energy, fatigueContextTags, triggers (nur Tags), hadSpecialEvent`. Niemals `metadata.notes`, Transkripte, Audio-URLs, „Was war heute besonders?"-Freitext.
-- `buildSharePayload(supabase, shareId, userId, settings)` → liefert `share`, `quotaState`, `latestAiReport`, `latestRelevantDataAt`, `dataStateSignature`, `isStale`, optional `dayFactors`.
+### 1. Edge-Function-Prompt + Schema (`supabase/functions/analyze-voice-patterns/index.ts`)
 
-`isStale = !latestAiReport || latestAiReport.dataStateSignature !== current || latestAiReport älter als 14 Tage`.
+- Prompt komplett ersetzen: aus „MAX X" werden **Pflichtsektionen** mit Mindestmengen oder klarer Nichtverfügbarkeit:
+  - `possiblePatterns`: 2–4 Hauptmuster (`evidenceStrength` medium/high) plus 4–8 schwache Hinweise (`evidenceStrength=low`).
+  - `painContextFindings`: bis zu 4.
+  - `fatigueContextFindings`: bis zu 4 ODER 1 expliziter „nicht ausreichend dokumentiert"-Eintrag.
+  - `medicationContextFindings`: bis zu 4.
+  - `recurringSequences`: bis zu 4 (Triviales weiter verbieten).
+  - `openQuestions`: bis zu 3.
+  - `confidenceNotes`: 2–4 Pflicht (Datenqualitätsnotizen, inkl. Wetter-/Zeit-/MECFS-Abdeckung).
+- Pflichtsektion-Klausel im Prompt: jede Kategorie MUSS bearbeitet werden; bei fehlenden Daten kurzer Eintrag „Keine Wetterdaten" / „Zeitmuster nicht erkennbar".
+- `analysisVersion`-Bump im Response auf `1.1.1` (damit Cache mit altem Inhalt sicher invalidiert).
+- Logging erweitern: counts aller Arrays nach Extraction.
 
-## C) `get-shared-report-data/index.ts`
+### 2. Deterministische Pre-Analyse (`src/lib/voice/analysisEngine.ts`)
 
-- Liest zusätzlich `allow_ai_generate, share_day_factors, include_ai_analysis, include_context_notes` aus `doctor_share_settings`.
-- Resolved aiConsentState (`granted|missing|revoked`) via `user_consents` (neueste, `consent_withdrawn_at` → revoked).
-- Resolved aiEnabledState aus `user_profiles.ai_enabled`/global Flag.
-- Quota nur lesend via `checkPatternAnalysisQuota(..., {enforceCooldown:false})` → verbraucht nichts.
-- Response wird ergänzt um Felder: `share`, `quotaState`, `latestAiReport`, `latestRelevantDataAt`, `dataStateSignature`, `isStale`, `dayFactors?`.
-- Falls `include_ai_analysis=false` → `latestAiReport=null`.
-- Falls `share_day_factors=false` → kein `dayFactors`-Feld.
+Erweiterung des bereits vorhandenen Enrichment-Blocks vor dem LLM-Call:
 
-## D) `analyze-voice-patterns-shared/index.ts`
+- **Wetter-Korrelation (deterministisch):**
+  - Tage mit Δp24h ≤ −3 hPa: Schmerz-Trefferquote vs. Tage ohne Druckabfall.
+  - Tage mit Δp24h ≥ +3 hPa: dito.
+  - Temperaturbereich, Tage mit großen Temperatursprüngen (≥ 8 °C über 24h, falls aus Daten ableitbar).
+- **Tagesfaktoren-Coverage:** Anzahl Tage mit `energy`/`fatigue_context_tags`/Stimmung/Schlaf-Werten.
+- **Medikamenten-Timing:** Anzahl Triptan-Einnahmen relativ zu Schmerz ≥ 7, Vor-/Nach-Schmerzbeginn-Zähler, Anzahl Einträge ohne Medikation trotz Schmerz ≥ 7.
+- Alle Aussagen mit Hedge-Wörtern („Hinweis", „möglicherweise", „nicht ausreichend").
+- Block heisst `=== Deterministische Vorab-Auswertung ===` und wird vor `=== Wetterdaten ===` eingefügt.
 
-Reihenfolge der Gates (vor LLM):
-1. Doctor access ✓ (vorhanden)
-2. Patient consent (`has_ai_consent`) → `AI_CONSENT_REQUIRED` (vorhanden)
-3. `include_ai_analysis=true` → `AI_NOT_ENABLED_FOR_SHARE` (vorhanden)
-4. **NEU**: `allow_ai_generate=true` → sonst `AI_GENERATE_NOT_ALLOWED` (403)
-5. `ai_enabled` (vorhanden)
-6. Quota (vorhanden, ohne Cooldown)
+Diese Pre-Analyse wird zusätzlich als strukturiertes Objekt im Response-Result gespeichert (`_preAnalysis`), damit das UI sie als Fallback rendern kann.
 
-Persistierung: bestehender Insert nach `ai_reports` setzt jetzt zusätzlich `data_state_signature` + `source_updated_at` aus `computeDataStateSignature`.
+### 3. UI: Sektionsbasiertes Rendering mit Fallbacks (`src/components/PainApp/MigrainePatternAnalysis.tsx`)
 
-## E) Tests
+Restrukturierung des Berichtsbereichs in feste Sektionen:
 
-`supabase/functions/_shared/doctorShareSsot_test.ts` (Deno):
-- summaryMd-Builder erzeugt Markdown aus typischem `response_json`.
-- isStale-Logik: signatur-Mismatch / >14d / null.
-- Tagesfaktoren-Whitelist filtert Freitexte raus (negative test: `metadata.notes`, Transkript-Strings nie im JSON).
-- `computeDataStateSignature` deterministisch + ändert sich bei updated_at-Wechsel.
-
-`supabase/functions/analyze-voice-patterns-shared/gates_test.ts`:
-- `AI_GENERATE_NOT_ALLOWED` wenn `allow_ai_generate=false`.
-- erfolgreiche Pfad-Validierung mit allen Gates true (mit Mock-Supabase).
-
-Bestehender App-Pfad (`analyze-voice-patterns`) bleibt unberührt.
-
-## F) Response-Shape (Auszug)
-
-```jsonc
-{
-  "report": { /* unverändert */ },
-  "share": {
-    "allowAiGenerate": false,
-    "shareDayFactors": false,
-    "aiConsentState": "granted",
-    "aiEnabledState": "enabled"
-  },
-  "quotaState": { "remaining": 2, "limit": 3, "resetAtISO": "2026-06-01T00:00:00Z", "isUnlimited": false },
-  "latestAiReport": {
-    "id": "...", "summaryMd": "## Muster ...",
-    "createdAtISO": "...", "periodFromISO": "...", "periodToISO": "...",
-    "model": "google/gemini-2.5-flash", "source": "patient",
-    "insightsHash": "sha256:...", "validationStatus": "ok"
-  },
-  "latestRelevantDataAt": "2026-05-12T08:30:00Z",
-  "dataStateSignature": "sha256:...",
-  "isStale": false,
-  "dayFactors": { /* nur wenn share_day_factors=true */ }
-}
+```text
+1. Einordnung (summary)
+2. Auffälligste Hinweise (possiblePatterns mit evidenceStrength medium/high)
+3. Weitere mögliche Zusammenhänge (possiblePatterns low)
+4. Wetter & Umwelt
+5. Zeitmuster
+6. ME/CFS & Energie
+7. Medikamente
+8. Datenqualität (immer sichtbar)
+9. Was unklar bleibt (openQuestions)
 ```
 
-## G) Risiken / Nicht umgesetzt
-- `ai_reports` hat kein Markdown-Feld → `summaryMd` wird deterministisch aus `response_json` gebaut. Alternative wäre Migration mit `summary_md`-Spalte (verworfen — kein Wert-Add solange JSON SSOT bleibt).
-- `weather_logs` evtl. nicht user-scoped → Signatur ignoriert weather falls Spalte fehlt (try/catch).
-- Globaler `ai_enabled`-Killswitch gibt es nicht in DB → Zustand `disabled_globally` wird nur ausgegeben wenn Env-Flag `AI_GLOBAL_DISABLED=true` gesetzt ist.
+Pro Sektion:
+- LLM-Findings werden gefiltert/dedupliziert und gerendert.
+- Wenn LLM nichts liefert → Fallback aus `_preAnalysis` deterministisch rendern (Wetter-/Zeitaggregat in lesbarer Form).
+- Wenn auch Pre-Analyse keine relevanten Daten hat → klarer Text „Kein klares Muster erkennbar" oder „Daten nicht ausreichend".
 
-Bitte bestätigen, dann implementiere ich A–E in einem Rutsch.
+Die Datenqualitätssektion zeigt: Anzahl Schmerztage, Wetter-Tage abgedeckt vs. Range, Tagesfaktoren-Tage abgedeckt vs. Range, ME/CFS-Tage.
+
+### 4. Cache-Versionsbump (`src/lib/voice/analysisCache.ts`)
+
+`ANALYSIS_VERSION = '1.1.1'` (war `1.1.0`). Damit invalidieren alle bestehenden Caches automatisch und werden im UI als „Analyse-Logik aktualisiert" markiert.
+
+### 5. Tests
+
+Neu in `src/lib/voice/__tests__/`:
+- `analysisEngine.preAnalysis.test.ts` — Unit-Tests für Wetter-Druckabfall-Vergleich, Zeitaggregat, Tagesfaktoren-Coverage.
+- `analysisCache.test.ts` — bestehende Tests anpassen (MAX_PATTERNS=8/MAX_SEQUENCES=4 sind bereits gesetzt, aber 5 Tests assertieren noch alte Limits → nachziehen).
+- UI-Smoke-Test (optional, niedrige Priorität): Rendering aller Sektionen mit leerem LLM-Result + gefülltem `_preAnalysis`.
+
+## Was du danach tust
+
+Einmal „Erneut analysieren" klicken. Der Cache invalidiert wegen Versionsbump → neue Analyse mit erweitertem Prompt + Pre-Analyse-Kontext → UI zeigt alle 9 Sektionen, mit Pre-Analyse-Fallbacks falls das LLM einzelne Bereiche knapp lässt.
+
+## Out of Scope
+
+- Schmerzkalender-Format-Änderungen.
+- PDF/Doctor-Share-Rendering (gleiches Schema, profitiert automatisch sobald App-Rendering steht — separate Iteration falls gewünscht).
+- Zusätzliche LLM-Modellwechsel.

@@ -185,7 +185,7 @@ describe('buildStateSignature', () => {
 
   it('null timestamps produce 0', () => {
     const sig = buildStateSignature(0, null, 0, null, 0, null, 0, null);
-    expect(sig).toBe('pe:0:0|ve:0:0|mi:0:0|me:0:0');
+    expect(sig).toBe('v:1.1.1|pe:0:0|ve:0:0|mi:0:0|me:0:0|cn:0:0');
   });
 
   it('encodes all four sources', () => {
@@ -398,9 +398,9 @@ describe('buildPatternAnalysisSummary', () => {
       openQuestions: ['Q1', 'Q2', 'Q3', 'Q4', 'Q5', 'Q6'],
     });
     const summary = buildPatternAnalysisSummary(result);
-    expect(summary.patterns).toHaveLength(4);
-    expect(summary.recurringSequences).toHaveLength(2);
-    expect(summary.openQuestions).toHaveLength(2);
+    expect(summary.patterns).toHaveLength(MAX_PATTERNS);
+    expect(summary.recurringSequences).toHaveLength(MAX_SEQUENCES);
+    expect(summary.openQuestions).toHaveLength(MAX_QUESTIONS);
   });
 
   it('is deterministic', () => {
@@ -496,9 +496,9 @@ describe('Cross-output consistency (PDF, Website, Snapshot)', () => {
       openQuestions: ['Q1', 'Q2', 'Q3', 'Q4', 'Q5', 'Q6', 'Q7'],
     });
     const pa = buildPatternAnalysisSummary(r);
-    expect(pa.patterns).toHaveLength(4);
-    expect(pa.recurringSequences).toHaveLength(2);
-    expect(pa.openQuestions).toHaveLength(2);
+    expect(pa.patterns).toHaveLength(MAX_PATTERNS);
+    expect(pa.recurringSequences).toHaveLength(MAX_SEQUENCES);
+    expect(pa.openQuestions).toHaveLength(MAX_QUESTIONS);
   });
 
   it('llmInterpretation → interpretation field mapping', () => {
@@ -732,10 +732,10 @@ describe('Cross-channel SSOT identity', () => {
     expect(Object.keys(summary.recurringSequences[0]).sort()).toEqual(['count', 'interpretation', 'pattern']);
   });
 
-  it('limits are identical: MAX_PATTERNS=4, MAX_SEQUENCES=2, MAX_QUESTIONS=2', () => {
-    expect(MAX_PATTERNS).toBe(4);
-    expect(MAX_SEQUENCES).toBe(2);
-    expect(MAX_QUESTIONS).toBe(2);
+  it('limits are exposed: MAX_PATTERNS=8, MAX_SEQUENCES=4, MAX_QUESTIONS=3', () => {
+    expect(MAX_PATTERNS).toBe(8);
+    expect(MAX_SEQUENCES).toBe(4);
+    expect(MAX_QUESTIONS).toBe(3);
   });
 });
 
@@ -780,9 +780,9 @@ describe('Migraine prioritization in sorting', () => {
       ],
     });
     const summary = buildPatternAnalysisSummary(r);
-    // Max 4 patterns
-    expect(summary.patterns).toHaveLength(4);
-    // Order: high(5), high(3), medium(7), medium(2) — P1 (low,10) and P6 (low,1) cut
-    expect(summary.patterns.map(p => p.title)).toEqual(['P4', 'P2', 'P3', 'P5']);
+    // With MAX_PATTERNS=8, all 6 patterns are kept and sorted
+    expect(summary.patterns).toHaveLength(6);
+    // Order: high(5), high(3), medium(7), medium(2), low(10), low(1)
+    expect(summary.patterns.map(p => p.title)).toEqual(['P4', 'P2', 'P3', 'P5', 'P1', 'P6']);
   });
 });
