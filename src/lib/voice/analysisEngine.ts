@@ -70,10 +70,57 @@ export interface AnalysisDebugInfo {
  * Build the serialized context string for the LLM.
  * Exported for testing prompt construction independently.
  */
+export interface PreAnalysis {
+  weather: {
+    daysWithData: number;
+    pressureDropDays: number;       // Δp24h ≤ -3 hPa
+    pressureRiseDays: number;       // Δp24h ≥ +3 hPa
+    painOnDropDays: number;
+    painOnRiseDays: number;
+    painOnStableDays: number;
+    stableDays: number;
+    pressureMin: number | null;
+    pressureMax: number | null;
+    tempMin: number | null;
+    tempMax: number | null;
+    note: string;                   // human summary
+  };
+  time: {
+    topWeekday: string | null;
+    topWeekdayShare: number;        // 0..1
+    topPhase: string | null;
+    topPhaseShare: number;
+    weekdayCount: number;
+    weekendCount: number;
+    withTime: number;
+    note: string;
+  };
+  mecfs: {
+    daysWithMecfs: number;
+    contextNoteCount: number;
+    note: string;
+  };
+  medication: {
+    intakeCount: number;
+    highPainEntries: number;        // pain >= 7
+    highPainWithMed: number;
+    highPainWithoutMed: number;
+    note: string;
+  };
+  dataQuality: {
+    painEntries: number;
+    voiceEvents: number;
+    weatherDays: number;
+    rangeDays: number;
+    note: string;
+  };
+}
+
 export async function buildAnalysisPromptData(range: AnalysisTimeRange): Promise<{
   serialized: string;
   tokenEstimate: number;
   wasTruncated: boolean;
+  preAnalysis: PreAnalysis;
   meta: {
     totalDays: number;
     voiceEventCount: number;
