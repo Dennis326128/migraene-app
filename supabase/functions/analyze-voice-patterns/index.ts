@@ -553,7 +553,11 @@ serve(async (req) => {
       return jsonResponse({ error: 'Ungültige Anfrage', details: parsed.error.flatten().fieldErrors }, 400);
     }
 
-    const { serializedContext, meta, fromDate, toDate } = parsed.data;
+    const { serializedContext, meta, fromDate, toDate, preAnalysis, deterministicFindings } = parsed.data;
+    const detFindings = Array.isArray(deterministicFindings) ? deterministicFindings : [];
+    const detFindingIds = new Set<string>(
+      detFindings.map((f: any) => (typeof f?.id === 'string' ? f.id : '')).filter((s: string) => !!s),
+    );
 
     // === DATA SUFFICIENCY CHECK ===
     if ((meta.voiceEventCount + meta.painEntryCount) < MIN_VOICE_EVENTS_OR_ENTRIES) {
