@@ -135,11 +135,20 @@ export const ANALYSIS_TOOL = {
   }
 };
 
-export function buildSystemPrompt(meta: AnalysisMeta): string {
+export interface BuildSystemPromptOptions {
+  /** Whether the dataset may include private free-text notes (App=true, Doctor-Share=false). */
+  includesPrivateNotes?: boolean;
+}
+
+export function buildSystemPrompt(meta: AnalysisMeta, opts: BuildSystemPromptOptions = {}): string {
+  const includesPrivateNotes = opts.includesPrivateNotes ?? true;
   const thinData = (meta.voiceEventCount + meta.painEntryCount) < 10;
   const thinDataWarning = thinData
     ? `\nACHTUNG: Sehr wenige Daten (${meta.voiceEventCount + meta.painEntryCount} Einträge). evidenceStrength maximal "low". Betone Datenlücken in confidenceNotes.\n`
     : '';
+  const privacyNote = includesPrivateNotes
+    ? ''
+    : '\nPRIVATSPHÄRE: Dieser Datensatz enthält KEINE privaten Freitext-Notizen (Doctor-Share). Nur strukturierte Felder (mood/stress/sleep/energy/triggers) auswerten.\n';
 
   return `Du bist ein erfahrener Migräne-Analyst. Du fasst mögliche Zusammenhänge knapp, ruhig und fachlich zusammen – wie eine hochwertige medizinische Kurzauswertung.
 
@@ -153,7 +162,11 @@ REGELN:
 5. DEDUPLIZIERUNG ZWINGEND: jeder Inhalt nur EINMAL in der gesamten Ausgabe.
 6. KEINE TRIVIALEN MUSTER: Schmerz→Medikament, Migräne→Ruhe, Müdigkeit→Schlaf etc.
 7. KEIN TAGESBERICHT, keine Datumslisten.
-${thinDataWarning}
+8. TAGESFAKTOREN (Alltag & Auslöser): Falls Block "=== Tagesfaktoren (Alltag & Auslöser) ===" vorhanden: Korrelationen mood/stress/sleep/energy/triggers mit Schmerz prüfen — Zeitbezüge T0, T-1, T-2 (24-48h vorher), T+1 (Folgetag), bei ME/CFS/PEM auch T+2/T+3. Multifaktor-Muster bevorzugen (z.B. Schlaf↓ + Stress↑ + Luftdruckabfall, Belastung→Schmerz am Folgetag, Triptan-Onset relativ zu Schmerzbeginn).
+9. EVIDENZ: evidenceStrength="high" nur bei ≥3 unabhängigen Vorkommen; "medium" bei 2; "low" bei 1 oder mehrdeutig. Sprachlich unterscheiden: "starker Hinweis" / "möglicher Zusammenhang" / "unklar — Daten reichen nicht".
+10. ZAHLEN-DISZIPLIN: NUR Zahlen aus dem Datensatz verwenden. Keine erfundenen Prozente, Korrelationen oder Häufigkeiten. Sonst qualitativ formulieren.
+11. MEDIZINISCHE VORSICHT: Keine Diagnose, keine Therapieempfehlung. Nur Hinweise/Korrelationen. Bei klar Auffälligem max. einmal "mit Ärztin/Arzt besprechen".
+${thinDataWarning}${privacyNote}
 DATENSATZ: ${meta.totalDays} Tage, ${meta.daysWithPain} Schmerztage, ${meta.painEntryCount} Einträge, ${meta.medicationIntakeCount} Medikamenteneinnahmen.
 
 Verwende submit_voice_analysis für die strukturierte Antwort.`;
@@ -227,6 +240,8 @@ export interface RunLLMOptions {
   fromDate: string;
   toDate: string;
   apiKey: string;
+  /** Defaults to true (App). Doctor-Share MUST pass false. */
+  includesPrivateNotes?: boolean;
 }
 
 export type RunLLMResult =
@@ -240,7 +255,7 @@ export type RunLLMResult =
  * (status code already chosen, body already json-serializable).
  */
 export async function runAnalysisLLM(opts: RunLLMOptions): Promise<RunLLMResult> {
-  const { serializedContext, meta, fromDate, toDate, apiKey } = opts;
+  const { serializedContext, meta, fromDate, toDate, apiKey, includesPrivateNotes } = opts;
   const tokenEstimate = Math.ceil(serializedContext.length / 4);
 
   if ((meta.voiceEventCount + meta.painEntryCount) < MIN_VOICE_EVENTS_OR_ENTRIES) {
@@ -261,7 +276,7 @@ export async function runAnalysisLLM(opts: RunLLMOptions): Promise<RunLLMResult>
     };
   }
 
-  const systemPrompt = buildSystemPrompt(meta);
+  const systemPrompt = buildSystemPrompt(meta, { includesPrivateNotes });
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
 
