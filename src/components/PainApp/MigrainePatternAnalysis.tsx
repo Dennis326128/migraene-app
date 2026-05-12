@@ -591,7 +591,7 @@ export function MigrainePatternAnalysis() {
               </div>
             </div>
             <Button asChild size="sm" className="w-full">
-              <Link to="/settings/privacy">Einwilligung verwalten</Link>
+              <Link to="/consent-required">Einwilligung verwalten</Link>
             </Button>
           </CardContent>
         </Card>
@@ -608,7 +608,7 @@ export function MigrainePatternAnalysis() {
               </div>
             </div>
             <Button asChild size="sm" variant="outline" className="w-full">
-              <Link to="/settings/privacy">Einstellungen öffnen</Link>
+              <Link to="/consent-required">Einstellungen öffnen</Link>
             </Button>
           </CardContent>
         </Card>
@@ -679,7 +679,7 @@ export function MigrainePatternAnalysis() {
               <p className="text-sm text-foreground/80">{error}</p>
               {errorCode === 'AI_CONSENT_REQUIRED' ? (
                 <Button asChild variant="ghost" size="sm" className="mt-2">
-                  <Link to="/settings/privacy">Einwilligung verwalten</Link>
+                  <Link to="/consent-required">Einwilligung verwalten</Link>
                 </Button>
               ) : errorCode === 'QUOTA_EXCEEDED' || errorCode === 'COOLDOWN_ACTIVE' ? null : (
                 <Button onClick={runAnalysis} variant="ghost" size="sm" className="mt-2" disabled={buttonDisabled}>
