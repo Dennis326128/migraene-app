@@ -564,8 +564,23 @@ export function serializeForLLM(ctx: AnalysisContext): string {
   lines.push(`=== Verlaufsdaten (${ctx.meta.totalDays} Tage, ${ctx.meta.totalItems} Ereignisse) ===`);
   lines.push('');
 
+  // Pre-compute pain dates for T-1 / T+1 annotations
+  const painDateSet = new Set(ctx.days.filter(d => d.maxPainLevel > 0).map(d => d.date));
+  const isoOffset = (date: string, days: number): string => {
+    const d = new Date(date + 'T00:00:00Z');
+    d.setUTCDate(d.getUTCDate() + days);
+    return d.toISOString().slice(0, 10);
+  };
+  const painRel = (date: string): string => {
+    if (painDateSet.has(date)) return ' [Schmerztag]';
+    if (painDateSet.has(isoOffset(date, 1))) return ' [T-1 vor Schmerztag]';
+    if (painDateSet.has(isoOffset(date, -1))) return ' [T+1 nach Schmerztag]';
+    if (painDateSet.has(isoOffset(date, 2))) return ' [T-2 vor Schmerztag]';
+    return '';
+  };
+
   for (const day of ctx.days) {
-    lines.push(`--- ${day.date} ---`);
+    lines.push(`--- ${day.date}${painRel(day.date)} ---`);
     if (day.maxPainLevel > 0) lines.push(`  Max. Schmerz: ${day.maxPainLevel}/10`);
     if (day.hasMecfsSignals) lines.push(`  ME/CFS-Signale vorhanden`);
     if (day.hasMedication) lines.push(`  Medikation eingenommen`);
