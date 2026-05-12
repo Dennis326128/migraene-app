@@ -457,6 +457,8 @@ serve(async (req) => {
       console.error(`[analyze-voice-patterns] Context too large: ${contextChars} chars (~${tokenEstimate} tokens)`);
       return jsonResponse({
         error: 'Analysezeitraum zu groß. Bitte einen kürzeren Zeitraum wählen.',
+        code: 'CONTEXT_TOO_LARGE',
+        errorCode: 'CONTEXT_TOO_LARGE',
         contextChars,
         tokenEstimate,
         maxChars: MAX_CONTEXT_CHARS,
