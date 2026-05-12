@@ -278,6 +278,7 @@ export type Database = {
       doctor_share_settings: {
         Row: {
           ai_analysis_generated_at: string | null
+          allow_ai_generate: boolean
           created_at: string
           custom_from: string | null
           custom_to: string | null
@@ -287,11 +288,13 @@ export type Database = {
           include_context_notes: boolean
           include_entry_notes: boolean
           range_preset: string
+          share_day_factors: boolean
           share_id: string
           updated_at: string
         }
         Insert: {
           ai_analysis_generated_at?: string | null
+          allow_ai_generate?: boolean
           created_at?: string
           custom_from?: string | null
           custom_to?: string | null
@@ -301,11 +304,13 @@ export type Database = {
           include_context_notes?: boolean
           include_entry_notes?: boolean
           range_preset?: string
+          share_day_factors?: boolean
           share_id: string
           updated_at?: string
         }
         Update: {
           ai_analysis_generated_at?: string | null
+          allow_ai_generate?: boolean
           created_at?: string
           custom_from?: string | null
           custom_to?: string | null
@@ -315,6 +320,7 @@ export type Database = {
           include_context_notes?: boolean
           include_entry_notes?: boolean
           range_preset?: string
+          share_day_factors?: boolean
           share_id?: string
           updated_at?: string
         }
