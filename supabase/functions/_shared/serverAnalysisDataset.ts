@@ -218,6 +218,18 @@ export async function buildServerAnalysisDataset(
     if (mecfsScore > 0) {
       lines.push(`- ME/CFS-Score: ${mecfsScore}`);
     }
+    if (d.factors.length > 0) {
+      // Tageszustand: structured fields only — no free-text notes (privacy)
+      for (const f of d.factors) {
+        const parts: string[] = [];
+        if (f.mood !== null) parts.push(`Stimmung=${f.mood}/5`);
+        if (f.stress !== null) parts.push(`Stress=${f.stress}/5`);
+        if (f.sleep !== null) parts.push(`Schlaf=${f.sleep}/5`);
+        if (f.energy !== null) parts.push(`Energie=${f.energy}/5`);
+        if (f.triggers.length > 0) parts.push(`Auslöser: ${f.triggers.join(', ')}`);
+        if (parts.length > 0) lines.push(`- Tagesfaktoren: ${parts.join(', ')}`);
+      }
+    }
     if (d.voice.length > 0) {
       // Max 5 transcripts per day, each truncated to 240 chars
       const slice = d.voice.slice(0, 5);
