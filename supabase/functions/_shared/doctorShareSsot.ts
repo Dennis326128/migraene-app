@@ -163,20 +163,33 @@ export async function computeDataStateSignature(
     }
   }
 
-  // weather_logs (best-effort — table may not be user-scoped)
+  // weather_logs (user-scoped). Schema: user_id NOT NULL, created_at, snapshot_date.
+  // No `updated_at` / `recorded_at` columns exist — use `created_at` and `snapshot_date`.
   try {
     const { data } = await supabase
       .from("weather_logs")
-      .select("updated_at")
+      .select("created_at")
       .eq("user_id", userId)
-      .gte("recorded_at", fromIso)
-      .lte("recorded_at", toIso)
-      .order("updated_at", { ascending: false })
+      .gte("snapshot_date", fromDate)
+      .lte("snapshot_date", toDate)
+      .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-    parts.weather = data?.updated_at ?? null;
+    parts.weather = data?.created_at ?? null;
   } catch {
     parts.weather = null;
+  }
+  // Weather row count (so additions/deletions also flip signature)
+  try {
+    const { count } = await supabase
+      .from("weather_logs")
+      .select("id", { head: true, count: "exact" })
+      .eq("user_id", userId)
+      .gte("snapshot_date", fromDate)
+      .lte("snapshot_date", toDate);
+    parts.weather_count = count ?? 0;
+  } catch {
+    parts.weather_count = null;
   }
 
   // Latest across all
