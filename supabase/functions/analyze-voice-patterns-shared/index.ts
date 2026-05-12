@@ -166,6 +166,7 @@ Deno.serve(async (req) => {
 
     try {
       const dedupeKey = `pattern_analysis_${from}_${to}`;
+      const ds = await computeDataStateSignature(supabase, ownerUserId, from, to);
       await supabase.from('ai_reports')
         .delete()
         .eq('user_id', ownerUserId)
@@ -181,6 +182,8 @@ Deno.serve(async (req) => {
         dedupe_key: dedupeKey,
         response_json: llm.body,
         model: 'google/gemini-2.5-flash',
+        data_state_signature: ds.signature,
+        source_updated_at: ds.latestRelevantDataAt,
       });
     } catch (persistErr) {
       console.error(`[shared-ai] persist_failed owner=${shortId(ownerUserId)}:`, persistErr);
