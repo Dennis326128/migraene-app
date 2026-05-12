@@ -61,6 +61,7 @@ const includeAi = Boolean(args.get("include-ai"));
 const allowGen = Boolean(args.get("allow-generate"));
 const shareDayFactors = Boolean(args.get("share-day-factors"));
 const reuse = Boolean(args.get("reuse"));
+const dryRun = Boolean(args.get("dry-run"));
 
 const { createClient } = await import("jsr:@supabase/supabase-js@2");
 const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
@@ -88,36 +89,45 @@ if (reuse) {
   if (!existing) fail("--reuse: no active share found for user.");
   shareId = existing.id;
   codeDisplay = existing.code_display;
-  await sb.from("doctor_shares")
-    .update({ share_active_until: expiresAt, expires_at: expiresAt, share_revoked_at: null, revoked_at: null, is_active: true })
-    .eq("id", shareId);
+  if (!dryRun) {
+    await sb.from("doctor_shares")
+      .update({ share_active_until: expiresAt, expires_at: expiresAt, share_revoked_at: null, revoked_at: null, is_active: true })
+      .eq("id", shareId);
+  }
 } else {
   const { code, display } = genCode();
   codeDisplay = display;
-  const { data, error } = await sb.from("doctor_shares")
-    .insert({
-      user_id: userId,
-      code,
-      code_display: display,
-      is_active: true,
-      share_active_until: expiresAt,
-      expires_at: expiresAt,
-      default_range: "3m",
-    })
-    .select("id").single();
-  if (error || !data) fail(`Insert share failed: ${error?.message}`);
-  shareId = data!.id;
+  if (dryRun) {
+    shareId = "<dry-run-no-insert>";
+  } else {
+    const { data, error } = await sb.from("doctor_shares")
+      .insert({
+        user_id: userId,
+        code,
+        code_display: display,
+        is_active: true,
+        share_active_until: expiresAt,
+        expires_at: expiresAt,
+        default_range: "3m",
+      })
+      .select("id").single();
+    if (error || !data) fail(`Insert share failed: ${error?.message}`);
+    shareId = data!.id;
+  }
 }
 
-await sb.from("doctor_share_settings").upsert({
-  share_id: shareId,
-  include_ai_analysis: includeAi,
-  allow_ai_generate: allowGen,
-  share_day_factors: shareDayFactors,
-  range_preset: "3m",
-}, { onConflict: "share_id" });
+if (!dryRun) {
+  await sb.from("doctor_share_settings").upsert({
+    share_id: shareId,
+    include_ai_analysis: includeAi,
+    allow_ai_generate: allowGen,
+    share_day_factors: shareDayFactors,
+    range_preset: "3m",
+  }, { onConflict: "share_id" });
+}
 
 console.log(JSON.stringify({
+  dryRun,
   code: codeDisplay,
   shareId,
   userId,
@@ -127,5 +137,7 @@ console.log(JSON.stringify({
     allow_ai_generate: allowGen,
     share_day_factors: shareDayFactors,
   },
-  note: "DEV/QA ONLY. Code expires automatically. Do not commit codes.",
+  note: dryRun
+    ? "DRY-RUN — nothing was written to the database."
+    : "DEV/QA ONLY. Code expires automatically. Do not commit codes.",
 }, null, 2));
