@@ -169,10 +169,11 @@ export async function runVoicePatternAnalysis(
   if (fnError) {
     console.error('[AnalysisEngine] Edge function error:', fnError);
 
-    // Try to read the actual response body (Supabase FunctionsHttpError exposes it via context.response)
+    // Try to read the actual response body
     let status: number | null = null;
     let bodyCode: string | null = null;
     let bodyError: string | null = null;
+    let bodyExtra: Record<string, unknown> = {};
     try {
       const ctx = (fnError as any)?.context;
       const resp: Response | undefined = ctx?.response ?? (ctx instanceof Response ? ctx : undefined);
@@ -182,8 +183,9 @@ export async function runVoicePatternAnalysis(
         if (text) {
           try {
             const parsed = JSON.parse(text);
-            bodyCode = parsed?.code ?? null;
+            bodyCode = parsed?.code ?? parsed?.errorCode ?? null;
             bodyError = parsed?.error ?? null;
+            bodyExtra = parsed ?? {};
           } catch { /* not JSON */ }
         }
       }
@@ -193,30 +195,25 @@ export async function runVoicePatternAnalysis(
 
     const msg = typeof fnError === 'object' && (fnError as any).message ? (fnError as any).message : String(fnError);
 
-    if (bodyCode === 'AI_CONSENT_REQUIRED' || status === 403) {
-      const err = new Error(
-        bodyError ?? 'Bitte erteile zuerst deine Einwilligung zur KI-Verarbeitung in den Datenschutz-Einstellungen.'
-      );
-      (err as any).code = 'AI_CONSENT_REQUIRED';
+    const throwCoded = (code: string, message: string, extra: Record<string, unknown> = {}) => {
+      const err = new Error(message);
+      (err as any).code = code;
+      Object.assign(err, extra);
       throw err;
-    }
-    if (status === 429 || msg.includes('429')) {
-      const err = new Error('Rate Limit erreicht. Bitte später erneut versuchen.');
-      (err as any).code = 'RATE_LIMIT_EXCEEDED';
-      throw err;
-    }
-    if (status === 402 || msg.includes('402')) {
-      const err = new Error('Guthaben aufgebraucht. Bitte Credits hinzufügen.');
-      (err as any).code = 'INSUFFICIENT_CREDITS';
-      throw err;
-    }
-    if (status === 401) {
-      const err = new Error('Sitzung abgelaufen. Bitte erneut anmelden.');
-      (err as any).code = 'AUTH_REQUIRED';
-      throw err;
-    }
+    };
 
-    throw new Error(`Analyse fehlgeschlagen: ${bodyError ?? msg}`);
+    if (status === 401) throwCoded('AUTH_REQUIRED', bodyError ?? 'Sitzung abgelaufen. Bitte erneut anmelden.');
+    if (bodyCode === 'AI_CONSENT_REQUIRED') throwCoded('AI_CONSENT_REQUIRED', bodyError ?? 'Bitte erteile zuerst deine Einwilligung zur KI-Verarbeitung.');
+    if (bodyCode === 'AI_DISABLED') throwCoded('AI_DISABLED', bodyError ?? 'KI-Analyse ist in den Einstellungen deaktiviert.');
+    if (bodyCode === 'QUOTA_EXCEEDED' || status === 409) throwCoded('QUOTA_EXCEEDED', bodyError ?? 'Monatliches Analyselimit erreicht.', { quota: bodyExtra.quota });
+    if (bodyCode === 'COOLDOWN_ACTIVE') throwCoded('COOLDOWN_ACTIVE', bodyError ?? 'Bitte kurz warten, bevor du erneut analysierst.', { cooldownRemaining: bodyExtra.cooldownRemaining });
+    if (bodyCode === 'INSUFFICIENT_DATA' || status === 422) throwCoded('INSUFFICIENT_DATA', bodyError ?? 'Zu wenig Daten für eine sinnvolle Analyse.');
+    if (bodyCode === 'CONTEXT_TOO_LARGE' || status === 413) throwCoded('CONTEXT_TOO_LARGE', bodyError ?? 'Analysezeitraum zu groß.');
+    if (bodyCode === 'TIMEOUT' || status === 504) throwCoded('TIMEOUT', bodyError ?? 'Die Analyse hat zu lange gedauert.');
+    if (bodyCode === 'LLM_UNAVAILABLE' || status === 502) throwCoded('LLM_UNAVAILABLE', bodyError ?? 'Der KI-Dienst ist vorübergehend nicht verfügbar.');
+    if (status === 429) throwCoded('LLM_UNAVAILABLE', bodyError ?? 'Rate Limit erreicht. Bitte später erneut versuchen.');
+
+    throwCoded('UNKNOWN', `Analyse fehlgeschlagen: ${bodyError ?? msg}`);
   }
 
   // 5: Validate result

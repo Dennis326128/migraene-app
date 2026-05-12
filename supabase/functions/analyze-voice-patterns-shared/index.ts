@@ -26,6 +26,7 @@ import { getCorsHeaders, handlePreflight } from "../_shared/cors.ts";
 import { verifyDoctorAccess } from "../_shared/doctorAccessGuard.ts";
 import { buildServerAnalysisDataset } from "../_shared/serverAnalysisDataset.ts";
 import { runAnalysisLLM } from "../_shared/analysisCore.ts";
+import { checkPatternAnalysisQuota, commitPatternAnalysisUsage, quotaErrorBody } from "../_shared/aiQuotaGate.ts";
 
 const PRESET_DAYS: Record<string, number> = {
   '1m': 30, '30d': 30, '3m': 90, '6m': 180, '12m': 365,
@@ -120,6 +121,13 @@ Deno.serve(async (req) => {
     const range = shareSettings?.range_preset ?? shareRow?.default_range ?? '3m';
     const { from, to } = rangeToDates(range);
 
+    // 5b. Quota check on PATIENT account (no cooldown for Doctor-Share)
+    const quotaCheck = await checkPatternAnalysisQuota(supabase, ownerUserId, { enforceCooldown: false });
+    if (!quotaCheck.allowed) {
+      console.log(`[shared-ai] quota_blocked owner=${shortId(ownerUserId)} reason=${quotaCheck.blockedReason}`);
+      return json(quotaErrorBody(quotaCheck), quotaCheck.status ?? 429);
+    }
+
     // 6. Build dataset
     const dataset = await buildServerAnalysisDataset(supabase, ownerUserId, from, to);
     console.log(`[shared-ai] dataset owner=${shortId(ownerUserId)} range=${range} days=${dataset.meta.totalDays} voice=${dataset.meta.voiceEventCount} pain=${dataset.meta.painEntryCount}`);
@@ -144,8 +152,10 @@ Deno.serve(async (req) => {
       console.log(`[shared-ai] llm_unavailable owner=${shortId(ownerUserId)} status=${llm.status}`);
       return json(llm.body, llm.status);
     }
+    // 7b. Commit quota (success only — bills against patient account)
+    await commitPatternAnalysisUsage(supabase, ownerUserId, quotaCheck.snapshot);
 
-    // 8. Persist as ai_reports so subsequent read-only fetch (snapshot) sees it
+
     try {
       const dedupeKey = `pattern_analysis_${from}_${to}`;
       await supabase.from('ai_reports')

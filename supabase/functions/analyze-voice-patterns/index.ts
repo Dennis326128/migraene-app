@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 import { requireAiConsent } from '../_shared/aiConsentGate.ts';
+import { checkPatternAnalysisQuota, commitPatternAnalysisUsage, quotaErrorBody } from '../_shared/aiQuotaGate.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -411,15 +412,16 @@ serve(async (req) => {
     const consentBlock = await requireAiConsent(supabase, user.id, corsHeaders);
     if (consentBlock) return consentBlock;
 
-    // Check AI enabled
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('ai_enabled, ai_unlimited')
-      .eq('user_id', user.id)
-      .single();
-
-    if (profile && !profile.ai_enabled) {
-      return jsonResponse({ error: 'AI-Analyse ist deaktiviert' }, 403);
+    // QUOTA + COOLDOWN GATE (service role)
+    const supabaseAdmin = createClient(
+      supabaseUrl,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+      { auth: { persistSession: false } },
+    );
+    const quotaCheck = await checkPatternAnalysisQuota(supabaseAdmin, user.id, { enforceCooldown: true });
+    if (!quotaCheck.allowed) {
+      console.log(`[analyze-voice-patterns] blocked reason=${quotaCheck.blockedReason} user=${user.id.slice(0, 8)}…`);
+      return jsonResponse(quotaErrorBody(quotaCheck), quotaCheck.status ?? 429);
     }
 
     // Parse request
@@ -440,11 +442,11 @@ serve(async (req) => {
     // === DATA SUFFICIENCY CHECK ===
     if ((meta.voiceEventCount + meta.painEntryCount) < MIN_VOICE_EVENTS_OR_ENTRIES) {
       console.warn(`[analyze-voice-patterns] Insufficient data: ${meta.voiceEventCount} voice, ${meta.painEntryCount} pain`);
-      const result = buildUnavailableResult(
-        'Zu wenig Daten für eine sinnvolle Analyse. Bitte mindestens einige Tage dokumentieren.',
-        meta, fromDate, toDate,
-      );
-      return jsonResponse(result, 200);
+      return jsonResponse({
+        error: 'Zu wenig Daten für eine sinnvolle Analyse. Bitte mindestens einige Tage dokumentieren.',
+        code: 'INSUFFICIENT_DATA',
+        errorCode: 'INSUFFICIENT_DATA',
+      }, 422);
     }
 
     // === CONTEXT SIZE CHECK ===
@@ -455,6 +457,8 @@ serve(async (req) => {
       console.error(`[analyze-voice-patterns] Context too large: ${contextChars} chars (~${tokenEstimate} tokens)`);
       return jsonResponse({
         error: 'Analysezeitraum zu groß. Bitte einen kürzeren Zeitraum wählen.',
+        code: 'CONTEXT_TOO_LARGE',
+        errorCode: 'CONTEXT_TOO_LARGE',
         contextChars,
         tokenEstimate,
         maxChars: MAX_CONTEXT_CHARS,
@@ -521,39 +525,40 @@ ${serializedContext}`
       console.error(`[analyze-voice-patterns] LLM fetch ${isTimeout ? 'timeout' : 'error'}:`, fetchError);
 
       if (isTimeout) {
-        const result = buildUnavailableResult(
-          'Die Analyse hat zu lange gedauert. Bitte einen kürzeren Zeitraum wählen oder es später erneut versuchen.',
-          meta, fromDate, toDate,
-        );
-        return jsonResponse(result, 504);
+        return jsonResponse({
+          error: 'Die Analyse hat zu lange gedauert. Bitte einen kürzeren Zeitraum wählen oder es später erneut versuchen.',
+          code: 'TIMEOUT',
+          errorCode: 'TIMEOUT',
+        }, 504);
       }
-      throw fetchError;
+      return jsonResponse({
+        error: 'Der KI-Dienst ist vorübergehend nicht erreichbar. Bitte später erneut versuchen.',
+        code: 'LLM_UNAVAILABLE',
+        errorCode: 'LLM_UNAVAILABLE',
+      }, 502);
     }
     clearTimeout(timeoutId);
 
-    // === HANDLE LLM HTTP ERRORS ===
+    // === HANDLE LLM HTTP ERRORS (NO quota commit on any of these) ===
     if (!llmResponse.ok) {
       const status = llmResponse.status;
       const errText = await llmResponse.text();
       console.error(`[analyze-voice-patterns] LLM error ${status}:`, errText.slice(0, 500));
 
       if (status === 429) {
-        return jsonResponse({ error: 'Rate Limit erreicht. Bitte später erneut versuchen.' }, 429);
+        return jsonResponse({ error: 'Rate Limit erreicht. Bitte später erneut versuchen.', code: 'LLM_UNAVAILABLE', errorCode: 'LLM_UNAVAILABLE' }, 429);
       }
       if (status === 402) {
-        return jsonResponse({ error: 'Guthaben aufgebraucht. Bitte Credits hinzufügen.' }, 402);
+        return jsonResponse({ error: 'Guthaben aufgebraucht.', code: 'LLM_UNAVAILABLE', errorCode: 'LLM_UNAVAILABLE' }, 402);
       }
-
-      // For 5xx: return unavailable result instead of crashing
       if (status >= 500) {
-        const result = buildUnavailableResult(
-          'Der KI-Dienst ist vorübergehend nicht verfügbar. Bitte später erneut versuchen.',
-          meta, fromDate, toDate,
-        );
-        return jsonResponse(result, 502);
+        return jsonResponse({
+          error: 'Der KI-Dienst ist vorübergehend nicht verfügbar. Bitte später erneut versuchen.',
+          code: 'LLM_UNAVAILABLE',
+          errorCode: 'LLM_UNAVAILABLE',
+        }, 502);
       }
-
-      throw new Error(`LLM request failed: ${status}`);
+      return jsonResponse({ error: `LLM request failed (${status})`, code: 'LLM_UNAVAILABLE', errorCode: 'LLM_UNAVAILABLE' }, 502);
     }
 
     // === PARSE LLM RESPONSE ===
@@ -562,33 +567,20 @@ ${serializedContext}`
       llmData = await llmResponse.json();
     } catch {
       console.error('[analyze-voice-patterns] Failed to parse LLM response as JSON');
-      const result = buildUnavailableResult(
-        'Die KI-Antwort konnte nicht verarbeitet werden.',
-        meta, fromDate, toDate,
-      );
-      return jsonResponse(result, 200);
+      return jsonResponse({ error: 'Die KI-Antwort konnte nicht verarbeitet werden.', code: 'LLM_UNAVAILABLE', errorCode: 'LLM_UNAVAILABLE' }, 502);
     }
 
     // === EXTRACT STRUCTURED ANALYSIS ===
     const analysisResult = extractAnalysisFromLLMResponse(llmData);
-
     if (!analysisResult) {
       console.error('[analyze-voice-patterns] No valid analysis in LLM response:', JSON.stringify(llmData).slice(0, 500));
-      const result = buildUnavailableResult(
-        'Die KI hat keine strukturierte Analyse zurückgegeben. Bitte erneut versuchen.',
-        meta, fromDate, toDate,
-      );
-      return jsonResponse(result, 200);
+      return jsonResponse({ error: 'Die KI hat keine strukturierte Analyse zurückgegeben. Bitte erneut versuchen.', code: 'LLM_UNAVAILABLE', errorCode: 'LLM_UNAVAILABLE' }, 502);
     }
 
     // === VALIDATE EXTRACTED RESULT ===
     if (!validateExtractedResult(analysisResult)) {
       console.error('[analyze-voice-patterns] Extracted result failed validation:', JSON.stringify(analysisResult).slice(0, 500));
-      const result = buildUnavailableResult(
-        'Die KI-Analyse war unvollständig. Bitte erneut versuchen.',
-        meta, fromDate, toDate,
-      );
-      return jsonResponse(result, 200);
+      return jsonResponse({ error: 'Die KI-Analyse war unvollständig. Bitte erneut versuchen.', code: 'LLM_UNAVAILABLE', errorCode: 'LLM_UNAVAILABLE' }, 502);
     }
 
     // === ATTACH META & SCOPE ===
@@ -611,7 +603,10 @@ ${serializedContext}`
       },
     };
 
-    console.log(`[analyze-voice-patterns] Success: ${meta.totalDays}d, ~${tokenEstimate}tok, ${(analysisResult.possiblePatterns as unknown[])?.length ?? 0} patterns`);
+    // === COMMIT QUOTA (only on success + validation OK) ===
+    await commitPatternAnalysisUsage(supabaseAdmin, user.id, quotaCheck.snapshot);
+
+    console.log(`[analyze-voice-patterns] Success: ${meta.totalDays}d, ~${tokenEstimate}tok, ${(analysisResult.possiblePatterns as unknown[])?.length ?? 0} patterns, quota=${quotaCheck.snapshot.currentUsage + 1}/${quotaCheck.quota.limit}`);
 
     return jsonResponse(result, 200);
 

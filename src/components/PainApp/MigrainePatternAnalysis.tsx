@@ -12,7 +12,8 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Brain, Loader2, AlertCircle, RefreshCw, FileText, CheckCircle2 } from 'lucide-react';
+import { Brain, Loader2, AlertCircle, RefreshCw, FileText, CheckCircle2, Clock, Lock, ShieldAlert } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { TimeRangeSelector } from './TimeRangeSelector';
 import { runVoicePatternAnalysis } from '@/lib/voice/analysisEngine';
@@ -20,6 +21,8 @@ import { isAnalysisUnavailable, type VoiceAnalysisResult, type PatternFinding, t
 import { selectAnalysisForChannel, saveAnalysisResult, MAX_PATTERNS, MAX_SEQUENCES, MAX_QUESTIONS, EVIDENCE_ORDER } from '@/lib/voice/analysisCache';
 import { isTrivialSequence, isBanalContent, isGenericUncertainty, isWeakPattern, cleanSummaryFiller, GENERIC_PHASE_SEQUENCES, BANAL_INTERPRETATION_RX, MEDICATION_TITLE_RX } from '@/lib/voice/analysisFilters';
 import { logError } from '@/lib/utils/errorMessages';
+import { gateDecision, isCacheStaleByAge, berlinDayStart, berlinDayEnd, STALE_AFTER_DAYS } from '@/lib/voice/analysisGate';
+import { useAnalysisGateState } from '@/lib/voice/useAnalysisGateState';
 
 // Filter logic is centralized in analysisFilters.ts for testability
 
@@ -440,12 +443,30 @@ export function MigrainePatternAnalysis() {
   const [isCachedResult, setIsCachedResult] = useState(false);
   const [isStaleResult, setIsStaleResult] = useState(false);
   const [cachedAt, setCachedAt] = useState<string | null>(null);
+  const [gateRefresh, setGateRefresh] = useState(0);
+
+  const gateState = useAnalysisGateState(gateRefresh);
+
+  const ageStale = isCacheStaleByAge(cachedAt);
+  const effectiveStale = isStaleResult || ageStale;
+
+  const decision = useMemo(() => gateDecision({
+    hasConsent: gateState.hasConsent,
+    aiEnabled: gateState.aiEnabled,
+    isUnlimited: gateState.isUnlimited,
+    usageCount: gateState.usageCount,
+    limit: gateState.limit,
+    cooldownRemaining: gateState.cooldownRemaining,
+    hasCache: !!result,
+    isStale: effectiveStale,
+  }), [gateState, result, effectiveStale]);
 
   useEffect(() => {
     let cancelled = false;
     setIsLoadingCache(true);
     setResult(null);
     setError(null);
+    setErrorCode(null);
     setIsWeakData(false);
     setIsCachedResult(false);
     setIsStaleResult(false);
@@ -476,52 +497,48 @@ export function MigrainePatternAnalysis() {
   }, [from, to]);
 
   const runAnalysis = useCallback(async () => {
+    if (!decision.canRunAnalysis) return; // safety: never call edge if gate says no
     setError(null);
     setErrorCode(null);
     setIsWeakData(false);
     setIsAnalyzing(true);
-    setIsCachedResult(false);
-    setIsStaleResult(false);
 
     try {
-      const range = {
-        from: new Date(from + 'T00:00:00'),
-        to: new Date(to + 'T23:59:59'),
-      };
+      const range = { from: berlinDayStart(from), to: berlinDayEnd(to) };
       const analysisResult = await runVoicePatternAnalysis(range);
 
       if (isAnalysisUnavailable(analysisResult)) {
         setIsWeakData(true);
-        setResult(null);
       } else {
         setResult(analysisResult);
+        setIsCachedResult(false);
+        setIsStaleResult(false);
+        setCachedAt(new Date().toISOString());
         saveAnalysisResult(analysisResult, from, to)
-          .then(() => setCachedAt(new Date().toISOString()))
           .catch(err => console.warn('[MigrainePatternAnalysis] Save failed:', err));
       }
     } catch (err) {
       logError('MigrainePatternAnalysis.run', err);
       const code = (err as any)?.code as string | undefined;
-      const msg = err instanceof Error ? err.message : 'Analyse fehlgeschlagen';
-      setErrorCode(code ?? null);
-      if (code === 'AI_CONSENT_REQUIRED') {
-        setError('Bitte erteile zuerst deine Einwilligung zur KI-Verarbeitung in den Datenschutz-Einstellungen.');
-      } else if (code === 'RATE_LIMIT_EXCEEDED' || msg.includes('Rate Limit')) {
-        setError('Bitte warte einen Moment, bevor du erneut analysierst.');
-      } else if (code === 'INSUFFICIENT_CREDITS' || msg.includes('Guthaben')) {
-        setError('Monatliches Analyselimit erreicht. Nächsten Monat stehen dir wieder Analysen zur Verfügung.');
-      } else if (code === 'AUTH_REQUIRED') {
-        setError('Sitzung abgelaufen. Bitte erneut anmelden.');
-      } else if (msg.includes('Keine Daten')) {
-        setError('Im gewählten Zeitraum sind keine Daten vorhanden.');
-      } else {
-        setError('Die Analyse konnte nicht durchgeführt werden. Bitte versuche es später erneut.');
-      }
-      setResult(null);
+      setErrorCode(code ?? 'UNKNOWN');
+      const messages: Record<string, string> = {
+        AI_CONSENT_REQUIRED: 'Für die KI-Analyse ist deine Einwilligung erforderlich.',
+        AI_DISABLED: 'KI-Analyse ist in den Einstellungen deaktiviert.',
+        QUOTA_EXCEEDED: 'Du hast dein monatliches Analyselimit erreicht. Vorhandene Analyse bleibt sichtbar.',
+        COOLDOWN_ACTIVE: 'Bitte kurz warten, bevor du erneut analysierst.',
+        INSUFFICIENT_DATA: 'Im gewählten Zeitraum sind zu wenige Daten für eine Analyse vorhanden.',
+        CONTEXT_TOO_LARGE: 'Der gewählte Zeitraum ist zu groß. Bitte einen kürzeren Zeitraum wählen.',
+        TIMEOUT: 'Die Analyse hat zu lange gedauert. Bitte später erneut versuchen.',
+        LLM_UNAVAILABLE: 'Der KI-Dienst ist vorübergehend nicht verfügbar. Bitte später erneut versuchen.',
+        AUTH_REQUIRED: 'Sitzung abgelaufen. Bitte erneut anmelden.',
+        UNKNOWN: 'Die Analyse konnte nicht durchgeführt werden. Bitte versuche es später erneut.',
+      };
+      setError(messages[code ?? 'UNKNOWN'] ?? messages.UNKNOWN);
     } finally {
       setIsAnalyzing(false);
+      setGateRefresh(n => n + 1); // reload quota/cooldown after attempt
     }
-  }, [from, to]);
+  }, [from, to, decision.canRunAnalysis]);
 
   const cachedAtLabel = useMemo(() => {
     if (!cachedAt) return null;
@@ -536,9 +553,18 @@ export function MigrainePatternAnalysis() {
     }
   }, [cachedAt]);
 
+  // === Button label / disabled state from gate ===
+  const buttonDisabled = isAnalyzing || isLoadingCache || gateState.loading || !decision.canRunAnalysis;
+  const cooldownLabel = (() => {
+    const s = gateState.cooldownRemaining;
+    if (s <= 0) return null;
+    const m = Math.floor(s / 60).toString().padStart(2, '0');
+    const sec = (s % 60).toString().padStart(2, '0');
+    return `${m}:${sec}`;
+  })();
+
   return (
     <div className="space-y-5">
-      {/* Intro */}
       <div className="rounded-lg bg-primary/5 px-4 py-3">
         <div className="flex items-start gap-2.5">
           <Brain className="h-4 w-4 text-primary mt-0.5 shrink-0" />
@@ -553,48 +579,98 @@ export function MigrainePatternAnalysis() {
         </div>
       </div>
 
-      {/* Controls */}
-      <Card>
-        <CardContent className="p-4 space-y-4">
-          <TimeRangeSelector />
-          <Button
-            onClick={runAnalysis}
-            disabled={isAnalyzing || isLoadingCache}
-            className="w-full"
-            size="lg"
-          >
-            {isAnalyzing ? (
-              <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Analyse läuft …</>
-            ) : result ? (
-              <><RefreshCw className="h-4 w-4 mr-2" /> Erneut analysieren</>
-            ) : (
-              <><Brain className="h-4 w-4 mr-2" /> Zusammenhänge suchen</>
+      {/* CONSENT BLOCK */}
+      {!gateState.loading && decision.action === 'block_consent' && (
+        <Card>
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-start gap-3">
+              <Lock className="h-5 w-5 text-muted-foreground mt-0.5" />
+              <div className="space-y-1">
+                <p className="text-sm font-medium">Für die KI-Analyse ist deine Einwilligung erforderlich.</p>
+                <p className="text-xs text-muted-foreground">DSGVO Art. 9 (Gesundheitsdaten). Du kannst dies jederzeit widerrufen.</p>
+              </div>
+            </div>
+            <Button asChild size="sm" className="w-full">
+              <Link to="/consent-required">Einwilligung verwalten</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* AI DISABLED BLOCK */}
+      {!gateState.loading && decision.action === 'block_ai_disabled' && (
+        <Card>
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-start gap-3">
+              <ShieldAlert className="h-5 w-5 text-muted-foreground mt-0.5" />
+              <div>
+                <p className="text-sm font-medium">KI-Analyse ist in deinen Einstellungen deaktiviert.</p>
+              </div>
+            </div>
+            <Button asChild size="sm" variant="outline" className="w-full">
+              <Link to="/consent-required">Einstellungen öffnen</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* CONTROLS — only when gate not blocking on consent/AI-disabled */}
+      {decision.action !== 'block_consent' && decision.action !== 'block_ai_disabled' && (
+        <Card>
+          <CardContent className="p-4 space-y-4">
+            <TimeRangeSelector />
+            <Button
+              onClick={runAnalysis}
+              disabled={buttonDisabled}
+              className="w-full"
+              size="lg"
+            >
+              {isAnalyzing ? (
+                <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Analyse läuft …</>
+              ) : decision.action === 'block_quota' ? (
+                <><Lock className="h-4 w-4 mr-2" /> Limit erreicht ({gateState.usageCount}/{gateState.limit})</>
+              ) : decision.action === 'block_cooldown' ? (
+                <><Clock className="h-4 w-4 mr-2" /> Erneut möglich in {cooldownLabel}</>
+              ) : result ? (
+                <><RefreshCw className="h-4 w-4 mr-2" /> {effectiveStale ? 'Neue Analyse erstellen' : 'Erneut analysieren'}</>
+              ) : (
+                <><Brain className="h-4 w-4 mr-2" /> Zusammenhänge suchen</>
+              )}
+            </Button>
+
+            {/* Quota status (always visible when free user) */}
+            {!gateState.isUnlimited && !gateState.loading && (
+              <p className="text-[11px] text-muted-foreground text-center">
+                {gateState.usageCount}/{gateState.limit} Analysen diesen Monat
+                {decision.action === 'block_quota' && ' · vorhandene Analyse bleibt sichtbar'}
+              </p>
             )}
-          </Button>
 
-          {/* Cache status */}
-          {isCachedResult && cachedAtLabel && !isStaleResult && (
-            <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-1.5">
-              <CheckCircle2 className="h-3 w-3" />
-              Analyse vom {cachedAtLabel}
-            </p>
-          )}
-          {isCachedResult && isStaleResult && (
-            <p className="text-[11px] text-muted-foreground/60 text-center">
-              Basiert auf einem früheren Datenstand{cachedAtLabel ? ` (${cachedAtLabel})` : ''} · für aktuelle Ergebnisse erneut analysieren
-            </p>
-          )}
-        </CardContent>
-      </Card>
+            {/* Cache badge */}
+            {isCachedResult && cachedAtLabel && !effectiveStale && (
+              <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-1.5">
+                <CheckCircle2 className="h-3 w-3 text-green-600" />
+                Aktuell · vom {cachedAtLabel}
+              </p>
+            )}
+            {isCachedResult && effectiveStale && (
+              <div className="rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 px-3 py-2 text-center">
+                <p className="text-[11px] text-amber-900 dark:text-amber-200 flex items-center justify-center gap-1.5">
+                  <AlertCircle className="h-3 w-3" />
+                  Veraltet{cachedAtLabel ? ` · ${cachedAtLabel}` : ''} {ageStale ? `(älter als ${STALE_AFTER_DAYS} Tage)` : '(Daten geändert)'}
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
-      {/* Loading */}
       {isLoadingCache && (
         <div className="flex justify-center py-8">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       )}
 
-      {/* Error */}
       {error && (
         <div className="rounded-lg bg-muted/30 px-4 py-4">
           <div className="flex items-start gap-3">
@@ -602,17 +678,11 @@ export function MigrainePatternAnalysis() {
             <div>
               <p className="text-sm text-foreground/80">{error}</p>
               {errorCode === 'AI_CONSENT_REQUIRED' ? (
-                <p className="text-xs text-muted-foreground mt-2">
-                  Einstellungen → Datenschutz & Konto → „KI-Analyse erlauben"
-                </p>
-              ) : (
-                <Button
-                  onClick={runAnalysis}
-                  variant="ghost"
-                  size="sm"
-                  className="mt-2"
-                  disabled={isAnalyzing}
-                >
+                <Button asChild variant="ghost" size="sm" className="mt-2">
+                  <Link to="/consent-required">Einwilligung verwalten</Link>
+                </Button>
+              ) : errorCode === 'QUOTA_EXCEEDED' || errorCode === 'COOLDOWN_ACTIVE' ? null : (
+                <Button onClick={runAnalysis} variant="ghost" size="sm" className="mt-2" disabled={buttonDisabled}>
                   <RefreshCw className="h-3 w-3 mr-1" /> Erneut versuchen
                 </Button>
               )}
@@ -621,14 +691,10 @@ export function MigrainePatternAnalysis() {
         </div>
       )}
 
-      {/* Weak data */}
       {isWeakData && <WeakDataMessage />}
-
-      {/* Results */}
       {result && <AnalysisResults result={result} />}
 
-      {/* Empty state */}
-      {!result && !isAnalyzing && !isLoadingCache && !error && !isWeakData && (
+      {!result && !isAnalyzing && !isLoadingCache && !error && !isWeakData && decision.canRunAnalysis && (
         <div className="text-center py-10">
           <Brain className="h-10 w-10 mx-auto mb-3 text-muted-foreground/30" />
           <p className="text-sm text-foreground/70">Wähle einen Zeitraum und starte die Analyse</p>
