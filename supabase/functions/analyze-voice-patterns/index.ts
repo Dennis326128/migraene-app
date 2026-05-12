@@ -631,7 +631,13 @@ WICHTIG:
 
 VERLAUFSDATEN:
 
-${serializedContext}`
+${serializedContext}
+
+=== Deterministische Voranalyse (_preAnalysis) ===
+${preAnalysis ? JSON.stringify(preAnalysis, null, 2).slice(0, 8000) : '(keine bereitgestellt)'}
+
+=== Deterministische V2.1-Findings (analysisV21.findings) ===
+${detFindings.length > 0 ? JSON.stringify(detFindings, null, 2).slice(0, 12000) : '(keine bereitgestellt)'}`
             },
           ],
           tools: [ANALYSIS_TOOL],
