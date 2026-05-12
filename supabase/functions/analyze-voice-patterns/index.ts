@@ -525,39 +525,40 @@ ${serializedContext}`
       console.error(`[analyze-voice-patterns] LLM fetch ${isTimeout ? 'timeout' : 'error'}:`, fetchError);
 
       if (isTimeout) {
-        const result = buildUnavailableResult(
-          'Die Analyse hat zu lange gedauert. Bitte einen kürzeren Zeitraum wählen oder es später erneut versuchen.',
-          meta, fromDate, toDate,
-        );
-        return jsonResponse(result, 504);
+        return jsonResponse({
+          error: 'Die Analyse hat zu lange gedauert. Bitte einen kürzeren Zeitraum wählen oder es später erneut versuchen.',
+          code: 'TIMEOUT',
+          errorCode: 'TIMEOUT',
+        }, 504);
       }
-      throw fetchError;
+      return jsonResponse({
+        error: 'Der KI-Dienst ist vorübergehend nicht erreichbar. Bitte später erneut versuchen.',
+        code: 'LLM_UNAVAILABLE',
+        errorCode: 'LLM_UNAVAILABLE',
+      }, 502);
     }
     clearTimeout(timeoutId);
 
-    // === HANDLE LLM HTTP ERRORS ===
+    // === HANDLE LLM HTTP ERRORS (NO quota commit on any of these) ===
     if (!llmResponse.ok) {
       const status = llmResponse.status;
       const errText = await llmResponse.text();
       console.error(`[analyze-voice-patterns] LLM error ${status}:`, errText.slice(0, 500));
 
       if (status === 429) {
-        return jsonResponse({ error: 'Rate Limit erreicht. Bitte später erneut versuchen.' }, 429);
+        return jsonResponse({ error: 'Rate Limit erreicht. Bitte später erneut versuchen.', code: 'LLM_UNAVAILABLE', errorCode: 'LLM_UNAVAILABLE' }, 429);
       }
       if (status === 402) {
-        return jsonResponse({ error: 'Guthaben aufgebraucht. Bitte Credits hinzufügen.' }, 402);
+        return jsonResponse({ error: 'Guthaben aufgebraucht.', code: 'LLM_UNAVAILABLE', errorCode: 'LLM_UNAVAILABLE' }, 402);
       }
-
-      // For 5xx: return unavailable result instead of crashing
       if (status >= 500) {
-        const result = buildUnavailableResult(
-          'Der KI-Dienst ist vorübergehend nicht verfügbar. Bitte später erneut versuchen.',
-          meta, fromDate, toDate,
-        );
-        return jsonResponse(result, 502);
+        return jsonResponse({
+          error: 'Der KI-Dienst ist vorübergehend nicht verfügbar. Bitte später erneut versuchen.',
+          code: 'LLM_UNAVAILABLE',
+          errorCode: 'LLM_UNAVAILABLE',
+        }, 502);
       }
-
-      throw new Error(`LLM request failed: ${status}`);
+      return jsonResponse({ error: `LLM request failed (${status})`, code: 'LLM_UNAVAILABLE', errorCode: 'LLM_UNAVAILABLE' }, 502);
     }
 
     // === PARSE LLM RESPONSE ===
@@ -566,33 +567,20 @@ ${serializedContext}`
       llmData = await llmResponse.json();
     } catch {
       console.error('[analyze-voice-patterns] Failed to parse LLM response as JSON');
-      const result = buildUnavailableResult(
-        'Die KI-Antwort konnte nicht verarbeitet werden.',
-        meta, fromDate, toDate,
-      );
-      return jsonResponse(result, 200);
+      return jsonResponse({ error: 'Die KI-Antwort konnte nicht verarbeitet werden.', code: 'LLM_UNAVAILABLE', errorCode: 'LLM_UNAVAILABLE' }, 502);
     }
 
     // === EXTRACT STRUCTURED ANALYSIS ===
     const analysisResult = extractAnalysisFromLLMResponse(llmData);
-
     if (!analysisResult) {
       console.error('[analyze-voice-patterns] No valid analysis in LLM response:', JSON.stringify(llmData).slice(0, 500));
-      const result = buildUnavailableResult(
-        'Die KI hat keine strukturierte Analyse zurückgegeben. Bitte erneut versuchen.',
-        meta, fromDate, toDate,
-      );
-      return jsonResponse(result, 200);
+      return jsonResponse({ error: 'Die KI hat keine strukturierte Analyse zurückgegeben. Bitte erneut versuchen.', code: 'LLM_UNAVAILABLE', errorCode: 'LLM_UNAVAILABLE' }, 502);
     }
 
     // === VALIDATE EXTRACTED RESULT ===
     if (!validateExtractedResult(analysisResult)) {
       console.error('[analyze-voice-patterns] Extracted result failed validation:', JSON.stringify(analysisResult).slice(0, 500));
-      const result = buildUnavailableResult(
-        'Die KI-Analyse war unvollständig. Bitte erneut versuchen.',
-        meta, fromDate, toDate,
-      );
-      return jsonResponse(result, 200);
+      return jsonResponse({ error: 'Die KI-Analyse war unvollständig. Bitte erneut versuchen.', code: 'LLM_UNAVAILABLE', errorCode: 'LLM_UNAVAILABLE' }, 502);
     }
 
     // === ATTACH META & SCOPE ===
@@ -615,7 +603,10 @@ ${serializedContext}`
       },
     };
 
-    console.log(`[analyze-voice-patterns] Success: ${meta.totalDays}d, ~${tokenEstimate}tok, ${(analysisResult.possiblePatterns as unknown[])?.length ?? 0} patterns`);
+    // === COMMIT QUOTA (only on success + validation OK) ===
+    await commitPatternAnalysisUsage(supabaseAdmin, user.id, quotaCheck.snapshot);
+
+    console.log(`[analyze-voice-patterns] Success: ${meta.totalDays}d, ~${tokenEstimate}tok, ${(analysisResult.possiblePatterns as unknown[])?.length ?? 0} patterns, quota=${quotaCheck.snapshot.currentUsage + 1}/${quotaCheck.quota.limit}`);
 
     return jsonResponse(result, 200);
 
