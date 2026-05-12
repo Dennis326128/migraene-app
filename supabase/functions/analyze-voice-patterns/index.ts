@@ -554,14 +554,15 @@ ${serializedContext}`
         model: 'google/gemini-2.5-flash',
         analyzedAt: new Date().toISOString(),
         promptTokenEstimate: tokenEstimate,
-        analysisVersion: '1.0.0',
+        analysisVersion: '1.1.1',
       },
     };
 
     // === COMMIT QUOTA (only on success + validation OK) ===
     await commitPatternAnalysisUsage(supabaseAdmin, user.id, quotaCheck.snapshot);
 
-    console.log(`[analyze-voice-patterns] Success: ${meta.totalDays}d, ~${tokenEstimate}tok, ${(analysisResult.possiblePatterns as unknown[])?.length ?? 0} patterns, quota=${quotaCheck.snapshot.currentUsage + 1}/${quotaCheck.quota.limit}`);
+    const len = (k: string) => Array.isArray((analysisResult as any)[k]) ? (analysisResult as any)[k].length : 0;
+    console.log(`[analyze-voice-patterns] Success: ${meta.totalDays}d, ~${tokenEstimate}tok, counts: pp=${len('possiblePatterns')} pcf=${len('painContextFindings')} fcf=${len('fatigueContextFindings')} mcf=${len('medicationContextFindings')} rs=${len('recurringSequences')} oq=${len('openQuestions')} cn=${len('confidenceNotes')}, quota=${quotaCheck.snapshot.currentUsage + 1}/${quotaCheck.quota.limit}`);
 
     return jsonResponse(result, 200);
 
