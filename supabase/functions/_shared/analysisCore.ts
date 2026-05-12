@@ -240,6 +240,8 @@ export interface RunLLMOptions {
   fromDate: string;
   toDate: string;
   apiKey: string;
+  /** Defaults to true (App). Doctor-Share MUST pass false. */
+  includesPrivateNotes?: boolean;
 }
 
 export type RunLLMResult =
@@ -253,7 +255,7 @@ export type RunLLMResult =
  * (status code already chosen, body already json-serializable).
  */
 export async function runAnalysisLLM(opts: RunLLMOptions): Promise<RunLLMResult> {
-  const { serializedContext, meta, fromDate, toDate, apiKey } = opts;
+  const { serializedContext, meta, fromDate, toDate, apiKey, includesPrivateNotes } = opts;
   const tokenEstimate = Math.ceil(serializedContext.length / 4);
 
   if ((meta.voiceEventCount + meta.painEntryCount) < MIN_VOICE_EVENTS_OR_ENTRIES) {
@@ -274,7 +276,7 @@ export async function runAnalysisLLM(opts: RunLLMOptions): Promise<RunLLMResult>
     };
   }
 
-  const systemPrompt = buildSystemPrompt(meta);
+  const systemPrompt = buildSystemPrompt(meta, { includesPrivateNotes });
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
 
