@@ -12,7 +12,8 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Brain, Loader2, AlertCircle, RefreshCw, FileText, CheckCircle2 } from 'lucide-react';
+import { Brain, Loader2, AlertCircle, RefreshCw, FileText, CheckCircle2, Clock, Lock, ShieldAlert } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { TimeRangeSelector } from './TimeRangeSelector';
 import { runVoicePatternAnalysis } from '@/lib/voice/analysisEngine';
@@ -20,6 +21,8 @@ import { isAnalysisUnavailable, type VoiceAnalysisResult, type PatternFinding, t
 import { selectAnalysisForChannel, saveAnalysisResult, MAX_PATTERNS, MAX_SEQUENCES, MAX_QUESTIONS, EVIDENCE_ORDER } from '@/lib/voice/analysisCache';
 import { isTrivialSequence, isBanalContent, isGenericUncertainty, isWeakPattern, cleanSummaryFiller, GENERIC_PHASE_SEQUENCES, BANAL_INTERPRETATION_RX, MEDICATION_TITLE_RX } from '@/lib/voice/analysisFilters';
 import { logError } from '@/lib/utils/errorMessages';
+import { gateDecision, isCacheStaleByAge, berlinDayStart, berlinDayEnd, STALE_AFTER_DAYS } from '@/lib/voice/analysisGate';
+import { useAnalysisGateState } from '@/lib/voice/useAnalysisGateState';
 
 // Filter logic is centralized in analysisFilters.ts for testability
 
