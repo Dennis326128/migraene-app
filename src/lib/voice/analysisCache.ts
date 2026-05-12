@@ -50,7 +50,7 @@ const REPORT_TYPE = 'pattern_analysis';
  * Embedded into the data_state_signature so old reports (different version)
  * are treated as stale automatically — no DB migration needed.
  */
-export const ANALYSIS_VERSION = '1.1.1';
+export const ANALYSIS_VERSION = '2.1.0';
 
 // ============================================================
 // === DEDUPE KEY ===
