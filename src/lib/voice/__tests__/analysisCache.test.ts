@@ -398,9 +398,9 @@ describe('buildPatternAnalysisSummary', () => {
       openQuestions: ['Q1', 'Q2', 'Q3', 'Q4', 'Q5', 'Q6'],
     });
     const summary = buildPatternAnalysisSummary(result);
-    expect(summary.patterns).toHaveLength(4);
-    expect(summary.recurringSequences).toHaveLength(2);
-    expect(summary.openQuestions).toHaveLength(2);
+    expect(summary.patterns).toHaveLength(MAX_PATTERNS);
+    expect(summary.recurringSequences).toHaveLength(MAX_SEQUENCES);
+    expect(summary.openQuestions).toHaveLength(MAX_QUESTIONS);
   });
 
   it('is deterministic', () => {
