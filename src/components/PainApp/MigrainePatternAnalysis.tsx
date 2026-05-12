@@ -450,6 +450,7 @@ export function MigrainePatternAnalysis() {
   const [isWeakData, setIsWeakData] = useState(false);
   const [isCachedResult, setIsCachedResult] = useState(false);
   const [isStaleResult, setIsStaleResult] = useState(false);
+  const [staleReason, setStaleReason] = useState<'data_changed' | 'version_mismatch' | null>(null);
   const [cachedAt, setCachedAt] = useState<string | null>(null);
   const [gateRefresh, setGateRefresh] = useState(0);
 
@@ -478,6 +479,7 @@ export function MigrainePatternAnalysis() {
     setIsWeakData(false);
     setIsCachedResult(false);
     setIsStaleResult(false);
+    setStaleReason(null);
     setCachedAt(null);
 
     (async () => {
@@ -491,6 +493,7 @@ export function MigrainePatternAnalysis() {
             setResult(selection.result);
             setIsCachedResult(true);
             setIsStaleResult(!selection.isFresh);
+            setStaleReason(selection.staleReason);
             setCachedAt(selection.result.meta?.analyzedAt || null);
           }
         }
@@ -684,14 +687,29 @@ export function MigrainePatternAnalysis() {
                 Aktuell · vom {cachedAtLabel}
               </p>
             )}
-            {isCachedResult && effectiveStale && (
-              <div className="rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 px-3 py-2 text-center">
-                <p className="text-[11px] text-amber-900 dark:text-amber-200 flex items-center justify-center gap-1.5">
-                  <AlertCircle className="h-3 w-3" />
-                  Veraltet{cachedAtLabel ? ` · ${cachedAtLabel}` : ''} {ageStale ? `(älter als ${STALE_AFTER_DAYS} Tage)` : '(Daten geändert)'}
-                </p>
-              </div>
-            )}
+            {isCachedResult && effectiveStale && (() => {
+              const reasonText = ageStale
+                ? `Diese Analyse ist älter als ${STALE_AFTER_DAYS} Tage. Eine neue Analyse kann aktuellere Hinweise liefern.`
+                : staleReason === 'version_mismatch'
+                  ? 'Die Analyse wurde verbessert. Erstelle eine neue Analyse, um die erweiterten Auswertungen zu erhalten.'
+                  : 'Neue Einträge oder Änderungen seit dieser Analyse.';
+              const badge = ageStale
+                ? `älter als ${STALE_AFTER_DAYS} Tage`
+                : staleReason === 'version_mismatch'
+                  ? 'Analyse-Logik aktualisiert'
+                  : 'Daten geändert';
+              return (
+                <div className="rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 px-3 py-2 text-center space-y-1">
+                  <p className="text-[11px] text-amber-900 dark:text-amber-200 flex items-center justify-center gap-1.5">
+                    <AlertCircle className="h-3 w-3" />
+                    Veraltet{cachedAtLabel ? ` · ${cachedAtLabel}` : ''} ({badge})
+                  </p>
+                  <p className="text-[11px] text-amber-900/80 dark:text-amber-200/80">
+                    {reasonText}
+                  </p>
+                </div>
+              );
+            })()}
           </CardContent>
         </Card>
       )}
