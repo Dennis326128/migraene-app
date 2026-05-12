@@ -42,6 +42,16 @@ const MIN_REANALYSIS_INTERVAL_MS = 5 * 60 * 1000;
 /** Report type used in ai_reports table */
 const REPORT_TYPE = 'pattern_analysis';
 
+/**
+ * Analysis logic version. Bump this whenever prompt structure, enrichment
+ * context, or output schema changes in a way that should invalidate prior
+ * cached analyses even when source data is unchanged.
+ *
+ * Embedded into the data_state_signature so old reports (different version)
+ * are treated as stale automatically — no DB migration needed.
+ */
+export const ANALYSIS_VERSION = '1.1.0';
+
 // ============================================================
 // === DEDUPE KEY ===
 // ============================================================
@@ -107,7 +117,7 @@ export function buildStateSignature(
   contextCount: number = 0, contextTs: string | null = null,
 ): string {
   const ts = (v: string | null) => v ? new Date(v).getTime() : 0;
-  return `pe:${painCount}:${ts(painTs)}|ve:${voiceCount}:${ts(voiceTs)}|mi:${intakeCount}:${ts(intakeTs)}|me:${effectCount}:${ts(effectTs)}|cn:${contextCount}:${ts(contextTs)}`;
+  return `v:${ANALYSIS_VERSION}|pe:${painCount}:${ts(painTs)}|ve:${voiceCount}:${ts(voiceTs)}|mi:${intakeCount}:${ts(intakeTs)}|me:${effectCount}:${ts(effectTs)}|cn:${contextCount}:${ts(contextTs)}`;
 }
 
 // ============================================================
