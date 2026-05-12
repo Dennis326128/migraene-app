@@ -122,7 +122,6 @@ const NOTHING_SPECIAL_ID = 'nothing_special';
 export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
   isOpen,
   onClose,
-  onStartVoice,
   prefillData,
   editingNote,
   onSaved,
