@@ -442,11 +442,11 @@ serve(async (req) => {
     // === DATA SUFFICIENCY CHECK ===
     if ((meta.voiceEventCount + meta.painEntryCount) < MIN_VOICE_EVENTS_OR_ENTRIES) {
       console.warn(`[analyze-voice-patterns] Insufficient data: ${meta.voiceEventCount} voice, ${meta.painEntryCount} pain`);
-      const result = buildUnavailableResult(
-        'Zu wenig Daten für eine sinnvolle Analyse. Bitte mindestens einige Tage dokumentieren.',
-        meta, fromDate, toDate,
-      );
-      return jsonResponse(result, 200);
+      return jsonResponse({
+        error: 'Zu wenig Daten für eine sinnvolle Analyse. Bitte mindestens einige Tage dokumentieren.',
+        code: 'INSUFFICIENT_DATA',
+        errorCode: 'INSUFFICIENT_DATA',
+      }, 422);
     }
 
     // === CONTEXT SIZE CHECK ===
