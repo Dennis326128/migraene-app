@@ -442,10 +442,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({
       <QuickContextNoteModal
         isOpen={showQuickContextNote}
         onClose={() => setShowQuickContextNote(false)}
-        onStartVoice={() => {
-          setShowQuickContextNote(false);
-          setShowVoiceAssistant(true);
-        }}
       />
 
       <VoiceHelpOverlay
