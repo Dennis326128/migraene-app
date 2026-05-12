@@ -44,16 +44,7 @@ const RequestSchema = z.object({
   deterministicFindings: z.array(z.any()).optional(),
 });
 
-// === V2.1 finding categories / evidence / source_basis enums ===
-const V21_CATEGORIES = [
-  "burden", "chronification", "medication_use", "medication_effect",
-  "preventive_course", "symptoms_aura", "weather", "mecfs_energy_pem",
-  "sleep", "stress_mood", "lifestyle_triggers", "time_pattern",
-  "cycle_hormonal", "interaction", "data_quality", "red_flag",
-] as const;
-const V21_EVIDENCE = ["high", "moderate", "low", "insufficient"] as const;
-const V21_SOURCE_BASIS = ["deterministic_finding", "preanalysis", "aggregated_daily_data", "data_gap"] as const;
-const V21_RELEVANCE = ["high", "medium", "low"] as const;
+import { postprocessExpandedFindings, V21_CATEGORIES, V21_EVIDENCE, V21_SOURCE_BASIS, V21_RELEVANCE } from './postprocess.ts';
 
 // ============================================================
 // === TOOL SCHEMA FOR STRUCTURED OUTPUT ===
