@@ -51,8 +51,8 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 if (!SUPABASE_URL || !SERVICE_ROLE) fail("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY required.");
 
-const userId = String(args.get("user") ?? "");
-if (!/^[0-9a-f-]{36}$/i.test(userId)) fail("--user <UUID> required.");
+const userId = String(args.get("user") ?? args.get("user-id") ?? "");
+if (!/^[0-9a-f-]{36}$/i.test(userId)) fail("--user <UUID> (or --user-id <UUID>) required.");
 
 const ttlHours = Math.min(Number(args.get("ttl-hours") ?? 24), 24 * 7);
 if (!Number.isFinite(ttlHours) || ttlHours <= 0) fail("--ttl-hours must be 1..168");
