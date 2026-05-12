@@ -152,8 +152,10 @@ Deno.serve(async (req) => {
       console.log(`[shared-ai] llm_unavailable owner=${shortId(ownerUserId)} status=${llm.status}`);
       return json(llm.body, llm.status);
     }
+    // 7b. Commit quota (success only — bills against patient account)
+    await commitPatternAnalysisUsage(supabase, ownerUserId, quotaCheck.snapshot);
 
-    // 8. Persist as ai_reports so subsequent read-only fetch (snapshot) sees it
+
     try {
       const dedupeKey = `pattern_analysis_${from}_${to}`;
       await supabase.from('ai_reports')
