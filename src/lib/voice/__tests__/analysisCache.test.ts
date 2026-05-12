@@ -780,9 +780,9 @@ describe('Migraine prioritization in sorting', () => {
       ],
     });
     const summary = buildPatternAnalysisSummary(r);
-    // Max 4 patterns
-    expect(summary.patterns).toHaveLength(4);
-    // Order: high(5), high(3), medium(7), medium(2) — P1 (low,10) and P6 (low,1) cut
-    expect(summary.patterns.map(p => p.title)).toEqual(['P4', 'P2', 'P3', 'P5']);
+    // With MAX_PATTERNS=8, all 6 patterns are kept and sorted
+    expect(summary.patterns).toHaveLength(6);
+    // Order: high(5), high(3), medium(7), medium(2), low(10), low(1)
+    expect(summary.patterns.map(p => p.title)).toEqual(['P4', 'P2', 'P3', 'P5', 'P1', 'P6']);
   });
 });
