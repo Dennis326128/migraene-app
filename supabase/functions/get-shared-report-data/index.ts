@@ -18,6 +18,15 @@ import {
 import { getLinkedHistoryDiaryReport } from "../_shared/doctorSharedHistoryReport.ts";
 import { getCorsHeaders, handlePreflight } from "../_shared/cors.ts";
 import { verifyDoctorAccess } from "../_shared/doctorAccessGuard.ts";
+import {
+  computeDataStateSignature,
+  computeIsStale,
+  loadDayFactors,
+  loadLatestPatternAnalysis,
+  loadQuotaState,
+  resolveAiConsentState,
+  resolveAiEnabledState,
+} from "../_shared/doctorShareSsot.ts";
 
 // Legacy response builder
 function buildLegacyFields(reportJson: DoctorReportJSON, userId: string) {
@@ -102,16 +111,18 @@ Deno.serve(async (req) => {
     const page = parseInt(url.searchParams.get("page") || "1", 10);
     const wantsLegacy = url.searchParams.get("legacy") === "1" || req.headers.get("x-report-legacy") === "1";
 
-    // Check share settings for AI analysis inclusion
+    // Check share settings for AI analysis inclusion + new SSOT flags
     let includePatternAnalysis = false;
+    let allowAiGenerate = false;
+    let shareDayFactors = false;
     const { data: shareSettings } = await supabase
       .from("doctor_share_settings")
-      .select("include_ai_analysis")
+      .select("include_ai_analysis, allow_ai_generate, share_day_factors")
       .eq("share_id", shareId)
       .maybeSingle();
-    if (shareSettings?.include_ai_analysis) {
-      includePatternAnalysis = true;
-    }
+    if (shareSettings?.include_ai_analysis) includePatternAnalysis = true;
+    if (shareSettings?.allow_ai_generate) allowAiGenerate = true;
+    if (shareSettings?.share_day_factors) shareDayFactors = true;
 
     // Snapshot flow
     let reportJson: DoctorReportJSON;
@@ -184,6 +195,39 @@ Deno.serve(async (req) => {
       meta: { ...pagedReport.meta, schemaVersion: "v1" },
     };
 
+    // ─────────────────────────────────────────────────────────────────
+    // SSOT extension: latestAiReport, dataStateSignature, dayFactors, share, quotaState
+    // ─────────────────────────────────────────────────────────────────
+    const fromDate = enrichedReport.meta.fromDate;
+    const toDate = enrichedReport.meta.toDate;
+
+    const [
+      dataState,
+      loadedLatest,
+      aiConsentState,
+      aiEnabledState,
+      quotaState,
+    ] = await Promise.all([
+      computeDataStateSignature(supabase, userId, fromDate, toDate),
+      includePatternAnalysis
+        ? loadLatestPatternAnalysis(supabase, userId, fromDate, toDate)
+        : Promise.resolve(null),
+      resolveAiConsentState(supabase, userId),
+      resolveAiEnabledState(supabase, userId),
+      loadQuotaState(supabase, userId),
+    ]);
+
+    const latestAiReport = loadedLatest?.report ?? null;
+    const isStale = computeIsStale(
+      latestAiReport,
+      dataState.signature,
+      loadedLatest?.storedSignature ?? null,
+    );
+
+    const dayFactors = shareDayFactors
+      ? await loadDayFactors(supabase, userId, fromDate, toDate)
+      : undefined;
+
     const responseBody: Record<string, unknown> = {
       report: enrichedReport,
       snapshotId,
@@ -192,7 +236,19 @@ Deno.serve(async (req) => {
       historyDiaryCreatedAt: linkedHistoryReport?.createdAt ?? null,
       pdfFilePath: linkedHistoryReport?.pdfFilePath ?? null,
       isTodayDiary: linkedHistoryReport?.isTodayDiary ?? false,
+      share: {
+        allowAiGenerate,
+        shareDayFactors,
+        aiConsentState,
+        aiEnabledState,
+      },
+      quotaState,
+      latestAiReport,
+      latestRelevantDataAt: dataState.latestRelevantDataAt,
+      dataStateSignature: dataState.signature,
+      isStale,
     };
+    if (dayFactors) responseBody.dayFactors = dayFactors;
     if (wantsLegacy) Object.assign(responseBody, buildLegacyFields(enrichedReport, userId));
 
     return new Response(

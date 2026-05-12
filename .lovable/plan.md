@@ -1,73 +1,90 @@
 ## Ziel
-Die KI-Analyse `pattern_analysis` final stabil machen: Free-Limit 3/Monat (Bypass `ai_unlimited`), 5-Min-Cooldown UI-erzwungen, klare Cache-Badges (Aktuell/Veraltet anhand Signature + 14-Tage-TTL), strukturierte Fehlercodes, sauberer Consent-UI-Pfad, Europe/Berlin-Datumsgrenzen.
+Website (Doctor-Share) zeigt gespeicherte App-Analysen aus `ai_reports` (SSOT) und darf nur mit explizitem Patientenrecht eine neue Analyse erstellen.
 
-## 1) DB — keine neue Tabelle
-`user_ai_usage` ist bereits passend (`feature='pattern_analysis'`, monatliches `period_start`, `request_count`, `last_used_at`). Genutzt analog zu `analyze-voice-notes`. Keine Migration nötig.
+## A) DB-Migration (neu)
 
-## 2) Edge Function `analyze-voice-patterns` (App)
-- **Quota-Check VOR LLM-Call** (per Service-Role lesen): 
-  - Skip wenn `user_profiles.ai_unlimited=true`.
-  - Sonst: `request_count >= 3` im aktuellen Monat → `409 { code:'QUOTA_EXCEEDED', usageCount, limit:3 }`.
-- **Cooldown-Check** (5 Min seit `last_used_at`) → `429 { code:'COOLDOWN_ACTIVE', cooldownRemaining }`. Bypass bei `ai_unlimited`.
-- **Quota-Increment NUR nach erfolgreichem + validiertem Result.** (Nicht bei Timeout/Validation-Fail/LLM 5xx/Consent-Fail.)
-- Nach Erfolg: `ai_reports` upsert (dedupe_key) — bereits via Client → wird zusätzlich serverseitig gespiegelt damit Doctor-Share-Pfad konsistent ist (analog `analyze-voice-patterns-shared`).
-- Strukturierte Fehlercodes immer mit `code:` und `errorCode:`-Feld (Backwards-Kompat).
+`doctor_share_settings`:
+- `allow_ai_generate boolean NOT NULL DEFAULT false` — Website darf neue Analyse triggern.
+- `share_day_factors boolean NOT NULL DEFAULT false` — Strukturierte Tagesfaktoren ausliefern.
 
-## 3) Edge Function `analyze-voice-patterns-shared` (Doctor-Share)
-- Identische Quota-/Cooldown-Logik gegen **Patientenkonto** (`ownerUserId`).
-- Bypass `ai_unlimited` des Patienten.
-- Quota-Increment ebenfalls erst nach Validation OK.
+Bestehend bleibt: `include_ai_analysis` (= gespeicherte Analyse anzeigen).
 
-## 4) Frontend `analysisEngine.ts`
-- Map Edge-Status → `error.code`:
-  - 401 → `AUTH_REQUIRED`
-  - 403 + `AI_CONSENT_REQUIRED` → `AI_CONSENT_REQUIRED`
-  - 403 + `AI_DISABLED` → `AI_DISABLED`
-  - 409 + `QUOTA_EXCEEDED` → `QUOTA_EXCEEDED` (mit `usageCount`/`limit`)
-  - 429 + `COOLDOWN_ACTIVE` → `COOLDOWN_ACTIVE` (mit `cooldownRemaining`)
-  - 413 → `CONTEXT_TOO_LARGE`
-  - 504 → `TIMEOUT`
-  - 502/`LLM_UNAVAILABLE` → `LLM_UNAVAILABLE`
-  - `Unavailable`-Body mit `errorReason` + `<10 Daten` → `INSUFFICIENT_DATA`
-  - Sonst → `UNKNOWN`
-- **Vor-Flight-Check**: lade `user_consents.has_ai_consent` + `user_profiles.ai_enabled/ai_unlimited` + `get_pattern_analysis_usage` (RPC bereits vorhanden) → liefert `{ canAnalyze, blockedReason, usageCount, limit, cooldownRemaining }`.
+Keine Defaults für bestehende Codes ändern → automatisch `false` (sicher).
 
-## 5) UI `MigrainePatternAnalysis.tsx`
-- Pre-flight-Hook lädt zusätzlich Quota/Cooldown/Consent-Status.
-- **Konsolidierte Aktions-Logik:**
-  - Consent fehlt → CTA „Einwilligung erteilen" (Link zu Settings), Analyse-Button NICHT sichtbar; KEIN Edge-Call möglich.
-  - AI deaktiviert → Hinweis + Settings-Link.
-  - Quota erreicht → Button disabled, Hinweis „3/3 Analysen diesen Monat. Vorhandene Analyse weiter sichtbar." (zeigt evtl. vorhandene Analyse weiter an).
-  - Cooldown aktiv → Button disabled mit Live-Countdown („Erneut möglich in 02:43").
-  - Daten zu wenig → konkrete Info via Empty-State + `INSUFFICIENT_DATA`-Hinweis.
-- **Cache-Badge:**
-  - Wenn `selection.isFresh && Alter ≤ 14 Tage` → grünes „Aktuell" + Datum.
-  - Sonst → gelbes „Veraltet" + Button „Neue Analyse erstellen" (sofern Quota+Cooldown ok).
-- **TTL-Konstante** `STALE_AFTER_DAYS = 14` zentral in `analysisCache.ts`.
+## B) Neuer Shared-Helper
 
-## 6) Europe/Berlin Zeitzone
-- In `MigrainePatternAnalysis.tsx`: `new Date(from + 'T00:00:00')` ersetzen durch Helper, der ISO-Date in Berlin-Mitternacht/Ende konvertiert (zeitzone-sicher).
-- Helper `berlinDayBoundaries(from, to)` zentral exportieren und auch in `analysisEngine` und Edge nutzen, falls dort Datumsgrenzen gebildet werden.
+`supabase/functions/_shared/doctorShareSsot.ts`:
+- `loadLatestPatternAnalysis(supabase, userId, from, to)` → liest neuesten Eintrag aus `ai_reports` (`report_type='pattern_analysis'`, Zeitraum ⊆ from/to oder `from_date<=from && to_date>=to` bevorzugt; sonst neuester überlappender), erzeugt `summaryMd` aus `response_json` (Markdown-Builder: top-Insights, Korrelationen, Empfehlungen, plus `validation`).
+- `computeDataStateSignature(supabase, userId, from, to, opts)` → SHA-256 Hash über: max(updated_at) von `pain_entries`, `medication_intakes`, `weather_logs`, `voice_notes(context_type='tageszustand')`, `voice_events`. Liefert `{signature, latestRelevantDataAt}`.
+- `loadDayFactors(supabase, userId, from, to)` → strukturierte Tagesfaktoren mit `{daily, aggregates}`. Whitelist: `mood, stress, sleep, sleepQuality, energy, fatigueContextTags, triggers (nur Tags), hadSpecialEvent`. Niemals `metadata.notes`, Transkripte, Audio-URLs, „Was war heute besonders?"-Freitext.
+- `buildSharePayload(supabase, shareId, userId, settings)` → liefert `share`, `quotaState`, `latestAiReport`, `latestRelevantDataAt`, `dataStateSignature`, `isStale`, optional `dayFactors`.
 
-## 7) Cooldown
-- Im UI Live-Countdown via `setInterval`. Bypass für `ai_unlimited` mit Hinweis-Tooltip.
-- Im Edge bleibt Cooldown serverseitig erzwungen (Source of Truth).
+`isStale = !latestAiReport || latestAiReport.dataStateSignature !== current || latestAiReport älter als 14 Tage`.
 
-## 8) Tests (Vitest)
-Neue Tests in `src/lib/voice/__tests__/analysisGate.test.ts`:
-- `gateDecision()` reine Funktion: liefert Aktion/Reason aus `{consent, aiEnabled, unlimited, usageCount, limit, cooldownRemaining, hasCache, isStale, dataSufficient}`.
-- Cases: consent fehlt → block, 0/3 → allow, 3/3 unlimited=false → quota_exceeded, 3/3 unlimited=true → allow, cooldown 120s + unlimited=false → cooldown, isStale=true + slot frei → allow_new, hasCache+fresh → no_action_needed.
+## C) `get-shared-report-data/index.ts`
 
-Bereits vorhandene Tests:
-- `analysisCache.test.ts` (Cooldown, Stale, Signature) ✅
-- Edge-Function-Tests via `supabase--test_edge_functions` für Prompt-Inhalte ✅
+- Liest zusätzlich `allow_ai_generate, share_day_factors, include_ai_analysis, include_context_notes` aus `doctor_share_settings`.
+- Resolved aiConsentState (`granted|missing|revoked`) via `user_consents` (neueste, `consent_withdrawn_at` → revoked).
+- Resolved aiEnabledState aus `user_profiles.ai_enabled`/global Flag.
+- Quota nur lesend via `checkPatternAnalysisQuota(..., {enforceCooldown:false})` → verbraucht nichts.
+- Response wird ergänzt um Felder: `share`, `quotaState`, `latestAiReport`, `latestRelevantDataAt`, `dataStateSignature`, `isStale`, `dayFactors?`.
+- Falls `include_ai_analysis=false` → `latestAiReport=null`.
+- Falls `share_day_factors=false` → kein `dayFactors`-Feld.
 
-## 9) Berichte am Ende
-A) Geänderte Dateien · B) (keine Migration) · C) Edge-Function-Diff (zwei Funktionen) · D) UI-Diff · E) Test-Output · F) Risiken · G) Nicht-Umgesetztes.
+## D) `analyze-voice-patterns-shared/index.ts`
 
-## Bestätigung
-Bevor ich loslege bitte kurz bestätigen:
-- **Quota 3/Monat** korrekt? (du hattest 3 vorgeschlagen)
-- **TTL 14 Tage** für „Veraltet"-Badge korrekt? (in deinem aktuellen Brief explizit so)
-- **`ai_unlimited` umgeht Cooldown** ja/nein? (du hattest „optional" geschrieben — ich empfehle JA, da Power-User/Devs sonst behindert werden)
-- **Doctor-Share-Cooldown**: gleiche 5 Min auf Patientenkonto? Falls Patient gleichzeitig in App analysiert, könnte das blockieren — Alternative: kein Cooldown im Doctor-Share, nur Quota. (Empfehlung: kein Cooldown in Doctor-Share.)
+Reihenfolge der Gates (vor LLM):
+1. Doctor access ✓ (vorhanden)
+2. Patient consent (`has_ai_consent`) → `AI_CONSENT_REQUIRED` (vorhanden)
+3. `include_ai_analysis=true` → `AI_NOT_ENABLED_FOR_SHARE` (vorhanden)
+4. **NEU**: `allow_ai_generate=true` → sonst `AI_GENERATE_NOT_ALLOWED` (403)
+5. `ai_enabled` (vorhanden)
+6. Quota (vorhanden, ohne Cooldown)
+
+Persistierung: bestehender Insert nach `ai_reports` setzt jetzt zusätzlich `data_state_signature` + `source_updated_at` aus `computeDataStateSignature`.
+
+## E) Tests
+
+`supabase/functions/_shared/doctorShareSsot_test.ts` (Deno):
+- summaryMd-Builder erzeugt Markdown aus typischem `response_json`.
+- isStale-Logik: signatur-Mismatch / >14d / null.
+- Tagesfaktoren-Whitelist filtert Freitexte raus (negative test: `metadata.notes`, Transkript-Strings nie im JSON).
+- `computeDataStateSignature` deterministisch + ändert sich bei updated_at-Wechsel.
+
+`supabase/functions/analyze-voice-patterns-shared/gates_test.ts`:
+- `AI_GENERATE_NOT_ALLOWED` wenn `allow_ai_generate=false`.
+- erfolgreiche Pfad-Validierung mit allen Gates true (mit Mock-Supabase).
+
+Bestehender App-Pfad (`analyze-voice-patterns`) bleibt unberührt.
+
+## F) Response-Shape (Auszug)
+
+```jsonc
+{
+  "report": { /* unverändert */ },
+  "share": {
+    "allowAiGenerate": false,
+    "shareDayFactors": false,
+    "aiConsentState": "granted",
+    "aiEnabledState": "enabled"
+  },
+  "quotaState": { "remaining": 2, "limit": 3, "resetAtISO": "2026-06-01T00:00:00Z", "isUnlimited": false },
+  "latestAiReport": {
+    "id": "...", "summaryMd": "## Muster ...",
+    "createdAtISO": "...", "periodFromISO": "...", "periodToISO": "...",
+    "model": "google/gemini-2.5-flash", "source": "patient",
+    "insightsHash": "sha256:...", "validationStatus": "ok"
+  },
+  "latestRelevantDataAt": "2026-05-12T08:30:00Z",
+  "dataStateSignature": "sha256:...",
+  "isStale": false,
+  "dayFactors": { /* nur wenn share_day_factors=true */ }
+}
+```
+
+## G) Risiken / Nicht umgesetzt
+- `ai_reports` hat kein Markdown-Feld → `summaryMd` wird deterministisch aus `response_json` gebaut. Alternative wäre Migration mit `summary_md`-Spalte (verworfen — kein Wert-Add solange JSON SSOT bleibt).
+- `weather_logs` evtl. nicht user-scoped → Signatur ignoriert weather falls Spalte fehlt (try/catch).
+- Globaler `ai_enabled`-Killswitch gibt es nicht in DB → Zustand `disabled_globally` wird nur ausgegeben wenn Env-Flag `AI_GLOBAL_DISABLED=true` gesetzt ist.
+
+Bitte bestätigen, dann implementiere ich A–E in einem Rutsch.

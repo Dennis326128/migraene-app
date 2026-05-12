@@ -27,6 +27,7 @@ import { verifyDoctorAccess } from "../_shared/doctorAccessGuard.ts";
 import { buildServerAnalysisDataset } from "../_shared/serverAnalysisDataset.ts";
 import { runAnalysisLLM } from "../_shared/analysisCore.ts";
 import { checkPatternAnalysisQuota, commitPatternAnalysisUsage, quotaErrorBody } from "../_shared/aiQuotaGate.ts";
+import { computeDataStateSignature } from "../_shared/doctorShareSsot.ts";
 
 const PRESET_DAYS: Record<string, number> = {
   '1m': 30, '30d': 30, '3m': 90, '6m': 180, '12m': 365,
@@ -102,13 +103,20 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 3. Share must have AI analysis enabled
+    // 3. Share must have AI analysis enabled AND explicitly allow new generation
     const [{ data: shareSettings }, { data: shareRow }] = await Promise.all([
-      supabase.from('doctor_share_settings').select('include_ai_analysis,range_preset').eq('share_id', shareId).maybeSingle(),
+      supabase.from('doctor_share_settings').select('include_ai_analysis,allow_ai_generate,range_preset').eq('share_id', shareId).maybeSingle(),
       supabase.from('doctor_shares').select('default_range').eq('id', shareId).maybeSingle(),
     ]);
     if (!shareSettings?.include_ai_analysis) {
       return json({ error: 'KI-Analyse ist für diese Freigabe nicht aktiviert.', code: 'AI_NOT_ENABLED_FOR_SHARE' }, 403);
+    }
+    if (!shareSettings?.allow_ai_generate) {
+      console.log(`[shared-ai] AI_GENERATE_NOT_ALLOWED owner=${shortId(ownerUserId)} share=${shortId(shareId)}`);
+      return json({
+        error: 'Diese Freigabe erlaubt keine neuen KI-Analysen über die Website.',
+        code: 'AI_GENERATE_NOT_ALLOWED',
+      }, 403);
     }
 
     // 4. Owner profile gate (App-side AI disable)
@@ -158,6 +166,7 @@ Deno.serve(async (req) => {
 
     try {
       const dedupeKey = `pattern_analysis_${from}_${to}`;
+      const ds = await computeDataStateSignature(supabase, ownerUserId, from, to);
       await supabase.from('ai_reports')
         .delete()
         .eq('user_id', ownerUserId)
@@ -173,6 +182,8 @@ Deno.serve(async (req) => {
         dedupe_key: dedupeKey,
         response_json: llm.body,
         model: 'google/gemini-2.5-flash',
+        data_state_signature: ds.signature,
+        source_updated_at: ds.latestRelevantDataAt,
       });
     } catch (persistErr) {
       console.error(`[shared-ai] persist_failed owner=${shortId(ownerUserId)}:`, persistErr);
