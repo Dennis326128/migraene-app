@@ -185,7 +185,7 @@ describe('buildStateSignature', () => {
 
   it('null timestamps produce 0', () => {
     const sig = buildStateSignature(0, null, 0, null, 0, null, 0, null);
-    expect(sig).toBe('pe:0:0|ve:0:0|mi:0:0|me:0:0');
+    expect(sig).toBe('v:1.1.1|pe:0:0|ve:0:0|mi:0:0|me:0:0|cn:0:0');
   });
 
   it('encodes all four sources', () => {
