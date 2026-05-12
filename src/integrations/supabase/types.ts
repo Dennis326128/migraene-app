@@ -1938,6 +1938,7 @@ export type Database = {
           text: string
           text_fts: unknown
           tz: string
+          updated_at: string
           user_id: string
         }
         Insert: {
@@ -1956,6 +1957,7 @@ export type Database = {
           text: string
           text_fts?: unknown
           tz?: string
+          updated_at?: string
           user_id: string
         }
         Update: {
@@ -1974,6 +1976,7 @@ export type Database = {
           text?: string
           text_fts?: unknown
           tz?: string
+          updated_at?: string
           user_id?: string
         }
         Relationships: []

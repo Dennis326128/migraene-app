@@ -91,7 +91,7 @@ export async function buildServerAnalysisDataset(
   const toIso = `${toDate}T23:59:59Z`;
 
   // === FETCH (always filtered by ownerUserId) ===
-  const [voiceRes, painRes, medRes] = await Promise.all([
+  const [voiceRes, painRes, medRes, ctxRes] = await Promise.all([
     supabase
       .from('voice_events')
       .select('id,event_timestamp,created_at,cleaned_transcript,raw_transcript,event_types,tags,medical_relevance')
@@ -116,21 +116,38 @@ export async function buildServerAnalysisDataset(
       .lte('taken_date', toDate)
       .order('taken_date', { ascending: true })
       .limit(4000),
+    // Tageszustand: structured fields only — NEVER text/notes (privacy)
+    supabase
+      .from('voice_notes')
+      .select('occurred_at,context_type,metadata')
+      .eq('user_id', ownerUserId)
+      .eq('context_type', 'tageszustand')
+      .is('deleted_at', null)
+      .gte('occurred_at', fromIso)
+      .lte('occurred_at', toIso)
+      .order('occurred_at', { ascending: true })
+      .limit(500),
   ]);
 
   const voiceEvents = (voiceRes.data ?? []) as VoiceEventRow[];
   const painEntries = (painRes.data ?? []) as PainEntryRow[];
   const medIntakes = (medRes.data ?? []) as MedicationIntakeRow[];
+  const ctxNotes = (ctxRes.data ?? []) as Array<{
+    occurred_at: string;
+    context_type: string | null;
+    metadata: Record<string, unknown> | null;
+  }>;
 
   // === GROUP BY DAY ===
   const days = new Map<string, {
     voice: VoiceEventRow[];
     pain: PainEntryRow[];
     meds: MedicationIntakeRow[];
+    factors: Array<{ mood: number|null; stress: number|null; sleep: number|null; energy: number|null; triggers: string[] }>;
   }>();
 
   function ensure(day: string) {
-    if (!days.has(day)) days.set(day, { voice: [], pain: [], meds: [] });
+    if (!days.has(day)) days.set(day, { voice: [], pain: [], meds: [], factors: [] });
     return days.get(day)!;
   }
 
@@ -145,6 +162,18 @@ export async function buildServerAnalysisDataset(
   for (const m of medIntakes) {
     const k = dayKey(m.taken_date ?? m.taken_at);
     if (k) ensure(k).meds.push(m);
+  }
+  for (const c of ctxNotes) {
+    const k = dayKey(c.occurred_at);
+    if (!k) continue;
+    const meta = (c.metadata ?? {}) as Record<string, unknown>;
+    ensure(k).factors.push({
+      mood: typeof meta.mood === 'number' ? meta.mood : null,
+      stress: typeof meta.stress === 'number' ? meta.stress : null,
+      sleep: typeof meta.sleep === 'number' ? meta.sleep : null,
+      energy: typeof meta.energy === 'number' ? meta.energy : null,
+      triggers: Array.isArray(meta.triggers) ? (meta.triggers as string[]) : [],
+    });
   }
 
   let daysWithPain = 0;
@@ -188,6 +217,18 @@ export async function buildServerAnalysisDataset(
     }
     if (mecfsScore > 0) {
       lines.push(`- ME/CFS-Score: ${mecfsScore}`);
+    }
+    if (d.factors.length > 0) {
+      // Tageszustand: structured fields only — no free-text notes (privacy)
+      for (const f of d.factors) {
+        const parts: string[] = [];
+        if (f.mood !== null) parts.push(`Stimmung=${f.mood}/5`);
+        if (f.stress !== null) parts.push(`Stress=${f.stress}/5`);
+        if (f.sleep !== null) parts.push(`Schlaf=${f.sleep}/5`);
+        if (f.energy !== null) parts.push(`Energie=${f.energy}/5`);
+        if (f.triggers.length > 0) parts.push(`Auslöser: ${f.triggers.join(', ')}`);
+        if (parts.length > 0) lines.push(`- Tagesfaktoren: ${parts.join(', ')}`);
+      }
     }
     if (d.voice.length > 0) {
       // Max 5 transcripts per day, each truncated to 240 chars

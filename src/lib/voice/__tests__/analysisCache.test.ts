@@ -104,6 +104,7 @@ function mockFingerprint(overrides?: Partial<DataStateFingerprint>): DataStateFi
     voiceEventCount: 5, latestVoiceEvent: '2026-03-20T09:00:00Z',
     medIntakeCount: 3, latestMedIntake: '2026-03-25T10:00:00Z',
     medEffectCount: 2, latestMedEffect: '2026-03-28T11:00:00Z',
+    contextNoteCount: 0, latestContextNote: null,
     maxTimestamp: '2026-03-28T11:00:00Z',
     stateSignature: SIG_A,
     ...overrides,

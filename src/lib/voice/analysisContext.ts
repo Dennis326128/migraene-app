@@ -165,6 +165,21 @@ export interface TriggerContextEntry {
 }
 
 /**
+ * Full per-day Tagesfaktoren entry (mood/stress/sleep/energy/triggers/notes).
+ * One entry per voice_notes row with context_type='tageszustand'.
+ */
+export interface DailyFactorEntry {
+  date: string;
+  mood: number | null;
+  stress: number | null;
+  sleep: number | null;
+  energy: number | null;
+  triggers: string[];
+  fatigueTags: string[];
+  notes: string | null;
+}
+
+/**
  * Complete LLM-ready analysis context for a date range.
  */
 export interface AnalysisContext {
@@ -185,6 +200,8 @@ export interface AnalysisContext {
   fatigueContextSummary: FatigueContextEntry[];
   /** Trigger/stress context from "Alltag & Auslöser" form entries */
   triggerContextSummary: TriggerContextEntry[];
+  /** Full per-day Tagesfaktoren entries (mood/stress/sleep/energy/triggers/notes) */
+  dailyFactors: DailyFactorEntry[];
   meta: {
     totalItems: number;
     totalDays: number;
@@ -564,8 +581,23 @@ export function serializeForLLM(ctx: AnalysisContext): string {
   lines.push(`=== Verlaufsdaten (${ctx.meta.totalDays} Tage, ${ctx.meta.totalItems} Ereignisse) ===`);
   lines.push('');
 
+  // Pre-compute pain dates for T-1 / T+1 annotations
+  const painDateSet = new Set(ctx.days.filter(d => d.maxPainLevel > 0).map(d => d.date));
+  const isoOffset = (date: string, days: number): string => {
+    const d = new Date(date + 'T00:00:00Z');
+    d.setUTCDate(d.getUTCDate() + days);
+    return d.toISOString().slice(0, 10);
+  };
+  const painRel = (date: string): string => {
+    if (painDateSet.has(date)) return ' [Schmerztag]';
+    if (painDateSet.has(isoOffset(date, 1))) return ' [T-1 vor Schmerztag]';
+    if (painDateSet.has(isoOffset(date, -1))) return ' [T+1 nach Schmerztag]';
+    if (painDateSet.has(isoOffset(date, 2))) return ' [T-2 vor Schmerztag]';
+    return '';
+  };
+
   for (const day of ctx.days) {
-    lines.push(`--- ${day.date} ---`);
+    lines.push(`--- ${day.date}${painRel(day.date)} ---`);
     if (day.maxPainLevel > 0) lines.push(`  Max. Schmerz: ${day.maxPainLevel}/10`);
     if (day.hasMecfsSignals) lines.push(`  ME/CFS-Signale vorhanden`);
     if (day.hasMedication) lines.push(`  Medikation eingenommen`);
@@ -636,71 +668,30 @@ export function serializeForLLM(ctx: AnalysisContext): string {
     lines.push('');
   }
 
-  // Fatigue/energy context — ONLY include entries near pain days with meaningful tags
-  if (ctx.fatigueContextSummary && ctx.fatigueContextSummary.length > 0) {
-    const painDates = new Set(ctx.days.filter(d => d.maxPainLevel > 0).map(d => d.date));
-    // Helper: check if a date is within ±1 day of any pain day
-    const isNearPain = (dateStr: string) => {
-      if (painDates.has(dateStr)) return true;
-      const d = new Date(dateStr);
-      const prev = new Date(d); prev.setDate(prev.getDate() - 1);
-      const next = new Date(d); next.setDate(next.getDate() + 1);
-      return painDates.has(prev.toISOString().slice(0, 10)) || painDates.has(next.toISOString().slice(0, 10));
-    };
-    // STRICT: require pain proximity AND meaningful tags (not just "einfach müde")
-    const meaningfulTags = /belastung|reizüberflutet|brain fog|benommen|hinlegen|aktivität/i;
-    const combined = ctx.fatigueContextSummary.filter(entry => {
-      // Must be near a pain day
-      if (!isNearPain(entry.date)) return false;
-      // Filter out entries with only "einfach müde" or "unklar" tags
-      const usefulTags = entry.tags.filter(t => t !== 'einfach müde' && t !== 'unklar');
-      // Must have either meaningful tags, "probable" relevance, or very low energy with useful tags
-      if (entry.relevance === 'probable' && usefulTags.length > 0) return true;
-      if (usefulTags.some(t => meaningfulTags.test(t))) return true;
-      if (entry.energyLevel === 1 && usefulTags.length > 0) return true;
-      return false;
-    });
-
-    if (combined.length > 0) {
-      lines.push('=== Erschöpfungskontext (nur migränerelevante Tage) ===');
-      lines.push('NUR als ergänzender Kontext nutzen. Nicht als eigenständiges Muster werten.');
-      lines.push('');
-      for (const entry of combined.slice(0, 8)) {
-        const filteredTags = entry.tags.filter(t => t !== 'einfach müde');
-        const parts = [`  ${entry.date}: Energie=${entry.energyLevel}`];
-        if (entry.stressLevel !== null && entry.stressLevel <= 2) parts.push(`Stress=${entry.stressLevel}/4`);
-        if (entry.sleepLevel !== null && entry.sleepLevel <= 2) parts.push(`Schlaf=${entry.sleepLevel}/4`);
-        if (filteredTags.length > 0) parts.push(`(${filteredTags.join(', ')})`);
-        lines.push(parts.join(', '));
+  // Full daily factors (mood/stress/sleep/energy/triggers/notes for ALL Tageszustand entries)
+  // The LLM sees every day so it can detect prodromal patterns (T-1, T-2) itself.
+  if (ctx.dailyFactors && ctx.dailyFactors.length > 0) {
+    lines.push('=== Tagesfaktoren (Alltag & Auslöser) ===');
+    lines.push('Strukturierte Selbstauskunft pro Tag. Skalen: Stimmung 1=sehr schlecht…5=sehr gut, Stress 1=keiner…5=sehr hoch, Schlaf 1=sehr schlecht…5=sehr gut, Energie 1=erschöpft…5=energiegeladen.');
+    lines.push('Berücksichtige diese bei Korrelationen mit Schmerz, Wetter, Medikamentenwirkung, ME/CFS, Fatigue, PEM und Belastung – auch als Vortagsfaktor (T-1, T-2).');
+    lines.push('');
+    // Limit to last 90 entries to keep prompt size bounded
+    const limited = ctx.dailyFactors.slice(-90);
+    for (const e of limited) {
+      const parts: string[] = [];
+      if (e.mood !== null) parts.push(`Stimmung=${e.mood}/5`);
+      if (e.stress !== null) parts.push(`Stress=${e.stress}/5`);
+      if (e.sleep !== null) parts.push(`Schlaf=${e.sleep}/5`);
+      if (e.energy !== null) parts.push(`Energie=${e.energy}/5`);
+      if (e.triggers.length > 0) parts.push(`Auslöser: ${e.triggers.join(', ')}`);
+      if (e.fatigueTags.length > 0) parts.push(`Fatigue-Kontext: ${e.fatigueTags.join(', ')}`);
+      const head = `  ${e.date}${painRel(e.date)}: ${parts.join(', ')}`;
+      lines.push(head);
+      if (e.notes) {
+        lines.push(`    Notiz: ${e.notes.slice(0, 240)}`);
       }
-      lines.push('');
     }
-  }
-
-  // Trigger/stress context — only include entries near pain days
-  if (ctx.triggerContextSummary && ctx.triggerContextSummary.length > 0) {
-    const painDates = new Set(ctx.days.filter(d => d.maxPainLevel > 0).map(d => d.date));
-    const isNearPain = (dateStr: string) => {
-      if (painDates.has(dateStr)) return true;
-      const d = new Date(dateStr);
-      const prev = new Date(d); prev.setDate(prev.getDate() - 1);
-      const next = new Date(d); next.setDate(next.getDate() + 1);
-      return painDates.has(prev.toISOString().slice(0, 10)) || painDates.has(next.toISOString().slice(0, 10));
-    };
-    const nearPainTriggers = ctx.triggerContextSummary.filter(e => isNearPain(e.date) && e.triggers.length > 0);
-
-    if (nearPainTriggers.length > 0) {
-      lines.push('=== Auslöser-Kontext (nur schmerznahe Tage) ===');
-      lines.push('Nutze diese als ergänzenden Kontext. Nur als Muster erwähnen, wenn derselbe Auslöser an MEHREREN Schmerztagen auftaucht.');
-      lines.push('');
-      for (const entry of nearPainTriggers.slice(0, 8)) {
-        const parts = [`  ${entry.date}: Auslöser: ${entry.triggers.join(', ')}`];
-        if (entry.stressLevel !== null && entry.stressLevel <= 2) parts.push(`Stress=${entry.stressLevel}/4`);
-        if (entry.sleepLevel !== null && entry.sleepLevel <= 2) parts.push(`Schlaf=${entry.sleepLevel}/4`);
-        lines.push(parts.join(', '));
-      }
-      lines.push('');
-    }
+    lines.push('');
   }
 
   return lines.join('\n');
@@ -747,6 +738,8 @@ export function buildAnalysisContext(
   const fatigueContextSummary = buildFatigueContextSummary(dataset.contextNotes ?? []);
   // Build trigger context summary from context notes
   const triggerContextSummary = buildTriggerContextSummary(dataset.contextNotes ?? []);
+  // Build full daily-factors list (mood/stress/sleep/energy/triggers/notes for ALL Tageszustand entries)
+  const dailyFactors = buildDailyFactors(dataset.contextNotes ?? []);
 
   return {
     days,
@@ -758,6 +751,7 @@ export function buildAnalysisContext(
     recurringSequences,
     fatigueContextSummary,
     triggerContextSummary,
+    dailyFactors,
     meta: {
       totalItems: timeline.length,
       totalDays: days.length,
@@ -869,5 +863,40 @@ function buildTriggerContextSummary(contextNotes: ContextNoteForAnalysis[]): Tri
     });
   }
 
+  return entries;
+}
+
+// ============================================================
+// === DAILY FACTORS (full Tageszustand entries) ===
+// ============================================================
+
+/**
+ * Build full daily-factor entries from voice_notes(context_type='tageszustand').
+ * Returns one entry per row, NEVER filtered by pain proximity — the LLM gets
+ * the complete signal so it can detect prodromal/T-1/T-2 correlations itself.
+ *
+ * Privacy: free-text notes are included for the App-side analysis. Doctor-share
+ * pipeline must strip metadata.notes separately.
+ */
+function buildDailyFactors(contextNotes: ContextNoteForAnalysis[]): DailyFactorEntry[] {
+  const entries: DailyFactorEntry[] = [];
+  for (const note of contextNotes) {
+    const meta = note.metadata ?? {};
+    const triggers = (meta.triggers ?? []).map(t => TRIGGER_LABELS[t] ?? t);
+    const fatigueTags = (meta.fatigue_context_tags ?? []).map(t => FATIGUE_TAG_LABELS[t] ?? t);
+    const rawNotes = (meta as { notes?: string | null }).notes;
+    entries.push({
+      date: note.occurred_at.slice(0, 10),
+      mood: meta.mood ?? null,
+      stress: meta.stress ?? null,
+      sleep: meta.sleep ?? null,
+      energy: meta.energy ?? null,
+      triggers,
+      fatigueTags,
+      notes: typeof rawNotes === 'string' && rawNotes.trim() ? rawNotes.trim() : null,
+    });
+  }
+  // Stable sort by date asc
+  entries.sort((a, b) => a.date.localeCompare(b.date));
   return entries;
 }

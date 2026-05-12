@@ -67,39 +67,30 @@ export interface CachedAnalysis {
 
 export interface CacheValidityResult {
   valid: boolean;
-  reason?: 'not_authenticated' | 'no_signature' | 'signature_mismatch' | 'pain_data_changed' | 'voice_data_changed' | 'medication_intake_changed' | 'medication_effect_changed';
+  reason?: 'not_authenticated' | 'no_signature' | 'signature_mismatch' | 'pain_data_changed' | 'voice_data_changed' | 'medication_intake_changed' | 'medication_effect_changed' | 'context_note_changed';
 }
 
 /**
  * Fingerprint of the data state for a given user + date range.
  * Used to determine if a cached analysis is still valid.
- * 
- * Contains both per-source metrics AND a derived signature string
- * for exact-match comparison.
  */
 export interface DataStateFingerprint {
-  /** Count of pain_entries in range */
   painEntryCount: number;
-  /** Latest updated_at from pain_entries in range */
   latestPainEntry: string | null;
-  /** Count of voice_events in range */
   voiceEventCount: number;
-  /** Latest updated_at from voice_events in range */
   latestVoiceEvent: string | null;
-  /** Count of medication_intakes in range */
   medIntakeCount: number;
-  /** Latest updated_at from medication_intakes in range */
   latestMedIntake: string | null;
-  /** Count of medication_effects for entries in range */
   medEffectCount: number;
-  /** Latest updated_at from medication_effects for entries in range */
   latestMedEffect: string | null;
-  /** The single max timestamp across all sources */
+  /** Count of voice_notes (Tageszustand etc.) in range */
+  contextNoteCount: number;
+  /** Latest updated_at from voice_notes in range */
+  latestContextNote: string | null;
   maxTimestamp: string | null;
   /**
    * Deterministic state signature for exact-match comparison.
-   * Format: pe:{count}:{ts}|ve:{count}:{ts}|mi:{count}:{ts}|me:{count}:{ts}
-   * where {ts} is epoch ms or 0 if null.
+   * Format: pe:{c}:{ts}|ve:{c}:{ts}|mi:{c}:{ts}|me:{c}:{ts}|cn:{c}:{ts}
    */
   stateSignature: string;
 }
@@ -108,18 +99,15 @@ export interface DataStateFingerprint {
 // === STATE SIGNATURE BUILDER (pure function) ===
 // ============================================================
 
-/**
- * Build a deterministic state signature from per-source counts and timestamps.
- * This is a PURE FUNCTION — no Supabase calls. Used by both client and tests.
- */
 export function buildStateSignature(
   painCount: number, painTs: string | null,
   voiceCount: number, voiceTs: string | null,
   intakeCount: number, intakeTs: string | null,
   effectCount: number, effectTs: string | null,
+  contextCount: number = 0, contextTs: string | null = null,
 ): string {
   const ts = (v: string | null) => v ? new Date(v).getTime() : 0;
-  return `pe:${painCount}:${ts(painTs)}|ve:${voiceCount}:${ts(voiceTs)}|mi:${intakeCount}:${ts(intakeTs)}|me:${effectCount}:${ts(effectTs)}`;
+  return `pe:${painCount}:${ts(painTs)}|ve:${voiceCount}:${ts(voiceTs)}|mi:${intakeCount}:${ts(intakeTs)}|me:${effectCount}:${ts(effectTs)}|cn:${contextCount}:${ts(contextTs)}`;
 }
 
 // ============================================================
@@ -144,7 +132,7 @@ export async function getDataStateFingerprint(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const [painResult, voiceResult, intakeResult, entryIdsResult] = await Promise.all([
+  const [painResult, voiceResult, intakeResult, entryIdsResult, contextResult] = await Promise.all([
     // pain_entries: count + latest updated_at
     supabase
       .from('pain_entries')
@@ -184,6 +172,17 @@ export async function getDataStateFingerprint(
       .lte('selected_date', toDate)
       .order('id', { ascending: false })
       .limit(500),
+
+    // voice_notes (Tageszustand etc.): count + latest updated_at
+    supabase
+      .from('voice_notes')
+      .select('updated_at', { count: 'exact' })
+      .eq('user_id', user.id)
+      .is('deleted_at', null)
+      .gte('occurred_at', fromDate + 'T00:00:00Z')
+      .lte('occurred_at', toDate + 'T23:59:59Z')
+      .order('updated_at', { ascending: false })
+      .limit(1),
   ]);
 
   // medication_effects: scoped to the user's entries in range
@@ -207,6 +206,8 @@ export async function getDataStateFingerprint(
   const latestVoiceEvent = voiceResult.data?.[0]?.updated_at ?? null;
   const medIntakeCount = intakeResult.count ?? 0;
   const latestMedIntake = intakeResult.data?.[0]?.updated_at ?? null;
+  const contextNoteCount = contextResult.count ?? 0;
+  const latestContextNote = (contextResult.data?.[0] as { updated_at?: string } | undefined)?.updated_at ?? null;
 
   // Compute max across all sources
   const timestamps: number[] = [];
@@ -214,12 +215,14 @@ export async function getDataStateFingerprint(
   if (latestVoiceEvent) timestamps.push(new Date(latestVoiceEvent).getTime());
   if (latestMedIntake) timestamps.push(new Date(latestMedIntake).getTime());
   if (latestMedEffect) timestamps.push(new Date(latestMedEffect).getTime());
+  if (latestContextNote) timestamps.push(new Date(latestContextNote).getTime());
 
   const stateSignature = buildStateSignature(
     painEntryCount, latestPainEntry,
     voiceEventCount, latestVoiceEvent,
     medIntakeCount, latestMedIntake,
     medEffectCount, latestMedEffect,
+    contextNoteCount, latestContextNote,
   );
 
   return {
@@ -231,6 +234,8 @@ export async function getDataStateFingerprint(
     latestMedIntake,
     medEffectCount,
     latestMedEffect,
+    contextNoteCount,
+    latestContextNote,
     maxTimestamp: timestamps.length > 0
       ? new Date(Math.max(...timestamps)).toISOString()
       : null,

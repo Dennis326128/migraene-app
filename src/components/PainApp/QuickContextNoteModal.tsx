@@ -9,7 +9,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { SaveButton } from '@/components/ui/save-button';
 import { Textarea } from '@/components/ui/textarea';
-import { Mic, Utensils, Activity, Droplets, Calendar, Heart, Eye } from 'lucide-react';
+import { Utensils, Activity, Droplets, Calendar, Heart, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { saveVoiceNote, updateVoiceNote, ContextMetadata } from '@/lib/voice/saveNote';
 import { FATIGUE_CONTEXT_OPTIONS, deriveMecfsRelevance, noteContainsFatigueSignals } from '@/lib/voice/fatigueClassification';
@@ -30,7 +30,6 @@ export interface EditingContextNote {
 export interface QuickContextNoteModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onStartVoice?: () => void;
   // Pre-filled data from voice input
   prefillData?: {
     mood?: number | null;
@@ -123,7 +122,6 @@ const NOTHING_SPECIAL_ID = 'nothing_special';
 export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
   isOpen,
   onClose,
-  onStartVoice,
   prefillData,
   editingNote,
   onSaved,
@@ -436,10 +434,6 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
     }
   };
 
-  const handleVoiceClick = () => {
-    onClose();
-    onStartVoice?.();
-  };
 
   const handleReset = () => {
     setMood(null);
@@ -495,26 +489,6 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
           "py-2",
           isMobile ? "space-y-5" : "space-y-4"
         )}>
-          {/* Formweite Spracheingabe - prominent oben */}
-          <button
-            onClick={handleVoiceClick}
-            className={cn(
-              "w-full flex items-center rounded-lg bg-[#14B8A6]/10 border border-[#14B8A6]/30 hover:bg-[#14B8A6]/20 hover:border-[#14B8A6]/50 transition-all duration-150 group",
-              isMobile ? "gap-3 p-3" : "gap-4 p-4"
-            )}
-          >
-            <div className={cn(
-              "flex-shrink-0 rounded-full bg-[#14B8A6]/20 flex items-center justify-center group-hover:bg-[#14B8A6]/30 transition-colors",
-              isMobile ? "w-9 h-9" : "w-10 h-10"
-            )}>
-              <Mic className={cn(isMobile ? "h-4 w-4" : "h-5 w-5", "text-[#14B8A6]")} />
-            </div>
-            <div className="flex-1 text-left">
-              <div className={cn("font-semibold text-[#14B8A6]", isMobile ? "text-xs" : "text-sm")}>Spracheingabe</div>
-              <div className={cn("text-[#9CA3AF]", isMobile ? "text-[11px]" : "text-xs")}>Einfach alles sagen.</div>
-            </div>
-          </button>
-
           {showLoadPrevious && (
             <Button
               variant="outline"
