@@ -200,6 +200,8 @@ export interface AnalysisContext {
   fatigueContextSummary: FatigueContextEntry[];
   /** Trigger/stress context from "Alltag & Auslöser" form entries */
   triggerContextSummary: TriggerContextEntry[];
+  /** Full per-day Tagesfaktoren entries (mood/stress/sleep/energy/triggers/notes) */
+  dailyFactors: DailyFactorEntry[];
   meta: {
     totalItems: number;
     totalDays: number;
