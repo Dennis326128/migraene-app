@@ -12,6 +12,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { getAnalysisDataset, type AnalysisTimeRange } from './analysisAccess';
 import { buildAnalysisContext, serializeForLLM } from './analysisContext';
 import { validateAnalysisResult, isAnalysisUnavailable, type VoiceAnalysisResult } from './analysisTypes';
+import { buildAnalysisReportV21 } from '@/lib/ai/buildAnalysisReportV21';
+import { ANALYSIS_V21_SCHEMA, ANALYSIS_V21_VERSION } from '@/lib/ai/analysisTypes';
 
 // ============================================================
 // === CONSTANTS ===
