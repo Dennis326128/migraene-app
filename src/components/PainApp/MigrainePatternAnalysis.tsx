@@ -25,6 +25,7 @@ import { gateDecision, isCacheStaleByAge, berlinDayStart, berlinDayEnd, STALE_AF
 import { useAnalysisGateState } from '@/lib/voice/useAnalysisGateState';
 import { AIConsentToggle } from './Settings/AIConsentToggle';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 // Filter logic is centralized in analysisFilters.ts for testability
 
