@@ -86,6 +86,119 @@ export async function buildAnalysisPromptData(range: AnalysisTimeRange): Promise
   const dataset = await getAnalysisDataset(range);
   const ctx = buildAnalysisContext(dataset);
   let serialized = serializeForLLM(ctx);
+
+  // === ENRICH: Weather + time aggregates + data quality ===
+  // Pure prompt extension; no schema/type changes.
+  try {
+    const fromDate = range.from.toISOString().slice(0, 10);
+    const toDate = range.to.toISOString().slice(0, 10);
+    const enrichments: string[] = [];
+
+    // --- Time-pattern aggregate (weekday × tagesphase) from pain entries ---
+    if (dataset.painEntries.length > 0) {
+      const WD = ['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag'];
+      const phaseOf = (h: number) => h < 6 ? 'Nacht' : h < 12 ? 'Morgen' : h < 18 ? 'Mittag/Nachmittag' : 'Abend';
+      const wdCount = new Map<string, number>();
+      const phaseCount = new Map<string, number>();
+      let weekday = 0, weekend = 0, withTime = 0;
+      for (const p of dataset.painEntries) {
+        if (!p.selected_date) continue;
+        const d = new Date(p.selected_date + 'T00:00:00');
+        const wd = WD[d.getDay()];
+        wdCount.set(wd, (wdCount.get(wd) ?? 0) + 1);
+        if (d.getDay() === 0 || d.getDay() === 6) weekend++; else weekday++;
+        if (p.selected_time) {
+          const h = parseInt(p.selected_time.slice(0, 2), 10);
+          if (Number.isFinite(h)) {
+            phaseCount.set(phaseOf(h), (phaseCount.get(phaseOf(h)) ?? 0) + 1);
+            withTime++;
+          }
+        }
+      }
+      const wdLine = Array.from(wdCount.entries()).sort((a,b)=>b[1]-a[1])
+        .map(([k,v])=>`${k}=${v}`).join(', ');
+      const phaseLine = Array.from(phaseCount.entries()).sort((a,b)=>b[1]-a[1])
+        .map(([k,v])=>`${k}=${v}`).join(', ');
+      enrichments.push('=== Zeitaggregat Schmerzeinträge ===');
+      enrichments.push(`Wochentage: ${wdLine || 'keine Daten'}`);
+      enrichments.push(`Werktag vs. Wochenende: Werktag=${weekday}, Wochenende=${weekend}`);
+      enrichments.push(`Tagesphasen (nur Einträge mit Uhrzeit, n=${withTime}): ${phaseLine || 'keine Uhrzeitdaten'}`);
+      enrichments.push('');
+    }
+
+    // --- Weather block: fetch weather_logs in range, snapshot per day ---
+    try {
+      const { data: wRows } = await supabase
+        .from('weather_logs')
+        .select('snapshot_date, pressure_mb, pressure_change_24h, temperature_c, humidity, condition_text')
+        .gte('snapshot_date', fromDate)
+        .lte('snapshot_date', toDate)
+        .order('snapshot_date', { ascending: true })
+        .limit(400);
+
+      const rows = (wRows ?? []) as Array<{
+        snapshot_date: string | null;
+        pressure_mb: number | null;
+        pressure_change_24h: number | null;
+        temperature_c: number | null;
+        humidity: number | null;
+        condition_text: string | null;
+      }>;
+      const byDay = new Map<string, typeof rows[number]>();
+      for (const r of rows) {
+        if (!r.snapshot_date) continue;
+        byDay.set(r.snapshot_date, r);
+      }
+      enrichments.push('=== Wetterdaten (Tageswerte) ===');
+      if (byDay.size === 0) {
+        enrichments.push('Keine Wetterdaten im Zeitraum vorhanden.');
+      } else {
+        const painDates = new Set(
+          dataset.painEntries
+            .filter(p => p.selected_date && p.pain_level && p.pain_level !== '-')
+            .map(p => p.selected_date as string)
+        );
+        const sortedDays = Array.from(byDay.keys()).sort();
+        const press = sortedDays.map(d => byDay.get(d)!.pressure_mb).filter((v): v is number => v != null);
+        const delta = sortedDays.map(d => byDay.get(d)!.pressure_change_24h).filter((v): v is number => v != null);
+        const temp = sortedDays.map(d => byDay.get(d)!.temperature_c).filter((v): v is number => v != null);
+        if (press.length) enrichments.push(`Luftdruck: min=${Math.min(...press).toFixed(0)} mb, max=${Math.max(...press).toFixed(0)} mb, n=${press.length}`);
+        if (delta.length) {
+          const drops = delta.filter(d => d <= -3);
+          enrichments.push(`Luftdruckänderung 24h: min=${Math.min(...delta).toFixed(1)} mb, max=${Math.max(...delta).toFixed(1)} mb, Tage mit Abfall ≥3 mb: ${drops.length}`);
+        }
+        if (temp.length) enrichments.push(`Temperatur: min=${Math.min(...temp).toFixed(1)} °C, max=${Math.max(...temp).toFixed(1)} °C`);
+        enrichments.push(`Wetterabdeckung: ${byDay.size} Tage mit Wetterdaten`);
+        enrichments.push('');
+        enrichments.push('Tageswerte (Datum | Druck mb | Δ24h mb | Temp °C | Feuchte % | Bedingung | Schmerztag?):');
+        for (const d of sortedDays.slice(-90)) {
+          const w = byDay.get(d)!;
+          const isPain = painDates.has(d) ? 'JA' : 'nein';
+          enrichments.push(`  ${d} | ${w.pressure_mb ?? '–'} | ${w.pressure_change_24h ?? '–'} | ${w.temperature_c ?? '–'} | ${w.humidity ?? '–'} | ${w.condition_text ?? '–'} | ${isPain}`);
+        }
+      }
+      enrichments.push('');
+    } catch (e) {
+      console.warn('[AnalysisEngine] Weather fetch failed (non-fatal):', e);
+      enrichments.push('=== Wetterdaten (Tageswerte) ===');
+      enrichments.push('Wetterdaten konnten nicht geladen werden.');
+      enrichments.push('');
+    }
+
+    // --- Data quality block ---
+    enrichments.push('=== Datenqualität ===');
+    enrichments.push(`Schmerzeinträge: ${dataset.meta.painEntryCount}`);
+    enrichments.push(`Sprach-/Voice-Events: ${dataset.meta.voiceEventCount}`);
+    enrichments.push(`Medikamenteneinnahmen: ${dataset.meta.medicationIntakeCount}`);
+    enrichments.push(`Tagesfaktoren-Einträge: ${dataset.meta.contextNoteCount}`);
+    enrichments.push(`Tage mit Daten: ${ctx.meta.totalDays}, davon Schmerztage: ${ctx.meta.daysWithPain}, ME/CFS-Signal: ${ctx.meta.daysWithMecfs}`);
+    enrichments.push('');
+
+    serialized = enrichments.join('\n') + '\n' + serialized;
+  } catch (e) {
+    console.warn('[AnalysisEngine] Enrichment failed (non-fatal):', e);
+  }
+
   let wasTruncated = false;
 
   // === CONTEXT SIZE GUARD ===

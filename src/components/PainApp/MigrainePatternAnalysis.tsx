@@ -233,25 +233,25 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
       ...seqs.map(s => s.pattern + ' ' + (s.llmInterpretation || '')),
     ];
 
-    // Fatigue findings: ONLY high evidence with explicit migraine keywords
+    // Fatigue findings: accept medium+ with broader keyword set (incl. fatigue/PEM/Energie)
     const fatigueFiltered = result.fatigueContextFindings.filter(f =>
-      f.evidenceStrength === 'high' &&
-      /schmerz|kopf|migräne|attacke|triptan/i.test(f.observation)
+      (f.evidenceStrength === 'high' || f.evidenceStrength === 'medium' || f.evidenceStrength === 'low') &&
+      /schmerz|kopf|migräne|attacke|triptan|fatigue|pem|energie|erschöpf|belastung|crash/i.test(f.observation)
     );
-    // Medication context: skip if any pattern OR summary already covers medication topic
+    // Medication context: keep if not already dominant in patterns/summary
     const hasMedPattern = sorted.some(p => MEDICATION_PATTERN_TYPES.has(p.patternType) || MEDICATION_TITLE_RX.test(p.title) || MEDICATION_TITLE_RX.test(p.description));
     const hasMedSummary = MEDICATION_TITLE_RX.test(cleanedSummary);
-    const medContext = (hasMedPattern || hasMedSummary) ? [] : result.medicationContextFindings;
+    const medContext = (hasMedPattern || hasMedSummary)
+      ? result.medicationContextFindings.filter(f => f.evidenceStrength !== 'high').slice(0, 2)
+      : result.medicationContextFindings;
     const allContext = [...result.painContextFindings, ...fatigueFiltered, ...medContext];
     const finalContext = allContext
-      .filter(f => f.evidenceStrength === 'medium' || f.evidenceStrength === 'high')
       .filter(f => !isBanalContent(f.observation))
-      .filter(f => !isWeakPattern(f.observation))
-      .filter(f => f.observation.length >= 35)
+      .filter(f => f.observation.length >= 30)
       .filter(f => !overlapsAny(f.observation, allRefTexts, 0.22))
-      .slice(0, 1);
+      .slice(0, 8);
 
-    // Uncertainties: only genuinely novel + actionable, max 1
+    // Uncertainties: allow up to MAX_QUESTIONS, slightly looser quality bar
     const fullRef = [
       ...allRefTexts,
       ...finalContext.map(f => f.observation),
@@ -260,7 +260,7 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
       result.openQuestions.slice(0, MAX_QUESTIONS),
       result.confidenceNotes,
       fullRef,
-    ).filter(item => item.length >= 40 && !isBanalContent(item)).slice(0, 1);
+    ).filter(item => item.length >= 30 && !isBanalContent(item)).slice(0, MAX_QUESTIONS);
 
     return { sortedPatterns: sorted, filteredSequences: seqs, extraContextFindings: finalContext, uncertainties: merged, cleanedSummary };
   }, [result]);
@@ -336,13 +336,18 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
       {hasExtraContext && (
         <section>
           <h3 className="text-[11px] font-medium uppercase tracking-widest text-muted-foreground/80 mb-2.5">
-            Was zusätzlich auffällt
+            Weitere mögliche Zusammenhänge
           </h3>
           <ul className="space-y-2">
             {extraContextFindings.map((f, i) => (
               <li key={i} className="text-[13px] text-foreground/75 flex items-start gap-2 leading-[1.7]">
                 <span className="mt-[9px] h-1 w-1 rounded-full bg-muted-foreground/30 shrink-0" />
-                <span>{f.observation}</span>
+                <span>
+                  {f.evidenceStrength === 'low' && (
+                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70 mr-1.5">schwacher Hinweis ·</span>
+                  )}
+                  {f.observation}
+                </span>
               </li>
             ))}
           </ul>
