@@ -1,80 +1,73 @@
+## Ziel
+Die KI-Analyse `pattern_analysis` final stabil machen: Free-Limit 3/Monat (Bypass `ai_unlimited`), 5-Min-Cooldown UI-erzwungen, klare Cache-Badges (Aktuell/Veraltet anhand Signature + 14-Tage-TTL), strukturierte Fehlercodes, sauberer Consent-UI-Pfad, Europe/Berlin-Datumsgrenzen.
 
+## 1) DB — keine neue Tabelle
+`user_ai_usage` ist bereits passend (`feature='pattern_analysis'`, monatliches `period_start`, `request_count`, `last_used_at`). Genutzt analog zu `analyze-voice-notes`. Keine Migration nötig.
 
-## Plan: Extend Doctor-Share Snapshot for PDF-Parity on Website
+## 2) Edge Function `analyze-voice-patterns` (App)
+- **Quota-Check VOR LLM-Call** (per Service-Role lesen): 
+  - Skip wenn `user_profiles.ai_unlimited=true`.
+  - Sonst: `request_count >= 3` im aktuellen Monat → `409 { code:'QUOTA_EXCEEDED', usageCount, limit:3 }`.
+- **Cooldown-Check** (5 Min seit `last_used_at`) → `429 { code:'COOLDOWN_ACTIVE', cooldownRemaining }`. Bypass bei `ai_unlimited`.
+- **Quota-Increment NUR nach erfolgreichem + validiertem Result.** (Nicht bei Timeout/Validation-Fail/LLM 5xx/Consent-Fail.)
+- Nach Erfolg: `ai_reports` upsert (dedupe_key) — bereits via Client → wird zusätzlich serverseitig gespiegelt damit Doctor-Share-Pfad konsistent ist (analog `analyze-voice-patterns-shared`).
+- Strukturierte Fehlercodes immer mit `code:` und `errorCode:`-Feld (Backwards-Kompat).
 
-### Summary
-The snapshot (`doctorReportSnapshot.ts`) needs 6 additive extensions so the website can replicate all PDF report blocks without local re-calculation.
+## 3) Edge Function `analyze-voice-patterns-shared` (Doctor-Share)
+- Identische Quota-/Cooldown-Logik gegen **Patientenkonto** (`ownerUserId`).
+- Bypass `ai_unlimited` des Patienten.
+- Quota-Increment ebenfalls erst nach Validation OK.
 
-### Current State
-- **Donut**: `analysis.headacheDayDonut` already has the correct 3-bucket structure (painFreeDays, painDaysNoTriptan, triptanDays). Website can use this directly.
-- **Symptoms**: `analysis.symptoms.items` has name + count + percentageOfChecked, but **lacks** `group`, `burdenLevel`, `burdenLabel`, `relevanceScore`.
-- **ME/CFS**: `analysis.mecfs` has segments + documentedDays + sufficient, but **lacks** `avgScore`, `peakLabel`, `iqrLabel`, `documentationRate`.
-- **Medication stats**: `tables.medicationStats` has intakeCount, daysUsed, avgPer30, isTriptan, but **lacks** `last30Intakes`, `avgEffectPercent`, `ratedCount`.
-- **Weather trend chart**: `charts.intensityOverTime` has date+maxIntensity but **lacks** daily temperature and pressure values for the combined chart.
-- **Time-of-day histogram**: Completely missing from snapshot.
+## 4) Frontend `analysisEngine.ts`
+- Map Edge-Status → `error.code`:
+  - 401 → `AUTH_REQUIRED`
+  - 403 + `AI_CONSENT_REQUIRED` → `AI_CONSENT_REQUIRED`
+  - 403 + `AI_DISABLED` → `AI_DISABLED`
+  - 409 + `QUOTA_EXCEEDED` → `QUOTA_EXCEEDED` (mit `usageCount`/`limit`)
+  - 429 + `COOLDOWN_ACTIVE` → `COOLDOWN_ACTIVE` (mit `cooldownRemaining`)
+  - 413 → `CONTEXT_TOO_LARGE`
+  - 504 → `TIMEOUT`
+  - 502/`LLM_UNAVAILABLE` → `LLM_UNAVAILABLE`
+  - `Unavailable`-Body mit `errorReason` + `<10 Daten` → `INSUFFICIENT_DATA`
+  - Sonst → `UNKNOWN`
+- **Vor-Flight-Check**: lade `user_consents.has_ai_consent` + `user_profiles.ai_enabled/ai_unlimited` + `get_pattern_analysis_usage` (RPC bereits vorhanden) → liefert `{ canAnalyze, blockedReason, usageCount, limit, cooldownRemaining }`.
 
-### Changes (all in `supabase/functions/_shared/doctorReportSnapshot.ts`)
+## 5) UI `MigrainePatternAnalysis.tsx`
+- Pre-flight-Hook lädt zusätzlich Quota/Cooldown/Consent-Status.
+- **Konsolidierte Aktions-Logik:**
+  - Consent fehlt → CTA „Einwilligung erteilen" (Link zu Settings), Analyse-Button NICHT sichtbar; KEIN Edge-Call möglich.
+  - AI deaktiviert → Hinweis + Settings-Link.
+  - Quota erreicht → Button disabled, Hinweis „3/3 Analysen diesen Monat. Vorhandene Analyse weiter sichtbar." (zeigt evtl. vorhandene Analyse weiter an).
+  - Cooldown aktiv → Button disabled mit Live-Countdown („Erneut möglich in 02:43").
+  - Daten zu wenig → konkrete Info via Empty-State + `INSUFFICIENT_DATA`-Hinweis.
+- **Cache-Badge:**
+  - Wenn `selection.isFresh && Alter ≤ 14 Tage` → grünes „Aktuell" + Datum.
+  - Sonst → gelbes „Veraltet" + Button „Neue Analyse erstellen" (sofern Quota+Cooldown ok).
+- **TTL-Konstante** `STALE_AFTER_DAYS = 14` zentral in `analysisCache.ts`.
 
-#### 1. Symptoms: Add group, burden, relevance
-- Fetch `user_symptom_burden` table (user_id, symptom_key, burden_level) in the parallel data load
-- In `buildSymptomsAnalysis`, classify each symptom via the same `classifySymptom()` logic from `src/lib/pdf/symptomSection.ts` (migraine/neurological/other)
-- Extend `SymptomStatItem` type with: `group: 'migraine'|'neurological'|'other'`, `burdenLevel: number|null`, `burdenLabel: string`, `relevanceScore: number`
-- SSOT: `src/lib/pdf/symptomSection.ts` classification lists + `BURDEN_LABELS` mapping
+## 6) Europe/Berlin Zeitzone
+- In `MigrainePatternAnalysis.tsx`: `new Date(from + 'T00:00:00')` ersetzen durch Helper, der ISO-Date in Berlin-Mitternacht/Ende konvertiert (zeitzone-sicher).
+- Helper `berlinDayBoundaries(from, to)` zentral exportieren und auch in `analysisEngine` und Edge nutzen, falls dort Datumsgrenzen gebildet werden.
 
-#### 2. Medication stats: Add last30, effect data
-- Fetch `medication_effects` (med_name, effect_score) joined via entry_id for entries in range
-- Fetch `medication_intakes` with `taken_date` for the last-30-days window
-- Extend `MedicationStat` type with: `last30Intakes: number`, `avgEffectPercent: number|null`, `ratedCount: number`
-- `avgEffectPercent` = avg(effect_score) / 10 * 100 (0-10 scale to percentage)
-- `last30Intakes` = count of intakes where taken_date is within last 30 days from `to`
+## 7) Cooldown
+- Im UI Live-Countdown via `setInterval`. Bypass für `ai_unlimited` mit Hinweis-Tooltip.
+- Im Edge bleibt Cooldown serverseitig erzwungen (Source of Truth).
 
-#### 3. ME/CFS: Add clinical summary fields
-- Extend `MeCfsAnalysis` type with: `avgScore: number|null`, `peakScore: number|null`, `peakLabel: string|null`, `documentationRate: number`
-- Compute from `me_cfs_severity_score` on entries: avg of non-zero documented days, max score
-- `peakLabel` maps score to severity label (0=none, 1-3=mild, 4-6=moderate, 7-10=severe)
-- `documentationRate` = documentedDays / totalDaysInRange
+## 8) Tests (Vitest)
+Neue Tests in `src/lib/voice/__tests__/analysisGate.test.ts`:
+- `gateDecision()` reine Funktion: liefert Aktion/Reason aus `{consent, aiEnabled, unlimited, usageCount, limit, cooldownRemaining, hasCache, isStale, dataSufficient}`.
+- Cases: consent fehlt → block, 0/3 → allow, 3/3 unlimited=false → quota_exceeded, 3/3 unlimited=true → allow, cooldown 120s + unlimited=false → cooldown, isStale=true + slot frei → allow_new, hasCache+fresh → no_action_needed.
 
-#### 4. Weather trend: Add daily temp + pressure to intensityOverTime
-- Extend `IntensityDataPoint` type with: `temperatureC: number|null`, `pressureMb: number|null`
-- In chart building, merge weather data per date (same logic already in `buildWeatherAnalysis` weatherByDate map)
-- Website can then render the combined Schmerz/Temperatur/Luftdruck chart
+Bereits vorhandene Tests:
+- `analysisCache.test.ts` (Cooldown, Stale, Signature) ✅
+- Edge-Function-Tests via `supabase--test_edge_functions` für Prompt-Inhalte ✅
 
-#### 5. Time-of-day histogram
-- Add new type `TimeDistributionItem { hour: number; count: number }`
-- Add to `DoctorReportCharts`: `timeDistribution: TimeDistributionItem[]`
-- Compute from `allEntries`: extract hour from `selected_time` (HH:MM), group + count
-- Only entries with pain_level != '-' and a valid selected_time
+## 9) Berichte am Ende
+A) Geänderte Dateien · B) (keine Migration) · C) Edge-Function-Diff (zwei Funktionen) · D) UI-Diff · E) Test-Output · F) Risiken · G) Nicht-Umgesetztes.
 
-#### 6. Donut: No changes needed
-- `analysis.headacheDayDonut` already matches the PDF exactly. Website uses:
-  - `painFreeDays` / `painDaysNoTriptan` / `triptanDays` / `totalDays` / `percentages`
-
-### Technical Details
-
-**New DB queries added to parallel fetch:**
-- `user_symptom_burden` (user_id filter)
-- `medication_effects` (entry_id in range entries)
-- `medication_intakes` with taken_date in last-30-day window
-
-**Type extensions (additive, all optional):**
-```text
-SymptomStatItem += group, burdenLevel, burdenLabel, relevanceScore
-MedicationStat += last30Intakes, avgEffectPercent, ratedCount
-MeCfsAnalysis += avgScore, peakScore, peakLabel, documentationRate
-IntensityDataPoint += temperatureC, pressureMb
-DoctorReportCharts += timeDistribution
-```
-
-**Backward compatibility:** All new fields are optional additions. Existing consumers see no breaking changes.
-
-**SSOT sources reused:**
-- Symptom grouping: `symptomSection.ts` classification lists (mirrored in edge function)
-- Burden labels: `useSymptomBurden.ts` BURDEN_LABELS
-- Pain normalization: existing `painLevelToNumber`
-- Donut: existing `buildHeadacheDayDonut` (unchanged)
-- Weather buckets: existing `buildWeatherAnalysis` (unchanged)
-
-**Files modified:** Only `supabase/functions/_shared/doctorReportSnapshot.ts`
-
-**Deployment:** Edge function auto-deploys. Snapshot cache invalidates via TTL, so new fields appear on next rebuild.
-
+## Bestätigung
+Bevor ich loslege bitte kurz bestätigen:
+- **Quota 3/Monat** korrekt? (du hattest 3 vorgeschlagen)
+- **TTL 14 Tage** für „Veraltet"-Badge korrekt? (in deinem aktuellen Brief explizit so)
+- **`ai_unlimited` umgeht Cooldown** ja/nein? (du hattest „optional" geschrieben — ich empfehle JA, da Power-User/Devs sonst behindert werden)
+- **Doctor-Share-Cooldown**: gleiche 5 Min auf Patientenkonto? Falls Patient gleichzeitig in App analysiert, könnte das blockieren — Alternative: kein Cooldown im Doctor-Share, nur Quota. (Empfehlung: kein Cooldown in Doctor-Share.)
