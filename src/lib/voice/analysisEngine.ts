@@ -509,14 +509,9 @@ export async function runVoicePatternAnalysis(
   result.meta.promptTokenEstimate = promptData.tokenEstimate;
   (result as any)._preAnalysis = promptData.preAnalysis;
 
-  // Build deterministic V2.1 report and attach to result so it gets
-  // persisted into ai_reports.response_json by saveAnalysisResult.
+  // Build deterministic V2.1 report and merge LLM expanded findings.
   try {
-    const rangeDays = Math.max(
-      1,
-      Math.round((range.to.getTime() - range.from.getTime()) / 86400000),
-    );
-    const reportV21 = buildAnalysisReportV21({
+    const reportV21 = reportV21Pre ?? buildAnalysisReportV21({
       fromISO: range.from.toISOString(),
       toISO: range.to.toISOString(),
       timezone: 'Europe/Berlin',
@@ -524,11 +519,45 @@ export async function runVoicePatternAnalysis(
       preAnalysis: promptData.preAnalysis,
       meta: promptData.meta,
     });
+
+    const expanded = Array.isArray((fnData as any)?.llm_expanded_findings)
+      ? (fnData as any).llm_expanded_findings as Array<Record<string, unknown>>
+      : [];
+    (reportV21 as any).llm_expanded_findings = expanded;
+
+    // Bucket LLM findings into section_map by category
+    const catToSection: Record<string, keyof typeof reportV21.section_map> = {
+      burden: 'burden_course', chronification: 'burden_course',
+      medication_use: 'medication', medication_effect: 'medication', preventive_course: 'medication',
+      weather: 'weather_environment',
+      mecfs_energy_pem: 'mecfs_energy',
+      symptoms_aura: 'symptoms_aura',
+      sleep: 'lifestyle_time_patterns', stress_mood: 'lifestyle_time_patterns',
+      lifestyle_triggers: 'lifestyle_time_patterns', time_pattern: 'lifestyle_time_patterns',
+      interaction: 'lifestyle_time_patterns',
+      data_quality: 'data_quality',
+      red_flag: 'red_flags',
+      cycle_hormonal: 'symptoms_aura',
+    };
+    for (const f of expanded) {
+      const id = typeof f.id === 'string' ? f.id : '';
+      const cat = typeof f.category === 'string' ? f.category : '';
+      if (!id || !cat) continue;
+      const section = catToSection[cat];
+      if (section && Array.isArray(reportV21.section_map[section])) {
+        (reportV21.section_map[section] as string[]).push(id);
+      }
+      const lvl = (f as any).evidence_level;
+      if (lvl === 'high' || lvl === 'moderate') reportV21.section_map.strongest_findings.push(id);
+      else if (lvl === 'low') reportV21.section_map.weaker_findings.push(id);
+    }
+
     (result as any).schema_version = ANALYSIS_V21_SCHEMA;
     (result as any).analysis_version = ANALYSIS_V21_VERSION;
     (result as any).analysisV21 = reportV21;
+    (result as any).llm_expanded_findings = expanded;
   } catch (e) {
-    console.warn('[AnalysisEngine] V2.1 report build failed (non-fatal):', e);
+    console.warn('[AnalysisEngine] V2.1 report merge failed (non-fatal):', e);
   }
 
   return result;
