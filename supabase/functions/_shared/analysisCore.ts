@@ -215,7 +215,7 @@ export function buildUnavailableResult(
       model: 'none',
       analyzedAt: new Date().toISOString(),
       promptTokenEstimate: 0,
-      analysisVersion: '1.0.0',
+      analysisVersion: '1.1.0',
       error: true,
       errorReason: reason,
     },
@@ -372,7 +372,7 @@ ${serializedContext}` },
       model: 'google/gemini-2.5-flash',
       analyzedAt: new Date().toISOString(),
       promptTokenEstimate: tokenEstimate,
-      analysisVersion: '1.0.0',
+      analysisVersion: '1.1.0',
     },
   };
   return { ok: true, status: 200, body: result };
