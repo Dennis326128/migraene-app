@@ -317,15 +317,18 @@ export async function loadLatestPatternAnalysis(
     typeof chosen.source === "string" && chosen.source.includes("doctor") ? "doctor" : "patient";
 
   return {
-    id: chosen.id,
-    summaryMd: built.md,
-    createdAtISO: chosen.created_at,
-    periodFromISO: chosen.from_date ?? fromDate,
-    periodToISO: chosen.to_date ?? toDate,
-    model: chosen.model ?? "unknown",
-    source: sourceMapped,
-    insightsHash,
-    validationStatus,
+    report: {
+      id: chosen.id,
+      summaryMd: built.md,
+      createdAtISO: chosen.created_at,
+      periodFromISO: chosen.from_date ?? fromDate,
+      periodToISO: chosen.to_date ?? toDate,
+      model: chosen.model ?? "unknown",
+      source: sourceMapped,
+      insightsHash,
+      validationStatus,
+    },
+    storedSignature: chosen.data_state_signature ?? null,
   };
 }
 
