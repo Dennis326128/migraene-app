@@ -434,10 +434,6 @@ export const QuickContextNoteModal: React.FC<QuickContextNoteModalProps> = ({
     }
   };
 
-  const handleVoiceClick = () => {
-    onClose();
-    onStartVoice?.();
-  };
 
   const handleReset = () => {
     setMood(null);
