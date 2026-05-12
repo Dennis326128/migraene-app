@@ -91,6 +91,7 @@ export interface ContextNoteForAnalysis {
     triggers?: string[];
     fatigue_context_tags?: string[];
     mecfs_relevance?: string;
+    notes?: string | null;
   } | null;
 }
 
