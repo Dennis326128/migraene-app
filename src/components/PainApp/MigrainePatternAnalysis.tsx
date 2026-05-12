@@ -604,10 +604,30 @@ export function MigrainePatternAnalysis() {
               <ShieldAlert className="h-5 w-5 text-muted-foreground mt-0.5" />
               <div>
                 <p className="text-sm font-medium">KI-Analyse ist in deinen Einstellungen deaktiviert.</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Du kannst sie hier aktivieren oder später in den Einstellungen anpassen.
+                </p>
               </div>
             </div>
-            <Button asChild size="sm" variant="outline" className="w-full">
-              <Link to="/consent-required">Einstellungen öffnen</Link>
+            <Button
+              size="sm"
+              className="w-full"
+              onClick={async () => {
+                try {
+                  const { data: { user } } = await supabase.auth.getUser();
+                  if (!user) return;
+                  const { error } = await supabase
+                    .from('user_profiles')
+                    .update({ ai_enabled: true })
+                    .eq('user_id', user.id);
+                  if (error) throw error;
+                  setGateRefresh(n => n + 1);
+                } catch (e) {
+                  console.error('[MigrainePatternAnalysis] enable AI error', e);
+                }
+              }}
+            >
+              KI-Analyse aktivieren
             </Button>
           </CardContent>
         </Card>
