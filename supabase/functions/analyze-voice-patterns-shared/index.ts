@@ -137,6 +137,7 @@ Deno.serve(async (req) => {
       fromDate: from,
       toDate: to,
       apiKey,
+      includesPrivateNotes: false, // Doctor-Share: NEVER include private free-text notes
     });
 
     if (!llm.ok) {
