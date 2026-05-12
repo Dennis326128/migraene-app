@@ -14,7 +14,11 @@ import { useToast } from "@/hooks/use-toast";
  * Lets the user explicitly opt-in to AI-based analysis of their data.
  * When disabled, all AI edge functions return 403 (server-side gate).
  */
-export const AIConsentToggle = () => {
+export interface AIConsentToggleProps {
+  onChanged?: (enabled: boolean) => void;
+}
+
+export const AIConsentToggle = ({ onChanged }: AIConsentToggleProps = {}) => {
   const isMobile = useIsMobile();
   const { toast } = useToast();
   const [enabled, setEnabled] = useState(false);
@@ -79,6 +83,7 @@ export const AIConsentToggle = () => {
       }
 
       setEnabled(next);
+      onChanged?.(next);
       toast({
         title: next ? "KI-Analyse aktiviert" : "KI-Analyse deaktiviert",
         description: next

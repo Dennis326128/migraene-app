@@ -23,6 +23,7 @@ import { isTrivialSequence, isBanalContent, isGenericUncertainty, isWeakPattern,
 import { logError } from '@/lib/utils/errorMessages';
 import { gateDecision, isCacheStaleByAge, berlinDayStart, berlinDayEnd, STALE_AFTER_DAYS } from '@/lib/voice/analysisGate';
 import { useAnalysisGateState } from '@/lib/voice/useAnalysisGateState';
+import { AIConsentToggle } from './Settings/AIConsentToggle';
 
 // Filter logic is centralized in analysisFilters.ts for testability
 
@@ -590,9 +591,7 @@ export function MigrainePatternAnalysis() {
                 <p className="text-xs text-muted-foreground">DSGVO Art. 9 (Gesundheitsdaten). Du kannst dies jederzeit widerrufen.</p>
               </div>
             </div>
-            <Button asChild size="sm" className="w-full">
-              <Link to="/consent-required">Einwilligung verwalten</Link>
-            </Button>
+            <AIConsentToggle onChanged={(next) => { if (next) setGateRefresh(n => n + 1); }} />
           </CardContent>
         </Card>
       )}
@@ -678,9 +677,9 @@ export function MigrainePatternAnalysis() {
             <div>
               <p className="text-sm text-foreground/80">{error}</p>
               {errorCode === 'AI_CONSENT_REQUIRED' ? (
-                <Button asChild variant="ghost" size="sm" className="mt-2">
-                  <Link to="/consent-required">Einwilligung verwalten</Link>
-                </Button>
+                <div className="mt-2">
+                  <AIConsentToggle onChanged={(next) => { if (next) setGateRefresh(n => n + 1); }} />
+                </div>
               ) : errorCode === 'QUOTA_EXCEEDED' || errorCode === 'COOLDOWN_ACTIVE' ? null : (
                 <Button onClick={runAnalysis} variant="ghost" size="sm" className="mt-2" disabled={buttonDisabled}>
                   <RefreshCw className="h-3 w-3 mr-1" /> Erneut versuchen
