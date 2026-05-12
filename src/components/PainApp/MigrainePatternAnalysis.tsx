@@ -336,13 +336,18 @@ function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
       {hasExtraContext && (
         <section>
           <h3 className="text-[11px] font-medium uppercase tracking-widest text-muted-foreground/80 mb-2.5">
-            Was zusätzlich auffällt
+            Weitere mögliche Zusammenhänge
           </h3>
           <ul className="space-y-2">
             {extraContextFindings.map((f, i) => (
               <li key={i} className="text-[13px] text-foreground/75 flex items-start gap-2 leading-[1.7]">
                 <span className="mt-[9px] h-1 w-1 rounded-full bg-muted-foreground/30 shrink-0" />
-                <span>{f.observation}</span>
+                <span>
+                  {f.evidenceStrength === 'low' && (
+                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70 mr-1.5">schwacher Hinweis ·</span>
+                  )}
+                  {f.observation}
+                </span>
               </li>
             ))}
           </ul>
