@@ -38,7 +38,22 @@ const RequestSchema = z.object({
   }),
   fromDate: z.string(),
   toDate: z.string(),
+  /** V2.1: deterministic pre-analysis summary (passed to LLM as evidence base) */
+  preAnalysis: z.any().optional(),
+  /** V2.1: deterministic findings already produced client-side */
+  deterministicFindings: z.array(z.any()).optional(),
 });
+
+// === V2.1 finding categories / evidence / source_basis enums ===
+const V21_CATEGORIES = [
+  "burden", "chronification", "medication_use", "medication_effect",
+  "preventive_course", "symptoms_aura", "weather", "mecfs_energy_pem",
+  "sleep", "stress_mood", "lifestyle_triggers", "time_pattern",
+  "cycle_hormonal", "interaction", "data_quality", "red_flag",
+] as const;
+const V21_EVIDENCE = ["high", "moderate", "low", "insufficient"] as const;
+const V21_SOURCE_BASIS = ["deterministic_finding", "preanalysis", "aggregated_daily_data", "data_gap"] as const;
+const V21_RELEVANCE = ["high", "medium", "low"] as const;
 
 // ============================================================
 // === TOOL SCHEMA FOR STRUCTURED OUTPUT ===
