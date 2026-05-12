@@ -83,6 +83,7 @@ export const AIConsentToggle = ({ onChanged }: AIConsentToggleProps = {}) => {
       }
 
       setEnabled(next);
+      onChanged?.(next);
       toast({
         title: next ? "KI-Analyse aktiviert" : "KI-Analyse deaktiviert",
         description: next
