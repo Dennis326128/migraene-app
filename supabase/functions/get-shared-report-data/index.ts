@@ -111,16 +111,18 @@ Deno.serve(async (req) => {
     const page = parseInt(url.searchParams.get("page") || "1", 10);
     const wantsLegacy = url.searchParams.get("legacy") === "1" || req.headers.get("x-report-legacy") === "1";
 
-    // Check share settings for AI analysis inclusion
+    // Check share settings for AI analysis inclusion + new SSOT flags
     let includePatternAnalysis = false;
+    let allowAiGenerate = false;
+    let shareDayFactors = false;
     const { data: shareSettings } = await supabase
       .from("doctor_share_settings")
-      .select("include_ai_analysis")
+      .select("include_ai_analysis, allow_ai_generate, share_day_factors")
       .eq("share_id", shareId)
       .maybeSingle();
-    if (shareSettings?.include_ai_analysis) {
-      includePatternAnalysis = true;
-    }
+    if (shareSettings?.include_ai_analysis) includePatternAnalysis = true;
+    if (shareSettings?.allow_ai_generate) allowAiGenerate = true;
+    if (shareSettings?.share_day_factors) shareDayFactors = true;
 
     // Snapshot flow
     let reportJson: DoctorReportJSON;
