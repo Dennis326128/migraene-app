@@ -273,12 +273,17 @@ export function buildSummaryMd(responseJson: unknown): { md: string; insightsHas
 // Latest stored ai_reports
 // ─────────────────────────────────────────────────────────────────────────
 
+export interface LoadedLatestReport {
+  report: LatestAiReport;
+  storedSignature: string | null;
+}
+
 export async function loadLatestPatternAnalysis(
   supabase: SupabaseClient,
   userId: string,
   fromDate: string,
   toDate: string,
-): Promise<LatestAiReport | null> {
+): Promise<LoadedLatestReport | null> {
   // Prefer reports whose stored period covers the requested window.
   const { data: rows, error } = await supabase
     .from("ai_reports")
