@@ -91,7 +91,7 @@ export async function buildServerAnalysisDataset(
   const toIso = `${toDate}T23:59:59Z`;
 
   // === FETCH (always filtered by ownerUserId) ===
-  const [voiceRes, painRes, medRes] = await Promise.all([
+  const [voiceRes, painRes, medRes, ctxRes] = await Promise.all([
     supabase
       .from('voice_events')
       .select('id,event_timestamp,created_at,cleaned_transcript,raw_transcript,event_types,tags,medical_relevance')
@@ -116,6 +116,17 @@ export async function buildServerAnalysisDataset(
       .lte('taken_date', toDate)
       .order('taken_date', { ascending: true })
       .limit(4000),
+    // Tageszustand: structured fields only — NEVER text/notes (privacy)
+    supabase
+      .from('voice_notes')
+      .select('occurred_at,context_type,metadata')
+      .eq('user_id', ownerUserId)
+      .eq('context_type', 'tageszustand')
+      .is('deleted_at', null)
+      .gte('occurred_at', fromIso)
+      .lte('occurred_at', toIso)
+      .order('occurred_at', { ascending: true })
+      .limit(500),
   ]);
 
   const voiceEvents = (voiceRes.data ?? []) as VoiceEventRow[];
