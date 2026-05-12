@@ -554,8 +554,10 @@ ${serializedContext}`
         model: 'google/gemini-2.5-flash',
         analyzedAt: new Date().toISOString(),
         promptTokenEstimate: tokenEstimate,
-        analysisVersion: '1.1.1',
+        analysisVersion: '2.1.0',
       },
+      schema_version: '2.1',
+      analysis_version: '2.1.0',
     };
 
     // === COMMIT QUOTA (only on success + validation OK) ===

@@ -12,6 +12,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { getAnalysisDataset, type AnalysisTimeRange } from './analysisAccess';
 import { buildAnalysisContext, serializeForLLM } from './analysisContext';
 import { validateAnalysisResult, isAnalysisUnavailable, type VoiceAnalysisResult } from './analysisTypes';
+import { buildAnalysisReportV21 } from '@/lib/ai/buildAnalysisReportV21';
+import { ANALYSIS_V21_SCHEMA, ANALYSIS_V21_VERSION } from '@/lib/ai/analysisTypes';
 
 // ============================================================
 // === CONSTANTS ===
@@ -484,6 +486,28 @@ export async function runVoicePatternAnalysis(
   // Enrich meta with prompt info
   result.meta.promptTokenEstimate = promptData.tokenEstimate;
   (result as any)._preAnalysis = promptData.preAnalysis;
+
+  // Build deterministic V2.1 report and attach to result so it gets
+  // persisted into ai_reports.response_json by saveAnalysisResult.
+  try {
+    const rangeDays = Math.max(
+      1,
+      Math.round((range.to.getTime() - range.from.getTime()) / 86400000),
+    );
+    const reportV21 = buildAnalysisReportV21({
+      fromISO: range.from.toISOString(),
+      toISO: range.to.toISOString(),
+      timezone: 'Europe/Berlin',
+      daysTotal: rangeDays,
+      preAnalysis: promptData.preAnalysis,
+      meta: promptData.meta,
+    });
+    (result as any).schema_version = ANALYSIS_V21_SCHEMA;
+    (result as any).analysis_version = ANALYSIS_V21_VERSION;
+    (result as any).analysisV21 = reportV21;
+  } catch (e) {
+    console.warn('[AnalysisEngine] V2.1 report build failed (non-fatal):', e);
+  }
 
   return result;
 }
