@@ -540,11 +540,11 @@ export async function loadAnalysisForReport(
 // ============================================================
 
 /** Max patterns shown in any channel */
-export const MAX_PATTERNS = 4;
+export const MAX_PATTERNS = 8;
 /** Max recurring sequences shown */
-export const MAX_SEQUENCES = 2;
+export const MAX_SEQUENCES = 4;
 /** Max open questions shown */
-export const MAX_QUESTIONS = 2;
+export const MAX_QUESTIONS = 3;
 
 /** Evidence sort order */
 export const EVIDENCE_ORDER: Record<string, number> = { high: 3, medium: 2, low: 1 };
