@@ -103,13 +103,20 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 3. Share must have AI analysis enabled
+    // 3. Share must have AI analysis enabled AND explicitly allow new generation
     const [{ data: shareSettings }, { data: shareRow }] = await Promise.all([
-      supabase.from('doctor_share_settings').select('include_ai_analysis,range_preset').eq('share_id', shareId).maybeSingle(),
+      supabase.from('doctor_share_settings').select('include_ai_analysis,allow_ai_generate,range_preset').eq('share_id', shareId).maybeSingle(),
       supabase.from('doctor_shares').select('default_range').eq('id', shareId).maybeSingle(),
     ]);
     if (!shareSettings?.include_ai_analysis) {
       return json({ error: 'KI-Analyse ist für diese Freigabe nicht aktiviert.', code: 'AI_NOT_ENABLED_FOR_SHARE' }, 403);
+    }
+    if (!shareSettings?.allow_ai_generate) {
+      console.log(`[shared-ai] AI_GENERATE_NOT_ALLOWED owner=${shortId(ownerUserId)} share=${shortId(shareId)}`);
+      return json({
+        error: 'Diese Freigabe erlaubt keine neuen KI-Analysen über die Website.',
+        code: 'AI_GENERATE_NOT_ALLOWED',
+      }, 403);
     }
 
     // 4. Owner profile gate (App-side AI disable)
