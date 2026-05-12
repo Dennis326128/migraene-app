@@ -164,12 +164,41 @@ const ANALYSIS_TOOL = {
           type: "array",
           items: { type: "string" },
           description: "Notes about data gaps, limits, possible biases"
+        },
+        llm_expanded_findings: {
+          type: "array",
+          description: "V2.1 expanded findings derived from deterministic findings + preAnalysis + aggregated data. 8–20 entries. Cover all required areas; produce data_gap finding if no basis.",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "string", description: "Stable id like 'weather.pressure_drop.llm' or 'interaction.sleep_stress'" },
+              category: { type: "string", enum: [...V21_CATEGORIES] },
+              title: { type: "string" },
+              evidence_level: { type: "string", enum: [...V21_EVIDENCE] },
+              source_basis: { type: "string", enum: [...V21_SOURCE_BASIS] },
+              related_deterministic_finding_ids: { type: "array", items: { type: "string" } },
+              summary: { type: "string", description: "1–2 sentences, plain German, cautious." },
+              reasoning: { type: "string", description: "Short explanation of which data this is grounded in. No invented numbers." },
+              limitations: { type: "array", items: { type: "string" } },
+              patient_relevance: { type: "string", enum: [...V21_RELEVANCE] },
+              doctor_relevance: { type: "string", enum: [...V21_RELEVANCE] },
+              recommended_tracking_next: { type: "array", items: { type: "string" } },
+              doctor_discussion_points: { type: "array", items: { type: "string" } }
+            },
+            required: [
+              "id", "category", "title", "evidence_level", "source_basis",
+              "related_deterministic_finding_ids", "summary", "reasoning",
+              "limitations", "patient_relevance", "doctor_relevance",
+              "recommended_tracking_next", "doctor_discussion_points"
+            ]
+          }
         }
       },
       required: [
         "summary", "possiblePatterns", "painContextFindings",
         "fatigueContextFindings", "medicationContextFindings",
-        "recurringSequences", "openQuestions", "confidenceNotes"
+        "recurringSequences", "openQuestions", "confidenceNotes",
+        "llm_expanded_findings"
       ],
       additionalProperties: false
     }
