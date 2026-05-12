@@ -24,6 +24,7 @@ import { logError } from '@/lib/utils/errorMessages';
 import { gateDecision, isCacheStaleByAge, berlinDayStart, berlinDayEnd, STALE_AFTER_DAYS } from '@/lib/voice/analysisGate';
 import { useAnalysisGateState } from '@/lib/voice/useAnalysisGateState';
 import { AIConsentToggle } from './Settings/AIConsentToggle';
+import { supabase } from '@/integrations/supabase/client';
 
 // Filter logic is centralized in analysisFilters.ts for testability
 
