@@ -668,71 +668,30 @@ export function serializeForLLM(ctx: AnalysisContext): string {
     lines.push('');
   }
 
-  // Fatigue/energy context — ONLY include entries near pain days with meaningful tags
-  if (ctx.fatigueContextSummary && ctx.fatigueContextSummary.length > 0) {
-    const painDates = new Set(ctx.days.filter(d => d.maxPainLevel > 0).map(d => d.date));
-    // Helper: check if a date is within ±1 day of any pain day
-    const isNearPain = (dateStr: string) => {
-      if (painDates.has(dateStr)) return true;
-      const d = new Date(dateStr);
-      const prev = new Date(d); prev.setDate(prev.getDate() - 1);
-      const next = new Date(d); next.setDate(next.getDate() + 1);
-      return painDates.has(prev.toISOString().slice(0, 10)) || painDates.has(next.toISOString().slice(0, 10));
-    };
-    // STRICT: require pain proximity AND meaningful tags (not just "einfach müde")
-    const meaningfulTags = /belastung|reizüberflutet|brain fog|benommen|hinlegen|aktivität/i;
-    const combined = ctx.fatigueContextSummary.filter(entry => {
-      // Must be near a pain day
-      if (!isNearPain(entry.date)) return false;
-      // Filter out entries with only "einfach müde" or "unklar" tags
-      const usefulTags = entry.tags.filter(t => t !== 'einfach müde' && t !== 'unklar');
-      // Must have either meaningful tags, "probable" relevance, or very low energy with useful tags
-      if (entry.relevance === 'probable' && usefulTags.length > 0) return true;
-      if (usefulTags.some(t => meaningfulTags.test(t))) return true;
-      if (entry.energyLevel === 1 && usefulTags.length > 0) return true;
-      return false;
-    });
-
-    if (combined.length > 0) {
-      lines.push('=== Erschöpfungskontext (nur migränerelevante Tage) ===');
-      lines.push('NUR als ergänzender Kontext nutzen. Nicht als eigenständiges Muster werten.');
-      lines.push('');
-      for (const entry of combined.slice(0, 8)) {
-        const filteredTags = entry.tags.filter(t => t !== 'einfach müde');
-        const parts = [`  ${entry.date}: Energie=${entry.energyLevel}`];
-        if (entry.stressLevel !== null && entry.stressLevel <= 2) parts.push(`Stress=${entry.stressLevel}/4`);
-        if (entry.sleepLevel !== null && entry.sleepLevel <= 2) parts.push(`Schlaf=${entry.sleepLevel}/4`);
-        if (filteredTags.length > 0) parts.push(`(${filteredTags.join(', ')})`);
-        lines.push(parts.join(', '));
+  // Full daily factors (mood/stress/sleep/energy/triggers/notes for ALL Tageszustand entries)
+  // The LLM sees every day so it can detect prodromal patterns (T-1, T-2) itself.
+  if (ctx.dailyFactors && ctx.dailyFactors.length > 0) {
+    lines.push('=== Tagesfaktoren (Alltag & Auslöser) ===');
+    lines.push('Strukturierte Selbstauskunft pro Tag. Skalen: Stimmung 1=sehr schlecht…5=sehr gut, Stress 1=keiner…5=sehr hoch, Schlaf 1=sehr schlecht…5=sehr gut, Energie 1=erschöpft…5=energiegeladen.');
+    lines.push('Berücksichtige diese bei Korrelationen mit Schmerz, Wetter, Medikamentenwirkung, ME/CFS, Fatigue, PEM und Belastung – auch als Vortagsfaktor (T-1, T-2).');
+    lines.push('');
+    // Limit to last 90 entries to keep prompt size bounded
+    const limited = ctx.dailyFactors.slice(-90);
+    for (const e of limited) {
+      const parts: string[] = [];
+      if (e.mood !== null) parts.push(`Stimmung=${e.mood}/5`);
+      if (e.stress !== null) parts.push(`Stress=${e.stress}/5`);
+      if (e.sleep !== null) parts.push(`Schlaf=${e.sleep}/5`);
+      if (e.energy !== null) parts.push(`Energie=${e.energy}/5`);
+      if (e.triggers.length > 0) parts.push(`Auslöser: ${e.triggers.join(', ')}`);
+      if (e.fatigueTags.length > 0) parts.push(`Fatigue-Kontext: ${e.fatigueTags.join(', ')}`);
+      const head = `  ${e.date}${painRel(e.date)}: ${parts.join(', ')}`;
+      lines.push(head);
+      if (e.notes) {
+        lines.push(`    Notiz: ${e.notes.slice(0, 240)}`);
       }
-      lines.push('');
     }
-  }
-
-  // Trigger/stress context — only include entries near pain days
-  if (ctx.triggerContextSummary && ctx.triggerContextSummary.length > 0) {
-    const painDates = new Set(ctx.days.filter(d => d.maxPainLevel > 0).map(d => d.date));
-    const isNearPain = (dateStr: string) => {
-      if (painDates.has(dateStr)) return true;
-      const d = new Date(dateStr);
-      const prev = new Date(d); prev.setDate(prev.getDate() - 1);
-      const next = new Date(d); next.setDate(next.getDate() + 1);
-      return painDates.has(prev.toISOString().slice(0, 10)) || painDates.has(next.toISOString().slice(0, 10));
-    };
-    const nearPainTriggers = ctx.triggerContextSummary.filter(e => isNearPain(e.date) && e.triggers.length > 0);
-
-    if (nearPainTriggers.length > 0) {
-      lines.push('=== Auslöser-Kontext (nur schmerznahe Tage) ===');
-      lines.push('Nutze diese als ergänzenden Kontext. Nur als Muster erwähnen, wenn derselbe Auslöser an MEHREREN Schmerztagen auftaucht.');
-      lines.push('');
-      for (const entry of nearPainTriggers.slice(0, 8)) {
-        const parts = [`  ${entry.date}: Auslöser: ${entry.triggers.join(', ')}`];
-        if (entry.stressLevel !== null && entry.stressLevel <= 2) parts.push(`Stress=${entry.stressLevel}/4`);
-        if (entry.sleepLevel !== null && entry.sleepLevel <= 2) parts.push(`Schlaf=${entry.sleepLevel}/4`);
-        lines.push(parts.join(', '));
-      }
-      lines.push('');
-    }
+    lines.push('');
   }
 
   return lines.join('\n');
