@@ -332,7 +332,7 @@ interface ExpandedFinding {
   limitations: string[];
   patient_relevance: string;
   doctor_relevance: string;
-  recommended_tracking_next: string[;
+  recommended_tracking_next: string[];
   doctor_discussion_points: string[];
 }
 
