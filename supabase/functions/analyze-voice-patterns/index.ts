@@ -412,15 +412,16 @@ serve(async (req) => {
     const consentBlock = await requireAiConsent(supabase, user.id, corsHeaders);
     if (consentBlock) return consentBlock;
 
-    // Check AI enabled
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('ai_enabled, ai_unlimited')
-      .eq('user_id', user.id)
-      .single();
-
-    if (profile && !profile.ai_enabled) {
-      return jsonResponse({ error: 'AI-Analyse ist deaktiviert' }, 403);
+    // QUOTA + COOLDOWN GATE (service role)
+    const supabaseAdmin = createClient(
+      supabaseUrl,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+      { auth: { persistSession: false } },
+    );
+    const quotaCheck = await checkPatternAnalysisQuota(supabaseAdmin, user.id, { enforceCooldown: true });
+    if (!quotaCheck.allowed) {
+      console.log(`[analyze-voice-patterns] blocked reason=${quotaCheck.blockedReason} user=${user.id.slice(0, 8)}…`);
+      return jsonResponse(quotaErrorBody(quotaCheck), quotaCheck.status ?? 429);
     }
 
     // Parse request
