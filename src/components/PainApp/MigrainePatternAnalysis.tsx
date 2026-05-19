@@ -597,6 +597,8 @@ export function MigrainePatternAnalysis() {
   const [isStaleResult, setIsStaleResult] = useState(false);
   const [staleReason, setStaleReason] = useState<'data_changed' | 'version_mismatch' | null>(null);
   const [cachedAt, setCachedAt] = useState<string | null>(null);
+  const [storedSignature, setStoredSignature] = useState<string | null>(null);
+  const [currentSignature, setCurrentSignature] = useState<string | null>(null);
   const [gateRefresh, setGateRefresh] = useState(0);
 
   const gateState = useAnalysisGateState(gateRefresh);
@@ -616,11 +618,16 @@ export function MigrainePatternAnalysis() {
   }), [gateState, result, effectiveStale]);
 
   // Re-analyze cooldown (UX-side, separate from server quota cooldown).
+  // Uses the data_state_signature from analysisCache.ts as SSOT so we
+  // don't reinvent a parallel fingerprint.
   const rateGate = useMemo(() => evaluateReAnalyzeGate({
     lastCreatedAt: cachedAt,
     lastAnalysisVersion: (result as any)?.analysis_version ?? null,
     currentAnalysisVersion: ANALYSIS_V21_VERSION,
-  }), [cachedAt, result]);
+    lastDataSignature: storedSignature,
+    currentDataSignature: currentSignature,
+  }), [cachedAt, result, storedSignature, currentSignature]);
+
 
 
   useEffect(() => {
@@ -639,6 +646,8 @@ export function MigrainePatternAnalysis() {
       try {
         const selection = await selectAnalysisForChannel(from, to, 'app');
         if (cancelled) return;
+        setStoredSignature(selection.storedSignature);
+        setCurrentSignature(selection.currentSignature);
         if (selection.result) {
           if (isAnalysisUnavailable(selection.result)) {
             setIsWeakData(true);
@@ -656,6 +665,7 @@ export function MigrainePatternAnalysis() {
         if (!cancelled) setIsLoadingCache(false);
       }
     })();
+
 
     return () => { cancelled = true; };
   }, [from, to]);
