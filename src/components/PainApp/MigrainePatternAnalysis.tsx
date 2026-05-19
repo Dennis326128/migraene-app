@@ -26,6 +26,9 @@ import { useAnalysisGateState } from '@/lib/voice/useAnalysisGateState';
 import { AIConsentToggle } from './Settings/AIConsentToggle';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { AnalysisV21Sections } from './AnalysisV21Sections';
+import { evaluateReAnalyzeGate } from '@/lib/ai/analysisRateGate';
+import { ANALYSIS_V21_VERSION } from '@/lib/ai/analysisTypes';
 
 // Filter logic is centralized in analysisFilters.ts for testability
 
