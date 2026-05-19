@@ -820,11 +820,14 @@ export function MigrainePatternAnalysis() {
                 <><Lock className="h-4 w-4 mr-2" /> Limit erreicht ({gateState.usageCount}/{gateState.limit})</>
               ) : decision.action === 'block_cooldown' ? (
                 <><Clock className="h-4 w-4 mr-2" /> Erneut möglich in {cooldownLabel}</>
+              ) : rateBlocked ? (
+                <><Clock className="h-4 w-4 mr-2" /> Neue Analyse in ca. {rateGate.waitMinutes} Min. möglich</>
               ) : result ? (
-                <><RefreshCw className="h-4 w-4 mr-2" /> {effectiveStale ? 'Neue Analyse erstellen' : 'Erneut analysieren'}</>
+                <><RefreshCw className="h-4 w-4 mr-2" /> {effectiveStale ? (staleReason === 'version_mismatch' ? 'Analyse-Logik wurde verbessert' : 'Neue Daten vorhanden') : 'Erneut analysieren'}</>
               ) : (
                 <><Brain className="h-4 w-4 mr-2" /> Zusammenhänge suchen</>
               )}
+
             </Button>
 
             {/* Quota status (always visible when free user) */}
