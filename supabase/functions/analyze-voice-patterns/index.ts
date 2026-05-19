@@ -158,7 +158,7 @@ const ANALYSIS_TOOL = {
         },
         llm_expanded_findings: {
           type: "array",
-          description: "V2.1 expanded findings derived from deterministic findings + preAnalysis + aggregated data. 8–20 entries. Cover all required areas; produce data_gap finding if no basis.",
+          description: "V2.1 expanded findings derived from deterministic findings + preAnalysis + aggregated data. 10–24 entries. Cover all required areas; produce data_gap finding if no basis. Each must include recommended_tracking_next (≥1 concrete item) and may include doctor_discussion_points (required for clinically relevant categories).",
           items: {
             type: "object",
             properties: {
