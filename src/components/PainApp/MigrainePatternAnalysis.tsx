@@ -597,6 +597,8 @@ export function MigrainePatternAnalysis() {
   const [isStaleResult, setIsStaleResult] = useState(false);
   const [staleReason, setStaleReason] = useState<'data_changed' | 'version_mismatch' | null>(null);
   const [cachedAt, setCachedAt] = useState<string | null>(null);
+  const [storedSignature, setStoredSignature] = useState<string | null>(null);
+  const [currentSignature, setCurrentSignature] = useState<string | null>(null);
   const [gateRefresh, setGateRefresh] = useState(0);
 
   const gateState = useAnalysisGateState(gateRefresh);
