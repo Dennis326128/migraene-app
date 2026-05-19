@@ -281,30 +281,34 @@ Du DARFST: Hypothesen aus zeitlichen Mustern ableiten, schwache Zusammenhänge n
 Du DARFST NICHT: Diagnosen stellen, Therapieanweisungen geben, Zahlen erfinden, Kausalität behaupten, private Notizen/Transkripte/Audio-URLs verwenden, fehlende Daten durch Allgemeinwissen ersetzen.
 
 REGELN für llm_expanded_findings:
-- 8–20 Findings.
+- 10–24 Findings (so viele wie sinnvoll mit Datenbasis).
 - Jedes Finding MUSS source_basis setzen: deterministic_finding | preanalysis | aggregated_daily_data | data_gap.
-- related_deterministic_finding_ids enthält IDs aus analysisV21.findings, falls vorhanden.
+- related_deterministic_finding_ids enthält IDs aus analysisV21.findings, falls vorhanden – sonst leeres Array.
 - evidence_level NIE höher als die zugehörige deterministische Evidenz, außer mehrere unabhängige Hinweise existieren.
 - Wenn keine Datenbasis vorhanden ist → Finding nur als source_basis="data_gap" mit evidence_level="insufficient".
-- Keine Duplikate, jeder Inhalt nur einmal.
+- Keine Duplikate, jeder Inhalt nur einmal (auch nicht inhaltlich umformuliert).
 - Schwache Findings sind willkommen, aber mit evidence_level="low".
+- recommended_tracking_next MUSS mindestens 1 konkreten, umsetzbaren Vorschlag enthalten (Dokumentationslücke schließen, Wirkung erfassen, Nebenwirkung trennen, Schlaf erfassen, etc.). Niemals generisch wie „mehr dokumentieren".
+- doctor_discussion_points MUSS mindestens 1 konkrete Frage enthalten, sobald das Finding für ein Arztgespräch relevant sein KÖNNTE (insb. medication_*, mecfs_energy_pem, weather, interaction, red_flag, data_quality mit klarer Lücke). Andernfalls darf das Array leer bleiben.
+- Jede Frage und Empfehlung muss aus dem konkreten Datensatz/Datenlücke entstehen – keine allgemeinen Sprechblasen.
 
-PFLICHTBEREICHE (jeweils mind. ein Finding ODER ein data_gap):
+PFLICHTBEREICHE (jeweils mind. ein Finding ODER ein data_gap mit doctor_discussion_points):
 1) Krankheitslast / Verlauf (burden, chronification)
 2) Medikamente Einnahmehäufigkeit (medication_use)
-3) Medikamente Wirkung/Nebenwirkung/Wiederkehr (medication_effect)
+3) Medikamente Wirkung / Wiederkehr / Nebenwirkung (medication_effect) — bei fehlenden Wirkungsbewertungen → data_gap mit konkretem Tracking-Vorschlag und Arztfrage.
 4) Wetter (weather)
-5) ME/CFS / Energie / PEM 24–72h (mecfs_energy_pem)
+5) ME/CFS / Energie / PEM 24–72 h (mecfs_energy_pem) — wenn keine Energieerfassung → data_gap mit Hinweis auf Belastung-T-1/T-2-Logik.
 6) Schlaf (sleep)
 7) Stress / Stimmung (stress_mood)
 8) Symptome / Aura (symptoms_aura)
 9) Zeitmuster (time_pattern)
 10) Alltag / Trigger (lifestyle_triggers)
-11) Interaktionen, z.B. Wetter+Schlaf, Stress+Schlaf, Belastung+Crash (interaction)
-12) Datenqualität (data_quality)
-13) Offene Fragen / red_flag bei klaren Warnsignalen (red_flag)
+11) Interaktionen (interaction) — MINDESTENS 2 Findings, z.B. Schlaf+Stress, Wetter+Schlaf, Belastung+Crash, Medikamententiming+Schmerzstärke, Stimmung+Schmerz. Wenn Daten fehlen → data_gap mit klarem Vorschlag, welche Kombination zu dokumentieren ist.
+12) Datenqualität (data_quality) — MINDESTENS 1 Finding mit konkreter Dokumentationslücke und Arztgespräch-Frage.
+13) Red Flags (red_flag) — nur bei klaren Warnsignalen aus dem Datensatz, sonst weglassen.
 
-Verwende submit_voice_analysis. Halte ALLE Mindestmengen ein – inklusive llm_expanded_findings.`;
+Verwende submit_voice_analysis. Halte ALLE Mindestmengen und Pflichtfelder ein – inklusive llm_expanded_findings.`;
+
 }
 
 // V2.1 expanded findings postprocessing lives in ./postprocess.ts
