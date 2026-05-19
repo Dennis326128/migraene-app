@@ -646,6 +646,8 @@ export function MigrainePatternAnalysis() {
       try {
         const selection = await selectAnalysisForChannel(from, to, 'app');
         if (cancelled) return;
+        setStoredSignature(selection.storedSignature);
+        setCurrentSignature(selection.currentSignature);
         if (selection.result) {
           if (isAnalysisUnavailable(selection.result)) {
             setIsWeakData(true);
@@ -663,6 +665,7 @@ export function MigrainePatternAnalysis() {
         if (!cancelled) setIsLoadingCache(false);
       }
     })();
+
 
     return () => { cancelled = true; };
   }, [from, to]);
