@@ -615,6 +615,14 @@ export function MigrainePatternAnalysis() {
     isStale: effectiveStale,
   }), [gateState, result, effectiveStale]);
 
+  // Re-analyze cooldown (UX-side, separate from server quota cooldown).
+  const rateGate = useMemo(() => evaluateReAnalyzeGate({
+    lastCreatedAt: cachedAt,
+    lastAnalysisVersion: (result as any)?.analysis_version ?? null,
+    currentAnalysisVersion: ANALYSIS_V21_VERSION,
+  }), [cachedAt, result]);
+
+
   useEffect(() => {
     let cancelled = false;
     setIsLoadingCache(true);
