@@ -618,11 +618,16 @@ export function MigrainePatternAnalysis() {
   }), [gateState, result, effectiveStale]);
 
   // Re-analyze cooldown (UX-side, separate from server quota cooldown).
+  // Uses the data_state_signature from analysisCache.ts as SSOT so we
+  // don't reinvent a parallel fingerprint.
   const rateGate = useMemo(() => evaluateReAnalyzeGate({
     lastCreatedAt: cachedAt,
     lastAnalysisVersion: (result as any)?.analysis_version ?? null,
     currentAnalysisVersion: ANALYSIS_V21_VERSION,
-  }), [cachedAt, result]);
+    lastDataSignature: storedSignature,
+    currentDataSignature: currentSignature,
+  }), [cachedAt, result, storedSignature, currentSignature]);
+
 
 
   useEffect(() => {
