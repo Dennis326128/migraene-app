@@ -718,7 +718,9 @@ export function MigrainePatternAnalysis() {
   }, [cachedAt]);
 
   // === Button label / disabled state from gate ===
-  const buttonDisabled = isAnalyzing || isLoadingCache || gateState.loading || !decision.canRunAnalysis;
+  const rateBlocked = !rateGate.allowed && rateGate.reason === 'cooldown_active';
+  const buttonDisabled = isAnalyzing || isLoadingCache || gateState.loading || !decision.canRunAnalysis || rateBlocked;
+
   const cooldownLabel = (() => {
     const s = gateState.cooldownRemaining;
     if (s <= 0) return null;
