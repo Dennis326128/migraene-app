@@ -26,6 +26,9 @@ import { useAnalysisGateState } from '@/lib/voice/useAnalysisGateState';
 import { AIConsentToggle } from './Settings/AIConsentToggle';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { AnalysisV21Sections } from './AnalysisV21Sections';
+import { evaluateReAnalyzeGate } from '@/lib/ai/analysisRateGate';
+import { ANALYSIS_V21_VERSION } from '@/lib/ai/analysisTypes';
 
 // Filter logic is centralized in analysisFilters.ts for testability
 
@@ -177,6 +180,33 @@ function generateReport(result: VoiceAnalysisResult): string {
 
 function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
   const [showReport, setShowReport] = useState(false);
+  const v21 = (result as any)?.analysisV21 ?? null;
+  if (v21) {
+    return (
+      <div className="space-y-7">
+        <AnalysisV21Sections responseJson={result} />
+        <div className="flex flex-col items-center gap-1.5 pt-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowReport(!showReport)}
+            className="text-muted-foreground hover:text-foreground text-xs"
+          >
+            <FileText className="h-3 w-3 mr-1.5" />
+            {showReport ? 'Bericht schließen' : 'Als Bericht anzeigen'}
+          </Button>
+        </div>
+        {showReport && (
+          <div className="rounded-lg bg-muted/10 px-5 py-4">
+            <pre className="text-xs text-foreground/80 whitespace-pre-wrap font-sans leading-relaxed">
+              {generateReport(result)}
+            </pre>
+          </div>
+        )}
+      </div>
+    );
+  }
+
 
   const { sortedPatterns, filteredSequences, extraContextFindings, uncertainties, cleanedSummary } = useMemo(() => {
     // Clean summary filler starters
@@ -585,6 +615,14 @@ export function MigrainePatternAnalysis() {
     isStale: effectiveStale,
   }), [gateState, result, effectiveStale]);
 
+  // Re-analyze cooldown (UX-side, separate from server quota cooldown).
+  const rateGate = useMemo(() => evaluateReAnalyzeGate({
+    lastCreatedAt: cachedAt,
+    lastAnalysisVersion: (result as any)?.analysis_version ?? null,
+    currentAnalysisVersion: ANALYSIS_V21_VERSION,
+  }), [cachedAt, result]);
+
+
   useEffect(() => {
     let cancelled = false;
     setIsLoadingCache(true);
@@ -680,7 +718,9 @@ export function MigrainePatternAnalysis() {
   }, [cachedAt]);
 
   // === Button label / disabled state from gate ===
-  const buttonDisabled = isAnalyzing || isLoadingCache || gateState.loading || !decision.canRunAnalysis;
+  const rateBlocked = !rateGate.allowed && rateGate.reason === 'cooldown_active';
+  const buttonDisabled = isAnalyzing || isLoadingCache || gateState.loading || !decision.canRunAnalysis || rateBlocked;
+
   const cooldownLabel = (() => {
     const s = gateState.cooldownRemaining;
     if (s <= 0) return null;
@@ -780,11 +820,14 @@ export function MigrainePatternAnalysis() {
                 <><Lock className="h-4 w-4 mr-2" /> Limit erreicht ({gateState.usageCount}/{gateState.limit})</>
               ) : decision.action === 'block_cooldown' ? (
                 <><Clock className="h-4 w-4 mr-2" /> Erneut möglich in {cooldownLabel}</>
+              ) : rateBlocked ? (
+                <><Clock className="h-4 w-4 mr-2" /> Neue Analyse in ca. {rateGate.waitMinutes} Min. möglich</>
               ) : result ? (
-                <><RefreshCw className="h-4 w-4 mr-2" /> {effectiveStale ? 'Neue Analyse erstellen' : 'Erneut analysieren'}</>
+                <><RefreshCw className="h-4 w-4 mr-2" /> {effectiveStale ? (staleReason === 'version_mismatch' ? 'Analyse-Logik wurde verbessert' : 'Neue Daten vorhanden') : 'Erneut analysieren'}</>
               ) : (
                 <><Brain className="h-4 w-4 mr-2" /> Zusammenhänge suchen</>
               )}
+
             </Button>
 
             {/* Quota status (always visible when free user) */}
