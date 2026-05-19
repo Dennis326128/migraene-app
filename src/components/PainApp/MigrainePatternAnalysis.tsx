@@ -180,6 +180,33 @@ function generateReport(result: VoiceAnalysisResult): string {
 
 function AnalysisResults({ result }: { result: VoiceAnalysisResult }) {
   const [showReport, setShowReport] = useState(false);
+  const v21 = (result as any)?.analysisV21 ?? null;
+  if (v21) {
+    return (
+      <div className="space-y-7">
+        <AnalysisV21Sections responseJson={result} />
+        <div className="flex flex-col items-center gap-1.5 pt-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowReport(!showReport)}
+            className="text-muted-foreground hover:text-foreground text-xs"
+          >
+            <FileText className="h-3 w-3 mr-1.5" />
+            {showReport ? 'Bericht schließen' : 'Als Bericht anzeigen'}
+          </Button>
+        </div>
+        {showReport && (
+          <div className="rounded-lg bg-muted/10 px-5 py-4">
+            <pre className="text-xs text-foreground/80 whitespace-pre-wrap font-sans leading-relaxed">
+              {generateReport(result)}
+            </pre>
+          </div>
+        )}
+      </div>
+    );
+  }
+
 
   const { sortedPatterns, filteredSequences, extraContextFindings, uncertainties, cleanedSummary } = useMemo(() => {
     // Clean summary filler starters
