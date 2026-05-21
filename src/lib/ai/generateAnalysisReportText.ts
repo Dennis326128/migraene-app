@@ -1,15 +1,19 @@
 /**
  * generateAnalysisReportText
  *
- * Produces the human-readable copy/paste text of a pattern-analysis result.
+ * V2.2 stark gekürzter Bericht aus den kuratierten Findings.
  *
- *  - When `responseJson.analysisV21` exists, builds the V2.1 report from the
- *    same normalized findings the App UI uses (no duplicated topical text,
- *    no private fields, no legacy sections).
- *  - Otherwise falls back to a minimal legacy renderer that mirrors the
- *    previous in-component formatter (kept compatible with old reports).
- *
- * Pure function — no I/O. Safe for client, server, and tests.
+ *  - max 3 "Wichtigste Hinweise"
+ *  - max 3 Medikamenten-Punkte, ME/CFS max 1, Schlaf/Stress/Alltag max 2,
+ *    Datenqualität max 3, Interaktionen nur bei high-evidence
+ *  - pro Finding: Titel, Evidenz, 1–2 Sätze, optional 1 Einschränkung,
+ *    optional 1 Dokumentationshinweis. Kein reasoning, keine
+ *    doctor_discussion_points pro Karte (die landen separat unter
+ *    "Offene Fragen für Ärzt:innen", gekappt auf 5).
+ *  - "Grenzen der Analyse" enthält IMMER nur den ruhigen Standardtext.
+ *  - Leere Sektionen werden komplett weggelassen (kein
+ *    "Keine Auffälligkeiten oder Datenlücken dokumentiert.")
+ *  - Legacy-Reports werden weiterhin vom Legacy-Renderer ausgegeben.
  */
 
 import {
@@ -18,7 +22,7 @@ import {
   type NormalizedAnalysisFinding,
   type AnalysisSectionKey,
 } from "./normalizeAnalysisFindings";
-import { curateFindingsV22, applySectionCaps } from "./curateFindingsV22";
+import { curateFindingsV22 } from "./curateFindingsV22";
 
 const EVIDENCE_LABEL = {
   high: "starker Hinweis",
@@ -27,7 +31,25 @@ const EVIDENCE_LABEL = {
   insufficient: "Datenlücke",
 } as const;
 
-const SECTION_TITLES: Array<{ key: AnalysisSectionKey | "open_questions" | "limits"; title: string; alwaysShow?: boolean }> = [
+const evidenceRank: Record<NormalizedAnalysisFinding["evidenceLevel"], number> = {
+  high: 3, moderate: 2, low: 1, insufficient: 0,
+};
+
+/** Pro-Sektion harte Caps für den Bericht (Anzeige weiter unverändert). */
+const REPORT_SECTION_CAPS: Partial<Record<AnalysisSectionKey, number>> = {
+  strongest: 3,
+  weaker: 3,
+  medication: 3,
+  weather: 1,
+  mecfs: 1,
+  lifestyle: 2,
+  symptoms: 1,
+  time: 1,
+  interaction: 2,
+  data_quality: 3,
+};
+
+const SECTION_TITLES: Array<{ key: AnalysisSectionKey; title: string }> = [
   { key: "strongest", title: "Wichtigste Hinweise" },
   { key: "medication", title: "Medikamente & Wirkung" },
   { key: "weather", title: "Wetter & Umwelt" },
@@ -37,10 +59,14 @@ const SECTION_TITLES: Array<{ key: AnalysisSectionKey | "open_questions" | "limi
   { key: "time", title: "Zeitmuster" },
   { key: "interaction", title: "Interaktionen" },
   { key: "weaker", title: "Weitere mögliche Zusammenhänge" },
-  { key: "data_quality", title: "Datenqualität", alwaysShow: true },
-  { key: "open_questions", title: "Offene Fragen für Ärzt:innen" },
-  { key: "limits", title: "Grenzen der Analyse", alwaysShow: true },
+  { key: "data_quality", title: "Datenqualität" },
 ];
+
+const LIMITS_DISCLAIMER =
+  "Diese Analyse ersetzt keine ärztliche Beurteilung. Sie zeigt Hinweise " +
+  "aus dokumentierten Daten und keine Diagnosen. Besonders Wetter-, " +
+  "Trigger- und PEM-Zusammenhänge bleiben eingeschränkt, wenn " +
+  "Vergleichstage oder Detaildaten fehlen.";
 
 export function generateAnalysisReportText(responseJson: unknown): string {
   if (!responseJson || typeof responseJson !== "object") return "";
@@ -49,14 +75,13 @@ export function generateAnalysisReportText(responseJson: unknown): string {
   return buildLegacyReport(rj);
 }
 
-// ───────────────────────────── V2.1 ─────────────────────────────
+// ───────────────────────────── V2.2 ─────────────────────────────
 
 function buildV21Report(rj: Record<string, unknown>): string {
-  const v21 = rj.analysisV21 as Record<string, unknown>;
   const raw = normalizeAnalysisFindings(rj);
   const curated = curateFindingsV22(raw, rj);
   const grouped = groupFindingsBySection(curated.findings);
-  const openQuestions = curated.openQuestions;
+  const openQuestions = curated.openQuestions.slice(0, 5);
 
   const lines: string[] = [];
   lines.push("KI-Analyse – keine Diagnose");
@@ -64,61 +89,66 @@ function buildV21Report(rj: Record<string, unknown>): string {
 
   // 1. Kurzfazit
   const summary = typeof rj.summary === "string" ? rj.summary.trim() : "";
+  let idx = 1;
   if (summary) {
-    lines.push("1. Kurzfazit");
-    lines.push(summary);
-    lines.push("");
-  }
-
-  // 2–N: Findings sections + open questions + limits
-  let idx = summary ? 2 : 1;
-  for (const sec of SECTION_TITLES) {
-    if (sec.key === "open_questions") {
-      if (openQuestions.length === 0 && !sec.alwaysShow) continue;
-      lines.push(`${idx}. ${sec.title}`);
-      if (openQuestions.length === 0) {
-        lines.push("Keine offenen Fragen aus der Analyse abgeleitet.");
-      } else {
-        for (const q of openQuestions) lines.push(`• ${q}`);
-      }
-      lines.push("");
-      idx++;
-      continue;
-    }
-
-    const items = applySectionCaps(sec.key, dedupItems(grouped[sec.key as AnalysisSectionKey] ?? []));
-    if (items.length === 0 && !sec.alwaysShow) continue;
-    lines.push(`${idx}. ${sec.title}`);
-    if (items.length === 0) {
-      lines.push("Keine Auffälligkeiten oder Datenlücken dokumentiert.");
-    } else {
-      for (const f of items) appendFinding(lines, f);
-    }
+    lines.push(`${idx}. Kurzfazit`);
+    lines.push(truncateSentences(summary, 3, 360));
     lines.push("");
     idx++;
   }
 
-  // Final caution
-  const caution = v21.clinical_caution as Record<string, unknown> | undefined;
-  const disclaimer = (caution?.emergency_disclaimer as string | undefined)?.trim();
+  // 2..N: Findings sections — nur ausgeben wenn Items vorhanden
+  for (const sec of SECTION_TITLES) {
+    let items = dedupItems(grouped[sec.key] ?? []);
+
+    // Interaktionen nur, wenn wirklich starker Hinweis dabei ist.
+    if (sec.key === "interaction") {
+      const hasStrong = items.some((f) => f.evidenceLevel === "high");
+      if (!hasStrong) items = [];
+    }
+
+    // Cap pro Sektion
+    const cap = REPORT_SECTION_CAPS[sec.key];
+    if (typeof cap === "number" && items.length > cap) {
+      items = [...items]
+        .sort((a, b) => evidenceRank[b.evidenceLevel] - evidenceRank[a.evidenceLevel])
+        .slice(0, cap);
+    }
+
+    if (items.length === 0) continue;
+
+    lines.push(`${idx}. ${sec.title}`);
+    for (const f of items) appendFinding(lines, f);
+    lines.push("");
+    idx++;
+  }
+
+  // Offene Fragen (max 5) — nur ausgeben wenn vorhanden
+  if (openQuestions.length > 0) {
+    lines.push(`${idx}. Offene Fragen für Ärzt:innen`);
+    for (const q of openQuestions) lines.push(`• ${q}`);
+    lines.push("");
+    idx++;
+  }
+
+  // Grenzen der Analyse — IMMER nur Standardtext, nie Findings auflisten
+  lines.push(`${idx}. Grenzen der Analyse`);
+  lines.push(LIMITS_DISCLAIMER);
+  lines.push("");
+
   lines.push("---");
-  lines.push(disclaimer || "Hinweis: mögliche Zusammenhänge – keine medizinische Diagnose.");
+  lines.push("Hinweis: mögliche Zusammenhänge – keine medizinische Diagnose.");
 
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim() + "\n";
 }
 
 function appendFinding(lines: string[], f: NormalizedAnalysisFinding): void {
   const evidence = EVIDENCE_LABEL[f.evidenceLevel];
-  const isGap = f.evidenceLevel === "insufficient";
-  const prefix = isGap ? "Datenlücke" : evidence;
-  lines.push(`• ${f.title} (${prefix})`);
-  lines.push(`  ${f.summary}`);
-  if (f.reasoning && f.reasoning !== f.summary) {
-    lines.push(`  ${f.reasoning}`);
-  }
-  for (const l of f.limitations) lines.push(`  – ${l}`);
-  if (f.recommendedTrackingNext.length > 0) {
-    lines.push(`  Nächste Dokumentation: ${f.recommendedTrackingNext.join(" · ")}`);
+  lines.push(`• ${f.title} (${evidence})`);
+  lines.push(`  ${truncateSentences(f.summary, 2, 240)}`);
+  if (f.limitations[0]) lines.push(`  – Einschränkung: ${f.limitations[0]}`);
+  if (f.recommendedTrackingNext[0]) {
+    lines.push(`  – Nächste Dokumentation: ${f.recommendedTrackingNext[0]}`);
   }
 }
 
@@ -131,6 +161,14 @@ function dedupItems(items: NormalizedAnalysisFinding[]): NormalizedAnalysisFindi
     seen.add(key);
     out.push(f);
   }
+  return out;
+}
+
+function truncateSentences(text: string, maxSentences: number, maxChars: number): string {
+  if (!text) return "";
+  const parts = text.match(/[^.!?]+[.!?]?/g) ?? [text];
+  let out = parts.slice(0, maxSentences).join(" ").trim();
+  if (out.length > maxChars) out = out.slice(0, maxChars - 1).trimEnd() + "…";
   return out;
 }
 
