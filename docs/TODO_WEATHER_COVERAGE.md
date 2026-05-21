@@ -1,38 +1,228 @@
-# TODO: Wetterdaten-Abdeckung verbessern (Post-V2.2)
+# Weather Coverage & Analysis V2.3 — Plan
 
-## Befund (Live-QA V2.2)
-Im aktuellen Live-Datensatz liegen Wetterdaten nur an ca. **45/90 Tagen**
-(~50 %) vor. Die V2.2-Analyse markiert das vorsichtig als Datenqualitäts-
-hinweis und verzichtet auf starke Wetter-Aussagen, wenn schmerzfreie
-Vergleichstage zusätzlich fehlen.
+Status: **Plan, noch nicht implementiert.** Keine produktiven Daten werden
+durch dieses Dokument verändert.
 
-## Folgen für die Analyse
-- Druckabfall- und Druckanstiegs-Vergleiche sind nur eingeschränkt
-  belastbar.
-- Wetter-Findings dürfen nicht als "korreliert stark" formuliert werden.
-- ME/CFS-Wetter-Interaktionen sind aktuell nicht zuverlässig
-  ableitbar.
+---
 
-## Mögliche Ursachen (zu prüfen)
-- Wetterlogs werden nur bei Schmerz-/App-Nutzung erzeugt, nicht täglich.
-- Backfill (`backfill-entry-weather`, `daily-weather-backfill`,
-  `auto-weather-backfill`) deckt nicht alle Tage ab.
-- Tage ohne dokumentierten Pain-Entry haben keinen `weather_id`-Link.
-- Snapshot-Fallback (`useSnapshotWeather`) wird auf manchen Geräten
-  nicht ausgelöst.
+## 1. Ist-Zustand (Live-QA V2.2)
 
-## Nächste Schritte (separater Fix, NICHT in V2.2)
-1. Tägliche Wetter-Snapshots pro User/Standort sicherstellen, unabhängig
-   von Pain-Einträgen.
-2. Backfill-Lücken sichtbar machen (Debug-Panel: Tage ohne
-   `weather_id` UND ohne Snapshot).
-3. Wetterdaten auch an dokumentierten Nicht-Schmerz-Tagen einsammeln,
-   damit Vergleichsgruppen entstehen.
-4. SSOT für Wetter-Coverage (`WeatherDayFeature.weatherCoverage`)
-   konsistent in PreAnalysis + AnalysisV2 + AnalysisV21 nutzen.
-5. Wetter-Backfill-Job (Cron) auf täglich/2x täglich umstellen.
+### Datenlage
+- Live-Datensatz 90 Tage: **~45/90 Tage** mit Wetter (≈ 50 %).
+- Folge: V2.2 markiert Wetter vorsichtig als Datenqualität, vermeidet starke
+  Aussagen, wenn schmerzfreie Vergleichstage fehlen.
 
-## Akzeptanz für späteren Fix
+### Tabelle `weather_logs` (geprüft)
+Vorhandene Spalten:
+`id, user_id, latitude, longitude, lat_rounded, lon_rounded, location,
+temperature_c, pressure_mb, pressure_change_24h, pressure_trend_24h,
+humidity, wind_kph, dewpoint_c, condition_text, condition_icon, moon_phase,
+moonrise, moonset, snapshot_date, requested_at, created_at`.
+
+Keine `source`-, `coverage_status`-, `backfilled_at`- oder `error`-Spalten.
+Kein eindeutiger Index auf `(user_id, snapshot_date, lat_rounded,
+lon_rounded)` dokumentiert → Duplikat-Risiko.
+
+### Wetter-Erzeugungspfade (Edge Functions, gefunden)
+- `fetch-weather`, `fetch-weather-hybrid`, `fetch-weather-meteo` — synchrone
+  Einzelfetches.
+- `backfill-entry-weather`, `backfill-missing-weather`,
+  `auto-weather-backfill`, `daily-weather-backfill`,
+  `batch-weather-import`, `clean-weather-import`, `debug-weather-status`.
+
+Beobachtung: Mehrere Backfill-Pfade nebeneinander, kein erkennbarer SSOT.
+Schreibt teilweise pro Entry (an `pain_entries.weather_id` gebunden),
+teilweise als Tages-Snapshot.
+
+### Vermutete Lücken-Ursachen
+1. Wetter wird primär **entry-getriggert** geschrieben → keine
+   Nicht-Schmerz-Vergleichstage.
+2. Backfill-Cron-Status unklar (läuft? mit welchem Intervall? für welche
+   User?).
+3. Tage ohne Koordinaten / ohne Consent erzeugen still keine Zeile.
+4. Doppelschreibungen pro Tag möglich, keine Unique-Constraint.
+
+---
+
+## 2. Analyse V2.2 Konsistenzplan (App ↔ Shared ↔ Website)
+
+### App vs Shared
+| Aspekt | App (`analyze-voice-patterns`) | Shared (`analyze-voice-patterns-shared`) |
+|---|---|---|
+| Prompt | Inline V2.2 + V2.1-Findings-Block | `_shared/analysisCore.ts` (Kurzform, neu V2.2-Regeln) |
+| Deterministische `analysisV21.findings` | ✅ vollständig | ❌ fehlen |
+| Postprocess (`postprocess.ts`) | ✅ | ❌ |
+| `curateFindingsV22` Server-seitig | ❌ (Client kuratiert) | ❌ |
+| `analysis_version` | `2.2.0` | `2.2.0` (jetzt) |
+| `schema_version` | `2.1` | `2.1` (jetzt) |
+
+### Refactor-Plan „Shared Engine V2.2“ (kein Big-Bang)
+
+Phase 1 — **Extract** (klein, sicher):
+1. `_shared/analysisV21Builder.ts` neu: deterministische V2.1-Findings
+   (aktuell inline in `analyze-voice-patterns/index.ts`) als reine Funktion
+   `buildAnalysisV21(dataset, opts)` extrahieren.
+2. `_shared/analysisPostprocess.ts` neu: aktuelle `postprocess.ts` 1:1
+   verschieben + von beiden Endpoints importieren.
+3. App-Endpoint nur noch dünn: Datenset bauen → `buildAnalysisV21` → LLM
+   (Prompt aus `analysisCore`) → `postprocess`.
+
+Phase 2 — **Shared adoptiert**:
+4. `analyze-voice-patterns-shared` ruft `buildAnalysisV21` + Postprocess
+   ebenfalls. Privacy-Optionen über `BuildOptions` (`includesPrivateNotes:
+   false`, `excludeRedFlags: true`).
+5. Beide Endpoints schreiben identisch strukturiertes
+   `response_json.analysisV21`.
+
+Phase 3 — **View-Layer** (optional, Variante B für Website):
+6. `_shared/curateAnalysisV22View.ts` neu (Port von
+   `src/lib/ai/curateFindingsV22.ts` nach Deno).
+7. Beim Persist von `ai_reports.response_json` zusätzlich
+   `patternAnalysisV21View` ablegen:
+   ```ts
+   patternAnalysisV21View?: {
+     strongest: Finding[];      // ≤ 4
+     weaker: Finding[];         // ≤ 5
+     medication: Finding[];     // 1 stärkste
+     weather: Finding[];        // 1 stärkste
+     mecfs: Finding[];          // 0..1
+     dataQuality: Finding[];    // ≤ 3, kein Voice-Event
+     openQuestions: string[];   // ≤ 5
+   }
+   ```
+8. `get-shared-report-data` reicht View durch, falls vorhanden. Website
+   nutzt View bevorzugt, fällt sonst auf rohe `patternAnalysisV21` zurück.
+
+### Risiken
+- LLM-Output-Format kann beim Verschieben der Prompts driften → Phase 1
+  verlangt Snapshot-Tests gegen `extractAnalysisFromLLMResponse`.
+- Deterministischer Builder hat Abhängigkeiten zu Datenset-Shape — vor
+  Extract per Test fixieren.
+- View im DB-JSON erzeugt einmaligen Versionssprung; Website muss tolerant
+  parsen (Variante B nur additiv, nichts entfernen).
+
+### Kleinste sichere nächste Schritte
+1. **Phase 1, Schritt 1** (Extract `buildAnalysisV21`) hinter Snapshot-Test.
+2. Erst danach Phase 1, Schritt 2 (Postprocess shared).
+3. Phase 2/3 separat planen, nachdem Phase 1 grün live ist.
+
+### Curation App vs Website
+- **Kurzfristig (empfohlen)**: Website portiert `curateFindingsV22`
+  (eigener Folge-Prompt im Website-Projekt).
+- **Mittelfristig**: Variante B (View im Server) ersetzt beide Client-
+  Curations.
+
+---
+
+## 3. Wetter V2.3 — Zielmodell
+
+### Daily Weather Spine
+Pro `(user_id, snapshot_date, lat_rounded, lon_rounded)` genau eine Zeile
+mit: Druck, Δ24h, Trend, Temperatur, Luftfeuchte, Bedingung, Quelle.
+
+### Relevante Tage
+- jeder Tag mit Pain-Entry (T0)
+- T-1 … T-3 jedes Pain-Entries (Lag-Analyse)
+- jeder Tag mit Tagesfaktor-Eintrag (Vergleichstage)
+- optional jeder Tag im Analysezeitraum, sofern Koordinaten + Consent
+
+### Optionen verglichen
+
+| Option | Vorteil | Nachteil | Empfehlung |
+|---|---|---|---|
+| 1 — On-demand Backfill bei Analyse | bessere Analyse sofort | langsam, Quota, fragil | nur als Notfall |
+| 2 — Daily Snapshot Cron | sauber, dauerhaft | Cron + Consent | mittelfristig |
+| 3 — Entry-triggered T0..T-3 | gezielt, wenig Quota | keine Nicht-Schmerz-Tage | sofort |
+| 4 — Hybrid (3 + 2 light) | volle Abdeckung ohne Massiv-Backfill | etwas mehr Komplexität | **Ziel** |
+
+### Empfehlung
+- **Sofort (V2.3a)**: Option 3 — bestehender Entry-Trigger weitet sich auf
+  T-1..T-3 aus. Bestehende `fetch-weather-hybrid` als SSOT setzen, andere
+  Pfade deprecaten.
+- **Danach (V2.3b)**: Option 2 light — täglicher Snapshot nur für aktive
+  User mit Consent + bekanntem Standort, mit Cron-Limit + Idempotenz über
+  Unique-Index.
+- **Backfill**: nur **manuell/QA-gesteuert** über `backfill-missing-weather`
+  mit Zeitraum-Limit. Kein Auto-Massiv-Backfill.
+
+---
+
+## 4. Datenschutz / Consent
+
+- Wetter ≠ Gesundheitsdatum, aber abgeleitet aus Standort → Consent-Pflicht.
+- Lat/Lng werden bereits gespeichert (`weather_logs.latitude/longitude` +
+  `lat_rounded/lon_rounded`). Doctor-Share darf **nur** abgeleitete
+  Wetterwerte zeigen, keine Koordinaten — bereits durch
+  `getDoctorShareSafeAnalysis` abgedeckt (zu verifizieren bei View-
+  Erstellung).
+- Daily-Snapshot-Cron darf nur laufen, wenn:
+  - `user_consents.ai_processing_consent = true` **und**
+  - Standort vom User freigegeben (`user_profiles.latitude/longitude` oder
+    aktuelle Geolocation) **und**
+  - Tracking nicht widerrufen.
+- Backfill darf historisch keine neuen Standorte erfinden — nur Tage
+  füllen, für die ein Standort am jeweiligen Tag bekannt ist (aus
+  `pain_entries.latitude/longitude` oder `user_profiles`).
+
+---
+
+## 5. Schema-Vorschlag (noch keine Migration)
+
+Vorschlag, **falls** Hybrid umgesetzt wird:
+
+```sql
+ALTER TABLE weather_logs
+  ADD COLUMN source text
+    CHECK (source IN ('entry_triggered','daily_snapshot','backfill','manual')),
+  ADD COLUMN coverage_status text
+    CHECK (coverage_status IN ('ok','missing_location','api_failed','no_consent','not_available')),
+  ADD COLUMN backfilled_at timestamptz,
+  ADD COLUMN provider text;
+
+CREATE UNIQUE INDEX weather_logs_user_day_loc_uniq
+  ON weather_logs (user_id, snapshot_date, lat_rounded, lon_rounded)
+  WHERE snapshot_date IS NOT NULL;
+```
+
+Nicht jetzt ausführen — erst nach Entscheidung Hybrid ja/nein und nach
+Bereinigung möglicher Duplikate.
+
+---
+
+## 6. Analyse-Logik Wetter V2.3
+
+- 4-Felder-Vergleich (2×2: Schmerz × Druckabfall) statt Single-Side.
+- Lags: T0, T-1, T-2, T-3.
+- Mindestschwellen:
+  - ≥ 10 schmerzfreie Vergleichstage **mit** Wetter → Korrelation erlaubt.
+  - sonst nur „möglicher Hinweis“ + Datenqualitätsnotiz.
+- Output-Regeln:
+  - max 1 Wetter-Card unter „strongest/weaker“.
+  - max 1 Wetter-Card unter „dataQuality“ (Coverage).
+  - kein Duplikat in beiden gleichzeitig — `curateFindingsV22` deckt das
+    schon ab, muss bei V2.3 nur die neuen Lag-Codes mitnehmen.
+
+---
+
+## 7. Testplan V2.3
+
+1. 90/90 Wettertage, ≥ 30 schmerzfrei → erlaubt „moderate“ Wetter-Finding.
+2. 90/45 Wettertage, < 10 schmerzfrei mit Wetter → nur „insufficient“ +
+   DQ-Card.
+3. Nur Schmerztage haben Wetter → niemals starke Korrelation.
+4. Druckabfall an Schmerztagen **und** schmerzfreien Tagen gleich häufig
+   → kein Finding.
+5. Backfill 500-Fehler → Analyse bleibt grün, markiert Lücke.
+6. Kein Consent / keine Koordinaten → kein Fetch, klare DQ-Card.
+7. Lag-Test: Druckabfall T-1 öfter vor Schmerz → eigene Lag-Finding statt
+   T0.
+
+---
+
+## 8. Aktuelle Akzeptanzkriterien (für späteren Live-Fix)
 - Wetterabdeckung > 85 % der dokumentierten Tage.
-- Pro Tag mind. Luftdruck + Temperatur + Δ24h vorhanden.
-- Mind. 10 schmerzfreie Vergleichstage mit Wetter im Standard-Zeitraum.
+- Pro Tag mindestens Luftdruck + Temperatur + Δ24h.
+- Mindestens 10 schmerzfreie Vergleichstage mit Wetter im Standard-
+  Zeitraum.
+- Keine Duplikate pro `(user, day, loc)`.
+- `source` und `coverage_status` gesetzt.
