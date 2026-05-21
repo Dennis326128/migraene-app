@@ -30,7 +30,7 @@ import { computeClinicalAnalysis, type AnalysisEntry } from "@/lib/pdf/clinicalA
 import { useMedicationCourses } from "@/features/medication-courses/hooks/useMedicationCourses";
 import { useDoctors } from "@/features/account/hooks/useAccount";
 import { saveGeneratedReport } from "@/features/reports/api/generatedReports.api";
-import { upsertShareSettings } from "@/features/doctor-share/api/doctorShareSettings.api";
+import { upsertShareSettings, getShareSettings } from "@/features/doctor-share/api/doctorShareSettings.api";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import {
@@ -74,6 +74,8 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack, on
   const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(null);
   const [showActivateDialog, setShowActivateDialog] = useState(false);
   const [isActivatingForLink, setIsActivatingForLink] = useState(false);
+  const [allowAiGenerate, setAllowAiGenerate] = useState<boolean>(false);
+  const [allowAiGeneratePending, setAllowAiGeneratePending] = useState(false);
   const abortRef = useRef(false);
 
   const today = useMemo(() => new Date(), []);
@@ -100,6 +102,33 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack, on
   useEffect(() => {
     refetchDoctors();
   }, [refetchDoctors]);
+
+  // Load current allow_ai_generate setting for the active share
+  const currentShareId = shareStatus?.id ?? null;
+  useEffect(() => {
+    if (!currentShareId) return;
+    let cancelled = false;
+    getShareSettings(currentShareId)
+      .then((s) => { if (!cancelled && s) setAllowAiGenerate(!!s.allow_ai_generate); })
+      .catch(() => { /* non-fatal */ });
+    return () => { cancelled = true; };
+  }, [currentShareId, justCreatedCode]);
+
+  const handleToggleAllowAiGenerate = async (checked: boolean) => {
+    if (!currentShareId) return;
+    setAllowAiGeneratePending(true);
+    const prev = allowAiGenerate;
+    setAllowAiGenerate(checked); // optimistic
+    try {
+      await upsertShareSettings(currentShareId, { allow_ai_generate: checked });
+    } catch (err) {
+      console.error('[DoctorShare] allow_ai_generate update failed:', err);
+      setAllowAiGenerate(prev);
+      toast.error("Einstellung konnte nicht gespeichert werden");
+    } finally {
+      setAllowAiGeneratePending(false);
+    }
+  };
 
   // Determine if we should auto-start generation
   const shouldAutoGenerate =
@@ -655,6 +684,29 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack, on
                   Die Freigabe endet automatisch nach 24 Stunden.
                 </p>
               )}
+
+              {/* allow_ai_generate toggle — patient must opt in explicitly.
+                  Always tied to include_ai_analysis=true (set on share creation). */}
+              {currentShareId && (
+                <div className="rounded-lg border border-border/50 p-3 space-y-1.5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm text-foreground">
+                        Ärzt:innen dürfen neue KI-Analyse erstellen
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Nur wenn KI-Analyse freigegeben ist. Maximal alle 15 Minuten.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={allowAiGenerate}
+                      onCheckedChange={handleToggleAllowAiGenerate}
+                      disabled={allowAiGeneratePending || !isShareActive}
+                    />
+                  </div>
+                </div>
+              )}
+
 
               {/* Link to share website – always clickable */}
               <button

@@ -14,6 +14,8 @@ export interface DoctorShareSettings {
   include_entry_notes: boolean;
   include_context_notes: boolean;
   include_ai_analysis: boolean;
+  allow_ai_generate: boolean;
+  share_day_factors: boolean;
   ai_analysis_generated_at: string | null;
   generated_report_id: string | null;
   created_at: string;
@@ -28,6 +30,8 @@ export interface CreateShareSettingsInput {
   include_entry_notes?: boolean;
   include_context_notes?: boolean;
   include_ai_analysis?: boolean;
+  allow_ai_generate?: boolean;
+  share_day_factors?: boolean;
 }
 
 export interface UpdateShareSettingsInput {
@@ -37,6 +41,8 @@ export interface UpdateShareSettingsInput {
   include_entry_notes?: boolean;
   include_context_notes?: boolean;
   include_ai_analysis?: boolean;
+  allow_ai_generate?: boolean;
+  share_day_factors?: boolean;
   generated_report_id?: string | null;
   ai_analysis_generated_at?: string | null;
 }
