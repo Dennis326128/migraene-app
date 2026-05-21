@@ -31,7 +31,16 @@ export interface ServerDataset {
   meta: ServerDatasetMeta;
   fromDate: string;
   toDate: string;
+  /** Raw rows surfaced so server-side PreAnalysis / V2.1 findings builders
+   *  don't need to re-query the database. Owner-scoped, privacy-filtered
+   *  at the source query above. */
+  raw: {
+    painEntries: PainEntryRow[];
+    medIntakes: MedicationIntakeRow[];
+    contextNoteCount: number;
+  };
 }
+
 
 interface VoiceEventRow {
   id: string;
