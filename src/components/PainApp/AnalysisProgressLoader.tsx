@@ -11,13 +11,14 @@
 import React from "react";
 import { Loader2 } from "lucide-react";
 
-const STAGES: string[] = [
+export const ANALYSIS_PROGRESS_STAGES: readonly string[] = [
   "Daten werden vorbereitet …",
   "Schmerz- und Medikamentenmuster werden berechnet …",
   "Wetter, Zeitmuster und ME/CFS-Signale werden geprüft …",
   "KI-Auswertung wird erstellt …",
   "Ergebnis wird gespeichert …",
 ];
+const STAGES = ANALYSIS_PROGRESS_STAGES;
 
 const STAGE_INTERVAL_MS = 4500;
 const PATIENCE_HINT_MS = 25_000;
