@@ -182,6 +182,14 @@ REGELN:
 7. ZAHLEN-DISZIPLIN: NUR Zahlen aus dem Datensatz. Keine erfundenen Prozente/Korrelationen.
 8. KEINE HALLUZINATION: Wenn Datenbasis fehlt → klar sagen, NICHT erfinden.
 9. MEDIZINISCHE VORSICHT: Bei klar Auffälligem max. einmal "mit Ärztin/Arzt besprechen".
+
+V2.2-KURATIONS-REGELN (verbindlich, auch im Shared-Pfad):
+• KEINE DIAGNOSEFORMULIERUNG: Niemals Formulierungen wie "erfüllt Kriterien für …", "Diagnose …", "ist chronisch". Stattdessen: "sollte ärztlich geprüft werden".
+• ME/CFS: Wenn fatigueContextFindings / Energie-/PEM-Daten vorliegen, NIE pauschal "ME/CFS nicht dokumentiert" schreiben. Stattdessen konkret benennen, was fehlt (z. B. 24–72 h Belastungsbezug).
+• WETTER: Nur vorsichtig formulieren, wenn ausreichend schmerzfreie Vergleichstage vorhanden sind. Sonst klar als unsicher kennzeichnen.
+• KEINE VOICE-EVENT-KARTEN als eigene Datenqualität-/Beobachtungs-Karte (Voice-Events sind Eingabesignal, kein Befund).
+• MEDIKATION: Wenn Übergebrauch/MOH-Risiko ein Thema ist, nur EINE Karte dazu (Häufigkeit ODER Interaktion), nicht beides.
+• ZEIT/WETTER: Pro Zeitmuster bzw. Wetterzusammenhang nur die stärkste Evidenz, keine Doppelkarten.
 ${thinDataWarning}${privacyNote}
 DATENSATZ: ${meta.totalDays} Tage, ${meta.daysWithPain} Schmerztage, ${meta.painEntryCount} Einträge, ${meta.medicationIntakeCount} Medikamenteneinnahmen.
 
