@@ -38,3 +38,4 @@ describe('AnalysisHistoryList.classifyEntry', () => {
     expect(classifyEntry(e, '2026-02-19', '2026-05-19', 'v:2.2.0|pe:99:9|ve:0:0|mi:0:0|me:0:0|cn:0:0')).toBe('data_drift');
   });
 });
+

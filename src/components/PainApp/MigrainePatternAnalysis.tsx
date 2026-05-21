@@ -1014,32 +1014,26 @@ export function MigrainePatternAnalysis() {
         // Range mismatch without explicit pick → just show CTA + history list.
         if (mode === 'range_mismatch_preview') {
           return (
-            <div className="space-y-4" data-testid="range-mismatch-preview">
-              <Card>
-                <CardContent className="p-5 text-center space-y-2">
-                  <Brain className="h-8 w-8 mx-auto text-muted-foreground/40" />
-                  <p className="text-sm font-medium text-foreground">
-                    Für diesen Zeitraum liegt noch keine Analyse vor.
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Du kannst diesen Zeitraum jetzt analysieren oder unten eine frühere Analyse öffnen.
-                  </p>
-                  <div className="pt-2">
-                    <Button
-                      onClick={runAnalysis}
-                      disabled={buttonDisabled}
-                      size="sm"
-                      className="w-full sm:w-auto"
-                    >
-                      {rateBlocked ? (
-                        <><Clock className="h-4 w-4 mr-2" /> Neue Analyse in ca. {rateGate.waitMinutes} Min. möglich</>
-                      ) : (
-                        <><Brain className="h-4 w-4 mr-2" /> Diesen Zeitraum analysieren</>
-                      )}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+            <div
+              className="rounded-lg border border-border/50 bg-muted/20 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"
+              data-testid="range-mismatch-preview"
+            >
+              <p className="text-xs text-muted-foreground">
+                Für diesen Zeitraum liegt noch keine Analyse vor.
+              </p>
+              <Button
+                onClick={runAnalysis}
+                disabled={buttonDisabled}
+                size="sm"
+                variant="outline"
+                className="shrink-0"
+              >
+                {rateBlocked ? (
+                  <><Clock className="h-4 w-4 mr-2" /> In ca. {rateGate.waitMinutes} Min.</>
+                ) : (
+                  <><Brain className="h-4 w-4 mr-2" /> Diesen Zeitraum analysieren</>
+                )}
+              </Button>
             </div>
           );
         }

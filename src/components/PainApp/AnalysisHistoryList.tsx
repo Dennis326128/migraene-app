@@ -1,16 +1,15 @@
 /**
  * AnalysisHistoryList.tsx
  *
- * Renders the user's saved pattern analyses as a clean, calm list.
- * Each card shows date/time, range, key metrics, a status badge, and
- * a manage menu (3-dot) for deletion. The currently opened analysis is
- * marked subtly (thin border + small "Geöffnet" tag), never as a full
- * CTA-style green card.
+ * Calm, mobile-friendly list of saved pattern analyses.
+ * The whole card is clickable. The 3-dot menu is in the top-right corner
+ * and stops propagation so it never opens the card by accident.
+ * The selected card is only marked subtly (thin emerald border + faint
+ * tint + small "Geöffnet" chip) — never as a fully filled green block.
  */
 
-import React, { useState } from 'react';
+import React, { useState, type KeyboardEvent, type MouseEvent } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { MoreHorizontal, Trash2 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -40,10 +39,9 @@ export type HistoryBadge =
 function formatCreatedAt(iso: string): string {
   try {
     const d = new Date(iso);
-    const day = d.getDate();
     const months = ['Jan.', 'Feb.', 'Mär.', 'Apr.', 'Mai', 'Jun.', 'Jul.', 'Aug.', 'Sep.', 'Okt.', 'Nov.', 'Dez.'];
     const time = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
-    return `${day}. ${months[d.getMonth()]} ${time}`;
+    return `${d.getDate()}. ${months[d.getMonth()]} · ${time}`;
   } catch {
     return iso;
   }
@@ -70,7 +68,6 @@ export function classifyEntry(
   const sameRange = entry.fromDate === selectedFrom && entry.toDate === selectedTo;
   if (!sameRange) return 'other_range';
 
-  // Same range → check version then data signature.
   const storedV = extractSignatureVersion(entry.dataStateSignature);
   const currentV = extractSignatureVersion(currentSignature);
   if (storedV && currentV && storedV !== currentV) return 'version_drift';
@@ -88,19 +85,19 @@ export function classifyEntry(
 const BADGE_STYLE: Record<HistoryBadge, { label: string; cls: string }> = {
   current: {
     label: 'Aktuell',
-    cls: 'bg-emerald-100/70 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200',
+    cls: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 ring-1 ring-inset ring-emerald-500/20',
   },
   other_range: {
     label: 'Anderer Zeitraum',
-    cls: 'bg-muted text-muted-foreground',
+    cls: 'bg-muted/60 text-muted-foreground ring-1 ring-inset ring-border/50',
   },
   version_drift: {
-    label: 'Analyse-Logik aktualisiert',
-    cls: 'bg-amber-100/70 text-amber-900 dark:bg-amber-900/30 dark:text-amber-200',
+    label: 'Neue Logik',
+    cls: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 ring-1 ring-inset ring-amber-500/20',
   },
   data_drift: {
     label: 'Neue Daten',
-    cls: 'bg-amber-100/70 text-amber-900 dark:bg-amber-900/30 dark:text-amber-200',
+    cls: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 ring-1 ring-inset ring-amber-500/20',
   },
 };
 
@@ -145,130 +142,157 @@ export function AnalysisHistoryList({
     }
   };
 
+  const stop = (e: MouseEvent | KeyboardEvent) => {
+    e.stopPropagation();
+  };
+
   return (
-    <Card data-testid="analysis-history-list">
-      <CardContent className="p-4 space-y-3">
-        <div className="space-y-0.5">
-          <h3 className="text-sm font-medium text-foreground">Gespeicherte Analysen</h3>
-          <p className="text-xs text-muted-foreground">
-            Öffne eine gespeicherte Analyse oder erstelle eine neue für den oben gewählten Zeitraum.
-          </p>
-        </div>
+    <section data-testid="analysis-history-list" className="space-y-3">
+      <div className="px-1 space-y-0.5">
+        <h3 className="text-sm font-medium text-foreground">Gespeicherte Analysen</h3>
+        <p className="text-xs text-muted-foreground">
+          Öffne eine frühere Analyse oder erstelle eine neue für den gewählten Zeitraum.
+        </p>
+      </div>
 
-        <ul className="space-y-2">
-          {entries.map((entry) => {
-            const badge = classifyEntry(entry, selectedFrom, selectedTo, currentSignature);
-            const meta = BADGE_STYLE[badge];
-            const isActive = activeId === entry.id;
+      <ul className="space-y-2">
+        {entries.map((entry) => {
+          const badge = classifyEntry(entry, selectedFrom, selectedTo, currentSignature);
+          const meta = BADGE_STYLE[badge];
+          const isActive = activeId === entry.id;
 
-            return (
-              <li key={entry.id}>
-                <div
-                  data-testid={`history-card-${entry.id}`}
-                  data-active={isActive ? 'true' : 'false'}
-                  className={`group rounded-md border px-3 py-2.5 transition-colors ${
-                    isActive
-                      ? 'border-emerald-500/60 bg-emerald-50/30 dark:bg-emerald-950/10'
-                      : 'border-border hover:bg-accent/30'
-                  }`}
-                >
-                  <div className="flex items-start gap-2.5">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm font-medium text-foreground truncate">
-                          {formatCreatedAt(entry.createdAt)}
-                        </p>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          {isActive && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] tracking-wide bg-emerald-100/70 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200">
-                              Geöffnet
-                            </span>
-                          )}
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] tracking-wide ${meta.cls}`}
-                          >
-                            {meta.label}
-                          </span>
-                        </div>
-                      </div>
+          const chips: string[] = [];
+          if (entry.daysAnalyzed != null) chips.push(`${entry.daysAnalyzed} Tage`);
+          if (entry.painEntryCount != null) chips.push(`${entry.painEntryCount} Schmerzeinträge`);
+          if (entry.voiceEventCount != null && entry.voiceEventCount > 0) {
+            chips.push(`${entry.voiceEventCount} Sprachnotizen`);
+          }
 
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {entry.fromDate && entry.toDate
-                          ? `${formatDate(entry.fromDate)} – ${formatDate(entry.toDate)}`
-                          : 'Zeitraum unbekannt'}
-                      </p>
+          const handleActivate = () => onSelect(entry);
+          const handleKey = (e: KeyboardEvent<HTMLDivElement>) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              handleActivate();
+            }
+          };
 
-                      {(entry.daysAnalyzed != null || entry.painEntryCount != null) && (
-                        <p className="text-[11px] text-muted-foreground/80 mt-0.5">
-                          {entry.daysAnalyzed != null && `${entry.daysAnalyzed} Tage`}
-                          {entry.painEntryCount != null && entry.daysAnalyzed != null && ' · '}
-                          {entry.painEntryCount != null && `${entry.painEntryCount} Schmerztage`}
-                        </p>
+          return (
+            <li key={entry.id}>
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={handleActivate}
+                onKeyDown={handleKey}
+                data-testid={`history-card-${entry.id}`}
+                data-active={isActive ? 'true' : 'false'}
+                aria-pressed={isActive}
+                className={[
+                  'relative w-full text-left rounded-xl border px-4 py-3 transition-colors cursor-pointer',
+                  'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                  isActive
+                    ? 'border-emerald-500/40 bg-emerald-500/[0.04] dark:bg-emerald-500/[0.06]'
+                    : 'border-border/60 bg-card hover:bg-accent/30',
+                ].join(' ')}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <p className="text-sm font-medium text-foreground leading-tight">
+                      {formatCreatedAt(entry.createdAt)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {entry.fromDate && entry.toDate
+                        ? `${formatDate(entry.fromDate)} – ${formatDate(entry.toDate)}`
+                        : 'Zeitraum unbekannt'}
+                    </p>
+                  </div>
+
+                  <div className="flex items-start gap-1.5 shrink-0">
+                    <div className="flex flex-col items-end gap-1">
+                      {isActive && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 ring-1 ring-inset ring-emerald-500/20">
+                          Geöffnet
+                        </span>
                       )}
-
-                      <div className="mt-2 flex items-center justify-between">
-                        <button
-                          type="button"
-                          onClick={() => onSelect(entry)}
-                          data-testid={`history-open-${entry.id}`}
-                          className="text-[11px] text-primary hover:underline focus:outline-none focus:underline"
-                        >
-                          {isActive ? 'Geöffnet' : 'Öffnen'}
-                        </button>
-
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
-                              aria-label="Analyse verwalten"
-                              data-testid={`history-menu-${entry.id}`}
-                            >
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-44">
-                            <DropdownMenuItem
-                              onClick={() => setPendingDelete(entry)}
-                              className="text-destructive focus:text-destructive"
-                              data-testid={`history-delete-${entry.id}`}
-                            >
-                              <Trash2 className="h-3.5 w-3.5 mr-2" />
-                              Analyse löschen
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium whitespace-nowrap ${meta.cls}`}
+                      >
+                        {meta.label}
+                      </span>
                     </div>
+
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={stop}
+                          onKeyDown={stop}
+                          className="h-8 w-8 -mr-1.5 -mt-1 text-muted-foreground hover:text-foreground hover:bg-accent/50"
+                          aria-label="Analyse verwalten"
+                          data-testid={`history-menu-${entry.id}`}
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        align="end"
+                        className="w-44"
+                        onClick={stop}
+                      >
+                        <DropdownMenuItem
+                          onSelect={(e) => {
+                            e.preventDefault();
+                            setPendingDelete(entry);
+                          }}
+                          className="text-destructive focus:text-destructive"
+                          data-testid={`history-delete-${entry.id}`}
+                        >
+                          <Trash2 className="h-3.5 w-3.5 mr-2" />
+                          Analyse löschen
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
-              </li>
-            );
-          })}
-        </ul>
 
-        {hasMore && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full"
-            onClick={onLoadMore}
-            disabled={loadingMore}
-            data-testid="history-load-more"
-          >
-            {loadingMore ? 'Lädt …' : 'Weitere Analysen laden'}
-          </Button>
-        )}
-      </CardContent>
+                {chips.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {chips.map((c) => (
+                      <span
+                        key={c}
+                        className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] text-muted-foreground bg-muted/40 ring-1 ring-inset ring-border/40"
+                      >
+                        {c}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+
+      {hasMore && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full text-muted-foreground hover:text-foreground"
+          onClick={onLoadMore}
+          disabled={loadingMore}
+          data-testid="history-load-more"
+        >
+          {loadingMore ? 'Lädt …' : 'Weitere Analysen laden'}
+        </Button>
+      )}
 
       <AlertDialog open={!!pendingDelete} onOpenChange={(open) => !open && setPendingDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Analyse löschen?</AlertDialogTitle>
             <AlertDialogDescription>
-              Diese gespeicherte Analyse wird entfernt. Deine Tagebuchdaten bleiben erhalten.
+              Nur die gespeicherte Analyse wird entfernt. Deine Tagebuchdaten bleiben erhalten.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -284,6 +308,6 @@ export function AnalysisHistoryList({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Card>
+    </section>
   );
 }
