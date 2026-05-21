@@ -111,6 +111,12 @@ function getMecfsDays(responseJson: unknown): number {
   return typeof d === "number" && isFinite(d) ? d : 0;
 }
 
+function getDocumentedDays(responseJson: unknown): number {
+  if (!responseJson || typeof responseJson !== "object") return 0;
+  const d = (responseJson as any)?.analysisV21?.data_basis?.documented_days;
+  return typeof d === "number" && isFinite(d) ? d : 0;
+}
+
 /**
  * Returns the share of pain-days over documented-days from V2.1 data_basis.
  * Used to mark weather findings as insufficient when there are almost no
@@ -128,21 +134,44 @@ function getPainRatio(responseJson: unknown): number {
 function rewriteMecfsGap(
   f: NormalizedAnalysisFinding,
   mecfsDays: number,
+  documentedDays: number,
 ): NormalizedAnalysisFinding {
   if (f.category !== "mecfs_energy_pem") return f;
   if (f.evidenceLevel !== "insufficient") return f;
   if (mecfsDays < 10) return f;
   const txt = (f.title + " " + f.summary).toLowerCase();
-  if (!/nicht\s+(?:ausreichend\s+)?dokumentiert|keine\s+ausreichend/i.test(txt)) return f;
+  if (!/nicht\s+(?:ausreichend\s+)?dokumentiert|keine\s+ausreichend|mangelnde/i.test(txt)) return f;
+  const ofDays = documentedDays > 0 ? ` von ${documentedDays}` : "";
   return {
     ...f,
-    title: "Belastungs-/PEM-Details fehlen",
+    title: "ME/CFS-/Energiesignale häufig dokumentiert",
     summary:
-      `ME/CFS-/Energiesignale liegen an ${mecfsDays} Tagen vor. ` +
-      `Für eine PEM-Auswertung fehlen jedoch detaillierte Belastungs- und Erholungsangaben über 24–72 Stunden.`,
-    evidenceLevel: "low",
+      `An ${mecfsDays}${ofDays} Tagen wurden ME/CFS-/Energiesignale dokumentiert. ` +
+      `Für PEM-/Belastungszusammenhänge fehlen noch detaillierte Belastungs- und Erholungsangaben über 24–72 Stunden.`,
+    evidenceLevel: "moderate",
+    pinToTopical: true,
+    limitations: [
+      ...f.limitations,
+      "Belastungs-/PEM-Details über 24–72 h fehlen noch.",
+    ],
   };
 }
+
+/** Categories that always belong in their topical section, never strongest/weaker. */
+const TOPICAL_ONLY_CATEGORIES = new Set([
+  "medication_use",
+  "medication_effect",
+  "preventive_course",
+  "weather",
+  "mecfs_energy_pem",
+  "sleep",
+  "stress_mood",
+  "lifestyle_triggers",
+  "symptoms_aura",
+  "cycle_hormonal",
+  "time_pattern",
+  "interaction",
+]);
 
 const LOCALIZATION_RE = /\b(stirn|nacken|schl(?:ä|ae)fe|hinterkopf|lokalisation|schmerzort)/i;
 
@@ -183,12 +212,22 @@ export function curateFindingsV22(
 ): CuratedResult {
   const suppressed: Array<{ id: string; reason: string }> = [];
   const mecfsDays = getMecfsDays(responseJson);
+  const documentedDays = getDocumentedDays(responseJson);
   const painRatio = getPainRatio(responseJson);
 
+  // 0) Drop red_flag findings completely — they should never render as a card.
+  let curated = findings.filter((f) => {
+    if (f.category === "red_flag") {
+      suppressed.push({ id: f.id, reason: "red_flag_hidden" });
+      return false;
+    }
+    return true;
+  });
+
   // 1) Safety rewrite + ME/CFS gap rewrite + weather over-correlation guard
-  let curated = findings
+  curated = curated
     .map(applySafetyRewrites)
-    .map((f) => rewriteMecfsGap(f, mecfsDays))
+    .map((f) => rewriteMecfsGap(f, mecfsDays, documentedDays))
     .map((f) => adjustWeatherForLowComparisonBase(f, painRatio));
 
   // 1b) Pin localization-only symptoms_aura to topical "Symptome & Aura"
@@ -202,6 +241,15 @@ export function curateFindingsV22(
       // Don't push localization into open questions
       doctorDiscussionPoints: [],
     };
+  });
+
+  // 1c) Pin all topical-only categories to their topical section so they
+  // never appear in "Auffälligste Hinweise" / "Weitere Zusammenhänge".
+  // chronification & burden stay routed by evidence level (→ strongest/weaker).
+  curated = curated.map((f) => {
+    if (f.pinToTopical) return f;
+    if (TOPICAL_ONLY_CATEGORIES.has(f.category)) return { ...f, pinToTopical: true };
+    return f;
   });
 
   // 2) Voice noise suppression

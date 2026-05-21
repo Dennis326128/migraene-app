@@ -86,16 +86,18 @@ describe('curateFindingsV22', () => {
   });
 
   it('ME/CFS gap rewrite when scores exist on many days', () => {
-    const responseJson = { analysisV21: { data_basis: { mecfs_energy_days: 63 } } };
+    const responseJson = { analysisV21: { data_basis: { mecfs_energy_days: 63, documented_days: 90 } } };
     const r = curateFindingsV22(
       [f({ id: 'me', category: 'mecfs_energy_pem', evidenceLevel: 'insufficient',
           title: 'ME/CFS nicht ausreichend dokumentiert',
           summary: 'Keine ausreichende Datenbasis für ME/CFS.' })],
       responseJson,
     );
-    expect(r.findings[0].title).toMatch(/PEM/i);
-    expect(r.findings[0].evidenceLevel).toBe('low');
-    expect(r.findings[0].summary).toMatch(/63 Tagen/);
+    expect(r.findings[0].title).toMatch(/Energiesignale/i);
+    expect(r.findings[0].evidenceLevel).toBe('moderate');
+    expect(r.findings[0].pinToTopical).toBe(true);
+    expect(r.findings[0].summary).toMatch(/63 von 90/);
+    expect(r.findings[0].limitations.join(' ')).toMatch(/PEM/i);
   });
 
   it('ME/CFS gap NOT rewritten when few days of data', () => {
@@ -208,7 +210,7 @@ describe('curateFindingsV22 — V2.2 hardening', () => {
   });
 
   it('dedup: PEM-gap rewrite removes other "ME/CFS nicht dokumentiert" findings', () => {
-    const rj = { analysisV21: { data_basis: { mecfs_energy_days: 63 } } };
+    const rj = { analysisV21: { data_basis: { mecfs_energy_days: 63, documented_days: 90 } } };
     const r = curateFindingsV22([
       f({ id: 'me1', category: 'mecfs_energy_pem', evidenceLevel: 'insufficient',
           title: 'ME/CFS nicht ausreichend dokumentiert', summary: 'Keine ausreichende Datenbasis.' }),
@@ -216,7 +218,42 @@ describe('curateFindingsV22 — V2.2 hardening', () => {
           title: 'Mangelnde ME/CFS-Dokumentation', summary: 'ME/CFS nicht dokumentiert.' }),
     ], rj);
     expect(r.findings).toHaveLength(1);
-    expect(r.findings[0].title).toMatch(/PEM/);
+    expect(r.findings[0].title).toMatch(/Energiesignale/);
+  });
+});
+
+describe('curateFindingsV22 — V2.2 UX hardening', () => {
+  it('drops red_flag findings entirely', () => {
+    const r = curateFindingsV22([
+      f({ id: 'rf', category: 'red_flag', evidenceLevel: 'high',
+          title: 'Dringende Abklärung', summary: 'Warnzeichen.' }),
+      f({ id: 'c', category: 'chronification', evidenceLevel: 'high', title: 'Chron' }),
+    ]);
+    expect(r.findings.map(x => x.id)).toEqual(['c']);
+    expect(r.suppressed.find(s => s.id === 'rf')?.reason).toBe('red_flag_hidden');
+  });
+
+  it('pins medication_use to topical so it does NOT land in strongest', () => {
+    const r = curateFindingsV22([
+      f({ id: 'm', category: 'medication_use', evidenceLevel: 'moderate',
+          title: 'Akutmedikation – Einnahmen im Zeitraum' }),
+    ]);
+    expect(r.findings[0].pinToTopical).toBe(true);
+  });
+
+  it('pins time_pattern to topical so it does NOT pollute weaker', () => {
+    const r = curateFindingsV22([
+      f({ id: 't', category: 'time_pattern', evidenceLevel: 'low',
+          title: 'Kein klares zeitliches Muster' }),
+    ]);
+    expect(r.findings[0].pinToTopical).toBe(true);
+  });
+
+  it('chronification stays routable to strongest (not pinned)', () => {
+    const r = curateFindingsV22([
+      f({ id: 'c', category: 'chronification', evidenceLevel: 'high', title: 'Chron' }),
+    ]);
+    expect(r.findings[0].pinToTopical).toBeFalsy();
   });
 });
 
