@@ -28,6 +28,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { AnalysisV21Sections } from './AnalysisV21Sections';
 import { AnalysisProgressLoader } from './AnalysisProgressLoader';
+import { PreviousAnalysisCard } from './PreviousAnalysisCard';
+import { decideCachedAnalysisDisplay } from '@/lib/voice/cachedAnalysisDisplay';
 import { evaluateReAnalyzeGate } from '@/lib/ai/analysisRateGate';
 import { ANALYSIS_V21_VERSION } from '@/lib/ai/analysisTypes';
 
@@ -572,6 +574,7 @@ export function MigrainePatternAnalysis() {
   const [staleReason, setStaleReason] = useState<'data_changed' | 'version_mismatch' | 'range_mismatch' | null>(null);
   const [isRangeFallback, setIsRangeFallback] = useState(false);
   const [fallbackRange, setFallbackRange] = useState<{ from: string | null; to: string | null }>({ from: null, to: null });
+  const [showFallbackAnalysis, setShowFallbackAnalysis] = useState(false);
   const [cachedAt, setCachedAt] = useState<string | null>(null);
   const [storedSignature, setStoredSignature] = useState<string | null>(null);
   const [currentSignature, setCurrentSignature] = useState<string | null>(null);
@@ -618,6 +621,7 @@ export function MigrainePatternAnalysis() {
     setStaleReason(null);
     setIsRangeFallback(false);
     setFallbackRange({ from: null, to: null });
+    setShowFallbackAnalysis(false);
     setCachedAt(null);
 
     (async () => {
@@ -838,29 +842,22 @@ export function MigrainePatternAnalysis() {
                 Aktuell · vom {cachedAtLabel}
               </p>
             )}
-            {isCachedResult && effectiveStale && (() => {
-              const reasonText = staleReason === 'range_mismatch'
-                ? 'Für diesen Zeitraum liegt noch keine Analyse vor. Die zuletzt erstellte Analyse wird angezeigt.'
-                : ageStale
-                  ? `Diese Analyse ist älter als ${STALE_AFTER_DAYS} Tage. Eine neue Analyse kann aktuellere Hinweise liefern.`
-                  : staleReason === 'version_mismatch'
-                    ? 'Analyse-Logik wurde verbessert. Erstelle eine neue Analyse, um die aktualisierte Auswertung zu erhalten.'
-                    : 'Seit dieser Analyse wurden Einträge geändert oder ergänzt.';
-              const badge = staleReason === 'range_mismatch'
-                ? 'anderer Zeitraum'
-                : ageStale
-                  ? `älter als ${STALE_AFTER_DAYS} Tage`
-                  : staleReason === 'version_mismatch'
-                    ? 'Analyse-Logik aktualisiert'
-                    : 'Daten geändert';
-              const rangeNote = isRangeFallback && fallbackRange.from && fallbackRange.to
-                ? ` · ${fallbackRange.from} – ${fallbackRange.to}`
-                : '';
+            {isCachedResult && effectiveStale && staleReason !== 'range_mismatch' && (() => {
+              const reasonText = ageStale
+                ? `Diese Analyse ist älter als ${STALE_AFTER_DAYS} Tage. Eine neue Analyse kann aktuellere Hinweise liefern.`
+                : staleReason === 'version_mismatch'
+                  ? 'Analyse-Logik wurde verbessert. Erstelle eine neue Analyse, um die aktualisierte Auswertung zu erhalten.'
+                  : 'Seit dieser Analyse wurden Einträge geändert oder ergänzt.';
+              const badge = ageStale
+                ? `älter als ${STALE_AFTER_DAYS} Tage`
+                : staleReason === 'version_mismatch'
+                  ? 'Analyse-Logik aktualisiert'
+                  : 'Daten geändert';
               return (
                 <div className="rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 px-3 py-2 text-center space-y-1">
                   <p className="text-[11px] text-amber-900 dark:text-amber-200 flex items-center justify-center gap-1.5">
                     <AlertCircle className="h-3 w-3" />
-                    Veraltet{cachedAtLabel ? ` · ${cachedAtLabel}` : ''}{rangeNote} ({badge})
+                    Veraltet{cachedAtLabel ? ` · ${cachedAtLabel}` : ''} ({badge})
                   </p>
                   <p className="text-[11px] text-amber-900/80 dark:text-amber-200/80">
                     {reasonText}
@@ -902,7 +899,77 @@ export function MigrainePatternAnalysis() {
       )}
 
       {isWeakData && <WeakDataMessage />}
-      {result && <AnalysisResults result={result} />}
+
+      {(() => {
+        const mode = decideCachedAnalysisDisplay({
+          hasResult: !!result,
+          staleReason,
+          showFallbackAnalysis,
+        });
+
+        if (mode === 'range_mismatch_preview') {
+          return (
+            <div className="space-y-4" data-testid="range-mismatch-preview">
+              <Card>
+                <CardContent className="p-5 text-center space-y-2">
+                  <Brain className="h-8 w-8 mx-auto text-muted-foreground/40" />
+                  <p className="text-sm font-medium text-foreground">
+                    Für diesen Zeitraum liegt noch keine Analyse vor.
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Du kannst diesen Zeitraum jetzt analysieren oder eine frühere Analyse ansehen.
+                  </p>
+                  <div className="pt-2">
+                    <Button
+                      onClick={runAnalysis}
+                      disabled={buttonDisabled}
+                      size="sm"
+                      className="w-full sm:w-auto"
+                    >
+                      {rateBlocked ? (
+                        <><Clock className="h-4 w-4 mr-2" /> Neue Analyse in ca. {rateGate.waitMinutes} Min. möglich</>
+                      ) : (
+                        <><Brain className="h-4 w-4 mr-2" /> Diesen Zeitraum analysieren</>
+                      )}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <PreviousAnalysisCard
+                entry={{
+                  createdAt: cachedAt,
+                  fromDate: fallbackRange.from,
+                  toDate: fallbackRange.to,
+                  statusLabel: 'anderer Zeitraum',
+                }}
+                onView={() => setShowFallbackAnalysis(true)}
+              />
+            </div>
+          );
+        }
+
+        if (mode === 'range_mismatch_full' && result) {
+          return (
+            <>
+              <div className="rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 px-3 py-2 text-center" data-testid="range-mismatch-badge">
+                <p className="text-[11px] text-amber-900 dark:text-amber-200 flex items-center justify-center gap-1.5">
+                  <AlertCircle className="h-3 w-3" />
+                  Ältere Analyse · anderer Zeitraum
+                  {fallbackRange.from && fallbackRange.to ? ` · ${fallbackRange.from} – ${fallbackRange.to}` : ''}
+                </p>
+              </div>
+              <AnalysisResults result={result} />
+            </>
+          );
+        }
+
+        if (mode === 'render_full' && result) {
+          return <AnalysisResults result={result} />;
+        }
+
+        return null;
+      })()}
 
       {!result && !isAnalyzing && !isLoadingCache && !error && !isWeakData && decision.canRunAnalysis && (
         <div className="text-center py-10">
