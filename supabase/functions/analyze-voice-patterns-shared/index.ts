@@ -25,10 +25,16 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 import { getCorsHeaders, handlePreflight } from "../_shared/cors.ts";
 import { verifyDoctorAccess } from "../_shared/doctorAccessGuard.ts";
 import { buildServerAnalysisDataset } from "../_shared/serverAnalysisDataset.ts";
-import { runAnalysisLLM } from "../_shared/analysisCore.ts";
+import { runPatternAnalysisV22 } from "../_shared/patternAnalysisBuilder.ts";
+import {
+  buildPatternPreAnalysis,
+  buildDeterministicFindings,
+  mergeExpandedFindingsIntoReport,
+} from "../_shared/patternPreAnalysis.ts";
 import { checkPatternAnalysisQuota, commitPatternAnalysisUsage, quotaErrorBody } from "../_shared/aiQuotaGate.ts";
 import { computeDataStateSignature } from "../_shared/doctorShareSsot.ts";
 import { evaluateShareAnalysisGate } from "../_shared/shareAnalysisGate.ts";
+
 
 const PRESET_DAYS: Record<string, number> = {
   '1m': 30, '30d': 30, '3m': 90, '6m': 180, '12m': 365,
