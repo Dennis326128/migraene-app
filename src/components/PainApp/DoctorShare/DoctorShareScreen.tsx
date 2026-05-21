@@ -30,7 +30,7 @@ import { computeClinicalAnalysis, type AnalysisEntry } from "@/lib/pdf/clinicalA
 import { useMedicationCourses } from "@/features/medication-courses/hooks/useMedicationCourses";
 import { useDoctors } from "@/features/account/hooks/useAccount";
 import { saveGeneratedReport } from "@/features/reports/api/generatedReports.api";
-import { upsertShareSettings } from "@/features/doctor-share/api/doctorShareSettings.api";
+import { upsertShareSettings, getShareSettings } from "@/features/doctor-share/api/doctorShareSettings.api";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import {
