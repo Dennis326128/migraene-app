@@ -616,6 +616,8 @@ export function MigrainePatternAnalysis() {
     setIsCachedResult(false);
     setIsStaleResult(false);
     setStaleReason(null);
+    setIsRangeFallback(false);
+    setFallbackRange({ from: null, to: null });
     setCachedAt(null);
 
     (async () => {
@@ -632,6 +634,11 @@ export function MigrainePatternAnalysis() {
             setIsCachedResult(true);
             setIsStaleResult(!selection.isFresh);
             setStaleReason(selection.staleReason);
+            setIsRangeFallback(selection.isRangeFallback === true);
+            setFallbackRange({
+              from: selection.resultFromDate ?? null,
+              to: selection.resultToDate ?? null,
+            });
             setCachedAt(selection.result.meta?.analyzedAt || null);
           }
         }
