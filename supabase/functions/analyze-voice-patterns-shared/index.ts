@@ -28,6 +28,7 @@ import { buildServerAnalysisDataset } from "../_shared/serverAnalysisDataset.ts"
 import { runAnalysisLLM } from "../_shared/analysisCore.ts";
 import { checkPatternAnalysisQuota, commitPatternAnalysisUsage, quotaErrorBody } from "../_shared/aiQuotaGate.ts";
 import { computeDataStateSignature } from "../_shared/doctorShareSsot.ts";
+import { evaluateShareAnalysisGate } from "../_shared/shareAnalysisGate.ts";
 
 const PRESET_DAYS: Record<string, number> = {
   '1m': 30, '30d': 30, '3m': 90, '6m': 180, '12m': 365,
@@ -103,20 +104,47 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 3. Share must have AI analysis enabled AND explicitly allow new generation
-    const [{ data: shareSettings }, { data: shareRow }] = await Promise.all([
+    // 3. Unified Share-Analyse-Gate (include_ai_analysis + allow_ai_generate
+    //    + share active/expiry + 15-Min-Cooldown). Replaces the previous
+    //    inline include/allow checks so that the rule lives in ONE place
+    //    (`_shared/shareAnalysisGate.ts`).
+    const [{ data: shareSettings }, { data: shareRow }, { data: lastReportRow }] = await Promise.all([
       supabase.from('doctor_share_settings').select('include_ai_analysis,allow_ai_generate,range_preset').eq('share_id', shareId).maybeSingle(),
-      supabase.from('doctor_shares').select('default_range').eq('id', shareId).maybeSingle(),
+      supabase.from('doctor_shares').select('default_range,is_active,expires_at,revoked_at').eq('id', shareId).maybeSingle(),
+      supabase.from('ai_reports')
+        .select('created_at')
+        .eq('user_id', ownerUserId)
+        .eq('report_type', 'pattern_analysis')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ]);
-    if (!shareSettings?.include_ai_analysis) {
-      return json({ error: 'KI-Analyse ist für diese Freigabe nicht aktiviert.', code: 'AI_NOT_ENABLED_FOR_SHARE' }, 403);
-    }
-    if (!shareSettings?.allow_ai_generate) {
-      console.log(`[shared-ai] AI_GENERATE_NOT_ALLOWED owner=${shortId(ownerUserId)} share=${shortId(shareId)}`);
-      return json({
-        error: 'Diese Freigabe erlaubt keine neuen KI-Analysen über die Website.',
-        code: 'AI_GENERATE_NOT_ALLOWED',
-      }, 403);
+
+    const gate = evaluateShareAnalysisGate({
+      share: {
+        active: shareRow ? (shareRow.is_active !== false && !shareRow.revoked_at) : false,
+        expiresAtISO: shareRow?.expires_at ?? null,
+      },
+      settings: {
+        include_ai_analysis: shareSettings?.include_ai_analysis ?? false,
+        allow_ai_generate: shareSettings?.allow_ai_generate ?? false,
+      },
+      lastAnalysisAtISO: lastReportRow?.created_at ?? null,
+    });
+
+    if (!gate.allowed) {
+      const gateMap: Record<string, { code: string; status: number; msg: string }> = {
+        share_inactive:            { code: 'SHARE_INACTIVE',            status: 403, msg: 'Die Freigabe ist nicht aktiv.' },
+        share_expired:             { code: 'SHARE_EXPIRED',             status: 403, msg: 'Die Freigabe ist abgelaufen.' },
+        ai_analysis_not_included:  { code: 'AI_ANALYSIS_NOT_INCLUDED',  status: 403, msg: 'KI-Analyse ist für diese Freigabe nicht aktiviert.' },
+        ai_generation_not_allowed: { code: 'AI_GENERATE_NOT_ALLOWED',   status: 403, msg: 'Diese Freigabe erlaubt keine neuen KI-Analysen über die Website.' },
+        cooldown_active:           { code: 'ANALYSIS_COOLDOWN_ACTIVE',  status: 429, msg: 'Eine Analyse wurde gerade erstellt. Bitte später erneut versuchen.' },
+      };
+      const r = gateMap[gate.reason] ?? { code: 'AI_GENERATE_NOT_ALLOWED', status: 403, msg: 'Analyse aktuell nicht möglich.' };
+      console.log(`[shared-ai] gate_blocked reason=${gate.reason} owner=${shortId(ownerUserId)} share=${shortId(shareId)}`);
+      const body: Record<string, unknown> = { error: r.msg, code: r.code };
+      if (gate.reason === 'cooldown_active' && gate.waitMinutes) body.waitMinutes = gate.waitMinutes;
+      return json(body, r.status);
     }
 
     // 4. Owner profile gate (App-side AI disable)
