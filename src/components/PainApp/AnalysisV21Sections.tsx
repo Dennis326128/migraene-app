@@ -12,6 +12,7 @@ import {
   normalizeAnalysisFindings,
   groupFindingsBySection,
   getEvidenceBadgeVariant,
+  extractOpenQuestions,
   SECTION_ORDER,
   SECTION_LABEL,
   type NormalizedAnalysisFinding,
