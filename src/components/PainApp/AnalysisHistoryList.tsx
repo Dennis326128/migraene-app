@@ -161,13 +161,6 @@ export function AnalysisHistoryList({
           const meta = BADGE_STYLE[badge];
           const isActive = activeId === entry.id;
 
-          const chips: string[] = [];
-          if (entry.daysAnalyzed != null) chips.push(`${entry.daysAnalyzed} Tage`);
-          if (entry.painEntryCount != null) chips.push(`${entry.painEntryCount} Schmerzeinträge`);
-          if (entry.voiceEventCount != null && entry.voiceEventCount > 0) {
-            chips.push(`${entry.voiceEventCount} Sprachnotizen`);
-          }
-
           const handleActivate = () => onSelect(entry);
           const handleKey = (e: KeyboardEvent<HTMLDivElement>) => {
             if (e.key === 'Enter' || e.key === ' ') {
