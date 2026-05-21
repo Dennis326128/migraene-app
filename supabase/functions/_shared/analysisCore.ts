@@ -376,11 +376,13 @@ ${serializedContext}` },
       painEntryCount: meta.painEntryCount,
       medicationIntakeCount: meta.medicationIntakeCount,
     },
+    schema_version: '2.1',
+    analysis_version: '2.2.0',
     meta: {
       model: 'google/gemini-2.5-flash',
       analyzedAt: new Date().toISOString(),
       promptTokenEstimate: tokenEstimate,
-      analysisVersion: '1.1.0',
+      analysisVersion: '2.2.0',
     },
   };
   return { ok: true, status: 200, body: result };
