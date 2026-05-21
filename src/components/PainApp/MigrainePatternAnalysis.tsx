@@ -27,6 +27,7 @@ import { AIConsentToggle } from './Settings/AIConsentToggle';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { AnalysisV21Sections } from './AnalysisV21Sections';
+import { AnalysisProgressLoader } from './AnalysisProgressLoader';
 import { evaluateReAnalyzeGate } from '@/lib/ai/analysisRateGate';
 import { ANALYSIS_V21_VERSION } from '@/lib/ai/analysisTypes';
 
