@@ -900,61 +900,76 @@ export function MigrainePatternAnalysis() {
 
       {isWeakData && <WeakDataMessage />}
 
-      {/* range_mismatch: do NOT auto-render full analysis. Show CTA + compact card. */}
-      {result && staleReason === 'range_mismatch' && !showFallbackAnalysis && (
-        <div className="space-y-4" data-testid="range-mismatch-preview">
-          <Card>
-            <CardContent className="p-5 text-center space-y-2">
-              <Brain className="h-8 w-8 mx-auto text-muted-foreground/40" />
-              <p className="text-sm font-medium text-foreground">
-                Für diesen Zeitraum liegt noch keine Analyse vor.
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Du kannst diesen Zeitraum jetzt analysieren oder eine frühere Analyse ansehen.
-              </p>
-              <div className="pt-2">
-                <Button
-                  onClick={runAnalysis}
-                  disabled={buttonDisabled}
-                  size="sm"
-                  className="w-full sm:w-auto"
-                >
-                  {rateBlocked ? (
-                    <><Clock className="h-4 w-4 mr-2" /> Neue Analyse in ca. {rateGate.waitMinutes} Min. möglich</>
-                  ) : (
-                    <><Brain className="h-4 w-4 mr-2" /> Diesen Zeitraum analysieren</>
-                  )}
-                </Button>
+      {(() => {
+        const mode = decideCachedAnalysisDisplay({
+          hasResult: !!result,
+          staleReason,
+          showFallbackAnalysis,
+        });
+
+        if (mode === 'range_mismatch_preview') {
+          return (
+            <div className="space-y-4" data-testid="range-mismatch-preview">
+              <Card>
+                <CardContent className="p-5 text-center space-y-2">
+                  <Brain className="h-8 w-8 mx-auto text-muted-foreground/40" />
+                  <p className="text-sm font-medium text-foreground">
+                    Für diesen Zeitraum liegt noch keine Analyse vor.
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Du kannst diesen Zeitraum jetzt analysieren oder eine frühere Analyse ansehen.
+                  </p>
+                  <div className="pt-2">
+                    <Button
+                      onClick={runAnalysis}
+                      disabled={buttonDisabled}
+                      size="sm"
+                      className="w-full sm:w-auto"
+                    >
+                      {rateBlocked ? (
+                        <><Clock className="h-4 w-4 mr-2" /> Neue Analyse in ca. {rateGate.waitMinutes} Min. möglich</>
+                      ) : (
+                        <><Brain className="h-4 w-4 mr-2" /> Diesen Zeitraum analysieren</>
+                      )}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <PreviousAnalysisCard
+                entry={{
+                  createdAt: cachedAt,
+                  fromDate: fallbackRange.from,
+                  toDate: fallbackRange.to,
+                  statusLabel: 'anderer Zeitraum',
+                }}
+                onView={() => setShowFallbackAnalysis(true)}
+              />
+            </div>
+          );
+        }
+
+        if (mode === 'range_mismatch_full' && result) {
+          return (
+            <>
+              <div className="rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 px-3 py-2 text-center" data-testid="range-mismatch-badge">
+                <p className="text-[11px] text-amber-900 dark:text-amber-200 flex items-center justify-center gap-1.5">
+                  <AlertCircle className="h-3 w-3" />
+                  Ältere Analyse · anderer Zeitraum
+                  {fallbackRange.from && fallbackRange.to ? ` · ${fallbackRange.from} – ${fallbackRange.to}` : ''}
+                </p>
               </div>
-            </CardContent>
-          </Card>
+              <AnalysisResults result={result} />
+            </>
+          );
+        }
 
-          <PreviousAnalysisCard
-            entry={{
-              createdAt: cachedAt,
-              fromDate: fallbackRange.from,
-              toDate: fallbackRange.to,
-              statusLabel: 'anderer Zeitraum',
-            }}
-            onView={() => setShowFallbackAnalysis(true)}
-          />
-        </div>
-      )}
+        if (mode === 'render_full' && result) {
+          return <AnalysisResults result={result} />;
+        }
 
-      {/* When user chose to view fallback, prepend a clear badge. */}
-      {result && staleReason === 'range_mismatch' && showFallbackAnalysis && (
-        <div className="rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 px-3 py-2 text-center" data-testid="range-mismatch-badge">
-          <p className="text-[11px] text-amber-900 dark:text-amber-200 flex items-center justify-center gap-1.5">
-            <AlertCircle className="h-3 w-3" />
-            Ältere Analyse · anderer Zeitraum
-            {fallbackRange.from && fallbackRange.to ? ` · ${fallbackRange.from} – ${fallbackRange.to}` : ''}
-          </p>
-        </div>
-      )}
-
-      {result && (staleReason !== 'range_mismatch' || showFallbackAnalysis) && (
-        <AnalysisResults result={result} />
-      )}
+        return null;
+      })()}
 
       {!result && !isAnalyzing && !isLoadingCache && !error && !isWeakData && decision.canRunAnalysis && (
         <div className="text-center py-10">
