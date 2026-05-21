@@ -272,5 +272,12 @@ export async function buildServerAnalysisDataset(
     daysWithMecfs,
   };
 
-  return { serialized, meta, fromDate, toDate };
+  return {
+    serialized,
+    meta,
+    fromDate,
+    toDate,
+    raw: { painEntries, medIntakes, contextNoteCount: ctxNotes.length },
+  };
 }
+
