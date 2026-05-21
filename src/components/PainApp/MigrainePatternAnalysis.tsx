@@ -987,6 +987,7 @@ export function MigrainePatternAnalysis() {
           showFallbackAnalysis,
         });
 
+        // Range mismatch without explicit pick → just show CTA + history list.
         if (mode === 'range_mismatch_preview') {
           return (
             <div className="space-y-4" data-testid="range-mismatch-preview">
@@ -997,7 +998,7 @@ export function MigrainePatternAnalysis() {
                     Für diesen Zeitraum liegt noch keine Analyse vor.
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Du kannst diesen Zeitraum jetzt analysieren oder eine frühere Analyse ansehen.
+                    Du kannst diesen Zeitraum jetzt analysieren oder unten eine frühere Analyse öffnen.
                   </p>
                   <div className="pt-2">
                     <Button
@@ -1015,29 +1016,28 @@ export function MigrainePatternAnalysis() {
                   </div>
                 </CardContent>
               </Card>
-
-              <PreviousAnalysisCard
-                entry={{
-                  createdAt: cachedAt,
-                  fromDate: fallbackRange.from,
-                  toDate: fallbackRange.to,
-                  statusLabel: 'anderer Zeitraum',
-                }}
-                onView={() => setShowFallbackAnalysis(true)}
-              />
             </div>
           );
         }
 
         if (mode === 'range_mismatch_full' && result) {
+          const fromLabel = pickedHistory?.fromDate ?? fallbackRange.from;
+          const toLabel = pickedHistory?.toDate ?? fallbackRange.to;
+          const createdLabel = pickedHistory
+            ? new Date(pickedHistory.createdAt).toLocaleString('de-DE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+            : cachedAtLabel;
           return (
             <>
-              <div className="rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 px-3 py-2 text-center" data-testid="range-mismatch-badge">
+              <div className="rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 px-3 py-2 text-center space-y-0.5" data-testid="range-mismatch-badge">
                 <p className="text-[11px] text-amber-900 dark:text-amber-200 flex items-center justify-center gap-1.5">
                   <AlertCircle className="h-3 w-3" />
-                  Ältere Analyse · anderer Zeitraum
-                  {fallbackRange.from && fallbackRange.to ? ` · ${fallbackRange.from} – ${fallbackRange.to}` : ''}
+                  Gespeicherte Analyse{createdLabel ? ` vom ${createdLabel}` : ''}
                 </p>
+                {fromLabel && toLabel && (
+                  <p className="text-[11px] text-amber-900/80 dark:text-amber-200/80">
+                    Angezeigte Analyse: {fromLabel} – {toLabel}
+                  </p>
+                )}
               </div>
               <AnalysisResults result={result} />
             </>
@@ -1051,10 +1051,26 @@ export function MigrainePatternAnalysis() {
         return null;
       })()}
 
-      {!result && !isAnalyzing && !isLoadingCache && !error && !isWeakData && decision.canRunAnalysis && (
+      {/* Historie — sichtbar sobald mindestens eine gespeicherte Analyse existiert */}
+      {!isLoadingCache && history.length > 0 && (
+        <AnalysisHistoryList
+          entries={history}
+          selectedFrom={from}
+          selectedTo={to}
+          currentSignature={currentSignature}
+          activeId={pickedHistory?.id ?? null}
+          hasMore={historyHasMore}
+          loadingMore={historyLoadingMore}
+          onSelect={handlePickHistory}
+          onLoadMore={handleLoadMoreHistory}
+        />
+      )}
+
+      {/* Empty State: nur wenn wirklich keine Analyse existiert */}
+      {!result && !isAnalyzing && !isLoadingCache && !error && !isWeakData && history.length === 0 && decision.canRunAnalysis && (
         <div className="text-center py-10">
           <Brain className="h-10 w-10 mx-auto mb-3 text-muted-foreground/30" />
-          <p className="text-sm text-foreground/70">Wähle einen Zeitraum und starte die Analyse</p>
+          <p className="text-sm text-foreground/70">Wähle einen Zeitraum und starte die erste Analyse.</p>
           <p className="text-xs mt-1 text-muted-foreground">
             Sucht nach möglichen Mustern und Einflussfaktoren für Migräne
           </p>
