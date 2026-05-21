@@ -700,6 +700,7 @@ export function MigrainePatternAnalysis() {
     setFallbackRange({ from: null, to: null });
     setShowFallbackAnalysis(false);
     setCachedAt(null);
+    setPickedHistory(null);
 
     (async () => {
       try {
