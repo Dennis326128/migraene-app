@@ -174,7 +174,7 @@ function adjustWeatherForLowComparisonBase(
 }
 
 const OPEN_QUESTION_EXCLUDE_RE =
-  /(nacken|stirn|schl(?:ä|ae)fe|hinterkopf|lokalisation|schmerzort|wetter|druckänder|barometer)/i;
+  /\b(nacken|stirn|schl(?:ä|ae)fe|hinterkopf|lokalisation|schmerzort)\b/i;
 
 export function curateFindingsV22(
   findings: NormalizedAnalysisFinding[],
