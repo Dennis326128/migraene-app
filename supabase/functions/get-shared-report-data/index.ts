@@ -27,6 +27,7 @@ import {
   resolveAiConsentState,
   resolveAiEnabledState,
 } from "../_shared/doctorShareSsot.ts";
+import { getDoctorShareSafeAnalysis } from "../_shared/doctorShareSafeAnalysis.ts";
 
 // Legacy response builder
 function buildLegacyFields(reportJson: DoctorReportJSON, userId: string) {
