@@ -12,26 +12,28 @@ import {
   normalizeAnalysisFindings,
   groupFindingsBySection,
   getEvidenceBadgeVariant,
-  extractOpenQuestions,
   SECTION_ORDER,
   SECTION_LABEL,
   type NormalizedAnalysisFinding,
   type AnalysisSectionKey,
 } from "@/lib/ai/normalizeAnalysisFindings";
+import { curateFindingsV22, applySectionCaps } from "@/lib/ai/curateFindingsV22";
 
 interface Props {
   /** Whole `VoiceAnalysisResult` (already has analysisV21 attached) or response_json. */
   responseJson: unknown;
   doctorShare?: boolean;
+  /** Opt-in: show Voice-event data_quality cards (off by default in V2.2). */
+  showVoiceQualityNotes?: boolean;
 }
 
-export function AnalysisV21Sections({ responseJson, doctorShare = false }: Props) {
-  const findings = React.useMemo(
-    () => normalizeAnalysisFindings(responseJson, { doctorShare }),
-    [responseJson, doctorShare],
-  );
-  const grouped = React.useMemo(() => groupFindingsBySection(findings), [findings]);
-  const openQuestions = React.useMemo(() => extractOpenQuestions(findings), [findings]);
+export function AnalysisV21Sections({ responseJson, doctorShare = false, showVoiceQualityNotes = false }: Props) {
+  const curated = React.useMemo(() => {
+    const raw = normalizeAnalysisFindings(responseJson, { doctorShare });
+    return curateFindingsV22(raw, responseJson, { showVoiceQualityNotes });
+  }, [responseJson, doctorShare, showVoiceQualityNotes]);
+  const grouped = React.useMemo(() => groupFindingsBySection(curated.findings), [curated.findings]);
+  const openQuestions = curated.openQuestions;
 
   const v21 = (responseJson as any)?.analysisV21 ?? null;
   const dataBasis = v21?.data_basis as Record<string, unknown> | undefined;
