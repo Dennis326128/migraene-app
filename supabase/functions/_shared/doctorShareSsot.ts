@@ -291,6 +291,8 @@ export function buildSummaryMd(responseJson: unknown): { md: string; insightsHas
 export interface LoadedLatestReport {
   report: LatestAiReport;
   storedSignature: string | null;
+  /** Raw `ai_reports.response_json` — caller MUST sanitize before sharing. */
+  rawResponseJson: unknown;
 }
 
 export async function loadLatestPatternAnalysis(
