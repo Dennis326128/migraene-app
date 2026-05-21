@@ -244,20 +244,27 @@ export function curateFindingsV22(
     });
   }
 
-  // 4b) ME/CFS dedup — if a PEM-gap rewrite happened, drop any other
-  // "ME/CFS nicht dokumentiert" findings that would repeat the same point.
-  const hasPemGap = curated.some(
-    (f) => f.category === "mecfs_energy_pem" && f.title === "Belastungs-/PEM-Details fehlen",
-  );
-  if (hasPemGap) {
+  // 4b) ME/CFS dedup — collapse repeated PEM-gap / "ME/CFS nicht dokumentiert"
+  // findings into a single entry.
+  const mecfsItems = curated.filter((f) => f.category === "mecfs_energy_pem");
+  if (mecfsItems.length > 1) {
+    const pemGap = mecfsItems.find((f) => f.title === "Belastungs-/PEM-Details fehlen");
+    const seenMecfs = new Set<string>();
     curated = curated.filter((f) => {
       if (f.category !== "mecfs_energy_pem") return true;
-      if (f.title === "Belastungs-/PEM-Details fehlen") return true;
+      if (pemGap && f.id === pemGap.id) return true;
       const hay = (f.title + " " + f.summary).toLowerCase();
-      if (/nicht\s+(?:ausreichend\s+)?dokumentiert|keine\s+ausreichend|fehlende\s+(?:me\/cfs|pem)/i.test(hay)) {
+      const isGapText = /nicht\s+(?:ausreichend\s+)?dokumentiert|keine\s+ausreichend|mangelnde|fehlende\s+(?:me\/cfs|pem)/i.test(hay);
+      if (pemGap && isGapText) {
         suppressed.push({ id: f.id, reason: "mecfs_dedup_by_pem_gap" });
         return false;
       }
+      const k = f.title.toLowerCase().slice(0, 60);
+      if (seenMecfs.has(k)) {
+        suppressed.push({ id: f.id, reason: "mecfs_duplicate" });
+        return false;
+      }
+      seenMecfs.add(k);
       return true;
     });
   }
