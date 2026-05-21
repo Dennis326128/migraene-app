@@ -1,13 +1,17 @@
 /**
- * AnalysisV21Sections
+ * AnalysisV21Sections — V2.2 nutzer-/arztfreundliche Darstellung
  *
- * Renders an `analysisV21` payload (with optional `llm_expanded_findings`)
- * using the section taxonomy defined in `normalizeAnalysisFindings`.
- *
- * Used by `MigrainePatternAnalysis` when the loaded result is V2.1.
- * Pure presentational; data shaping happens in the normalizer.
+ * - Datenbasis kompakt (Zeitraum, Schmerz-, Med.-, ME/CFS-Tage).
+ * - Wetterabdeckung nur in „Datenqualität", nicht oben.
+ * - Technische Kategorien werden in nutzerfreundliche Labels übersetzt
+ *   oder ganz weggelassen.
+ * - Karten kompakt: Titel + Badge + Kurztext + optional 1 Arztgesprächspunkt;
+ *   Reasoning/Limitations/Tracking nur über „Details anzeigen".
+ * - Keine red_flag-Karte; statt dessen ein ruhiger Standardtext in
+ *   „Grenzen der Analyse".
  */
 import React from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import {
   normalizeAnalysisFindings,
   groupFindingsBySection,
@@ -20,34 +24,95 @@ import {
 import { curateFindingsV22, applySectionCaps } from "@/lib/ai/curateFindingsV22";
 
 interface Props {
-  /** Whole `VoiceAnalysisResult` (already has analysisV21 attached) or response_json. */
   responseJson: unknown;
   doctorShare?: boolean;
   /** Opt-in: show Voice-event data_quality cards (off by default in V2.2). */
   showVoiceQualityNotes?: boolean;
 }
 
+/** Nutzerfreundliche Kategorie-Labels für sichtbare Karten. */
+const CATEGORY_USER_LABEL: Record<string, string> = {
+  burden: "Krankheitslast",
+  chronification: "Krankheitslast",
+  medication_use: "Medikamente",
+  medication_effect: "Medikamentenwirkung",
+  preventive_course: "Medikamente",
+  weather: "Wetter & Umwelt",
+  mecfs_energy_pem: "ME/CFS & Energie",
+  sleep: "Schlaf",
+  stress_mood: "Stress",
+  lifestyle_triggers: "Alltag",
+  symptoms_aura: "Symptome",
+  cycle_hormonal: "Zyklus",
+  time_pattern: "Zeitmuster",
+  interaction: "Interaktionen",
+  data_quality: "Datenqualität",
+};
+
+/** Sektionen, in denen die Kategorie-Zeile redundant ist und ausgeblendet wird. */
+const HIDE_CATEGORY_IN_SECTION = new Set<AnalysisSectionKey>([
+  "medication", "weather", "mecfs", "lifestyle", "symptoms", "time",
+  "interaction", "data_quality",
+]);
+
+const LIMITS_DISCLAIMER =
+  "Diese Analyse ersetzt keine ärztliche Beurteilung. Sie zeigt Hinweise aus " +
+  "dokumentierten Daten. Bei plötzlich neuartigen, sehr starken oder anhaltenden " +
+  "Beschwerden bitte ärztlich abklären lassen.";
+
 export function AnalysisV21Sections({ responseJson, doctorShare = false, showVoiceQualityNotes = false }: Props) {
   const curated = React.useMemo(() => {
     const raw = normalizeAnalysisFindings(responseJson, { doctorShare });
     return curateFindingsV22(raw, responseJson, { showVoiceQualityNotes });
   }, [responseJson, doctorShare, showVoiceQualityNotes]);
+
   const grouped = React.useMemo(() => groupFindingsBySection(curated.findings), [curated.findings]);
   const openQuestions = curated.openQuestions;
 
   const v21 = (responseJson as any)?.analysisV21 ?? null;
   const dataBasis = v21?.data_basis as Record<string, unknown> | undefined;
   const period = v21?.period as Record<string, unknown> | undefined;
-  const caution = v21?.clinical_caution as Record<string, unknown> | undefined;
-  const version = v21?.analysis_version as string | undefined;
 
   if (!v21) return null;
 
+  // Synthetic weather-coverage card for "Datenqualität" — only when there is
+  // a documented gap. Avoids duplicating the weather story up top.
+  const weatherCoverageCard = React.useMemo<NormalizedAnalysisFinding | null>(() => {
+    const wd = Number(dataBasis?.weather_days);
+    const dd = Number(dataBasis?.documented_days);
+    if (!isFinite(wd) || !isFinite(dd) || dd <= 0) return null;
+    if (wd >= dd) return null;
+    return {
+      id: "synthetic.weather_coverage",
+      category: "data_quality",
+      section: "data_quality",
+      title: "Wetterabdeckung",
+      summary: `Wetterdaten lagen für ${wd} von ${dd} Tagen vor. Wetterhinweise sind deshalb eingeschränkt.`,
+      evidenceLevel: "low",
+      limitations: [],
+      recommendedTrackingNext: [],
+      doctorDiscussionPoints: [],
+      source: "deterministic",
+      shouldShowInDoctorShare: true,
+    };
+  }, [dataBasis]);
+
   return (
     <div className="space-y-7">
-      <DataBasisCard dataBasis={dataBasis} period={period} version={version} />
+      <DataBasisCard dataBasis={dataBasis} period={period} />
 
       {SECTION_ORDER.map((key) => {
+        // "Grenzen der Analyse" → ruhiger Standardtext, keine Karten.
+        if (key === "limits") {
+          return (
+            <Section key={key} title={SECTION_LABEL[key]}>
+              <p className="text-[12px] text-muted-foreground/85 leading-[1.7]">
+                {LIMITS_DISCLAIMER}
+              </p>
+            </Section>
+          );
+        }
+
         if (key === "open_questions") {
           if (openQuestions.length === 0) return null;
           return (
@@ -58,22 +123,24 @@ export function AnalysisV21Sections({ responseJson, doctorShare = false, showVoi
             </Section>
           );
         }
-        const items = applySectionCaps(key, dedupSection(grouped[key]));
+
+        let items = applySectionCaps(key, dedupSection(grouped[key]));
+        if (key === "data_quality" && weatherCoverageCard) {
+          // Insert synthetic weather-coverage card if not already present (by title).
+          const hasWeather = items.some((f) =>
+            /wetter/i.test(f.title) || /wetter/i.test(f.summary),
+          );
+          if (!hasWeather) items = [weatherCoverageCard, ...items];
+        }
         if (items.length === 0) return null;
         return (
           <Section key={key} title={SECTION_LABEL[key]}>
             <div className="space-y-4">
-              {items.map((f) => <FindingCard key={f.id} f={f} />)}
+              {items.map((f) => <FindingCard key={f.id} f={f} sectionKey={key} />)}
             </div>
           </Section>
         );
       })}
-
-      {caution && (
-        <p className="text-[11px] text-muted-foreground/70 italic leading-relaxed">
-          {(caution.emergency_disclaimer as string) || "Keine medizinische Diagnose."}
-        </p>
-      )}
     </div>
   );
 }
@@ -91,20 +158,19 @@ function dedupSection(items: NormalizedAnalysisFinding[]): NormalizedAnalysisFin
 }
 
 function DataBasisCard({
-  dataBasis, period, version,
-}: { dataBasis?: Record<string, unknown>; period?: Record<string, unknown>; version?: string }) {
+  dataBasis, period,
+}: { dataBasis?: Record<string, unknown>; period?: Record<string, unknown> }) {
   if (!dataBasis && !period) return null;
   const fmt = (d?: unknown) => {
     if (typeof d !== "string") return "—";
     try { return new Date(d).toLocaleDateString("de-DE"); } catch { return d; }
   };
+  // Nur nutzerrelevante Felder. Analyseversion, Wettertage, Dokumentierte Tage
+  // sind absichtlich hier nicht enthalten.
   const rows: Array<[string, unknown]> = [
     ["Zeitraum", `${fmt(period?.from)} – ${fmt(period?.to)}`],
-    ["Analyseversion", version ?? "—"],
-    ["Dokumentierte Tage", dataBasis?.documented_days ?? "—"],
     ["Schmerztage", dataBasis?.pain_days ?? "—"],
     ["Medikamententage", dataBasis?.medication_intake_days ?? "—"],
-    ["Wettertage", dataBasis?.weather_days ?? "—"],
     ["ME/CFS- & Energietage", dataBasis?.mecfs_energy_days ?? "—"],
   ];
   return (
@@ -121,7 +187,7 @@ function DataBasisCard({
         ))}
       </dl>
       <p className="text-[10px] text-muted-foreground/70 mt-2">
-        Hinweise, keine Diagnose · private Notizen sind ausgeschlossen
+        Hinweise aus dokumentierten Daten · keine Diagnose
       </p>
     </div>
   );
@@ -138,13 +204,42 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function FindingCard({ f }: { f: NormalizedAnalysisFinding }) {
+function truncateToSentences(text: string, maxSentences = 2, maxChars = 240): string {
+  if (!text) return "";
+  const parts = text.match(/[^.!?]+[.!?]?/g) ?? [text];
+  let out = parts.slice(0, maxSentences).join(" ").trim();
+  if (out.length > maxChars) out = out.slice(0, maxChars - 1).trimEnd() + "…";
+  return out;
+}
+
+function FindingCard({ f, sectionKey }: { f: NormalizedAnalysisFinding; sectionKey: AnalysisSectionKey }) {
+  const [showDetails, setShowDetails] = React.useState(false);
   const badge = getEvidenceBadgeVariant(f.evidenceLevel);
   const toneClass =
     badge.tone === "strong" ? "bg-primary/10 text-primary"
     : badge.tone === "medium" ? "bg-muted text-foreground/80"
     : badge.tone === "weak" ? "bg-muted/50 text-muted-foreground"
     : "bg-amber-100/60 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200";
+
+  const userCategoryLabel = CATEGORY_USER_LABEL[f.category];
+  const showCategory =
+    !!userCategoryLabel && !HIDE_CATEGORY_IN_SECTION.has(sectionKey);
+
+  const shortSummary = truncateToSentences(f.summary, 2, 240);
+  const primaryDoctorPoint = f.doctorDiscussionPoints[0];
+  const additionalDoctorPoints = f.doctorDiscussionPoints.slice(1, 3);
+
+  // 1 reasoning sentence, 1–2 limitations, 1–2 tracking items.
+  const reasoningShort = f.reasoning ? truncateToSentences(f.reasoning, 1, 200) : undefined;
+  const limitationsShort = f.limitations.slice(0, 2);
+  const trackingShort = f.recommendedTrackingNext.slice(0, 2);
+
+  const hasDetails =
+    !!reasoningShort
+    || limitationsShort.length > 0
+    || trackingShort.length > 0
+    || additionalDoctorPoints.length > 0;
+
   return (
     <div className="space-y-1.5">
       <div className="flex items-start justify-between gap-3">
@@ -153,30 +248,56 @@ function FindingCard({ f }: { f: NormalizedAnalysisFinding }) {
           {badge.label}
         </span>
       </div>
-      <p className="text-[12px] text-muted-foreground/70 uppercase tracking-wide">{f.category}</p>
-      <p className="text-[13px] text-foreground/80 leading-[1.7]">{f.summary}</p>
-      {f.reasoning && (
-        <p className="text-[12px] text-foreground/65 leading-[1.6]">{f.reasoning}</p>
-      )}
-      {f.limitations.length > 0 && (
-        <ul className="text-[11px] text-muted-foreground/80 list-disc pl-4 space-y-0.5">
-          {f.limitations.map((l, i) => <li key={i}>{l}</li>)}
-        </ul>
-      )}
-      {f.recommendedTrackingNext.length > 0 && (
-        <p className="text-[11px] text-muted-foreground/80">
-          Nächste Dokumentation: {f.recommendedTrackingNext.join(" · ")}
+      {showCategory && (
+        <p className="text-[12px] text-muted-foreground/70 uppercase tracking-wide">
+          {userCategoryLabel}
         </p>
       )}
-      {f.doctorDiscussionPoints.length > 0 && (
+      <p className="text-[13px] text-foreground/80 leading-[1.7]">{shortSummary}</p>
+
+      {primaryDoctorPoint && (
         <p className="text-[11px] text-muted-foreground/80">
-          Arztgespräch: {f.doctorDiscussionPoints.join(" · ")}
+          Für Arztgespräch: {primaryDoctorPoint}
         </p>
+      )}
+
+      {hasDetails && (
+        <div>
+          <button
+            type="button"
+            onClick={() => setShowDetails((v) => !v)}
+            className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground/80 transition-colors"
+          >
+            {showDetails
+              ? <><ChevronDown className="h-3 w-3" />Details ausblenden</>
+              : <><ChevronRight className="h-3 w-3" />Details anzeigen</>}
+          </button>
+          {showDetails && (
+            <div className="mt-1.5 space-y-1">
+              {reasoningShort && (
+                <p className="text-[11px] text-muted-foreground/85">
+                  Datenbasis: {reasoningShort}
+                </p>
+              )}
+              {limitationsShort.length > 0 && (
+                <p className="text-[11px] text-muted-foreground/85">
+                  Einschränkung: {limitationsShort.join(" · ")}
+                </p>
+              )}
+              {trackingShort.length > 0 && (
+                <p className="text-[11px] text-muted-foreground/85">
+                  Nächste Dokumentation: {trackingShort.join(" · ")}
+                </p>
+              )}
+              {additionalDoctorPoints.length > 0 && (
+                <p className="text-[11px] text-muted-foreground/85">
+                  Weitere Arztgesprächspunkte: {additionalDoctorPoints.join(" · ")}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
-}
-
-function EmptyHint({ children }: { children: React.ReactNode }) {
-  return <p className="text-[12px] text-muted-foreground/70 italic leading-[1.6]">{children}</p>;
 }
