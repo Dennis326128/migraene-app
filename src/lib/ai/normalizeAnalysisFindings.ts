@@ -33,6 +33,13 @@ export interface NormalizedAnalysisFinding {
   doctorDiscussionPoints: string[];
   source: NormalizedSource;
   shouldShowInDoctorShare: boolean;
+  /**
+   * If true, group routing pins this finding into its topical `section`
+   * instead of routing it to "strongest"/"weaker" by evidence level.
+   * Used by V2.2 curation to keep e.g. localization-only symptoms_aura
+   * findings out of the main "Auffälligste Hinweise" section.
+   */
+  pinToTopical?: boolean;
 }
 
 export type AnalysisSectionKey =
@@ -182,6 +189,7 @@ export function groupFindingsBySection(
     let target: AnalysisSectionKey;
     if (f.category === "red_flag") target = "limits";
     else if (f.category === "data_quality") target = "data_quality";
+    else if (f.pinToTopical) target = f.section;
     else if (f.evidenceLevel === "high" || f.evidenceLevel === "moderate") target = "strongest";
     else if (f.evidenceLevel === "low") target = "weaker";
     else target = f.section;
