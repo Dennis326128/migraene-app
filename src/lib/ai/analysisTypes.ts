@@ -114,5 +114,7 @@ export interface AnalysisReportV21 {
   _legacy?: unknown;
 }
 
-export const ANALYSIS_V21_VERSION = "2.1.0";
+export const ANALYSIS_V21_VERSION = "2.2.0";
 export const ANALYSIS_V21_SCHEMA: "2.1" = "2.1";
+/** Backwards-compat alias for code that imported the V2.1 version constant. */
+export const ANALYSIS_V22_VERSION = ANALYSIS_V21_VERSION;
