@@ -299,6 +299,42 @@ export async function loadCachedAnalysis(
   };
 }
 
+/**
+ * Load the most recent pattern-analysis report for the user, regardless of
+ * the date range. Used as a fallback when no analysis exists for the
+ * currently selected range so the UI can keep showing the last result
+ * instead of an empty state.
+ */
+export async function loadLatestAnalysisAnyRange(): Promise<CachedAnalysis | null> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data, error } = await supabase
+    .from('ai_reports')
+    .select('id, response_json, created_at, updated_at, from_date, to_date, data_state_signature')
+    .eq('user_id', user.id)
+    .eq('report_type', REPORT_TYPE)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  const result = data.response_json as unknown;
+  if (!result || typeof result !== 'object') return null;
+  const r = result as Record<string, unknown>;
+  if (typeof r.summary !== 'string' || !r.scope) return null;
+
+  return {
+    id: data.id,
+    result: result as VoiceAnalysisResult,
+    createdAt: data.created_at,
+    updatedAt: data.updated_at,
+    fromDate: data.from_date || '',
+    toDate: data.to_date || '',
+    dataStateSignature: data.data_state_signature ?? null,
+  };
+}
+
 // ============================================================
 // === DATA-STATE VALIDATION ===
 // ============================================================
