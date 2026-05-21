@@ -816,7 +816,7 @@ export function MigrainePatternAnalysis() {
               ) : rateBlocked ? (
                 <><Clock className="h-4 w-4 mr-2" /> Neue Analyse in ca. {rateGate.waitMinutes} Min. möglich</>
               ) : result ? (
-                <><RefreshCw className="h-4 w-4 mr-2" /> {effectiveStale ? (staleReason === 'version_mismatch' ? 'Analyse-Logik wurde verbessert' : 'Neue Daten vorhanden') : 'Erneut analysieren'}</>
+                <><RefreshCw className="h-4 w-4 mr-2" /> {effectiveStale ? (staleReason === 'range_mismatch' ? 'Für diesen Zeitraum analysieren' : staleReason === 'version_mismatch' ? 'Analyse-Logik wurde verbessert' : 'Neue Daten vorhanden') : 'Erneut analysieren'}</>
               ) : (
                 <><Brain className="h-4 w-4 mr-2" /> Zusammenhänge suchen</>
               )}
