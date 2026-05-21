@@ -222,4 +222,39 @@ describe('curateFindingsV22 — V2.2 hardening', () => {
   });
 });
 
+describe('curateFindingsV22 — V2.2 UX hardening', () => {
+  it('drops red_flag findings entirely', () => {
+    const r = curateFindingsV22([
+      f({ id: 'rf', category: 'red_flag', evidenceLevel: 'high',
+          title: 'Dringende Abklärung', summary: 'Warnzeichen.' }),
+      f({ id: 'c', category: 'chronification', evidenceLevel: 'high', title: 'Chron' }),
+    ]);
+    expect(r.findings.map(x => x.id)).toEqual(['c']);
+    expect(r.suppressed.find(s => s.id === 'rf')?.reason).toBe('red_flag_hidden');
+  });
+
+  it('pins medication_use to topical so it does NOT land in strongest', () => {
+    const r = curateFindingsV22([
+      f({ id: 'm', category: 'medication_use', evidenceLevel: 'moderate',
+          title: 'Akutmedikation – Einnahmen im Zeitraum' }),
+    ]);
+    expect(r.findings[0].pinToTopical).toBe(true);
+  });
+
+  it('pins time_pattern to topical so it does NOT pollute weaker', () => {
+    const r = curateFindingsV22([
+      f({ id: 't', category: 'time_pattern', evidenceLevel: 'low',
+          title: 'Kein klares zeitliches Muster' }),
+    ]);
+    expect(r.findings[0].pinToTopical).toBe(true);
+  });
+
+  it('chronification stays routable to strongest (not pinned)', () => {
+    const r = curateFindingsV22([
+      f({ id: 'c', category: 'chronification', evidenceLevel: 'high', title: 'Chron' }),
+    ]);
+    expect(r.findings[0].pinToTopical).toBeFalsy();
+  });
+});
+
 
