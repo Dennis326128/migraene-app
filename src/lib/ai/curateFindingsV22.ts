@@ -37,14 +37,20 @@ const MAX_STRONGEST = 4;
 const MAX_WEAKER = 5;
 
 const SAFETY_REWRITES: Array<[RegExp, string]> = [
-  [/\berfüllt(?:\s+(?:die\s+)?)?Kriterien(?:\s+(?:für|einer|der))?\s+chronische[rn]?\s+Migräne\b/gi,
-    "liegt in einem Bereich, der ärztlich auf chronische Migräne geprüft werden sollte"],
-  [/\berfüllt\s+(?:die\s+)?Kriterien\b/gi,
-    "liegt in einem Bereich, der ärztlich geprüft werden sollte"],
-  [/\bist\s+chronische\s+Migräne\b/gi,
+  // "erfüllt/erfüllen (die) Kriterien (für|einer|der) chronische(r|n) Migräne"
+  [/\berf(?:üllt|üllen)\s+(?:die\s+)?Kriterien(?:\s+(?:für|einer|der))?\s+(?:eine[rn]?\s+)?chronische[rn]?\s+Migräne\b/gi,
+    "liegen in einem Bereich, der ärztlich im Hinblick auf chronische Migräne geprüft werden sollte"],
+  [/\berf(?:üllt|üllen)\s+(?:die\s+)?Kriterien\b/gi,
+    "liegen in einem Bereich, der ärztlich geprüft werden sollte"],
+  [/\b(?:ist|sind)\s+chronische\s+Migräne\b/gi,
     "ist vereinbar mit einem Muster, das ärztlich eingeordnet werden sollte"],
-  [/\bDiagnose\s+chronische[rn]?\s+Migräne\b/gi,
+  [/\b(?:mögliche\s+)?Diagnose\s+(?:der\s+|einer\s+)?chronische[rn]?\s+Migräne\b/gi,
     "ärztlich abzuklärender Hinweis auf chronische Migräne"],
+  [/\bchronische\s+Migräne\s+diagnostiz\w*/gi,
+    "ärztlich auf chronische Migräne zu prüfen"],
+  // strip misleading "100% Korrelation" wording
+  [/\b100\s?%?\s*(?:Korrelation|Übereinstimmung|Trefferquote)\b/gi,
+    "auffällige Häufung (Vergleichsbasis schwach)"],
 ];
 
 function rewriteSafety(text: string | undefined): string | undefined {
@@ -61,6 +67,7 @@ function applySafetyRewrites(f: NormalizedAnalysisFinding): NormalizedAnalysisFi
     summary: rewriteSafety(f.summary) ?? f.summary,
     reasoning: rewriteSafety(f.reasoning),
     limitations: f.limitations.map((l) => rewriteSafety(l) ?? l),
+    recommendedTrackingNext: f.recommendedTrackingNext.map((l) => rewriteSafety(l) ?? l),
     doctorDiscussionPoints: f.doctorDiscussionPoints.map((q) => rewriteSafety(q) ?? q),
   };
 }
