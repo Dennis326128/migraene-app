@@ -786,3 +786,28 @@ describe('Migraine prioritization in sorting', () => {
     expect(summary.patterns.map(p => p.title)).toEqual(['P4', 'P2', 'P3', 'P5', 'P1', 'P6']);
   });
 });
+
+// ============================================================
+// Range fallback selection shape (range_mismatch)
+// ============================================================
+
+describe('AnalysisSelection — range fallback', () => {
+  it('supports range_mismatch as a stale reason and fallback fields', async () => {
+    const { type } = await import('../analysisCache') as any;
+    // Type-level only: build a synthetic selection that uses the new fields.
+    const sel: import('../analysisCache').AnalysisSelection = {
+      result: mockResult(),
+      isFresh: false,
+      status: 'stale_accepted',
+      storedSignature: SIG_A,
+      currentSignature: SIG_B,
+      staleReason: 'range_mismatch',
+      isRangeFallback: true,
+      resultFromDate: '2026-01-01',
+      resultToDate: '2026-03-31',
+    };
+    expect(sel.staleReason).toBe('range_mismatch');
+    expect(sel.isRangeFallback).toBe(true);
+    expect(sel.resultFromDate).toBe('2026-01-01');
+  });
+});
