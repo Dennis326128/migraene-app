@@ -210,7 +210,7 @@ describe('curateFindingsV22 — V2.2 hardening', () => {
   });
 
   it('dedup: PEM-gap rewrite removes other "ME/CFS nicht dokumentiert" findings', () => {
-    const rj = { analysisV21: { data_basis: { mecfs_energy_days: 63 } } };
+    const rj = { analysisV21: { data_basis: { mecfs_energy_days: 63, documented_days: 90 } } };
     const r = curateFindingsV22([
       f({ id: 'me1', category: 'mecfs_energy_pem', evidenceLevel: 'insufficient',
           title: 'ME/CFS nicht ausreichend dokumentiert', summary: 'Keine ausreichende Datenbasis.' }),
@@ -218,7 +218,7 @@ describe('curateFindingsV22 — V2.2 hardening', () => {
           title: 'Mangelnde ME/CFS-Dokumentation', summary: 'ME/CFS nicht dokumentiert.' }),
     ], rj);
     expect(r.findings).toHaveLength(1);
-    expect(r.findings[0].title).toMatch(/PEM/);
+    expect(r.findings[0].title).toMatch(/Energiesignale/);
   });
 });
 
