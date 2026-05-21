@@ -580,6 +580,83 @@ export function MigrainePatternAnalysis() {
   const [currentSignature, setCurrentSignature] = useState<string | null>(null);
   const [gateRefresh, setGateRefresh] = useState(0);
 
+  // === History (independent of selected range) ===
+  const [history, setHistory] = useState<AnalysisHistoryEntry[]>([]);
+  const [historyHasMore, setHistoryHasMore] = useState(false);
+  const [historyLoadingMore, setHistoryLoadingMore] = useState(false);
+  /** When set, we show this stored analysis instead of the cached one for the current range. */
+  const [pickedHistory, setPickedHistory] = useState<{
+    id: string;
+    createdAt: string;
+    fromDate: string;
+    toDate: string;
+  } | null>(null);
+
+  const HISTORY_PAGE_SIZE = 10;
+
+  const reloadHistory = useCallback(async () => {
+    try {
+      const { entries, hasMore } = await loadAnalysisHistory({ limit: HISTORY_PAGE_SIZE, offset: 0 });
+      setHistory(entries);
+      setHistoryHasMore(hasMore);
+    } catch (err) {
+      console.warn('[MigrainePatternAnalysis] history load failed:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    reloadHistory();
+  }, [reloadHistory]);
+
+  const handleLoadMoreHistory = useCallback(async () => {
+    setHistoryLoadingMore(true);
+    try {
+      const { entries, hasMore } = await loadAnalysisHistory({
+        limit: HISTORY_PAGE_SIZE,
+        offset: history.length,
+      });
+      setHistory(prev => [...prev, ...entries]);
+      setHistoryHasMore(hasMore);
+    } catch (err) {
+      console.warn('[MigrainePatternAnalysis] history load-more failed:', err);
+    } finally {
+      setHistoryLoadingMore(false);
+    }
+  }, [history.length]);
+
+  const handlePickHistory = useCallback(async (entry: AnalysisHistoryEntry) => {
+    try {
+      const cached = await loadAnalysisById(entry.id);
+      if (!cached) {
+        toast.error('Analyse konnte nicht geladen werden.');
+        return;
+      }
+      setResult(cached.result);
+      setIsCachedResult(true);
+      setIsWeakData(false);
+      setError(null);
+      // Range fallback display: if entry range != selected range, mark accordingly.
+      const sameRange = entry.fromDate === from && entry.toDate === to;
+      setIsRangeFallback(!sameRange);
+      setFallbackRange({ from: entry.fromDate, to: entry.toDate });
+      setShowFallbackAnalysis(true);
+      setStaleReason(sameRange ? null : 'range_mismatch');
+      setIsStaleResult(!sameRange);
+      setCachedAt(cached.createdAt);
+      setStoredSignature(cached.dataStateSignature);
+      setPickedHistory({
+        id: entry.id,
+        createdAt: cached.createdAt,
+        fromDate: entry.fromDate,
+        toDate: entry.toDate,
+      });
+    } catch (err) {
+      console.warn('[MigrainePatternAnalysis] pick history failed:', err);
+      toast.error('Analyse konnte nicht geladen werden.');
+    }
+  }, [from, to]);
+
+
   const gateState = useAnalysisGateState(gateRefresh);
 
   const ageStale = isCacheStaleByAge(cachedAt);
