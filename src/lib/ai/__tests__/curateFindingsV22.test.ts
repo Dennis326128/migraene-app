@@ -86,16 +86,18 @@ describe('curateFindingsV22', () => {
   });
 
   it('ME/CFS gap rewrite when scores exist on many days', () => {
-    const responseJson = { analysisV21: { data_basis: { mecfs_energy_days: 63 } } };
+    const responseJson = { analysisV21: { data_basis: { mecfs_energy_days: 63, documented_days: 90 } } };
     const r = curateFindingsV22(
       [f({ id: 'me', category: 'mecfs_energy_pem', evidenceLevel: 'insufficient',
           title: 'ME/CFS nicht ausreichend dokumentiert',
           summary: 'Keine ausreichende Datenbasis für ME/CFS.' })],
       responseJson,
     );
-    expect(r.findings[0].title).toMatch(/PEM/i);
-    expect(r.findings[0].evidenceLevel).toBe('low');
-    expect(r.findings[0].summary).toMatch(/63 Tagen/);
+    expect(r.findings[0].title).toMatch(/Energiesignale/i);
+    expect(r.findings[0].evidenceLevel).toBe('moderate');
+    expect(r.findings[0].pinToTopical).toBe(true);
+    expect(r.findings[0].summary).toMatch(/63 von 90/);
+    expect(r.findings[0].limitations.join(' ')).toMatch(/PEM/i);
   });
 
   it('ME/CFS gap NOT rewritten when few days of data', () => {
