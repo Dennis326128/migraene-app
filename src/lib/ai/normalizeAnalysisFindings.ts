@@ -112,13 +112,22 @@ export function normalizeAnalysisFindings(
   const v21 = (rj.analysisV21 ?? null) as Record<string, unknown> | null;
 
   const out: NormalizedAnalysisFinding[] = [];
-  const seen = new Set<string>(); // dedup key: category::title-prefix
+  const seenIds = new Set<string>();
+  const seenContent = new Set<string>();
+
+  const normKey = (s: string) =>
+    s.toLowerCase().replace(/\s+/g, " ").trim().slice(0, 120);
 
   const pushIfNew = (f: NormalizedAnalysisFinding) => {
-    const key = f.category + "::" + f.title.toLowerCase().slice(0, 80).trim();
-    if (seen.has(key)) return;
     if (options.doctorShare && !f.shouldShowInDoctorShare) return;
-    seen.add(key);
+    if (seenIds.has(f.id)) return;
+    const contentKey = f.category + "::" + normKey(f.title) + "::" + normKey(f.summary);
+    if (seenContent.has(contentKey)) return;
+    const summaryKey = f.category + "##" + normKey(f.summary);
+    if (seenContent.has(summaryKey)) return;
+    seenIds.add(f.id);
+    seenContent.add(contentKey);
+    seenContent.add(summaryKey);
     out.push(f);
   };
 
@@ -148,6 +157,16 @@ export function normalizeAnalysisFindings(
   return out;
 }
 
+/**
+ * Assigns each finding to exactly ONE display section to avoid duplicates
+ * between "Auffälligste Hinweise" and topical sections.
+ *
+ *  - red_flag      → limits
+ *  - data_quality  → data_quality
+ *  - high/moderate → strongest
+ *  - low           → weaker
+ *  - insufficient  → topical (as data gap)
+ */
 export function groupFindingsBySection(
   findings: NormalizedAnalysisFinding[],
 ): Record<AnalysisSectionKey, NormalizedAnalysisFinding[]> {
@@ -157,31 +176,45 @@ export function groupFindingsBySection(
     open_questions: [], limits: [],
   };
   for (const f of findings) {
-    // Promote any high/moderate to "strongest" mirror, demote low/insufficient
-    // findings to their topical section. Insufficient stays in data_quality
-    // when category is data_quality, otherwise stays in topical section as
-    // a "data gap" hint.
-    if (f.evidenceLevel === "high" || f.evidenceLevel === "moderate") {
-      // Already in topical bucket; also surface under strongest.
-      if (f.section !== "strongest") grouped.strongest.push(f);
-    }
-    if (f.evidenceLevel === "low") {
-      grouped.weaker.push(f);
-    }
-    grouped[f.section].push(f);
+    let target: AnalysisSectionKey;
+    if (f.category === "red_flag") target = "limits";
+    else if (f.category === "data_quality") target = "data_quality";
+    else if (f.evidenceLevel === "high" || f.evidenceLevel === "moderate") target = "strongest";
+    else if (f.evidenceLevel === "low") target = "weaker";
+    else target = f.section;
+    grouped[target].push(f);
   }
   return grouped;
+}
+
+/**
+ * Unique doctor-discussion points from all findings except `data_quality`
+ * (those belong in "Datenqualität", not "Offene Fragen").
+ */
+export function extractOpenQuestions(findings: NormalizedAnalysisFinding[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const f of findings) {
+    if (f.category === "data_quality") continue;
+    for (const q of f.doctorDiscussionPoints) {
+      const k = q.toLowerCase().trim();
+      if (!k || seen.has(k)) continue;
+      seen.add(k);
+      out.push(q);
+    }
+  }
+  return out;
 }
 
 export function getEvidenceBadgeVariant(
   level: NormalizedEvidenceLevel,
 ): { label: string; tone: "strong" | "medium" | "weak" | "gap" } {
   switch (level) {
-    case "high": return { label: "deutlicher Hinweis", tone: "strong" };
+    case "high": return { label: "starker Hinweis", tone: "strong" };
     case "moderate": return { label: "mehrere Hinweise", tone: "medium" };
     case "low": return { label: "schwacher Hinweis", tone: "weak" };
     case "insufficient":
-    default: return { label: "Datenlücke", tone: "gap" };
+    default: return { label: "Daten nicht ausreichend", tone: "gap" };
   }
 }
 
