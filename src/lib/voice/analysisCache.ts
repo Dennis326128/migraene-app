@@ -467,6 +467,22 @@ export async function selectAnalysisForChannel(
 
   const cached = await loadCachedAnalysis(fromDate, toDate);
   if (!cached) {
+    // No exact-range match — try the most recent analysis from any range
+    // so the UI keeps the last analysis visible instead of an empty state.
+    const fallback = await loadLatestAnalysisAnyRange();
+    if (fallback) {
+      return {
+        result: fallback.result,
+        isFresh: false,
+        status: 'stale_accepted',
+        storedSignature: fallback.dataStateSignature,
+        currentSignature: fingerprint.stateSignature,
+        staleReason: 'range_mismatch',
+        isRangeFallback: true,
+        resultFromDate: fallback.fromDate || null,
+        resultToDate: fallback.toDate || null,
+      };
+    }
     return { result: null, isFresh: false, status: 'not_found', storedSignature: null, currentSignature: fingerprint.stateSignature, staleReason: null };
   }
 
