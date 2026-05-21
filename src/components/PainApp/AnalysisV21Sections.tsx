@@ -58,7 +58,7 @@ export function AnalysisV21Sections({ responseJson, doctorShare = false, showVoi
             </Section>
           );
         }
-        const items = dedupSection(grouped[key]);
+        const items = applySectionCaps(key, dedupSection(grouped[key]));
         if (items.length === 0) return null;
         return (
           <Section key={key} title={SECTION_LABEL[key]}>
