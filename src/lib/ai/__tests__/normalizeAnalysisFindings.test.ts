@@ -3,6 +3,7 @@ import {
   normalizeAnalysisFindings,
   groupFindingsBySection,
   getEvidenceBadgeVariant,
+  extractOpenQuestions,
 } from '../normalizeAnalysisFindings';
 
 describe('normalizeAnalysisFindings', () => {
