@@ -28,6 +28,7 @@ import { buildServerAnalysisDataset } from "../_shared/serverAnalysisDataset.ts"
 import { runAnalysisLLM } from "../_shared/analysisCore.ts";
 import { checkPatternAnalysisQuota, commitPatternAnalysisUsage, quotaErrorBody } from "../_shared/aiQuotaGate.ts";
 import { computeDataStateSignature } from "../_shared/doctorShareSsot.ts";
+import { evaluateShareAnalysisGate } from "../_shared/shareAnalysisGate.ts";
 
 const PRESET_DAYS: Record<string, number> = {
   '1m': 30, '30d': 30, '3m': 90, '6m': 180, '12m': 365,
