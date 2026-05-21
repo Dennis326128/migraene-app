@@ -15,10 +15,10 @@
 import {
   normalizeAnalysisFindings,
   groupFindingsBySection,
-  extractOpenQuestions,
   type NormalizedAnalysisFinding,
   type AnalysisSectionKey,
 } from "./normalizeAnalysisFindings";
+import { curateFindingsV22, applySectionCaps } from "./curateFindingsV22";
 
 const EVIDENCE_LABEL = {
   high: "starker Hinweis",
@@ -53,9 +53,10 @@ export function generateAnalysisReportText(responseJson: unknown): string {
 
 function buildV21Report(rj: Record<string, unknown>): string {
   const v21 = rj.analysisV21 as Record<string, unknown>;
-  const findings = normalizeAnalysisFindings(rj);
-  const grouped = groupFindingsBySection(findings);
-  const openQuestions = extractOpenQuestions(findings);
+  const raw = normalizeAnalysisFindings(rj);
+  const curated = curateFindingsV22(raw, rj);
+  const grouped = groupFindingsBySection(curated.findings);
+  const openQuestions = curated.openQuestions;
 
   const lines: string[] = [];
   lines.push("KI-Analyse – keine Diagnose");
@@ -85,7 +86,7 @@ function buildV21Report(rj: Record<string, unknown>): string {
       continue;
     }
 
-    const items = dedupItems(grouped[sec.key as AnalysisSectionKey] ?? []);
+    const items = applySectionCaps(sec.key, dedupItems(grouped[sec.key as AnalysisSectionKey] ?? []));
     if (items.length === 0 && !sec.alwaysShow) continue;
     lines.push(`${idx}. ${sec.title}`);
     if (items.length === 0) {
