@@ -175,6 +175,25 @@ Deno.serve(async (req) => {
       return json({ error: 'Server nicht konfiguriert.' }, 500);
     }
 
+    // TODO(Phase 2 — Shared engine unification):
+    //   Switch this call to the shared V2.2 builder so App and Doctor-Share
+    //   produce a byte-compatible patternAnalysisV21 payload:
+    //
+    //     import { runPatternAnalysisV22 } from '../_shared/patternAnalysisBuilder.ts';
+    //     const llm = await runPatternAnalysisV22({
+    //       serializedContext: dataset.serialized,
+    //       meta: dataset.meta,
+    //       fromDate: from, toDate: to,
+    //       preAnalysis,             // ← needs a server-side preAnalysis builder
+    //       deterministicFindings,   // ← needs server-side V2.1 findings builder
+    //       apiKey,
+    //       source: 'doctor_share',
+    //       includePrivateNotes: false, // serverAnalysisDataset already strips notes
+    //     });
+    //
+    //   Blocked by: porting buildPreAnalysis / buildV21Findings from the App
+    //   client into `_shared/` (next phase). Until then we keep runAnalysisLLM
+    //   so Doctor-Share remains stable; the App path already uses the new builder.
     const llm = await runAnalysisLLM({
       serializedContext: dataset.serialized,
       meta: dataset.meta,
@@ -183,6 +202,7 @@ Deno.serve(async (req) => {
       apiKey,
       includesPrivateNotes: false, // Doctor-Share: NEVER include private free-text notes
     });
+
 
     if (!llm.ok) {
       console.log(`[shared-ai] llm_unavailable owner=${shortId(ownerUserId)} status=${llm.status}`);
