@@ -226,3 +226,56 @@ Bereinigung möglicher Duplikate.
   Zeitraum.
 - Keine Duplikate pro `(user, day, loc)`.
 - `source` und `coverage_status` gesetzt.
+
+---
+
+## Weather V2.3 — Phasenplan (Phase 2 Stand)
+
+Reihenfolge der späteren Umsetzung. **Noch NICHT bauen** — kein Backfill,
+kein Cron, keine Migration, kein Provider-Wechsel.
+
+### Phase W1 — Weather SSOT
+- Inventar aller Edge-Funktionen mit Wetter-Zugriff:
+  `fetch-weather`, `fetch-weather-meteo`, `fetch-weather-hybrid`,
+  `backfill-entry-weather`, `backfill-missing-weather`,
+  `backfill-future-entries`, `batch-weather-import`, `clean-weather-import`,
+  `auto-weather-backfill`, `daily-weather-backfill`, `debug-weather-status`.
+- Ziel-Funktion festlegen: **`fetch-weather-hybrid`** als alleinige
+  Schreib-/Cache-Funktion. Alle anderen werden Wrapper oder entfallen.
+- Keine neuen Duplikate. Lese-Pfade nutzen direkt `weather_logs`.
+
+### Phase W2 — Schema/Index
+- Dup-Bereinigung planen (Pre-Flight-Query):
+  `SELECT user_id, snapshot_date, COUNT(*) FROM weather_logs GROUP BY 1,2 HAVING COUNT(*)>1`.
+- Optionale Migration:
+  - `source TEXT` (`'entry_trigger'|'daily_snapshot'|'backfill'|'manual'`)
+  - `coverage_status TEXT` (`'ok'|'limited'|'insufficient'`)
+  - `backfilled_at TIMESTAMPTZ`
+  - `lat_rounded NUMERIC(5,2)`, `lon_rounded NUMERIC(5,2)`
+  - Unique Index `(user_id, snapshot_date, lat_rounded, lon_rounded)`
+- Migration wird **erst nach W1** geschrieben.
+
+### Phase W3 — Entry-triggered T0..T-3
+- Bei jedem Schmerz-/Tagesfaktor-Eintrag: Wetter für Tag 0 und die 3
+  vorhergehenden Tage anfordern, sofern nicht bereits vorhanden.
+- Idempotent über Unique-Index aus W2.
+- Keine historischen Massencalls.
+
+### Phase W4 — Daily Snapshot light
+- Cron 1×/Tag, nur für aktive User mit Standort + Wetter-Consent.
+- Speichert pro User einen `daily_snapshot`-Eintrag.
+- **Kein** Doctor-Share-Zugriff auf Koordinaten.
+
+### Phase W5 — Analyse V2.3 Wetterlogik
+- 2×2-Vergleich (Pain × Pressure-Drop) mit Mindestschwellen:
+  `dropDays ≥ 5` UND `painFreeStableDays ≥ 5`.
+- Zeitfenster T0/T-1/T-2/T-3, je separat ausgewertet.
+- Pro Report: **max 1 Wetter-Hauptkarte + 1 Wetterdatenqualitätskarte**.
+- Bei unzureichender Vergleichsbasis: nur Datenqualitätskarte, keine
+  Korrelationsaussage.
+
+### Aktueller Stand
+- `src/lib/ai/weatherCoverage.ts` als read-only Helper bereit.
+- Server-PreAnalysis (Phase 2) berechnet bereits `daysWithData`,
+  `pressureDropDays`, `stableDays`, `painOn*Days` — V2.3-Logik kann
+  ohne Schemaänderung Mindestschwellen testen.

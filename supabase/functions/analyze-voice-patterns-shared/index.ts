@@ -25,10 +25,16 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 import { getCorsHeaders, handlePreflight } from "../_shared/cors.ts";
 import { verifyDoctorAccess } from "../_shared/doctorAccessGuard.ts";
 import { buildServerAnalysisDataset } from "../_shared/serverAnalysisDataset.ts";
-import { runAnalysisLLM } from "../_shared/analysisCore.ts";
+import { runPatternAnalysisV22 } from "../_shared/patternAnalysisBuilder.ts";
+import {
+  buildPatternPreAnalysis,
+  buildDeterministicFindings,
+  mergeExpandedFindingsIntoReport,
+} from "../_shared/patternPreAnalysis.ts";
 import { checkPatternAnalysisQuota, commitPatternAnalysisUsage, quotaErrorBody } from "../_shared/aiQuotaGate.ts";
 import { computeDataStateSignature } from "../_shared/doctorShareSsot.ts";
 import { evaluateShareAnalysisGate } from "../_shared/shareAnalysisGate.ts";
+
 
 const PRESET_DAYS: Record<string, number> = {
   '1m': 30, '30d': 30, '3m': 90, '6m': 180, '12m': 365,
@@ -168,49 +174,57 @@ Deno.serve(async (req) => {
     const dataset = await buildServerAnalysisDataset(supabase, ownerUserId, from, to);
     console.log(`[shared-ai] dataset owner=${shortId(ownerUserId)} range=${range} days=${dataset.meta.totalDays} voice=${dataset.meta.voiceEventCount} pain=${dataset.meta.painEntryCount}`);
 
-    // 7. LLM core
+    // 7. Server-side PreAnalysis + V2.1 deterministic findings (SSOT for Doctor-Share)
     const apiKey = Deno.env.get('LOVABLE_API_KEY');
     if (!apiKey) {
       console.error('[shared-ai] LOVABLE_API_KEY missing');
       return json({ error: 'Server nicht konfiguriert.' }, 500);
     }
 
-    // TODO(Phase 2 — Shared engine unification):
-    //   Switch this call to the shared V2.2 builder so App and Doctor-Share
-    //   produce a byte-compatible patternAnalysisV21 payload:
-    //
-    //     import { runPatternAnalysisV22 } from '../_shared/patternAnalysisBuilder.ts';
-    //     const llm = await runPatternAnalysisV22({
-    //       serializedContext: dataset.serialized,
-    //       meta: dataset.meta,
-    //       fromDate: from, toDate: to,
-    //       preAnalysis,             // ← needs a server-side preAnalysis builder
-    //       deterministicFindings,   // ← needs server-side V2.1 findings builder
-    //       apiKey,
-    //       source: 'doctor_share',
-    //       includePrivateNotes: false, // serverAnalysisDataset already strips notes
-    //     });
-    //
-    //   Blocked by: porting buildPreAnalysis / buildV21Findings from the App
-    //   client into `_shared/` (next phase). Until then we keep runAnalysisLLM
-    //   so Doctor-Share remains stable; the App path already uses the new builder.
-    const llm = await runAnalysisLLM({
+    const preAnalysis = await buildPatternPreAnalysis(supabase, ownerUserId, dataset);
+    const fromISO = `${from}T00:00:00.000Z`;
+    const toISO = `${to}T23:59:59.999Z`;
+    const v21Report = buildDeterministicFindings({
+      pre: preAnalysis,
+      meta: dataset.meta,
+      fromISO, toISO,
+      privateNotesExcluded: true, // Doctor-Share NEVER includes private free-text notes
+    });
+
+    // 7b. Same V2.2 builder as App — produces identical envelope shape.
+    const llm = await runPatternAnalysisV22({
       serializedContext: dataset.serialized,
       meta: dataset.meta,
       fromDate: from,
       toDate: to,
+      preAnalysis,
+      deterministicFindings: v21Report.findings,
       apiKey,
-      includesPrivateNotes: false, // Doctor-Share: NEVER include private free-text notes
+      source: 'doctor_share',
+      includePrivateNotes: false, // serverAnalysisDataset already strips private notes
     });
-
 
     if (!llm.ok) {
       console.log(`[shared-ai] llm_unavailable owner=${shortId(ownerUserId)} status=${llm.status}`);
       return json(llm.body, llm.status);
     }
-    // 7b. Commit quota (success only — bills against patient account)
-    await commitPatternAnalysisUsage(supabase, ownerUserId, quotaCheck.snapshot);
 
+    // 7c. Merge LLM-expanded findings into the deterministic V2.1 report.
+    //     Doctor-Share strips any red_flag findings produced by the LLM.
+    const expanded = Array.isArray((llm.body as any).llm_expanded_findings)
+      ? (llm.body as any).llm_expanded_findings as Array<Record<string, unknown>>
+      : [];
+    mergeExpandedFindingsIntoReport(v21Report, expanded, { excludeRedFlags: true });
+
+    // 7d. Final envelope — App-compatible: response_json carries both legacy
+    //     fields (summary, possiblePatterns, …) AND the rich analysisV21.
+    const responseBody = {
+      ...llm.body,
+      analysisV21: v21Report,
+    };
+
+    // 7e. Commit quota (success only — bills against patient account)
+    await commitPatternAnalysisUsage(supabase, ownerUserId, quotaCheck.snapshot);
 
     try {
       const dedupeKey = `pattern_analysis_${from}_${to}`;
@@ -228,7 +242,7 @@ Deno.serve(async (req) => {
         from_date: from,
         to_date: to,
         dedupe_key: dedupeKey,
-        response_json: llm.body,
+        response_json: responseBody,
         model: 'google/gemini-2.5-flash',
         data_state_signature: ds.signature,
         source_updated_at: ds.latestRelevantDataAt,
@@ -238,15 +252,16 @@ Deno.serve(async (req) => {
       // non-fatal — still return the analysis to the doctor
     }
 
-    // 9. Mark snapshot stale so next GET rebuilds with the new analysis
+    // 8. Mark snapshot stale so next GET rebuilds with the new analysis
     try {
       await supabase.from('doctor_share_report_snapshots')
         .update({ is_stale: true })
         .eq('share_id', shareId);
     } catch { /* non-fatal */ }
 
-    console.log(`[shared-ai] success owner=${shortId(ownerUserId)} share=${shortId(shareId)} range=${range}`);
-    return json(llm.body, 200);
+    console.log(`[shared-ai] success owner=${shortId(ownerUserId)} share=${shortId(shareId)} range=${range} v21_findings=${v21Report.findings.length} llm_expanded=${expanded.length}`);
+    return json(responseBody, 200);
+
 
   } catch (err) {
     console.error('[shared-ai] unhandled_error:', err);
