@@ -158,3 +158,66 @@ describe('applySectionCaps', () => {
     expect(applySectionCaps('medication', items)).toHaveLength(8);
   });
 });
+
+describe('curateFindingsV22 — V2.2 hardening', () => {
+  it('rewrites plural "erfüllen die Kriterien für chronische Migräne"', () => {
+    const r = curateFindingsV22([
+      f({ id: 'c', category: 'chronification', evidenceLevel: 'high',
+          title: 'Häufigkeit',
+          summary: 'Die Schmerzeinträge erfüllen die Kriterien für chronische Migräne.',
+          doctorDiscussionPoints: ['Mögliche Diagnose chronische Migräne abklären'] }),
+    ]);
+    const fnd = r.findings[0];
+    expect(fnd.summary).not.toMatch(/erfüllen\s+die\s+Kriterien/i);
+    expect(fnd.summary).toMatch(/ärztlich/);
+    expect(r.openQuestions[0]).not.toMatch(/Diagnose chronische Migräne/i);
+    expect(r.openQuestions[0]).toMatch(/ärztlich/);
+  });
+
+  it('strips "100% Korrelation" wording', () => {
+    const r = curateFindingsV22([
+      f({ id: 'w', category: 'weather', evidenceLevel: 'moderate',
+          summary: '100% Korrelation mit Schmerztagen.' }),
+    ]);
+    expect(r.findings[0].summary).not.toMatch(/100\s?%/);
+  });
+
+  it('downgrades weather to insufficient when pain ratio > 0.9', () => {
+    const rj = { analysisV21: { data_basis: { pain_days: 89, documented_days: 90 } } };
+    const r = curateFindingsV22([
+      f({ id: 'w', category: 'weather', evidenceLevel: 'moderate',
+          title: 'Druckabfall', summary: 'Druckabfälle fallen mit Schmerztagen zusammen.',
+          doctorDiscussionPoints: ['Wetterprävention besprechen'] }),
+    ], rj);
+    expect(r.findings[0].evidenceLevel).toBe('insufficient');
+    expect(r.findings[0].summary).toMatch(/Vergleichstage/);
+    expect(r.openQuestions).toHaveLength(0);
+  });
+
+  it('pins localization-only symptoms_aura to topical and excludes from open questions', () => {
+    const r = curateFindingsV22([
+      f({ id: 's', category: 'symptoms_aura', evidenceLevel: 'moderate',
+          title: 'Primäre Schmerzlokalisation Stirn und Nacken',
+          summary: 'Stirn/Nacken häufig betroffen.',
+          doctorDiscussionPoints: ['Nackenbeteiligung besprechen'] }),
+    ]);
+    const fnd = r.findings[0];
+    expect(fnd.pinToTopical).toBe(true);
+    expect(fnd.title).toBe('Häufige Schmerzorte');
+    expect(r.openQuestions).toHaveLength(0);
+  });
+
+  it('dedup: PEM-gap rewrite removes other "ME/CFS nicht dokumentiert" findings', () => {
+    const rj = { analysisV21: { data_basis: { mecfs_energy_days: 63 } } };
+    const r = curateFindingsV22([
+      f({ id: 'me1', category: 'mecfs_energy_pem', evidenceLevel: 'insufficient',
+          title: 'ME/CFS nicht ausreichend dokumentiert', summary: 'Keine ausreichende Datenbasis.' }),
+      f({ id: 'me2', category: 'mecfs_energy_pem', evidenceLevel: 'insufficient',
+          title: 'Mangelnde ME/CFS-Dokumentation', summary: 'ME/CFS nicht dokumentiert.' }),
+    ], rj);
+    expect(r.findings).toHaveLength(1);
+    expect(r.findings[0].title).toMatch(/PEM/);
+  });
+});
+
+

@@ -37,14 +37,20 @@ const MAX_STRONGEST = 4;
 const MAX_WEAKER = 5;
 
 const SAFETY_REWRITES: Array<[RegExp, string]> = [
-  [/\berfüllt(?:\s+(?:die\s+)?)?Kriterien(?:\s+(?:für|einer|der))?\s+chronische[rn]?\s+Migräne\b/gi,
-    "liegt in einem Bereich, der ärztlich auf chronische Migräne geprüft werden sollte"],
-  [/\berfüllt\s+(?:die\s+)?Kriterien\b/gi,
-    "liegt in einem Bereich, der ärztlich geprüft werden sollte"],
-  [/\bist\s+chronische\s+Migräne\b/gi,
+  // "erfüllt/erfüllen (die) Kriterien (für|einer|der) chronische(r|n) Migräne"
+  [/\berf(?:üllt|üllen)\s+(?:die\s+)?Kriterien(?:\s+(?:für|einer|der))?\s+(?:eine[rn]?\s+)?chronische[rn]?\s+Migräne\b/gi,
+    "liegen in einem Bereich, der ärztlich im Hinblick auf chronische Migräne geprüft werden sollte"],
+  [/\berf(?:üllt|üllen)\s+(?:die\s+)?Kriterien\b/gi,
+    "liegen in einem Bereich, der ärztlich geprüft werden sollte"],
+  [/\b(?:ist|sind)\s+chronische\s+Migräne\b/gi,
     "ist vereinbar mit einem Muster, das ärztlich eingeordnet werden sollte"],
-  [/\bDiagnose\s+chronische[rn]?\s+Migräne\b/gi,
+  [/\b(?:mögliche\s+)?Diagnose\s+(?:der\s+|einer\s+)?chronische[rn]?\s+Migräne\b/gi,
     "ärztlich abzuklärender Hinweis auf chronische Migräne"],
+  [/\bchronische\s+Migräne\s+diagnostiz\w*/gi,
+    "ärztlich auf chronische Migräne zu prüfen"],
+  // strip misleading "100% Korrelation" wording
+  [/\b100\s?%?\s*(?:Korrelation|Übereinstimmung|Trefferquote)\b/gi,
+    "auffällige Häufung (Vergleichsbasis schwach)"],
 ];
 
 function rewriteSafety(text: string | undefined): string | undefined {
@@ -61,6 +67,7 @@ function applySafetyRewrites(f: NormalizedAnalysisFinding): NormalizedAnalysisFi
     summary: rewriteSafety(f.summary) ?? f.summary,
     reasoning: rewriteSafety(f.reasoning),
     limitations: f.limitations.map((l) => rewriteSafety(l) ?? l),
+    recommendedTrackingNext: f.recommendedTrackingNext.map((l) => rewriteSafety(l) ?? l),
     doctorDiscussionPoints: f.doctorDiscussionPoints.map((q) => rewriteSafety(q) ?? q),
   };
 }
@@ -104,6 +111,20 @@ function getMecfsDays(responseJson: unknown): number {
   return typeof d === "number" && isFinite(d) ? d : 0;
 }
 
+/**
+ * Returns the share of pain-days over documented-days from V2.1 data_basis.
+ * Used to mark weather findings as insufficient when there are almost no
+ * pain-free comparison days.
+ */
+function getPainRatio(responseJson: unknown): number {
+  if (!responseJson || typeof responseJson !== "object") return 0;
+  const db = (responseJson as any)?.analysisV21?.data_basis ?? {};
+  const pain = Number(db.pain_days);
+  const documented = Number(db.documented_days);
+  if (!isFinite(pain) || !isFinite(documented) || documented <= 0) return 0;
+  return pain / documented;
+}
+
 function rewriteMecfsGap(
   f: NormalizedAnalysisFinding,
   mecfsDays: number,
@@ -123,6 +144,38 @@ function rewriteMecfsGap(
   };
 }
 
+const LOCALIZATION_RE = /\b(stirn|nacken|schl(?:ä|ae)fe|hinterkopf|lokalisation|schmerzort)/i;
+
+function isLocalizationSymptom(f: NormalizedAnalysisFinding): boolean {
+  if (f.category !== "symptoms_aura") return false;
+  return LOCALIZATION_RE.test(f.title + " " + f.summary);
+}
+
+/**
+ * Demote weather findings when there are almost no pain-free comparison
+ * days (pain_days / documented_days > 0.9). Caveat-phrasing applied,
+ * evidence clamped to insufficient.
+ */
+function adjustWeatherForLowComparisonBase(
+  f: NormalizedAnalysisFinding,
+  painRatio: number,
+): NormalizedAnalysisFinding {
+  if (f.category !== "weather") return f;
+  if (painRatio <= 0.9) return f;
+  return {
+    ...f,
+    evidenceLevel: "insufficient",
+    summary:
+      "Druck- und Wetteränderungen sind dokumentiert, " +
+      "aber wegen fast fehlender schmerzfreier Vergleichstage nicht spezifisch bewertbar.",
+    // remove doctor-questions so weather is not pushed into open questions
+    doctorDiscussionPoints: [],
+  };
+}
+
+const OPEN_QUESTION_EXCLUDE_RE =
+  /\b(nacken|stirn|schl(?:ä|ae)fe|hinterkopf|lokalisation|schmerzort)\b/i;
+
 export function curateFindingsV22(
   findings: NormalizedAnalysisFinding[],
   responseJson?: unknown,
@@ -130,11 +183,26 @@ export function curateFindingsV22(
 ): CuratedResult {
   const suppressed: Array<{ id: string; reason: string }> = [];
   const mecfsDays = getMecfsDays(responseJson);
+  const painRatio = getPainRatio(responseJson);
 
-  // 1) Safety rewrite + ME/CFS gap rewrite (always first, so later checks see new text)
+  // 1) Safety rewrite + ME/CFS gap rewrite + weather over-correlation guard
   let curated = findings
     .map(applySafetyRewrites)
-    .map((f) => rewriteMecfsGap(f, mecfsDays));
+    .map((f) => rewriteMecfsGap(f, mecfsDays))
+    .map((f) => adjustWeatherForLowComparisonBase(f, painRatio));
+
+  // 1b) Pin localization-only symptoms_aura to topical "Symptome & Aura"
+  curated = curated.map((f) => {
+    if (!isLocalizationSymptom(f)) return f;
+    return {
+      ...f,
+      pinToTopical: true,
+      title: "Häufige Schmerzorte",
+      summary: "Stirn/Nacken sind häufig dokumentierte Schmerzorte.",
+      // Don't push localization into open questions
+      doctorDiscussionPoints: [],
+    };
+  });
 
   // 2) Voice noise suppression
   if (!options.showVoiceQualityNotes) {
@@ -172,6 +240,23 @@ export function curateFindingsV22(
         suppressed.push({ id: f.id, reason: "interaction_dedup_by_medication_use" });
         return false;
       }
+      return true;
+    });
+  }
+
+  // 4b) ME/CFS dedup — collapse repeated PEM-gap / "ME/CFS nicht dokumentiert"
+  // findings into a single entry (title-based after rewrite).
+  const mecfsItems = curated.filter((f) => f.category === "mecfs_energy_pem");
+  if (mecfsItems.length > 1) {
+    const seenMecfs = new Set<string>();
+    curated = curated.filter((f) => {
+      if (f.category !== "mecfs_energy_pem") return true;
+      const k = f.title.toLowerCase().slice(0, 60);
+      if (seenMecfs.has(k)) {
+        suppressed.push({ id: f.id, reason: "mecfs_duplicate" });
+        return false;
+      }
+      seenMecfs.add(k);
       return true;
     });
   }
@@ -215,18 +300,22 @@ export function curateFindingsV22(
     });
   }
 
-  // 8) Open questions: deduplicated + cap to 5, no data_quality items
+  // 8) Open questions: deduplicated + cap to 5, no data_quality items,
+  // and excluding low-priority topics (localization, weather when demoted).
   const seen = new Set<string>();
   const openQuestions: string[] = [];
-  // Priority: high → moderate → low → insufficient
   const prioritized = [...curated].sort(
     (a, b) => evidenceRank[b.evidenceLevel] - evidenceRank[a.evidenceLevel],
   );
   for (const f of prioritized) {
     if (f.category === "data_quality") continue;
+    // Skip questions for findings that were demoted to insufficient on
+    // weather (we already cleared their doctorDiscussionPoints, but be safe).
+    if (f.category === "weather" && f.evidenceLevel === "insufficient") continue;
     for (const q of f.doctorDiscussionPoints) {
       const k = q.toLowerCase().replace(/\s+/g, " ").trim().slice(0, 80);
       if (!k || seen.has(k)) continue;
+      if (OPEN_QUESTION_EXCLUDE_RE.test(k)) continue;
       seen.add(k);
       openQuestions.push(q);
       if (openQuestions.length >= MAX_OPEN_QUESTIONS) break;
