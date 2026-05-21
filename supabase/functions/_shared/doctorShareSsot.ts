@@ -48,6 +48,8 @@ export interface LatestAiReport {
   source: "patient" | "doctor";
   insightsHash: string;
   validationStatus: "ok" | "fallback";
+  /** Sanitized V2.1 analysis — only present when `include_ai_analysis === true`. */
+  patternAnalysisV21?: Record<string, unknown>;
 }
 
 export interface DayFactorEntry {
