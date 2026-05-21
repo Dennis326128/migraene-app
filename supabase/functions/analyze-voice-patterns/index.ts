@@ -270,7 +270,7 @@ REGELN:
 ${thinDataWarning}
 DATENSATZ: ${meta.totalDays} Tage, ${meta.daysWithPain} Schmerztage, ${meta.painEntryCount} Einträge, ${meta.medicationIntakeCount} Medikamenteneinnahmen, ME/CFS-Tage: ${meta.daysWithMecfs}.
 
-=== V2.1 ZUSATZAUFGABE: llm_expanded_findings ===
+=== V2.2 ZUSATZAUFGABE: llm_expanded_findings ===
 Du bekommst zusätzlich:
 1. eine deterministische Voranalyse (_preAnalysis) mit Wetter/Zeit/ME-CFS/Medikamenten-Aggregaten
 2. strukturierte deterministische V2.1-Findings (analysisV21.findings) mit IDs, evidence_level und Datenbasis
@@ -280,6 +280,15 @@ Erkenne daraus möglichst viele relevante Zusammenhänge, aber vorsichtig formul
 Du DARFST: Hypothesen aus zeitlichen Mustern ableiten, schwache Zusammenhänge nennen (klar als schwach markiert), unklare Datenlage benennen, Folgefragen vorschlagen, Interaktionen beschreiben (Wetter+Schlaf, Stress+Schlaf, Belastung+Crash, Medikament+Wirkung).
 Du DARFST NICHT: Diagnosen stellen, Therapieanweisungen geben, Zahlen erfinden, Kausalität behaupten, private Notizen/Transkripte/Audio-URLs verwenden, fehlende Daten durch Allgemeinwissen ersetzen.
 
+V2.2-REGELN (Curation):
+- KEINE Diagnose-Formulierungen wie "erfüllt Kriterien", "Diagnose chronische Migräne", "ist chronische Migräne". Stattdessen: "liegt in einem Bereich, der ärztlich geprüft werden sollte" oder "vereinbar mit einem Muster, das ärztlich eingeordnet werden sollte".
+- KEINE Voice-Event-Anzahl als Datenqualitäts-Finding. Voice-Events sind technisch und für Patient:innen/Ärzt:innen irrelevant, solange die normale Schmerz-/Text-Dokumentation gut ist.
+- ME/CFS DARF NICHT pauschal als "nicht ausreichend dokumentiert" gelten, sobald ME/CFS-Scores/-Levels (pain_entries.me_cfs_severity_score / _level) an mehreren Tagen vorhanden sind. Nutze ALLE ME/CFS-Quellen: Score, Level, Energie-/Fatigue-/Brain-Fog-/Crash-/PEM-Symptome, Tagesfaktoren, Impact, zeitliche Nähe zu Schmerz/Schlaf/Medikament/Belastung. Wenn ME/CFS-Signale häufig sind, aber Belastungs-/Erholungsangaben fehlen: formuliere als "PEM-Detaildaten fehlen" mit evidence_level="low" — NICHT als generelle ME/CFS-Lücke.
+- Wetter: NICHT "korreliert stark mit Schmerz", wenn fast alle dokumentierten Tage Schmerztage sind. Wenn schmerzfreie Vergleichstage fehlen, dies klar als Limitation nennen.
+- Chronifizierung: keine Diagnose, nur "ärztlich zu prüfender Bereich".
+- Triptan: Wenn medication_use bereits Triptan-Zurückhaltung als Hauptmuster trägt, kein zusätzliches interaction-Finding mit demselben Inhalt.
+- Maximal 5 thematisch deduplizierte Punkte in doctor_discussion_points über alle Findings hinweg; vermeide Wiederholungen.
+
 REGELN für llm_expanded_findings:
 - 10–24 Findings (so viele wie sinnvoll mit Datenbasis).
 - Jedes Finding MUSS source_basis setzen: deterministic_finding | preanalysis | aggregated_daily_data | data_gap.
@@ -287,25 +296,23 @@ REGELN für llm_expanded_findings:
 - evidence_level NIE höher als die zugehörige deterministische Evidenz, außer mehrere unabhängige Hinweise existieren.
 - Wenn keine Datenbasis vorhanden ist → Finding nur als source_basis="data_gap" mit evidence_level="insufficient".
 - Keine Duplikate, jeder Inhalt nur einmal (auch nicht inhaltlich umformuliert).
-- Schwache Findings sind willkommen, aber mit evidence_level="low".
-- recommended_tracking_next MUSS mindestens 1 konkreten, umsetzbaren Vorschlag enthalten (Dokumentationslücke schließen, Wirkung erfassen, Nebenwirkung trennen, Schlaf erfassen, etc.). Niemals generisch wie „mehr dokumentieren".
-- doctor_discussion_points MUSS mindestens 1 konkrete Frage enthalten, sobald das Finding für ein Arztgespräch relevant sein KÖNNTE (insb. medication_*, mecfs_energy_pem, weather, interaction, red_flag, data_quality mit klarer Lücke). Andernfalls darf das Array leer bleiben.
-- Jede Frage und Empfehlung muss aus dem konkreten Datensatz/Datenlücke entstehen – keine allgemeinen Sprechblasen.
+- recommended_tracking_next MUSS mindestens 1 konkreten, umsetzbaren Vorschlag enthalten.
+- doctor_discussion_points: nur wenn wirklich klinisch relevant. Vermeide Wiederholungen zwischen Findings.
 
-PFLICHTBEREICHE (jeweils mind. ein Finding ODER ein data_gap mit doctor_discussion_points):
-1) Krankheitslast / Verlauf (burden, chronification)
+PFLICHTBEREICHE (jeweils mind. ein Finding ODER ein data_gap mit doctor_discussion_points — außer wie oben eingeschränkt):
+1) Krankheitslast / Verlauf (burden ODER chronification, nicht beides als Hauptkarte)
 2) Medikamente Einnahmehäufigkeit (medication_use)
-3) Medikamente Wirkung / Wiederkehr / Nebenwirkung (medication_effect) — bei fehlenden Wirkungsbewertungen → data_gap mit konkretem Tracking-Vorschlag und Arztfrage.
-4) Wetter (weather)
-5) ME/CFS / Energie / PEM 24–72 h (mecfs_energy_pem) — wenn keine Energieerfassung → data_gap mit Hinweis auf Belastung-T-1/T-2-Logik.
+3) Medikamente Wirkung / Wiederkehr / Nebenwirkung (medication_effect) — bei fehlenden Wirkungsbewertungen → data_gap.
+4) Wetter (weather) — höchstens ein Hauptfinding, Datenabdeckung kurz erwähnen.
+5) ME/CFS / Energie / PEM (mecfs_energy_pem) — siehe ME/CFS-Regel oben.
 6) Schlaf (sleep)
 7) Stress / Stimmung (stress_mood)
 8) Symptome / Aura (symptoms_aura)
-9) Zeitmuster (time_pattern)
+9) Zeitmuster (time_pattern) — höchstens ein Hauptfinding.
 10) Alltag / Trigger (lifestyle_triggers)
-11) Interaktionen (interaction) — MINDESTENS 2 Findings, z.B. Schlaf+Stress, Wetter+Schlaf, Belastung+Crash, Medikamententiming+Schmerzstärke, Stimmung+Schmerz. Wenn Daten fehlen → data_gap mit klarem Vorschlag, welche Kombination zu dokumentieren ist.
-12) Datenqualität (data_quality) — MINDESTENS 1 Finding mit konkreter Dokumentationslücke und Arztgespräch-Frage.
-13) Red Flags (red_flag) — nur bei klaren Warnsignalen aus dem Datensatz, sonst weglassen.
+11) Interaktionen (interaction) — nur wenn wirklich zusätzlich, nicht redundant zu medication_use/weather/time_pattern.
+12) Datenqualität (data_quality) — KEINE Voice-Event-Karten, höchstens 3 thematisch zusammengeführte Findings.
+13) Red Flags (red_flag) — nur bei klaren Warnsignalen aus dem Datensatz.
 
 Verwende submit_voice_analysis. Halte ALLE Mindestmengen und Pflichtfelder ein – inklusive llm_expanded_findings.`;
 
