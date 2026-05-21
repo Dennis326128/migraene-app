@@ -111,6 +111,20 @@ function getMecfsDays(responseJson: unknown): number {
   return typeof d === "number" && isFinite(d) ? d : 0;
 }
 
+/**
+ * Returns the share of pain-days over documented-days from V2.1 data_basis.
+ * Used to mark weather findings as insufficient when there are almost no
+ * pain-free comparison days.
+ */
+function getPainRatio(responseJson: unknown): number {
+  if (!responseJson || typeof responseJson !== "object") return 0;
+  const db = (responseJson as any)?.analysisV21?.data_basis ?? {};
+  const pain = Number(db.pain_days);
+  const documented = Number(db.documented_days);
+  if (!isFinite(pain) || !isFinite(documented) || documented <= 0) return 0;
+  return pain / documented;
+}
+
 function rewriteMecfsGap(
   f: NormalizedAnalysisFinding,
   mecfsDays: number,
@@ -129,6 +143,38 @@ function rewriteMecfsGap(
     evidenceLevel: "low",
   };
 }
+
+const LOCALIZATION_RE = /\b(stirn|nacken|schl(?:ä|ae)fe|hinterkopf|lokalisation|schmerzort)/i;
+
+function isLocalizationSymptom(f: NormalizedAnalysisFinding): boolean {
+  if (f.category !== "symptoms_aura") return false;
+  return LOCALIZATION_RE.test(f.title + " " + f.summary);
+}
+
+/**
+ * Demote weather findings when there are almost no pain-free comparison
+ * days (pain_days / documented_days > 0.9). Caveat-phrasing applied,
+ * evidence clamped to insufficient.
+ */
+function adjustWeatherForLowComparisonBase(
+  f: NormalizedAnalysisFinding,
+  painRatio: number,
+): NormalizedAnalysisFinding {
+  if (f.category !== "weather") return f;
+  if (painRatio <= 0.9) return f;
+  return {
+    ...f,
+    evidenceLevel: "insufficient",
+    summary:
+      "Druck- und Wetteränderungen sind dokumentiert, " +
+      "aber wegen fast fehlender schmerzfreier Vergleichstage nicht spezifisch bewertbar.",
+    // remove doctor-questions so weather is not pushed into open questions
+    doctorDiscussionPoints: [],
+  };
+}
+
+const OPEN_QUESTION_EXCLUDE_RE =
+  /(nacken|stirn|schl(?:ä|ae)fe|hinterkopf|lokalisation|schmerzort|wetter|druckänder|barometer)/i;
 
 export function curateFindingsV22(
   findings: NormalizedAnalysisFinding[],
