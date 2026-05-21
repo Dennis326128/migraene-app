@@ -111,6 +111,12 @@ function getMecfsDays(responseJson: unknown): number {
   return typeof d === "number" && isFinite(d) ? d : 0;
 }
 
+function getDocumentedDays(responseJson: unknown): number {
+  if (!responseJson || typeof responseJson !== "object") return 0;
+  const d = (responseJson as any)?.analysisV21?.data_basis?.documented_days;
+  return typeof d === "number" && isFinite(d) ? d : 0;
+}
+
 /**
  * Returns the share of pain-days over documented-days from V2.1 data_basis.
  * Used to mark weather findings as insufficient when there are almost no
