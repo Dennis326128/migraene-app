@@ -573,6 +573,7 @@ export function MigrainePatternAnalysis() {
   const [staleReason, setStaleReason] = useState<'data_changed' | 'version_mismatch' | 'range_mismatch' | null>(null);
   const [isRangeFallback, setIsRangeFallback] = useState(false);
   const [fallbackRange, setFallbackRange] = useState<{ from: string | null; to: string | null }>({ from: null, to: null });
+  const [showFallbackAnalysis, setShowFallbackAnalysis] = useState(false);
   const [cachedAt, setCachedAt] = useState<string | null>(null);
   const [storedSignature, setStoredSignature] = useState<string | null>(null);
   const [currentSignature, setCurrentSignature] = useState<string | null>(null);
