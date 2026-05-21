@@ -245,20 +245,12 @@ export function curateFindingsV22(
   }
 
   // 4b) ME/CFS dedup — collapse repeated PEM-gap / "ME/CFS nicht dokumentiert"
-  // findings into a single entry.
+  // findings into a single entry (title-based after rewrite).
   const mecfsItems = curated.filter((f) => f.category === "mecfs_energy_pem");
   if (mecfsItems.length > 1) {
-    const pemGap = mecfsItems.find((f) => f.title === "Belastungs-/PEM-Details fehlen");
     const seenMecfs = new Set<string>();
     curated = curated.filter((f) => {
       if (f.category !== "mecfs_energy_pem") return true;
-      if (pemGap && f.id === pemGap.id) return true;
-      const hay = (f.title + " " + f.summary).toLowerCase();
-      const isGapText = /nicht\s+(?:ausreichend\s+)?dokumentiert|keine\s+ausreichend|mangelnde|fehlende\s+(?:me\/cfs|pem)/i.test(hay);
-      if (pemGap && isGapText) {
-        suppressed.push({ id: f.id, reason: "mecfs_dedup_by_pem_gap" });
-        return false;
-      }
       const k = f.title.toLowerCase().slice(0, 60);
       if (seenMecfs.has(k)) {
         suppressed.push({ id: f.id, reason: "mecfs_duplicate" });
