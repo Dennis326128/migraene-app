@@ -22,7 +22,7 @@ const v21Input = {
 describe('generateAnalysisReportText', () => {
   it('returns empty for invalid input', () => {
     expect(generateAnalysisReportText(null)).toBe('');
-    expect(generateAnalysisReportText({})).toBe('');
+    expect(generateAnalysisReportText(undefined)).toBe('');
   });
 
   it('builds V2.1 report with mandatory headings', () => {
