@@ -48,6 +48,8 @@ export interface LatestAiReport {
   source: "patient" | "doctor";
   insightsHash: string;
   validationStatus: "ok" | "fallback";
+  /** Sanitized V2.1 analysis — only present when `include_ai_analysis === true`. */
+  patternAnalysisV21?: Record<string, unknown>;
 }
 
 export interface DayFactorEntry {
@@ -291,6 +293,8 @@ export function buildSummaryMd(responseJson: unknown): { md: string; insightsHas
 export interface LoadedLatestReport {
   report: LatestAiReport;
   storedSignature: string | null;
+  /** Raw `ai_reports.response_json` — caller MUST sanitize before sharing. */
+  rawResponseJson: unknown;
 }
 
 export async function loadLatestPatternAnalysis(
@@ -344,6 +348,7 @@ export async function loadLatestPatternAnalysis(
       validationStatus,
     },
     storedSignature: chosen.data_state_signature ?? null,
+    rawResponseJson: chosen.response_json ?? null,
   };
 }
 

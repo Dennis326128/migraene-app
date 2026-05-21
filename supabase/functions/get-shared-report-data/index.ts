@@ -27,6 +27,7 @@ import {
   resolveAiConsentState,
   resolveAiEnabledState,
 } from "../_shared/doctorShareSsot.ts";
+import { getDoctorShareSafeAnalysis } from "../_shared/doctorShareSafeAnalysis.ts";
 
 // Legacy response builder
 function buildLegacyFields(reportJson: DoctorReportJSON, userId: string) {
@@ -218,6 +219,20 @@ Deno.serve(async (req) => {
     ]);
 
     const latestAiReport = loadedLatest?.report ?? null;
+
+    // Attach sanitized V2.1 structure (only when AI is included in share).
+    // Server-side mirror of `getDoctorShareSafeAnalysis` strips _preAnalysis,
+    // _legacy, _debug, transcripts, audio URLs, private notes, red_flag
+    // LLM findings and findings flagged should_show_in_doctor_share=false.
+    let patternAnalysisV21: Record<string, unknown> | undefined;
+    if (includePatternAnalysis && loadedLatest?.rawResponseJson) {
+      const safe = getDoctorShareSafeAnalysis(loadedLatest.rawResponseJson);
+      if (safe?.analysisV21) patternAnalysisV21 = safe.analysisV21;
+    }
+    const latestAiReportOut = latestAiReport && patternAnalysisV21
+      ? { ...latestAiReport, patternAnalysisV21 }
+      : latestAiReport;
+
     const isStale = computeIsStale(
       latestAiReport,
       dataState.signature,
@@ -243,7 +258,7 @@ Deno.serve(async (req) => {
         aiEnabledState,
       },
       quotaState,
-      latestAiReport,
+      latestAiReport: latestAiReportOut,
       latestRelevantDataAt: dataState.latestRelevantDataAt,
       dataStateSignature: dataState.signature,
       isStale,
