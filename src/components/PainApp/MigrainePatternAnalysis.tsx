@@ -137,41 +137,14 @@ function EvidenceBadge({ strength }: { strength: string }) {
 // === REPORT TEXT GENERATION ===
 // ============================================================
 
+// `generateReport` now delegates to the shared, testable
+// `generateAnalysisReportText` helper. For V2.1 results it builds the
+// report from the SAME normalized findings the UI renders, so copy/paste
+// text and screen stay in sync. Legacy results keep the previous renderer.
+import { generateAnalysisReportText } from '@/lib/ai/generateAnalysisReportText';
+
 function generateReport(result: VoiceAnalysisResult): string {
-  const lines: string[] = [];
-  lines.push('Mögliche Migräne-Zusammenhänge');
-  lines.push(`Analysezeitraum: ${result.scope.daysAnalyzed} Tage`);
-  lines.push('');
-  lines.push('Einordnung');
-  lines.push(result.summary);
-  lines.push('');
-
-  const sorted = sortPatterns(result.possiblePatterns).slice(0, MAX_PATTERNS);
-  if (sorted.length > 0) {
-    lines.push('Auffälligste Hinweise');
-    for (const p of sorted) {
-      lines.push(`• ${p.title} (${evidenceLabels[p.evidenceStrength] || ''})`);
-      lines.push(`  ${p.description}`);
-    }
-    lines.push('');
-  }
-
-  const sequences = result.recurringSequences
-    .filter(s => !isTrivialSequence(s.pattern, s.llmInterpretation))
-    .slice(0, MAX_SEQUENCES);
-  if (sequences.length > 0) {
-    lines.push('Wiederkehrende Muster');
-    for (const s of sequences) {
-      const label = translateSequencePattern(s.pattern);
-      lines.push(`• ${label}${s.count > 1 ? ` (${s.count}×)` : ''}`);
-      if (s.llmInterpretation) lines.push(`  ${s.llmInterpretation}`);
-    }
-    lines.push('');
-  }
-
-  lines.push('---');
-  lines.push('Hinweis: Mögliche Zusammenhänge – keine medizinische Diagnose.');
-  return lines.join('\n');
+  return generateAnalysisReportText(result);
 }
 
 // ============================================================
