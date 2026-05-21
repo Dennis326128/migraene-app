@@ -66,4 +66,48 @@ describe('normalizeAnalysisFindings', () => {
     expect(getEvidenceBadgeVariant('insufficient').tone).toBe('gap');
     expect(getEvidenceBadgeVariant('high').tone).toBe('strong');
   });
+
+  it('high/moderate findings go to strongest only (no topical duplicate)', () => {
+    const f = normalizeAnalysisFindings({
+      analysisV21: {
+        llm_expanded_findings: [
+          { id: 'a', category: 'weather', title: 'Druck', summary: 's', evidence_level: 'high' },
+        ],
+      },
+    });
+    const g = groupFindingsBySection(f);
+    expect(g.strongest.map(x => x.id)).toEqual(['a']);
+    expect(g.weather).toEqual([]);
+  });
+
+  it('data_quality category never lands in open_questions', () => {
+    const f = normalizeAnalysisFindings({
+      analysisV21: {
+        llm_expanded_findings: [
+          { id: 'dq', category: 'data_quality', title: 'Wenig Schlafdaten', summary: 's',
+            doctor_discussion_points: ['Schlaf öfter dokumentieren'] },
+          { id: 'w', category: 'weather', title: 'Druck', summary: 's', evidence_level: 'moderate',
+            doctor_discussion_points: ['Wetterempfindlichkeit besprechen'] },
+        ],
+      },
+    });
+    const oq = extractOpenQuestions(f);
+    expect(oq).toContain('Wetterempfindlichkeit besprechen');
+    expect(oq).not.toContain('Schlaf öfter dokumentieren');
+  });
+
+  it('deduplicates LLM + deterministic finding with same category+title', () => {
+    const f = normalizeAnalysisFindings({
+      analysisV21: {
+        llm_expanded_findings: [
+          { id: 'l1', category: 'weather', title: 'Druckabfall', summary: 'A', evidence_level: 'moderate' },
+        ],
+        findings: [
+          { id: 'd1', category: 'weather', title: 'Druckabfall', plain_language_summary: 'B' },
+        ],
+      },
+    });
+    expect(f).toHaveLength(1);
+    expect(f[0].source).toBe('llm_expanded');
+  });
 });
