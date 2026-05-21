@@ -346,6 +346,7 @@ export async function loadLatestPatternAnalysis(
       validationStatus,
     },
     storedSignature: chosen.data_state_signature ?? null,
+    rawResponseJson: chosen.response_json ?? null,
   };
 }
 
