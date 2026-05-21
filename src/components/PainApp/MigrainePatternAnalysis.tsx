@@ -18,7 +18,7 @@ import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { TimeRangeSelector } from './TimeRangeSelector';
 import { runVoicePatternAnalysis } from '@/lib/voice/analysisEngine';
 import { isAnalysisUnavailable, type VoiceAnalysisResult, type PatternFinding, type ContextFinding } from '@/lib/voice/analysisTypes';
-import { selectAnalysisForChannel, saveAnalysisResult, loadAnalysisHistory, loadAnalysisById, type AnalysisHistoryEntry, MAX_PATTERNS, MAX_SEQUENCES, MAX_QUESTIONS, EVIDENCE_ORDER } from '@/lib/voice/analysisCache';
+import { selectAnalysisForChannel, saveAnalysisResult, loadAnalysisHistory, loadAnalysisById, deleteAnalysisById, type AnalysisHistoryEntry, MAX_PATTERNS, MAX_SEQUENCES, MAX_QUESTIONS, EVIDENCE_ORDER } from '@/lib/voice/analysisCache';
 import { isTrivialSequence, isBanalContent, isGenericUncertainty, isWeakPattern, cleanSummaryFiller, GENERIC_PHASE_SEQUENCES, BANAL_INTERPRETATION_RX, MEDICATION_TITLE_RX } from '@/lib/voice/analysisFilters';
 import { logError } from '@/lib/utils/errorMessages';
 import { gateDecision, isCacheStaleByAge, berlinDayStart, berlinDayEnd, STALE_AFTER_DAYS } from '@/lib/voice/analysisGate';
@@ -656,6 +656,30 @@ export function MigrainePatternAnalysis() {
     }
   }, [from, to]);
 
+  const handleDeleteHistory = useCallback(async (entry: AnalysisHistoryEntry) => {
+    const ok = await deleteAnalysisById(entry.id);
+    if (!ok) {
+      toast.error('Analyse konnte nicht gelöscht werden.');
+      return;
+    }
+    const wasOpen =
+      pickedHistory?.id === entry.id ||
+      (isCachedResult && cachedAt && entry.createdAt === cachedAt);
+    if (wasOpen) {
+      setResult(null);
+      setIsCachedResult(false);
+      setIsStaleResult(false);
+      setStaleReason(null);
+      setIsRangeFallback(false);
+      setFallbackRange({ from: null, to: null });
+      setShowFallbackAnalysis(false);
+      setCachedAt(null);
+      setPickedHistory(null);
+    }
+    await reloadHistory();
+    toast.success('Analyse gelöscht');
+  }, [pickedHistory, isCachedResult, cachedAt, reloadHistory]);
+
 
   const gateState = useAnalysisGateState(gateRefresh);
 
@@ -1063,6 +1087,7 @@ export function MigrainePatternAnalysis() {
           loadingMore={historyLoadingMore}
           onSelect={handlePickHistory}
           onLoadMore={handleLoadMoreHistory}
+          onDelete={handleDeleteHistory}
         />
       )}
 

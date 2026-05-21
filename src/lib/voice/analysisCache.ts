@@ -432,6 +432,30 @@ export async function loadAnalysisById(id: string): Promise<CachedAnalysis | nul
   };
 }
 
+/**
+ * Delete a single saved analysis report (ai_reports row) belonging to
+ * the authenticated user. Only removes the report itself — never any
+ * pain/medication/weather data. RLS ensures users can only delete
+ * their own reports.
+ */
+export async function deleteAnalysisById(id: string): Promise<boolean> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return false;
+
+  const { error } = await supabase
+    .from('ai_reports')
+    .delete()
+    .eq('user_id', user.id)
+    .eq('id', id)
+    .eq('report_type', REPORT_TYPE);
+
+  if (error) {
+    console.error('[AnalysisCache] delete error:', error);
+    return false;
+  }
+  return true;
+}
+
 // ============================================================
 // === DATA-STATE VALIDATION ===
 // ============================================================
