@@ -212,12 +212,22 @@ export function curateFindingsV22(
 ): CuratedResult {
   const suppressed: Array<{ id: string; reason: string }> = [];
   const mecfsDays = getMecfsDays(responseJson);
+  const documentedDays = getDocumentedDays(responseJson);
   const painRatio = getPainRatio(responseJson);
 
+  // 0) Drop red_flag findings completely — they should never render as a card.
+  let curated = findings.filter((f) => {
+    if (f.category === "red_flag") {
+      suppressed.push({ id: f.id, reason: "red_flag_hidden" });
+      return false;
+    }
+    return true;
+  });
+
   // 1) Safety rewrite + ME/CFS gap rewrite + weather over-correlation guard
-  let curated = findings
+  curated = curated
     .map(applySafetyRewrites)
-    .map((f) => rewriteMecfsGap(f, mecfsDays))
+    .map((f) => rewriteMecfsGap(f, mecfsDays, documentedDays))
     .map((f) => adjustWeatherForLowComparisonBase(f, painRatio));
 
   // 1b) Pin localization-only symptoms_aura to topical "Symptome & Aura"
@@ -231,6 +241,15 @@ export function curateFindingsV22(
       // Don't push localization into open questions
       doctorDiscussionPoints: [],
     };
+  });
+
+  // 1c) Pin all topical-only categories to their topical section so they
+  // never appear in "Auffälligste Hinweise" / "Weitere Zusammenhänge".
+  // chronification & burden stay routed by evidence level (→ strongest/weaker).
+  curated = curated.map((f) => {
+    if (f.pinToTopical) return f;
+    if (TOPICAL_ONLY_CATEGORIES.has(f.category)) return { ...f, pinToTopical: true };
+    return f;
   });
 
   // 2) Voice noise suppression
