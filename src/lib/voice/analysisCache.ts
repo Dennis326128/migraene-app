@@ -336,6 +336,103 @@ export async function loadLatestAnalysisAnyRange(): Promise<CachedAnalysis | nul
 }
 
 // ============================================================
+// === ANALYSIS HISTORY ===
+// ============================================================
+
+export interface AnalysisHistoryEntry {
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+  fromDate: string;
+  toDate: string;
+  dataStateSignature: string | null;
+  /** Compact metrics for list display (no full result). */
+  daysAnalyzed: number | null;
+  painEntryCount: number | null;
+  voiceEventCount: number | null;
+}
+
+/**
+ * Load a paginated list of past pattern_analysis reports for the
+ * authenticated user, newest first. Returns lightweight metadata only
+ * (the full response_json is kept lean — we read scope counts but ignore
+ * the rest).
+ */
+export async function loadAnalysisHistory(
+  options: { limit?: number; offset?: number } = {},
+): Promise<{ entries: AnalysisHistoryEntry[]; hasMore: boolean }> {
+  const limit = options.limit ?? 10;
+  const offset = options.offset ?? 0;
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { entries: [], hasMore: false };
+
+  // Fetch limit + 1 to know if more pages exist.
+  const { data, error } = await supabase
+    .from('ai_reports')
+    .select('id, created_at, updated_at, from_date, to_date, data_state_signature, response_json')
+    .eq('user_id', user.id)
+    .eq('report_type', REPORT_TYPE)
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit);
+
+  if (error || !data) return { entries: [], hasMore: false };
+
+  const hasMore = data.length > limit;
+  const slice = data.slice(0, limit);
+
+  const entries: AnalysisHistoryEntry[] = slice.map((row) => {
+    const r = (row.response_json ?? {}) as Record<string, unknown>;
+    const scope = (r.scope ?? {}) as Record<string, unknown>;
+    return {
+      id: row.id,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      fromDate: row.from_date || '',
+      toDate: row.to_date || '',
+      dataStateSignature: row.data_state_signature ?? null,
+      daysAnalyzed: typeof scope.daysAnalyzed === 'number' ? scope.daysAnalyzed : null,
+      painEntryCount: typeof scope.painEntryCount === 'number' ? scope.painEntryCount : null,
+      voiceEventCount: typeof scope.voiceEventCount === 'number' ? scope.voiceEventCount : null,
+    };
+  });
+
+  return { entries, hasMore };
+}
+
+/**
+ * Load the full cached analysis by id (used when the user picks an
+ * entry from the history list).
+ */
+export async function loadAnalysisById(id: string): Promise<CachedAnalysis | null> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data, error } = await supabase
+    .from('ai_reports')
+    .select('id, response_json, created_at, updated_at, from_date, to_date, data_state_signature')
+    .eq('user_id', user.id)
+    .eq('id', id)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  const result = data.response_json as unknown;
+  if (!result || typeof result !== 'object') return null;
+  const r = result as Record<string, unknown>;
+  if (typeof r.summary !== 'string' || !r.scope) return null;
+
+  return {
+    id: data.id,
+    result: result as VoiceAnalysisResult,
+    createdAt: data.created_at,
+    updatedAt: data.updated_at,
+    fromDate: data.from_date || '',
+    toDate: data.to_date || '',
+    dataStateSignature: data.data_state_signature ?? null,
+  };
+}
+
+// ============================================================
 // === DATA-STATE VALIDATION ===
 // ============================================================
 

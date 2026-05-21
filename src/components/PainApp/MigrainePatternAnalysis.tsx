@@ -18,7 +18,7 @@ import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { TimeRangeSelector } from './TimeRangeSelector';
 import { runVoicePatternAnalysis } from '@/lib/voice/analysisEngine';
 import { isAnalysisUnavailable, type VoiceAnalysisResult, type PatternFinding, type ContextFinding } from '@/lib/voice/analysisTypes';
-import { selectAnalysisForChannel, saveAnalysisResult, MAX_PATTERNS, MAX_SEQUENCES, MAX_QUESTIONS, EVIDENCE_ORDER } from '@/lib/voice/analysisCache';
+import { selectAnalysisForChannel, saveAnalysisResult, loadAnalysisHistory, loadAnalysisById, type AnalysisHistoryEntry, MAX_PATTERNS, MAX_SEQUENCES, MAX_QUESTIONS, EVIDENCE_ORDER } from '@/lib/voice/analysisCache';
 import { isTrivialSequence, isBanalContent, isGenericUncertainty, isWeakPattern, cleanSummaryFiller, GENERIC_PHASE_SEQUENCES, BANAL_INTERPRETATION_RX, MEDICATION_TITLE_RX } from '@/lib/voice/analysisFilters';
 import { logError } from '@/lib/utils/errorMessages';
 import { gateDecision, isCacheStaleByAge, berlinDayStart, berlinDayEnd, STALE_AFTER_DAYS } from '@/lib/voice/analysisGate';
@@ -28,7 +28,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { AnalysisV21Sections } from './AnalysisV21Sections';
 import { AnalysisProgressLoader } from './AnalysisProgressLoader';
-import { PreviousAnalysisCard } from './PreviousAnalysisCard';
+import { AnalysisHistoryList } from './AnalysisHistoryList';
 import { decideCachedAnalysisDisplay } from '@/lib/voice/cachedAnalysisDisplay';
 import { evaluateReAnalyzeGate } from '@/lib/ai/analysisRateGate';
 import { ANALYSIS_V21_VERSION } from '@/lib/ai/analysisTypes';
@@ -580,6 +580,83 @@ export function MigrainePatternAnalysis() {
   const [currentSignature, setCurrentSignature] = useState<string | null>(null);
   const [gateRefresh, setGateRefresh] = useState(0);
 
+  // === History (independent of selected range) ===
+  const [history, setHistory] = useState<AnalysisHistoryEntry[]>([]);
+  const [historyHasMore, setHistoryHasMore] = useState(false);
+  const [historyLoadingMore, setHistoryLoadingMore] = useState(false);
+  /** When set, we show this stored analysis instead of the cached one for the current range. */
+  const [pickedHistory, setPickedHistory] = useState<{
+    id: string;
+    createdAt: string;
+    fromDate: string;
+    toDate: string;
+  } | null>(null);
+
+  const HISTORY_PAGE_SIZE = 10;
+
+  const reloadHistory = useCallback(async () => {
+    try {
+      const { entries, hasMore } = await loadAnalysisHistory({ limit: HISTORY_PAGE_SIZE, offset: 0 });
+      setHistory(entries);
+      setHistoryHasMore(hasMore);
+    } catch (err) {
+      console.warn('[MigrainePatternAnalysis] history load failed:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    reloadHistory();
+  }, [reloadHistory]);
+
+  const handleLoadMoreHistory = useCallback(async () => {
+    setHistoryLoadingMore(true);
+    try {
+      const { entries, hasMore } = await loadAnalysisHistory({
+        limit: HISTORY_PAGE_SIZE,
+        offset: history.length,
+      });
+      setHistory(prev => [...prev, ...entries]);
+      setHistoryHasMore(hasMore);
+    } catch (err) {
+      console.warn('[MigrainePatternAnalysis] history load-more failed:', err);
+    } finally {
+      setHistoryLoadingMore(false);
+    }
+  }, [history.length]);
+
+  const handlePickHistory = useCallback(async (entry: AnalysisHistoryEntry) => {
+    try {
+      const cached = await loadAnalysisById(entry.id);
+      if (!cached) {
+        toast.error('Analyse konnte nicht geladen werden.');
+        return;
+      }
+      setResult(cached.result);
+      setIsCachedResult(true);
+      setIsWeakData(false);
+      setError(null);
+      // Range fallback display: if entry range != selected range, mark accordingly.
+      const sameRange = entry.fromDate === from && entry.toDate === to;
+      setIsRangeFallback(!sameRange);
+      setFallbackRange({ from: entry.fromDate, to: entry.toDate });
+      setShowFallbackAnalysis(true);
+      setStaleReason(sameRange ? null : 'range_mismatch');
+      setIsStaleResult(!sameRange);
+      setCachedAt(cached.createdAt);
+      setStoredSignature(cached.dataStateSignature);
+      setPickedHistory({
+        id: entry.id,
+        createdAt: cached.createdAt,
+        fromDate: entry.fromDate,
+        toDate: entry.toDate,
+      });
+    } catch (err) {
+      console.warn('[MigrainePatternAnalysis] pick history failed:', err);
+      toast.error('Analyse konnte nicht geladen werden.');
+    }
+  }, [from, to]);
+
+
   const gateState = useAnalysisGateState(gateRefresh);
 
   const ageStale = isCacheStaleByAge(cachedAt);
@@ -623,6 +700,7 @@ export function MigrainePatternAnalysis() {
     setFallbackRange({ from: null, to: null });
     setShowFallbackAnalysis(false);
     setCachedAt(null);
+    setPickedHistory(null);
 
     (async () => {
       try {
@@ -675,7 +753,9 @@ export function MigrainePatternAnalysis() {
         setIsCachedResult(false);
         setIsStaleResult(false);
         setCachedAt(new Date().toISOString());
+        setPickedHistory(null);
         saveAnalysisResult(analysisResult, from, to)
+          .then(() => reloadHistory())
           .catch(err => console.warn('[MigrainePatternAnalysis] Save failed:', err));
       }
     } catch (err) {
@@ -907,6 +987,7 @@ export function MigrainePatternAnalysis() {
           showFallbackAnalysis,
         });
 
+        // Range mismatch without explicit pick → just show CTA + history list.
         if (mode === 'range_mismatch_preview') {
           return (
             <div className="space-y-4" data-testid="range-mismatch-preview">
@@ -917,7 +998,7 @@ export function MigrainePatternAnalysis() {
                     Für diesen Zeitraum liegt noch keine Analyse vor.
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Du kannst diesen Zeitraum jetzt analysieren oder eine frühere Analyse ansehen.
+                    Du kannst diesen Zeitraum jetzt analysieren oder unten eine frühere Analyse öffnen.
                   </p>
                   <div className="pt-2">
                     <Button
@@ -935,29 +1016,28 @@ export function MigrainePatternAnalysis() {
                   </div>
                 </CardContent>
               </Card>
-
-              <PreviousAnalysisCard
-                entry={{
-                  createdAt: cachedAt,
-                  fromDate: fallbackRange.from,
-                  toDate: fallbackRange.to,
-                  statusLabel: 'anderer Zeitraum',
-                }}
-                onView={() => setShowFallbackAnalysis(true)}
-              />
             </div>
           );
         }
 
         if (mode === 'range_mismatch_full' && result) {
+          const fromLabel = pickedHistory?.fromDate ?? fallbackRange.from;
+          const toLabel = pickedHistory?.toDate ?? fallbackRange.to;
+          const createdLabel = pickedHistory
+            ? new Date(pickedHistory.createdAt).toLocaleString('de-DE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+            : cachedAtLabel;
           return (
             <>
-              <div className="rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 px-3 py-2 text-center" data-testid="range-mismatch-badge">
+              <div className="rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 px-3 py-2 text-center space-y-0.5" data-testid="range-mismatch-badge">
                 <p className="text-[11px] text-amber-900 dark:text-amber-200 flex items-center justify-center gap-1.5">
                   <AlertCircle className="h-3 w-3" />
-                  Ältere Analyse · anderer Zeitraum
-                  {fallbackRange.from && fallbackRange.to ? ` · ${fallbackRange.from} – ${fallbackRange.to}` : ''}
+                  Gespeicherte Analyse{createdLabel ? ` vom ${createdLabel}` : ''}
                 </p>
+                {fromLabel && toLabel && (
+                  <p className="text-[11px] text-amber-900/80 dark:text-amber-200/80">
+                    Angezeigte Analyse: {fromLabel} – {toLabel}
+                  </p>
+                )}
               </div>
               <AnalysisResults result={result} />
             </>
@@ -971,10 +1051,26 @@ export function MigrainePatternAnalysis() {
         return null;
       })()}
 
-      {!result && !isAnalyzing && !isLoadingCache && !error && !isWeakData && decision.canRunAnalysis && (
+      {/* Historie — sichtbar sobald mindestens eine gespeicherte Analyse existiert */}
+      {!isLoadingCache && history.length > 0 && (
+        <AnalysisHistoryList
+          entries={history}
+          selectedFrom={from}
+          selectedTo={to}
+          currentSignature={currentSignature}
+          activeId={pickedHistory?.id ?? null}
+          hasMore={historyHasMore}
+          loadingMore={historyLoadingMore}
+          onSelect={handlePickHistory}
+          onLoadMore={handleLoadMoreHistory}
+        />
+      )}
+
+      {/* Empty State: nur wenn wirklich keine Analyse existiert */}
+      {!result && !isAnalyzing && !isLoadingCache && !error && !isWeakData && history.length === 0 && decision.canRunAnalysis && (
         <div className="text-center py-10">
           <Brain className="h-10 w-10 mx-auto mb-3 text-muted-foreground/30" />
-          <p className="text-sm text-foreground/70">Wähle einen Zeitraum und starte die Analyse</p>
+          <p className="text-sm text-foreground/70">Wähle einen Zeitraum und starte die erste Analyse.</p>
           <p className="text-xs mt-1 text-muted-foreground">
             Sucht nach möglichen Mustern und Einflussfaktoren für Migräne
           </p>
