@@ -753,7 +753,9 @@ export function MigrainePatternAnalysis() {
         setIsCachedResult(false);
         setIsStaleResult(false);
         setCachedAt(new Date().toISOString());
+        setPickedHistory(null);
         saveAnalysisResult(analysisResult, from, to)
+          .then(() => reloadHistory())
           .catch(err => console.warn('[MigrainePatternAnalysis] Save failed:', err));
       }
     } catch (err) {
