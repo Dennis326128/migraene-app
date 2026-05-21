@@ -53,9 +53,10 @@ export function generateAnalysisReportText(responseJson: unknown): string {
 
 function buildV21Report(rj: Record<string, unknown>): string {
   const v21 = rj.analysisV21 as Record<string, unknown>;
-  const findings = normalizeAnalysisFindings(rj);
-  const grouped = groupFindingsBySection(findings);
-  const openQuestions = extractOpenQuestions(findings);
+  const raw = normalizeAnalysisFindings(rj);
+  const curated = curateFindingsV22(raw, rj);
+  const grouped = groupFindingsBySection(curated.findings);
+  const openQuestions = curated.openQuestions;
 
   const lines: string[] = [];
   lines.push("KI-Analyse – keine Diagnose");
