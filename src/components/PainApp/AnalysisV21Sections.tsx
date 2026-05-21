@@ -31,6 +31,7 @@ export function AnalysisV21Sections({ responseJson, doctorShare = false }: Props
     [responseJson, doctorShare],
   );
   const grouped = React.useMemo(() => groupFindingsBySection(findings), [findings]);
+  const openQuestions = React.useMemo(() => extractOpenQuestions(findings), [findings]);
 
   const v21 = (responseJson as any)?.analysisV21 ?? null;
   const dataBasis = v21?.data_basis as Record<string, unknown> | undefined;
@@ -45,18 +46,23 @@ export function AnalysisV21Sections({ responseJson, doctorShare = false }: Props
       <DataBasisCard dataBasis={dataBasis} period={period} version={version} />
 
       {SECTION_ORDER.map((key) => {
+        if (key === "open_questions") {
+          if (openQuestions.length === 0) return null;
+          return (
+            <Section key={key} title={SECTION_LABEL[key]}>
+              <ul className="list-disc pl-4 space-y-1 text-[13px] text-foreground/80 leading-[1.7]">
+                {openQuestions.map((q, i) => <li key={i}>{q}</li>)}
+              </ul>
+            </Section>
+          );
+        }
         const items = dedupSection(grouped[key]);
-        // open_questions has no findings yet — handled via section_map.open_questions ids
-        if (items.length === 0 && key !== "data_quality" && key !== "limits") return null;
+        if (items.length === 0) return null;
         return (
           <Section key={key} title={SECTION_LABEL[key]}>
-            {items.length === 0 ? (
-              <EmptyHint>Keine Auffälligkeiten dokumentiert.</EmptyHint>
-            ) : (
-              <div className="space-y-4">
-                {items.map((f) => <FindingCard key={f.id} f={f} />)}
-              </div>
-            )}
+            <div className="space-y-4">
+              {items.map((f) => <FindingCard key={f.id} f={f} />)}
+            </div>
           </Section>
         );
       })}
