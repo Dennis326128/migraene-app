@@ -220,10 +220,16 @@ Deno.serve(async (req) => {
 
     const latestAiReport = loadedLatest?.report ?? null;
 
-    // Attach sanitized V2.1 structure (only when AI is included in share).
-    // Server-side mirror of `getDoctorShareSafeAnalysis` strips _preAnalysis,
-    // _legacy, _debug, transcripts, audio URLs, private notes, red_flag
-    // LLM findings and findings flagged should_show_in_doctor_share=false.
+    // ─────────────────────────────────────────────────────────────
+    // patternAnalysisV21 contract (Doctor-Share website):
+    //   - ALWAYS read live from `ai_reports` (loadLatestPatternAnalysis)
+    //     and sanitized server-side via `getDoctorShareSafeAnalysis`.
+    //   - NEVER cached inside `doctor_share_report_snapshots` so that
+    //     a stale V2.1 payload cannot be served from an old snapshot.
+    //   - The Doctor-Share website MUST consume
+    //     `latestAiReport.patternAnalysisV21` and never look for V2.1
+    //     fields on the snapshot/`report` payload.
+    // ─────────────────────────────────────────────────────────────
     let patternAnalysisV21: Record<string, unknown> | undefined;
     if (includePatternAnalysis && loadedLatest?.rawResponseJson) {
       const safe = getDoctorShareSafeAnalysis(loadedLatest.rawResponseJson);
