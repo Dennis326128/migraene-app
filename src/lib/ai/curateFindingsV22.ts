@@ -128,21 +128,44 @@ function getPainRatio(responseJson: unknown): number {
 function rewriteMecfsGap(
   f: NormalizedAnalysisFinding,
   mecfsDays: number,
+  documentedDays: number,
 ): NormalizedAnalysisFinding {
   if (f.category !== "mecfs_energy_pem") return f;
   if (f.evidenceLevel !== "insufficient") return f;
   if (mecfsDays < 10) return f;
   const txt = (f.title + " " + f.summary).toLowerCase();
-  if (!/nicht\s+(?:ausreichend\s+)?dokumentiert|keine\s+ausreichend/i.test(txt)) return f;
+  if (!/nicht\s+(?:ausreichend\s+)?dokumentiert|keine\s+ausreichend|mangelnde/i.test(txt)) return f;
+  const ofDays = documentedDays > 0 ? ` von ${documentedDays}` : "";
   return {
     ...f,
-    title: "Belastungs-/PEM-Details fehlen",
+    title: "ME/CFS-/Energiesignale häufig dokumentiert",
     summary:
-      `ME/CFS-/Energiesignale liegen an ${mecfsDays} Tagen vor. ` +
-      `Für eine PEM-Auswertung fehlen jedoch detaillierte Belastungs- und Erholungsangaben über 24–72 Stunden.`,
-    evidenceLevel: "low",
+      `An ${mecfsDays}${ofDays} Tagen wurden ME/CFS-/Energiesignale dokumentiert. ` +
+      `Für PEM-/Belastungszusammenhänge fehlen noch detaillierte Belastungs- und Erholungsangaben über 24–72 Stunden.`,
+    evidenceLevel: "moderate",
+    pinToTopical: true,
+    limitations: [
+      ...f.limitations,
+      "Belastungs-/PEM-Details über 24–72 h fehlen noch.",
+    ],
   };
 }
+
+/** Categories that always belong in their topical section, never strongest/weaker. */
+const TOPICAL_ONLY_CATEGORIES = new Set([
+  "medication_use",
+  "medication_effect",
+  "preventive_course",
+  "weather",
+  "mecfs_energy_pem",
+  "sleep",
+  "stress_mood",
+  "lifestyle_triggers",
+  "symptoms_aura",
+  "cycle_hormonal",
+  "time_pattern",
+  "interaction",
+]);
 
 const LOCALIZATION_RE = /\b(stirn|nacken|schl(?:ä|ae)fe|hinterkopf|lokalisation|schmerzort)/i;
 
