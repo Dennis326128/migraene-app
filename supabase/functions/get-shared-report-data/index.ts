@@ -258,7 +258,7 @@ Deno.serve(async (req) => {
         aiEnabledState,
       },
       quotaState,
-      latestAiReport,
+      latestAiReport: latestAiReportOut,
       latestRelevantDataAt: dataState.latestRelevantDataAt,
       dataStateSignature: dataState.signature,
       isStale,
