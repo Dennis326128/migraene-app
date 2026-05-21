@@ -15,10 +15,10 @@
 import {
   normalizeAnalysisFindings,
   groupFindingsBySection,
-  extractOpenQuestions,
   type NormalizedAnalysisFinding,
   type AnalysisSectionKey,
 } from "./normalizeAnalysisFindings";
+import { curateFindingsV22, applySectionCaps } from "./curateFindingsV22";
 
 const EVIDENCE_LABEL = {
   high: "starker Hinweis",
