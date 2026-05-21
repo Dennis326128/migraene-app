@@ -183,11 +183,26 @@ export function curateFindingsV22(
 ): CuratedResult {
   const suppressed: Array<{ id: string; reason: string }> = [];
   const mecfsDays = getMecfsDays(responseJson);
+  const painRatio = getPainRatio(responseJson);
 
-  // 1) Safety rewrite + ME/CFS gap rewrite (always first, so later checks see new text)
+  // 1) Safety rewrite + ME/CFS gap rewrite + weather over-correlation guard
   let curated = findings
     .map(applySafetyRewrites)
-    .map((f) => rewriteMecfsGap(f, mecfsDays));
+    .map((f) => rewriteMecfsGap(f, mecfsDays))
+    .map((f) => adjustWeatherForLowComparisonBase(f, painRatio));
+
+  // 1b) Pin localization-only symptoms_aura to topical "Symptome & Aura"
+  curated = curated.map((f) => {
+    if (!isLocalizationSymptom(f)) return f;
+    return {
+      ...f,
+      pinToTopical: true,
+      title: "Häufige Schmerzorte",
+      summary: "Stirn/Nacken sind häufig dokumentierte Schmerzorte.",
+      // Don't push localization into open questions
+      doctorDiscussionPoints: [],
+    };
+  });
 
   // 2) Voice noise suppression
   if (!options.showVoiceQualityNotes) {
@@ -223,6 +238,24 @@ export function curateFindingsV22(
     curated = curated.filter((f) => {
       if (isInteraction(f) && isTriptanMention(f)) {
         suppressed.push({ id: f.id, reason: "interaction_dedup_by_medication_use" });
+        return false;
+      }
+      return true;
+    });
+  }
+
+  // 4b) ME/CFS dedup — if a PEM-gap rewrite happened, drop any other
+  // "ME/CFS nicht dokumentiert" findings that would repeat the same point.
+  const hasPemGap = curated.some(
+    (f) => f.category === "mecfs_energy_pem" && f.title === "Belastungs-/PEM-Details fehlen",
+  );
+  if (hasPemGap) {
+    curated = curated.filter((f) => {
+      if (f.category !== "mecfs_energy_pem") return true;
+      if (f.title === "Belastungs-/PEM-Details fehlen") return true;
+      const hay = (f.title + " " + f.summary).toLowerCase();
+      if (/nicht\s+(?:ausreichend\s+)?dokumentiert|keine\s+ausreichend|fehlende\s+(?:me\/cfs|pem)/i.test(hay)) {
+        suppressed.push({ id: f.id, reason: "mecfs_dedup_by_pem_gap" });
         return false;
       }
       return true;
@@ -268,18 +301,22 @@ export function curateFindingsV22(
     });
   }
 
-  // 8) Open questions: deduplicated + cap to 5, no data_quality items
+  // 8) Open questions: deduplicated + cap to 5, no data_quality items,
+  // and excluding low-priority topics (localization, weather when demoted).
   const seen = new Set<string>();
   const openQuestions: string[] = [];
-  // Priority: high → moderate → low → insufficient
   const prioritized = [...curated].sort(
     (a, b) => evidenceRank[b.evidenceLevel] - evidenceRank[a.evidenceLevel],
   );
   for (const f of prioritized) {
     if (f.category === "data_quality") continue;
+    // Skip questions for findings that were demoted to insufficient on
+    // weather (we already cleared their doctorDiscussionPoints, but be safe).
+    if (f.category === "weather" && f.evidenceLevel === "insufficient") continue;
     for (const q of f.doctorDiscussionPoints) {
       const k = q.toLowerCase().replace(/\s+/g, " ").trim().slice(0, 80);
       if (!k || seen.has(k)) continue;
+      if (OPEN_QUESTION_EXCLUDE_RE.test(k)) continue;
       seen.add(k);
       openQuestions.push(q);
       if (openQuestions.length >= MAX_OPEN_QUESTIONS) break;
