@@ -86,7 +86,7 @@ function buildV21Report(rj: Record<string, unknown>): string {
       continue;
     }
 
-    const items = dedupItems(grouped[sec.key as AnalysisSectionKey] ?? []);
+    const items = applySectionCaps(sec.key, dedupItems(grouped[sec.key as AnalysisSectionKey] ?? []));
     if (items.length === 0 && !sec.alwaysShow) continue;
     lines.push(`${idx}. ${sec.title}`);
     if (items.length === 0) {
