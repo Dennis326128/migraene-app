@@ -249,18 +249,6 @@ export function AnalysisHistoryList({
                   </div>
                 </div>
 
-                {chips.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {chips.map((c) => (
-                      <span
-                        key={c}
-                        className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] text-muted-foreground bg-muted/40 ring-1 ring-inset ring-border/40"
-                      >
-                        {c}
-                      </span>
-                    ))}
-                  </div>
-                )}
               </div>
             </li>
           );
