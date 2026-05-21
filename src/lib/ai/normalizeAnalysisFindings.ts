@@ -121,11 +121,14 @@ export function normalizeAnalysisFindings(
   const pushIfNew = (f: NormalizedAnalysisFinding) => {
     if (options.doctorShare && !f.shouldShowInDoctorShare) return;
     if (seenIds.has(f.id)) return;
-    const contentKey = f.category + "::" + normKey(f.title) + "::" + normKey(f.summary);
-    if (seenContent.has(contentKey)) return;
+    const titleKey = f.category + "::" + normKey(f.title);
+    const contentKey = titleKey + "::" + normKey(f.summary);
     const summaryKey = f.category + "##" + normKey(f.summary);
+    if (seenContent.has(titleKey)) return;
+    if (seenContent.has(contentKey)) return;
     if (seenContent.has(summaryKey)) return;
     seenIds.add(f.id);
+    seenContent.add(titleKey);
     seenContent.add(contentKey);
     seenContent.add(summaryKey);
     out.push(f);
