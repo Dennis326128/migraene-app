@@ -646,10 +646,10 @@ ${detFindings.length > 0 ? JSON.stringify(detFindings, null, 2).slice(0, 12000) 
         model: 'google/gemini-2.5-flash',
         analyzedAt: new Date().toISOString(),
         promptTokenEstimate: tokenEstimate,
-        analysisVersion: '2.1.0',
+        analysisVersion: '2.2.0',
       },
       schema_version: '2.1',
-      analysis_version: '2.1.0',
+      analysis_version: '2.2.0',
       llm_expanded_findings: expandedFindings,
     };
 
