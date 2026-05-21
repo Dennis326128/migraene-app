@@ -29,6 +29,7 @@ import { toast } from 'sonner';
 import { AnalysisV21Sections } from './AnalysisV21Sections';
 import { AnalysisProgressLoader } from './AnalysisProgressLoader';
 import { PreviousAnalysisCard } from './PreviousAnalysisCard';
+import { decideCachedAnalysisDisplay } from '@/lib/voice/cachedAnalysisDisplay';
 import { evaluateReAnalyzeGate } from '@/lib/ai/analysisRateGate';
 import { ANALYSIS_V21_VERSION } from '@/lib/ai/analysisTypes';
 
