@@ -685,6 +685,29 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack, on
                 </p>
               )}
 
+              {/* allow_ai_generate toggle — patient must opt in explicitly.
+                  Always tied to include_ai_analysis=true (set on share creation). */}
+              {currentShareId && (
+                <div className="rounded-lg border border-border/50 p-3 space-y-1.5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm text-foreground">
+                        Ärzt:innen dürfen neue KI-Analyse erstellen
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Nur wenn KI-Analyse freigegeben ist. Maximal alle 15 Minuten.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={allowAiGenerate}
+                      onCheckedChange={handleToggleAllowAiGenerate}
+                      disabled={allowAiGeneratePending || !isShareActive}
+                    />
+                  </div>
+                </div>
+              )}
+
+
               {/* Link to share website – always clickable */}
               <button
                 onClick={handleOpenMiary}
