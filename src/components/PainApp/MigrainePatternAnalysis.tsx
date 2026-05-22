@@ -1012,7 +1012,7 @@ export function MigrainePatternAnalysis() {
         });
 
         // Range mismatch without explicit pick → just show CTA + history list.
-        if (mode === 'range_mismatch_preview') {
+        if (mode === 'range_mismatch_preview' && history.length === 0) {
           return (
             <div
               className="rounded-lg border border-border/50 bg-muted/20 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"

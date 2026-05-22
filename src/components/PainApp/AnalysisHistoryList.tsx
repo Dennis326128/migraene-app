@@ -206,12 +206,16 @@ export function AnalysisHistoryList({
                           Geöffnet
                         </span>
                       )}
-                      <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium whitespace-nowrap ${meta.cls}`}
-                      >
-                        {meta.label}
-                      </span>
+                      {badge !== 'other_range' && badge !== 'current' && (
+                        <span
+                          data-testid={`history-badge-${entry.id}`}
+                          className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium whitespace-nowrap ${meta.cls}`}
+                        >
+                          {meta.label}
+                        </span>
+                      )}
                     </div>
+
 
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
