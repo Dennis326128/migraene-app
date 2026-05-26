@@ -133,7 +133,23 @@ export async function buildAnalysisPromptData(range: AnalysisTimeRange): Promise
   };
 }> {
   const dataset = await getAnalysisDataset(range);
-  const ctx = buildAnalysisContext(dataset);
+  // Data minimization: only include private free-text notes in the LLM prompt
+  // when the user explicitly opted in via Settings (default: false).
+  let includePrivateNotes = false;
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('ai_include_private_notes')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      includePrivateNotes = profile?.ai_include_private_notes === true;
+    }
+  } catch {
+    includePrivateNotes = false;
+  }
+  const ctx = buildAnalysisContext(dataset, 6, { includePrivateNotes });
   let serialized = serializeForLLM(ctx);
 
   // === ENRICH: Pre-analysis + weather + time aggregates + data quality ===
