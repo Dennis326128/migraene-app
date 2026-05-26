@@ -2,8 +2,10 @@
 
 Quellen für `@capacitor/assets`:
 
-- `icon.png` — 1024×1024, App-Icon (Miary-Logo, dunkler Hintergrund)
-- `splash.png` / `splash-dark.png` — 2732×2732, zentriertes Logo auf `#14171f`
+- `icon.png` — 1024×1024, App-Icon (Miary-Logo)
+- `splash.png` / `splash-dark.png` — 2732×2732, zentriertes Logo (~34 % Fläche) auf `#14171C` (= App-`--background` `hsl(220 13% 9%)`)
+
+Splash ist statisch, ohne Spinner, ohne Text, ohne Animation — entspricht den Anforderungen für migränesensible Nutzer.
 
 ## Native Assets generieren
 
@@ -11,8 +13,10 @@ Nach `git pull` lokal ausführen:
 
 ```bash
 npm i -D @capacitor/assets
-npx capacitor-assets generate --iconBackgroundColor "#14171f" --iconBackgroundColorDark "#14171f" --splashBackgroundColor "#14171f" --splashBackgroundColorDark "#14171f"
+npx capacitor-assets generate \
+  --iconBackgroundColor "#14171C" --iconBackgroundColorDark "#14171C" \
+  --splashBackgroundColor "#14171C" --splashBackgroundColorDark "#14171C"
 npx cap sync
 ```
 
-Erzeugt automatisch alle iOS/Android Icon- und Splash-Größen.
+Erzeugt automatisch alle iOS/Android Icon- und Splash-Größen aus den beiden Quellbildern.
