@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`📝 Ask Assistant: "${question.substring(0, 50)}..."`);
+    console.log(`📝 Ask Assistant: question received (len=${question.length})`);
 
     // Load user context data (last 90 days)
     const ninetyDaysAgo = new Date();
