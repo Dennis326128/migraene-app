@@ -16,6 +16,7 @@ export type UserDefaults = {
   default_pain_location: string | null;
   voice_notes_enabled: boolean;
   ai_enabled: boolean;
+  ai_include_private_notes: boolean;
   track_cycle: boolean;
   medication_limit_warning_threshold_pct: number;
   updated_at: string;
@@ -55,7 +56,7 @@ export async function getUserDefaults(): Promise<UserDefaults | null> {
     if (!user) return null;
     const { data, error } = await supabase
       .from("user_profiles")
-      .select("user_id, default_symptoms, default_pain_location, voice_notes_enabled, ai_enabled, track_cycle, medication_limit_warning_threshold_pct, updated_at")
+      .select("user_id, default_symptoms, default_pain_location, voice_notes_enabled, ai_enabled, ai_include_private_notes, track_cycle, medication_limit_warning_threshold_pct, updated_at")
       .eq("user_id", user.id)
       .maybeSingle();
     if (error) {

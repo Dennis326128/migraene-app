@@ -1522,6 +1522,7 @@ export type Database = {
           account_status: string
           ai_draft_engine: string | null
           ai_enabled: boolean
+          ai_include_private_notes: boolean
           ai_unlimited: boolean
           burden_prompt_disabled: boolean
           burden_prompt_dismiss_count: number
@@ -1549,6 +1550,7 @@ export type Database = {
           account_status?: string
           ai_draft_engine?: string | null
           ai_enabled?: boolean
+          ai_include_private_notes?: boolean
           ai_unlimited?: boolean
           burden_prompt_disabled?: boolean
           burden_prompt_dismiss_count?: number
@@ -1576,6 +1578,7 @@ export type Database = {
           account_status?: string
           ai_draft_engine?: string | null
           ai_enabled?: boolean
+          ai_include_private_notes?: boolean
           ai_unlimited?: boolean
           burden_prompt_disabled?: boolean
           burden_prompt_dismiss_count?: number

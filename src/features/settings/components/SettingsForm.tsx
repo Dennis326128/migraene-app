@@ -26,6 +26,7 @@ export default function SettingsForm() {
   const [hoursStr, setHoursStr] = useState<string>("6,12,18");
   const [voiceNotesEnabled, setVoiceNotesEnabled] = useState<boolean>(true);
   const [aiEnabled, setAiEnabled] = useState<boolean>(true);
+  const [aiIncludePrivateNotes, setAiIncludePrivateNotes] = useState<boolean>(false);
 
   useEffect(() => {
     if (!settings) return;
@@ -38,6 +39,7 @@ export default function SettingsForm() {
     if (!defaults) return;
     setVoiceNotesEnabled(defaults.voice_notes_enabled ?? true);
     setAiEnabled(defaults.ai_enabled ?? true);
+    setAiIncludePrivateNotes(defaults.ai_include_private_notes ?? false);
   }, [defaults]);
 
   const hoursError = useMemo(() => {
@@ -60,6 +62,7 @@ export default function SettingsForm() {
       upsertDefaults.mutateAsync({
         voice_notes_enabled: voiceNotesEnabled,
         ai_enabled: aiEnabled,
+        ai_include_private_notes: aiIncludePrivateNotes,
       }),
     ]);
     alert("Einstellungen gespeichert.");
@@ -71,6 +74,7 @@ export default function SettingsForm() {
     setHoursStr("6,12,18");
     setVoiceNotesEnabled(true);
     setAiEnabled(true);
+    setAiIncludePrivateNotes(false);
   };
 
   return (
@@ -120,6 +124,16 @@ export default function SettingsForm() {
             </p>
           </div>
           <Switch checked={aiEnabled} onCheckedChange={setAiEnabled} />
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div>
+            <Label className="block mb-1">Private Notizen in KI-Analysen einbeziehen</Label>
+            <p className="text-sm text-muted-foreground">
+              Wenn aktiviert, können deine privaten Notizen für KI-Auswertungen mitverarbeitet werden.
+            </p>
+          </div>
+          <Switch checked={aiIncludePrivateNotes} onCheckedChange={setAiIncludePrivateNotes} />
         </div>
 
         <div>

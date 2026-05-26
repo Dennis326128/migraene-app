@@ -82,13 +82,27 @@ serve(async (req) => {
     const apiKey = Deno.env.get('LOVABLE_API_KEY');
     if (!apiKey) throw new Error('LOVABLE_API_KEY nicht konfiguriert');
 
+    // Data minimization: respect user opt-in for sending private notes to LLM.
+    // Default is FALSE — private notes are excluded unless user explicitly opted in.
+    let includePrivateNotes = false;
+    try {
+      const { data: profile } = await supabaseAdmin
+        .from('user_profiles')
+        .select('ai_include_private_notes')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      includePrivateNotes = profile?.ai_include_private_notes === true;
+    } catch (e) {
+      console.warn('[analyze-voice-patterns] could not read ai_include_private_notes, defaulting to false');
+    }
+
     // === Shared engine ===
     const result = await runPatternAnalysisV22({
       serializedContext, meta, fromDate, toDate,
       preAnalysis, deterministicFindings,
       apiKey,
       source: 'app',
-      includePrivateNotes: true, // App context may include user's own private notes
+      includePrivateNotes,
     });
 
     if (!result.ok) {

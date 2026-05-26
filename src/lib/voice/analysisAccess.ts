@@ -59,6 +59,8 @@ export interface PainEntryForAnalysis {
   medications: string[] | null;
   medication_ids: string[] | null;
   notes: string | null;
+  /** SSOT private flag — if true, free-text `notes` must NOT be sent to AI unless user opted in. */
+  entry_note_is_private?: boolean | null;
   pain_locations: string[] | null;
   aura_type: string;
   me_cfs_severity_level: string;
@@ -217,7 +219,7 @@ export async function getAnalysisDataset(range: AnalysisTimeRange): Promise<Full
     getVoiceEventsForAnalysis(range),
     supabase
       .from('pain_entries')
-      .select('id, selected_date, selected_time, pain_level, medications, medication_ids, notes, pain_locations, aura_type, me_cfs_severity_level, entry_kind, voice_note_id, timestamp_created')
+      .select('id, selected_date, selected_time, pain_level, medications, medication_ids, notes, entry_note_is_private, pain_locations, aura_type, me_cfs_severity_level, entry_kind, voice_note_id, timestamp_created')
       .gte('selected_date', dateFrom)
       .lte('selected_date', dateTo)
       .order('selected_date', { ascending: true }),

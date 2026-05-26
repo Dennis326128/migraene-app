@@ -274,7 +274,11 @@ function painEntrySemanticTags(e: PainEntryForAnalysis): string[] {
 /**
  * Build a unified, chronologically sorted timeline from the raw dataset.
  */
-export function buildTimeline(dataset: FullAnalysisDataset): TimelineItem[] {
+export function buildTimeline(
+  dataset: FullAnalysisDataset,
+  opts: { includePrivateNotes?: boolean } = {},
+): TimelineItem[] {
+  const includePrivateNotes = opts.includePrivateNotes === true;
   const items: TimelineItem[] = [];
 
   // Voice events
@@ -294,13 +298,17 @@ export function buildTimeline(dataset: FullAnalysisDataset): TimelineItem[] {
 
   // Pain entries
   for (const e of dataset.painEntries) {
+    // Data minimization: redact private free-text notes unless the user
+    // explicitly opted in (aiIncludePrivateNotes setting).
+    const isPrivateNote = e.entry_note_is_private === true;
+    const noteForLlm = isPrivateNote && !includePrivateNotes ? null : e.notes;
     items.push({
       id: String(e.id),
       kind: 'pain_entry',
       timestamp: entryTimestamp(e),
       date: entryDate(e),
       time: e.selected_time ?? null,
-      displayText: e.notes ?? `Eintrag: ${e.pain_level}`,
+      displayText: noteForLlm ?? `Eintrag: ${e.pain_level}`,
       semanticTags: painEntrySemanticTags(e),
       linkedIds: e.voice_note_id ? [e.voice_note_id] : [],
       source: { type: 'pain_entry', data: e },
@@ -710,8 +718,9 @@ export function serializeForLLM(ctx: AnalysisContext): string {
 export function buildAnalysisContext(
   dataset: FullAnalysisDataset,
   windowHours = 6,
+  opts: { includePrivateNotes?: boolean } = {},
 ): AnalysisContext {
-  const timeline = buildTimeline(dataset);
+  const timeline = buildTimeline(dataset, { includePrivateNotes: opts.includePrivateNotes });
   const days = buildDayContexts(timeline);
   const sessions = buildSessionBlocks(timeline);
   const recurringSequences = detectRecurringSequences(days);
