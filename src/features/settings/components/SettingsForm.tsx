@@ -111,7 +111,13 @@ export default function SettingsForm() {
         <div className="flex items-center justify-between">
           <div>
             <Label className="block mb-1">KI-Analyse aktivieren</Label>
-            <p className="text-sm text-muted-foreground">Ermöglicht automatische Muster-Erkennung (anonymisiert, DSGVO-konform).</p>
+            <p className="text-sm text-muted-foreground">
+              Ermöglicht automatische Muster-Erkennung. Für die Analyse werden
+              pseudonymisierte Tagebuchdaten (ohne Name, E-Mail oder User-ID)
+              über die Lovable AI Gateway an das Modell Google Gemini
+              übermittelt (Drittland USA, Art. 9 Abs. 2 lit. a DSGVO).
+              Jederzeit widerrufbar.
+            </p>
           </div>
           <Switch checked={aiEnabled} onCheckedChange={setAiEnabled} />
         </div>

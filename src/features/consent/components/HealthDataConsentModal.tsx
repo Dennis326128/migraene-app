@@ -76,15 +76,22 @@ export const HealthDataConsentModal: React.FC<HealthDataConsentModalProps> = ({
           </p>
           
           <p>
-            <strong>Zweck:</strong> Dokumentation + automatisierte statistische Auswertungen 
+            <strong>Zweck:</strong> Dokumentation + automatisierte statistische Auswertungen
             (Trends, Häufigkeiten, mögliche Zusammenhänge) + Berichte für Arztbesuche
           </p>
-          
+
+          <p>
+            <strong>KI-Analyse:</strong> Wenn Sie die KI-Analyse aktivieren, werden
+            pseudonymisierte Tagebuchdaten (ohne Name, E-Mail oder User-ID) über die
+            Lovable AI Gateway an das Modell Google Gemini übermittelt
+            (Drittland USA, Standardvertragsklauseln). Optional, jederzeit widerrufbar.
+          </p>
+
           <p className="text-muted-foreground">
             Keine Diagnosen, keine Therapie- oder Medikamentenempfehlungen.{" "}
-            <Link 
-              to="/privacy" 
-              target="_blank" 
+            <Link
+              to="/privacy"
+              target="_blank"
               className="text-primary underline hover:no-underline inline-flex items-center gap-1"
             >
               Details
