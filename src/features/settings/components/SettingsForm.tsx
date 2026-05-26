@@ -126,6 +126,16 @@ export default function SettingsForm() {
           <Switch checked={aiEnabled} onCheckedChange={setAiEnabled} />
         </div>
 
+        <div className="flex items-center justify-between">
+          <div>
+            <Label className="block mb-1">Private Notizen in KI-Analysen einbeziehen</Label>
+            <p className="text-sm text-muted-foreground">
+              Wenn aktiviert, können deine privaten Notizen für KI-Auswertungen mitverarbeitet werden.
+            </p>
+          </div>
+          <Switch checked={aiIncludePrivateNotes} onCheckedChange={setAiIncludePrivateNotes} />
+        </div>
+
         <div>
           <Label className="block mb-1">Tägliche Wetter-Snapshot-Stunden</Label>
           <Input
