@@ -228,10 +228,22 @@ export default function PrivacyPolicy() {
                 </p>
               </div>
               
-              <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-4 rounded-lg mt-4">
-                <p className="text-sm font-medium text-amber-800 dark:text-amber-200">[SUBPROCESSORS_LIST]</p>
-                <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
-                  Vollständige Liste aller Auftragsverarbeiter hier einfügen
+              <div>
+                <h4 className="font-medium">6.4 KI-Analyse</h4>
+                <p className="text-sm text-muted-foreground">
+                  Für die KI-gestützte Musteranalyse und Berichts­generierung werden
+                  pseudonymisierte Tagebuch­daten (Symptome, Schmerz­werte, Medikation,
+                  Trigger, Wetter­daten, ggf. Sprach-Transkripte) an die <strong>Lovable
+                  AI Gateway (Lovable GmbH)</strong> übermittelt, die als Auftrags­verarbeiter
+                  nach Art. 28 DSGVO das Modell <strong>Google Gemini 2.5 Flash
+                  (Google Ireland Ltd. / Google LLC, USA)</strong> als
+                  Sub-Auftrags­verarbeiter einsetzt. Rechtsgrundlage: Ihre ausdrückliche
+                  Einwilligung nach Art. 9 Abs. 2 lit. a DSGVO. Die Übermittlung in
+                  ein Drittland (USA) erfolgt auf Basis des EU-US Data Privacy
+                  Framework bzw. Standard­vertragsklauseln (Art. 46 DSGVO).
+                  Es werden <strong>keine direkten Identifikatoren</strong> (Name, E-Mail,
+                  User-ID) übermittelt. Die Einwilligung können Sie jederzeit in den
+                  Einstellungen widerrufen.
                 </p>
               </div>
               
@@ -263,15 +275,35 @@ export default function PrivacyPolicy() {
             <div>
               <h4 className="font-medium mb-2">7.1 Spracherkennung</h4>
               <p className="text-sm text-muted-foreground">
-                Sprachnotizen können transkribiert werden, um die Eingabe zu erleichtern.
+                Sprachnotizen werden derzeit ausschließlich <strong>lokal in Ihrem
+                Browser bzw. auf Ihrem Gerät</strong> transkribiert (Web Speech API).
+                Es findet keine Übertragung der Audiodaten an externe Anbieter
+                statt. Das fertige Transkript kann – sofern Sie die KI-Analyse
+                aktiviert haben – Teil der unter 6.4 beschriebenen Verarbeitung
+                werden.
               </p>
             </div>
 
             <div>
               <h4 className="font-medium mb-2">7.2 Musteranalyse</h4>
               <p className="text-sm text-muted-foreground">
-                Die App kann Ihre Einträge analysieren, um mögliche Zusammenhänge 
-                aufzuzeigen. Diese Analysen sind rein informativ.
+                Die App kann Ihre Einträge analysieren, um mögliche Zusammenhänge
+                aufzuzeigen. Diese Analysen sind rein informativ und ersetzen
+                keine ärztliche Beratung, Diagnose oder Behandlung. Die
+                technische Verarbeitung erfolgt wie unter 6.4 beschrieben.
+              </p>
+            </div>
+
+            <div>
+              <h4 className="font-medium mb-2">7.3 KI-Analyse durch Ärzte (Arzt-Freigabe)</h4>
+              <p className="text-sm text-muted-foreground">
+                Wenn Sie eine Arzt-Freigabe erteilen und die Option „KI-Analyse
+                in Freigabe einschließen" aktivieren, kann die behandelnde
+                Person eine KI-Analyse auf den freigegebenen Daten neu
+                erstellen. Diese Verarbeitung erfolgt server­seitig unter
+                derselben Rechtsgrundlage und mit denselben Auftrags­verarbeitern
+                wie unter 6.4. Ohne Ihre Einwilligung und ohne aktivierte
+                Freigabe-Option ist keine KI-Analyse aus der Arzt-Ansicht möglich.
               </p>
             </div>
 
