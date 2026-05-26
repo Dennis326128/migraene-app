@@ -60,7 +60,7 @@ export interface PainEntryForAnalysis {
   medication_ids: string[] | null;
   notes: string | null;
   /** SSOT private flag — if true, free-text `notes` must NOT be sent to AI unless user opted in. */
-  entry_note_is_private: boolean | null;
+  entry_note_is_private?: boolean | null;
   pain_locations: string[] | null;
   aura_type: string;
   me_cfs_severity_level: string;
