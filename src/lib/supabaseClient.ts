@@ -41,7 +41,6 @@ const webStorageAdapter = typeof window !== 'undefined' ? window.localStorage : 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     storage: isNative ? (nativeStorageAdapter as any) : webStorageAdapter,
-    storageKey: 'sb-miary-auth',
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
