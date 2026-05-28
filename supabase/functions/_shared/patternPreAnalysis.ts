@@ -449,13 +449,21 @@ export function buildDeterministicFindings(
     should_show_in_doctor_share: true,
   });
 
-  // 5. weather.pressure_drop (V2.2: warn when no pain-free comparison days)
+  // 5. weather.pressure_drop — softer wording when pain ratio is very high
+  const painRate = coverageRate(painDays, daysTotal);
   const dropDays = pre.weather.pressureDropDays;
   const painOnDrop = pre.weather.painOnDropDays;
   const stableDaysW = pre.weather.stableDays;
   const painOnStable = pre.weather.painOnStableDays;
   const noComparison = stableDaysW === 0 || (stableDaysW > 0 && painOnStable / stableDaysW >= 0.9);
-  const weatherEvidence: EvidenceLevel = (dropDays >= 3 && stableDaysW >= 3 && !noComparison) ? "low" : "insufficient";
+  const highPainBlock = painRate >= 0.85;
+  const weatherEvidence: EvidenceLevel =
+    (dropDays >= 3 && stableDaysW >= 3 && !noComparison && !highPainBlock) ? "low" : "insufficient";
+  const weatherSummary = highPainBlock
+    ? "Die Wetteranalyse bleibt vorsichtig, weil der Zeitraum fast durchgehend schmerzbelastet war. Wetter kann ein möglicher Verstärkungsfaktor sein, ein klarer Auslöser lässt sich daraus nicht ableiten."
+    : (weatherEvidence === "insufficient"
+        ? "Es liegen zu wenige schmerzfreie Vergleichstage vor, um einen Zusammenhang mit Druckabfall verlässlich zu beurteilen."
+        : `An Tagen mit deutlichem Druckabfall: ${painOnDrop}/${dropDays} mit Schmerz vs. ${painOnStable}/${stableDaysW} an stabilen Tagen.`);
   findings.push({
     id: "weather.pressure_drop",
     category: "weather",
@@ -465,9 +473,7 @@ export function buildDeterministicFindings(
     patient_relevance: "medium",
     direction: "unclear",
     time_window: "same_day",
-    plain_language_summary: weatherEvidence === "insufficient"
-      ? "Zu wenige schmerzfreie Vergleichstage, um einen Zusammenhang mit Druckabfall verlässlich zu beurteilen."
-      : `An Tagen mit deutlichem Druckabfall: ${painOnDrop}/${dropDays} mit Schmerz vs. ${painOnStable}/${stableDaysW} an stabilen Tagen.`,
+    plain_language_summary: weatherSummary,
     deterministic_basis: {
       metric_names: ["pressure_drop_days", "pain_on_drop_days", "stable_days", "pain_on_stable_days"],
       numerator: painOnDrop, denominator: dropDays,
@@ -477,7 +483,9 @@ export function buildDeterministicFindings(
     },
     limitations: [
       "Wetter ist mehrdimensional; einzelne Variablen sind selten alleinige Auslöser.",
-      noComparison ? "Es fehlen schmerzfreie Vergleichstage." : "",
+      highPainBlock
+        ? "Wenige schmerzfreie Vergleichstage – Aussagen bleiben vorsichtig."
+        : (noComparison ? "Wenige schmerzfreie Vergleichstage." : ""),
     ].filter(Boolean),
     recommended_tracking_next: ["Weiter dokumentieren – auch beschwerdefreie Tage mit Druckabfall."],
     doctor_discussion_points: [],
