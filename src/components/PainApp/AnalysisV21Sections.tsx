@@ -124,27 +124,9 @@ export function AnalysisV21Sections({ responseJson, doctorShare = false, showVoi
 
   if (!v21) return null;
 
-  // Synthetic weather-coverage card for "Datenqualität" — only when there is
-  // a documented gap. Avoids duplicating the weather story up top.
-  const weatherCoverageCard = React.useMemo<NormalizedAnalysisFinding | null>(() => {
-    const wd = Number(dataBasis?.weather_days);
-    const dd = Number(dataBasis?.documented_days);
-    if (!isFinite(wd) || !isFinite(dd) || dd <= 0) return null;
-    if (wd >= dd) return null;
-    return {
-      id: "synthetic.weather_coverage",
-      category: "data_quality",
-      section: "data_quality",
-      title: "Wetterabdeckung",
-      summary: `Wetterdaten lagen für ${wd} von ${dd} Tagen vor. Wetterhinweise sind deshalb eingeschränkt.`,
-      evidenceLevel: "low",
-      limitations: [],
-      recommendedTrackingNext: [],
-      doctorDiscussionPoints: [],
-      source: "deterministic",
-      shouldShowInDoctorShare: true,
-    };
-  }, [dataBasis]);
+  // Weather-coverage card removed by output policy — never inject coverage
+  // numbers ("Wetterdaten lagen für X von Y Tagen vor"). Weather is only
+  // shown as an inhaltlicher finding, never as a coverage statement.
 
   return (
     <div className="space-y-7">
