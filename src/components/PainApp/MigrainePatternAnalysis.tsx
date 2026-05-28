@@ -983,7 +983,14 @@ export function MigrainePatternAnalysis() {
         </Card>
       )}
 
-      {isAnalyzing && <AnalysisProgressLoader />}
+      {isAnalyzing && (
+        <div className="space-y-3" data-testid="analysis-running">
+          <AnalysisProgressLoader />
+          <p className="text-xs text-muted-foreground text-center px-4">
+            Die neue Analyse wird erstellt. Bisherige Analysen bleiben gespeichert.
+          </p>
+        </div>
+      )}
 
 
       {isLoadingCache && (
