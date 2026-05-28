@@ -23,6 +23,7 @@ import {
   type AnalysisSectionKey,
 } from "./normalizeAnalysisFindings";
 import { curateFindingsV22 } from "./curateFindingsV22";
+import { buildAnalysisOverviewSummary } from "./buildAnalysisOverviewSummary";
 
 const EVIDENCE_LABEL = {
   high: "starker Hinweis",
