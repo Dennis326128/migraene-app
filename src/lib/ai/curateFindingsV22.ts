@@ -200,8 +200,8 @@ function adjustWeatherForLowComparisonBase(
     ...f,
     evidenceLevel: "insufficient",
     summary:
-      "Druck- und Wetteränderungen sind dokumentiert, " +
-      "aber wegen fast fehlender schmerzfreier Vergleichstage nicht spezifisch bewertbar.",
+      "Die Wetteranalyse bleibt vorsichtig, weil der Zeitraum fast durchgehend schmerzbelastet war. " +
+      "Wetter kann ein möglicher Verstärkungsfaktor sein, ein klarer Auslöser lässt sich daraus nicht ableiten.",
     // remove doctor-questions so weather is not pushed into open questions
     doctorDiscussionPoints: [],
   };
