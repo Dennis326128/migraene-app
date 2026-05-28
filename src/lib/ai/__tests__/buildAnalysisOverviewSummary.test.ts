@@ -52,13 +52,19 @@ describe('buildAnalysisOverviewSummary', () => {
     expect(txt).not.toMatch(/Diagnose/i);
     expect(txt).not.toMatch(/fehlende schmerzfreie/i);
     // cap to ≤7 sentences
-    const sentences = txt.match(/[^.!?]+[.!?]/g) ?? [];
+    const sentences = txt.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0);
     expect(sentences.length).toBeLessThanOrEqual(7);
     expect(sentences.length).toBeGreaterThanOrEqual(3);
   });
 
   it('omits sections that have no corresponding findings', () => {
-    const txt = buildAnalysisOverviewSummary({ responseJson, findings: [] })!;
+    const noMecfsResponse = {
+      analysisV21: {
+        period: { from: '2026-04-27', to: '2026-05-26' },
+        data_basis: { pain_days: 29, documented_days: 30, mecfs_energy_days: 0, weather_days: 30 },
+      },
+    };
+    const txt = buildAnalysisOverviewSummary({ responseJson: noMecfsResponse, findings: [] })!;
     expect(txt).toMatch(/29 von 30/);
     expect(txt).not.toMatch(/Triptan/);
     expect(txt).not.toMatch(/ME\/CFS/);
