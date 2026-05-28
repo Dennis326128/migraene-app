@@ -39,15 +39,27 @@ const MAX_WEAKER = 5;
 const SAFETY_REWRITES: Array<[RegExp, string]> = [
   // "erfüllt/erfüllen (die) Kriterien (für|einer|der) chronische(r|n) Migräne"
   [/\berf(?:üllt|üllen)\s+(?:die\s+)?Kriterien(?:\s+(?:für|einer|der))?\s+(?:eine[rn]?\s+)?chronische[rn]?\s+Migräne\b/gi,
-    "liegen in einem Bereich, der ärztlich im Hinblick auf chronische Migräne geprüft werden sollte"],
+    "liegen in einem Bereich, der ärztlich im Hinblick auf eine mögliche chronische Verlaufsform geprüft werden sollte"],
+  [/\bKriteri(?:um|en)\s+(?:für\s+)?(?:eine[rn]?\s+)?chronische[rn]?\s+Migräne\b/gi,
+    "Hinweis auf eine mögliche chronische Verlaufsform"],
   [/\berf(?:üllt|üllen)\s+(?:die\s+)?Kriterien\b/gi,
     "liegen in einem Bereich, der ärztlich geprüft werden sollte"],
+  [/\bbereits\s+bestehende[rn]?\s+chronische[rn]?\s+Migräne\b/gi,
+    "ärztlich abklärungsbedürftigen Hinweis auf eine chronische Verlaufsform"],
+  [/\b(?:deutet|spricht|hinweis(?:t|en)?)\s+(?:stark\s+)?(?:auf|für)\s+(?:eine[rn]?\s+)?chronische[rn]?\s+Migräne\b/gi,
+    "ist ein Hinweis auf eine mögliche chronische Verlaufsform"],
   [/\b(?:ist|sind)\s+chronische\s+Migräne\b/gi,
     "ist vereinbar mit einem Muster, das ärztlich eingeordnet werden sollte"],
   [/\b(?:mögliche\s+)?Diagnose\s+(?:der\s+|einer\s+)?chronische[rn]?\s+Migräne\b/gi,
-    "ärztlich abzuklärender Hinweis auf chronische Migräne"],
+    "ärztlich abzuklärender Hinweis auf eine mögliche chronische Verlaufsform"],
   [/\bchronische\s+Migräne\s+diagnostiz\w*/gi,
-    "ärztlich auf chronische Migräne zu prüfen"],
+    "ärztlich auf eine mögliche chronische Verlaufsform zu prüfen"],
+  // catch any remaining bare "chronische Migräne" — soften to "mögliche chronische Verlaufsform"
+  [/\bchronische[rn]?\s+Migräne\b/gi,
+    "möglichen chronischen Verlaufsform"],
+  // replace bare "Diagnose" (medical-claim wording) with neutral "ärztliche Einordnung"
+  [/\b(?:eine\s+)?Diagnose(?:\s+stellen|\s+abklären)?\b/gi,
+    "ärztliche Einordnung"],
   // strip misleading "100% Korrelation" wording
   [/\b100\s?%?\s*(?:Korrelation|Übereinstimmung|Trefferquote)\b/gi,
     "auffällige Häufung (Vergleichsbasis schwach)"],
