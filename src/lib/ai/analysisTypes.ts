@@ -24,7 +24,11 @@ export type FindingCategory =
   | "cycle_hormonal"
   | "interaction"
   | "data_quality"
-  | "red_flag";
+  | "red_flag"
+  // Phase 1 (Verlauf & Veränderung): deterministic trend categories.
+  | "course_trend"
+  | "medication_trend"
+  | "mecfs_energy_trend";
 
 export type FindingDirection =
   | "increased"

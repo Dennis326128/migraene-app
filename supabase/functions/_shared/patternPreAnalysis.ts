@@ -26,8 +26,9 @@
 
 import type { SupabaseClient } from "jsr:@supabase/supabase-js@2";
 import type { ServerDataset } from "./serverAnalysisDataset.ts";
-import { computeTrendAnalysis, type TrendDayRecord, type TrendResult } from "./trendAnalysis.ts";
+import { computeTrendAnalysis, buildTrendDaysFromEntries, type TrendDayRecord, type TrendResult } from "./trendAnalysis.ts";
 import { computeDocumentationSummary } from "./documentationSummary.ts";
+import { buildCourseTrendFindings } from "./buildCourseTrendFindings.ts";
 export { buildTrendDaysFromEntries } from "./trendAnalysis.ts";
 
 
@@ -86,7 +87,8 @@ export type FindingCategory =
   | "burden" | "chronification" | "medication_use" | "medication_effect"
   | "preventive_course" | "symptoms_aura" | "weather" | "mecfs_energy_pem"
   | "sleep" | "stress_mood" | "lifestyle_triggers" | "time_pattern"
-  | "cycle_hormonal" | "interaction" | "data_quality" | "red_flag";
+  | "cycle_hormonal" | "interaction" | "data_quality" | "red_flag"
+  | "course_trend" | "medication_trend" | "mecfs_energy_trend";
 
 export interface AnalysisFinding {
   id: string;
@@ -321,12 +323,14 @@ export interface DeterministicFindingsInput {
   /** Doctor-Share strips private free-text; this flag is recorded in
    *  data_basis.private_notes_excluded for transparency. */
   privateNotesExcluded: boolean;
+  /** Optional deterministic trend day records for "Verlauf & Veränderung". */
+  trendDays?: TrendDayRecord[];
 }
 
 export function buildDeterministicFindings(
   input: DeterministicFindingsInput,
 ): AnalysisReportV21 {
-  const { pre, meta, fromISO, toISO, privateNotesExcluded } = input;
+  const { pre, meta, fromISO, toISO, privateNotesExcluded, trendDays } = input;
   const daysTotal = meta.totalDays;
   const findings: AnalysisFinding[] = [];
 
@@ -445,13 +449,21 @@ export function buildDeterministicFindings(
     should_show_in_doctor_share: true,
   });
 
-  // 5. weather.pressure_drop (V2.2: warn when no pain-free comparison days)
+  // 5. weather.pressure_drop — softer wording when pain ratio is very high
+  const painRate = coverageRate(painDays, daysTotal);
   const dropDays = pre.weather.pressureDropDays;
   const painOnDrop = pre.weather.painOnDropDays;
   const stableDaysW = pre.weather.stableDays;
   const painOnStable = pre.weather.painOnStableDays;
   const noComparison = stableDaysW === 0 || (stableDaysW > 0 && painOnStable / stableDaysW >= 0.9);
-  const weatherEvidence: EvidenceLevel = (dropDays >= 3 && stableDaysW >= 3 && !noComparison) ? "low" : "insufficient";
+  const highPainBlock = painRate >= 0.85;
+  const weatherEvidence: EvidenceLevel =
+    (dropDays >= 3 && stableDaysW >= 3 && !noComparison && !highPainBlock) ? "low" : "insufficient";
+  const weatherSummary = highPainBlock
+    ? "Die Wetteranalyse bleibt vorsichtig, weil der Zeitraum fast durchgehend schmerzbelastet war. Wetter kann ein möglicher Verstärkungsfaktor sein, ein klarer Auslöser lässt sich daraus nicht ableiten."
+    : (weatherEvidence === "insufficient"
+        ? "Es liegen zu wenige schmerzfreie Vergleichstage vor, um einen Zusammenhang mit Druckabfall verlässlich zu beurteilen."
+        : `An Tagen mit deutlichem Druckabfall: ${painOnDrop}/${dropDays} mit Schmerz vs. ${painOnStable}/${stableDaysW} an stabilen Tagen.`);
   findings.push({
     id: "weather.pressure_drop",
     category: "weather",
@@ -461,9 +473,7 @@ export function buildDeterministicFindings(
     patient_relevance: "medium",
     direction: "unclear",
     time_window: "same_day",
-    plain_language_summary: weatherEvidence === "insufficient"
-      ? "Zu wenige schmerzfreie Vergleichstage, um einen Zusammenhang mit Druckabfall verlässlich zu beurteilen."
-      : `An Tagen mit deutlichem Druckabfall: ${painOnDrop}/${dropDays} mit Schmerz vs. ${painOnStable}/${stableDaysW} an stabilen Tagen.`,
+    plain_language_summary: weatherSummary,
     deterministic_basis: {
       metric_names: ["pressure_drop_days", "pain_on_drop_days", "stable_days", "pain_on_stable_days"],
       numerator: painOnDrop, denominator: dropDays,
@@ -473,7 +483,9 @@ export function buildDeterministicFindings(
     },
     limitations: [
       "Wetter ist mehrdimensional; einzelne Variablen sind selten alleinige Auslöser.",
-      noComparison ? "Es fehlen schmerzfreie Vergleichstage." : "",
+      highPainBlock
+        ? "Wenige schmerzfreie Vergleichstage – Aussagen bleiben vorsichtig."
+        : (noComparison ? "Wenige schmerzfreie Vergleichstage." : ""),
     ].filter(Boolean),
     recommended_tracking_next: ["Weiter dokumentieren – auch beschwerdefreie Tage mit Druckabfall."],
     doctor_discussion_points: [],
@@ -535,6 +547,12 @@ export function buildDeterministicFindings(
     should_show_in_doctor_share: true,
   });
 
+  // 8. Verlauf & Veränderung — deterministic trend findings
+  if (trendDays && trendDays.length > 0) {
+    const trend = computeTrendAnalysis(trendDays);
+    for (const tf of buildCourseTrendFindings(trend)) findings.push(tf);
+  }
+
   // Section map
   const ids = (cats: FindingCategory[]) => findings.filter((f) => cats.includes(f.category)).map((f) => f.id);
   const strongest = findings.filter((f) => f.evidence_level === "high" || f.evidence_level === "moderate").map((f) => f.id);
@@ -566,6 +584,7 @@ export function buildDeterministicFindings(
       strongest_findings: strongest,
       weaker_findings: weaker,
       burden_course: ids(["burden", "chronification"]),
+      course_trend: ids(["course_trend", "medication_trend", "mecfs_energy_trend"]),
       medication: ids(["medication_use", "medication_effect", "preventive_course"]),
       weather_environment: ids(["weather"]),
       mecfs_energy: ids(["mecfs_energy_pem"]),
@@ -574,7 +593,7 @@ export function buildDeterministicFindings(
       data_quality: ids(["data_quality"]),
       open_questions: [],
       red_flags: ids(["red_flag"]),
-    },
+    } as any,
   };
 }
 
