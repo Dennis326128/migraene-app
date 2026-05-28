@@ -66,7 +66,7 @@ export function buildCourseTrendFindings(
     limitations: hasEnoughData
       ? ["Verläufe brauchen längere Zeiträume, um wirklich stabil zu sein."]
       : ["Für einen belastbaren Vergleich werden mindestens zwei dokumentierte Wochen benötigt."],
-    recommended_tracking_next: ["Weiter regelmäßig dokumentieren – auch beschwerdefreie Tage."],
+    recommended_tracking_next: ["Weiter regelmäßig dokumentieren."],
     doctor_discussion_points: [],
     should_show_in_doctor_share: true,
   });
