@@ -147,6 +147,10 @@ export function buildAnalysisOverviewSummary(
 
   if (sentences.length === 0) return null;
 
-  // Cap to max. 7 sentences for readability.
-  return sentences.slice(0, 7).join(" ");
+  // Cap to max. 7 sentences for readability, then run the output policy
+  // as a safety net so no banned wording (weather coverage counts, voice
+  // events, schmerzfreie Vergleichstage, …) can leak into the summary.
+  const joined = sentences.slice(0, 7).join(" ");
+  const safe = sanitizeOutputText(joined);
+  return safe || null;
 }
