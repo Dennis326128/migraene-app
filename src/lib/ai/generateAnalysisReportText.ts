@@ -38,6 +38,7 @@ const evidenceRank: Record<NormalizedAnalysisFinding["evidenceLevel"], number> =
 /** Pro-Sektion harte Caps für den Bericht (Anzeige weiter unverändert). */
 const REPORT_SECTION_CAPS: Partial<Record<AnalysisSectionKey, number>> = {
   strongest: 3,
+  course_trend: 2,
   weaker: 3,
   medication: 3,
   weather: 1,
@@ -46,11 +47,12 @@ const REPORT_SECTION_CAPS: Partial<Record<AnalysisSectionKey, number>> = {
   symptoms: 1,
   time: 1,
   interaction: 2,
-  data_quality: 3,
+  data_quality: 1,
 };
 
 const SECTION_TITLES: Array<{ key: AnalysisSectionKey; title: string }> = [
   { key: "strongest", title: "Wichtigste Hinweise" },
+  { key: "course_trend", title: "Verlauf & Veränderung" },
   { key: "medication", title: "Medikamente & Wirkung" },
   { key: "weather", title: "Wetter & Umwelt" },
   { key: "mecfs", title: "ME/CFS, Energie & PEM" },
@@ -59,7 +61,7 @@ const SECTION_TITLES: Array<{ key: AnalysisSectionKey; title: string }> = [
   { key: "time", title: "Zeitmuster" },
   { key: "interaction", title: "Interaktionen" },
   { key: "weaker", title: "Weitere mögliche Zusammenhänge" },
-  { key: "data_quality", title: "Datenqualität" },
+  { key: "data_quality", title: "Dokumentationsfazit" },
 ];
 
 const LIMITS_DISCLAIMER =

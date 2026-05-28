@@ -44,6 +44,7 @@ export interface NormalizedAnalysisFinding {
 
 export type AnalysisSectionKey =
   | "strongest"
+  | "course_trend"
   | "weaker"
   | "medication"
   | "weather"
@@ -58,13 +59,14 @@ export type AnalysisSectionKey =
 
 export const SECTION_ORDER: AnalysisSectionKey[] = [
   "strongest",
-  "weaker",
+  "course_trend",
   "medication",
   "weather",
   "mecfs",
   "lifestyle",
   "symptoms",
   "time",
+  "weaker",
   "interaction",
   "data_quality",
   "open_questions",
@@ -73,6 +75,7 @@ export const SECTION_ORDER: AnalysisSectionKey[] = [
 
 export const SECTION_LABEL: Record<AnalysisSectionKey, string> = {
   strongest: "Auffälligste Hinweise",
+  course_trend: "Verlauf & Veränderung",
   weaker: "Weitere mögliche Zusammenhänge",
   medication: "Medikamente & Wirkung",
   weather: "Wetter & Umwelt",
@@ -81,7 +84,7 @@ export const SECTION_LABEL: Record<AnalysisSectionKey, string> = {
   symptoms: "Symptome & Aura",
   time: "Zeitmuster",
   interaction: "Interaktionen",
-  data_quality: "Datenqualität",
+  data_quality: "Dokumentationsfazit",
   open_questions: "Offene Fragen / Arztgespräch",
   limits: "Grenzen der Analyse",
 };
@@ -103,6 +106,12 @@ const CATEGORY_TO_SECTION: Record<string, AnalysisSectionKey> = {
   interaction: "interaction",
   data_quality: "data_quality",
   red_flag: "limits",
+  // Phase 1 — Verlauf & Veränderung: route all trend categories into the
+  // dedicated "course_trend" section. Curation will additionally pin them
+  // so they never get routed into "strongest"/"weaker" by evidence level.
+  course_trend: "course_trend",
+  medication_trend: "course_trend",
+  mecfs_energy_trend: "course_trend",
 };
 
 interface NormalizeOptions {
@@ -181,9 +190,9 @@ export function groupFindingsBySection(
   findings: NormalizedAnalysisFinding[],
 ): Record<AnalysisSectionKey, NormalizedAnalysisFinding[]> {
   const grouped: Record<AnalysisSectionKey, NormalizedAnalysisFinding[]> = {
-    strongest: [], weaker: [], medication: [], weather: [], mecfs: [],
-    lifestyle: [], symptoms: [], time: [], interaction: [], data_quality: [],
-    open_questions: [], limits: [],
+    strongest: [], course_trend: [], weaker: [], medication: [], weather: [],
+    mecfs: [], lifestyle: [], symptoms: [], time: [], interaction: [],
+    data_quality: [], open_questions: [], limits: [],
   };
   for (const f of findings) {
     let target: AnalysisSectionKey;

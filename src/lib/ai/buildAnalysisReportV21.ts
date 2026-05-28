@@ -19,6 +19,12 @@ import {
   effectStrengthFromRateDifference,
   sampleSizeLabel,
 } from "./evidence";
+import { computeDocumentationSummary } from "./documentationSummary";
+import {
+  computeTrendAnalysis,
+  type TrendDayRecord,
+} from "./trendAnalysis";
+import { buildCourseTrendFindings } from "./buildCourseTrendFindings";
 
 export interface BuildReportV21Input {
   fromISO: string;
@@ -34,6 +40,8 @@ export interface BuildReportV21Input {
     daysWithPain: number;
     daysWithMecfs: number;
   };
+  /** Optional deterministic trend day records → "Verlauf & Veränderung". */
+  trendDays?: TrendDayRecord[];
 }
 
 const NO_DIAGNOSIS_DISCLAIMER =
@@ -83,29 +91,41 @@ export function buildAnalysisReportV21(input: BuildReportV21Input): AnalysisRepo
     should_show_in_doctor_share: true,
   });
 
-  // ── 2. Datenqualität: Tagebuch-/Voice-Abdeckung ──────────────────
+  // ── 2. Dokumentationsfazit (freundlich, kein "Mangel") ───────────
   const documentedDays = Math.min(daysTotal, meta.painEntryCount + meta.voiceEventCount);
   const docCov = coverageRate(documentedDays, daysTotal);
+  const docSummary = computeDocumentationSummary({
+    rangeDays: daysTotal,
+    anyEntryDays: Math.min(daysTotal, meta.painEntryCount),
+    painDays: meta.daysWithPain,
+    medDays: meta.medicationIntakeCount > 0 ? Math.min(daysTotal, meta.medicationIntakeCount) : 0,
+    mecfsDays: meta.daysWithMecfs,
+    contextNoteCount: pre.mecfs.contextNoteCount ?? 0,
+    effectRatingCount: 0,
+    weatherDaysCapped: pre.weather.daysWithData ?? 0,
+  });
   findings.push({
     id: "data_quality.diary_coverage",
     category: "data_quality",
-    title: "Dokumentations-Abdeckung",
-    evidence_level: docCov >= 0.5 ? "low" : "insufficient",
+    title: "Dokumentationsfazit",
+    evidence_level: docSummary.tone === "good" ? "moderate" : docSummary.tone === "solid" ? "low" : "insufficient",
     doctor_relevance: "medium",
     patient_relevance: "high",
     direction: "not_applicable",
     time_window: "not_applicable",
-    plain_language_summary: `Im Zeitraum sind ${meta.painEntryCount} Schmerzeinträge und ${meta.voiceEventCount} Voice-Einträge dokumentiert (${daysTotal} Tage Range).`,
+    plain_language_summary: docSummary.plainText,
     deterministic_basis: {
-      metric_names: ["pain_entries", "voice_events", "days_total"],
+      metric_names: ["any_entry_days", "days_total"],
       numerator: documentedDays,
       denominator: daysTotal,
-      coverage_rate: docCov,
+      coverage_rate: docSummary.coverage,
       effect_label: "not_calculated",
       sample_size_label: sampleSizeLabel(documentedDays),
     },
-    limitations: ["Lückenhafte Dokumentation kann Muster verzerren."],
-    recommended_tracking_next: ["Möglichst täglich kurz dokumentieren – auch beschwerdefreie Tage."],
+    limitations: docSummary.detailHints,
+    recommended_tracking_next: docSummary.tone === "good"
+      ? ["Aktuelle Dokumentationsroutine beibehalten."]
+      : ["Möglichst täglich kurz dokumentieren – auch beschwerdefreie Tage."],
     doctor_discussion_points: [],
     should_show_in_doctor_share: true,
   });
@@ -171,7 +191,7 @@ export function buildAnalysisReportV21(input: BuildReportV21Input): AnalysisRepo
     should_show_in_doctor_share: true,
   });
 
-  // ── 5. Wetter-Hinweis (Druckabfall) ──────────────────────────────
+  // ── 5. Wetter-Hinweis (Druckabfall) — empathisch bei hoher Schmerzlast ──
   const dropDays = pre.weather.pressureDropDays ?? 0;
   const painOnDrop = pre.weather.painOnDropDays ?? 0;
   const stableDays = pre.weather.stableDays ?? 0;
@@ -180,12 +200,20 @@ export function buildAnalysisReportV21(input: BuildReportV21Input): AnalysisRepo
   const rateStable = stableDays > 0 ? painOnStable / stableDays : 0;
   const diffPP = (rateDrop - rateStable) * 100;
   const effect = effectStrengthFromRateDifference(diffPP);
-  const weatherFindingEvidence = classifyEvidence({
-    exposedEvents: dropDays,
-    comparisonEvents: stableDays,
-    coverageRate: weatherCov,
-    effectStrength: dropDays >= 3 && stableDays >= 3 ? effect : "not_calculated",
-  });
+  const highPainBlock = painRate >= 0.85;
+  const weatherFindingEvidence = highPainBlock
+    ? "insufficient"
+    : classifyEvidence({
+        exposedEvents: dropDays,
+        comparisonEvents: stableDays,
+        coverageRate: weatherCov,
+        effectStrength: dropDays >= 3 && stableDays >= 3 ? effect : "not_calculated",
+      });
+  const weatherSummary = highPainBlock
+    ? "Die Wetteranalyse bleibt vorsichtig, weil der Zeitraum fast durchgehend schmerzbelastet war. Wetter kann ein möglicher Verstärkungsfaktor sein, ein klarer Auslöser lässt sich daraus nicht ableiten."
+    : weatherFindingEvidence === "insufficient"
+      ? "Es liegen zu wenige Vergleichstage vor, um einen Zusammenhang mit Druckabfall verlässlich zu beurteilen."
+      : `An Tagen mit deutlichem Druckabfall: ${painOnDrop}/${dropDays} mit Schmerz vs. ${painOnStable}/${stableDays} an stabilen Tagen.`;
   findings.push({
     id: "weather.pressure_drop",
     category: "weather",
@@ -193,12 +221,9 @@ export function buildAnalysisReportV21(input: BuildReportV21Input): AnalysisRepo
     evidence_level: weatherFindingEvidence,
     doctor_relevance: "medium",
     patient_relevance: "medium",
-    direction: diffPP > 5 ? "increased" : diffPP < -5 ? "decreased" : "unclear",
+    direction: highPainBlock ? "unclear" : (diffPP > 5 ? "increased" : diffPP < -5 ? "decreased" : "unclear"),
     time_window: "same_day",
-    plain_language_summary:
-      weatherFindingEvidence === "insufficient"
-        ? "Zu wenige Vergleichstage, um einen Zusammenhang mit Druckabfall zu beurteilen."
-        : `An Tagen mit deutlichem Druckabfall: ${painOnDrop}/${dropDays} mit Schmerz vs. ${painOnStable}/${stableDays} an stabilen Tagen.`,
+    plain_language_summary: weatherSummary,
     deterministic_basis: {
       metric_names: ["pressure_drop_days", "pain_on_drop_days", "stable_days", "pain_on_stable_days"],
       numerator: painOnDrop,
@@ -211,7 +236,8 @@ export function buildAnalysisReportV21(input: BuildReportV21Input): AnalysisRepo
     },
     limitations: [
       "Wetter ist mehrdimensional; einzelne Variablen sind selten alleinige Auslöser.",
-    ],
+      highPainBlock ? "Wenige schmerzfreie Vergleichstage – Aussagen bleiben vorsichtig." : "",
+    ].filter(Boolean),
     recommended_tracking_next: ["Weiter dokumentieren – auch beschwerdefreie Tage mit Druckabfall."],
     doctor_discussion_points: [],
     should_show_in_doctor_share: true,
@@ -289,6 +315,17 @@ export function buildAnalysisReportV21(input: BuildReportV21Input): AnalysisRepo
     should_show_in_doctor_share: true,
   });
 
+  // ── 8. Verlauf & Veränderung — deterministic trend findings ──────
+  if (input.trendDays && input.trendDays.length > 0) {
+    try {
+      const trend = computeTrendAnalysis(input.trendDays);
+      for (const tf of buildCourseTrendFindings(trend)) findings.push(tf);
+    } catch (e) {
+      // non-fatal
+      if (typeof console !== "undefined") console.warn("[buildAnalysisReportV21] trend emit failed:", e);
+    }
+  }
+
   // ── Section map ──────────────────────────────────────────────────
   const ids = (cats: AnalysisFinding["category"][]) =>
     findings.filter((f) => cats.includes(f.category)).map((f) => f.id);
@@ -329,6 +366,7 @@ export function buildAnalysisReportV21(input: BuildReportV21Input): AnalysisRepo
       strongest_findings: strongest,
       weaker_findings: weaker,
       burden_course: ids(["burden", "chronification"]),
+      course_trend: ids(["course_trend", "medication_trend", "mecfs_energy_trend"]),
       medication: ids(["medication_use", "medication_effect", "preventive_course"]),
       weather_environment: ids(["weather"]),
       mecfs_energy: ids(["mecfs_energy_pem"]),
@@ -337,8 +375,9 @@ export function buildAnalysisReportV21(input: BuildReportV21Input): AnalysisRepo
       data_quality: ids(["data_quality"]),
       open_questions: [],
       red_flags: ids(["red_flag"]),
-    },
+    } as AnalysisReportV21["section_map"],
   };
 
   return report;
 }
+
