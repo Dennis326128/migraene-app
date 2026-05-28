@@ -31,6 +31,7 @@ import {
   buildDeterministicFindings,
   mergeExpandedFindingsIntoReport,
 } from "../_shared/patternPreAnalysis.ts";
+import { buildTrendDaysFromEntries } from "../_shared/trendAnalysis.ts";
 import { checkPatternAnalysisQuota, commitPatternAnalysisUsage, quotaErrorBody } from "../_shared/aiQuotaGate.ts";
 import { computeDataStateSignature } from "../_shared/doctorShareSsot.ts";
 import { evaluateShareAnalysisGate } from "../_shared/shareAnalysisGate.ts";
