@@ -81,11 +81,9 @@ export function buildAnalysisReportV21(input: BuildReportV21Input): AnalysisRepo
     },
     limitations: [
       "Wettervariablen erlauben keine sichere kausale Aussage.",
-      "Ohne ausreichende Vergleichstage sind nur vorsichtige Hypothesen möglich.",
     ],
     recommended_tracking_next: [
       "Wetterdaten weiter automatisch erfassen.",
-      "Schmerzfreie Tage ebenfalls dokumentieren, damit Vergleichstage vorhanden sind.",
     ],
     doctor_discussion_points: [],
     should_show_in_doctor_share: true,
@@ -236,9 +234,12 @@ export function buildAnalysisReportV21(input: BuildReportV21Input): AnalysisRepo
     },
     limitations: [
       "Wetter ist mehrdimensional; einzelne Variablen sind selten alleinige Auslöser.",
-      highPainBlock ? "Wenige schmerzfreie Vergleichstage – Aussagen bleiben vorsichtig." : "",
-    ].filter(Boolean),
-    recommended_tracking_next: ["Weiter dokumentieren – auch beschwerdefreie Tage mit Druckabfall."],
+    ],
+    recommended_tracking_next: [
+      highPainBlock
+        ? "Subjektive Wetterempfindungen wie Hitze, Gewitter, Druckgefühl oder Wetterwechsel kurz notieren."
+        : "Weiter dokumentieren – auch beschwerdefreie Tage mit Druckabfall.",
+    ],
     doctor_discussion_points: [],
     should_show_in_doctor_share: true,
   });

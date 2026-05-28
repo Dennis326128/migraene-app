@@ -184,15 +184,15 @@ describe('curateFindingsV22 — V2.2 hardening', () => {
     expect(r.findings[0].summary).not.toMatch(/100\s?%/);
   });
 
-  it('downgrades weather to insufficient when pain ratio > 0.9', () => {
+  it('softens weather to "low" (not insufficient) with cautious wording when pain ratio is very high', () => {
     const rj = { analysisV21: { data_basis: { pain_days: 89, documented_days: 90 } } };
     const r = curateFindingsV22([
       f({ id: 'w', category: 'weather', evidenceLevel: 'moderate',
           title: 'Druckabfall', summary: 'Druckabfälle fallen mit Schmerztagen zusammen.',
           doctorDiscussionPoints: ['Wetterprävention besprechen'] }),
     ], rj);
-    expect(r.findings[0].evidenceLevel).toBe('insufficient');
-    expect(r.findings[0].summary).toMatch(/Wetteranalyse bleibt vorsichtig/);
+    expect(r.findings[0].evidenceLevel).toBe('low');
+    expect(r.findings[0].summary).toMatch(/möglicher Verstärkungsfaktor/);
     expect(r.findings[0].summary).not.toMatch(/Mangel an schmerzfreien/i);
     expect(r.findings[0].summary).not.toMatch(/fehlende schmerzfreie/i);
     expect(r.openQuestions).toHaveLength(0);
@@ -258,5 +258,101 @@ describe('curateFindingsV22 — V2.2 UX hardening', () => {
     expect(r.findings[0].pinToTopical).toBeFalsy();
   });
 });
+
+describe('curateFindingsV22 — Phase 1b wording & dedup', () => {
+  const rjHighPain = { analysisV21: { data_basis: { pain_days: 29, documented_days: 30 } } };
+
+  it('merges burden + chronification into single high-pain card at painRatio ≥ 0.85', () => {
+    const r = curateFindingsV22([
+      f({ id: 'b', category: 'burden', evidenceLevel: 'moderate',
+          title: 'Sehr hohe Schmerzlast im gesamten Zeitraum',
+          summary: '29 Schmerztage von 30.' }),
+      f({ id: 'c', category: 'chronification', evidenceLevel: 'high',
+          title: 'Sehr hohe Schmerzfrequenz deutet auf Chronifizierungstendenz hin',
+          summary: 'Frequenz deutet auf chronische Migräne hin.',
+          doctorDiscussionPoints: ['Chronifizierung abklären'] }),
+    ], rjHighPain);
+    const burdenCards = r.findings.filter(x => x.category === 'burden');
+    const chronCards = r.findings.filter(x => x.category === 'chronification');
+    expect(burdenCards).toHaveLength(1);
+    expect(chronCards).toHaveLength(0);
+    expect(burdenCards[0].title).toBe('Sehr hohe Schmerzlast im gesamten Zeitraum');
+    expect(burdenCards[0].summary).toMatch(/29 von 30 Tagen/);
+    expect(burdenCards[0].summary).toMatch(/ärztlich eingeordnet/);
+    expect(burdenCards[0].doctorDiscussionPoints[0]).toMatch(/chronische Verlaufsform/);
+  });
+
+  it('rewrites diagnostic phrasings: "bereits bestehende" / "Diagnose" / "deutet auf chronische Migräne hin"', () => {
+    const r = curateFindingsV22([
+      f({ id: 'a', category: 'chronification', evidenceLevel: 'high',
+          title: 'Hinweis auf bereits bestehende chronische Migräne',
+          summary: 'Frequenz deutet auf chronische Migräne hin. Diagnose stellen.' }),
+    ]);
+    const out = r.findings[0];
+    const combined = `${out.title} ${out.summary}`;
+    expect(combined).not.toMatch(/bereits bestehende chronische Migräne/i);
+    expect(combined).not.toMatch(/deutet auf chronische Migräne hin/i);
+    expect(combined).not.toMatch(/Kriterium für chronische Migräne/i);
+    expect(combined).not.toMatch(/\bDiagnose\b/);
+    expect(combined).toMatch(/chronische Verlaufsform/i);
+  });
+
+  it('suppresses negative data_quality cards when friendly Dokumentationsfazit exists', () => {
+    const r = curateFindingsV22([
+      f({ id: 'data_quality.diary_coverage', category: 'data_quality',
+          evidenceLevel: 'moderate',
+          title: 'Dokumentationsfazit',
+          summary: 'Du hast an 30 von 30 Tagen Einträge dokumentiert. Gute Grundlage.' }),
+      f({ id: 'dq2', category: 'data_quality', evidenceLevel: 'insufficient',
+          title: 'Mangel an Detaildaten zu Tagesfaktoren und Symptomen',
+          summary: 'Es fehlen Tagesfaktoren.' }),
+      f({ id: 'dq3', category: 'data_quality', evidenceLevel: 'insufficient',
+          title: 'Mangel an schmerzfreien Vergleichstagen',
+          summary: 'Fehlende schmerzfreie Tage.' }),
+      f({ id: 'dq4', category: 'data_quality', evidenceLevel: 'insufficient',
+          title: 'Datenlage zu Stress macht Analyse unmöglich',
+          summary: 'Unzureichende Stress-Daten.' }),
+    ], rjHighPain);
+    const dq = r.findings.filter(x => x.category === 'data_quality');
+    expect(dq).toHaveLength(1);
+    expect(dq[0].id).toBe('data_quality.diary_coverage');
+    expect(r.suppressed.filter(s => s.reason === 'documentation_summary_supersedes')).toHaveLength(3);
+  });
+
+  it('weather at high pain ratio uses "low" with soft wording, no comparison-day asks', () => {
+    const r = curateFindingsV22([
+      f({ id: 'w', category: 'weather', evidenceLevel: 'moderate',
+          title: 'Druckabfall', summary: 'Druckabfälle fallen mit Schmerztagen zusammen.',
+          limitations: ['Wenige schmerzfreie Vergleichstage – Aussagen bleiben vorsichtig.'],
+          recommendedTrackingNext: ['Schmerzfreie Tage dokumentieren'],
+          doctorDiscussionPoints: ['Wetter besprechen'] }),
+    ], rjHighPain);
+    const w = r.findings[0];
+    expect(w.evidenceLevel).toBe('low');
+    expect(w.summary).toMatch(/möglicher Verstärkungsfaktor/);
+    const joined = [w.summary, ...w.limitations, ...w.recommendedTrackingNext].join(' ');
+    expect(joined).not.toMatch(/schmerzfreie Tage dokumentieren/i);
+    expect(joined).not.toMatch(/schmerzfreie Vergleichstage fehlen/i);
+    expect(joined).not.toMatch(/maskiert mögliche Wettereinflüsse/i);
+    expect(w.recommendedTrackingNext[0]).toMatch(/Subjektive Wetterempfindungen/);
+    expect(r.openQuestions).toHaveLength(0);
+  });
+
+  it('open questions stay capped at 5 with no duplicate chronification questions', () => {
+    const r = curateFindingsV22([
+      f({ id: 'b', category: 'burden', evidenceLevel: 'moderate', title: 'Last',
+          doctorDiscussionPoints: ['Hohe Kopfschmerzfrequenz ärztlich besprechen'] }),
+      f({ id: 'c', category: 'chronification', evidenceLevel: 'high', title: 'Chron',
+          doctorDiscussionPoints: ['Hohe Kopfschmerzfrequenz ärztlich besprechen', 'Chronifizierung besprechen'] }),
+      f({ id: 'm', category: 'medication_use', evidenceLevel: 'high',
+          doctorDiscussionPoints: ['Akutmedikation besprechen'] }),
+    ], rjHighPain);
+    expect(r.openQuestions.length).toBeLessThanOrEqual(5);
+    const lowered = r.openQuestions.map(q => q.toLowerCase());
+    expect(new Set(lowered).size).toBe(lowered.length);
+  });
+});
+
+
 
 

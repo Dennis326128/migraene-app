@@ -483,11 +483,12 @@ export function buildDeterministicFindings(
     },
     limitations: [
       "Wetter ist mehrdimensional; einzelne Variablen sind selten alleinige Auslöser.",
+    ],
+    recommended_tracking_next: [
       highPainBlock
-        ? "Wenige schmerzfreie Vergleichstage – Aussagen bleiben vorsichtig."
-        : (noComparison ? "Wenige schmerzfreie Vergleichstage." : ""),
-    ].filter(Boolean),
-    recommended_tracking_next: ["Weiter dokumentieren – auch beschwerdefreie Tage mit Druckabfall."],
+        ? "Subjektive Wetterempfindungen wie Hitze, Gewitter, Druckgefühl oder Wetterwechsel kurz notieren."
+        : "Weiter dokumentieren – auch beschwerdefreie Tage mit Druckabfall.",
+    ],
     doctor_discussion_points: [],
     should_show_in_doctor_share: true,
   });
