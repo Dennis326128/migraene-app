@@ -81,11 +81,9 @@ export function buildAnalysisReportV21(input: BuildReportV21Input): AnalysisRepo
     },
     limitations: [
       "Wettervariablen erlauben keine sichere kausale Aussage.",
-      "Ohne ausreichende Vergleichstage sind nur vorsichtige Hypothesen möglich.",
     ],
     recommended_tracking_next: [
       "Wetterdaten weiter automatisch erfassen.",
-      "Schmerzfreie Tage ebenfalls dokumentieren, damit Vergleichstage vorhanden sind.",
     ],
     doctor_discussion_points: [],
     should_show_in_doctor_share: true,
