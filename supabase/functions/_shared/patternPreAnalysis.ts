@@ -323,12 +323,14 @@ export interface DeterministicFindingsInput {
   /** Doctor-Share strips private free-text; this flag is recorded in
    *  data_basis.private_notes_excluded for transparency. */
   privateNotesExcluded: boolean;
+  /** Optional deterministic trend day records for "Verlauf & Veränderung". */
+  trendDays?: TrendDayRecord[];
 }
 
 export function buildDeterministicFindings(
   input: DeterministicFindingsInput,
 ): AnalysisReportV21 {
-  const { pre, meta, fromISO, toISO, privateNotesExcluded } = input;
+  const { pre, meta, fromISO, toISO, privateNotesExcluded, trendDays } = input;
   const daysTotal = meta.totalDays;
   const findings: AnalysisFinding[] = [];
 
