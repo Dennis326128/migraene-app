@@ -296,13 +296,14 @@ export async function buildPatternPreAnalysis(
     dataQuality: {
       painEntries: dataset.meta.painEntryCount,
       voiceEvents: dataset.meta.voiceEventCount,
-      weatherDays: byDay.size,
+      weatherDays: weatherDaysCapped,
       rangeDays,
       // V2.2 curation: do NOT use voiceEvents as a data-quality finding key;
       // we just report it here for completeness.
-      note: `${dataset.meta.painEntryCount} Schmerzeinträge über ${rangeDays} Tage. Wetterdaten: ${byDay.size}/${rangeDays} Tage. Tagesfaktoren: ${contextNoteCount} Einträge.`,
+      note: `${dataset.meta.painEntryCount} Schmerzeinträge über ${rangeDays} Tage. Wetterdaten: ${weatherDaysCapped}/${rangeDays} Tage. Tagesfaktoren: ${contextNoteCount} Einträge.`,
     },
   };
+
 
   return pre;
 }
