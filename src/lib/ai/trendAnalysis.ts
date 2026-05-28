@@ -61,6 +61,21 @@ export interface TrendResult {
   triptanStrategyNote: string | null;
   /** Did the data include any triptan signal across both windows? */
   triptanSignalPresent: boolean;
+  /**
+   * Optional short-term (10 vs 10 days) comparison computed when enough
+   * documented days exist. Used to surface recent triptan/medication
+   * changes that the longer 15-vs-15 or 30-vs-30 window can hide.
+   */
+  shortTerm?: {
+    recent: WindowStats;
+    previous: WindowStats;
+    metrics: {
+      headache: MetricTrend;
+      triptan: MetricTrend;
+      med: MetricTrend;
+    };
+    note: string | null;
+  };
 }
 
 export const TREND_MIN_DOCUMENTED = 7;
