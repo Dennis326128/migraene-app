@@ -961,16 +961,12 @@ export function MigrainePatternAnalysis() {
               </p>
             )}
             {isCachedResult && effectiveStale && staleReason !== 'range_mismatch' && (() => {
-              const reasonText = ageStale
-                ? `Diese Analyse ist älter als ${STALE_AFTER_DAYS} Tage. Eine neue Analyse kann aktuellere Hinweise liefern.`
-                : staleReason === 'version_mismatch'
-                  ? 'Analyse-Logik wurde verbessert. Erstelle eine neue Analyse, um die aktualisierte Auswertung zu erhalten.'
-                  : 'Seit dieser Analyse wurden Einträge geändert oder ergänzt.';
-              const badge = ageStale
-                ? `älter als ${STALE_AFTER_DAYS} Tage`
-                : staleReason === 'version_mismatch'
-                  ? 'Analyse-Logik aktualisiert'
-                  : 'Daten geändert';
+              const reasonText = staleReason === 'version_mismatch'
+                ? 'Analyse-Logik wurde verbessert. Erstelle eine neue Analyse, um die aktualisierte Auswertung zu erhalten.'
+                : 'Seit dieser Analyse wurden Einträge geändert oder ergänzt.';
+              const badge = staleReason === 'version_mismatch'
+                ? 'Analyse-Logik aktualisiert'
+                : 'Daten geändert';
               return (
                 <div className="rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 px-3 py-2 text-center space-y-1">
                   <p className="text-[11px] text-amber-900 dark:text-amber-200 flex items-center justify-center gap-1.5">
