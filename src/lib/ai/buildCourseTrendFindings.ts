@@ -176,7 +176,7 @@ export function buildCourseTrendFindings(
         triptanRise >= 2 ? "increased"
         : triptanDrop >= 2 ? "decreased"
         : "unclear",
-      time_window: "last_10_days",
+      time_window: "course_phase",
       plain_language_summary: st.note,
       deterministic_basis: {
         metric_names: [
