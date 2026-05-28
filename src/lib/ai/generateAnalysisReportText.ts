@@ -90,10 +90,20 @@ function buildV21Report(rj: Record<string, unknown>): string {
   lines.push("KI-Analyse – keine Diagnose");
   lines.push("");
 
-  // 1. Kurzfazit
-  const summary = typeof rj.summary === "string" ? rj.summary.trim() : "";
   let idx = 1;
-  if (summary) {
+
+  // 1. Zusammenfassung (deterministischer Fließtext, max. 5–7 Sätze)
+  const overview = buildAnalysisOverviewSummary({ responseJson: rj, findings: curated.findings });
+  if (overview) {
+    lines.push(`${idx}. Zusammenfassung`);
+    lines.push(overview);
+    lines.push("");
+    idx++;
+  }
+
+  // 1b. Optionales LLM-Kurzfazit (nur falls separat geliefert)
+  const summary = typeof rj.summary === "string" ? rj.summary.trim() : "";
+  if (summary && !overview) {
     lines.push(`${idx}. Kurzfazit`);
     lines.push(truncateSentences(summary, 3, 360));
     lines.push("");
