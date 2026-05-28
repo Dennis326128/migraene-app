@@ -156,8 +156,8 @@ function buildV21Report(rj: Record<string, unknown>): string {
   // Final safety net: sanitize the assembled report through the central
   // output policy so no banned wording can leak into the copied report,
   // even from legacy stored findings that bypassed the curation layer.
-  const raw = lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
-  const safe = raw
+  const rawReport = lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  const safe = rawReport
     .split("\n")
     .map((line) => {
       if (!line.trim()) return line;
