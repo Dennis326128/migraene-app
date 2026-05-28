@@ -315,6 +315,17 @@ export function buildAnalysisReportV21(input: BuildReportV21Input): AnalysisRepo
     should_show_in_doctor_share: true,
   });
 
+  // ── 8. Verlauf & Veränderung — deterministic trend findings ──────
+  if (input.trendDays && input.trendDays.length > 0) {
+    try {
+      const trend = computeTrendAnalysis(input.trendDays);
+      for (const tf of buildCourseTrendFindings(trend)) findings.push(tf);
+    } catch (e) {
+      // non-fatal
+      if (typeof console !== "undefined") console.warn("[buildAnalysisReportV21] trend emit failed:", e);
+    }
+  }
+
   // ── Section map ──────────────────────────────────────────────────
   const ids = (cats: AnalysisFinding["category"][]) =>
     findings.filter((f) => cats.includes(f.category)).map((f) => f.id);
@@ -355,6 +366,7 @@ export function buildAnalysisReportV21(input: BuildReportV21Input): AnalysisRepo
       strongest_findings: strongest,
       weaker_findings: weaker,
       burden_course: ids(["burden", "chronification"]),
+      course_trend: ids(["course_trend", "medication_trend", "mecfs_energy_trend"]),
       medication: ids(["medication_use", "medication_effect", "preventive_course"]),
       weather_environment: ids(["weather"]),
       mecfs_energy: ids(["mecfs_energy_pem"]),
@@ -363,8 +375,9 @@ export function buildAnalysisReportV21(input: BuildReportV21Input): AnalysisRepo
       data_quality: ids(["data_quality"]),
       open_questions: [],
       red_flags: ids(["red_flag"]),
-    },
+    } as AnalysisReportV21["section_map"],
   };
 
   return report;
 }
+
