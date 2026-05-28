@@ -423,6 +423,14 @@ export function curateFindingsV22(
     });
   }
 
+  // 4c) High-pain merge — collapse burden + chronification into a single,
+  // strong, non-diagnostic "Sehr hohe Schmerzlast" card at painRatio ≥ 0.85.
+  curated = mergeBurdenWithChronification(curated, responseJson, painRatio, suppressed);
+
+  // 4d) Documentation summary supersedes negative data_quality cards
+  // ("Mangel an …", "fehlende schmerzfreie Vergleichstage", "unzureichend …").
+  curated = suppressNegativeDataQualityWhenFriendlySummary(curated, suppressed);
+
   // 5) Weather single-source — keep best, drop rest
   const weatherItems = curated.filter(isWeatherFinding);
   if (weatherItems.length > 1) {
