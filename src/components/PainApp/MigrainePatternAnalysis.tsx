@@ -765,6 +765,17 @@ export function MigrainePatternAnalysis() {
     setError(null);
     setErrorCode(null);
     setIsWeakData(false);
+    // Hide any currently open analysis while a new one is running.
+    // The history list stays visible so the user can still pick a previous report.
+    setResult(null);
+    setIsCachedResult(false);
+    setIsStaleResult(false);
+    setStaleReason(null);
+    setIsRangeFallback(false);
+    setFallbackRange({ from: null, to: null });
+    setShowFallbackAnalysis(false);
+    setCachedAt(null);
+    setPickedHistory(null);
     setIsAnalyzing(true);
 
     try {
@@ -774,6 +785,7 @@ export function MigrainePatternAnalysis() {
       if (isAnalysisUnavailable(analysisResult)) {
         setIsWeakData(true);
       } else {
+        // Auto-open the new analysis
         setResult(analysisResult);
         setIsCachedResult(false);
         setIsStaleResult(false);
@@ -790,21 +802,22 @@ export function MigrainePatternAnalysis() {
       const messages: Record<string, string> = {
         AI_CONSENT_REQUIRED: 'Für die KI-Analyse ist deine Einwilligung erforderlich.',
         AI_DISABLED: 'KI-Analyse ist in den Einstellungen deaktiviert.',
-        QUOTA_EXCEEDED: 'Du hast dein monatliches Analyselimit erreicht. Vorhandene Analyse bleibt sichtbar.',
+        QUOTA_EXCEEDED: 'Du hast dein monatliches Analyselimit erreicht. Du kannst eine gespeicherte Analyse öffnen.',
         COOLDOWN_ACTIVE: 'Bitte kurz warten, bevor du erneut analysierst.',
         INSUFFICIENT_DATA: 'Im gewählten Zeitraum sind zu wenige Daten für eine Analyse vorhanden.',
         CONTEXT_TOO_LARGE: 'Der gewählte Zeitraum ist zu groß. Bitte einen kürzeren Zeitraum wählen.',
         TIMEOUT: 'Die Analyse hat zu lange gedauert. Bitte später erneut versuchen.',
         LLM_UNAVAILABLE: 'Der KI-Dienst ist vorübergehend nicht verfügbar. Bitte später erneut versuchen.',
         AUTH_REQUIRED: 'Sitzung abgelaufen. Bitte erneut anmelden.',
-        UNKNOWN: 'Die Analyse konnte nicht durchgeführt werden. Bitte versuche es später erneut.',
+        UNKNOWN: 'Die neue Analyse konnte nicht erstellt werden. Du kannst eine gespeicherte Analyse öffnen oder es später erneut versuchen.',
       };
       setError(messages[code ?? 'UNKNOWN'] ?? messages.UNKNOWN);
+      // Do NOT restore the previously visible analysis — let the user pick from history.
     } finally {
       setIsAnalyzing(false);
       setGateRefresh(n => n + 1); // reload quota/cooldown after attempt
     }
-  }, [from, to, decision.canRunAnalysis]);
+  }, [from, to, decision.canRunAnalysis, reloadHistory]);
 
   const cachedAtLabel = useMemo(() => {
     if (!cachedAt) return null;
