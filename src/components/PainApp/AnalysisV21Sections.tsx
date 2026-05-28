@@ -24,7 +24,7 @@ import {
 import { curateFindingsV22, applySectionCaps } from "@/lib/ai/curateFindingsV22";
 import { buildAnalysisOverviewSummary } from "@/lib/ai/buildAnalysisOverviewSummary";
 
-const MAX_HIGHLIGHTS = 5;
+const MAX_HIGHLIGHTS = 4;
 
 /**
  * Picks up to 5 highlight findings for the compact initial view, spanning
@@ -124,27 +124,9 @@ export function AnalysisV21Sections({ responseJson, doctorShare = false, showVoi
 
   if (!v21) return null;
 
-  // Synthetic weather-coverage card for "Datenqualität" — only when there is
-  // a documented gap. Avoids duplicating the weather story up top.
-  const weatherCoverageCard = React.useMemo<NormalizedAnalysisFinding | null>(() => {
-    const wd = Number(dataBasis?.weather_days);
-    const dd = Number(dataBasis?.documented_days);
-    if (!isFinite(wd) || !isFinite(dd) || dd <= 0) return null;
-    if (wd >= dd) return null;
-    return {
-      id: "synthetic.weather_coverage",
-      category: "data_quality",
-      section: "data_quality",
-      title: "Wetterabdeckung",
-      summary: `Wetterdaten lagen für ${wd} von ${dd} Tagen vor. Wetterhinweise sind deshalb eingeschränkt.`,
-      evidenceLevel: "low",
-      limitations: [],
-      recommendedTrackingNext: [],
-      doctorDiscussionPoints: [],
-      source: "deterministic",
-      shouldShowInDoctorShare: true,
-    };
-  }, [dataBasis]);
+  // Weather-coverage card removed by output policy — never inject coverage
+  // numbers ("Wetterdaten lagen für X von Y Tagen vor"). Weather is only
+  // shown as an inhaltlicher finding, never as a coverage statement.
 
   return (
     <div className="space-y-7">
@@ -206,13 +188,7 @@ export function AnalysisV21Sections({ responseJson, doctorShare = false, showVoi
               );
             }
 
-            let items = applySectionCaps(key, dedupSection(grouped[key]));
-            if (key === "data_quality" && weatherCoverageCard) {
-              const hasWeather = items.some((f) =>
-                /wetter/i.test(f.title) || /wetter/i.test(f.summary),
-              );
-              if (!hasWeather) items = [weatherCoverageCard, ...items];
-            }
+            const items = applySectionCaps(key, dedupSection(grouped[key]));
             if (items.length === 0) return null;
             return (
               <Section key={key} title={SECTION_LABEL[key]}>

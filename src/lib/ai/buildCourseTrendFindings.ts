@@ -66,7 +66,7 @@ export function buildCourseTrendFindings(
     limitations: hasEnoughData
       ? ["Verläufe brauchen längere Zeiträume, um wirklich stabil zu sein."]
       : ["Für einen belastbaren Vergleich werden mindestens zwei dokumentierte Wochen benötigt."],
-    recommended_tracking_next: ["Weiter regelmäßig dokumentieren – auch beschwerdefreie Tage."],
+    recommended_tracking_next: ["Weiter regelmäßig dokumentieren."],
     doctor_discussion_points: [],
     should_show_in_doctor_share: true,
   });
@@ -148,6 +148,55 @@ export function buildCourseTrendFindings(
       limitations: ["Belastungs-/Erholungsdetails (PEM) sind für klare Aussagen zusätzlich nötig."],
       recommended_tracking_next: ["Täglich kurz Energie-Level festhalten."],
       doctor_discussion_points: [],
+      should_show_in_doctor_share: true,
+    });
+  }
+
+  // Short-term (last 10 vs prev 10 days) triptan / acute-med signal.
+  // Only emitted when the short-term comparator produced an explicit note
+  // so we don't spam an extra card when nothing meaningful changed.
+  const st = trend.shortTerm;
+  if (st && st.note) {
+    const triptanDrop = st.previous.triptanDays - st.recent.triptanDays;
+    const triptanRise = st.recent.triptanDays - st.previous.triptanDays;
+    const headacheStillHigh = st.recent.headacheDays >= Math.ceil(st.recent.documentedDays * 0.6);
+    const isStrategy = triptanDrop >= 2 && headacheStillHigh && st.metrics.headache.label !== "decreased";
+    out.push({
+      id: "medication_trend.acute_use_short_term",
+      category: "medication_trend",
+      title: isStrategy
+        ? "Triptan-Einnahmen zuletzt seltener, Schmerzlast hoch"
+        : triptanRise >= 2
+        ? "Triptan-Einnahmen zuletzt häufiger"
+        : "Triptan-Einnahmen zuletzt seltener",
+      evidence_level: "low",
+      doctor_relevance: "high",
+      patient_relevance: "high",
+      direction:
+        triptanRise >= 2 ? "increased"
+        : triptanDrop >= 2 ? "decreased"
+        : "unclear",
+      time_window: "course_phase",
+      plain_language_summary: st.note,
+      deterministic_basis: {
+        metric_names: [
+          "triptan_days_recent_10", "triptan_days_previous_10",
+          "headache_days_recent_10", "headache_days_previous_10",
+        ],
+        numerator: st.recent.triptanDays,
+        denominator: Math.max(1, st.recent.documentedDays),
+        comparison_numerator: st.previous.triptanDays,
+        comparison_denominator: Math.max(1, st.previous.documentedDays),
+        effect_label: "not_calculated",
+        sample_size_label: sample(st.recent.documentedDays + st.previous.documentedDays),
+      },
+      limitations: [
+        "Kurze Fenster reagieren stark auf einzelne Tage; bitte als Hinweis, nicht als feste Aussage werten.",
+      ],
+      recommended_tracking_next: ["Triptan-Wirkung pro Einnahme kurz festhalten."],
+      doctor_discussion_points: isStrategy
+        ? ["Veränderte Akutstrategie der letzten 10 Tage besprechen."]
+        : [],
       should_show_in_doctor_share: true,
     });
   }

@@ -18,6 +18,7 @@
  * Rendering ändert. Eine neue Analyse ist nicht zwingend nötig.
  */
 import type { NormalizedAnalysisFinding } from "./normalizeAnalysisFindings";
+import { applyOutputPolicy } from "./analysisOutputPolicy";
 
 export interface CurateOptions {
   /** If true, do NOT hide Voice-event data_quality cards. */
@@ -493,7 +494,68 @@ export function curateFindingsV22(
     if (openQuestions.length >= MAX_OPEN_QUESTIONS) break;
   }
 
-  return { findings: curated, openQuestions, suppressed };
+  // 9) Inject friendly "Gute Dokumentationsgrundlage" data_quality card
+  // when documentation coverage is good (≥ 90% of the analysed period
+  // AND ≥ 14 documented days). Skip if a friendly card already exists.
+  curated = injectFriendlyDocSummaryIfNeeded(curated, responseJson, suppressed);
+
+  // 10) FINAL POLICY GUARD — single source of truth for banned content.
+  // Runs after all curation so no LLM/stored/legacy finding can leak
+  // forbidden wording (weather coverage counts, voice events,
+  // "schmerzfreie Vergleichstage", diagnose wording, …) into UI or report.
+  const hasFriendlyDocSummary = curated.some(
+    (f) => f.category === "data_quality" && f.id === "data_quality.diary_coverage",
+  );
+  const policy = applyOutputPolicy(curated, openQuestions, { hasFriendlyDocSummary });
+  for (const r of policy.removed) suppressed.push(r);
+
+  return { findings: policy.findings, openQuestions: policy.openQuestions, suppressed };
+}
+
+function getPeriodLengthDays(responseJson: unknown): number {
+  const period = (responseJson as any)?.analysisV21?.period;
+  const from = period?.from;
+  const to = period?.to;
+  if (typeof from !== "string" || typeof to !== "string") return 0;
+  const a = Date.parse(from);
+  const b = Date.parse(to);
+  if (!isFinite(a) || !isFinite(b) || b < a) return 0;
+  return Math.round((b - a) / 86400000) + 1;
+}
+
+function injectFriendlyDocSummaryIfNeeded(
+  curated: NormalizedAnalysisFinding[],
+  responseJson: unknown,
+  _suppressed: Array<{ id: string; reason: string }>,
+): NormalizedAnalysisFinding[] {
+  const docDays = getDocumentedDays(responseJson);
+  const periodLen = getPeriodLengthDays(responseJson);
+  if (docDays < 14 || periodLen <= 0) return curated;
+  const coverage = docDays / periodLen;
+  if (coverage < 0.9) return curated;
+  const exists = curated.some(
+    (f) => f.category === "data_quality" && f.id === "data_quality.diary_coverage",
+  );
+  if (exists) return curated;
+  const friendly: NormalizedAnalysisFinding = {
+    id: "data_quality.diary_coverage",
+    category: "data_quality",
+    section: "data_quality",
+    title: "Gute Dokumentationsgrundlage",
+    evidenceLevel: "moderate",
+    summary:
+      `Du hast an ${docDays} von ${periodLen} Tagen Einträge dokumentiert. ` +
+      `Die Grundlage für Verlauf und Belastung ist dadurch gut.`,
+    limitations: [],
+    recommendedTrackingNext: [
+      "Aktuelle Dokumentationsroutine beibehalten.",
+      "Für feinere Zusammenhänge optionale Angaben zu Schlaf, Stress, Energie/PEM oder Medikamentenwirkung ergänzen.",
+    ],
+    doctorDiscussionPoints: [],
+    source: "deterministic",
+    shouldShowInDoctorShare: true,
+  };
+  return [...curated, friendly];
 }
 
 /**
