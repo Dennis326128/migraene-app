@@ -1,9 +1,11 @@
-// Mirror of supabase/functions/_shared/trendAnalysis.ts — keep in sync.
-// Both files are pure, no imports. See server file for full documentation.
-export {};
+/**
+ * trendAnalysis.ts — deterministic "Verlauf & Veränderung"
+ *
+ * Pure, no I/O. Mirrored 1:1 in src/lib/ai/trendAnalysis.ts.
+ */
 
 export interface TrendDayRecord {
-  date: string;
+  date: string;             // YYYY-MM-DD
   documented: boolean;
   painMax: number | null;
   acuteMedTaken: boolean;
@@ -57,13 +59,137 @@ export interface TrendResult {
   };
   plainLanguage: string[];
   triptanStrategyNote: string | null;
+  /** Did the data include any triptan signal across both windows? */
+  triptanSignalPresent: boolean;
 }
 
 export const TREND_MIN_DOCUMENTED = 7;
 const STABLE_RATE_BAND = 0.10;
 const SIGNIFICANT_ABS = 1;
 
-export function selectWindows(days: TrendDayRecord[]): { recent: TrendDayRecord[]; previous: TrendDayRecord[]; recentLabel: string; previousLabel: string } | null {
+const TRIPTAN_PATTERN = /(triptan|sumatriptan|zolmitriptan|rizatriptan|naratriptan|almotriptan|eletriptan|frovatriptan|imigran|ascotop|maxalt|relpax|allegro|naramig)/i;
+
+export function isTriptanName(name: string | null | undefined): boolean {
+  if (!name) return false;
+  return TRIPTAN_PATTERN.test(String(name));
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Day-record builder (shared shape for App + Server)
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface PainEntryLike {
+  selected_date?: string | null;
+  pain_level?: string | null;
+  medications?: string[] | null;
+  me_cfs_severity_score?: number | null;
+  me_cfs_severity_level?: string | null;
+}
+export interface MedIntakeLike {
+  taken_date?: string | null;
+  taken_at?: string | null;
+  medication_name?: string | null;
+}
+
+const PAIN_LEVEL_NUM: Record<string, number> = {
+  "-": 0, leicht: 2, mittel: 5, stark: 7, sehr_stark: 9,
+};
+function painNum(level: string | null | undefined): number | null {
+  if (!level) return null;
+  if (/^\d+$/.test(level)) return parseInt(level, 10);
+  if (level in PAIN_LEVEL_NUM) return PAIN_LEVEL_NUM[level];
+  return null;
+}
+function mecfsSeverityToNum(level: string | null | undefined): number {
+  if (!level) return 0;
+  const l = level.toLowerCase();
+  if (l.includes("severe") || l.includes("schwer") || l.includes("crash")) return 4;
+  if (l.includes("moderate") || l.includes("mittel")) return 3;
+  if (l.includes("mild") || l.includes("leicht")) return 2;
+  if (l.includes("trace") || l.includes("gering")) return 1;
+  return 0;
+}
+function dayKey(s: string | null | undefined): string | null {
+  if (!s) return null;
+  return String(s).slice(0, 10);
+}
+
+export interface BuildTrendDaysInput {
+  fromDate: string;   // YYYY-MM-DD inclusive
+  toDate: string;     // YYYY-MM-DD inclusive
+  painEntries: PainEntryLike[];
+  medIntakes: MedIntakeLike[];
+}
+
+export function buildTrendDaysFromEntries(input: BuildTrendDaysInput): TrendDayRecord[] {
+  const { fromDate, toDate, painEntries, medIntakes } = input;
+  const days = new Map<string, TrendDayRecord>();
+
+  // Pre-fill every calendar day in range so windows are stable.
+  const start = new Date(`${fromDate}T00:00:00Z`).getTime();
+  const end = new Date(`${toDate}T00:00:00Z`).getTime();
+  for (let t = start; t <= end; t += 86_400_000) {
+    const d = new Date(t).toISOString().slice(0, 10);
+    days.set(d, {
+      date: d,
+      documented: false,
+      painMax: null,
+      acuteMedTaken: false,
+      triptanTaken: false,
+      otherAcuteTaken: false,
+      mecfsSignal: false,
+      mecfsSevere: false,
+    });
+  }
+
+  for (const p of painEntries) {
+    const k = dayKey(p.selected_date);
+    if (!k || !days.has(k)) continue;
+    const rec = days.get(k)!;
+    rec.documented = true;
+    const pm = painNum(p.pain_level);
+    if (pm !== null) {
+      rec.painMax = rec.painMax === null ? pm : Math.max(rec.painMax, pm);
+    }
+    // Per-entry medications array (legacy)
+    if (Array.isArray(p.medications)) {
+      for (const m of p.medications) {
+        if (typeof m !== "string" || !m.trim()) continue;
+        rec.acuteMedTaken = true;
+        if (isTriptanName(m)) rec.triptanTaken = true;
+        else rec.otherAcuteTaken = true;
+      }
+    }
+    const mecfsScore = typeof p.me_cfs_severity_score === "number"
+      ? p.me_cfs_severity_score
+      : mecfsSeverityToNum(p.me_cfs_severity_level);
+    if (mecfsScore > 0) {
+      rec.mecfsSignal = true;
+      if (mecfsScore >= 3) rec.mecfsSevere = true;
+    }
+  }
+
+  for (const m of medIntakes) {
+    const k = dayKey(m.taken_date ?? m.taken_at);
+    if (!k || !days.has(k)) continue;
+    const rec = days.get(k)!;
+    rec.documented = true;
+    rec.acuteMedTaken = true;
+    if (isTriptanName(m.medication_name)) rec.triptanTaken = true;
+    else rec.otherAcuteTaken = true;
+  }
+
+  return Array.from(days.values()).sort((a, b) => a.date.localeCompare(b.date));
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Window selection
+// ─────────────────────────────────────────────────────────────────────────
+
+export function selectWindows(days: TrendDayRecord[]): {
+  recent: TrendDayRecord[]; previous: TrendDayRecord[];
+  recentLabel: string; previousLabel: string;
+} | null {
   const sorted = [...days].sort((a, b) => a.date.localeCompare(b.date));
   const n = sorted.length;
   if (n < 14) return null;
@@ -116,9 +242,9 @@ export function computeWindowStats(days: TrendDayRecord[], label: string): Windo
   return { label, fromDate, toDate, windowDays, documentedDays, headacheDays, severeDays, medDays, triptanDays, otherAcuteDays, comboDays, severeWithoutAcute, mecfsDays, severeMecfsDays };
 }
 
-function metric(name: string, recent: number, recentDocumented: number, previous: number, previousDocumented: number): MetricTrend {
-  const recentRate = recentDocumented > 0 ? recent / recentDocumented : 0;
-  const previousRate = previousDocumented > 0 ? previous / previousDocumented : 0;
+function metric(name: string, recent: number, recentDoc: number, previous: number, previousDoc: number): MetricTrend {
+  const recentRate = recentDoc > 0 ? recent / recentDoc : 0;
+  const previousRate = previousDoc > 0 ? previous / previousDoc : 0;
   const rateDiff = recentRate - previousRate;
   const absDiff = recent - previous;
   let label: TrendLabel;
@@ -140,7 +266,9 @@ export function computeTrendAnalysis(days: TrendDayRecord[]): TrendResult | null
   if (!sel) return null;
   const recent = computeWindowStats(sel.recent, sel.recentLabel);
   const previous = computeWindowStats(sel.previous, sel.previousLabel);
-  const hasEnoughData = recent.documentedDays >= TREND_MIN_DOCUMENTED && previous.documentedDays >= TREND_MIN_DOCUMENTED;
+  const hasEnoughData =
+    recent.documentedDays >= TREND_MIN_DOCUMENTED &&
+    previous.documentedDays >= TREND_MIN_DOCUMENTED;
   const metrics = {
     headache: metric("headache_days", recent.headacheDays, recent.documentedDays, previous.headacheDays, previous.documentedDays),
     severe: metric("severe_days", recent.severeDays, recent.documentedDays, previous.severeDays, previous.documentedDays),
@@ -149,44 +277,52 @@ export function computeTrendAnalysis(days: TrendDayRecord[]): TrendResult | null
     otherAcute: metric("other_acute_days", recent.otherAcuteDays, recent.documentedDays, previous.otherAcuteDays, previous.documentedDays),
     mecfs: metric("mecfs_days", recent.mecfsDays, recent.documentedDays, previous.mecfsDays, previous.documentedDays),
   };
+  const triptanSignalPresent = recent.triptanDays + previous.triptanDays > 0;
   const plain: string[] = [];
   if (hasEnoughData) {
-    plain.push(painSentence(metrics.headache, metrics.severe, recent, previous));
-    plain.push(medSentence(metrics.med, metrics.triptan, recent, previous));
+    plain.push(painSentence(metrics.headache, recent, previous));
+    plain.push(medSentence(metrics.med, metrics.triptan, triptanSignalPresent, recent, previous));
     plain.push(mecfsSentence(metrics.mecfs, recent, previous));
   } else {
-    plain.push("Die Vergleichsfenster sind zu klein für eine belastbare Trendaussage. Mit längerer Dokumentation werden Verläufe sichtbar.");
+    plain.push("Für eine belastbare Trendbewertung ist der Zeitraum zu kurz. Mit längerer Dokumentation werden Verläufe sichtbar.");
   }
   let triptanStrategyNote: string | null = null;
-  if (hasEnoughData && metrics.triptan.label === "decreased" && metrics.severe.label !== "decreased" && metrics.severe.recent >= 1) {
+  if (
+    hasEnoughData &&
+    triptanSignalPresent &&
+    metrics.triptan.label === "decreased" &&
+    metrics.severe.label !== "decreased" &&
+    metrics.severe.recent >= 1
+  ) {
     triptanStrategyNote =
-      "Triptan-Tage sind zuletzt seltener, die Schmerzlast bleibt aber ähnlich hoch. " +
-      "Die Daten sprechen eher für eine veränderte Akutstrategie als für eine klare Entlastung.";
+      "Die Triptan-Einnahmen waren zuletzt niedriger, während die Schmerzlast hoch blieb. " +
+      "Das spricht eher für eine veränderte Akutstrategie als für eine klare Entlastung.";
     plain.push(triptanStrategyNote);
   }
-  return { hasEnoughData, recent, previous, metrics, plainLanguage: plain.filter(Boolean), triptanStrategyNote };
+  return {
+    hasEnoughData, recent, previous, metrics,
+    plainLanguage: plain.filter(Boolean),
+    triptanStrategyNote, triptanSignalPresent,
+  };
 }
 
-function painSentence(headache: MetricTrend, severe: MetricTrend, r: WindowStats, p: WindowStats): string {
-  if (headache.label === "stable" && severe.label === "stable") {
-    return `Die Schmerzlast blieb zuletzt ähnlich (Schmerztage ${r.headacheDays}/${r.documentedDays} vs. zuvor ${p.headacheDays}/${p.documentedDays}).`;
-  }
-  if (headache.label === "decreased") {
-    return `Die Schmerztage gingen zuletzt zurück (${r.headacheDays}/${r.documentedDays} vs. zuvor ${p.headacheDays}/${p.documentedDays}).`;
-  }
-  if (headache.label === "increased") {
-    return `Die Schmerztage nahmen zuletzt zu (${r.headacheDays}/${r.documentedDays} vs. zuvor ${p.headacheDays}/${p.documentedDays}).`;
-  }
+function painSentence(headache: MetricTrend, r: WindowStats, p: WindowStats): string {
+  if (headache.label === "stable") return `Die Schmerzlast blieb zuletzt ähnlich (Schmerztage ${r.headacheDays}/${r.documentedDays} vs. zuvor ${p.headacheDays}/${p.documentedDays}).`;
+  if (headache.label === "decreased") return `Die Schmerztage gingen zuletzt zurück (${r.headacheDays}/${r.documentedDays} vs. zuvor ${p.headacheDays}/${p.documentedDays}).`;
+  if (headache.label === "increased") return `Die Schmerztage nahmen zuletzt zu (${r.headacheDays}/${r.documentedDays} vs. zuvor ${p.headacheDays}/${p.documentedDays}).`;
   return `Die Schmerzlast bleibt insgesamt hoch (Schmerztage ${r.headacheDays}/${r.documentedDays} vs. zuvor ${p.headacheDays}/${p.documentedDays}).`;
 }
 
-function medSentence(med: MetricTrend, triptan: MetricTrend, r: WindowStats, p: WindowStats): string {
+function medSentence(med: MetricTrend, triptan: MetricTrend, triptanPresent: boolean, r: WindowStats, p: WindowStats): string {
   const pieces: string[] = [];
-  if (triptan.label === "decreased") pieces.push(`Triptan-Einnahmen waren zuletzt seltener (${r.triptanDays} vs. ${p.triptanDays} Tage).`);
-  else if (triptan.label === "increased") pieces.push(`Triptan-Einnahmen waren zuletzt häufiger (${r.triptanDays} vs. ${p.triptanDays} Tage).`);
-  else if (triptan.recent + triptan.previous > 0) pieces.push(`Triptan-Einnahmen blieben stabil (${r.triptanDays} vs. ${p.triptanDays} Tage).`);
+  if (triptanPresent) {
+    if (triptan.label === "decreased") pieces.push(`Triptan-Einnahmen waren zuletzt seltener (${r.triptanDays} vs. ${p.triptanDays} Tage).`);
+    else if (triptan.label === "increased") pieces.push(`Triptan-Einnahmen waren zuletzt häufiger (${r.triptanDays} vs. ${p.triptanDays} Tage).`);
+    else pieces.push(`Triptan-Einnahmen blieben stabil (${r.triptanDays} vs. ${p.triptanDays} Tage).`);
+  }
   if (med.label === "decreased") pieces.push(`Akutmedikation insgesamt seltener (${r.medDays} vs. ${p.medDays} Tage).`);
   else if (med.label === "increased") pieces.push(`Akutmedikation insgesamt häufiger (${r.medDays} vs. ${p.medDays} Tage).`);
+  else if (!triptanPresent) pieces.push(`Akutmedikation insgesamt stabil (${r.medDays} vs. ${p.medDays} Tage).`);
   if (pieces.length === 0) return `Akutmedikation und Triptane blieben im Vergleich stabil.`;
   return pieces.join(" ");
 }
