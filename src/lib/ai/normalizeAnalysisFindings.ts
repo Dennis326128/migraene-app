@@ -190,9 +190,9 @@ export function groupFindingsBySection(
   findings: NormalizedAnalysisFinding[],
 ): Record<AnalysisSectionKey, NormalizedAnalysisFinding[]> {
   const grouped: Record<AnalysisSectionKey, NormalizedAnalysisFinding[]> = {
-    strongest: [], weaker: [], medication: [], weather: [], mecfs: [],
-    lifestyle: [], symptoms: [], time: [], interaction: [], data_quality: [],
-    open_questions: [], limits: [],
+    strongest: [], course_trend: [], weaker: [], medication: [], weather: [],
+    mecfs: [], lifestyle: [], symptoms: [], time: [], interaction: [],
+    data_quality: [], open_questions: [], limits: [],
   };
   for (const f of findings) {
     let target: AnalysisSectionKey;
