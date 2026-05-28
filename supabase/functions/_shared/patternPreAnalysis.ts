@@ -26,6 +26,9 @@
 
 import type { SupabaseClient } from "jsr:@supabase/supabase-js@2";
 import type { ServerDataset } from "./serverAnalysisDataset.ts";
+import { computeTrendAnalysis, type TrendDayRecord, type TrendResult } from "./trendAnalysis.ts";
+import { computeDocumentationSummary } from "./documentationSummary.ts";
+
 
 // ─────────────────────────────────────────────────────────────────────────
 // Types (mirrors src/lib/voice/analysisEngine.ts PreAnalysis)
