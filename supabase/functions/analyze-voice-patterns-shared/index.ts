@@ -185,11 +185,17 @@ Deno.serve(async (req) => {
     const preAnalysis = await buildPatternPreAnalysis(supabase, ownerUserId, dataset);
     const fromISO = `${from}T00:00:00.000Z`;
     const toISO = `${to}T23:59:59.999Z`;
+    const trendDays = buildTrendDaysFromEntries({
+      fromDate: from, toDate: to,
+      painEntries: dataset.raw.painEntries,
+      medIntakes: dataset.raw.medIntakes,
+    });
     const v21Report = buildDeterministicFindings({
       pre: preAnalysis,
       meta: dataset.meta,
       fromISO, toISO,
       privateNotesExcluded: true, // Doctor-Share NEVER includes private free-text notes
+      trendDays,
     });
 
     // 7b. Same V2.2 builder as App — produces identical envelope shape.
