@@ -171,6 +171,11 @@ const TOPICAL_ONLY_CATEGORIES = new Set([
   "cycle_hormonal",
   "time_pattern",
   "interaction",
+  // Phase 1 — trend categories belong into "Verlauf & Veränderung",
+  // not into "Auffälligste Hinweise" / "Weitere Zusammenhänge".
+  "course_trend",
+  "medication_trend",
+  "mecfs_energy_trend",
 ]);
 
 const LOCALIZATION_RE = /\b(stirn|nacken|schl(?:ä|ae)fe|hinterkopf|lokalisation|schmerzort)/i;
