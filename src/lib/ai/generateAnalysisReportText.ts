@@ -24,6 +24,7 @@ import {
 } from "./normalizeAnalysisFindings";
 import { curateFindingsV22 } from "./curateFindingsV22";
 import { buildAnalysisOverviewSummary } from "./buildAnalysisOverviewSummary";
+import { sanitizeOutputText } from "./analysisOutputPolicy";
 
 const EVIDENCE_LABEL = {
   high: "starker Hinweis",
