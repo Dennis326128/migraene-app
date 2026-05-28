@@ -65,16 +65,21 @@ export function computeWeatherCoverage(
   const byDay = new Map<string, WeatherDayRecord>();
   for (const w of input.weather) {
     if (!w.snapshot_date) continue;
-    // Keep the most informative row per day (usable wins over partial).
-    const prev = byDay.get(w.snapshot_date);
-    if (!prev || (!isUsable(prev) && isUsable(w))) byDay.set(w.snapshot_date, w);
+    // Normalise to YYYY-MM-DD and ignore anything outside the requested window.
+    const key = String(w.snapshot_date).slice(0, 10);
+    if (key < input.fromISO || key > input.toISO) continue;
+    const prev = byDay.get(key);
+    if (!prev || (!isUsable(prev) && isUsable(w))) byDay.set(key, w);
   }
 
-  const daysWithWeather = days.filter((d) => byDay.has(d)).length;
-  const daysWithUsableWeather = days.filter((d) => {
+  // Hard cap on totalDays so we never report "31 of 30".
+  const rawDaysWithWeather = days.filter((d) => byDay.has(d)).length;
+  const rawDaysWithUsableWeather = days.filter((d) => {
     const r = byDay.get(d);
     return !!r && isUsable(r);
   }).length;
+  const daysWithWeather = Math.min(rawDaysWithWeather, totalDays);
+  const daysWithUsableWeather = Math.min(rawDaysWithUsableWeather, totalDays);
 
   const missingDays = days.filter((d) => !byDay.has(d));
   const painDaySet = new Set(input.painDays ?? []);
@@ -100,3 +105,4 @@ export function computeWeatherCoverage(
     status,
   };
 }
+
