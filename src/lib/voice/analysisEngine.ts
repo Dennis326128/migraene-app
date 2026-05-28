@@ -380,11 +380,35 @@ export async function buildAnalysisPromptData(range: AnalysisTimeRange): Promise
 
   const tokenEstimate = estimateTokens(serialized);
 
+  // Build deterministic trend days from raw entries (App-side SSOT).
+  let trendDays: TrendDayRecord[] = [];
+  try {
+    trendDays = buildTrendDaysFromEntries({
+      fromDate: range.from.toISOString().slice(0, 10),
+      toDate: range.to.toISOString().slice(0, 10),
+      painEntries: dataset.painEntries.map((p: any) => ({
+        selected_date: p.selected_date,
+        pain_level: p.pain_level,
+        medications: p.medications,
+        me_cfs_severity_score: p.me_cfs_severity_score ?? null,
+        me_cfs_severity_level: p.me_cfs_severity_level ?? null,
+      })),
+      medIntakes: dataset.medicationIntakes.map((m: any) => ({
+        taken_date: m.taken_date,
+        taken_at: m.taken_at,
+        medication_name: m.medication_name,
+      })),
+    });
+  } catch (e) {
+    console.warn('[AnalysisEngine] trendDays build failed (non-fatal):', e);
+  }
+
   return {
     serialized,
     tokenEstimate,
     wasTruncated,
     preAnalysis,
+    trendDays,
     meta: {
       totalDays: ctx.meta.totalDays,
       voiceEventCount: dataset.meta.voiceEventCount,
