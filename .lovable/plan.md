@@ -1,117 +1,110 @@
-# Release-Audit: KI-Analyse & Datenschutz (Miary)
+## Phase 1 — Echte Veränderung erkennbar machen
 
-## 1. KI-Anbieter
+Ziel: deterministische Trend-Berechnung + freundliches Dokumentationsfazit + Wettertage-Bug. Keine LLM-Umtexterei, sondern echte Zahlen.
 
-**Tatsächlich genutzt:** Ausschließlich **Lovable AI Gateway** (`https://ai.gateway.lovable.dev/v1/chat/completions`) mit Modell **`google/gemini-2.5-flash`** (in `analysisCore.ts` an einer Stelle noch `'none'` als Fallback-Tag).
-**OpenAI wird NICHT genutzt** – kein einziger Aufruf an `api.openai.com` im Repo. Der einzige `OpenAI`-String stammt aus `sttConfig.ts` (Konfigurationstyp für künftigen optionalen Whisper-Provider, derzeit `browser_only`-Default, kein Key aktiv).
+### 1. Wettertage-Bug (Aufgabe 4 — sofort)
 
-→ Privacy Policy & Auftragsverarbeiter-Liste müssen **Google (Gemini via Lovable AI Gateway)** nennen, nicht OpenAI.
+**Ursache:** `byDay.size` in `patternPreAnalysis.ts` und `weatherCoverage.ts` zählt unique `snapshot_date`, aber durch UTC/Berlin-Boundary kann eine 31. Datumszeile in den Filter rutschen (`gte fromDate / lte toDate` → Edge-Function bekommt 31 Tage). Außerdem wird die Anzeige nirgends auf `daysTotal` gekappt.
 
-## 2. API-Key Speicherort
+**Fix (1 Stelle, mit Wirkung überall):**
+- `patternPreAnalysis.ts`: vor dem Befüllen von `byDay` `snapshot_date` auf die ersten 10 Zeichen normalisieren und nur akzeptieren, wenn `>= fromDate && <= toDate`.
+- Bei Set/Display: `const weatherDaysCapped = Math.min(byDay.size, rangeDays)` → wird statt `byDay.size` ausgeliefert.
+- Gleicher Cap in `src/lib/ai/buildAnalysisReportV21.ts` (Client-Pfad) und `src/lib/ai/weatherCoverage.ts` (`daysWithWeather/daysWithUsableWeather`).
+- Texte bleiben „X von Y Tagen Wetterdaten", aber X ≤ Y garantiert.
 
-- `LOVABLE_API_KEY` liegt **ausschließlich** in Supabase Edge Function Env (`Deno.env.get('LOVABLE_API_KEY')`) – bestätigt in allen 9 AI-Functions.
-- Kein Vorkommen von `OPENAI_API_KEY`, `sk-…`, `LOVABLE_API_KEY` im Frontend (`src/`), `public/`, `.env` (nur Anon-Key + Public Config). Bestätigt sauber.
+V2.3 (Cron/Backfill/Migration/Provider) bleibt explizit unangetastet.
 
-## 3. Funktionen mit LLM-Aufruf
+### 2. Neue Sektion „Verlauf & Veränderung" (Aufgabe 1+2)
 
-| Edge Function | Frontend-Aufrufer | Zweck |
-|---|---|---|
-| `analyze-voice-patterns` | `src/lib/voice/analysisEngine.ts` | Pattern-Analyse App |
-| `analyze-voice-patterns-shared` | `src/pages/DoctorReportView.tsx` | Pattern-Analyse Doctor-Share |
-| `analyze-voice-notes` | (Voice-Pipeline) | Sprachnotiz-Klassifikation |
-| `generate-ai-diary-report` | `src/components/PainApp/DiaryReport.tsx` | Tagebuch-Report |
-| `generate-diary-analysis` | – | Variante |
-| `generate-doctor-summary` | `DiaryReport.tsx` | Arztbrief-Zusammenfassung |
-| `ask-assistant` | `VoiceQAOverlay.tsx` | Q&A-Assistent |
-| `ai-draft-from-text` | `llmDraftEngine.ts` | Draft-Komposition |
-| `parse-medication-effect` | (Medikamentenfluss) | Medi-Wirkung |
-| `extract-voice-entry` / `extract-context-segments` | Voice-Pipeline | Extraktion |
+Neues Modul `supabase/functions/_shared/report-v2/analysis/trendAnalysis.ts` (Deno, reine Funktion). Spiegel-Implementation als `src/lib/ai/trendAnalysis.ts` für Client-Pfad. Beide importieren denselben Algorithmus über shared Quelle (Deno-Datei kopiert in `_shared` + Re-export aus `src/lib/ai`).
 
-Alle Aufrufe gehen **server-seitig**. Doctor-Share ruft die `*-shared`-Edge-Function via HMAC-Token (`x-doctor-access`) auf – **kein LLM-Call aus dem Doctor-Frontend**.
+**Eingaben:** sortierte `DayRecord[]` (existiert in `report-v2/aggregate.ts → countsByDay`) + `range`.
 
-## 4. Welche Daten gehen an den Anbieter
+**Fenster-Splits (deterministisch):**
+- `range ≤ 35 Tage` → erste Hälfte vs. zweite Hälfte (gleich groß, ungerade Tag fällt weg)
+- `range 36–120 Tage` → letzter 30-Tage-Block vs. vorherige 30 + (optional) letzter Monat vs. 2 vorherige Monate
+- `range > 120 Tage` → letzter Monat vs. vorheriger Monat
+- Minimum: jedes Fenster ≥ 7 dokumentierte Tage, sonst `evidence: insufficient`, kein Trend-Claim
 
-- Symptome, Schmerz-Level, Medikationen, Trigger, Aura, Wetter, Schlaf, Zyklus, freie Notizen, Sprach-Transkripte, optionale private Notizen (`includePrivateNotes: true` in `analyze-voice-patterns` App-Pfad).
-- **Doctor-Share-Pfad** (`patternAnalysisBuilder` mit `includePrivateNotes: false`) filtert private Notizen korrekt heraus (SSOT).
-- **Direkte Identifikatoren:** Es wird **kein E-Mail, Name, User-ID, Geräte-ID** in den LLM-Prompt geschrieben. User-ID erscheint nur **gekürzt (`slice(0,8)…`)** in Server-Logs, nicht im Prompt.
+**Pro Fenster berechnete Metriken (`WindowStats`):**
+`headacheDays, severeDays(≥7), medDays, triptanDays, otherAcuteDays, comboDays, severeWithoutAcute, triptanAvoidanceDays, mecfsDays, severeMecfsDays`. Raten gegen dokumentierte Tage im Fenster.
 
-## 5. Datenminimierung – Empfehlungen
+**Trendlabel pro Metrik:**
+- |Δrate| < 0.1 → `stable`
+- Δrate ≤ −0.1 und Δabs ≥ 1 → `decreased`
+- Δrate ≥ +0.1 und Δabs ≥ 1 → `increased`
+- sonst `unclear`
 
-- **App-Pfad sendet private Notizen** (`includePrivateNotes: true`). Memory sagt: „Private Notizen werden aus Exports/Reports ausgeschlossen". Für KI-Analyse aktuell eingeschlossen – sollte **explizit per separatem Consent-Toggle** oder default-`false` werden. Mind. in Privacy Policy klar deklarieren.
-- Empfehlung: Konfigurations-Flag `aiIncludePrivateNotes` in `user_settings`, default `false`.
+**Neue Findings (V2.1-konform, evidence_level=low/insufficient):**
+- `trend.pain_burden` (Schmerztage + severeDays)
+- `trend.acute_medication` (medDays gesamt)
+- `trend.triptan_use` (triptanDays + Intakes)
+- `trend.mecfs_energy`
+- Spezial-Logik Triptan-vs-Schmerz: wenn `triptanDays decreased` UND `severeDays not decreased` → Text:
+  „Die Daten sprechen eher für eine veränderte Akutstrategie als für eine klare Entlastung." (kein medizinischer Rat).
 
-## 6. Logging
+Findings werden im Builder (`buildDeterministicFindings` + Client `buildAnalysisReportV21`) eingehängt; neue `section_map`-Sektion `trend_changes`.
 
-**Sauber:**
-- `analyze-voice-patterns`: nur User-ID-Prefix + Zähl-Metadaten, keine Inhalte.
-- `aiConsentGate`: nur ID-Prefix.
-- `analyze-voice-patterns-shared` Kommentar dokumentiert „No PHI/health data, transcripts, or notes in logs".
+### 3. Dokumentationsfazit (Aufgabe 3)
 
-**Zu prüfen / Risiko:**
-- `ask-assistant/index.ts:73` → `console.log("📝 Ask Assistant: \"${question.substring(0, 50)}...\"")` → **Userfrage (potentiell Gesundheitsdaten) im Log**. Vor Release entfernen oder auf reine Längenangabe reduzieren.
-- `ask-assistant/index.ts:109` → nur Zähler, OK.
-- `generate-ai-diary-report` loggt nur Zähler & RequestId, OK.
-- `llmDraftEngine.ts:233` Client-Log „Calling ai-draft-from-text" – harmlos (kein Inhalt), kann bleiben oder hinter DEV-Flag.
+Neue Builder-Sektion + Section-Map-Key `documentation_summary`.
 
-→ **Fix:** `ask-assistant` Logzeile 73 entfernen.
+**Berechnet aus existierenden Quellen** (kein neuer SQL):
+`anyEntryDays = unique(dates aus pain_entries ∪ medication_intakes ∪ mecfs/contextNotes)`, `painDays`, `medDays`, `mecfsDays`, `contextNoteCount`, `effectRatingCount` (aus `medication_effects` falls dataset enthält), `weatherDaysCapped`.
 
-## 7. Consent
+**Stufen-Logik:**
+- `anyEntryDays/rangeDays ≥ 0.8` → „Du hast an {n} von {N} Tagen Einträge dokumentiert. Die Grundlage für Verlauf und Belastung ist dadurch gut."
+- `0.5–0.8` → „solide Grundlage", neutrale Detail-Hinweise
+- `< 0.5` → freundlich „Für stabile Aussagen wären mehr Tage hilfreich" (kein „unzureichend", kein „Mangel")
 
-- DB-RPC `has_ai_consent` + `requireAiConsent`-Gate in **allen** LLM-Edge-Functions vorhanden. Returns 403 `AI_CONSENT_REQUIRED` wenn fehlt.
-- Doctor-Share zusätzlich `evaluateShareAnalysisGate` (eigener Share-Toggle `include_ai_analysis`).
-- Medical Disclaimer Komponenten existieren („ersetzt keine ärztliche Beratung/Diagnose/Behandlung").
-- **Lücke:** Im Consent-Text muss explizit stehen, dass **Gesundheitsdaten zur KI-Analyse an Google (Gemini) via Lovable AI Gateway** übermittelt werden (Drittanbieter, USA-Bezug → Art. 9 + Art. 49 DSGVO). Aktuell generisch „KI-gestützte Funktionen". → **Pflicht-Fix vor Release.**
+**Detail-Hinweise (immer freundlich, additiv):** PEM/Belastung, Schlaf, Stress, Medikamentenwirkung — nur wenn Coverage < 0.5 jeweils.
 
-## 8. Privacy Policy – Lücken
+**Negative Begriffe verboten** in dieser Sektion: `unzureichend`, `Mangel`, `fehlende schmerzfreie`, `erschwert die Identifizierung`. Lint-Test in Vitest stellt das sicher.
 
-`src/pages/PrivacyPolicy.tsx` enthält Platzhalter `[SUBPROCESSORS_LIST]` (Zeile 232) und nennt **weder Google noch Lovable noch Gemini**. Zwingend zu ergänzen:
+### 4. Wetter-Formulierung weicher (Aufgabe 4 zweiter Teil)
 
-**Abschnitt 6 (Auftragsverarbeiter):**
-> **6.4 KI-Analyse:** Für die KI-gestützte Musteranalyse, Sprach-Transkription und Berichts­generierung werden pseudonymisierte Tagebuch­daten (Symptome, Schmerz­werte, Medikation, Trigger, Wetter, ggf. Sprach-Transkripte) an die **Lovable AI Gateway (Lovable GmbH)** übermittelt, die als Auftragsverarbeiter nach Art. 28 DSGVO das Modell **Google Gemini 2.5 Flash (Google Ireland Ltd. / Google LLC, USA)** als Sub-Auftragsverarbeiter einsetzt. Rechtsgrundlage: ausdrückliche Einwilligung nach Art. 9 Abs. 2 lit. a DSGVO. Übermittlung in Drittland (USA) erfolgt auf Basis EU-US Data Privacy Framework / Standard­vertragsklauseln. Es werden **keine direkten Identifikatoren** (Name, E-Mail, User-ID) übermittelt. Die Einwilligung ist jederzeit in den Einstellungen widerrufbar.
+In `weather.pressure_drop` Finding: wenn `painRate >= 0.85` (fast nur Schmerztage), `plain_language_summary` ersetzt durch:
+„Die Wetteranalyse bleibt vorsichtig, weil der Zeitraum fast durchgehend schmerzbelastet war."
+`limitations` ohne „Mangel an schmerzfreien Vergleichstagen".
 
-**Abschnitt 7.1:** ergänzen, dass Sprach­erkennung derzeit ausschließlich **lokal im Browser** läuft (kein Provider-Upload), solange `STT_MODE=browser_only`.
+Wettervariablen (Temp/Druck/Δ24h/Humidity) bleiben in `deterministic_basis` für spätere V2.3-Auswertung.
 
-## 9. Doctor Share
+### 5. UI-Reihenfolge (Aufgabe 5)
 
-- Ärzte können KI-Analyse **neu triggern** (`handleGenerateAi` in `DoctorReportView.tsx`).
-- Trigger geht **server-seitig** via `analyze-voice-patterns-shared` mit HMAC-Token; Owner-User-ID wird **nicht aus Request-Body**, sondern aus validiertem Share-Payload gelesen.
-- Gates: Doctor-Token gültig → Share nicht widerrufen → Owner-`has_ai_consent` → Share-Flag `include_ai_analysis`. Sauber.
-- Privacy Policy muss erwähnen, dass auch der Arzt KI-Analysen erzeugen kann (geknüpft an Patienten-Consent).
+`src/features/ai-reports/components/AIReportDetail.tsx` + `src/lib/ai/generateAnalysisReportText.ts`: neue Section-Reihenfolge:
+1 Datenbasis · 2 Auffälligste Hinweise · **3 Verlauf & Veränderung** · 4 Medikamente & Wirkung · 5 Wetter & Umwelt · 6 ME/CFS · 7 Schlaf/Stress · 8 Symptome/Aura · 9 Zeitmuster · **10 Dokumentationsfazit** (ersetzt „Datenqualität"-Box) · 11 Offene Fragen · 12 Grenzen.
 
-## 10. Release-Fazit
+`SECTIONS`-Array in `generateAnalysisReportText.ts` wird umsortiert, `data_quality`-Eintrag → `documentation_summary` mit Titel „Dokumentationsfazit". „Details anzeigen"-Logik unverändert.
 
-### A) Bereits korrekt
-- Kein OpenAI; alle LLM-Calls server-seitig via Lovable AI Gateway / Gemini.
-- `LOVABLE_API_KEY` nur in Edge-Function-Env, nicht im Client.
-- Consent-Gate (`requireAiConsent`) in allen 9 AI-Functions.
-- Doctor-Share-Trigger sauber server-seitig, Owner-ID nicht aus Body, separater Share-Gate.
-- User-ID nur gekürzt geloggt, keine Prompts in Function-Logs (mit 1 Ausnahme).
-- `includePrivateNotes:false` für Doctor-Share, `true` für App-Eigentümer.
+### 6. Bericht/Kopieren (Aufgabe 6)
 
-### B) Vor App-Store-Release zu ändern (Pflicht)
-1. **`ask-assistant/index.ts` Zeile 73** – Klartext-Frage-Logging entfernen.
-2. **Privacy Policy** (`src/pages/PrivacyPolicy.tsx`):
-   - Platzhalter `[SUBPROCESSORS_LIST]` durch echte Liste ersetzen.
-   - Neuer Abschnitt 6.4 (Google Gemini / Lovable AI Gateway, Drittland USA, Rechtsgrundlage Art. 9 II a + Art. 49).
-   - 7.1 präzisieren (lokale Browser-STT).
-   - 7.2 ergänzen: Doctor-Share kann ebenfalls KI-Analyse triggern.
-3. **Consent-Text** (Komponenten unter `src/features/consent/`) muss Google/Gemini + Drittland-Hinweis enthalten – aktuell zu generisch.
-4. **App-Pfad `analyze-voice-patterns`**: Entweder `includePrivateNotes` per User-Setting opt-in (default `false`) machen, oder im Consent-Text + Privacy Policy explizit ausweisen.
-5. `.env`: `VITE_ENABLE_QA="false"` für Production-Build.
+In `generateAnalysisReportText.ts`: Kopier-Text enthält Kurzfazit → Verlauf & Veränderung → Triptan-/Medikationstrend → Wetter (vorsichtig, max 2 Sätze) → Dokumentationsfazit. Keine harte Negativ-Sprache.
 
-### C) Optional / Nice-to-have
-- `llmDraftEngine.ts:233` Client-Log hinter `import.meta.env.DEV` (Information leak gering, aber unnötig).
-- `analysisCore.ts` Fallback-`model:'none'`-Branch dokumentieren oder entfernen.
-- Audit-Log-Eintrag „AI_ANALYSIS_TRIGGERED" pro Aufruf (DSGVO-Nachweis), aktuell nur Quota-Tracking.
+### 7. Tests (Aufgabe 7)
 
-### Betroffene Dateien (Kurzliste)
-- `supabase/functions/ask-assistant/index.ts` (Log-Fix)
-- `src/pages/PrivacyPolicy.tsx` (Inhalt)
-- `src/features/consent/components/*` (Consent-Wording)
-- `supabase/functions/analyze-voice-patterns/index.ts` + `patternAnalysisBuilder.ts` (Private-Notes-Flag)
-- `src/features/settings/*` (neues Setting `aiIncludePrivateNotes`, falls Opt-in gewählt)
-- `.env` (`VITE_ENABLE_QA=false`)
+Neu/erweitert:
+- `supabase/functions/_shared/report-v2/analysis/trendAnalysis_test.ts` (Deno) — Window-Split (30d, 90d, 180d), Trendlabel-Schwellen, Triptan-decreased + severe-stable Spezialfall.
+- `src/lib/ai/__tests__/trendAnalysis.test.ts` (Vitest) — identische Erwartungen Client.
+- `src/lib/ai/__tests__/documentationSummary.test.ts` — 29/30 → „gute Grundlage"; Lint-Regex verbietet `unzureichend|Mangel|fehlende schmerzfreie`.
+- `src/lib/ai/__tests__/weatherCoverage.test.ts` — 31 Rows / 30 Tage → `daysWithWeather=30`, `daysWithUsableWeather ≤ 30`.
+- `supabase/functions/_shared/patternPreAnalysis_test.ts` — gleicher Cap-Test serverseitig.
 
-## Nächster Schritt
+Build + Typecheck + relevante Vitest + Deno-Tests laufen am Ende.
 
-Soll ich in Build-Mode wechseln und die **Pflicht-Fixes B1–B3** umsetzen (Log-Zeile entfernen + Privacy Policy + Consent-Text)? B4 (Private-Notes-Setting) bitte separat bestätigen, da es eine kleine UX-Änderung in den Einstellungen bringt.
+### Technische Details
+
+**Geänderte / neue Dateien:**
+- `supabase/functions/_shared/report-v2/analysis/trendAnalysis.ts` (neu) + `_test.ts`
+- `supabase/functions/_shared/patternPreAnalysis.ts` (Wetter-Cap, Trend-Findings, Dok-Fazit-Finding, weicher Wetter-Text)
+- `supabase/functions/_shared/patternPreAnalysis_test.ts` (erweitert)
+- `src/lib/ai/trendAnalysis.ts` (neu, deckt Client-Pfad)
+- `src/lib/ai/buildAnalysisReportV21.ts` (Wetter-Cap, Trend, Dok-Fazit, Section-Map)
+- `src/lib/ai/weatherCoverage.ts` (Cap)
+- `src/lib/ai/generateAnalysisReportText.ts` (Section-Reihenfolge + Bericht)
+- `src/lib/ai/analysisTypes.ts` (neue Finding-IDs / section_map keys: `trend_changes`, `documentation_summary`)
+- `src/features/ai-reports/components/AIReportDetail.tsx` (Reihenfolge + neue Sektion)
+- Tests s. o.
+
+**Nicht geändert:** DB-Schema, Edge-Function-Verträge, Wetter-Provider/Cron/Backfill, RLS, UI-Theming.
+
+**Nutzer-Aktion danach:** Cache invalidieren → neu analysieren (nicht nur Reload), weil Findings + section_map sich ändern; bestehende Cache-Einträge in `ai_analysis_cache` haben alte Struktur.

@@ -26,6 +26,9 @@
 
 import type { SupabaseClient } from "jsr:@supabase/supabase-js@2";
 import type { ServerDataset } from "./serverAnalysisDataset.ts";
+import { computeTrendAnalysis, type TrendDayRecord, type TrendResult } from "./trendAnalysis.ts";
+import { computeDocumentationSummary } from "./documentationSummary.ts";
+
 
 // ─────────────────────────────────────────────────────────────────────────
 // Types (mirrors src/lib/voice/analysisEngine.ts PreAnalysis)
@@ -208,7 +211,11 @@ export async function buildPatternPreAnalysis(
   );
   const byDay = new Map<string, typeof weatherRows[number]>();
   for (const r of weatherRows) {
-    if (r.snapshot_date) byDay.set(r.snapshot_date, r);
+    if (!r.snapshot_date) continue;
+    // Normalise + drop rows outside window so we never count 31 of 30.
+    const key = String(r.snapshot_date).slice(0, 10);
+    if (key < dataset.fromDate || key > dataset.toDate) continue;
+    if (!byDay.has(key)) byDay.set(key, r);
   }
   let dropDays = 0, riseDays = 0, stableDays = 0;
   let painOnDrop = 0, painOnRise = 0, painOnStable = 0;
@@ -223,6 +230,9 @@ export async function buildPatternPreAnalysis(
     else if (dp >= 3) { riseDays++; if (isPain) painOnRise++; }
     else { stableDays++; if (isPain) painOnStable++; }
   }
+  // Hard cap to total range days (defensive).
+  const weatherDaysCapped = Math.min(byDay.size, rangeDays);
+
 
   // --- Medication (high-pain coverage) ---
   let highPain = 0, highPainMed = 0;
@@ -245,7 +255,7 @@ export async function buildPatternPreAnalysis(
 
   const pre: PreAnalysis = {
     weather: {
-      daysWithData: byDay.size,
+      daysWithData: weatherDaysCapped,
       pressureDropDays: dropDays,
       pressureRiseDays: riseDays,
       stableDays,
@@ -256,10 +266,11 @@ export async function buildPatternPreAnalysis(
       pressureMax: pressVals.length ? Math.max(...pressVals) : null,
       tempMin: tempVals.length ? Math.min(...tempVals) : null,
       tempMax: tempVals.length ? Math.max(...tempVals) : null,
-      note: byDay.size === 0
+      note: weatherDaysCapped === 0
         ? "Keine Wetterdaten im Zeitraum vorhanden."
-        : `Wetterabdeckung ${byDay.size}/${rangeDays} Tage. Druckabfall (Δ24h ≤ -3 hPa): ${dropDays} Tage, davon ${painOnDrop} mit Schmerz (${pct(painOnDrop, dropDays)}). Druckanstieg (≥ +3 hPa): ${riseDays} Tage, ${painOnRise} mit Schmerz (${pct(painOnRise, riseDays)}). Stabil: ${stableDays} Tage, ${painOnStable} mit Schmerz (${pct(painOnStable, stableDays)}).`,
+        : `Wetterabdeckung ${weatherDaysCapped}/${rangeDays} Tage. Druckabfall (Δ24h ≤ -3 hPa): ${dropDays} Tage, davon ${painOnDrop} mit Schmerz (${pct(painOnDrop, dropDays)}). Druckanstieg (≥ +3 hPa): ${riseDays} Tage, ${painOnRise} mit Schmerz (${pct(painOnRise, riseDays)}). Stabil: ${stableDays} Tage, ${painOnStable} mit Schmerz (${pct(painOnStable, stableDays)}).`,
     },
+
     time: {
       topWeekday: wdSorted[0]?.[0] ?? null,
       topWeekdayShare: totalWd > 0 ? (wdSorted[0]?.[1] ?? 0) / totalWd : 0,
@@ -285,13 +296,14 @@ export async function buildPatternPreAnalysis(
     dataQuality: {
       painEntries: dataset.meta.painEntryCount,
       voiceEvents: dataset.meta.voiceEventCount,
-      weatherDays: byDay.size,
+      weatherDays: weatherDaysCapped,
       rangeDays,
       // V2.2 curation: do NOT use voiceEvents as a data-quality finding key;
       // we just report it here for completeness.
-      note: `${dataset.meta.painEntryCount} Schmerzeinträge über ${rangeDays} Tage. Wetterdaten: ${byDay.size}/${rangeDays} Tage. Tagesfaktoren: ${contextNoteCount} Einträge.`,
+      note: `${dataset.meta.painEntryCount} Schmerzeinträge über ${rangeDays} Tage. Wetterdaten: ${weatherDaysCapped}/${rangeDays} Tage. Tagesfaktoren: ${contextNoteCount} Einträge.`,
     },
   };
+
 
   return pre;
 }
@@ -343,29 +355,43 @@ export function buildDeterministicFindings(
     should_show_in_doctor_share: true,
   });
 
-  // 2. data_quality.diary_coverage (V2.2: pain entries only — voice events excluded)
+  // 2. data_quality.diary_coverage → Dokumentationsfazit (freundlich)
   const documentedDays = Math.min(daysTotal, meta.painEntryCount);
   const docCov = coverageRate(documentedDays, daysTotal);
+  const docSummary = computeDocumentationSummary({
+    rangeDays: daysTotal,
+    anyEntryDays: Math.min(daysTotal, meta.painEntryCount),
+    painDays: meta.daysWithPain,
+    medDays: pre.medication.intakeCount > 0 ? Math.min(daysTotal, pre.medication.intakeCount) : 0,
+    mecfsDays: pre.mecfs.daysWithMecfs,
+    contextNoteCount: pre.mecfs.contextNoteCount,
+    effectRatingCount: 0,
+    weatherDaysCapped: pre.weather.daysWithData,
+  });
   findings.push({
     id: "data_quality.diary_coverage",
     category: "data_quality",
-    title: "Dokumentations-Abdeckung",
-    evidence_level: docCov >= 0.5 ? "low" : "insufficient",
+    title: "Dokumentationsfazit",
+    // Hohe Coverage = positiver Befund, nicht "insufficient".
+    evidence_level: docSummary.tone === "good" ? "moderate" : docSummary.tone === "solid" ? "low" : "insufficient",
     doctor_relevance: "medium",
     patient_relevance: "high",
     direction: "not_applicable",
     time_window: "not_applicable",
-    plain_language_summary: `Im Zeitraum sind ${meta.painEntryCount} Schmerzeinträge dokumentiert (${daysTotal} Tage Range).`,
+    plain_language_summary: docSummary.plainText,
     deterministic_basis: {
-      metric_names: ["pain_entries", "days_total"],
-      numerator: documentedDays, denominator: daysTotal, coverage_rate: docCov,
+      metric_names: ["any_entry_days", "days_total"],
+      numerator: documentedDays, denominator: daysTotal, coverage_rate: docSummary.coverage,
       effect_label: "not_calculated", sample_size_label: sampleSizeLabel(documentedDays),
     },
-    limitations: ["Lückenhafte Dokumentation kann Muster verzerren."],
-    recommended_tracking_next: ["Möglichst täglich kurz dokumentieren – auch beschwerdefreie Tage."],
+    limitations: docSummary.detailHints,
+    recommended_tracking_next: docSummary.tone === "good"
+      ? ["Aktuelle Dokumentationsroutine beibehalten."]
+      : ["Möglichst täglich kurz dokumentieren – auch beschwerdefreie Tage."],
     doctor_discussion_points: [],
     should_show_in_doctor_share: true,
   });
+
 
   // 3. burden.pain_days_share
   const painDays = meta.daysWithPain;
