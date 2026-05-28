@@ -192,7 +192,9 @@ describe('curateFindingsV22 — V2.2 hardening', () => {
           doctorDiscussionPoints: ['Wetterprävention besprechen'] }),
     ], rj);
     expect(r.findings[0].evidenceLevel).toBe('insufficient');
-    expect(r.findings[0].summary).toMatch(/Vergleichstage/);
+    expect(r.findings[0].summary).toMatch(/Wetteranalyse bleibt vorsichtig/);
+    expect(r.findings[0].summary).not.toMatch(/Mangel an schmerzfreien/i);
+    expect(r.findings[0].summary).not.toMatch(/fehlende schmerzfreie/i);
     expect(r.openQuestions).toHaveLength(0);
   });
 
