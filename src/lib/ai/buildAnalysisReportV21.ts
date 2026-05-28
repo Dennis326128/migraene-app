@@ -191,7 +191,7 @@ export function buildAnalysisReportV21(input: BuildReportV21Input): AnalysisRepo
     should_show_in_doctor_share: true,
   });
 
-  // ── 5. Wetter-Hinweis (Druckabfall) ──────────────────────────────
+  // ── 5. Wetter-Hinweis (Druckabfall) — empathisch bei hoher Schmerzlast ──
   const dropDays = pre.weather.pressureDropDays ?? 0;
   const painOnDrop = pre.weather.painOnDropDays ?? 0;
   const stableDays = pre.weather.stableDays ?? 0;
@@ -200,12 +200,20 @@ export function buildAnalysisReportV21(input: BuildReportV21Input): AnalysisRepo
   const rateStable = stableDays > 0 ? painOnStable / stableDays : 0;
   const diffPP = (rateDrop - rateStable) * 100;
   const effect = effectStrengthFromRateDifference(diffPP);
-  const weatherFindingEvidence = classifyEvidence({
-    exposedEvents: dropDays,
-    comparisonEvents: stableDays,
-    coverageRate: weatherCov,
-    effectStrength: dropDays >= 3 && stableDays >= 3 ? effect : "not_calculated",
-  });
+  const highPainBlock = painRate >= 0.85;
+  const weatherFindingEvidence = highPainBlock
+    ? "insufficient"
+    : classifyEvidence({
+        exposedEvents: dropDays,
+        comparisonEvents: stableDays,
+        coverageRate: weatherCov,
+        effectStrength: dropDays >= 3 && stableDays >= 3 ? effect : "not_calculated",
+      });
+  const weatherSummary = highPainBlock
+    ? "Die Wetteranalyse bleibt vorsichtig, weil der Zeitraum fast durchgehend schmerzbelastet war. Wetter kann ein möglicher Verstärkungsfaktor sein, ein klarer Auslöser lässt sich daraus nicht ableiten."
+    : weatherFindingEvidence === "insufficient"
+      ? "Es liegen zu wenige Vergleichstage vor, um einen Zusammenhang mit Druckabfall verlässlich zu beurteilen."
+      : `An Tagen mit deutlichem Druckabfall: ${painOnDrop}/${dropDays} mit Schmerz vs. ${painOnStable}/${stableDays} an stabilen Tagen.`;
   findings.push({
     id: "weather.pressure_drop",
     category: "weather",
@@ -213,12 +221,9 @@ export function buildAnalysisReportV21(input: BuildReportV21Input): AnalysisRepo
     evidence_level: weatherFindingEvidence,
     doctor_relevance: "medium",
     patient_relevance: "medium",
-    direction: diffPP > 5 ? "increased" : diffPP < -5 ? "decreased" : "unclear",
+    direction: highPainBlock ? "unclear" : (diffPP > 5 ? "increased" : diffPP < -5 ? "decreased" : "unclear"),
     time_window: "same_day",
-    plain_language_summary:
-      weatherFindingEvidence === "insufficient"
-        ? "Zu wenige Vergleichstage, um einen Zusammenhang mit Druckabfall zu beurteilen."
-        : `An Tagen mit deutlichem Druckabfall: ${painOnDrop}/${dropDays} mit Schmerz vs. ${painOnStable}/${stableDays} an stabilen Tagen.`,
+    plain_language_summary: weatherSummary,
     deterministic_basis: {
       metric_names: ["pressure_drop_days", "pain_on_drop_days", "stable_days", "pain_on_stable_days"],
       numerator: painOnDrop,
@@ -231,7 +236,8 @@ export function buildAnalysisReportV21(input: BuildReportV21Input): AnalysisRepo
     },
     limitations: [
       "Wetter ist mehrdimensional; einzelne Variablen sind selten alleinige Auslöser.",
-    ],
+      highPainBlock ? "Wenige schmerzfreie Vergleichstage – Aussagen bleiben vorsichtig." : "",
+    ].filter(Boolean),
     recommended_tracking_next: ["Weiter dokumentieren – auch beschwerdefreie Tage mit Druckabfall."],
     doctor_discussion_points: [],
     should_show_in_doctor_share: true,
