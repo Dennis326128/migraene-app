@@ -314,11 +314,47 @@ export function computeTrendAnalysis(days: TrendDayRecord[]): TrendResult | null
       "Das spricht eher für eine veränderte Akutstrategie als für eine klare Entlastung.";
     plain.push(triptanStrategyNote);
   }
+  // Short-term comparison (10 vs 10 days) — surfaces recent triptan
+  // changes that the longer window can hide.
+  const shortTerm = computeShortTerm(days);
+
   return {
     hasEnoughData, recent, previous, metrics,
     plainLanguage: plain.filter(Boolean),
     triptanStrategyNote, triptanSignalPresent,
+    shortTerm: shortTerm ?? undefined,
   };
+}
+
+function computeShortTerm(days: TrendDayRecord[]): TrendResult["shortTerm"] | null {
+  const sorted = [...days].sort((a, b) => a.date.localeCompare(b.date));
+  if (sorted.length < 20) return null;
+  const previousSlice = sorted.slice(-20, -10);
+  const recentSlice = sorted.slice(-10);
+  const recent = computeWindowStats(recentSlice, "letzte 10 Tage");
+  const previous = computeWindowStats(previousSlice, "vorherige 10 Tage");
+  if (recent.documentedDays < 5 || previous.documentedDays < 5) return null;
+  const metrics = {
+    headache: metric("headache_days_10", recent.headacheDays, recent.documentedDays, previous.headacheDays, previous.documentedDays),
+    triptan: metric("triptan_days_10", recent.triptanDays, recent.documentedDays, previous.triptanDays, previous.documentedDays),
+    med: metric("med_days_10", recent.medDays, recent.documentedDays, previous.medDays, previous.documentedDays),
+  };
+  let note: string | null = null;
+  const triptanDrop = previous.triptanDays - recent.triptanDays;
+  const triptanRise = recent.triptanDays - previous.triptanDays;
+  const painHigh = recent.headacheDays >= Math.ceil(recent.documentedDays * 0.6);
+  if (triptanDrop >= 2 && painHigh && metrics.headache.label !== "decreased") {
+    note =
+      "Die Triptan-Einnahmen waren in den letzten 10 Tagen niedriger, während die Schmerzlast hoch blieb. " +
+      "Das spricht eher für eine veränderte Akutstrategie als für eine klare Entlastung.";
+  } else if (triptanDrop >= 2 && metrics.headache.label === "decreased") {
+    note =
+      "Die Triptan-Einnahmen waren in den letzten 10 Tagen niedriger und die Schmerzlast war etwas geringer. " +
+      "Das kann auf eine vorsichtige Entlastung hinweisen und sollte weiter beobachtet werden.";
+  } else if (triptanRise >= 2) {
+    note = "Die Triptan-Einnahmen waren in den letzten 10 Tagen häufiger als in den 10 Tagen davor.";
+  }
+  return { recent, previous, metrics, note };
 }
 
 function painSentence(headache: MetricTrend, r: WindowStats, p: WindowStats): string {
