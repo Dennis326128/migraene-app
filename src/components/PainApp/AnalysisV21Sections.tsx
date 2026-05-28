@@ -22,6 +22,40 @@ import {
   type AnalysisSectionKey,
 } from "@/lib/ai/normalizeAnalysisFindings";
 import { curateFindingsV22, applySectionCaps } from "@/lib/ai/curateFindingsV22";
+import { buildAnalysisOverviewSummary } from "@/lib/ai/buildAnalysisOverviewSummary";
+
+const MAX_HIGHLIGHTS = 5;
+
+/**
+ * Picks up to 5 highlight findings for the compact initial view, spanning
+ * Schmerzlast, Verlauf, Medikamente, Wetter und Dokumentationsfazit/ME-CFS.
+ * Each category contributes at most one card; no Datenmangel-Karten initial.
+ */
+function pickTopHighlights(findings: NormalizedAnalysisFinding[]): NormalizedAnalysisFinding[] {
+  const pickFirst = (pred: (f: NormalizedAnalysisFinding) => boolean) => findings.find(pred);
+  const out: NormalizedAnalysisFinding[] = [];
+  const push = (f?: NormalizedAnalysisFinding) => {
+    if (f && !out.some((x) => x.id === f.id)) out.push(f);
+  };
+
+  push(pickFirst((f) => f.category === "burden" || f.category === "chronification"));
+  push(pickFirst((f) => f.category === "course_trend"));
+  push(
+    pickFirst((f) => f.category === "medication_trend") ??
+    pickFirst((f) => f.category === "medication_use") ??
+    pickFirst((f) => f.category === "medication_effect"),
+  );
+  const weather = pickFirst((f) => f.category === "weather");
+  if (weather && weather.evidenceLevel !== "insufficient") push(weather);
+
+  const fifth =
+    pickFirst((f) => f.category === "data_quality" && f.id === "data_quality.diary_coverage") ??
+    pickFirst((f) => f.category === "mecfs_energy_trend") ??
+    pickFirst((f) => f.category === "mecfs_energy_pem");
+  push(fifth);
+
+  return out.slice(0, MAX_HIGHLIGHTS);
+}
 
 interface Props {
   responseJson: unknown;
