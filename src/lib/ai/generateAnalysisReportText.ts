@@ -153,7 +153,24 @@ function buildV21Report(rj: Record<string, unknown>): string {
   lines.push("---");
   lines.push("Hinweis: mögliche Zusammenhänge – keine medizinische Diagnose.");
 
-  return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim() + "\n";
+  // Final safety net: sanitize the assembled report through the central
+  // output policy so no banned wording can leak into the copied report,
+  // even from legacy stored findings that bypassed the curation layer.
+  const raw = lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  const safe = raw
+    .split("\n")
+    .map((line) => {
+      if (!line.trim()) return line;
+      const cleaned = sanitizeOutputText(line);
+      return cleaned;
+    })
+    .filter((line, i, arr) => {
+      // collapse runs of empty lines created by sanitation
+      if (line === "" && arr[i - 1] === "") return false;
+      return true;
+    })
+    .join("\n");
+  return safe + "\n";
 }
 
 function appendFinding(lines: string[], f: NormalizedAnalysisFinding): void {
