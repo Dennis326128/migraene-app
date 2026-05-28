@@ -110,6 +110,18 @@ export function AnalysisV21Sections({ responseJson, doctorShare = false, showVoi
   const dataBasis = v21?.data_basis as Record<string, unknown> | undefined;
   const period = v21?.period as Record<string, unknown> | undefined;
 
+  const overview = React.useMemo(
+    () => buildAnalysisOverviewSummary({ responseJson, findings: curated.findings }),
+    [responseJson, curated.findings],
+  );
+
+  const highlights = React.useMemo(
+    () => pickTopHighlights(curated.findings),
+    [curated.findings],
+  );
+
+  const [showDetails, setShowDetails] = React.useState(false);
+
   if (!v21) return null;
 
   // Synthetic weather-coverage card for "Datenqualität" — only when there is
@@ -138,46 +150,80 @@ export function AnalysisV21Sections({ responseJson, doctorShare = false, showVoi
     <div className="space-y-7">
       <DataBasisCard dataBasis={dataBasis} period={period} />
 
-      {SECTION_ORDER.map((key) => {
-        // "Grenzen der Analyse" → ruhiger Standardtext, keine Karten.
-        if (key === "limits") {
-          return (
-            <Section key={key} title={SECTION_LABEL[key]}>
-              <p className="text-[12px] text-muted-foreground/85 leading-[1.7]">
-                {LIMITS_DISCLAIMER}
-              </p>
-            </Section>
-          );
-        }
+      {overview && (
+        <Section title="Zusammenfassung">
+          <p className="text-[13px] text-foreground/85 leading-[1.75] whitespace-pre-line">
+            {overview}
+          </p>
+        </Section>
+      )}
 
-        if (key === "open_questions") {
-          if (openQuestions.length === 0) return null;
-          return (
-            <Section key={key} title={SECTION_LABEL[key]}>
-              <ul className="list-disc pl-4 space-y-1 text-[13px] text-foreground/80 leading-[1.7]">
-                {openQuestions.map((q, i) => <li key={i}>{q}</li>)}
-              </ul>
-            </Section>
-          );
-        }
+      {highlights.length > 0 && (
+        <Section title="Wichtigste Hinweise">
+          <div className="space-y-4">
+            {highlights.map((f) => (
+              <FindingCard key={`hl-${f.id}`} f={f} sectionKey={f.section} />
+            ))}
+          </div>
+        </Section>
+      )}
 
-        let items = applySectionCaps(key, dedupSection(grouped[key]));
-        if (key === "data_quality" && weatherCoverageCard) {
-          // Insert synthetic weather-coverage card if not already present (by title).
-          const hasWeather = items.some((f) =>
-            /wetter/i.test(f.title) || /wetter/i.test(f.summary),
-          );
-          if (!hasWeather) items = [weatherCoverageCard, ...items];
-        }
-        if (items.length === 0) return null;
-        return (
-          <Section key={key} title={SECTION_LABEL[key]}>
-            <div className="space-y-4">
-              {items.map((f) => <FindingCard key={f.id} f={f} sectionKey={key} />)}
-            </div>
-          </Section>
-        );
-      })}
+      <div>
+        <button
+          type="button"
+          onClick={() => setShowDetails((v) => !v)}
+          aria-expanded={showDetails}
+          className="inline-flex items-center gap-1.5 text-[12px] font-medium text-foreground/80 hover:text-foreground transition-colors"
+        >
+          {showDetails
+            ? <><ChevronDown className="h-3.5 w-3.5" />Detaillierte Analyse ausblenden</>
+            : <><ChevronRight className="h-3.5 w-3.5" />Detaillierte Analyse anzeigen</>}
+        </button>
+      </div>
+
+      {showDetails && (
+        <div className="space-y-7" data-testid="analysis-details">
+          {SECTION_ORDER.map((key) => {
+            // "Grenzen der Analyse" → ruhiger Standardtext, keine Karten.
+            if (key === "limits") {
+              return (
+                <Section key={key} title={SECTION_LABEL[key]}>
+                  <p className="text-[12px] text-muted-foreground/85 leading-[1.7]">
+                    {LIMITS_DISCLAIMER}
+                  </p>
+                </Section>
+              );
+            }
+
+            if (key === "open_questions") {
+              if (openQuestions.length === 0) return null;
+              return (
+                <Section key={key} title={SECTION_LABEL[key]}>
+                  <ul className="list-disc pl-4 space-y-1 text-[13px] text-foreground/80 leading-[1.7]">
+                    {openQuestions.map((q, i) => <li key={i}>{q}</li>)}
+                  </ul>
+                </Section>
+              );
+            }
+
+            let items = applySectionCaps(key, dedupSection(grouped[key]));
+            if (key === "data_quality" && weatherCoverageCard) {
+              const hasWeather = items.some((f) =>
+                /wetter/i.test(f.title) || /wetter/i.test(f.summary),
+              );
+              if (!hasWeather) items = [weatherCoverageCard, ...items];
+            }
+            if (items.length === 0) return null;
+            return (
+              <Section key={key} title={SECTION_LABEL[key]}>
+                <div className="space-y-4">
+                  {items.map((f) => <FindingCard key={f.id} f={f} sectionKey={key} />)}
+                </div>
+              </Section>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
