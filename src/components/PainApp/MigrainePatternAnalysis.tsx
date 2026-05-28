@@ -683,8 +683,9 @@ export function MigrainePatternAnalysis() {
 
   const gateState = useAnalysisGateState(gateRefresh);
 
-  const ageStale = isCacheStaleByAge(cachedAt);
-  const effectiveStale = isStaleResult || ageStale;
+  // Freshness is data-driven only (range/version/data signature via selectAnalysisForChannel).
+  // No time-based staleness — an analysis stays "current" as long as the underlying data didn't change.
+  const effectiveStale = isStaleResult;
 
   const decision = useMemo(() => gateDecision({
     hasConsent: gateState.hasConsent,
