@@ -46,13 +46,16 @@ const CATEGORY_USER_LABEL: Record<string, string> = {
   cycle_hormonal: "Zyklus",
   time_pattern: "Zeitmuster",
   interaction: "Interaktionen",
-  data_quality: "Datenqualität",
+  data_quality: "Dokumentation",
+  course_trend: "Verlauf",
+  medication_trend: "Medikamenten-Verlauf",
+  mecfs_energy_trend: "Energie-Verlauf",
 };
 
 /** Sektionen, in denen die Kategorie-Zeile redundant ist und ausgeblendet wird. */
 const HIDE_CATEGORY_IN_SECTION = new Set<AnalysisSectionKey>([
   "medication", "weather", "mecfs", "lifestyle", "symptoms", "time",
-  "interaction", "data_quality",
+  "interaction", "data_quality", "course_trend",
 ]);
 
 const LIMITS_DISCLAIMER =
