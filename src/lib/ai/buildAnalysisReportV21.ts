@@ -91,29 +91,41 @@ export function buildAnalysisReportV21(input: BuildReportV21Input): AnalysisRepo
     should_show_in_doctor_share: true,
   });
 
-  // ── 2. Datenqualität: Tagebuch-/Voice-Abdeckung ──────────────────
+  // ── 2. Dokumentationsfazit (freundlich, kein "Mangel") ───────────
   const documentedDays = Math.min(daysTotal, meta.painEntryCount + meta.voiceEventCount);
   const docCov = coverageRate(documentedDays, daysTotal);
+  const docSummary = computeDocumentationSummary({
+    rangeDays: daysTotal,
+    anyEntryDays: Math.min(daysTotal, meta.painEntryCount),
+    painDays: meta.daysWithPain,
+    medDays: meta.medicationIntakeCount > 0 ? Math.min(daysTotal, meta.medicationIntakeCount) : 0,
+    mecfsDays: meta.daysWithMecfs,
+    contextNoteCount: pre.mecfs.contextNoteCount ?? 0,
+    effectRatingCount: 0,
+    weatherDaysCapped: pre.weather.daysWithData ?? 0,
+  });
   findings.push({
     id: "data_quality.diary_coverage",
     category: "data_quality",
-    title: "Dokumentations-Abdeckung",
-    evidence_level: docCov >= 0.5 ? "low" : "insufficient",
+    title: "Dokumentationsfazit",
+    evidence_level: docSummary.tone === "good" ? "moderate" : docSummary.tone === "solid" ? "low" : "insufficient",
     doctor_relevance: "medium",
     patient_relevance: "high",
     direction: "not_applicable",
     time_window: "not_applicable",
-    plain_language_summary: `Im Zeitraum sind ${meta.painEntryCount} Schmerzeinträge und ${meta.voiceEventCount} Voice-Einträge dokumentiert (${daysTotal} Tage Range).`,
+    plain_language_summary: docSummary.plainText,
     deterministic_basis: {
-      metric_names: ["pain_entries", "voice_events", "days_total"],
+      metric_names: ["any_entry_days", "days_total"],
       numerator: documentedDays,
       denominator: daysTotal,
-      coverage_rate: docCov,
+      coverage_rate: docSummary.coverage,
       effect_label: "not_calculated",
       sample_size_label: sampleSizeLabel(documentedDays),
     },
-    limitations: ["Lückenhafte Dokumentation kann Muster verzerren."],
-    recommended_tracking_next: ["Möglichst täglich kurz dokumentieren – auch beschwerdefreie Tage."],
+    limitations: docSummary.detailHints,
+    recommended_tracking_next: docSummary.tone === "good"
+      ? ["Aktuelle Dokumentationsroutine beibehalten."]
+      : ["Möglichst täglich kurz dokumentieren – auch beschwerdefreie Tage."],
     doctor_discussion_points: [],
     should_show_in_doctor_share: true,
   });
