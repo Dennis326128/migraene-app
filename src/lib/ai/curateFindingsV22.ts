@@ -207,16 +207,113 @@ function adjustWeatherForLowComparisonBase(
   painRatio: number,
 ): NormalizedAnalysisFinding {
   if (f.category !== "weather") return f;
-  if (painRatio <= 0.9) return f;
+  if (painRatio <= 0.85) return f;
   return {
     ...f,
-    evidenceLevel: "insufficient",
+    // Use "low" instead of "insufficient" so the badge reads "schwacher Hinweis"
+    // rather than the harsh "Daten nicht ausreichend" — data IS there, the
+    // comparison base is just thin.
+    evidenceLevel: "low",
     summary:
-      "Die Wetteranalyse bleibt vorsichtig, weil der Zeitraum fast durchgehend schmerzbelastet war. " +
-      "Wetter kann ein möglicher Verstärkungsfaktor sein, ein klarer Auslöser lässt sich daraus nicht ableiten.",
+      "Wetter kann in diesem Zeitraum eher als möglicher Verstärkungsfaktor betrachtet werden. " +
+      "Ein klarer Auslöser lässt sich daraus nicht ableiten.",
+    limitations: [
+      "Wetter ist mehrdimensional; einzelne Variablen sind selten alleinige Auslöser.",
+    ],
+    recommendedTrackingNext: [
+      "Subjektive Wetterempfindungen wie Hitze, Gewitter, Druckgefühl oder Wetterwechsel kurz notieren.",
+    ],
     // remove doctor-questions so weather is not pushed into open questions
     doctorDiscussionPoints: [],
   };
+}
+
+/** Merge burden + chronification into a single strong burden card on very high pain rate. */
+const HIGH_PAIN_RATIO = 0.85;
+
+function mergeBurdenWithChronification(
+  curated: NormalizedAnalysisFinding[],
+  responseJson: unknown,
+  painRatio: number,
+  suppressed: Array<{ id: string; reason: string }>,
+): NormalizedAnalysisFinding[] {
+  if (painRatio < HIGH_PAIN_RATIO) return curated;
+  const burden = curated.find((f) => f.category === "burden");
+  const chronif = curated.filter((f) => f.category === "chronification");
+  if (!burden && chronif.length === 0) return curated;
+
+  const db = (responseJson as any)?.analysisV21?.data_basis ?? {};
+  const painDays = Number(db.pain_days) || 0;
+  const docDays = Number(db.documented_days) || 0;
+  const dayPart = painDays > 0 && docDays > 0 ? `Im beobachteten Zeitraum traten an ${painDays} von ${docDays} Tagen Schmerzen auf. ` : "";
+
+  const merged: NormalizedAnalysisFinding = {
+    id: burden?.id ?? chronif[0]?.id ?? "burden.merged",
+    category: "burden",
+    section: "strongest",
+    title: "Sehr hohe Schmerzlast im gesamten Zeitraum",
+    evidenceLevel: "high",
+    summary:
+      `${dayPart}Das zeigt eine sehr hohe Belastung und sollte ärztlich eingeordnet werden.`.trim(),
+    reasoning: burden?.reasoning ?? chronif[0]?.reasoning,
+    limitations: [
+      "Ohne vollständige Dokumentation kann die tatsächliche Last höher oder niedriger sein.",
+    ],
+    recommendedTrackingNext: [
+      "Aktuelle Dokumentationsroutine beibehalten und auch leichte Kopfschmerztage erfassen.",
+    ],
+    doctorDiscussionPoints: [
+      "Hohe Kopfschmerzfrequenz und mögliche chronische Verlaufsform ärztlich besprechen.",
+    ],
+    source: burden?.source ?? chronif[0]?.source ?? "deterministic",
+    shouldShowInDoctorShare: true,
+  };
+
+  // Track all originals as suppressed-merged for diagnostics
+  for (const f of [burden, ...chronif].filter(Boolean) as NormalizedAnalysisFinding[]) {
+    if (f.id !== merged.id) suppressed.push({ id: f.id, reason: "burden_chronification_merged" });
+  }
+
+  // Drop originals, add merged in the original burden position (or first chronification position)
+  const dropIds = new Set<string>([
+    ...(burden ? [burden.id] : []),
+    ...chronif.map((f) => f.id),
+  ]);
+  const out = curated.filter((f) => !dropIds.has(f.id));
+  out.push(merged);
+  return out;
+}
+
+/**
+ * When a friendly "Dokumentationsfazit" exists (id=data_quality.diary_coverage,
+ * evidence low/moderate = solid/good tone), suppress any other data_quality
+ * findings whose content reads like a "Mangel" / "fehlend" / "unzureichend"
+ * card. Only the positive summary remains in the section.
+ */
+const NEGATIVE_DQ_RE =
+  /\b(mangel|mangelnde|unzureichend|fehlend(?:e[rsn]?)?|kein(?:e[rsn]?)?\s+ausreichend|zu\s+wenig\s+(?:detail|schmerzfrei|vergleichstage)|datenlage\s+(?:zu|für)\s+\w+\s+macht\s+(?:die\s+)?analyse\s+unmöglich)/i;
+
+function suppressNegativeDataQualityWhenFriendlySummary(
+  curated: NormalizedAnalysisFinding[],
+  suppressed: Array<{ id: string; reason: string }>,
+): NormalizedAnalysisFinding[] {
+  const friendly = curated.find(
+    (f) =>
+      f.category === "data_quality" &&
+      (f.id === "data_quality.diary_coverage" || /dokumentationsfazit|dokumentationsgrundlage|gute\s+dokumentation/i.test(f.title)) &&
+      (f.evidenceLevel === "moderate" || f.evidenceLevel === "low"),
+  );
+  if (!friendly) return curated;
+  return curated.filter((f) => {
+    if (f.category !== "data_quality") return true;
+    if (f.id === friendly.id) return true;
+    const hay = `${f.title} ${f.summary}`;
+    if (NEGATIVE_DQ_RE.test(hay)) {
+      suppressed.push({ id: f.id, reason: "documentation_summary_supersedes" });
+      return false;
+    }
+    return true;
+  });
 }
 
 const OPEN_QUESTION_EXCLUDE_RE =
