@@ -188,13 +188,7 @@ export function AnalysisV21Sections({ responseJson, doctorShare = false, showVoi
               );
             }
 
-            let items = applySectionCaps(key, dedupSection(grouped[key]));
-            if (key === "data_quality" && weatherCoverageCard) {
-              const hasWeather = items.some((f) =>
-                /wetter/i.test(f.title) || /wetter/i.test(f.summary),
-              );
-              if (!hasWeather) items = [weatherCoverageCard, ...items];
-            }
+            const items = applySectionCaps(key, dedupSection(grouped[key]));
             if (items.length === 0) return null;
             return (
               <Section key={key} title={SECTION_LABEL[key]}>
