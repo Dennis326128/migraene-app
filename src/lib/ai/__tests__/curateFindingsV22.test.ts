@@ -35,19 +35,20 @@ describe('curateFindingsV22', () => {
   it('hides Voice-event data_quality cards by default', () => {
     const r = curateFindingsV22([
       f({ id: 'v', category: 'data_quality', title: 'Nur 2 Voice-Events', summary: 'Wenige Voice-Events vorhanden' }),
-      f({ id: 'w', category: 'data_quality', title: 'Wetterabdeckung', summary: '45/90 Tage' }),
+      f({ id: 'd', category: 'data_quality', title: 'Detailangaben fehlen', summary: 'Mehr Detailangaben wären hilfreich.' }),
     ]);
-    expect(r.findings.map(x => x.id)).toEqual(['w']);
+    expect(r.findings.map(x => x.id)).toEqual(['d']);
     expect(r.suppressed.find(s => s.id === 'v')?.reason).toBe('voice_quality_noise');
   });
 
-  it('respects showVoiceQualityNotes opt-in', () => {
+  it('policy strips voice-event findings even with showVoiceQualityNotes opt-in', () => {
     const r = curateFindingsV22(
-      [f({ id: 'v', category: 'data_quality', title: 'Voice-Events', summary: 'wenige' })],
+      [f({ id: 'v', category: 'data_quality', title: 'Sprachereignisse', summary: 'wenige' })],
       undefined,
       { showVoiceQualityNotes: true },
     );
-    expect(r.findings).toHaveLength(1);
+    // Output policy is the final guard and removes voice events regardless of opt-in.
+    expect(r.findings).toHaveLength(0);
   });
 
   it('drops burden when strong chronification finding exists', () => {
