@@ -26,8 +26,9 @@
 
 import type { SupabaseClient } from "jsr:@supabase/supabase-js@2";
 import type { ServerDataset } from "./serverAnalysisDataset.ts";
-import { computeTrendAnalysis, type TrendDayRecord, type TrendResult } from "./trendAnalysis.ts";
+import { computeTrendAnalysis, buildTrendDaysFromEntries, type TrendDayRecord, type TrendResult } from "./trendAnalysis.ts";
 import { computeDocumentationSummary } from "./documentationSummary.ts";
+import { buildCourseTrendFindings } from "./buildCourseTrendFindings.ts";
 export { buildTrendDaysFromEntries } from "./trendAnalysis.ts";
 
 
