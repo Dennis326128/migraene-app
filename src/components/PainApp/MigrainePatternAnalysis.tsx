@@ -21,7 +21,7 @@ import { isAnalysisUnavailable, type VoiceAnalysisResult, type PatternFinding, t
 import { selectAnalysisForChannel, saveAnalysisResult, loadAnalysisHistory, loadAnalysisById, deleteAnalysisById, type AnalysisHistoryEntry, MAX_PATTERNS, MAX_SEQUENCES, MAX_QUESTIONS, EVIDENCE_ORDER } from '@/lib/voice/analysisCache';
 import { isTrivialSequence, isBanalContent, isGenericUncertainty, isWeakPattern, cleanSummaryFiller, GENERIC_PHASE_SEQUENCES, BANAL_INTERPRETATION_RX, MEDICATION_TITLE_RX } from '@/lib/voice/analysisFilters';
 import { logError } from '@/lib/utils/errorMessages';
-import { gateDecision, isCacheStaleByAge, berlinDayStart, berlinDayEnd, STALE_AFTER_DAYS } from '@/lib/voice/analysisGate';
+import { gateDecision, berlinDayStart, berlinDayEnd } from '@/lib/voice/analysisGate';
 import { useAnalysisGateState } from '@/lib/voice/useAnalysisGateState';
 import { AIConsentToggle } from './Settings/AIConsentToggle';
 import { supabase } from '@/integrations/supabase/client';
@@ -683,8 +683,9 @@ export function MigrainePatternAnalysis() {
 
   const gateState = useAnalysisGateState(gateRefresh);
 
-  const ageStale = isCacheStaleByAge(cachedAt);
-  const effectiveStale = isStaleResult || ageStale;
+  // Freshness is data-driven only (range/version/data signature via selectAnalysisForChannel).
+  // No time-based staleness — an analysis stays "current" as long as the underlying data didn't change.
+  const effectiveStale = isStaleResult;
 
   const decision = useMemo(() => gateDecision({
     hasConsent: gateState.hasConsent,
@@ -764,6 +765,17 @@ export function MigrainePatternAnalysis() {
     setError(null);
     setErrorCode(null);
     setIsWeakData(false);
+    // Hide any currently open analysis while a new one is running.
+    // The history list stays visible so the user can still pick a previous report.
+    setResult(null);
+    setIsCachedResult(false);
+    setIsStaleResult(false);
+    setStaleReason(null);
+    setIsRangeFallback(false);
+    setFallbackRange({ from: null, to: null });
+    setShowFallbackAnalysis(false);
+    setCachedAt(null);
+    setPickedHistory(null);
     setIsAnalyzing(true);
 
     try {
@@ -773,6 +785,7 @@ export function MigrainePatternAnalysis() {
       if (isAnalysisUnavailable(analysisResult)) {
         setIsWeakData(true);
       } else {
+        // Auto-open the new analysis
         setResult(analysisResult);
         setIsCachedResult(false);
         setIsStaleResult(false);
@@ -789,21 +802,22 @@ export function MigrainePatternAnalysis() {
       const messages: Record<string, string> = {
         AI_CONSENT_REQUIRED: 'Für die KI-Analyse ist deine Einwilligung erforderlich.',
         AI_DISABLED: 'KI-Analyse ist in den Einstellungen deaktiviert.',
-        QUOTA_EXCEEDED: 'Du hast dein monatliches Analyselimit erreicht. Vorhandene Analyse bleibt sichtbar.',
+        QUOTA_EXCEEDED: 'Du hast dein monatliches Analyselimit erreicht. Du kannst eine gespeicherte Analyse öffnen.',
         COOLDOWN_ACTIVE: 'Bitte kurz warten, bevor du erneut analysierst.',
         INSUFFICIENT_DATA: 'Im gewählten Zeitraum sind zu wenige Daten für eine Analyse vorhanden.',
         CONTEXT_TOO_LARGE: 'Der gewählte Zeitraum ist zu groß. Bitte einen kürzeren Zeitraum wählen.',
         TIMEOUT: 'Die Analyse hat zu lange gedauert. Bitte später erneut versuchen.',
         LLM_UNAVAILABLE: 'Der KI-Dienst ist vorübergehend nicht verfügbar. Bitte später erneut versuchen.',
         AUTH_REQUIRED: 'Sitzung abgelaufen. Bitte erneut anmelden.',
-        UNKNOWN: 'Die Analyse konnte nicht durchgeführt werden. Bitte versuche es später erneut.',
+        UNKNOWN: 'Die neue Analyse konnte nicht erstellt werden. Du kannst eine gespeicherte Analyse öffnen oder es später erneut versuchen.',
       };
       setError(messages[code ?? 'UNKNOWN'] ?? messages.UNKNOWN);
+      // Do NOT restore the previously visible analysis — let the user pick from history.
     } finally {
       setIsAnalyzing(false);
       setGateRefresh(n => n + 1); // reload quota/cooldown after attempt
     }
-  }, [from, to, decision.canRunAnalysis]);
+  }, [from, to, decision.canRunAnalysis, reloadHistory]);
 
   const cachedAtLabel = useMemo(() => {
     if (!cachedAt) return null;
@@ -947,16 +961,12 @@ export function MigrainePatternAnalysis() {
               </p>
             )}
             {isCachedResult && effectiveStale && staleReason !== 'range_mismatch' && (() => {
-              const reasonText = ageStale
-                ? `Diese Analyse ist älter als ${STALE_AFTER_DAYS} Tage. Eine neue Analyse kann aktuellere Hinweise liefern.`
-                : staleReason === 'version_mismatch'
-                  ? 'Analyse-Logik wurde verbessert. Erstelle eine neue Analyse, um die aktualisierte Auswertung zu erhalten.'
-                  : 'Seit dieser Analyse wurden Einträge geändert oder ergänzt.';
-              const badge = ageStale
-                ? `älter als ${STALE_AFTER_DAYS} Tage`
-                : staleReason === 'version_mismatch'
-                  ? 'Analyse-Logik aktualisiert'
-                  : 'Daten geändert';
+              const reasonText = staleReason === 'version_mismatch'
+                ? 'Analyse-Logik wurde verbessert. Erstelle eine neue Analyse, um die aktualisierte Auswertung zu erhalten.'
+                : 'Seit dieser Analyse wurden Einträge geändert oder ergänzt.';
+              const badge = staleReason === 'version_mismatch'
+                ? 'Analyse-Logik aktualisiert'
+                : 'Daten geändert';
               return (
                 <div className="rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 px-3 py-2 text-center space-y-1">
                   <p className="text-[11px] text-amber-900 dark:text-amber-200 flex items-center justify-center gap-1.5">
@@ -973,7 +983,14 @@ export function MigrainePatternAnalysis() {
         </Card>
       )}
 
-      {isAnalyzing && <AnalysisProgressLoader />}
+      {isAnalyzing && (
+        <div className="space-y-3" data-testid="analysis-running">
+          <AnalysisProgressLoader />
+          <p className="text-xs text-muted-foreground text-center px-4">
+            Die neue Analyse wird erstellt. Bisherige Analysen bleiben gespeichert.
+          </p>
+        </div>
+      )}
 
 
       {isLoadingCache && (
@@ -1004,7 +1021,7 @@ export function MigrainePatternAnalysis() {
 
       {isWeakData && <WeakDataMessage />}
 
-      {(() => {
+      {!isAnalyzing && (() => {
         const mode = decideCachedAnalysisDisplay({
           hasResult: !!result,
           staleReason,
