@@ -10,6 +10,7 @@
  * Rein deterministisch, ohne LLM-Aufruf.
  */
 import type { NormalizedAnalysisFinding } from "./normalizeAnalysisFindings";
+import { sanitizeOutputText } from "./analysisOutputPolicy";
 
 export interface OverviewInputs {
   responseJson: unknown;
