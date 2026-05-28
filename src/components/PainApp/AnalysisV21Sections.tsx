@@ -24,7 +24,7 @@ import {
 import { curateFindingsV22, applySectionCaps } from "@/lib/ai/curateFindingsV22";
 import { buildAnalysisOverviewSummary } from "@/lib/ai/buildAnalysisOverviewSummary";
 
-const MAX_HIGHLIGHTS = 5;
+const MAX_HIGHLIGHTS = 4;
 
 /**
  * Picks up to 5 highlight findings for the compact initial view, spanning
