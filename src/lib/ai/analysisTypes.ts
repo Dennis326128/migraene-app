@@ -105,6 +105,7 @@ export interface AnalysisReportV21 {
     strongest_findings: string[];
     weaker_findings: string[];
     burden_course: string[];
+    course_trend: string[];
     medication: string[];
     weather_environment: string[];
     mecfs_energy: string[];
