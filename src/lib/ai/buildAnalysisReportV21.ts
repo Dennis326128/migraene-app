@@ -19,6 +19,12 @@ import {
   effectStrengthFromRateDifference,
   sampleSizeLabel,
 } from "./evidence";
+import { computeDocumentationSummary } from "./documentationSummary";
+import {
+  computeTrendAnalysis,
+  type TrendDayRecord,
+} from "./trendAnalysis";
+import { buildCourseTrendFindings } from "./buildCourseTrendFindings";
 
 export interface BuildReportV21Input {
   fromISO: string;
@@ -34,6 +40,8 @@ export interface BuildReportV21Input {
     daysWithPain: number;
     daysWithMecfs: number;
   };
+  /** Optional deterministic trend day records → "Verlauf & Veränderung". */
+  trendDays?: TrendDayRecord[];
 }
 
 const NO_DIAGNOSIS_DISCLAIMER =
