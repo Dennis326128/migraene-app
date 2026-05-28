@@ -255,7 +255,7 @@ export async function buildPatternPreAnalysis(
 
   const pre: PreAnalysis = {
     weather: {
-      daysWithData: byDay.size,
+      daysWithData: weatherDaysCapped,
       pressureDropDays: dropDays,
       pressureRiseDays: riseDays,
       stableDays,
@@ -266,10 +266,11 @@ export async function buildPatternPreAnalysis(
       pressureMax: pressVals.length ? Math.max(...pressVals) : null,
       tempMin: tempVals.length ? Math.min(...tempVals) : null,
       tempMax: tempVals.length ? Math.max(...tempVals) : null,
-      note: byDay.size === 0
+      note: weatherDaysCapped === 0
         ? "Keine Wetterdaten im Zeitraum vorhanden."
-        : `Wetterabdeckung ${byDay.size}/${rangeDays} Tage. Druckabfall (Δ24h ≤ -3 hPa): ${dropDays} Tage, davon ${painOnDrop} mit Schmerz (${pct(painOnDrop, dropDays)}). Druckanstieg (≥ +3 hPa): ${riseDays} Tage, ${painOnRise} mit Schmerz (${pct(painOnRise, riseDays)}). Stabil: ${stableDays} Tage, ${painOnStable} mit Schmerz (${pct(painOnStable, stableDays)}).`,
+        : `Wetterabdeckung ${weatherDaysCapped}/${rangeDays} Tage. Druckabfall (Δ24h ≤ -3 hPa): ${dropDays} Tage, davon ${painOnDrop} mit Schmerz (${pct(painOnDrop, dropDays)}). Druckanstieg (≥ +3 hPa): ${riseDays} Tage, ${painOnRise} mit Schmerz (${pct(painOnRise, riseDays)}). Stabil: ${stableDays} Tage, ${painOnStable} mit Schmerz (${pct(painOnStable, stableDays)}).`,
     },
+
     time: {
       topWeekday: wdSorted[0]?.[0] ?? null,
       topWeekdayShare: totalWd > 0 ? (wdSorted[0]?.[1] ?? 0) / totalWd : 0,
