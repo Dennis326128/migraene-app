@@ -211,7 +211,11 @@ export async function buildPatternPreAnalysis(
   );
   const byDay = new Map<string, typeof weatherRows[number]>();
   for (const r of weatherRows) {
-    if (r.snapshot_date) byDay.set(r.snapshot_date, r);
+    if (!r.snapshot_date) continue;
+    // Normalise + drop rows outside window so we never count 31 of 30.
+    const key = String(r.snapshot_date).slice(0, 10);
+    if (key < dataset.fromDate || key > dataset.toDate) continue;
+    if (!byDay.has(key)) byDay.set(key, r);
   }
   let dropDays = 0, riseDays = 0, stableDays = 0;
   let painOnDrop = 0, painOnRise = 0, painOnStable = 0;
@@ -226,6 +230,9 @@ export async function buildPatternPreAnalysis(
     else if (dp >= 3) { riseDays++; if (isPain) painOnRise++; }
     else { stableDays++; if (isPain) painOnStable++; }
   }
+  // Hard cap to total range days (defensive).
+  const weatherDaysCapped = Math.min(byDay.size, rangeDays);
+
 
   // --- Medication (high-pain coverage) ---
   let highPain = 0, highPainMed = 0;
