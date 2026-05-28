@@ -547,6 +547,12 @@ export function buildDeterministicFindings(
     should_show_in_doctor_share: true,
   });
 
+  // 8. Verlauf & Veränderung — deterministic trend findings
+  if (trendDays && trendDays.length > 0) {
+    const trend = computeTrendAnalysis(trendDays);
+    for (const tf of buildCourseTrendFindings(trend)) findings.push(tf);
+  }
+
   // Section map
   const ids = (cats: FindingCategory[]) => findings.filter((f) => cats.includes(f.category)).map((f) => f.id);
   const strongest = findings.filter((f) => f.evidence_level === "high" || f.evidence_level === "moderate").map((f) => f.id);
@@ -578,6 +584,7 @@ export function buildDeterministicFindings(
       strongest_findings: strongest,
       weaker_findings: weaker,
       burden_course: ids(["burden", "chronification"]),
+      course_trend: ids(["course_trend", "medication_trend", "mecfs_energy_trend"]),
       medication: ids(["medication_use", "medication_effect", "preventive_course"]),
       weather_environment: ids(["weather"]),
       mecfs_energy: ids(["mecfs_energy_pem"]),
@@ -586,7 +593,7 @@ export function buildDeterministicFindings(
       data_quality: ids(["data_quality"]),
       open_questions: [],
       red_flags: ids(["red_flag"]),
-    },
+    } as any,
   };
 }
 
