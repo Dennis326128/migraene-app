@@ -124,6 +124,7 @@ export async function buildAnalysisPromptData(range: AnalysisTimeRange): Promise
   tokenEstimate: number;
   wasTruncated: boolean;
   preAnalysis: PreAnalysis;
+  trendDays: TrendDayRecord[];
   meta: {
     totalDays: number;
     voiceEventCount: number;
