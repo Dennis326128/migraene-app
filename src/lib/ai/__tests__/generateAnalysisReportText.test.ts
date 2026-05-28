@@ -35,9 +35,11 @@ describe('generateAnalysisReportText', () => {
   it('builds V2.2 report with mandatory headings', () => {
     const txt = generateAnalysisReportText(v21Input);
     expect(txt).toMatch(/^KI-Analyse – keine Diagnose/);
-    expect(txt).toContain('1. Kurzfazit');
+    expect(txt).toContain('1. Zusammenfassung');
     expect(txt).toContain('Wichtigste Hinweise');
     expect(txt).toContain('Grenzen der Analyse');
+    // Zusammenfassung kommt vor allen Detail-Sektionen
+    expect(txt.indexOf('Zusammenfassung')).toBeLessThan(txt.indexOf('Wichtigste Hinweise'));
   });
 
   it('caps Wichtigste Hinweise to max 3 entries', () => {
