@@ -1021,7 +1021,7 @@ export function MigrainePatternAnalysis() {
 
       {isWeakData && <WeakDataMessage />}
 
-      {(() => {
+      {!isAnalyzing && (() => {
         const mode = decideCachedAnalysisDisplay({
           hasResult: !!result,
           staleReason,
