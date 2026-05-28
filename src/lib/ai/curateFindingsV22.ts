@@ -18,6 +18,7 @@
  * Rendering ändert. Eine neue Analyse ist nicht zwingend nötig.
  */
 import type { NormalizedAnalysisFinding } from "./normalizeAnalysisFindings";
+import { applyOutputPolicy } from "./analysisOutputPolicy";
 
 export interface CurateOptions {
   /** If true, do NOT hide Voice-event data_quality cards. */
