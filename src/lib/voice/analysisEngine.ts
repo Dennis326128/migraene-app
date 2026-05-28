@@ -561,6 +561,7 @@ export async function runVoicePatternAnalysis(
       daysTotal: rangeDays,
       preAnalysis: promptData.preAnalysis,
       meta: promptData.meta,
+      trendDays: promptData.trendDays,
     });
 
     const expanded = Array.isArray((fnData as any)?.llm_expanded_findings)
