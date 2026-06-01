@@ -448,7 +448,7 @@ export function curateFindingsV22(
   // and without a clear correlation phrase are dropped entirely so they
   // never reach Highlights or Details.
   const WEATHER_SUBJECTIVE_RE = /\b(hitze|gewitter|druckgef[üu]hl|wetterwechsel|f[öo]hn|schw[üu]le)\b/i;
-  const WEATHER_CLEAR_LINK_RE = /\b(zusammenhang|korreliert|h[äa]ufung|verstärkt|verschlechter)\b/i;
+  const WEATHER_CLEAR_LINK_RE = /\b(zusammenhang|korreliert|h[äa]ufung|verstärkt|verschlechter|verstärkungsfaktor|fallen\s+mit\s+schmerztagen)\b/i;
   curated = curated.filter((f) => {
     if (f.category !== "weather") return true;
     if (f.evidenceLevel === "high" || f.evidenceLevel === "moderate") return true;
