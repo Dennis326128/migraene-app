@@ -42,13 +42,13 @@ const REPORT_SECTION_CAPS: Partial<Record<AnalysisSectionKey, number>> = {
   strongest: 3,
   course_trend: 2,
   weaker: 3,
-  medication: 3,
+  medication: 2,
   weather: 1,
   mecfs: 1,
-  lifestyle: 2,
+  lifestyle: 1,
   symptoms: 1,
   time: 1,
-  interaction: 2,
+  interaction: 1,
   data_quality: 1,
 };
 
