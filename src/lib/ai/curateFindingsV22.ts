@@ -19,6 +19,10 @@
  */
 import type { NormalizedAnalysisFinding } from "./normalizeAnalysisFindings";
 import { applyOutputPolicy } from "./analysisOutputPolicy";
+import {
+  hasUserObservedContextSignal,
+  isAutomaticOnlySignal,
+} from "./subjectiveContextSignal";
 
 export interface CurateOptions {
   /** If true, do NOT hide Voice-event data_quality cards. */
