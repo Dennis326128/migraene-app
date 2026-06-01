@@ -407,22 +407,57 @@ export function curateFindingsV22(
     });
   }
 
-  // 4b) ME/CFS dedup — collapse repeated PEM-gap / "ME/CFS nicht dokumentiert"
-  // findings into a single entry (title-based after rewrite).
+  // 4b) ME/CFS dedup — keep only the SINGLE most informative mecfs_energy_pem
+  // finding (highest evidence, longer summary wins on tie). All others are
+  // dropped so the topical "ME/CFS & Energie" block stays compact.
   const mecfsItems = curated.filter((f) => f.category === "mecfs_energy_pem");
   if (mecfsItems.length > 1) {
-    const seenMecfs = new Set<string>();
+    const best = [...mecfsItems].sort((a, b) => {
+      const e = evidenceRank[b.evidenceLevel] - evidenceRank[a.evidenceLevel];
+      if (e !== 0) return e;
+      return (b.summary?.length ?? 0) - (a.summary?.length ?? 0);
+    })[0];
     curated = curated.filter((f) => {
       if (f.category !== "mecfs_energy_pem") return true;
-      const k = f.title.toLowerCase().slice(0, 60);
-      if (seenMecfs.has(k)) {
-        suppressed.push({ id: f.id, reason: "mecfs_duplicate" });
-        return false;
-      }
-      seenMecfs.add(k);
-      return true;
+      if (f.id === best.id) return true;
+      suppressed.push({ id: f.id, reason: "mecfs_topic_dedup" });
+      return false;
     });
   }
+
+  // 4b-ii) Stable / low-value trends must not surface as highlights.
+  // course_trend / medication_trend / mecfs_energy_trend with direction
+  // "unchanged" (here: title containing "stabil", "ähnlich", "bleibt …" or
+  // mecfs "seltener dokumentiert") are pinned to their topical section only.
+  const STABLE_TREND_RE =
+    /\b(stabil|bleibt\s+(?:ähnlich|hoch|niedrig)|im\s+verlauf\s+stabil|weitgehend\s+stabil|ähnlich|unverändert|seltener\s+dokumentiert)\b/i;
+  curated = curated.map((f) => {
+    if (
+      (f.category === "course_trend" ||
+        f.category === "medication_trend" ||
+        f.category === "mecfs_energy_trend") &&
+      STABLE_TREND_RE.test(f.title)
+    ) {
+      return { ...f, pinToTopical: true };
+    }
+    return f;
+  });
+
+  // 4b-iii) Weather low-evidence gating — weather findings at evidence "low"
+  // without a subjective marker (Hitze/Gewitter/Druckgefühl/Wetterwechsel)
+  // and without a clear correlation phrase are dropped entirely so they
+  // never reach Highlights or Details.
+  const WEATHER_SUBJECTIVE_RE = /\b(hitze|gewitter|druckgef[üu]hl|wetterwechsel|f[öo]hn|schw[üu]le)\b/i;
+  const WEATHER_CLEAR_LINK_RE = /\b(zusammenhang|korreliert|h[äa]ufung|verstärkt|verschlechter)\b/i;
+  curated = curated.filter((f) => {
+    if (f.category !== "weather") return true;
+    if (f.evidenceLevel === "high" || f.evidenceLevel === "moderate") return true;
+    const hay = `${f.title} ${f.summary}`;
+    if (WEATHER_SUBJECTIVE_RE.test(hay) || WEATHER_CLEAR_LINK_RE.test(hay)) return true;
+    suppressed.push({ id: f.id, reason: "weather_low_no_practical_link" });
+    return false;
+  });
+
 
   // 4c) High-pain merge — collapse burden + chronification into a single,
   // strong, non-diagnostic "Sehr hohe Schmerzlast" card at painRatio ≥ 0.85.
