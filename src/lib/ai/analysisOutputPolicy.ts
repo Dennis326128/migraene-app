@@ -55,6 +55,17 @@ const BAN_ALWAYS: RegExp[] = [
   /\bbereits\s+bestehende[rn]?\s+chronische[rn]?\s+Migräne\b/i,
   /\bKriterium\s+für\s+(?:eine[rn]?\s+)?chronische[rn]?\s+Migräne\b/i,
   /\b(?:deutet|spricht)\s+(?:stark\s+)?(?:auf|für)\s+(?:eine[rn]?\s+)?chronische[rn]?\s+Migräne\b/i,
+  // Medication timing / effect documentation pressure
+  /Medikamenten[-\s]?Einsatzzeitpunkt/i,
+  /Einnahmezeitpunkt\s+relativ\s+zum\s+Schmerzbeginn/i,
+  /Zeitpunkt\s+der\s+Medikamenteneinnahme/i,
+  /\bSchmerzbeginn\b/i,
+  /innerhalb\s+der\s+ersten\s+Stunde/i,
+  /Wirkung\s+nach\s+1\s+und\s+2\s+Stunden/i,
+  /Wirkung\s+nach\s+1\/2\s+Stunden/i,
+  /Schmerzreduktion\s+in\s+%/i,
+  /(?:fehlende|mangelnde)\s+Dokumentation\s+der\s+Medikamentenwirkung/i,
+  /Wirksamkeit\s+der\s+Medikamente\s+nach\s+Einnahme\s+bewerten/i,
 ];
 
 /** Forbidden only in data_quality findings when a friendly summary exists. */
@@ -63,9 +74,31 @@ const BAN_NEGATIVE_DQ: RegExp[] = [
   /\bMangel\s+an\s+Dokumentation\b/i,
   /\bmacht\s+(?:die\s+)?Analyse\s+unmöglich\b/i,
   /\bDatenlage\s+(?:ist\s+)?ungenügend\b/i,
+  /\bDaten\s+nicht\s+ausreichend\b/i,
   /\bTagesfaktoren\s+(?:fehl|kaum|unzureich)/i,
-  /\bPEM[-\s]?Daten\s+(?:fehl|unzureich|kaum)/i,
+  /\bPEM[-\s]?Daten\s+(?:fehl|unzureich|kaum|mangel)/i,
+  /\bMangel\s+an\s+detaillierten\s+PEM/i,
   /\bBelastungs[-\s]?Daten\s+fehlen\b/i,
+  /\bSchlaf\s*\/?\s*Stress\s+(?:wird|werden)\s+nicht\s+konsequent/i,
+  /\b(?:Schlaf|Stress|Energie)\s+(?:wird|werden)\s+nicht\s+(?:konsequent\s+)?dokumentiert\b/i,
+];
+
+/** Technical raw tokens that must never appear in user-visible text. */
+const STRIP_TECHNICAL_TOKENS: RegExp[] = [
+  /\bdeterministic_finding\b/gi,
+  /\bllm_expanded_findings?\b/gi,
+  /\bmedication_use\b/gi,
+  /\bmedication_effect\b/gi,
+  /\bmecfs_energy_pem\b/gi,
+  /\bcourse_trend\b/gi,
+  /\bmedication_trend\b/gi,
+  /\bmecfs_energy_trend\b/gi,
+  /\bdata_quality\b/gi,
+  // Bare snake_case identifier with at least one underscore segment
+  // (e.g. "medication.diary_coverage", "weather.pressure_drop") — anchored
+  // to require a dot AND an underscore to avoid matching natural prose.
+  /\b[a-z]{3,}(?:_[a-z0-9]+)+(?:\.[a-z0-9_]+)+\b/g,
+  /\b[a-z]{3,}\.[a-z]{3,}(?:_[a-z0-9_]+)+\b/g,
 ];
 
 export const POLICY_BANNED_PATTERNS = BAN_ALWAYS;
@@ -88,11 +121,16 @@ export function sanitizeOutputText(text: string | null | undefined): string {
   });
   // Also defensively fix any leaked "X von Y Tagen" weather-coverage phrase
   // that survived sentence-level filtering (e.g. embedded mid-sentence).
-  return kept
-    .join(" ")
-    .replace(/Wetterdaten\s+(?:lagen|liegen)\s+für\s+\d+\s+von\s+\d+\s+Tagen\s+vor\.?/gi, "")
-    .replace(/\s{2,}/g, " ")
-    .trim();
+  /** Technical raw tokens that must never appear in user-visible text. */
+  const STRIP_RE_LIST = STRIP_TECHNICAL_TOKENS;
+  let joined = kept.join(" ");
+  // Defensively fix any leaked "X von Y Tagen" weather-coverage phrase.
+  joined = joined.replace(
+    /Wetterdaten\s+(?:lagen|liegen)\s+für\s+\d+\s+von\s+\d+\s+Tagen\s+vor\.?/gi,
+    "",
+  );
+  for (const re of STRIP_RE_LIST) joined = joined.replace(re, "");
+  return joined.replace(/\s{2,}/g, " ").trim();
 }
 
 /** Returns true if any banned phrase appears anywhere in the text. */
@@ -101,6 +139,7 @@ export function hasBannedText(text: string | null | undefined): boolean {
   for (const re of BAN_ALWAYS) if (re.test(text)) return true;
   return false;
 }
+
 
 // ─────────────────────────── Finding policy ───────────────────────────
 

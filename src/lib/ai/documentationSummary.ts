@@ -45,21 +45,25 @@ export function computeDocumentationSummary(input: DocumentationInput): Document
   }
 
   const detailHints: string[] = [];
-  if (input.mecfsDays / Math.max(1, rangeDays) < 0.3) {
-    detailHints.push("Für PEM-/Energie-Muster wären zusätzliche kurze Energie-Einträge hilfreich.");
-  }
-  if (input.contextNoteCount / Math.max(1, rangeDays) < 0.3) {
-    detailHints.push("Tagesfaktoren wie Schlaf, Stress oder Auslöser helfen, feinere Zusammenhänge zu erkennen.");
-  }
-  if (input.effectRatingCount === 0 && input.medDays > 0) {
-    detailHints.push("Medikamentenwirkung kurz zu bewerten verbessert die Auswertung der Akutstrategie.");
+  // For "good" coverage (≥ 80%) the App-Produktziel ist Einfachheit:
+  // keine zusätzlichen Pflicht-Dokumentationshinweise mehr.
+  if (tone !== "good") {
+    if (input.mecfsDays / Math.max(1, rangeDays) < 0.3) {
+      detailHints.push("Für PEM-/Energie-Muster wären zusätzliche kurze Energie-Einträge hilfreich.");
+    }
+    if (input.contextNoteCount / Math.max(1, rangeDays) < 0.3) {
+      detailHints.push("Tagesfaktoren wie Schlaf, Stress oder Auslöser helfen, feinere Zusammenhänge zu erkennen.");
+    }
+    if (input.effectRatingCount === 0 && input.medDays > 0) {
+      detailHints.push("Medikamentenwirkung kurz zu bewerten verbessert die Auswertung der Akutstrategie.");
+    }
   }
 
-  const tail =
-    "Verlauf und Medikamententrends bleiben gut auswertbar; Trigger- und PEM-Zusammenhänge sind ohne Detaildaten vorsichtiger.";
-  const plainText = detailHints.length > 0
-    ? `${headline} ${detailHints.join(" ")} ${tail}`
-    : `${headline} ${tail}`;
+  const plainText = tone === "good"
+    ? headline
+    : detailHints.length > 0
+      ? `${headline} ${detailHints.join(" ")} Verlauf und Medikamententrends bleiben gut auswertbar; Trigger- und PEM-Zusammenhänge sind ohne Detaildaten vorsichtiger.`
+      : `${headline} Verlauf und Medikamententrends bleiben gut auswertbar; Trigger- und PEM-Zusammenhänge sind ohne Detaildaten vorsichtiger.`;
 
   return {
     coverage: Math.round(coverage * 1000) / 1000,
