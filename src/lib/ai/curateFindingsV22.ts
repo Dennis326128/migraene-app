@@ -530,21 +530,55 @@ export function curateFindingsV22(
   }
 
   // 9) Inject friendly "Gute Dokumentationsgrundlage" data_quality card
-  // when documentation coverage is good (≥ 90% of the analysed period
+  // when documentation coverage is good (≥ 80% of the analysed period
   // AND ≥ 14 documented days). Skip if a friendly card already exists.
   curated = injectFriendlyDocSummaryIfNeeded(curated, responseJson, suppressed);
+
+  // 9b) When friendly summary is present: collapse the documentation
+  // section to a single card (drop all other data_quality findings) and
+  // scrub noisy "Nächste Dokumentation"-items everywhere — the product
+  // goal is "easy to document", not a homework list.
+  const friendlyId = "data_quality.diary_coverage";
+  const friendlyPresent = curated.some(
+    (f) => f.category === "data_quality" && f.id === friendlyId,
+  );
+  if (friendlyPresent) {
+    curated = curated.filter((f) => {
+      if (f.category !== "data_quality") return true;
+      if (f.id === friendlyId) return true;
+      suppressed.push({ id: f.id, reason: "documentation_summary_supersedes_all_dq" });
+      return false;
+    });
+    curated = curated.map((f) =>
+      f.id === friendlyId ? f : scrubNoisyTrackingItems(f),
+    );
+  }
 
   // 10) FINAL POLICY GUARD — single source of truth for banned content.
   // Runs after all curation so no LLM/stored/legacy finding can leak
   // forbidden wording (weather coverage counts, voice events,
   // "schmerzfreie Vergleichstage", diagnose wording, …) into UI or report.
-  const hasFriendlyDocSummary = curated.some(
-    (f) => f.category === "data_quality" && f.id === "data_quality.diary_coverage",
-  );
+  const hasFriendlyDocSummary = friendlyPresent;
   const policy = applyOutputPolicy(curated, openQuestions, { hasFriendlyDocSummary });
   for (const r of policy.removed) suppressed.push(r);
 
   return { findings: policy.findings, openQuestions: policy.openQuestions, suppressed };
+}
+
+/**
+ * Patterns for "Nächste Dokumentation" items that we suppress when the
+ * user already has a good documentation routine. Keeps the analysis from
+ * reading like a homework list.
+ */
+const NOISY_TRACKING_RE =
+  /\b(einnahmezeitpunkt|zeitpunkt\s+der\s+(?:medikamenten?einnahme|einnahme)|schmerzbeginn|innerhalb\s+der\s+ersten\s+stunde|wirkung\s+nach\s+\d|schmerzreduktion\s+in\s*%|prozent\s+schmerzreduktion|t[aä]gliche[rsn]?\s+(?:schlafqualit[aä]t|stresslevel|energielevel)|detaillierte[rn]?\s+pem|sprach(?:notiz|ereignis)|wetterdaten|schmerzfreie[rn]?\s+tage|wirksamkeit\s+der\s+medikamente)/i;
+
+function scrubNoisyTrackingItems(
+  f: NormalizedAnalysisFinding,
+): NormalizedAnalysisFinding {
+  const cleaned = f.recommendedTrackingNext.filter((t) => !NOISY_TRACKING_RE.test(t));
+  if (cleaned.length === f.recommendedTrackingNext.length) return f;
+  return { ...f, recommendedTrackingNext: cleaned };
 }
 
 function getPeriodLengthDays(responseJson: unknown): number {
