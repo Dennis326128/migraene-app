@@ -131,15 +131,14 @@ export function buildAnalysisOverviewSummary(
     sentences.push("ME/CFS-/Energiesignale wurden über den Zeitraum hinweg regelmäßig dokumentiert.");
   }
 
-  // 5) Wetterhinweis, falls vorhanden
+  // 5) Wetterhinweis — nur bei klar erkennbarem Zusammenhang erwähnen.
+  // Bei niedriger Evidenz lieber gar nichts oder einen knappen Negativsatz.
   const weather = findByCategory(findings, "weather");
   if (weather) {
     if (weather.evidenceLevel === "high" || weather.evidenceLevel === "moderate") {
       sentences.push("Wetterveränderungen zeigen in diesem Zeitraum einen erkennbaren Zusammenhang mit den Schmerztagen.");
     } else {
-      sentences.push(
-        "Wetter kann in diesem Zeitraum eher als möglicher Verstärkungsfaktor betrachtet werden; ein klarer Auslöser lässt sich daraus nicht ableiten.",
-      );
+      sentences.push("Ein klarer Wetterzusammenhang zeigt sich in diesem Zeitraum nicht.");
     }
   }
 
