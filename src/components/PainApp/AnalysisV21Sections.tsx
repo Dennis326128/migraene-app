@@ -219,7 +219,12 @@ export function AnalysisV21Sections({ responseJson, doctorShare = false, showVoi
               );
             }
 
-            const items = applySectionCaps(key, dedupSection(grouped[key]));
+            const highlightIds = new Set(highlights.map((h) => h.id));
+            let secItems = dedupSection(grouped[key]);
+            if (key === "weaker" || key === "strongest") {
+              secItems = secItems.filter((f) => !highlightIds.has(f.id));
+            }
+            const items = applySectionCaps(key, secItems);
             if (items.length === 0) return null;
             return (
               <Section key={key} title={SECTION_LABEL[key]}>
