@@ -135,12 +135,6 @@ export function hasBannedText(text: string | null | undefined): boolean {
   return false;
 }
 
-/** Returns true if any banned phrase appears anywhere in the text. */
-export function hasBannedText(text: string | null | undefined): boolean {
-  if (!text) return false;
-  for (const re of BAN_ALWAYS) if (re.test(text)) return true;
-  return false;
-}
 
 // ─────────────────────────── Finding policy ───────────────────────────
 
