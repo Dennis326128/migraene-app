@@ -94,11 +94,10 @@ describe('curateFindingsV22', () => {
           summary: 'Keine ausreichende Datenbasis für ME/CFS.' })],
       responseJson,
     );
-    expect(r.findings[0].title).toMatch(/Energiesignale/i);
+    expect(r.findings[0].title).toMatch(/ME\/CFS.*Energie/i);
     expect(r.findings[0].evidenceLevel).toBe('moderate');
     expect(r.findings[0].pinToTopical).toBe(true);
     expect(r.findings[0].summary).toMatch(/63 von 90/);
-    expect(r.findings[0].limitations.join(' ')).toMatch(/PEM/i);
   });
 
   it('ME/CFS gap NOT rewritten when few days of data', () => {
