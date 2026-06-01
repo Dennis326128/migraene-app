@@ -312,7 +312,7 @@ function suppressNegativeDataQualityWhenFriendlySummary(
 }
 
 const OPEN_QUESTION_EXCLUDE_RE =
-  /\b(nacken|stirn|schl(?:ä|ae)fe|hinterkopf|lokalisation|schmerzort)\b/i;
+  /\b(nacken|stirn|schl(?:ä|ae)fe|hinterkopf|lokalisation|schmerzort|patient(?:en|in)?|muss\s+ausgeschlossen|differential[\s-]?diagnos|ausschluss\s+(?:einer|eines)|schmerzlast|chronifizierung)\b/i;
 
 export function curateFindingsV22(
   findings: NormalizedAnalysisFinding[],
