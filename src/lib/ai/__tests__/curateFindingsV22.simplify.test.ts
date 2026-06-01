@@ -82,7 +82,7 @@ describe("curateFindingsV22 — release simplification", () => {
     ]);
   });
 
-  it("scrubs noisy 'Nächste Dokumentation' items from all findings on good doc", () => {
+  it("strips ALL recommendedTrackingNext from non-DQ findings on good documentation", () => {
     const r = curateFindingsV22(
       [
         f({
@@ -99,7 +99,15 @@ describe("curateFindingsV22 — release simplification", () => {
       goodDocCtx,
     );
     const burden = r.findings.find((x) => x.id === "burden");
-    expect(burden?.recommendedTrackingNext).toEqual(["Trigger-Notizen weiter führen"]);
+    expect(burden?.recommendedTrackingNext).toEqual([]);
+  });
+
+  it("keeps the Dokumentationsfazit's own 'Routine beibehalten' tracking line", () => {
+    const r = curateFindingsV22([], goodDocCtx);
+    const friendly = r.findings.find((x) => x.id === "data_quality.diary_coverage");
+    expect(friendly?.recommendedTrackingNext).toEqual([
+      "Aktuelle Dokumentationsroutine beibehalten.",
+    ]);
   });
 
   it("strips technical raw tokens from text via policy sanitation", () => {
