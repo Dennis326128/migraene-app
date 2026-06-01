@@ -116,11 +116,23 @@ export function sanitizeOutputText(text: string | null | undefined): string {
   });
   // Also defensively fix any leaked "X von Y Tagen" weather-coverage phrase
   // that survived sentence-level filtering (e.g. embedded mid-sentence).
-  return kept
-    .join(" ")
-    .replace(/Wetterdaten\s+(?:lagen|liegen)\s+für\s+\d+\s+von\s+\d+\s+Tagen\s+vor\.?/gi, "")
-    .replace(/\s{2,}/g, " ")
-    .trim();
+  /** Technical raw tokens that must never appear in user-visible text. */
+  const STRIP_RE_LIST = STRIP_TECHNICAL_TOKENS;
+  let joined = kept.join(" ");
+  // Defensively fix any leaked "X von Y Tagen" weather-coverage phrase.
+  joined = joined.replace(
+    /Wetterdaten\s+(?:lagen|liegen)\s+für\s+\d+\s+von\s+\d+\s+Tagen\s+vor\.?/gi,
+    "",
+  );
+  for (const re of STRIP_RE_LIST) joined = joined.replace(re, "");
+  return joined.replace(/\s{2,}/g, " ").trim();
+}
+
+/** Returns true if any banned phrase appears anywhere in the text. */
+export function hasBannedText(text: string | null | undefined): boolean {
+  if (!text) return false;
+  for (const re of BAN_ALWAYS) if (re.test(text)) return true;
+  return false;
 }
 
 /** Returns true if any banned phrase appears anywhere in the text. */
