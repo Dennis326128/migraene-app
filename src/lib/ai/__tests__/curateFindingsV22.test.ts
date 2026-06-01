@@ -225,7 +225,7 @@ describe('curateFindingsV22 — V2.2 hardening', () => {
           title: 'Mangelnde ME/CFS-Dokumentation', summary: 'ME/CFS nicht dokumentiert.' }),
     ], rj);
     expect(r.findings).toHaveLength(1);
-    expect(r.findings[0].title).toMatch(/Energiesignale/);
+    expect(r.findings[0].title).toMatch(/ME\/CFS.*Energie/i);
   });
 });
 
