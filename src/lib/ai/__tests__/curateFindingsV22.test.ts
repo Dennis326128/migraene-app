@@ -155,9 +155,14 @@ describe('applySectionCaps', () => {
     expect(out.filter(o => o.evidenceLevel === 'high')).toHaveLength(2);
   });
 
-  it('does not touch uncapped sections', () => {
+  it('caps medication section to 2', () => {
     const items = Array.from({ length: 8 }, () => ({ evidenceLevel: 'low' as const, id: 'x' }));
-    expect(applySectionCaps('medication', items)).toHaveLength(8);
+    expect(applySectionCaps('medication', items)).toHaveLength(2);
+  });
+
+  it('does not touch unknown sections', () => {
+    const items = Array.from({ length: 8 }, () => ({ evidenceLevel: 'low' as const, id: 'x' }));
+    expect(applySectionCaps('open_questions', items)).toHaveLength(8);
   });
 });
 
