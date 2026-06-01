@@ -544,7 +544,7 @@ export function curateFindingsV22(
       return false;
     });
     curated = curated.map((f) =>
-      f.id === friendlyId ? f : scrubNoisyTrackingItems(f),
+      f.id === friendlyId ? f : stripAllTrackingItems(f),
     );
   }
 
