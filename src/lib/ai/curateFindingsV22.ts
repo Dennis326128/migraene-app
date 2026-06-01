@@ -451,6 +451,30 @@ export function curateFindingsV22(
     return false;
   });
 
+  // 4b-iv) Verlauf & Veränderung: kompakt halten.
+  // - Stabile ME/CFS-Trendkarte komplett entfernen (keine eigene Karte für
+  //   "ME/CFS bleibt ähnlich").
+  // - Wenn ein Triptan-Kurzfristtrend existiert, ersetzt er den allgemeinen
+  //   medication_trend (allgemeine Karte wird verworfen).
+  curated = curated.filter((f) => {
+    if (f.category === "mecfs_energy_trend" && STABLE_TREND_RE.test(f.title)) {
+      suppressed.push({ id: f.id, reason: "course_trend_stable_mecfs_hidden" });
+      return false;
+    }
+    return true;
+  });
+  const triptanShort = curated.find(
+    (f) => f.id === "medication_trend.acute_use_short_term",
+  );
+  if (triptanShort) {
+    curated = curated.filter((f) => {
+      if (f.category !== "medication_trend") return true;
+      if (f.id === triptanShort.id) return true;
+      suppressed.push({ id: f.id, reason: "medication_trend_replaced_by_triptan_short" });
+      return false;
+    });
+  }
+
 
   // 4c) High-pain merge — collapse burden + chronification into a single,
   // strong, non-diagnostic "Sehr hohe Schmerzlast" card at painRatio ≥ 0.85.
