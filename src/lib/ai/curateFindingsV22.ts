@@ -575,6 +575,19 @@ function scrubNoisyTrackingItems(
   return { ...f, recommendedTrackingNext: cleaned };
 }
 
+/**
+ * When the user has a good documentation routine, drop ALL
+ * "Nächste Dokumentation"-items from non-data_quality findings.
+ * The product goal is "App informiert, nicht Aufgaben verteilen" —
+ * only the Dokumentationsfazit keeps a single "Routine beibehalten"-Hinweis.
+ */
+function stripAllTrackingItems(
+  f: NormalizedAnalysisFinding,
+): NormalizedAnalysisFinding {
+  if (f.recommendedTrackingNext.length === 0) return f;
+  return { ...f, recommendedTrackingNext: [] };
+}
+
 function getPeriodLengthDays(responseJson: unknown): number {
   const period = (responseJson as any)?.analysisV21?.period;
   const from = period?.from;
