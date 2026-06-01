@@ -208,11 +208,12 @@ function adjustWeatherForLowComparisonBase(
 ): NormalizedAnalysisFinding {
   if (f.category !== "weather") return f;
   if (painRatio <= 0.85) return f;
+  // Cards with subjective markers (Hitze/Gewitter/…) stay as-is — they have
+  // practical value even without a pain-free comparison base.
+  const hay = `${f.title} ${f.summary}`;
+  if (/\b(hitze|gewitter|druckgef[üu]hl|wetterwechsel|f[öo]hn|schw[üu]le)\b/i.test(hay)) return f;
   return {
     ...f,
-    // Use "low" instead of "insufficient" so the badge reads "schwacher Hinweis"
-    // rather than the harsh "Daten nicht ausreichend" — data IS there, the
-    // comparison base is just thin.
     evidenceLevel: "low",
     summary:
       "Wetter kann in diesem Zeitraum eher als möglicher Verstärkungsfaktor betrachtet werden. " +
@@ -223,7 +224,6 @@ function adjustWeatherForLowComparisonBase(
     recommendedTrackingNext: [
       "Subjektive Wetterempfindungen wie Hitze, Gewitter, Druckgefühl oder Wetterwechsel kurz notieren.",
     ],
-    // remove doctor-questions so weather is not pushed into open questions
     doctorDiscussionPoints: [],
   };
 }
