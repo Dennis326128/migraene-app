@@ -675,14 +675,23 @@ function injectFriendlyDocSummaryIfNeeded(
  * "Geprüfte Bereiche" cards and are expected to be compact already.
  */
 export function applySectionCaps<T extends { evidenceLevel: NormalizedAnalysisFinding["evidenceLevel"] }>(
-  section: "strongest" | "weaker" | "data_quality" | string,
+  section: string,
   items: T[],
 ): T[] {
-  const cap =
-    section === "strongest" ? MAX_STRONGEST
-    : section === "weaker" ? MAX_WEAKER
-    : section === "data_quality" ? MAX_DATA_QUALITY
-    : null;
+  const capMap: Record<string, number> = {
+    strongest: MAX_STRONGEST,
+    weaker: MAX_WEAKER,
+    data_quality: 1,            // Dokumentationsfazit: nur 1 Karte
+    course_trend: 2,            // Verlauf & Veränderung: max 2 Karten
+    medication: 2,              // Medikamente: max 2 Karten
+    weather: 1,
+    mecfs: 1,
+    lifestyle: 2,
+    symptoms: 1,
+    time: 1,
+    interaction: 2,
+  };
+  const cap = capMap[section];
   if (cap == null || items.length <= cap) return items;
   return [...items]
     .sort((a, b) => evidenceRank[b.evidenceLevel] - evidenceRank[a.evidenceLevel])
