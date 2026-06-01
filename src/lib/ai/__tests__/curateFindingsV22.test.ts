@@ -189,17 +189,14 @@ describe('curateFindingsV22 — V2.2 hardening', () => {
     expect(r.findings[0].summary).not.toMatch(/100\s?%/);
   });
 
-  it('softens weather to "low" (not insufficient) with cautious wording when pain ratio is very high', () => {
+  it('drops weather card entirely when pain ratio is very high and no subjective marker', () => {
     const rj = { analysisV21: { data_basis: { pain_days: 89, documented_days: 90 } } };
     const r = curateFindingsV22([
       f({ id: 'w', category: 'weather', evidenceLevel: 'moderate',
           title: 'Druckabfall', summary: 'Druckabfälle fallen mit Schmerztagen zusammen.',
           doctorDiscussionPoints: ['Wetterprävention besprechen'] }),
     ], rj);
-    expect(r.findings[0].evidenceLevel).toBe('low');
-    expect(r.findings[0].summary).toMatch(/möglicher Verstärkungsfaktor/);
-    expect(r.findings[0].summary).not.toMatch(/Mangel an schmerzfreien/i);
-    expect(r.findings[0].summary).not.toMatch(/fehlende schmerzfreie/i);
+    expect(r.findings.find((x) => x.id === 'w')).toBeUndefined();
     expect(r.openQuestions).toHaveLength(0);
   });
 
