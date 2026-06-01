@@ -33,7 +33,7 @@ export interface CuratedResult {
 }
 
 const MAX_DATA_QUALITY = 3;
-const MAX_OPEN_QUESTIONS = 5;
+const MAX_OPEN_QUESTIONS = 4;
 const MAX_STRONGEST = 4;
 const MAX_WEAKER = 5;
 
