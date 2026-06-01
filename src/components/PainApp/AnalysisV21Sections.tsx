@@ -80,10 +80,9 @@ function pickTopHighlights(findings: NormalizedAnalysisFinding[]): NormalizedAna
       f.category === "weather" &&
       (f.evidenceLevel === "high" || f.evidenceLevel === "moderate"),
   );
-  const friendlyDoc = findings.find(
-    (f) => f.category === "data_quality" && f.id === "data_quality.diary_coverage",
-  );
-  push(courseChange ?? mecfsHigh ?? weatherStrong ?? friendlyDoc);
+  // Dokumentationsfazit erscheint NICHT in den Highlights — es ist kein
+  // Hauptbefund. Es bleibt unten als eigene Sektion "Dokumentationsfazit".
+  push(courseChange ?? mecfsHigh ?? weatherStrong);
 
   return out.filter(Boolean).slice(0, MAX_HIGHLIGHTS);
 }
