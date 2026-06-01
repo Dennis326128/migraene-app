@@ -91,17 +91,27 @@ export function buildAnalysisOverviewSummary(
     }
   }
 
-  // 3) Triptan-/Akutmedikationsentwicklung
+  // 3) Triptan-/Akutmedikationsentwicklung — Kurzfristtrend (10 vs 10) hat
+  // Vorrang vor dem 15-vs-15-Trend; "stabil" wird nur erwähnt, wenn kein
+  // Kurzfristtrend Sinnvolles aussagt.
+  const triptanShort = findings.find(
+    (f) => f.id === "medication_trend.acute_use_short_term",
+  );
   const medTrend = findByCategory(findings, "medication_trend");
-  if (medTrend) {
-    const t = medTrend.title.toLowerCase();
-    if (t.includes("triptan") && t.includes("seltener")) {
+  const medFinding = triptanShort ?? medTrend;
+  if (medFinding) {
+    const t = medFinding.title.toLowerCase();
+    const shortSummary = (medFinding.summary || "").trim();
+    if (triptanShort && shortSummary) {
+      sentences.push(shortSummary);
+    } else if (t.includes("triptan") && t.includes("seltener")) {
       sentences.push("Triptane wurden zuletzt seltener eingenommen, die Schmerzlast blieb dabei unverändert.");
     } else if (t.includes("seltener")) {
       sentences.push("Die Akutmedikation wurde zuletzt etwas seltener eingenommen.");
     } else if (t.includes("häufiger")) {
       sentences.push("Die Akutmedikation wurde zuletzt etwas häufiger eingenommen.");
-    } else {
+    } else if (!triptanShort) {
+      // Only mention "stabil" when there is no short-term trend to highlight.
       sentences.push("Die Akutmedikation war im Verlauf weitgehend stabil.");
     }
   }
