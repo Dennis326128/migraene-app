@@ -546,22 +546,27 @@ export function curateFindingsV22(
     });
   }
 
-  // 8) Open questions: deduplicated + cap to 5, no data_quality items,
-  // and excluding low-priority topics (localization, weather when demoted).
+  // 8) Open questions: deduplicated + cap to 4, no data_quality items,
+  // and excluding low-priority topics. Zusätzlich: maximal EINE Frage
+  // zum Thema ME/CFS/Fatigue/Energie.
   const seen = new Set<string>();
+  const FATIGUE_Q_RE = /\b(fatigue|me\/?cfs|erschöpf|pem|energie)\b/i;
+  let fatigueQuestionSeen = false;
   const openQuestions: string[] = [];
   const prioritized = [...curated].sort(
     (a, b) => evidenceRank[b.evidenceLevel] - evidenceRank[a.evidenceLevel],
   );
   for (const f of prioritized) {
     if (f.category === "data_quality") continue;
-    // Skip questions for findings that were demoted to insufficient on
-    // weather (we already cleared their doctorDiscussionPoints, but be safe).
     if (f.category === "weather" && f.evidenceLevel === "insufficient") continue;
     for (const q of f.doctorDiscussionPoints) {
       const k = q.toLowerCase().replace(/\s+/g, " ").trim().slice(0, 80);
       if (!k || seen.has(k)) continue;
       if (OPEN_QUESTION_EXCLUDE_RE.test(k)) continue;
+      if (FATIGUE_Q_RE.test(k)) {
+        if (fatigueQuestionSeen) continue;
+        fatigueQuestionSeen = true;
+      }
       seen.add(k);
       openQuestions.push(q);
       if (openQuestions.length >= MAX_OPEN_QUESTIONS) break;
