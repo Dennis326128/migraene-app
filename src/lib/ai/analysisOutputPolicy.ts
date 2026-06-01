@@ -90,6 +90,7 @@ const BAN_NEGATIVE_DQ: RegExp[] = [
 /** Technical raw tokens that must never appear in user-visible text. */
 const STRIP_TECHNICAL_TOKENS: RegExp[] = [
   /\bdeterministic_finding\b/gi,
+  /\bdeterministic\b/gi,
   /\bllm_expanded_findings?\b/gi,
   /\bmedication_use\b/gi,
   /\bmedication_effect\b/gi,
