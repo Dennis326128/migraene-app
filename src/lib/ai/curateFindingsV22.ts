@@ -214,8 +214,9 @@ function adjustWeatherForLowComparisonBase(
   if (painRatio <= 0.85) return f;
   // Cards with subjective markers (Hitze/Gewitter/…) stay as-is — they have
   // practical value even without a pain-free comparison base.
-  const hay = `${f.title} ${f.summary}`;
-  if (/\b(hitze|gewitter|druckgef[üu]hl|wetterwechsel|f[öo]hn|schw[üu]le)\b/i.test(hay)) return f;
+  // Cards mit subjektivem Nutzerkontext bleiben erhalten — sie haben
+  // praktischen Wert auch ohne schmerzfreie Vergleichstage.
+  if (hasUserObservedContextSignal(f)) return f;
   return {
     ...f,
     evidenceLevel: "low",
