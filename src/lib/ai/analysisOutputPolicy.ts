@@ -66,6 +66,10 @@ const BAN_ALWAYS: RegExp[] = [
   /Schmerzreduktion\s+in\s+%/i,
   /(?:fehlende|mangelnde)\s+Dokumentation\s+der\s+Medikamentenwirkung/i,
   /Wirksamkeit\s+der\s+Medikamente\s+nach\s+Einnahme\s+bewerten/i,
+  // Technical / process wording must never leak into user-visible text.
+  /\bdeterministisch(?:e[rnms]?)?\b/i,
+  /\bVoranalyse\b/i,
+  /\bDie\s+Analyse\s+zeigt\b/i,
 ];
 
 /** Forbidden only in data_quality findings when a friendly summary exists. */
