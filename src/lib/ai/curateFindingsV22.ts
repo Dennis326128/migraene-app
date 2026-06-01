@@ -567,7 +567,8 @@ function injectFriendlyDocSummaryIfNeeded(
   const periodLen = getPeriodLengthDays(responseJson);
   if (docDays < 14 || periodLen <= 0) return curated;
   const coverage = docDays / periodLen;
-  if (coverage < 0.9) return curated;
+  // Schwelle bewusst auf ≥ 80 % gesenkt — siehe Produktziel "Einfach dokumentieren".
+  if (coverage < 0.8) return curated;
   const exists = curated.some(
     (f) => f.category === "data_quality" && f.id === "data_quality.diary_coverage",
   );
@@ -581,10 +582,11 @@ function injectFriendlyDocSummaryIfNeeded(
     summary:
       `Du hast an ${docDays} von ${periodLen} Tagen Einträge dokumentiert. ` +
       `Die Grundlage für Verlauf und Belastung ist dadurch gut.`,
+    reasoning:
+      "Optionale Zusatzangaben können einzelne Zusammenhänge genauer machen, sind aber keine Voraussetzung für eine hilfreiche Analyse.",
     limitations: [],
     recommendedTrackingNext: [
       "Aktuelle Dokumentationsroutine beibehalten.",
-      "Für feinere Zusammenhänge optionale Angaben zu Schlaf, Stress, Energie/PEM oder Medikamentenwirkung ergänzen.",
     ],
     doctorDiscussionPoints: [],
     source: "deterministic",
