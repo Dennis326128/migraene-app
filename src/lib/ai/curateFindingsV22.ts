@@ -239,47 +239,41 @@ function mergeBurdenWithChronification(
   suppressed: Array<{ id: string; reason: string }>,
 ): NormalizedAnalysisFinding[] {
   if (painRatio < HIGH_PAIN_RATIO) return curated;
-  const burden = curated.find((f) => f.category === "burden");
+  const burdens = curated.filter((f) => f.category === "burden");
   const chronif = curated.filter((f) => f.category === "chronification");
-  if (!burden && chronif.length === 0) return curated;
+  if (burdens.length === 0 && chronif.length === 0) return curated;
 
   const db = (responseJson as any)?.analysisV21?.data_basis ?? {};
   const painDays = Number(db.pain_days) || 0;
   const docDays = Number(db.documented_days) || 0;
   const dayPart = painDays > 0 && docDays > 0 ? `Im beobachteten Zeitraum traten an ${painDays} von ${docDays} Tagen Schmerzen auf. ` : "";
 
+  const primary = burdens[0] ?? chronif[0];
   const merged: NormalizedAnalysisFinding = {
-    id: burden?.id ?? chronif[0]?.id ?? "burden.merged",
+    id: primary?.id ?? "burden.merged",
     category: "burden",
     section: "strongest",
     title: "Sehr hohe Schmerzlast im gesamten Zeitraum",
     evidenceLevel: "high",
     summary:
       `${dayPart}Das zeigt eine sehr hohe Belastung und sollte ärztlich eingeordnet werden.`.trim(),
-    reasoning: burden?.reasoning ?? chronif[0]?.reasoning,
+    reasoning: primary?.reasoning,
     limitations: [
       "Ohne vollständige Dokumentation kann die tatsächliche Last höher oder niedriger sein.",
     ],
-    recommendedTrackingNext: [
-      "Aktuelle Dokumentationsroutine beibehalten und auch leichte Kopfschmerztage erfassen.",
-    ],
+    recommendedTrackingNext: [],
     doctorDiscussionPoints: [
       "Hohe Kopfschmerzfrequenz und mögliche chronische Verlaufsform ärztlich besprechen.",
     ],
-    source: burden?.source ?? chronif[0]?.source ?? "deterministic",
+    source: primary?.source ?? "deterministic",
     shouldShowInDoctorShare: true,
   };
 
-  // Track all originals as suppressed-merged for diagnostics
-  for (const f of [burden, ...chronif].filter(Boolean) as NormalizedAnalysisFinding[]) {
+  for (const f of [...burdens, ...chronif]) {
     if (f.id !== merged.id) suppressed.push({ id: f.id, reason: "burden_chronification_merged" });
   }
 
-  // Drop originals, add merged in the original burden position (or first chronification position)
-  const dropIds = new Set<string>([
-    ...(burden ? [burden.id] : []),
-    ...chronif.map((f) => f.id),
-  ]);
+  const dropIds = new Set<string>([...burdens.map((f) => f.id), ...chronif.map((f) => f.id)]);
   const out = curated.filter((f) => !dropIds.has(f.id));
   out.push(merged);
   return out;
