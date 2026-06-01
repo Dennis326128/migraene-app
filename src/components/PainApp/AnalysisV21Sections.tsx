@@ -374,7 +374,7 @@ function FindingCard({ f, sectionKey }: { f: NormalizedAnalysisFinding; sectionK
                   Einschränkung: {limitationsShort.join(" · ")}
                 </p>
               )}
-              {trackingShort.length > 0 && (
+              {trackingShort.length > 0 && sectionKey === "data_quality" && (
                 <p className="text-[11px] text-muted-foreground/85">
                   Nächste Dokumentation: {trackingShort.join(" · ")}
                 </p>
