@@ -24,37 +24,68 @@ import {
 import { curateFindingsV22, applySectionCaps } from "@/lib/ai/curateFindingsV22";
 import { buildAnalysisOverviewSummary } from "@/lib/ai/buildAnalysisOverviewSummary";
 
-const MAX_HIGHLIGHTS = 4;
+const MAX_HIGHLIGHTS = 3;
+
+const STABLE_TREND_TITLE_RE =
+  /\b(stabil|bleibt\s+(?:ähnlich|hoch|niedrig)|ähnlich|unverändert|seltener\s+dokumentiert)\b/i;
+
+function isStableTrend(f: NormalizedAnalysisFinding): boolean {
+  if (
+    f.category !== "course_trend" &&
+    f.category !== "medication_trend" &&
+    f.category !== "mecfs_energy_trend"
+  ) {
+    return false;
+  }
+  return STABLE_TREND_TITLE_RE.test(f.title);
+}
 
 /**
- * Picks up to 5 highlight findings for the compact initial view, spanning
- * Schmerzlast, Verlauf, Medikamente, Wetter und Dokumentationsfazit/ME-CFS.
- * Each category contributes at most one card; no Datenmangel-Karten initial.
+ * Picks up to 3 highlight findings for the compact initial view. Priority:
+ *  1) high burden / chronification
+ *  2) relevant medication/triptan change (short-term trend preferred)
+ *  3) one further practically relevant signal (ME/CFS, course trend or
+ *     mid/high-evidence weather) — stable/unchanged trends and low-evidence
+ *     weather without subjective link are excluded.
  */
 function pickTopHighlights(findings: NormalizedAnalysisFinding[]): NormalizedAnalysisFinding[] {
-  const pickFirst = (pred: (f: NormalizedAnalysisFinding) => boolean) => findings.find(pred);
   const out: NormalizedAnalysisFinding[] = [];
   const push = (f?: NormalizedAnalysisFinding) => {
     if (f && !out.some((x) => x.id === f.id)) out.push(f);
   };
 
-  push(pickFirst((f) => f.category === "burden" || f.category === "chronification"));
-  push(pickFirst((f) => f.category === "course_trend"));
-  push(
-    pickFirst((f) => f.category === "medication_trend") ??
-    pickFirst((f) => f.category === "medication_use") ??
-    pickFirst((f) => f.category === "medication_effect"),
+  // 1) Schmerzlast
+  push(findings.find((f) => f.category === "burden" || f.category === "chronification"));
+
+  // 2) Relevante Akutmedikations-/Triptan-Änderung — Kurzfristtrend bevorzugt
+  const triptanShort = findings.find(
+    (f) => f.id === "medication_trend.acute_use_short_term" && !isStableTrend(f),
   );
-  const weather = pickFirst((f) => f.category === "weather");
-  if (weather && weather.evidenceLevel !== "insufficient") push(weather);
+  const medChange = findings.find(
+    (f) => f.category === "medication_trend" && !isStableTrend(f),
+  );
+  push(triptanShort ?? medChange);
 
-  const fifth =
-    pickFirst((f) => f.category === "data_quality" && f.id === "data_quality.diary_coverage") ??
-    pickFirst((f) => f.category === "mecfs_energy_trend") ??
-    pickFirst((f) => f.category === "mecfs_energy_pem");
-  push(fifth);
+  // 3) Ein weiterer wirklich relevanter Hinweis
+  const courseChange = findings.find(
+    (f) => f.category === "course_trend" && !isStableTrend(f),
+  );
+  const mecfsHigh = findings.find(
+    (f) =>
+      f.category === "mecfs_energy_pem" &&
+      (f.evidenceLevel === "high" || f.evidenceLevel === "moderate"),
+  );
+  const weatherStrong = findings.find(
+    (f) =>
+      f.category === "weather" &&
+      (f.evidenceLevel === "high" || f.evidenceLevel === "moderate"),
+  );
+  const friendlyDoc = findings.find(
+    (f) => f.category === "data_quality" && f.id === "data_quality.diary_coverage",
+  );
+  push(courseChange ?? mecfsHigh ?? weatherStrong ?? friendlyDoc);
 
-  return out.slice(0, MAX_HIGHLIGHTS);
+  return out.filter(Boolean).slice(0, MAX_HIGHLIGHTS);
 }
 
 interface Props {
