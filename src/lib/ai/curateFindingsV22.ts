@@ -610,10 +610,20 @@ function injectFriendlyDocSummaryIfNeeded(
   const coverage = docDays / periodLen;
   // Schwelle bewusst auf ≥ 80 % gesenkt — siehe Produktziel "Einfach dokumentieren".
   if (coverage < 0.8) return curated;
-  const exists = curated.some(
+  const existingIdx = curated.findIndex(
     (f) => f.category === "data_quality" && f.id === "data_quality.diary_coverage",
   );
-  if (exists) return curated;
+  if (existingIdx >= 0) {
+    // Normalize the existing card title so it never reads as a duplicate
+    // of the section header "Dokumentationsfazit".
+    const ex = curated[existingIdx];
+    if (/^dokumentationsfazit$/i.test(ex.title.trim())) {
+      const next = [...curated];
+      next[existingIdx] = { ...ex, title: "Gute Dokumentationsgrundlage" };
+      return next;
+    }
+    return curated;
+  }
   const friendly: NormalizedAnalysisFinding = {
     id: "data_quality.diary_coverage",
     category: "data_quality",
