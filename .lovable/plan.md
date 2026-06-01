@@ -1,110 +1,104 @@
-## Phase 1 — Echte Veränderung erkennbar machen
+# Release-Fix KI-Analyse — Plan
 
-Ziel: deterministische Trend-Berechnung + freundliches Dokumentationsfazit + Wettertage-Bug. Keine LLM-Umtexterei, sondern echte Zahlen.
+Ziel: Praxistauglichere, kürzere Analyse ohne neue Architektur. Wir ändern Prompt, Curation-Gates und UI/Report-Rendering. Kein neues Schema, kein Wetter-V2.3, keine Migration.
 
-### 1. Wettertage-Bug (Aufgabe 4 — sofort)
+## 1. Prompt entschlacken (`supabase/functions/_shared/analysisCore.ts`)
 
-**Ursache:** `byDay.size` in `patternPreAnalysis.ts` und `weatherCoverage.ts` zählt unique `snapshot_date`, aber durch UTC/Berlin-Boundary kann eine 31. Datumszeile in den Filter rutschen (`gte fromDate / lte toDate` → Edge-Function bekommt 31 Tage). Außerdem wird die Anzeige nirgends auf `daysTotal` gekappt.
+- Entfernen: „MINDESTENS 8 sinnvolle Einträge", „2–4 stärkste Muster", „4–8 zusätzliche Hinweise", Pflicht-Wetter-Hinweis, Pflicht-Sektionen A–H.
+- Entfernen: Pflichtprüfung Wetter, die immer mind. 1 Eintrag erzwingt.
+- Entfernen: erzwungener `fatigueContextFindings`-Eintrag „ME/CFS-Daten nicht ausreichend".
+- Neuer Leitsatz (sinngemäß): „Weniger ist besser. Nur praktisch relevante Hinweise. Stabile/triviale Beobachtungen NICHT als Findings. Wetter nur bei konkretem plausiblem Zusammenhang oder subjektivem Hinweis. ME/CFS gebündelt, nicht verstreut. Datenlücken nur als freundlicher Detailhinweis, nicht als prominente Karte bei guter Tagesdokumentation."
+- `summary` weiter 2–3 Sätze; Sektionsschema bleibt unverändert (Arrays dürfen jetzt aber leer sein).
+- Deno-Test `analysisCore_prompt_test.ts` anpassen + neue Assertions: kein „mindestens 8", keine Wetter-Pflicht, „weniger ist besser" enthalten.
 
-**Fix (1 Stelle, mit Wirkung überall):**
-- `patternPreAnalysis.ts`: vor dem Befüllen von `byDay` `snapshot_date` auf die ersten 10 Zeichen normalisieren und nur akzeptieren, wenn `>= fromDate && <= toDate`.
-- Bei Set/Display: `const weatherDaysCapped = Math.min(byDay.size, rangeDays)` → wird statt `byDay.size` ausgeliefert.
-- Gleicher Cap in `src/lib/ai/buildAnalysisReportV21.ts` (Client-Pfad) und `src/lib/ai/weatherCoverage.ts` (`daysWithWeather/daysWithUsableWeather`).
-- Texte bleiben „X von Y Tagen Wetterdaten", aber X ≤ Y garantiert.
+## 2. Legacy-Rohlisten standardmäßig nicht rendern (`src/components/PainApp/AnalysisV21Sections.tsx` + ggf. `MigrainePatternAnalysis.tsx`)
 
-V2.3 (Cron/Backfill/Migration/Provider) bleibt explizit unangetastet.
+- Wenn `analysisV21` vorhanden ist: NUR rendern: `data_basis`, Summary, kuratierte Highlights, kuratierte `findings`, kuratierte `openQuestions`, Grenzen.
+- `possiblePatterns`, `painContextFindings`, `fatigueContextFindings`, `medicationContextFindings`, `recurringSequences`, `confidenceNotes` werden bei vorhandenem `analysisV21` NICHT mehr gerendert.
+- Fallback-Pfad (kein `analysisV21`): Legacy-Felder weiter rendern, aber durch `sanitizeOutputText` / `applyOutputPolicy` schicken.
+- Bestehende Konstante `MAX_HIGHLIGHTS` von 4 → **3**.
 
-### 2. Neue Sektion „Verlauf & Veränderung" (Aufgabe 1+2)
+## 3. ME/CFS-Dedupe (`src/lib/ai/curateFindingsV22.ts`)
 
-Neues Modul `supabase/functions/_shared/report-v2/analysis/trendAnalysis.ts` (Deno, reine Funktion). Spiegel-Implementation als `src/lib/ai/trendAnalysis.ts` für Client-Pfad. Beide importieren denselben Algorithmus über shared Quelle (Deno-Datei kopiert in `_shared` + Re-export aus `src/lib/ai`).
+- Nach Curation, vor Output-Policy: Topic-Dedup für `mecfs_*` / `fatigue_*` Findings:
+  - max. 1 ME/CFS-Karte in Highlights (höchste Evidenz gewinnt; Trend „nur seltener dokumentiert" wird nicht zum Highlight befördert).
+  - max. 1 ME/CFS-Block in Details (übrige ME/CFS-Findings werden zusammengeführt oder verworfen).
+  - keine separate PEM-Mangelkarte parallel zum ME/CFS-Block.
+- `mecfs_energy_trend` mit `direction:"unchanged"` oder nur Dokumentationshäufigkeit: nicht in Highlights, höchstens kurzer Detail-Satz.
 
-**Eingaben:** sortierte `DayRecord[]` (existiert in `report-v2/aggregate.ts → countsByDay`) + `range`.
+## 4. Stabile Trends aus Highlights (`curateFindingsV22.ts`)
 
-**Fenster-Splits (deterministisch):**
-- `range ≤ 35 Tage` → erste Hälfte vs. zweite Hälfte (gleich groß, ungerade Tag fällt weg)
-- `range 36–120 Tage` → letzter 30-Tage-Block vs. vorherige 30 + (optional) letzter Monat vs. 2 vorherige Monate
-- `range > 120 Tage` → letzter Monat vs. vorheriger Monat
-- Minimum: jedes Fenster ≥ 7 dokumentierte Tage, sonst `evidence: insufficient`, kein Trend-Claim
+- Findings vom Typ `course_trend`, `medication_trend`, `mecfs_energy_trend` mit `direction:"unchanged"` oder kleinem Delta: aus Highlights ausschließen.
+- Highlights-Priorisierung (Sortier-Score):
+  1. echte Verschlechterung
+  2. echte Verbesserung
+  3. relevante Änderung Akutstrategie (Triptan-Kurzfrist)
+  4. hohe Schmerzlast
+  5. ein starkes ME/CFS-/Wetter-/Medikamenten-Signal
 
-**Pro Fenster berechnete Metriken (`WindowStats`):**
-`headacheDays, severeDays(≥7), medDays, triptanDays, otherAcuteDays, comboDays, severeWithoutAcute, triptanAvoidanceDays, mecfsDays, severeMecfsDays`. Raten gegen dokumentierte Tage im Fenster.
+## 5. Triptan-Kurzfristtrend priorisieren (`src/lib/ai/buildCourseTrendFindings.ts` + Mirror in `supabase/functions/_shared/`)
 
-**Trendlabel pro Metrik:**
-- |Δrate| < 0.1 → `stable`
-- Δrate ≤ −0.1 und Δabs ≥ 1 → `decreased`
-- Δrate ≥ +0.1 und Δabs ≥ 1 → `increased`
-- sonst `unclear`
+- 10-vs-10-Logik existiert bereits — sicherstellen, dass das Triptan-Kurzfrist-Finding:
+  - vor `medication_trend` „stabil" priorisiert wird (Score-Bump),
+  - in `buildAnalysisOverviewSummary` in den Summary-Text einfließt (statt „Akutmedikation stabil"),
+  - bei hoher Schmerzlast → Text „veränderte Akutstrategie", bei sinkender Schmerzlast → „vorsichtige Entlastung".
 
-**Neue Findings (V2.1-konform, evidence_level=low/insufficient):**
-- `trend.pain_burden` (Schmerztage + severeDays)
-- `trend.acute_medication` (medDays gesamt)
-- `trend.triptan_use` (triptanDays + Intakes)
-- `trend.mecfs_energy`
-- Spezial-Logik Triptan-vs-Schmerz: wenn `triptanDays decreased` UND `severeDays not decreased` → Text:
-  „Die Daten sprechen eher für eine veränderte Akutstrategie als für eine klare Entlastung." (kein medizinischer Rat).
+## 6. Wetter-Gating verschärfen (`curateFindingsV22.ts` / `analysisOutputPolicy.ts`)
 
-Findings werden im Builder (`buildDeterministicFindings` + Client `buildAnalysisReportV21`) eingehängt; neue `section_map`-Sektion `trend_changes`.
+- Wetter-Findings mit `evidenceLevel:"low"` ohne subjektiven Bezug oder klare Korrelation: nicht in Highlights, in Details nur, wenn Mehrwert vorhanden.
+- „möglicher Verstärkungsfaktor" ohne praktische Aussage: verwerfen.
+- Wenn kein klarer Wetterzusammenhang: Summary darf nur einen kurzen Satz enthalten oder Wetter gar nicht erwähnen.
 
-### 3. Dokumentationsfazit (Aufgabe 3)
+## 7. Dokumentationsfazit als einziges DQ-Finding
 
-Neue Builder-Sektion + Section-Map-Key `documentation_summary`.
+- `injectFriendlyDocSummaryIfNeeded` existiert. Erweitern: bei vorhandenem freundlichen Fazit werden ALLE anderen `data_quality`-Findings (inkl. „Tagesfaktoren fehlen", „PEM-Daten fehlen") aus Highlights und Details verworfen — bereits teilweise in `analysisOutputPolicy` (`hasFriendlyDocSummary`); Filter erweitern und sicherstellen, dass auch positive Coverage (<90 %) genau ein DQ-Finding emittiert.
 
-**Berechnet aus existierenden Quellen** (kein neuer SQL):
-`anyEntryDays = unique(dates aus pain_entries ∪ medication_intakes ∪ mecfs/contextNotes)`, `painDays`, `medDays`, `mecfsDays`, `contextNoteCount`, `effectRatingCount` (aus `medication_effects` falls dataset enthält), `weatherDaysCapped`.
+## 8. „Weitere mögliche Zusammenhänge" entschärfen (`AnalysisV21Sections.tsx` + `curateFindingsV22.ts`)
 
-**Stufen-Logik:**
-- `anyEntryDays/rangeDays ≥ 0.8` → „Du hast an {n} von {N} Tagen Einträge dokumentiert. Die Grundlage für Verlauf und Belastung ist dadurch gut."
-- `0.5–0.8` → „solide Grundlage", neutrale Detail-Hinweise
-- `< 0.5` → freundlich „Für stabile Aussagen wären mehr Tage hilfreich" (kein „unzureichend", kein „Mangel")
+- `weaker`-Sektion: vor Render Findings deduplizieren gegen Hauptthemen (Schmerzlast, ME/CFS, Wetter, Medikation, DQ) — wenn Titel/Kategorie überlappt → verwerfen.
+- Wenn nach Dedup leer: Sektion komplett ausblenden (UI + Report).
 
-**Detail-Hinweise (immer freundlich, additiv):** PEM/Belastung, Schlaf, Stress, Medikamentenwirkung — nur wenn Coverage < 0.5 jeweils.
+## 9. Initiale Ansicht & Report (`AnalysisV21Sections.tsx`, `generateAnalysisReportText.ts`)
 
-**Negative Begriffe verboten** in dieser Sektion: `unzureichend`, `Mangel`, `fehlende schmerzfreie`, `erschwert die Identifizierung`. Lint-Test in Vitest stellt das sicher.
+- Initial: Datenbasis → Summary → max. 3 Highlights → Button „Detaillierte Analyse anzeigen".
+- Report: identische 3-Highlight-Grenze; Cap `strongest` von 3 unverändert; Legacy-Rendering im V2.1-Pfad weiterhin entfernt; Arztfragen-Cap 5 + Dedup auf normalisierten Text.
 
-### 4. Wetter-Formulierung weicher (Aufgabe 4 zweiter Teil)
+## 10. Tests (Vitest + Deno)
 
-In `weather.pressure_drop` Finding: wenn `painRate >= 0.85` (fast nur Schmerztage), `plain_language_summary` ersetzt durch:
-„Die Wetteranalyse bleibt vorsichtig, weil der Zeitraum fast durchgehend schmerzbelastet war."
-`limitations` ohne „Mangel an schmerzfreien Vergleichstagen".
+- `analysisCore_prompt_test.ts`: neue Assertions (kein „mindestens 8", keine Wetter-Pflicht, „weniger ist besser").
+- `curateFindingsV22.test.ts`:
+  - ME/CFS-Dedupe: nur 1 Highlight + 1 Detailblock bei mehreren ME/CFS-Findings.
+  - `direction:"unchanged"` → kein Highlight.
+  - Wetter low ohne Subjektivbezug → kein Highlight.
+  - Friendly DocSummary → keine weiteren DQ-Karten.
+- Neuer Test `AnalysisV21Sections.test.tsx` (oder Erweiterung): bei vorhandenem `analysisV21` werden Legacy-Felder NICHT gerendert.
+- `generateAnalysisReportText.test.ts`: max. 3 Highlights, keine Legacy-Listen, max. 5 dedupliziete Arztfragen.
+- `buildCourseTrendFindings.test.ts`: 10-vs-10 Triptan-Rückgang → Highlight; Wording-Varianten je nach Schmerzlast.
 
-Wettervariablen (Temp/Druck/Δ24h/Humidity) bleiben in `deterministic_basis` für spätere V2.3-Auswertung.
+## 11. Build & Verify
 
-### 5. UI-Reihenfolge (Aufgabe 5)
+- `npx vitest run` (relevante Suites).
+- `deno test supabase/functions/_shared/analysisCore_prompt_test.ts` (sowie `trendAnalysis_test`, falls vorhanden).
+- `npm run build` läuft via Lovable automatisch.
 
-`src/features/ai-reports/components/AIReportDetail.tsx` + `src/lib/ai/generateAnalysisReportText.ts`: neue Section-Reihenfolge:
-1 Datenbasis · 2 Auffälligste Hinweise · **3 Verlauf & Veränderung** · 4 Medikamente & Wirkung · 5 Wetter & Umwelt · 6 ME/CFS · 7 Schlaf/Stress · 8 Symptome/Aura · 9 Zeitmuster · **10 Dokumentationsfazit** (ersetzt „Datenqualität"-Box) · 11 Offene Fragen · 12 Grenzen.
+## Betroffene Dateien (Übersicht)
 
-`SECTIONS`-Array in `generateAnalysisReportText.ts` wird umsortiert, `data_quality`-Eintrag → `documentation_summary` mit Titel „Dokumentationsfazit". „Details anzeigen"-Logik unverändert.
+**Geändert:**
+- `supabase/functions/_shared/analysisCore.ts` (Prompt)
+- `supabase/functions/_shared/analysisCore_prompt_test.ts`
+- `src/lib/ai/curateFindingsV22.ts` (ME/CFS-Dedupe, Trend-Gating, Wetter-Gating, weaker-Dedup, DQ-Konsolidierung)
+- `src/lib/ai/analysisOutputPolicy.ts` (Friendly-DocSummary-Filter erweitern, optional)
+- `src/lib/ai/buildAnalysisOverviewSummary.ts` (Triptan-Kurzfrist priorisieren, Wetter-Stillschweigen erlauben)
+- `src/lib/ai/buildCourseTrendFindings.ts` + `supabase/functions/_shared/buildCourseTrendFindings.ts` (Priorisierung Kurzfristtrend)
+- `src/components/PainApp/AnalysisV21Sections.tsx` (Legacy aus, MAX_HIGHLIGHTS=3, weaker ausblenden wenn leer)
+- `src/lib/ai/generateAnalysisReportText.ts` (Cap 3, Legacy aus, Arztfragen-Dedup)
 
-### 6. Bericht/Kopieren (Aufgabe 6)
+**Tests (neu/erweitert):**
+- `src/lib/ai/__tests__/curateFindingsV22.test.ts`
+- `src/lib/ai/__tests__/generateAnalysisReportText.test.ts`
+- `src/components/PainApp/__tests__/AnalysisV21Sections.test.tsx` (neu, klein)
+- `supabase/functions/_shared/analysisCore_prompt_test.ts`
 
-In `generateAnalysisReportText.ts`: Kopier-Text enthält Kurzfazit → Verlauf & Veränderung → Triptan-/Medikationstrend → Wetter (vorsichtig, max 2 Sätze) → Dokumentationsfazit. Keine harte Negativ-Sprache.
+## Antwort am Ende des Builds
 
-### 7. Tests (Aufgabe 7)
-
-Neu/erweitert:
-- `supabase/functions/_shared/report-v2/analysis/trendAnalysis_test.ts` (Deno) — Window-Split (30d, 90d, 180d), Trendlabel-Schwellen, Triptan-decreased + severe-stable Spezialfall.
-- `src/lib/ai/__tests__/trendAnalysis.test.ts` (Vitest) — identische Erwartungen Client.
-- `src/lib/ai/__tests__/documentationSummary.test.ts` — 29/30 → „gute Grundlage"; Lint-Regex verbietet `unzureichend|Mangel|fehlende schmerzfreie`.
-- `src/lib/ai/__tests__/weatherCoverage.test.ts` — 31 Rows / 30 Tage → `daysWithWeather=30`, `daysWithUsableWeather ≤ 30`.
-- `supabase/functions/_shared/patternPreAnalysis_test.ts` — gleicher Cap-Test serverseitig.
-
-Build + Typecheck + relevante Vitest + Deno-Tests laufen am Ende.
-
-### Technische Details
-
-**Geänderte / neue Dateien:**
-- `supabase/functions/_shared/report-v2/analysis/trendAnalysis.ts` (neu) + `_test.ts`
-- `supabase/functions/_shared/patternPreAnalysis.ts` (Wetter-Cap, Trend-Findings, Dok-Fazit-Finding, weicher Wetter-Text)
-- `supabase/functions/_shared/patternPreAnalysis_test.ts` (erweitert)
-- `src/lib/ai/trendAnalysis.ts` (neu, deckt Client-Pfad)
-- `src/lib/ai/buildAnalysisReportV21.ts` (Wetter-Cap, Trend, Dok-Fazit, Section-Map)
-- `src/lib/ai/weatherCoverage.ts` (Cap)
-- `src/lib/ai/generateAnalysisReportText.ts` (Section-Reihenfolge + Bericht)
-- `src/lib/ai/analysisTypes.ts` (neue Finding-IDs / section_map keys: `trend_changes`, `documentation_summary`)
-- `src/features/ai-reports/components/AIReportDetail.tsx` (Reihenfolge + neue Sektion)
-- Tests s. o.
-
-**Nicht geändert:** DB-Schema, Edge-Function-Verträge, Wetter-Provider/Cron/Backfill, RLS, UI-Theming.
-
-**Nutzer-Aktion danach:** Cache invalidieren → neu analysieren (nicht nur Reload), weil Findings + section_map sich ändern; bestehende Cache-Einträge in `ai_analysis_cache` haben alte Struktur.
+User-Antwortblock 1–9 wie spezifiziert. Erwartete Antwort auf Punkt 9: **„Neu laden reicht"** für UI-/Curation-/Sanitizer-/Legacy-Render-Änderungen. **Neu analysieren** ist nur nötig für den entschlackten Prompt (sonst läuft die alte LLM-Antwort weiter durch die neue, strengere Curation — funktioniert, aber Prompt-Vorteile fehlen).
