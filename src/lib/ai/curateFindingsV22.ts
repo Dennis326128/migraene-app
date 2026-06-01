@@ -19,6 +19,10 @@
  */
 import type { NormalizedAnalysisFinding } from "./normalizeAnalysisFindings";
 import { applyOutputPolicy } from "./analysisOutputPolicy";
+import {
+  hasUserObservedContextSignal,
+  isAutomaticOnlySignal,
+} from "./subjectiveContextSignal";
 
 export interface CurateOptions {
   /** If true, do NOT hide Voice-event data_quality cards. */
@@ -210,8 +214,9 @@ function adjustWeatherForLowComparisonBase(
   if (painRatio <= 0.85) return f;
   // Cards with subjective markers (Hitze/Gewitter/…) stay as-is — they have
   // practical value even without a pain-free comparison base.
-  const hay = `${f.title} ${f.summary}`;
-  if (/\b(hitze|gewitter|druckgef[üu]hl|wetterwechsel|f[öo]hn|schw[üu]le)\b/i.test(hay)) return f;
+  // Cards mit subjektivem Nutzerkontext bleiben erhalten — sie haben
+  // praktischen Wert auch ohne schmerzfreie Vergleichstage.
+  if (hasUserObservedContextSignal(f)) return f;
   return {
     ...f,
     evidenceLevel: "low",
@@ -437,10 +442,7 @@ export function curateFindingsV22(
   });
 
   // 4b-iii) Weather gating — drop cards without practical value.
-  // "Kein klarer Auslöser", "möglicher Verstärkungsfaktor" oder reine
-  // Druckänderungs-Koinzidenz bei hoher Schmerztagdichte → verwerfen.
-  // Low-Evidence-Karten brauchen subjektiven Marker oder klare Korrelation.
-  const WEATHER_SUBJECTIVE_RE = /\b(hitze|gewitter|druckgef[üu]hl|wetterwechsel|f[öo]hn|schw[üu]le)\b/i;
+  // Generalisiert: nutzt subjektives Kontextsignal statt fester Wortliste.
   const WEATHER_NO_VALUE_RE =
     /\b(kein\s+klarer\s+auslöser|m[öo]glicher?\s+verst[äa]rkungsfaktor|kein\s+klarer\s+wetterzusammenhang)\b/i;
   const WEATHER_PRESSURE_RE = /\b(druck(?:[äa]nderung|abfall|anstieg)|luftdruck|koinzidenz)\b/i;
@@ -448,19 +450,57 @@ export function curateFindingsV22(
   curated = curated.filter((f) => {
     if (f.category !== "weather") return true;
     const hay = `${f.title} ${f.summary}`;
-    if (WEATHER_NO_VALUE_RE.test(hay)) {
+    const subjective = hasUserObservedContextSignal(f);
+    if (WEATHER_NO_VALUE_RE.test(hay) && !subjective) {
       suppressed.push({ id: f.id, reason: "weather_no_practical_value" });
       return false;
     }
-    if (painRatio > 0.85 && WEATHER_PRESSURE_RE.test(hay) && !WEATHER_SUBJECTIVE_RE.test(hay)) {
+    if (painRatio > 0.85 && WEATHER_PRESSURE_RE.test(hay) && !subjective) {
       suppressed.push({ id: f.id, reason: "weather_pressure_high_pain_density" });
       return false;
     }
     if (f.evidenceLevel === "high" || f.evidenceLevel === "moderate") return true;
-    if (WEATHER_SUBJECTIVE_RE.test(hay) || WEATHER_CLEAR_LINK_RE.test(hay)) return true;
+    if (subjective || WEATHER_CLEAR_LINK_RE.test(hay)) return true;
     suppressed.push({ id: f.id, reason: "weather_low_no_practical_link" });
     return false;
   });
+
+  // 4b-iii-b) Symptoms/Aura "Datenmangel"-Karten verwerfen — passt nicht
+  // zum Produktziel "einfach dokumentieren".
+  const SYMPTOM_GAP_RE =
+    /\b(fehlend|mangel|unzureichend|kaum\s+dokumentiert|keine\s+ausreichend)/i;
+  curated = curated.filter((f) => {
+    if (f.category !== "symptoms_aura") return true;
+    const hay = `${f.title} ${f.summary}`;
+    if (SYMPTOM_GAP_RE.test(hay)) {
+      suppressed.push({ id: f.id, reason: "symptoms_aura_gap_hidden" });
+      return false;
+    }
+    return true;
+  });
+
+  // 4b-iii-c) Triptan-Vermeidung Dedupe: Wenn unter Medikamenten/Verlauf
+  // bereits ein Triptan-Vermeidungs-/Akutmedikations-Hinweis existiert,
+  // verwerfe doppelte Interaktions-Karten zum gleichen Thema.
+  const TRIPTAN_AVOID_RE = /\b(triptan[-\s]?vermeid|kein(?:e[rn]?)?\s+triptan|verzicht\s+auf\s+triptan|ohne\s+triptan|akutmedikation\s+vermeid)/i;
+  const triptanAvoidElsewhere = curated.some(
+    (f) =>
+      (f.category === "medication_use" ||
+        f.category === "medication_trend" ||
+        f.category === "course_trend") &&
+      TRIPTAN_AVOID_RE.test(`${f.title} ${f.summary} ${f.reasoning ?? ""}`),
+  );
+  if (triptanAvoidElsewhere) {
+    curated = curated.filter((f) => {
+      if (f.category !== "interaction") return true;
+      if (TRIPTAN_AVOID_RE.test(`${f.title} ${f.summary} ${f.reasoning ?? ""}`)) {
+        suppressed.push({ id: f.id, reason: "interaction_dedup_triptan_avoid" });
+        return false;
+      }
+      return true;
+    });
+  }
+
 
   // 4b-iv) Wenn ein ME/CFS-Block existiert, Interaktions-Karten zu
   // Fatigue/PEM/Energie verwerfen — sie wiederholen nur den ME/CFS-Block.
@@ -559,6 +599,14 @@ export function curateFindingsV22(
   for (const f of prioritized) {
     if (f.category === "data_quality") continue;
     if (f.category === "weather" && f.evidenceLevel === "insufficient") continue;
+    // Automatische Daten (Wetter/Zeitmuster) ohne subjektives Kontextsignal
+    // dürfen nur Arztfragen erzeugen, wenn das Muster stark ist.
+    if (
+      isAutomaticOnlySignal(f) &&
+      !(f.evidenceLevel === "high" || f.evidenceLevel === "moderate")
+    ) {
+      continue;
+    }
     for (const q of f.doctorDiscussionPoints) {
       const k = q.toLowerCase().replace(/\s+/g, " ").trim().slice(0, 80);
       if (!k || seen.has(k)) continue;
