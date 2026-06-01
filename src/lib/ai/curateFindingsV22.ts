@@ -709,15 +709,15 @@ export function applySectionCaps<T extends { evidenceLevel: NormalizedAnalysisFi
   const capMap: Record<string, number> = {
     strongest: MAX_STRONGEST,
     weaker: MAX_WEAKER,
-    data_quality: 1,            // Dokumentationsfazit: nur 1 Karte
-    course_trend: 2,            // Verlauf & Veränderung: max 2 Karten
-    medication: 2,              // Medikamente: max 2 Karten
+    data_quality: 1,
+    course_trend: 2,
+    medication: 2,
     weather: 1,
     mecfs: 1,
-    lifestyle: 2,
+    lifestyle: 1,
     symptoms: 1,
     time: 1,
-    interaction: 2,
+    interaction: 1,
   };
   const cap = capMap[section];
   if (cap == null || items.length <= cap) return items;
