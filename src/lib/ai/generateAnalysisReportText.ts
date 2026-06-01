@@ -112,8 +112,15 @@ function buildV21Report(rj: Record<string, unknown>): string {
   }
 
   // 2..N: Findings sections — nur ausgeben wenn Items vorhanden
+  const renderedIds = new Set<string>();
   for (const sec of SECTION_TITLES) {
     let items = dedupItems(grouped[sec.key] ?? []);
+
+    // Dedup gegen bereits ausgegebene Findings (verhindert Wiederholung
+    // von z. B. "Schmerzlast" in "Weitere mögliche Zusammenhänge").
+    if (sec.key === "weaker" || sec.key === "strongest") {
+      items = items.filter((f) => !renderedIds.has(f.id));
+    }
 
     // Interaktionen nur, wenn wirklich starker Hinweis dabei ist.
     if (sec.key === "interaction") {
@@ -132,7 +139,10 @@ function buildV21Report(rj: Record<string, unknown>): string {
     if (items.length === 0) continue;
 
     lines.push(`${idx}. ${sec.title}`);
-    for (const f of items) appendFinding(lines, f);
+    for (const f of items) {
+      appendFinding(lines, f, sec.key);
+      renderedIds.add(f.id);
+    }
     lines.push("");
     idx++;
   }
