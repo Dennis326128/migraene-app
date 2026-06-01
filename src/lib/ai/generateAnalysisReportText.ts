@@ -183,12 +183,16 @@ function buildV21Report(rj: Record<string, unknown>): string {
   return safe + "\n";
 }
 
-function appendFinding(lines: string[], f: NormalizedAnalysisFinding): void {
+function appendFinding(
+  lines: string[],
+  f: NormalizedAnalysisFinding,
+  sectionKey?: AnalysisSectionKey,
+): void {
   const evidence = EVIDENCE_LABEL[f.evidenceLevel];
   lines.push(`• ${f.title} (${evidence})`);
   lines.push(`  ${truncateSentences(f.summary, 2, 240)}`);
   if (f.limitations[0]) lines.push(`  – Einschränkung: ${f.limitations[0]}`);
-  if (f.recommendedTrackingNext[0]) {
+  if (sectionKey === "data_quality" && f.recommendedTrackingNext[0]) {
     lines.push(`  – Nächste Dokumentation: ${f.recommendedTrackingNext[0]}`);
   }
 }
