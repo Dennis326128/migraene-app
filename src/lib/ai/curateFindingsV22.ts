@@ -33,7 +33,7 @@ export interface CuratedResult {
 }
 
 const MAX_DATA_QUALITY = 3;
-const MAX_OPEN_QUESTIONS = 5;
+const MAX_OPEN_QUESTIONS = 4;
 const MAX_STRONGEST = 4;
 const MAX_WEAKER = 5;
 
@@ -157,16 +157,15 @@ function rewriteMecfsGap(
   const ofDays = documentedDays > 0 ? ` von ${documentedDays}` : "";
   return {
     ...f,
-    title: "ME/CFS-/Energiesignale häufig dokumentiert",
+    title: "ME/CFS- und Energie-Signale",
     summary:
-      `An ${mecfsDays}${ofDays} Tagen wurden ME/CFS-/Energiesignale dokumentiert. ` +
-      `Für PEM-/Belastungszusammenhänge fehlen noch detaillierte Belastungs- und Erholungsangaben über 24–72 Stunden.`,
+      `An ${mecfsDays}${ofDays} Tagen wurden ME/CFS- oder Energie-Signale dokumentiert. ` +
+      `Das kann für die Gesamtbelastung relevant sein.`,
+    reasoning: "Ein klarer PEM-Zusammenhang lässt sich daraus nicht sicher ableiten.",
     evidenceLevel: "moderate",
     pinToTopical: true,
-    limitations: [
-      ...f.limitations,
-      "Belastungs-/PEM-Details über 24–72 h fehlen noch.",
-    ],
+    limitations: [],
+    recommendedTrackingNext: [],
   };
 }
 
@@ -452,6 +451,30 @@ export function curateFindingsV22(
     return false;
   });
 
+  // 4b-iv) Verlauf & Veränderung: kompakt halten.
+  // - Stabile ME/CFS-Trendkarte komplett entfernen (keine eigene Karte für
+  //   "ME/CFS bleibt ähnlich").
+  // - Wenn ein Triptan-Kurzfristtrend existiert, ersetzt er den allgemeinen
+  //   medication_trend (allgemeine Karte wird verworfen).
+  curated = curated.filter((f) => {
+    if (f.category === "mecfs_energy_trend" && STABLE_TREND_RE.test(f.title)) {
+      suppressed.push({ id: f.id, reason: "course_trend_stable_mecfs_hidden" });
+      return false;
+    }
+    return true;
+  });
+  const triptanShort = curated.find(
+    (f) => f.id === "medication_trend.acute_use_short_term",
+  );
+  if (triptanShort) {
+    curated = curated.filter((f) => {
+      if (f.category !== "medication_trend") return true;
+      if (f.id === triptanShort.id) return true;
+      suppressed.push({ id: f.id, reason: "medication_trend_replaced_by_triptan_short" });
+      return false;
+    });
+  }
+
 
   // 4c) High-pain merge — collapse burden + chronification into a single,
   // strong, non-diagnostic "Sehr hohe Schmerzlast" card at painRatio ≥ 0.85.
@@ -652,14 +675,23 @@ function injectFriendlyDocSummaryIfNeeded(
  * "Geprüfte Bereiche" cards and are expected to be compact already.
  */
 export function applySectionCaps<T extends { evidenceLevel: NormalizedAnalysisFinding["evidenceLevel"] }>(
-  section: "strongest" | "weaker" | "data_quality" | string,
+  section: string,
   items: T[],
 ): T[] {
-  const cap =
-    section === "strongest" ? MAX_STRONGEST
-    : section === "weaker" ? MAX_WEAKER
-    : section === "data_quality" ? MAX_DATA_QUALITY
-    : null;
+  const capMap: Record<string, number> = {
+    strongest: MAX_STRONGEST,
+    weaker: MAX_WEAKER,
+    data_quality: 1,            // Dokumentationsfazit: nur 1 Karte
+    course_trend: 2,            // Verlauf & Veränderung: max 2 Karten
+    medication: 2,              // Medikamente: max 2 Karten
+    weather: 1,
+    mecfs: 1,
+    lifestyle: 2,
+    symptoms: 1,
+    time: 1,
+    interaction: 2,
+  };
+  const cap = capMap[section];
   if (cap == null || items.length <= cap) return items;
   return [...items]
     .sort((a, b) => evidenceRank[b.evidenceLevel] - evidenceRank[a.evidenceLevel])

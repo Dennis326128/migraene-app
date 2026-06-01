@@ -85,7 +85,7 @@ function buildV21Report(rj: Record<string, unknown>): string {
   const raw = normalizeAnalysisFindings(rj);
   const curated = curateFindingsV22(raw, rj);
   const grouped = groupFindingsBySection(curated.findings);
-  const openQuestions = curated.openQuestions.slice(0, 5);
+  const openQuestions = curated.openQuestions.slice(0, 4);
 
   const lines: string[] = [];
   lines.push("KI-Analyse – keine Diagnose");

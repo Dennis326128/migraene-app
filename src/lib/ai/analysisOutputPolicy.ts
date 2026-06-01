@@ -66,6 +66,10 @@ const BAN_ALWAYS: RegExp[] = [
   /Schmerzreduktion\s+in\s+%/i,
   /(?:fehlende|mangelnde)\s+Dokumentation\s+der\s+Medikamentenwirkung/i,
   /Wirksamkeit\s+der\s+Medikamente\s+nach\s+Einnahme\s+bewerten/i,
+  // Technical / process wording must never leak into user-visible text.
+  /\bdeterministisch(?:e[rnms]?)?\b/i,
+  /\bVoranalyse\b/i,
+  /\bDie\s+Analyse\s+zeigt\b/i,
 ];
 
 /** Forbidden only in data_quality findings when a friendly summary exists. */
@@ -86,6 +90,7 @@ const BAN_NEGATIVE_DQ: RegExp[] = [
 /** Technical raw tokens that must never appear in user-visible text. */
 const STRIP_TECHNICAL_TOKENS: RegExp[] = [
   /\bdeterministic_finding\b/gi,
+  /\bdeterministic\b/gi,
   /\bllm_expanded_findings?\b/gi,
   /\bmedication_use\b/gi,
   /\bmedication_effect\b/gi,

@@ -94,11 +94,10 @@ describe('curateFindingsV22', () => {
           summary: 'Keine ausreichende Datenbasis für ME/CFS.' })],
       responseJson,
     );
-    expect(r.findings[0].title).toMatch(/Energiesignale/i);
+    expect(r.findings[0].title).toMatch(/ME\/CFS.*Energie/i);
     expect(r.findings[0].evidenceLevel).toBe('moderate');
     expect(r.findings[0].pinToTopical).toBe(true);
     expect(r.findings[0].summary).toMatch(/63 von 90/);
-    expect(r.findings[0].limitations.join(' ')).toMatch(/PEM/i);
   });
 
   it('ME/CFS gap NOT rewritten when few days of data', () => {
@@ -156,9 +155,14 @@ describe('applySectionCaps', () => {
     expect(out.filter(o => o.evidenceLevel === 'high')).toHaveLength(2);
   });
 
-  it('does not touch uncapped sections', () => {
+  it('caps medication section to 2', () => {
     const items = Array.from({ length: 8 }, () => ({ evidenceLevel: 'low' as const, id: 'x' }));
-    expect(applySectionCaps('medication', items)).toHaveLength(8);
+    expect(applySectionCaps('medication', items)).toHaveLength(2);
+  });
+
+  it('does not touch unknown sections', () => {
+    const items = Array.from({ length: 8 }, () => ({ evidenceLevel: 'low' as const, id: 'x' }));
+    expect(applySectionCaps('open_questions', items)).toHaveLength(8);
   });
 });
 
@@ -221,7 +225,7 @@ describe('curateFindingsV22 — V2.2 hardening', () => {
           title: 'Mangelnde ME/CFS-Dokumentation', summary: 'ME/CFS nicht dokumentiert.' }),
     ], rj);
     expect(r.findings).toHaveLength(1);
-    expect(r.findings[0].title).toMatch(/Energiesignale/);
+    expect(r.findings[0].title).toMatch(/ME\/CFS.*Energie/i);
   });
 });
 
