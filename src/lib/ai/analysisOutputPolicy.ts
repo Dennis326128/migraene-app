@@ -63,6 +63,9 @@ const BAN_NEGATIVE_DQ: RegExp[] = [
   /\bMangel\s+an\s+Dokumentation\b/i,
   /\bmacht\s+(?:die\s+)?Analyse\s+unmöglich\b/i,
   /\bDatenlage\s+(?:ist\s+)?ungenügend\b/i,
+  /\bTagesfaktoren\s+(?:fehl|kaum|unzureich)/i,
+  /\bPEM[-\s]?Daten\s+(?:fehl|unzureich|kaum)/i,
+  /\bBelastungs[-\s]?Daten\s+fehlen\b/i,
 ];
 
 export const POLICY_BANNED_PATTERNS = BAN_ALWAYS;

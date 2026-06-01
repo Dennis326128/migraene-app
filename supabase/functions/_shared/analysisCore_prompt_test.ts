@@ -27,18 +27,15 @@ Deno.test("prompt: includes Tagesfaktoren / Alltag & Auslöser instruction", () 
 
 Deno.test("prompt: covers temporal correlations T0/T-1/T-2/T+1 incl. PEM", () => {
   const p = buildSystemPrompt(meta);
-  assertStringIncludes(p, "T0");
-  assertStringIncludes(p, "T-1");
-  assertStringIncludes(p, "T-2");
-  assertStringIncludes(p, "T+1");
+  // After release-fix, PEM remains referenced; T0/T-1 explicit triggers were
+  // dropped together with the mandatory-section block. We assert PEM stays.
   assertStringIncludes(p, "PEM");
 });
 
 Deno.test("prompt: enforces evidence levels and number discipline", () => {
   const p = buildSystemPrompt(meta);
-  assertStringIncludes(p, "evidenceStrength");
-  assertStringIncludes(p, "starker Hinweis");
-  assertStringIncludes(p, "möglicher Zusammenhang");
+  assertStringIncludes(p, "EVIDENZ");
+  assertStringIncludes(p, "möglicher Hinweis");
   assertStringIncludes(p, "ZAHLEN-DISZIPLIN");
   assertStringIncludes(p, "Keine erfundenen");
 });
@@ -48,6 +45,30 @@ Deno.test("prompt: forbids diagnosis", () => {
   assertStringIncludes(p, "Keine Diagnose");
   assertStringIncludes(p, "Hypothesen");
 });
+
+Deno.test("prompt: enforces 'less is better' leitlinie", () => {
+  const p = buildSystemPrompt(meta);
+  assertStringIncludes(p, "WENIGER IST BESSER");
+});
+
+Deno.test("prompt: no longer demands a minimum of 8 entries", () => {
+  const p = buildSystemPrompt(meta);
+  assert(!/MINDESTENS\s+8/i.test(p), "prompt must not require min 8 entries");
+});
+
+Deno.test("prompt: no longer forces weather coverage card", () => {
+  const p = buildSystemPrompt(meta);
+  assert(
+    !/Wetterdaten\s+im\s+Zeitraum\s+nicht\s+ausreichend/i.test(p),
+    "prompt must not mandate a weather-coverage confidence note",
+  );
+  assert(
+    !/Lege\s+min\.\s*1\s+Hinweis/i.test(p),
+    "prompt must not force a mandatory weather finding",
+  );
+});
+
+
 
 Deno.test("prompt (App): includesPrivateNotes=true → no privacy note", () => {
   const p = buildSystemPrompt(meta, { includesPrivateNotes: true });
