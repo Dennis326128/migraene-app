@@ -92,8 +92,13 @@ const STRIP_TECHNICAL_TOKENS: RegExp[] = [
   /\bmecfs_energy_pem\b/gi,
   /\bcourse_trend\b/gi,
   /\bmedication_trend\b/gi,
-  // Bare lower_snake_case identifier tokens of the form "ns.foo" or "foo.bar.baz"
-  /\b[a-z][a-z0-9_]*\.[a-z][a-z0-9_.]*\b/g,
+  /\bmecfs_energy_trend\b/gi,
+  /\bdata_quality\b/gi,
+  // Bare snake_case identifier with at least one underscore segment
+  // (e.g. "medication.diary_coverage", "weather.pressure_drop") — anchored
+  // to require a dot AND an underscore to avoid matching natural prose.
+  /\b[a-z]{3,}(?:_[a-z0-9]+)+(?:\.[a-z0-9_]+)+\b/g,
+  /\b[a-z]{3,}\.[a-z]{3,}(?:_[a-z0-9_]+)+\b/g,
 ];
 
 export const POLICY_BANNED_PATTERNS = BAN_ALWAYS;
