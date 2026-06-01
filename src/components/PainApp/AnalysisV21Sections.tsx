@@ -219,7 +219,12 @@ export function AnalysisV21Sections({ responseJson, doctorShare = false, showVoi
               );
             }
 
-            const items = applySectionCaps(key, dedupSection(grouped[key]));
+            const highlightIds = new Set(highlights.map((h) => h.id));
+            let secItems = dedupSection(grouped[key]);
+            if (key === "weaker" || key === "strongest") {
+              secItems = secItems.filter((f) => !highlightIds.has(f.id));
+            }
+            const items = applySectionCaps(key, secItems);
             if (items.length === 0) return null;
             return (
               <Section key={key} title={SECTION_LABEL[key]}>
@@ -374,7 +379,7 @@ function FindingCard({ f, sectionKey }: { f: NormalizedAnalysisFinding; sectionK
                   Einschränkung: {limitationsShort.join(" · ")}
                 </p>
               )}
-              {trackingShort.length > 0 && (
+              {trackingShort.length > 0 && sectionKey === "data_quality" && (
                 <p className="text-[11px] text-muted-foreground/85">
                   Nächste Dokumentation: {trackingShort.join(" · ")}
                 </p>

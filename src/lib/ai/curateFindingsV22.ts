@@ -239,47 +239,41 @@ function mergeBurdenWithChronification(
   suppressed: Array<{ id: string; reason: string }>,
 ): NormalizedAnalysisFinding[] {
   if (painRatio < HIGH_PAIN_RATIO) return curated;
-  const burden = curated.find((f) => f.category === "burden");
+  const burdens = curated.filter((f) => f.category === "burden");
   const chronif = curated.filter((f) => f.category === "chronification");
-  if (!burden && chronif.length === 0) return curated;
+  if (burdens.length === 0 && chronif.length === 0) return curated;
 
   const db = (responseJson as any)?.analysisV21?.data_basis ?? {};
   const painDays = Number(db.pain_days) || 0;
   const docDays = Number(db.documented_days) || 0;
   const dayPart = painDays > 0 && docDays > 0 ? `Im beobachteten Zeitraum traten an ${painDays} von ${docDays} Tagen Schmerzen auf. ` : "";
 
+  const primary = burdens[0] ?? chronif[0];
   const merged: NormalizedAnalysisFinding = {
-    id: burden?.id ?? chronif[0]?.id ?? "burden.merged",
+    id: primary?.id ?? "burden.merged",
     category: "burden",
     section: "strongest",
     title: "Sehr hohe Schmerzlast im gesamten Zeitraum",
     evidenceLevel: "high",
     summary:
       `${dayPart}Das zeigt eine sehr hohe Belastung und sollte ärztlich eingeordnet werden.`.trim(),
-    reasoning: burden?.reasoning ?? chronif[0]?.reasoning,
+    reasoning: primary?.reasoning,
     limitations: [
       "Ohne vollständige Dokumentation kann die tatsächliche Last höher oder niedriger sein.",
     ],
-    recommendedTrackingNext: [
-      "Aktuelle Dokumentationsroutine beibehalten und auch leichte Kopfschmerztage erfassen.",
-    ],
+    recommendedTrackingNext: [],
     doctorDiscussionPoints: [
       "Hohe Kopfschmerzfrequenz und mögliche chronische Verlaufsform ärztlich besprechen.",
     ],
-    source: burden?.source ?? chronif[0]?.source ?? "deterministic",
+    source: primary?.source ?? "deterministic",
     shouldShowInDoctorShare: true,
   };
 
-  // Track all originals as suppressed-merged for diagnostics
-  for (const f of [burden, ...chronif].filter(Boolean) as NormalizedAnalysisFinding[]) {
+  for (const f of [...burdens, ...chronif]) {
     if (f.id !== merged.id) suppressed.push({ id: f.id, reason: "burden_chronification_merged" });
   }
 
-  // Drop originals, add merged in the original burden position (or first chronification position)
-  const dropIds = new Set<string>([
-    ...(burden ? [burden.id] : []),
-    ...chronif.map((f) => f.id),
-  ]);
+  const dropIds = new Set<string>([...burdens.map((f) => f.id), ...chronif.map((f) => f.id)]);
   const out = curated.filter((f) => !dropIds.has(f.id));
   out.push(merged);
   return out;
@@ -318,7 +312,7 @@ function suppressNegativeDataQualityWhenFriendlySummary(
 }
 
 const OPEN_QUESTION_EXCLUDE_RE =
-  /\b(nacken|stirn|schl(?:ä|ae)fe|hinterkopf|lokalisation|schmerzort)\b/i;
+  /\b(nacken|stirn|schl(?:ä|ae)fe|hinterkopf|lokalisation|schmerzort|patient(?:en|in)?|muss\s+ausgeschlossen|differential[\s-]?diagnos|ausschluss\s+(?:einer|eines)|schmerzlast|chronifizierung)\b/i;
 
 export function curateFindingsV22(
   findings: NormalizedAnalysisFinding[],
@@ -550,7 +544,7 @@ export function curateFindingsV22(
       return false;
     });
     curated = curated.map((f) =>
-      f.id === friendlyId ? f : scrubNoisyTrackingItems(f),
+      f.id === friendlyId ? f : stripAllTrackingItems(f),
     );
   }
 
@@ -581,6 +575,19 @@ function scrubNoisyTrackingItems(
   return { ...f, recommendedTrackingNext: cleaned };
 }
 
+/**
+ * When the user has a good documentation routine, drop ALL
+ * "Nächste Dokumentation"-items from non-data_quality findings.
+ * The product goal is "App informiert, nicht Aufgaben verteilen" —
+ * only the Dokumentationsfazit keeps a single "Routine beibehalten"-Hinweis.
+ */
+function stripAllTrackingItems(
+  f: NormalizedAnalysisFinding,
+): NormalizedAnalysisFinding {
+  if (f.recommendedTrackingNext.length === 0) return f;
+  return { ...f, recommendedTrackingNext: [] };
+}
+
 function getPeriodLengthDays(responseJson: unknown): number {
   const period = (responseJson as any)?.analysisV21?.period;
   const from = period?.from;
@@ -603,10 +610,20 @@ function injectFriendlyDocSummaryIfNeeded(
   const coverage = docDays / periodLen;
   // Schwelle bewusst auf ≥ 80 % gesenkt — siehe Produktziel "Einfach dokumentieren".
   if (coverage < 0.8) return curated;
-  const exists = curated.some(
+  const existingIdx = curated.findIndex(
     (f) => f.category === "data_quality" && f.id === "data_quality.diary_coverage",
   );
-  if (exists) return curated;
+  if (existingIdx >= 0) {
+    // Normalize the existing card title so it never reads as a duplicate
+    // of the section header "Dokumentationsfazit".
+    const ex = curated[existingIdx];
+    if (/^dokumentationsfazit$/i.test(ex.title.trim())) {
+      const next = [...curated];
+      next[existingIdx] = { ...ex, title: "Gute Dokumentationsgrundlage" };
+      return next;
+    }
+    return curated;
+  }
   const friendly: NormalizedAnalysisFinding = {
     id: "data_quality.diary_coverage",
     category: "data_quality",
