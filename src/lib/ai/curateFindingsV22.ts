@@ -599,6 +599,14 @@ export function curateFindingsV22(
   for (const f of prioritized) {
     if (f.category === "data_quality") continue;
     if (f.category === "weather" && f.evidenceLevel === "insufficient") continue;
+    // Automatische Daten (Wetter/Zeitmuster) ohne subjektives Kontextsignal
+    // dürfen nur Arztfragen erzeugen, wenn das Muster stark ist.
+    if (
+      isAutomaticOnlySignal(f) &&
+      !(f.evidenceLevel === "high" || f.evidenceLevel === "moderate")
+    ) {
+      continue;
+    }
     for (const q of f.doctorDiscussionPoints) {
       const k = q.toLowerCase().replace(/\s+/g, " ").trim().slice(0, 80);
       if (!k || seen.has(k)) continue;
