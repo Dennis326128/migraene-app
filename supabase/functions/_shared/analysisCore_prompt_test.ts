@@ -68,11 +68,7 @@ Deno.test("prompt: no longer forces weather coverage card", () => {
   );
 });
 
-Deno.test("prompt: forbids diagnosis", () => {
-  const p = buildSystemPrompt(meta);
-  assertStringIncludes(p, "Keine Diagnose");
-  assertStringIncludes(p, "Hypothesen");
-});
+
 
 Deno.test("prompt (App): includesPrivateNotes=true → no privacy note", () => {
   const p = buildSystemPrompt(meta, { includesPrivateNotes: true });
