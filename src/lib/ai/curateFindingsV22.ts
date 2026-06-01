@@ -157,16 +157,15 @@ function rewriteMecfsGap(
   const ofDays = documentedDays > 0 ? ` von ${documentedDays}` : "";
   return {
     ...f,
-    title: "ME/CFS-/Energiesignale häufig dokumentiert",
+    title: "ME/CFS- und Energie-Signale",
     summary:
-      `An ${mecfsDays}${ofDays} Tagen wurden ME/CFS-/Energiesignale dokumentiert. ` +
-      `Für PEM-/Belastungszusammenhänge fehlen noch detaillierte Belastungs- und Erholungsangaben über 24–72 Stunden.`,
+      `An ${mecfsDays}${ofDays} Tagen wurden ME/CFS- oder Energie-Signale dokumentiert. ` +
+      `Das kann für die Gesamtbelastung relevant sein.`,
+    reasoning: "Ein klarer PEM-Zusammenhang lässt sich daraus nicht sicher ableiten.",
     evidenceLevel: "moderate",
     pinToTopical: true,
-    limitations: [
-      ...f.limitations,
-      "Belastungs-/PEM-Details über 24–72 h fehlen noch.",
-    ],
+    limitations: [],
+    recommendedTrackingNext: [],
   };
 }
 
