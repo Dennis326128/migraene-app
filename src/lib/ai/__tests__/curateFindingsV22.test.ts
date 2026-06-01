@@ -321,7 +321,7 @@ describe('curateFindingsV22 — Phase 1b wording & dedup', () => {
     expect(r.suppressed.filter(s => s.reason === 'documentation_summary_supersedes')).toHaveLength(3);
   });
 
-  it('weather at high pain ratio uses "low" with soft wording, no comparison-day asks', () => {
+  it('drops pressure-only weather card at high pain ratio (no subjective marker)', () => {
     const r = curateFindingsV22([
       f({ id: 'w', category: 'weather', evidenceLevel: 'moderate',
           title: 'Druckabfall', summary: 'Druckabfälle fallen mit Schmerztagen zusammen.',
@@ -329,14 +329,7 @@ describe('curateFindingsV22 — Phase 1b wording & dedup', () => {
           recommendedTrackingNext: ['Schmerzfreie Tage dokumentieren'],
           doctorDiscussionPoints: ['Wetter besprechen'] }),
     ], rjHighPain);
-    const w = r.findings[0];
-    expect(w.evidenceLevel).toBe('low');
-    expect(w.summary).toMatch(/möglicher Verstärkungsfaktor/);
-    const joined = [w.summary, ...w.limitations, ...w.recommendedTrackingNext].join(' ');
-    expect(joined).not.toMatch(/schmerzfreie Tage dokumentieren/i);
-    expect(joined).not.toMatch(/schmerzfreie Vergleichstage fehlen/i);
-    expect(joined).not.toMatch(/maskiert mögliche Wettereinflüsse/i);
-    expect(w.recommendedTrackingNext[0]).toMatch(/Subjektive Wetterempfindungen/);
+    expect(r.findings.find((x) => x.id === 'w')).toBeUndefined();
     expect(r.openQuestions).toHaveLength(0);
   });
 
