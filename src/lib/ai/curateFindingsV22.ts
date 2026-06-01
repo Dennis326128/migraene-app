@@ -436,26 +436,49 @@ export function curateFindingsV22(
     return f;
   });
 
-  // 4b-iii) Weather low-evidence gating — weather findings at evidence "low"
-  // without a subjective marker (Hitze/Gewitter/Druckgefühl/Wetterwechsel)
-  // and without a clear correlation phrase are dropped entirely so they
-  // never reach Highlights or Details.
+  // 4b-iii) Weather gating — drop cards without practical value.
+  // "Kein klarer Auslöser", "möglicher Verstärkungsfaktor" oder reine
+  // Druckänderungs-Koinzidenz bei hoher Schmerztagdichte → verwerfen.
+  // Low-Evidence-Karten brauchen subjektiven Marker oder klare Korrelation.
   const WEATHER_SUBJECTIVE_RE = /\b(hitze|gewitter|druckgef[üu]hl|wetterwechsel|f[öo]hn|schw[üu]le)\b/i;
-  const WEATHER_CLEAR_LINK_RE = /\b(zusammenhang|korreliert|h[äa]ufung|verstärkt|verschlechter|verstärkungsfaktor|fallen\s+mit\s+schmerztagen)\b/i;
+  const WEATHER_NO_VALUE_RE =
+    /\b(kein\s+klarer\s+auslöser|m[öo]glicher?\s+verst[äa]rkungsfaktor|kein\s+klarer\s+wetterzusammenhang)\b/i;
+  const WEATHER_PRESSURE_RE = /\b(druck(?:[äa]nderung|abfall|anstieg)|luftdruck|koinzidenz)\b/i;
+  const WEATHER_CLEAR_LINK_RE = /\b(zusammenhang|korreliert|h[äa]ufung|verstärkt|verschlechter|fallen\s+mit\s+schmerztagen)\b/i;
   curated = curated.filter((f) => {
     if (f.category !== "weather") return true;
-    if (f.evidenceLevel === "high" || f.evidenceLevel === "moderate") return true;
     const hay = `${f.title} ${f.summary}`;
+    if (WEATHER_NO_VALUE_RE.test(hay)) {
+      suppressed.push({ id: f.id, reason: "weather_no_practical_value" });
+      return false;
+    }
+    if (painRatio > 0.85 && WEATHER_PRESSURE_RE.test(hay) && !WEATHER_SUBJECTIVE_RE.test(hay)) {
+      suppressed.push({ id: f.id, reason: "weather_pressure_high_pain_density" });
+      return false;
+    }
+    if (f.evidenceLevel === "high" || f.evidenceLevel === "moderate") return true;
     if (WEATHER_SUBJECTIVE_RE.test(hay) || WEATHER_CLEAR_LINK_RE.test(hay)) return true;
     suppressed.push({ id: f.id, reason: "weather_low_no_practical_link" });
     return false;
   });
 
-  // 4b-iv) Verlauf & Veränderung: kompakt halten.
-  // - Stabile ME/CFS-Trendkarte komplett entfernen (keine eigene Karte für
-  //   "ME/CFS bleibt ähnlich").
-  // - Wenn ein Triptan-Kurzfristtrend existiert, ersetzt er den allgemeinen
-  //   medication_trend (allgemeine Karte wird verworfen).
+  // 4b-iv) Wenn ein ME/CFS-Block existiert, Interaktions-Karten zu
+  // Fatigue/PEM/Energie verwerfen — sie wiederholen nur den ME/CFS-Block.
+  const hasMecfsBlock = curated.some((f) => f.category === "mecfs_energy_pem");
+  if (hasMecfsBlock) {
+    const FATIGUE_RE = /\b(fatigue|me\/?cfs|erschöpf|pem|energie)\b/i;
+    curated = curated.filter((f) => {
+      if (f.category !== "interaction") return true;
+      const hay = `${f.title} ${f.summary} ${f.reasoning ?? ""}`;
+      if (FATIGUE_RE.test(hay)) {
+        suppressed.push({ id: f.id, reason: "interaction_dedup_by_mecfs_block" });
+        return false;
+      }
+      return true;
+    });
+  }
+
+  // 4b-v) Verlauf & Veränderung: kompakt halten.
   curated = curated.filter((f) => {
     if (f.category === "mecfs_energy_trend" && STABLE_TREND_RE.test(f.title)) {
       suppressed.push({ id: f.id, reason: "course_trend_stable_mecfs_hidden" });
