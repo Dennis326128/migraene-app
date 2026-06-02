@@ -31,6 +31,7 @@ import { computeClinicalAnalysis, type AnalysisEntry } from '@/lib/pdf/clinicalA
 import { uploadPdfToStorage } from '@/lib/pdf/pdfStorageUpload';
 import { buildPdfFilename } from '@/lib/pdf/filenameUtils';
 import { loadAnalysisForReport, buildPatternAnalysisSummary, extractCompactSummary } from '@/lib/voice/analysisCache';
+import { buildAiPdfSummary } from '@/lib/ai/buildAiPdfSummary';
 
 import { PremiumBadge } from "@/components/ui/premium-badge";
 import { useUserAISettings } from "@/features/draft-composer/hooks/useUserAISettings";
