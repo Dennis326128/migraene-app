@@ -319,8 +319,10 @@ export default function DiaryReport({ onBack, onNavigate, initialIncludeAI, init
     });
   }, [entries, medicationEffects, from, to]);
 
-  // Day buckets für Pie Chart (SSOT — central hook)
-  const { data: dayBuckets } = useHeadacheTreatmentDays();
+  // Day buckets for the PDF pie chart are computed inside buildDiaryPdf
+  // from the freshly fetched report entries — see headacheTreatmentDays: null
+  // below. The global useHeadacheTreatmentDays() hook is bound to the app's
+  // TimeRangeContext and must NOT be used for the report.
 
   // Medication stats from report data
   const medicationStats = useMemo(() => {
