@@ -1,102 +1,81 @@
-# Δ24h-Luftdruck — Ursachenanalyse & Fix-Plan
-
-## Ist-Stand (DB-Auswertung)
-
-Aus `weather_logs` (3.016 Zeilen):
-
-| Bucket | Anzahl | Anteil ohne Δ24h |
-|---|---|---|
-| `Current weather` (Live-API) | 972 | **1 %** |
-| `Historical data (HH:00)` (Hourly-Archive) | ~1.150 | **50–73 %** |
-| Tagesmittel-Fallback | Rest | gemischt |
-
-**~921 von 3.010 Druckwerten (≈30 %)** haben Druck, aber **kein** Δ24h.
-
-## Warum Δ24h fehlt — 5 konkrete Ursachen im Code
-
-1. **Hourly-Archive-Pfad setzt Δ24h hart auf null.**
-   `supabase/functions/fetch-weather-hybrid/index.ts:348`
-   ```
-   pressure_change_24h: null, // Will be calculated below from DB
-   ```
-   Δ wird **nicht** aus der API gezogen, obwohl die Archive-API den Stundenwert von T−24h problemlos liefern kann.
-
-2. **DB-Fallback ist die einzige Quelle für historische Δ — und scheitert oft.**
-   `fetch-weather-hybrid/index.ts:413–461` sucht einen anderen `weather_log` desselben Users mit gleichem `lat_rounded`/`lon_rounded` innerhalb **±90 min um T−24h**. Wer nicht täglich mehrere Einträge erstellt, hat dort schlicht keinen Treffer → Δ bleibt NULL. Genau das Muster zeigt die Statistik (60–72 % NULL bei `Historical data (HH:00)`).
-
-3. **Cache-Hit liefert alte NULL-Werte zurück und repariert sie nie.**
-   `fetch-weather-hybrid/index.ts:241–252`: Sobald ein Log mit derselben Stunde im 5 km-Radius existiert, wird dessen `id` zurückgegeben — auch wenn `pressure_change_24h IS NULL`. Selbst wenn inzwischen ein 24 h-Vorgängerlog existiert, wird die NULL nie nachgezogen.
-
-4. **`backfill-entry-weather` schreibt Δ explizit als NULL und kein Job holt sie nach.**
-   `supabase/functions/backfill-entry-weather/index.ts:252` (`pressure_change_24h: null, // never fabricate 0`).
-   `auto-weather-backfill` / `daily-weather-backfill` füllen nur fehlende `weather_id` an Einträgen — sie patchen **keine** vorhandenen `weather_logs` mit NULL-Δ.
-
-5. **Client-Hook reicht den Ausfall nur durch.**
-   `src/features/entries/hooks/usePressureDelta24h.ts` macht denselben DB-Lookup wie der Server, fällt also bei sparsamer Nutzung genauso aus. Zusätzlich: `bestMatch = data[0]` wird vor dem Self-Skip nicht zurückgesetzt → bei nur einem Kandidaten (=self) liefert er fälschlich `delta = 0`.
-
 ## Ziel
 
-Δ24h ist für **jeden** `weather_log` mit `pressure_mb IS NOT NULL` deterministisch verfügbar — unabhängig davon, wie sparsam der User Einträge macht.
+Die zwei bestehenden KI-Pfade an **einem Eingang** auf der Startseite zusammenführen, ohne den bekannten Statistik-Tab zu entfernen. Nutzer entscheidet erst im Dialog, ob er die Analyse **ansehen**, als **PDF** oder als **Tagebuch + KI-PDF** will.
 
-## Fix-Plan (klein, fokussiert, keine Großarchitektur)
+## Neuer Flow
 
-### Schritt 1 — Δ24h direkt aus Open-Meteo holen (Live + Hourly)
+Startseite → Karte „Bericht erstellen" → neue Unter-Aktion **„KI-Analyse"** öffnet einen Dialog im App-Stil:
 
-In `supabase/functions/fetch-weather-hybrid/index.ts`:
-
-- **Hourly-Pfad (Zeile 312–360):** Archive-Call so erweitern, dass `start_date = requestDate - 1d` und `end_date = requestDate`. Aus `data.hourly` den Wert bei Stunde T und T−24h (gleiche `lat/lon`) lesen und `pressure_change_24h = surface_pressure[T] − surface_pressure[T−24h]` setzen. Wenn nur Tagesmittel sinnvoll: bestehender Daily-Fallback (Zeile 363–405) bleibt unverändert.
-- **Current-Pfad (Zeile 263–306):** Aktuell wird nur das Tagesmittel von gestern abgefragt. Stattdessen die letzten 25 Stunden aus `archive-api` ziehen und das Δ aus identischer Stunde des Vortages bilden (genau wie ICHD-/Wetter-Memory beschreibt). Bei API-Fehler: bestehender Tagesmittel-Fallback bleibt als zweite Wahl.
-- **Tagesmittel-Fallback (Zeile 363–405):** unverändert.
-- **DB-Fallback (Zeile 413–461):** bleibt als dritte Sicherheitsebene erhalten, läuft aber nur noch, wenn API-Δ wirklich nicht ermittelbar ist.
-
-Resultat: Neue Logs haben Δ24h aus der API → unabhängig vom DB-Zustand.
-
-### Schritt 2 — Stale-NULL-Δ beim Cache-Hit nachziehen
-
-In `fetch-weather-hybrid/index.ts:225–252`: Wenn der Cache-Treffer `pressure_change_24h IS NULL`, **nicht** sofort zurückgeben, sondern Δ einmalig nachholen (Archive-Call wie Schritt 1) und mit `UPDATE` in den Log schreiben — danach `id` zurückgeben. Kein neuer Log, keine Duplikate.
-
-### Schritt 3 — Einmalige Repair-Edge-Function für Altbestand
-
-Neue `supabase/functions/repair-pressure-delta-24h/index.ts`:
-
-- Authentifiziert über `x-cron-secret` (wie `auto-weather-backfill`).
-- Paginierter Loop über `weather_logs WHERE pressure_mb IS NOT NULL AND pressure_change_24h IS NULL` (Limit z. B. 200 / Lauf, Rate-Limit 200 ms).
-- Pro Zeile: Archive-API mit `lat_rounded`, `lon_rounded`, T und T−24h aufrufen, Δ berechnen, `UPDATE weather_logs SET pressure_change_24h = …`.
-- Idempotent: läuft nur über NULL-Zeilen.
-
-Erst einmal manuell triggern, danach optional `pg_cron` täglich (kostet ca. 921 ÷ 200 = 5 Läufe für den aktuellen Altbestand).
-
-### Schritt 4 — `usePressureDelta24h` defensiv korrigieren
-
-`src/features/entries/hooks/usePressureDelta24h.ts`:
-
-- `bestMatch`-Initialwert erst nach dem Self-Skip-Filter wählen, damit nicht versehentlich der eigene Log als „24 h-Referenz" zählt (`delta = 0`-Artefakt).
-- Wenn keine Kandidaten gefunden werden, *einmalig* `fetch-weather-hybrid` für T−24h aufrufen (gleicher `lat/lon`) — der Server schreibt dann automatisch einen `weather_log` und liefert Δ via Schritt 1 zurück. Cache via React-Query (`staleTime: 6h`, `gcTime: 24h`) bleibt erhalten.
-
-### Schritt 5 — Tests
-
-- `supabase/functions/fetch-weather-hybrid/*_test.ts` (neu): Mock Open-Meteo-Antwort mit Stundenwerten → erwartet `pressure_change_24h !== null` für Hourly- und Current-Pfad. Cache-Hit mit `pressure_change_24h = null` → erwartet UPDATE mit echtem Δ.
-- `src/features/entries/hooks/usePressureDelta24h.test.ts` (neu): Self-Skip-Regression (nur eigener Log → liefert `missing`, nicht `0`).
-- Repair-Funktion: Unit-Test über kleinen synthetischen Datensatz.
-
-### Schritt 6 — Erfolgskontrolle
-
-Nach Schritt 3 + 1 erneut messen:
-```sql
-SELECT COUNT(*) FILTER (WHERE pressure_mb IS NOT NULL AND pressure_change_24h IS NULL) AS still_missing,
-       COUNT(*) FILTER (WHERE pressure_change_24h IS NOT NULL) AS has_delta
-FROM weather_logs;
+```text
+┌─ KI-Analyse ─────────────────────────────┐
+│  Noch 5 / 5 Analysen diesen Monat        │
+├──────────────────────────────────────────┤
+│ 👁  Analyse ansehen                       │
+│    Muster & Hinweise direkt in der App   │
+├──────────────────────────────────────────┤
+│ 📄  Nur KI-Analyse als PDF                │
+│    Kompakter Bericht zum Teilen          │
+├──────────────────────────────────────────┤
+│ 📘  Tagebuch + KI-Analyse als PDF         │
+│    Vollständiger Arztbericht             │
+├──────────────────────────────────────────┤
+│                            [ Abbrechen ] │
+└──────────────────────────────────────────┘
 ```
-Zielwert: `still_missing` nahe 0 (verbleibende Lücken nur dort, wo die Open-Meteo-Archive selbst keine Werte für die Region/Stunde liefert).
 
-## Was sich NICHT ändert
+- **Ansehen** → navigiert direkt in `Auswertung & Statistik → Tab „KI-Analyse"` und triggert dort die Analyse (genau das, was heute schon existiert, bleibt unverändert).
+- **Nur KI-PDF** → ruft `generate-ai-diary-report` ohne den vollen Tagebuch-Anhang auf → PDF erscheint unter „KI-Berichte".
+- **Tagebuch + KI** → heutiger „Bericht erstellen"-Pfad mit Checkbox „KI-Analysebericht" automatisch aktiviert.
 
-- Kein DB-Schema-Wechsel, keine Migration.
-- Keine UI-Änderung — bestehende Komponenten (`EntriesList`, `DiaryTimeline`, `usePressureDelta24h`) lesen weiter `pressure_change_24h`.
-- Keine neuen Secrets, kein Modellwechsel, keine neuen Pflichtdokumente.
-- Bestehende Curation-/Analyse-Logik unverändert.
+Der Statistik-Tab **bleibt** als zweiter Schnellzugang für Power-User (deine Entscheidung zu Punkt 1).
 
-## Antwort auf „muss ich neu analysieren?"
+## Quota-Vereinheitlichung
 
-- **Neue Einträge:** profitieren ab Deploy automatisch (Schritt 1).
-- **Altbestand:** wird durch Schritt 3 einmalig repariert — danach reicht „neu laden" in der App, keine neue KI-Analyse nötig.
+Heute getrennt:
+- `pattern_analysis` (Statistik-Tab/„Ansehen"): ~3 / Monat
+- `ai_diary_report` (PDF): 5 / Monat
+
+Neu: **beide auf 5 / Monat**, weiterhin **getrennt** gezählt (kein Daten-Migrationsrisiko, einfache Anpassung der Limit-Konstanten in den Edge Functions). So gilt fair: jede Variante hat ihr eigenes faires Limit, der Nutzer wird nicht durch Mischnutzung bestraft.
+
+Im Dialog wird der **kleinere verbleibende Wert** prominent angezeigt, plus eine kleine Aufschlüsselung beim Ausklappen („Ansehen: 4/5 · PDF: 3/5").
+
+## Label-Klarheit
+
+- Statistik-Tab umbenennen: „KI-Analyse" → **„Mustererkennung (KI)"** (macht klar: Live-Ansicht, kein Bericht).
+- Startseite/Bericht-Karte: neue Sektion **„KI-Analyse"** als Sammelpunkt.
+
+## Technische Umsetzung
+
+### Frontend
+1. Neue Komponente `KiAnalyseDialog.tsx` (shadcn `Dialog`) mit den 3 Aktions-Karten + Quota-Anzeige oben.
+2. Einstiegspunkt: neue Sub-Karte/Button **„KI-Analyse"** in der bestehenden Bericht-erstellen-Ansicht.
+3. Aktions-Handler:
+   - **Ansehen** → `navigate('/auswertung?tab=ki-analyse&autorun=1')`
+   - **Nur PDF** → bestehender PDF-Pfad, aber neues Flag `mode: 'ai-only'` an `generate-ai-diary-report`.
+   - **Tagebuch + KI** → bestehender Bericht-Wizard mit vorausgewählter Checkbox.
+4. Label-Änderung in `de.json`: `statistics.tabs.aiAnalysis` → „Mustererkennung (KI)".
+5. Quota-Daten via bestehender `get_pattern_analysis_usage` RPC + Pendant für `ai_diary_report` parallel laden (React Query).
+
+### Backend / Edge Functions
+1. `analyze-voice-patterns`: Limit-Konstante von 3 → **5**.
+2. `generate-ai-diary-report`: neuen optionalen Body-Param `mode: 'full' | 'ai-only'` (default `'full'`) — bei `'ai-only'` wird der PDF-Renderer ohne die Tagebuch-Tabellen aufgerufen, nur Cover + KI-Textblock.
+3. Keine DB-Migration nötig (Limits sind in Code, nicht in der DB).
+
+### Auswertung-Page
+- Liest neuen URL-Param `?tab=ki-analyse&autorun=1` → öffnet Tab und triggert automatisch die Analyse-Funktion (so wie der Tab-Klick es heute tut).
+
+## Was NICHT geändert wird
+
+- Statistik-Tab-Funktionalität (nur Label).
+- Bestehender Bericht-Wizard (nur neue Vorbelegung der KI-Checkbox aus dem Dialog).
+- DB-Schema, RLS-Policies, Storage-Bucket.
+- Keine Quota-Zusammenführung in eine gemeinsame Tabelle.
+
+## Akzeptanzkriterien
+
+- Aus „Bericht erstellen" → „KI-Analyse" sind alle drei Pfade in max. 2 Klicks erreichbar.
+- Quota im Dialog ist korrekt (5/Monat je Variante, getrennt gezählt).
+- „Ansehen" landet auf demselben Tab/Inhalt wie heute, ohne dass der Nutzer manuell auf „Analysieren" klicken muss.
+- „Nur PDF" erzeugt ein kürzeres PDF ohne Tagebuch-Tabellen, taucht in „KI-Berichte" auf.
+- „Tagebuch + KI" verhält sich wie heute mit aktivierter Checkbox.
+- Statistik-Tab heißt nun „Mustererkennung (KI)".
