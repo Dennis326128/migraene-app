@@ -309,7 +309,6 @@ export const MedicationCourseWizard: React.FC<MedicationCourseWizardProps> = ({
             setType={setType}
             structuredDosage={structuredDosage}
             setStructuredDosage={setStructuredDosage}
-            onVoiceData={handleVoiceData}
             isEditMode={!!existingCourse}
           />
         );

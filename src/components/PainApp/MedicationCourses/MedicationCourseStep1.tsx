@@ -9,7 +9,6 @@ import {
   Shield, 
   Zap, 
   MoreHorizontal, 
-  Mic, 
   ChevronDown, 
   Check,
   Clock,
@@ -18,7 +17,6 @@ import {
 import { cn } from "@/lib/utils";
 import type { MedicationCourseType } from "@/features/medication-courses";
 import type { Med } from "@/features/meds/hooks/useMeds";
-import { VoiceInputButton } from "./VoiceInputButton";
 import type { StructuredDosage, DosageSchedule } from "./StructuredDosageInput";
 
 interface MedicationCourseStep1Props {
@@ -31,13 +29,6 @@ interface MedicationCourseStep1Props {
   setType: (type: MedicationCourseType) => void;
   structuredDosage: StructuredDosage;
   setStructuredDosage: React.Dispatch<React.SetStateAction<StructuredDosage>>;
-  onVoiceData: (data: {
-    medicationName: string;
-    type: MedicationCourseType;
-    dosage: Partial<StructuredDosage>;
-    startDate: Date | undefined;
-    isActive: boolean;
-  }) => void;
   /** Whether we're editing an existing course */
   isEditMode?: boolean;
 }
@@ -152,7 +143,6 @@ export const MedicationCourseStep1: React.FC<MedicationCourseStep1Props> = ({
   setType,
   structuredDosage,
   setStructuredDosage,
-  onVoiceData,
   isEditMode,
 }) => {
   // Derive initial intake mode from structuredDosage
@@ -175,6 +165,31 @@ export const MedicationCourseStep1: React.FC<MedicationCourseStep1Props> = ({
   
   const [showDetails, setShowDetails] = useState(false);
   const [showCustomSchedule, setShowCustomSchedule] = useState(() => regularPreset === "custom");
+
+  // Sync local UI state when structuredDosage is hydrated/changed externally (e.g. edit mode)
+  useEffect(() => {
+    const rhythm = structuredDosage.doseRhythm;
+    if (rhythm === "as_needed") {
+      setIntakeMode("as_needed");
+      return;
+    }
+    setIntakeMode("regular");
+    let nextPreset: string;
+    if (rhythm === "weekly") nextPreset = "weekly";
+    else if (rhythm === "monthly") nextPreset = "monthly";
+    else {
+      const { morning, noon, evening, night } = structuredDosage.doseSchedule;
+      const total = morning + noon + evening + night;
+      if (total === 1 && morning === 1) nextPreset = "1x";
+      else if (total === 2 && morning === 1 && evening === 1) nextPreset = "2x";
+      else if (total === 3 && morning === 1 && noon === 1 && evening === 1) nextPreset = "3x";
+      else if (total > 0) nextPreset = "custom";
+      else nextPreset = "1x";
+    }
+    setRegularPreset(nextPreset);
+    setShowCustomSchedule(nextPreset === "custom");
+  }, [structuredDosage.doseRhythm, structuredDosage.doseSchedule.morning, structuredDosage.doseSchedule.noon, structuredDosage.doseSchedule.evening, structuredDosage.doseSchedule.night]);
+
 
   // Get final medication name
   const finalMedName = medicationName === "__custom__" ? customMedication : medicationName;
@@ -243,24 +258,7 @@ export const MedicationCourseStep1: React.FC<MedicationCourseStep1Props> = ({
 
   return (
     <div className="space-y-6">
-      {/* Voice Input - Prominent floating button */}
-      <Card className="border-primary/30 bg-primary/5">
-        <CardContent className="p-4">
-          <div className="flex items-center gap-4">
-            <div className="flex-1">
-              <p className="font-medium text-foreground/90">Per Sprache ausfüllen</p>
-              <p className="text-sm text-muted-foreground">
-                Ideal bei Kopfschmerzen – einfach diktieren
-              </p>
-            </div>
-            <VoiceInputButton
-              userMeds={medications}
-              onDataRecognized={onVoiceData}
-              className="h-12 w-12 rounded-full"
-            />
-          </div>
-        </CardContent>
-      </Card>
+
 
       {/* Section 1: Medication & Treatment Type */}
       <Card className="border-border/50">
