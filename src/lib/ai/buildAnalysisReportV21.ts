@@ -354,7 +354,7 @@ export function buildAnalysisReportV21(input: BuildReportV21Input): AnalysisRepo
       weather_days: weatherDays,
       lifestyle_factor_days: pre.mecfs.contextNoteCount ?? null,
       mecfs_energy_days: mecfsDays,
-      effect_rating_count: null,
+      effect_rating_count: pre.medication.effectRatedCount ?? null,
       private_notes_excluded: true,
     },
     clinical_caution: {
