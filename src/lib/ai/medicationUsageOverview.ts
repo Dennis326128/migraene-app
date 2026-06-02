@@ -176,25 +176,26 @@ export function medicationUsageOverviewTitle(rangeDays: number): string {
  * und IMMER als subjektive Dokumentation formuliert (keine numerische
  * Skala in der Ausgabe, keine Wirksamkeitsbehauptung).
  *
- * Diazepam wird neutral aufgeführt – nie als „wirksam" / „sehr gut"
- * o. ä., auch bei hohem subjektivem Score.
+ * Sensible Substanzen (Benzos, Opioide, …) werden generisch neutral
+ * aufgeführt – nie als „wirksam" / „sehr gut" o. ä., auch bei hohem
+ * subjektivem Score. Freitextnotizen werden NIE roh wiedergegeben,
+ * sondern auf einen kurzen Kontext-Hinweis abstrahiert.
  */
 export function formatMedicationUsageLine(m: MedicationUsageEntry): string {
   const parts: string[] = [
     `${m.name}: ${m.intakeCount} Einnahme${m.intakeCount === 1 ? "" : "n"}`,
   ];
   if (m.avgScore !== null && m.ratedCount > 0) {
-    const qual = isDiazepam(m.name)
-      // Diazepam: neutral spiegeln, niemals als "sehr wirksam" beschreiben.
+    const qual = isSensitiveSubstance(m.name)
+      // Sensible Substanz: neutral spiegeln, nie als „sehr wirksam" beschreiben.
       ? (m.avgScore >= 5.5
           ? "subjektiv häufig hilfreich bewertet"
           : "subjektiv gemischt bewertet")
       : effectQualitative(m.avgScore);
     parts.push(qual);
   }
-  if (m.topNotes.length > 0) {
-    parts.push(`Notiz: ${m.topNotes.join(" | ")}`);
-  }
+  const noteHint = summarizeNotesSemantic(m.topNotes);
+  if (noteHint) parts.push(noteHint);
   return parts.join(", ");
 }
 
