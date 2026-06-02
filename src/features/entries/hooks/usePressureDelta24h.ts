@@ -20,7 +20,7 @@ interface PressureDeltaResult {
   matchedWeatherAt?: string;
 }
 
-async function fetchPressureDelta24h(
+export async function fetchPressureDelta24h(
   userId: string,
   occurredAt: string,
   currentPressureMb: number,
@@ -50,13 +50,20 @@ async function fetchPressureDelta24h(
     return { delta: null, source: 'missing' };
   }
 
-  // Find closest match to targetTime
-  let bestMatch = data[0];
+  // Filter out self before picking the closest match, so we never compare a log to itself
+  // (which would falsely produce delta = 0).
+  const candidates = currentWeatherLogId
+    ? data.filter((row) => row.id !== currentWeatherLogId)
+    : data;
+
+  if (candidates.length === 0) {
+    return { delta: null, source: 'missing' };
+  }
+
+  let bestMatch = candidates[0];
   let bestDiff = Math.abs(new Date(bestMatch.created_at!).getTime() - targetTime.getTime());
 
-  for (const row of data) {
-    // Skip self
-    if (currentWeatherLogId && row.id === currentWeatherLogId) continue;
+  for (const row of candidates) {
     const diff = Math.abs(new Date(row.created_at!).getTime() - targetTime.getTime());
     if (diff < bestDiff) {
       bestDiff = diff;

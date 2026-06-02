@@ -1,102 +1,102 @@
-# Release-Polish KI-Analyse — Phase „Einschränkungen"
+# Δ24h-Luftdruck — Ursachenanalyse & Fix-Plan
 
-## 1. Prüfung: Fließt Medikamentenwirkung in die Analyse ein?
+## Ist-Stand (DB-Auswertung)
 
-Befund (Code belegt):
+Aus `weather_logs` (3.016 Zeilen):
 
-- Tabelle `medication_effects` existiert und wird vom Feature `src/features/medication-effects/` (eigenes API + UI) genutzt.
-- App-Pipeline: weder `src/lib/voice/analysisAccess.ts` noch `src/lib/voice/analysisContext.ts` lesen `medication_effects` (rg-Treffer: 0).
-- `src/lib/ai/buildAnalysisReportV21.ts:356` setzt `effect_rating_count: null` hart.
-- Server-Pipeline: `supabase/functions/_shared/serverAnalysisDataset.ts` lädt nur `pain_entries` + `medication_intakes`, keine `medication_effects`.
-- `patternPreAnalysis.ts:122` definiert das Feld `effect_rating_count`, es bleibt aber `null`.
-- Das LLM-Prompt enthält die Kategorie `medication_effect`, bekommt jedoch keine Wirkungsdaten als Input.
+| Bucket | Anzahl | Anteil ohne Δ24h |
+|---|---|---|
+| `Current weather` (Live-API) | 972 | **1 %** |
+| `Historical data (HH:00)` (Hourly-Archive) | ~1.150 | **50–73 %** |
+| Tagesmittel-Fallback | Rest | gemischt |
 
-→ **Wirkungsdaten fließen aktuell NICHT in PreAnalysis, Prompt oder deterministische Findings ein.**
+**~921 von 3.010 Druckwerten (≈30 %)** haben Druck, aber **kein** Δ24h.
 
-Folge für diesen Release: minimaler, nicht-invasiver Anschluss (Zählen vorhandener `medication_effects.effect_rating_0_4` im Zeitraum) — kein neues UI, keine Pflicht, keine Migration. Wenn ≥1 Wirkungsrating im Zeitraum existiert, werden alle „Wirksamkeit wird hier nicht bewertet" / „Medikamenten-Trend allein erlaubt keine Aussage zur Wirksamkeit" Einschränkungen unterdrückt.
+## Warum Δ24h fehlt — 5 konkrete Ursachen im Code
 
-## 2. Datei-Änderungen (klein, gezielt)
+1. **Hourly-Archive-Pfad setzt Δ24h hart auf null.**
+   `supabase/functions/fetch-weather-hybrid/index.ts:348`
+   ```
+   pressure_change_24h: null, // Will be calculated below from DB
+   ```
+   Δ wird **nicht** aus der API gezogen, obwohl die Archive-API den Stundenwert von T−24h problemlos liefern kann.
 
-### a) Wirkungsdaten in App-Pipeline einbeziehen
-- `src/lib/voice/analysisAccess.ts`: zusätzlich `medication_effects` (nur `entry_id`, `effect_rating_0_4`, `updated_at`) für Zeitraum laden, owner-gefiltert.
-- `src/lib/voice/analysisContext.ts`: Anzahl bewerteter Einnahmen als `medicationEffectRatedCount` ausgeben.
-- `src/lib/ai/buildAnalysisReportV21.ts`:
-  - `effect_rating_count` aus Kontext statt `null`.
-  - Limitation `"Wirksamkeit wird hier nicht bewertet."` und `"Ohne vollständige Dokumentation kann die tatsächliche Last höher oder niedriger sein."` nur noch konditional ausgeben (siehe c/d).
+2. **DB-Fallback ist die einzige Quelle für historische Δ — und scheitert oft.**
+   `fetch-weather-hybrid/index.ts:413–461` sucht einen anderen `weather_log` desselben Users mit gleichem `lat_rounded`/`lon_rounded` innerhalb **±90 min um T−24h**. Wer nicht täglich mehrere Einträge erstellt, hat dort schlicht keinen Treffer → Δ bleibt NULL. Genau das Muster zeigt die Statistik (60–72 % NULL bei `Historical data (HH:00)`).
 
-### b) Server-Pipeline minimal angleichen
-- `supabase/functions/_shared/serverAnalysisDataset.ts`: zusätzlicher Select auf `medication_effects` (owner-gefiltert über entry_id-Join), nur Zählung in Meta.
-- `supabase/functions/_shared/patternPreAnalysis.ts`: `effect_rating_count` aus Meta befüllen; gleiche konditionale Limitation-Logik wie App.
+3. **Cache-Hit liefert alte NULL-Werte zurück und repariert sie nie.**
+   `fetch-weather-hybrid/index.ts:241–252`: Sobald ein Log mit derselben Stunde im 5 km-Radius existiert, wird dessen `id` zurückgegeben — auch wenn `pressure_change_24h IS NULL`. Selbst wenn inzwischen ein 24 h-Vorgängerlog existiert, wird die NULL nie nachgezogen.
 
-### c) Generische Einschränkungen entfernen / konditional machen
-Betroffen:
-- `src/lib/ai/curateFindingsV22.ts:266` — Burden-merged: Limitation `"Ohne vollständige Dokumentation …"` nur, wenn `documented_days / days_total < 0.8`, sonst leeres Array.
-- `src/lib/ai/buildAnalysisReportV21.ts:152` (`burden.pain_days_share`) und `supabase/functions/_shared/patternPreAnalysis.ts:419` — selbe Bedingung `<0.8` Coverage.
-- `src/lib/ai/buildAnalysisReportV21.ts:185` und Server-Pendant (`medication.acute_intakes`) — `"Wirksamkeit wird hier nicht bewertet."` entfällt, wenn `effect_rating_count ≥ 1`.
-- `src/lib/ai/buildCourseTrendFindings.ts:67` und Server-Pendant — stabile Verlaufskarten: Limitation `"Verläufe brauchen längere Zeiträume …"` ersatzlos entfernen (Fallback `"… mindestens zwei dokumentierte Wochen …"` bleibt für `!hasEnoughData`).
-- `buildCourseTrendFindings.ts:111` — `"Medikamenten-Trend allein erlaubt keine Aussage zur Wirksamkeit."` ersatzlos entfernen; `recommended_tracking_next` „Wirksamkeit der Akutmedikation pro Einnahme kurz bewerten." nur, wenn `effect_rating_count === 0`.
+4. **`backfill-entry-weather` schreibt Δ explizit als NULL und kein Job holt sie nach.**
+   `supabase/functions/backfill-entry-weather/index.ts:252` (`pressure_change_24h: null, // never fabricate 0`).
+   `auto-weather-backfill` / `daily-weather-backfill` füllen nur fehlende `weather_id` an Einträgen — sie patchen **keine** vorhandenen `weather_logs` mit NULL-Δ.
 
-### d) Output-Policy als Sicherheitsnetz
-- `src/lib/ai/analysisOutputPolicy.ts`: zentrale Regex-Liste erweitern um pauschale Floskeln, die auch durch LLM erzeugt werden könnten:
-  - `/ohne vollständige Dokumentation/i`
-  - `/Verläufe brauchen längere Zeiträume/i`
-  - `/Medikamenten-Trend allein/i`
-  - `/Wirksamkeit wird hier nicht bewertet/i`
-  - `/keine Informationen zur Wirksamkeit/i`
-  - `/Wirksamkeit fehlt/i`
-  - `/nicht aus dem Datensatz ersichtlich/i`
-  - `/nicht explizit dokumentiert/i`
-  - `/Datenlage erschwert/i`
-  Stripper greift bei `limitations[]`, `reasoning`, `summary` (wie bestehend) — wenn Doc-Coverage ≥ 0.8 bzw. `effect_rating_count ≥ 1` greift das Filter unbedingt; sonst nur stark gekürzt.
+5. **Client-Hook reicht den Ausfall nur durch.**
+   `src/features/entries/hooks/usePressureDelta24h.ts` macht denselben DB-Lookup wie der Server, fällt also bei sparsamer Nutzung genauso aus. Zusätzlich: `bestMatch = data[0]` wird vor dem Self-Skip nicht zurückgesetzt → bei nur einem Kandidaten (=self) liefert er fälschlich `delta = 0`.
 
-### e) Triptan-Vermeidung kürzen
-- `curateFindingsV22.ts` (Triptan/Avoidance-Pfad): wenn Card-Text die genannten Phrasen enthält, durch Kurzform ersetzen:
-  - Titel/Summary: „Hinweise auf Triptan-Zurückhaltung."
-  - Optional 1 Doctor-Point: „Gründe können im Arztgespräch eingeordnet werden."
-  - Keine `limitations`.
+## Ziel
 
-### f) Detailansicht (UI) — keine leeren Hinweisblöcke
-- `src/components/PainApp/AnalysisV21Sections.tsx::FindingCard`: `limitationsShort` wird bereits gerendert nur falls vorhanden — keine Code-Änderung nötig, profitiert automatisch davon, dass `limitations` jetzt leer sein können.
+Δ24h ist für **jeden** `weather_log` mit `pressure_mb IS NOT NULL` deterministisch verfügbar — unabhängig davon, wie sparsam der User Einträge macht.
 
-## 3. Erhalten bleibt explizit
+## Fix-Plan (klein, fokussiert, keine Großarchitektur)
 
-- Summary-first Layout, „Detaillierte Analyse anzeigen"-Toggle.
-- Max. 3 Highlights, `pickTopHighlights`-Reihenfolge unverändert.
-- Triptan-Kurzfristtrend (`medication_trend.acute_use_short_term`).
-- Dokumentationsfazit genau einmal (suppressNegativeDataQualityWhenFriendlySummary).
-- ME/CFS-Dedupe + neutraler Wortlaut.
-- Wetter-Gating + subjectiveContextSignal.
-- Legacy-Feld-Filterung, Report/Kopieren via `generateAnalysisReportText` mit identischer Curation.
-- Arztfragen-Cap = 4.
+### Schritt 1 — Δ24h direkt aus Open-Meteo holen (Live + Hourly)
 
-## 4. Tests
+In `supabase/functions/fetch-weather-hybrid/index.ts`:
 
-Neu anlegen: `src/lib/ai/__tests__/curateFindingsV22.constraintRelease.test.ts`
+- **Hourly-Pfad (Zeile 312–360):** Archive-Call so erweitern, dass `start_date = requestDate - 1d` und `end_date = requestDate`. Aus `data.hourly` den Wert bei Stunde T und T−24h (gleiche `lat/lon`) lesen und `pressure_change_24h = surface_pressure[T] − surface_pressure[T−24h]` setzen. Wenn nur Tagesmittel sinnvoll: bestehender Daily-Fallback (Zeile 363–405) bleibt unverändert.
+- **Current-Pfad (Zeile 263–306):** Aktuell wird nur das Tagesmittel von gestern abgefragt. Stattdessen die letzten 25 Stunden aus `archive-api` ziehen und das Δ aus identischer Stunde des Vortages bilden (genau wie ICHD-/Wetter-Memory beschreibt). Bei API-Fehler: bestehender Tagesmittel-Fallback bleibt als zweite Wahl.
+- **Tagesmittel-Fallback (Zeile 363–405):** unverändert.
+- **DB-Fallback (Zeile 413–461):** bleibt als dritte Sicherheitsebene erhalten, läuft aber nur noch, wenn API-Δ wirklich nicht ermittelbar ist.
 
-| # | Test |
-|---|---|
-| 1 | Bei `documented_days=28, days_total=30` (≥80 %) erscheint keine Limitation `/ohne vollständige Dokumentation/i` mehr |
-| 2 | Verlaufskarte (course_trend stable) hat keine Limitation `/Verläufe brauchen längere Zeiträume/i` |
-| 3 | `medication.acute_intakes` mit `effect_rating_count=2` enthält keine Limitation `/Wirksamkeit wird hier nicht bewertet/i` |
-| 4 | `medication_trend.acute_use` enthält keine Limitation `/Medikamenten-Trend allein/i` |
-| 5 | Triptan-Avoidance-Card: Text enthält nicht `/nicht aus dem Datensatz ersichtlich/i` und `/nicht explizit dokumentiert/i` |
-| 6 | Bei `effect_rating_count ≥ 1`: `analysisV21.data_basis.effect_rating_count` ≠ null und Output-Policy entfernt restliche Pauschalformulierungen |
-| 7 | Bestehende Tests bleiben grün: `releasePolish`, `detailPolish`, `simplify`, `polish`, `subjectiveContextSignal`, `buildCourseTrendFindings` |
+Resultat: Neue Logs haben Δ24h aus der API → unabhängig vom DB-Zustand.
 
-Server-Pendants in `supabase/functions/_shared/buildCourseTrendFindings.ts` + `patternPreAnalysis.ts` werden via existierender Deno-Tests (`patternAnalysisBuilder_test.ts`, `patternPreAnalysis_test.ts`) abgedeckt; bei Bedarf werden 1–2 Assertions ergänzt.
+### Schritt 2 — Stale-NULL-Δ beim Cache-Hit nachziehen
 
-Ausführen: `npx vitest run`, `deno test supabase/functions/_shared/*_test.ts --allow-net --allow-env`, `tsc --noEmit`, `npm run build`.
+In `fetch-weather-hybrid/index.ts:225–252`: Wenn der Cache-Treffer `pressure_change_24h IS NULL`, **nicht** sofort zurückgeben, sondern Δ einmalig nachholen (Archive-Call wie Schritt 1) und mit `UPDATE` in den Log schreiben — danach `id` zurückgeben. Kein neuer Log, keine Duplikate.
 
-## 5. Risiko / Rollback
+### Schritt 3 — Einmalige Repair-Edge-Function für Altbestand
 
-Reine Text-/Konditional-Änderungen + ein neuer DB-Lesepfad auf bestehender Tabelle `medication_effects` (RLS ist owner-gefiltert, keine Schreibvorgänge). Kein Schema-, Prompt-Architektur- oder Wetter-Logik-Eingriff. Rollback = Revert der genannten Dateien.
+Neue `supabase/functions/repair-pressure-delta-24h/index.ts`:
 
-## Antwort am Ende der Umsetzung (gewünschtes Format)
+- Authentifiziert über `x-cron-secret` (wie `auto-weather-backfill`).
+- Paginierter Loop über `weather_logs WHERE pressure_mb IS NOT NULL AND pressure_change_24h IS NULL` (Limit z. B. 200 / Lauf, Rate-Limit 200 ms).
+- Pro Zeile: Archive-API mit `lat_rounded`, `lon_rounded`, T und T−24h aufrufen, Δ berechnen, `UPDATE weather_logs SET pressure_change_24h = …`.
+- Idempotent: läuft nur über NULL-Zeilen.
 
-1. Geänderte Dateien
-2. Ergebnis Prüfung Medikamentenwirkung
-3. Änderungen an Einschränkungen
-4. Detailansicht-Vereinfachung
-5. Erhaltene bestehende Funktionen
-6. Tests/Build
-7. Muss ich neu analysieren oder reicht neu laden
+Erst einmal manuell triggern, danach optional `pg_cron` täglich (kostet ca. 921 ÷ 200 = 5 Läufe für den aktuellen Altbestand).
+
+### Schritt 4 — `usePressureDelta24h` defensiv korrigieren
+
+`src/features/entries/hooks/usePressureDelta24h.ts`:
+
+- `bestMatch`-Initialwert erst nach dem Self-Skip-Filter wählen, damit nicht versehentlich der eigene Log als „24 h-Referenz" zählt (`delta = 0`-Artefakt).
+- Wenn keine Kandidaten gefunden werden, *einmalig* `fetch-weather-hybrid` für T−24h aufrufen (gleicher `lat/lon`) — der Server schreibt dann automatisch einen `weather_log` und liefert Δ via Schritt 1 zurück. Cache via React-Query (`staleTime: 6h`, `gcTime: 24h`) bleibt erhalten.
+
+### Schritt 5 — Tests
+
+- `supabase/functions/fetch-weather-hybrid/*_test.ts` (neu): Mock Open-Meteo-Antwort mit Stundenwerten → erwartet `pressure_change_24h !== null` für Hourly- und Current-Pfad. Cache-Hit mit `pressure_change_24h = null` → erwartet UPDATE mit echtem Δ.
+- `src/features/entries/hooks/usePressureDelta24h.test.ts` (neu): Self-Skip-Regression (nur eigener Log → liefert `missing`, nicht `0`).
+- Repair-Funktion: Unit-Test über kleinen synthetischen Datensatz.
+
+### Schritt 6 — Erfolgskontrolle
+
+Nach Schritt 3 + 1 erneut messen:
+```sql
+SELECT COUNT(*) FILTER (WHERE pressure_mb IS NOT NULL AND pressure_change_24h IS NULL) AS still_missing,
+       COUNT(*) FILTER (WHERE pressure_change_24h IS NOT NULL) AS has_delta
+FROM weather_logs;
+```
+Zielwert: `still_missing` nahe 0 (verbleibende Lücken nur dort, wo die Open-Meteo-Archive selbst keine Werte für die Region/Stunde liefert).
+
+## Was sich NICHT ändert
+
+- Kein DB-Schema-Wechsel, keine Migration.
+- Keine UI-Änderung — bestehende Komponenten (`EntriesList`, `DiaryTimeline`, `usePressureDelta24h`) lesen weiter `pressure_change_24h`.
+- Keine neuen Secrets, kein Modellwechsel, keine neuen Pflichtdokumente.
+- Bestehende Curation-/Analyse-Logik unverändert.
+
+## Antwort auf „muss ich neu analysieren?"
+
+- **Neue Einträge:** profitieren ab Deploy automatisch (Schritt 1).
+- **Altbestand:** wird durch Schritt 3 einmalig repariert — danach reicht „neu laden" in der App, keine neue KI-Analyse nötig.

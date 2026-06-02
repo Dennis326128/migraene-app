@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
+import { fetchPressureDelta24hFromArchive } from '../_shared/pressureDelta24h.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -67,6 +68,7 @@ function handleError(error: unknown, context: string): Response {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' }
   });
 }
+
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -213,7 +215,7 @@ serve(async (req) => {
       
       const { data: recentLogs, error: cacheError } = await supabaseService
         .from('weather_logs')
-        .select('id, latitude, longitude, created_at, temperature_c')
+        .select('id, latitude, longitude, created_at, temperature_c, pressure_mb, pressure_change_24h')
         .eq('user_id', userId)
         .gte('created_at', requestedHour.toISOString())
         .lte('created_at', hourEndUTC.toISOString())
@@ -241,6 +243,20 @@ serve(async (req) => {
           if (distance < proximityKm) {
             const logTime = new Date(log.created_at);
             console.log(`✅ Reusing hourly cache within ${distance.toFixed(2)} km from ${logTime.toISOString()}`);
+
+            // Repair stale NULL Δ24h on the cached log (idempotent).
+            if (log.pressure_mb != null && log.pressure_change_24h == null) {
+              const delta = await fetchPressureDelta24hFromArchive(roundedLat, roundedLon, at);
+              if (delta != null) {
+                const { error: updErr } = await supabaseService
+                  .from('weather_logs')
+                  .update({ pressure_change_24h: delta })
+                  .eq('id', log.id);
+                if (updErr) console.log('⚠️ Cache Δ24h repair update failed:', updErr.message);
+                else console.log(`🔧 Cache Δ24h repaired for log ${log.id}: ${delta} hPa`);
+              }
+            }
+
             return new Response(JSON.stringify({ 
               weather_id: log.id,
               source: 'cache_hourly' 
@@ -270,23 +286,28 @@ serve(async (req) => {
         console.log('📊 Current weather response:', data);
 
         if (data.current) {
-          // Calculate 24h pressure change for current weather
-          let pressureChange24h = null;
-          try {
-            const yesterdayDate = new Date(requestDate);
-            yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-            const yesterdayString = yesterdayDate.toISOString().split('T')[0];
-            
-            const histUrl = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${yesterdayString}&end_date=${yesterdayString}&daily=surface_pressure_mean&timezone=auto`;
-            const histResponse = await fetch(histUrl);
-            const histData = await histResponse.json();
-            
-            if (histData.daily?.surface_pressure_mean?.[0]) {
-              pressureChange24h = data.current.surface_pressure - histData.daily.surface_pressure_mean[0];
-              console.log('📈 Calculated 24h pressure change:', pressureChange24h, 'hPa');
+          // Calculate 24h pressure change from hourly archive (deterministic).
+          // Falls back to daily mean if hourly archive has no data for this region.
+          let pressureChange24h: number | null = await fetchPressureDelta24hFromArchive(lat, lon, at);
+          if (pressureChange24h == null) {
+            try {
+              const yesterdayDate = new Date(requestDate);
+              yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+              const yesterdayString = yesterdayDate.toISOString().split('T')[0];
+
+              const histUrl = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${yesterdayString}&end_date=${yesterdayString}&daily=surface_pressure_mean&timezone=auto`;
+              const histResponse = await fetch(histUrl);
+              const histData = await histResponse.json();
+
+              if (histData.daily?.surface_pressure_mean?.[0] && data.current.surface_pressure) {
+                pressureChange24h = Math.round(data.current.surface_pressure - histData.daily.surface_pressure_mean[0]);
+                console.log('📈 Calculated 24h pressure change (daily-mean fallback):', pressureChange24h, 'hPa');
+              }
+            } catch (pressureError) {
+              console.log('⚠️ Failed to calculate pressure change fallback:', pressureError);
             }
-          } catch (pressureError) {
-            console.log('⚠️ Failed to calculate pressure change:', pressureError);
+          } else {
+            console.log('📈 Δ24h from hourly archive:', pressureChange24h, 'hPa');
           }
 
           weatherData = {
@@ -340,18 +361,21 @@ serve(async (req) => {
             if (closestIndex !== -1 && data.hourly.temperature_2m[closestIndex] !== null) {
               const matchedTime = new Date(data.hourly.time[closestIndex]);
               const formattedTime = `${matchedTime.getUTCHours()}:00`;
-              
+
+              // Compute Δ24h directly from archive (deterministic, no DB dependency).
+              const hourlyPressureDelta = await fetchPressureDelta24hFromArchive(lat, lon, at);
+
               weatherData = {
                 temperature_c: data.hourly.temperature_2m[closestIndex],
                 humidity: data.hourly.relative_humidity_2m[closestIndex],
                 pressure_mb: data.hourly.surface_pressure[closestIndex],
-                pressure_change_24h: null, // Will be calculated below from DB
-                wind_kph: data.hourly.wind_speed_10m[closestIndex], // Open-Meteo default unit is km/h
+                pressure_change_24h: hourlyPressureDelta, // null only if archive itself has no data → DB fallback below
+                wind_kph: data.hourly.wind_speed_10m[closestIndex],
                 dewpoint_c: data.hourly.dewpoint_2m?.[closestIndex],
                 condition_text: `Historical data (${formattedTime})`,
                 location: `${lat.toFixed(2)}, ${lon.toFixed(2)}`
               };
-              console.log('✅ Using hourly historical weather data for', formattedTime);
+              console.log('✅ Using hourly historical weather data for', formattedTime, 'Δ24h:', hourlyPressureDelta);
             }
           }
         } catch (error) {
