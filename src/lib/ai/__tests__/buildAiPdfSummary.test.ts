@@ -118,4 +118,30 @@ describe('buildAiPdfSummary', () => {
     const okHighlight = out.highlights.find((h) => h.title.includes('Solide'));
     expect(okHighlight?.line).toContain('Hohe Belastung');
   });
+
+  it('deduplicates burden topic so ME/CFS keeps its highlight slot', () => {
+    const responseJson = {
+      summary: 'Kurzfazit.',
+      scope: { daysAnalyzed: 30 },
+      analysisV21: {
+        schema_version: '2.1',
+        period: { from: '2026-05-02', to: '2026-05-31' },
+        data_basis: { documented_days: 30, pain_days: 28, mecfs_energy_days: 14 },
+        llm_expanded_findings: [
+          { id: 'burden.high', category: 'burden', title: 'Sehr hohe Schmerzlast im gesamten Zeitraum', summary: 'Hohe Belastung dokumentiert.', evidence_level: 'high' },
+          { id: 'medication_trend.acute_use', category: 'medication_trend', title: 'Triptan-Einnahmen seltener', summary: 'Akutmedikation rückläufig.', evidence_level: 'high' },
+          { id: 'course_trend.pain_burden', category: 'course_trend', title: 'Schmerzlast bleibt ähnlich', summary: 'Schmerzlast stabil.', evidence_level: 'high' },
+          { id: 'mecfs_energy_trend.signals', category: 'mecfs_energy_trend', title: 'ME/CFS- und Energie-Signale', summary: 'Regelmäßige Energieeinbrüche.', evidence_level: 'high' },
+        ],
+        findings: [],
+      },
+    };
+    const out = buildAiPdfSummary(responseJson)!;
+    const titles = out.highlights.map((h) => h.title);
+    expect(titles).toHaveLength(3);
+    expect(titles.some((t) => /Sehr hohe Schmerzlast/i.test(t))).toBe(true);
+    expect(titles.some((t) => /Schmerzlast bleibt/i.test(t))).toBe(false);
+    expect(titles.some((t) => /Triptan|Akutmedikation/i.test(t))).toBe(true);
+    expect(titles.some((t) => /ME\/CFS|Energie/i.test(t))).toBe(true);
+  });
 });

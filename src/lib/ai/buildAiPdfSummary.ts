@@ -134,6 +134,27 @@ function truncateSentences(text: string, maxSentences: number, maxChars: number)
   return out.trim();
 }
 
+/**
+ * Map a finding to a coarse topic so we can deduplicate the highlight
+ * list across sections (e.g. burden + course_trend.pain_burden →
+ * one slot only). This mirrors the App's compact KI-Analyse priority:
+ *   1. burden        (Sehr hohe Schmerzlast)
+ *   2. medication    (Triptane/Akutmedikation)
+ *   3. mecfs         (ME/CFS- und Energie-Signale)
+ */
+function topicOf(f: NormalizedAnalysisFinding): string {
+  const id = (f.id || "").toLowerCase();
+  const cat = (f.category || "").toLowerCase();
+  const title = (f.title || "").toLowerCase();
+  if (cat === "burden" || id.includes("pain_burden") || title.includes("schmerzlast")) return "burden";
+  if (cat === "chronification") return "chronification";
+  if (cat.startsWith("medication") || id.includes("acute_use") || id.includes("triptan") || title.includes("triptan") || title.includes("akutmedikation")) return "medication";
+  if (cat.startsWith("mecfs") || id.includes("mecfs") || title.includes("me/cfs") || title.includes("energie")) return "mecfs";
+  if (cat === "weather") return "weather";
+  if (cat === "data_quality") return "data_quality";
+  return f.id || cat || title;
+}
+
 function pickHighlights(findings: NormalizedAnalysisFinding[]): NormalizedAnalysisFinding[] {
   const grouped = groupFindingsBySection(findings);
   const ordered: NormalizedAnalysisFinding[] = [];
@@ -156,8 +177,32 @@ function pickHighlights(findings: NormalizedAnalysisFinding[]): NormalizedAnalys
   const rank: Record<NormalizedAnalysisFinding["evidenceLevel"], number> = {
     high: 3, moderate: 2, low: 1, insufficient: 0,
   };
-  return ordered
-    .sort((a, b) => rank[b.evidenceLevel] - rank[a.evidenceLevel])
+  const topicPriority: Record<string, number> = {
+    burden: 5,
+    chronification: 4,
+    medication: 3,
+    mecfs: 2,
+    weather: 1,
+    data_quality: 0,
+  };
+  const sorted = ordered.sort((a, b) => {
+    const evDiff = rank[b.evidenceLevel] - rank[a.evidenceLevel];
+    if (evDiff !== 0) return evDiff;
+    return (topicPriority[topicOf(b)] ?? -1) - (topicPriority[topicOf(a)] ?? -1);
+  });
+
+  // Deduplicate by topic — keep the strongest representative per topic
+  // so we don't waste a slot on a near-duplicate (e.g. "Sehr hohe
+  // Schmerzlast" + "Schmerzlast bleibt ähnlich").
+  const seenTopic = new Set<string>();
+  const deduped: NormalizedAnalysisFinding[] = [];
+  for (const f of sorted) {
+    const t = topicOf(f);
+    if (seenTopic.has(t)) continue;
+    seenTopic.add(t);
+    deduped.push(f);
+  }
+  return deduped
     .slice(0, MAX_HIGHLIGHTS);
 }
 

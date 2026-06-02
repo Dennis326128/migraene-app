@@ -1692,7 +1692,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 4. KI-GESTUETZTE VERLAUFSZUSAMMENFASSUNG (static, ≤ 1 page)
+  // 4. KI-GESTÜTZTE VERLAUFSZUSAMMENFASSUNG (static, ≤ 1 page)
   // ───────────────────────────────────────────────────────────────────────────
   // Same SSOT as the App KI-Analyse (buildAiPdfSummary). No expandable cards,
   // no chronobio/MOH/ICHD prose, no long pattern list, no "Was noch unklar"
@@ -1710,7 +1710,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     page = spaceCheck.page;
     yPos = spaceCheck.yPos;
 
-    yPos = drawSectionHeader(page, "KI-GESTUETZTE VERLAUFSZUSAMMENFASSUNG", yPos, fontBold, 12);
+    yPos = drawSectionHeader(page, "KI-GEST\u00DCTZTE VERLAUFSZUSAMMENFASSUNG", yPos, fontBold, 12);
 
     page.drawText("Automatische Auswertung dokumentierter Daten. Keine \u00E4rztliche Diagnose oder Therapieempfehlung.", {
       x: LAYOUT.margin, y: yPos, size: 8, font, color: COLORS.textLight,
@@ -1769,13 +1769,13 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       yPos -= 4;
     }
 
-    // D) Fuer das Arztgespraech (max 4)
+    // D) Für das Arztgespräch (max 4)
     if (aiPdfSummary.openQuestions.length > 0) {
       if (yPos < LAYOUT.margin + 80) {
         page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
         yPos = LAYOUT.pageHeight - LAYOUT.margin;
       }
-      page.drawText("Fuer das Arztgespraech", { x: LAYOUT.margin, y: yPos, size: 10, font: fontBold, color: COLORS.primary });
+      page.drawText("F\u00FCr das Arztgespr\u00E4ch", { x: LAYOUT.margin, y: yPos, size: 10, font: fontBold, color: COLORS.primary });
       yPos -= 13;
       for (const q of aiPdfSummary.openQuestions.slice(0, 4)) {
         if (yPos < LAYOUT.margin + 40) {
