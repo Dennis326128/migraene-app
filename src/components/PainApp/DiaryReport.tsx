@@ -205,6 +205,24 @@ export default function DiaryReport({ onBack, onNavigate, initialIncludeAI, init
     })();
   }, []);
 
+  // Apply route-level pre-selection (after settings have loaded so we win).
+  // initialAiOnly = enter from "Nur KI-Analyse als PDF" — checks AI on, skips diary list.
+  // initialIncludeAI = enter from "Tagebuch + KI" — checks AI on, leaves the rest as-is.
+  const aiPreselectAppliedRef = useRef(false);
+  useEffect(() => {
+    if (!settingsLoaded || aiPreselectAppliedRef.current) return;
+    if (initialAiOnly) {
+      setIncludePremiumAI(true);
+      setIncludeEntriesList(false);
+      aiPreselectAppliedRef.current = true;
+    } else if (initialIncludeAI) {
+      setIncludePremiumAI(true);
+      aiPreselectAppliedRef.current = true;
+    }
+  }, [settingsLoaded, initialAiOnly, initialIncludeAI]);
+
+
+
   // Initialize doctor selection when doctors load
   useEffect(() => {
     if (!doctorPreferencesLoaded || doctors.length === 0) return;
