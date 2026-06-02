@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { curateFindingsV22, applySectionCaps } from "../curateFindingsV22";
-import type { NormalizedAnalysisFinding } from "../normalizeAnalysisFindings";
+import { groupFindingsBySection, type NormalizedAnalysisFinding } from "../normalizeAnalysisFindings";
 import { generateAnalysisReportText } from "../generateAnalysisReportText";
 
 function f(over: Partial<NormalizedAnalysisFinding> & { id: string }): NormalizedAnalysisFinding {
@@ -28,6 +28,77 @@ const ctx = {
 };
 
 describe("curateFindingsV22 — release polish (final)", () => {
+  it("forces Medikamentengebrauch im Zeitraum as first medication card and integrates single effect cards", () => {
+    const findings = [
+      f({
+        id: "med.sumatriptan.effect",
+        category: "medication_effect",
+        section: "medication",
+        title: "Gemischte Wirksamkeit und Kontext von Sumatriptan",
+        summary: "Sumatriptan zeigt Wirkung, aber nicht immer.",
+        evidenceLevel: "moderate",
+      }),
+      f({
+        id: "medication.usage_overview",
+        category: "medication_use",
+        section: "medication",
+        title: "Medikamentengebrauch in den letzten 30 Tagen",
+        summary: "Sumatriptan: 4 Einnahmen, subjektiv überwiegend hilfreich bewertet\nIbuprofen: 2 Einnahmen\nDiazepam: 1 Einnahme, subjektiv häufig hilfreich bewertet",
+        evidenceLevel: "moderate",
+      }),
+      f({
+        id: "med.triptan.avoid",
+        category: "medication_use",
+        section: "medication",
+        title: "Tendenz zur Triptan-Vermeidung",
+        summary: "Mehrfach kein Triptan trotz Schmerzen.",
+        evidenceLevel: "moderate",
+      }),
+    ];
+    const r = curateFindingsV22(findings, ctx);
+    const medication = groupFindingsBySection(r.findings).medication;
+    expect(medication[0].title).toBe("Medikamentengebrauch im Zeitraum");
+    expect(medication[0].summary).toMatch(/Sumatriptan: 4 Einnahmen/);
+    expect(medication[0].summary).toMatch(/Ibuprofen: 2 Einnahmen/);
+    expect(medication[0].summary).toMatch(/Diazepam: 1 Einnahme/);
+    expect(medication).toHaveLength(2);
+    expect(medication.some((x) => /Gemischte Wirksamkeit|Sumatriptan zeigt Wirkung/i.test(x.title + x.summary))).toBe(false);
+  });
+
+  it("keeps Diazepam neutral and removes strong medication wording", () => {
+    const r = curateFindingsV22([
+      f({ id: "medication.usage_overview", category: "medication_use", section: "medication", title: "Medikamentengebrauch im Zeitraum", summary: "Diazepam: 2 Einnahmen, subjektiv häufig hilfreich bewertet" }),
+      f({ id: "d", category: "medication_effect", section: "medication", title: "Diazepam zeigt hohe Wirksamkeit", summary: "Diazepam als Alternative zu Triptanen." }),
+    ], ctx);
+    const txt = r.findings.map((x) => `${x.title} ${x.summary}`).join("\n");
+    expect(txt).toMatch(/Diazepam: 2 Einnahmen, subjektiv häufig hilfreich bewertet/);
+    expect(txt).not.toMatch(/Diazepam zeigt hohe Wirksamkeit|Alternative zu Triptan|wirksam/i);
+  });
+
+  it("dedupes ME/CFS against details and suppresses heat/weather covered by burden context", () => {
+    const r = curateFindingsV22([
+      f({ id: "m1", category: "mecfs_energy_pem", section: "mecfs", title: "ME/CFS Belastung", summary: "Lange Belastungshypothese mit PEM-Daten fehlen.", evidenceLevel: "moderate" }),
+      f({ id: "wheat", category: "weather", section: "weather", title: "Hitze und Belastung", summary: "Hitze im Kontext von Erschöpfung und fehlender Erholung.", evidenceLevel: "moderate" }),
+    ], ctx);
+    expect(r.findings.filter((x) => x.category === "mecfs_energy_pem")).toHaveLength(1);
+    expect(r.findings.find((x) => x.id === "wheat")).toBeUndefined();
+    expect(r.findings.map((x) => x.summary).join(" ")).not.toMatch(/PEM-Daten fehlen|Trigger|Verst[äa]rker/i);
+  });
+
+  it("balances doctor questions and keeps triptan trend plus documentation summary", () => {
+    const r = curateFindingsV22([
+      f({ id: "medication_trend.acute_use_short_term", category: "medication_trend", section: "course_trend", title: "Triptan-Einnahmen zuletzt seltener", summary: "Triptantrend bleibt sichtbar.", evidenceLevel: "moderate" }),
+      f({ id: "medication.usage_overview", category: "medication_use", section: "medication", title: "Medikamentengebrauch im Zeitraum", summary: "Sumatriptan: 10 Einnahmen" }),
+    ], { analysisV21: { data_basis: { documented_days: 30, pain_days: 28, medication_intake_days: 12, mecfs_energy_days: 17 }, period: { from: "2026-05-01", to: "2026-05-30" } } });
+    expect(r.openQuestions).toHaveLength(4);
+    expect(r.openQuestions.some((q) => /Kopfschmerzfrequenz/i.test(q))).toBe(true);
+    expect(r.openQuestions.some((q) => /Triptan-Zur[üu]ckhaltung/i.test(q))).toBe(true);
+    expect(r.openQuestions.some((q) => /[ÜU]bergebrauchsrisiken/i.test(q))).toBe(true);
+    expect(r.openQuestions.some((q) => /ME\/CFS/i.test(q))).toBe(true);
+    expect(r.findings.some((x) => x.id === "medication_trend.acute_use_short_term")).toBe(true);
+    expect(r.findings.some((x) => x.id === "data_quality.diary_coverage")).toBe(true);
+  });
+
   it("caps open questions at 4", () => {
     const findings = Array.from({ length: 8 }, (_, i) =>
       f({
