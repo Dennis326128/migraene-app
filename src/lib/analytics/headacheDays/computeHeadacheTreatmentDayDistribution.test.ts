@@ -167,4 +167,41 @@ describe('computeHeadacheTreatmentDayDistribution', () => {
     expect(result.painFreeDays + result.painDaysNoTriptan + result.triptanDays + result.undocumentedDays).toBe(result.totalDays);
     expect(result.totalDays).toBe(10);
   });
+
+  describe('PDF clinical-core / donut consistency (regression)', () => {
+    // Mirrors the real bug: documented 88 of 90 days, 85 headache days.
+    // Donut must NOT show 90/90 "Nicht dokumentiert".
+    it('matches clinical core overview when 88/90 documented and 85 headache days', () => {
+      const entries: any[] = [];
+      // 3 pain-free days
+      for (let i = 0; i < 3; i++) entries.push({ selected_date: isoDate(i), pain_level: '0', entry_kind: 'pain' });
+      // 40 headache days without acute medication
+      for (let i = 0; i < 40; i++) entries.push({ selected_date: isoDate(3 + i), pain_level: '5', entry_kind: 'pain' });
+      // 45 headache days with acute medication
+      for (let i = 0; i < 45; i++) entries.push({ selected_date: isoDate(43 + i), pain_level: '6', entry_kind: 'pain', medications: ['Ibuprofen'] });
+      // → 88 documented days, 2 undocumented
+
+      const result = computeHeadacheTreatmentDayDistribution('2026-01-01', isoDate(89), entries);
+
+      expect(result.totalDays).toBe(90);
+      expect(result.documentedDays).toBe(88);
+      expect(result.undocumentedDays).toBe(2);
+      // Sum invariant
+      expect(
+        result.painFreeDays + result.painDaysNoMedication + result.painDaysWithMedication + result.undocumentedDays,
+      ).toBe(result.totalDays);
+      // Must not be all-undocumented
+      expect(result.undocumentedDays).toBeLessThan(result.totalDays);
+      // Headache days must be present (≠ 0 when entries exist)
+      expect(result.painDaysNoMedication + result.painDaysWithMedication).toBe(85);
+      expect(result.painFreeDays).toBe(3);
+    });
+
+    it('never reports all-days undocumented when entries exist in range', () => {
+      const result = computeHeadacheTreatmentDayDistribution('2026-01-01', isoDate(89), [
+        { selected_date: '2026-02-15', pain_level: '5', entry_kind: 'pain' },
+      ]);
+      expect(result.undocumentedDays).toBeLessThan(result.totalDays);
+    });
+  });
 });

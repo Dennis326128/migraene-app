@@ -1718,10 +1718,22 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     yPos -= 14;
 
     if (aiPdfSummary.daysAnalyzed) {
-      page.drawText(
-        `Auswertungszeitraum: ${formatDateGerman(from)} - ${formatDateGerman(to)} | ${aiPdfSummary.daysAnalyzed} Tage analysiert`,
-        { x: LAYOUT.margin, y: yPos, size: 8, font, color: COLORS.textLight },
-      );
+      // The AI engine analyses up to N days at the END of the report range.
+      // If N ≥ report length, the AI window equals the report window.
+      const reportDays = calculateDays(from, to);
+      const aiDays = Math.min(aiPdfSummary.daysAnalyzed, reportDays);
+      let aiLabel: string;
+      if (aiDays >= reportDays) {
+        aiLabel = `KI-Auswertung: ${formatDateGerman(from)} - ${formatDateGerman(to)} (${reportDays} Tage)`;
+      } else {
+        const aiFrom = new Date(to);
+        aiFrom.setDate(aiFrom.getDate() - (aiDays - 1));
+        const aiFromIso = aiFrom.toISOString().slice(0, 10);
+        aiLabel = `KI-Auswertung: letzte ${aiDays} Tage im Berichtszeitraum (${formatDateGerman(aiFromIso)} - ${formatDateGerman(to)})`;
+      }
+      page.drawText(aiLabel, {
+        x: LAYOUT.margin, y: yPos, size: 8, font, color: COLORS.textLight,
+      });
       yPos -= 16;
     }
 

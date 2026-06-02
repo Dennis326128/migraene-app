@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
-import { useHeadacheTreatmentDays } from '@/lib/analytics/headacheDays';
+// useHeadacheTreatmentDays intentionally NOT imported — PDF distribution is
+// computed inside buildDiaryPdf from the report's fresh entries.
 import { HeadacheDaysPie } from "@/components/diary/HeadacheDaysPie";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/lib/supabaseClient";
@@ -319,8 +320,10 @@ export default function DiaryReport({ onBack, onNavigate, initialIncludeAI, init
     });
   }, [entries, medicationEffects, from, to]);
 
-  // Day buckets für Pie Chart (SSOT — central hook)
-  const { data: dayBuckets } = useHeadacheTreatmentDays();
+  // Day buckets for the PDF pie chart are computed inside buildDiaryPdf
+  // from the freshly fetched report entries — see headacheTreatmentDays: null
+  // below. The global useHeadacheTreatmentDays() hook is bound to the app's
+  // TimeRangeContext and must NOT be used for the report.
 
   // Medication stats from report data
   const medicationStats = useMemo(() => {
@@ -700,7 +703,12 @@ export default function DiaryReport({ onBack, onNavigate, initialIncludeAI, init
         from,
         to,
         entries: freshEntries,
-        headacheTreatmentDays: dayBuckets,
+        // Donut MUST use the same fresh entries + report range as the
+        // clinical core overview. The global useHeadacheTreatmentDays() hook
+        // is bound to the app's TimeRangeContext (often ≠ report range) and
+        // would render an inconsistent distribution (e.g. 90/90 undocumented).
+        // Pass null → report.ts recomputes from freshEntries + from/to.
+        headacheTreatmentDays: null,
         selectedMeds: [], // No medication filtering – always all
         
         includeStats: true, // Always included
