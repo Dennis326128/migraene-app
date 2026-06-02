@@ -7,6 +7,8 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
 
+import { fetchPressureDelta24hFromArchive } from '../_shared/pressureDelta24h.ts';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret',
@@ -15,50 +17,6 @@ const corsHeaders = {
 const DEFAULT_BATCH = 200;
 const MAX_BATCH = 500;
 const RATE_LIMIT_MS = 200;
-
-async function fetchPressureDelta24hFromArchive(
-  lat: number,
-  lon: number,
-  atIso: string,
-): Promise<number | null> {
-  try {
-    const at = new Date(atIso);
-    const prev = new Date(at.getTime() - 24 * 60 * 60 * 1000);
-    const startDate = prev.toISOString().split('T')[0];
-    const endDate = at.toISOString().split('T')[0];
-
-    const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${startDate}&end_date=${endDate}&hourly=surface_pressure&timezone=UTC`;
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    const data = await res.json();
-    const times: string[] | undefined = data?.hourly?.time;
-    const pressures: (number | null)[] | undefined = data?.hourly?.surface_pressure;
-    if (!Array.isArray(times) || !Array.isArray(pressures) || times.length === 0) return null;
-
-    const pickClosest = (targetMs: number): number | null => {
-      let bestIdx = -1;
-      let bestDiff = Infinity;
-      for (let i = 0; i < times.length; i++) {
-        const t = new Date(times[i] + 'Z').getTime();
-        const diff = Math.abs(t - targetMs);
-        if (diff < bestDiff && pressures[i] != null) {
-          bestDiff = diff;
-          bestIdx = i;
-        }
-      }
-      if (bestIdx === -1) return null;
-      if (bestDiff > 3 * 60 * 60 * 1000) return null;
-      return pressures[bestIdx] as number;
-    };
-
-    const pNow = pickClosest(at.getTime());
-    const pPrev = pickClosest(prev.getTime());
-    if (pNow == null || pPrev == null) return null;
-    return Math.round(pNow - pPrev);
-  } catch (_err) {
-    return null;
-  }
-}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
