@@ -9,7 +9,6 @@ import {
   Shield, 
   Zap, 
   MoreHorizontal, 
-  Mic, 
   ChevronDown, 
   Check,
   Clock,
@@ -18,7 +17,6 @@ import {
 import { cn } from "@/lib/utils";
 import type { MedicationCourseType } from "@/features/medication-courses";
 import type { Med } from "@/features/meds/hooks/useMeds";
-import { VoiceInputButton } from "./VoiceInputButton";
 import type { StructuredDosage, DosageSchedule } from "./StructuredDosageInput";
 
 interface MedicationCourseStep1Props {
