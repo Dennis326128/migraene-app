@@ -274,8 +274,7 @@ Deno.serve(async (req) => {
     await commitPatternAnalysisUsage(supabase, ownerUserId, quotaCheck.snapshot);
 
     try {
-      const dedupeKey = `pattern_analysis_${from}_${to}`;
-      const ds = await computeDataStateSignature(supabase, ownerUserId, from, to);
+      // dedupeKey + ds already computed above (idempotency check)
       await supabase.from('ai_reports')
         .delete()
         .eq('user_id', ownerUserId)
