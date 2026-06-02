@@ -77,6 +77,8 @@ export interface PreAnalysis {
     highPainEntries: number;
     highPainWithMed: number;
     highPainWithoutMed: number;
+    effectRatedCount?: number;
+    usageOverview?: MedicationUsageEntry[];
     note: string;
   };
   dataQuality: {
