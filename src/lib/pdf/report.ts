@@ -1692,7 +1692,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 4. KI-GESTUETZTE VERLAUFSZUSAMMENFASSUNG (static, ≤ 1 page)
+  // 4. KI-GESTÜTZTE VERLAUFSZUSAMMENFASSUNG (static, ≤ 1 page)
   // ───────────────────────────────────────────────────────────────────────────
   // Same SSOT as the App KI-Analyse (buildAiPdfSummary). No expandable cards,
   // no chronobio/MOH/ICHD prose, no long pattern list, no "Was noch unklar"
