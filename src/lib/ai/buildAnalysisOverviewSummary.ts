@@ -154,17 +154,18 @@ export function buildAnalysisOverviewSummary(
   const medTrend = findByCategory(findings, "medication_trend");
   const medFinding = triptanShort ?? medTrend;
   if (medFinding) {
-    const first = firstSentence(medFinding.summary);
+    const first = firstSafeSentence(medFinding.summary);
     // Prefer the trend's own first sentence when it carries window/quantity
-    // information; otherwise fall back to a title-driven phrasing so the
-    // summary stays informative even for legacy/short summaries.
+    // information AND is fully validated (balanced parens, no abbreviation
+    // tail like "(5 vs."). Otherwise fall back to a safe phrasing without
+    // numbers — never surface a fragment.
     if (first && first.length >= 20 && /(Tagen|Hälfte|Monat|davor|seltener|häufiger|stabil|hoch|niedriger)/i.test(first)) {
       sentences.push(first);
     } else {
       const t = medFinding.title.toLowerCase();
       const hay = `${medFinding.title} ${medFinding.summary}`.toLowerCase();
       if (hay.includes("seltener") && hay.includes("triptan")) {
-        sentences.push("Triptane wurden zuletzt etwas seltener dokumentiert.");
+        sentences.push("Triptane wurden in der zweiten Hälfte des Zeitraums seltener dokumentiert.");
       } else if (t.includes("seltener")) {
         sentences.push("Die Akutmedikation wurde zuletzt etwas seltener dokumentiert.");
       } else if (t.includes("häufiger")) {
@@ -178,7 +179,7 @@ export function buildAnalysisOverviewSummary(
   // 3) ME/CFS-/Energiehinweis — gleiches Muster, Fenster-Phrase bleibt erhalten.
   const mecfsTrend = findByCategory(findings, "mecfs_energy_trend");
   if (mecfsTrend) {
-    const first = firstSentence(mecfsTrend.summary);
+    const first = firstSafeSentence(mecfsTrend.summary);
     if (first && first.length >= 20 && /(Tagen|Hälfte|Monat|davor|seltener|häufiger|stabil)/i.test(first)) {
       sentences.push(first);
     } else {
