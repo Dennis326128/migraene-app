@@ -15,7 +15,7 @@ type AdminClient = {
   from: (table: string) => any;
 };
 
-export const FREE_PATTERN_ANALYSIS_MONTHLY = 3;
+export const FREE_PATTERN_ANALYSIS_MONTHLY = 5;
 export const COOLDOWN_SECONDS = 5 * 60;
 
 export interface QuotaInfo {
