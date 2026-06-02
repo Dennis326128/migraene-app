@@ -148,25 +148,12 @@ export function sanitizeOutputText(text: string | null | undefined): string {
     const trimmed = s.trim();
     if (!trimmed) return false;
     for (const re of BAN_ALWAYS) if (re.test(trimmed)) return false;
-    return true;
-  });
-  // Also defensively fix any leaked "X von Y Tagen" weather-coverage phrase
-  // that survived sentence-level filtering (e.g. embedded mid-sentence).
-  /** Technical raw tokens that must never appear in user-visible text. */
-  const STRIP_RE_LIST = STRIP_TECHNICAL_TOKENS;
-export function sanitizeOutputText(text: string | null | undefined): string {
-  if (!text) return "";
-  // Split into sentences but keep the trailing punctuation.
-  const parts = text.split(/(?<=[.!?])\s+/);
-  const kept = parts.filter((s) => {
-    const trimmed = s.trim();
-    if (!trimmed) return false;
-    for (const re of BAN_ALWAYS) if (re.test(trimmed)) return false;
     for (const re of BAN_SOFT) if (re.test(trimmed)) return false;
     return true;
   });
   const STRIP_RE_LIST = STRIP_TECHNICAL_TOKENS;
   let joined = kept.join(" ");
+  // Defensively fix any leaked "X von Y Tagen" weather-coverage phrase.
   joined = joined.replace(
     /Wetterdaten\s+(?:lagen|liegen)\s+für\s+\d+\s+von\s+\d+\s+Tagen\s+vor\.?/gi,
     "",
