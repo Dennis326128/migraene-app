@@ -143,7 +143,6 @@ export const MedicationCourseStep1: React.FC<MedicationCourseStep1Props> = ({
   setType,
   structuredDosage,
   setStructuredDosage,
-  onVoiceData,
   isEditMode,
 }) => {
   // Derive initial intake mode from structuredDosage
