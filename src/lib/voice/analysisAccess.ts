@@ -130,7 +130,7 @@ export interface FullAnalysisDataset {
   /** Context notes from "Alltag & Auslöser" (with fatigue/energy metadata) */
   contextNotes: ContextNoteForAnalysis[];
   /** Raw medication effect rows (rating + optional notes) for the range. */
-  medicationEffects: MedicationEffectForAnalysis[];
+  medicationEffects?: MedicationEffectForAnalysis[];
   /** Metadata for the dataset */
   meta: {
     range: AnalysisTimeRange;
