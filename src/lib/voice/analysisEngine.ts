@@ -341,9 +341,13 @@ export async function buildAnalysisPromptData(range: AnalysisTimeRange): Promise
     preAnalysis.medication.highPainEntries = highPain;
     preAnalysis.medication.highPainWithMed = highPainMed;
     preAnalysis.medication.highPainWithoutMed = highPain - highPainMed;
-    preAnalysis.medication.note = highPain > 0
+    const usageSummary = formatMedicationUsageSummary(preAnalysis.medication.usageOverview ?? []);
+    const baseMedNote = highPain > 0
       ? `Schmerz ≥ 7: ${highPain} Einträge, davon mit dokumentiertem Akutmedikament: ${highPainMed} (${Math.round((highPainMed/highPain)*100)}%). Ohne Medikament: ${highPain - highPainMed}. Insgesamt ${dataset.meta.medicationIntakeCount} Medikamenteneinnahmen erfasst.`
       : `Keine Einträge mit Schmerz ≥ 7 im Zeitraum. Insgesamt ${dataset.meta.medicationIntakeCount} Medikamenteneinnahmen erfasst.`;
+    preAnalysis.medication.note = usageSummary
+      ? `${baseMedNote}\nMedikamentengebrauch im Zeitraum:\n${usageSummary}`
+      : baseMedNote;
 
     // --- ME/CFS coverage ---
     preAnalysis.mecfs.note = preAnalysis.mecfs.daysWithMecfs > 0
