@@ -111,6 +111,8 @@ export interface PreAnalysis {
     /** Number of user-rated medication effect entries in range. ≥1 = user
      *  already rated at least one med; suppress "Wirksamkeit nicht bewertet". */
     effectRatedCount?: number;
+    /** Aggregierte „Medikamentengebrauch im Zeitraum"-Übersicht. */
+    usageOverview?: import("@/lib/ai/medicationUsageOverview").MedicationUsageEntry[];
     note: string;
   };
   dataQuality: {
