@@ -428,6 +428,7 @@ export const PainApp: React.FC = () => {
           onBack={goHome}
           onSelectReportType={(type) => {
             if (type === 'diary') {
+              setDiaryAiMode('none');
               setDiaryReportOrigin('home');
               setView('diary-report');
             } else if (type === 'daily_impact') {
@@ -435,6 +436,18 @@ export const PainApp: React.FC = () => {
             } else if (type === 'medication_plan') {
               // TODO: Navigate to dedicated medication plan page
               setView('medication-management');
+            } else if (type === 'ai_view') {
+              setAnalysisInitialTab('ki-analyse');
+              setAnalysisAutoRunAi(true);
+              setView('analysis');
+            } else if (type === 'ai_only_pdf') {
+              setDiaryAiMode('ai_only');
+              setDiaryReportOrigin('home');
+              setView('diary-report');
+            } else if (type === 'ai_full_pdf') {
+              setDiaryAiMode('include_ai');
+              setDiaryReportOrigin('home');
+              setView('diary-report');
             }
           }}
           onViewHistory={() => setView('report-history')}
