@@ -79,6 +79,18 @@ export interface MedicationIntakeForAnalysis {
   dose_quarters: number;
 }
 
+/** Medication effect row used by the usage overview aggregator. */
+export interface MedicationEffectForAnalysis {
+  id: string;
+  entry_id: number;
+  med_name: string;
+  effect_score: number | null;
+  effect_rating: string | null;
+  notes: string | null;
+  side_effects: string[] | null;
+  updated_at: string | null;
+}
+
 /** Context note from "Alltag & Auslöser" form (voice_notes with context_type) */
 export interface ContextNoteForAnalysis {
   id: string;
