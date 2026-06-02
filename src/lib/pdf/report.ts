@@ -239,6 +239,18 @@ type BuildReportParams = {
     analyzedAt: string;
     daysAnalyzed: number;
   } | null;
+  /**
+   * Compact AI summary used for the static "KI-gestützte Verlaufszusammenfassung"
+   * block in the PDF. Built via {@link import('@/lib/ai/buildAiPdfSummary').buildAiPdfSummary}
+   * from the SAME response_json as the App KI-Analyse.
+   */
+  aiPdfSummary?: {
+    summary: string;
+    highlights: Array<{ title: string; line: string }>;
+    openQuestions: string[];
+    analyzedAt: string;
+    daysAnalyzed: number;
+  } | null;
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
