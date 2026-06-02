@@ -69,4 +69,73 @@ describe('buildAnalysisOverviewSummary', () => {
     expect(txt).not.toMatch(/Triptan/);
     expect(txt).not.toMatch(/ME\/CFS/);
   });
+
+  // ─── Release-Blocker: keine abgeschnittenen Vergleichsfragmente ───
+  describe('Summary-Satzbau (Release-Blocker)', () => {
+    it('keeps the full "(5 vs. 8 Tage)" comparison without truncation', () => {
+      const findings: NormalizedAnalysisFinding[] = [
+        f({
+          id: 'medication_trend.acute_use_short_term',
+          category: 'medication_trend',
+          title: 'Triptan-Einnahmen seltener',
+          summary:
+            'Triptan-Einnahmen waren in der zweiten Hälfte des Zeitraums seltener als in der ersten Hälfte (5 vs. 8 Tage).',
+        }),
+      ];
+      const txt = buildAnalysisOverviewSummary({ responseJson, findings })!;
+      expect(txt).toMatch(/\(5 vs\. 8 Tage\)\./);
+      expect(txt).not.toMatch(/\(5 vs\.\s+ME\/CFS/);
+      expect(txt).not.toMatch(/\(5 vs\.[^)]*$/m);
+    });
+
+    it('never ends a summary sentence with a dangling "vs." fragment', () => {
+      const findings: NormalizedAnalysisFinding[] = [
+        f({
+          id: 'medication_trend.acute_use_short_term',
+          category: 'medication_trend',
+          title: 'Triptan-Einnahmen seltener',
+          // Broken / truncated input from the LLM — must NOT surface as-is
+          summary: 'Triptan-Einnahmen waren in der zweiten Hälfte seltener (5 vs.',
+        }),
+        f({
+          id: 'mecfs_energy_trend.signals',
+          category: 'mecfs_energy_trend',
+          title: 'ME/CFS-/Energiesignale regelmäßig',
+        }),
+      ];
+      const txt = buildAnalysisOverviewSummary({ responseJson, findings })!;
+      expect(txt).not.toMatch(/vs\.\s*$/);
+      expect(txt).not.toMatch(/\(5 vs\./);
+      expect(txt).not.toMatch(/vs\.\s+ME\/CFS/);
+      // Falls Trend-Satz unvollständig: Fallback ohne Zahlen wird verwendet
+      expect(txt).toMatch(/Triptane wurden|Akutmedikation/);
+    });
+
+    it('Summary-Sätze sind atomar und werden nicht zusammengeklebt', () => {
+      const findings: NormalizedAnalysisFinding[] = [
+        f({
+          id: 'medication_trend.acute_use_short_term',
+          category: 'medication_trend',
+          title: 'Triptan seltener',
+          summary: 'Triptan-Einnahmen waren seltener (5 vs.',
+        }),
+        f({
+          id: 'mecfs_energy_trend.signals',
+          category: 'mecfs_energy_trend',
+          title: 'ME/CFS-Signale regelmäßig',
+        }),
+      ];
+      const txt = buildAnalysisOverviewSummary({ responseJson, findings })!;
+      const sentences = txt.split(/(?<=[.!?])\s+/);
+      // Jeder Satz endet mit echtem Satzzeichen, keine offenen Klammern
+      for (const s of sentences) {
+        const t = s.trim();
+        if (!t) continue;
+        expect(t).toMatch(/[.!?]$/);
+        const open = (t.match(/\(/g) || []).length;
+        const close = (t.match(/\)/g) || []).length;
+        expect(open).toBe(close);
+      }
+    });
+  });
 });

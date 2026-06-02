@@ -83,6 +83,13 @@ const BAN_ALWAYS: RegExp[] = [
   /Optimierung\s+des\s+Einnahmezeitpunkts/i,
   /Schlaf\s+als\s+wirksamer\s+Schmerzlinderer/i,
   /\bSumatriptan\s+zeigt\s+Wirkung\b/i,
+  // Release-Polish: generic sensitive-substance "Alternative"-claim must
+  // NEVER appear, regardless of category. Catches "Alternativen wie
+  // Diazepam/Lorazepam/Tilidin/…" wording outside the medication section.
+  /\bAlternativen?\s+wie\s+(?:Diazepam|Lorazepam|Alprazolam|Oxazepam|Clonazepam|Bromazepam|Tavor|Valium|Tilidin|Tramadol|Oxycodon|Morphin|Fentanyl|Codein|Zolpidem|Zopiclon|Pregabalin|Gabapentin)\b/i,
+  // Speculation about reasons for triptan avoidance is not allowed.
+  /m[öo]glicherweise\s+um\s+Medikamenten[üu]bergebrauch\s+vorzubeugen/i,
+  /\bum\s+Medikamenten[üu]bergebrauch\s+vorzubeugen\b/i,
 ];
 
 /**
@@ -137,6 +144,23 @@ const BAN_SOFT: RegExp[] = [
   /nicht\s+eindeutig\s+beweisbar/i,
   /kann\s+nicht\s+umfassend\s+bewertet\s+werden/i,
   /nicht\s+umfassend\s+bewertet\s+werden/i,
+  // Release-Polish (final): generic "we cannot really tell" wording must
+  // not surface as standalone Detail content. Dropping these sentences
+  // collapses weak weather / sleep / time-pattern cards via the
+  // policy-soft-only filter.
+  /\bschwer\s+zu\s+beurteilen\b/i,
+  /\bnicht\s+sicher\s+(?:zu\s+)?(?:beurteilen|sagen|bewerten)\b/i,
+  /\bnicht\s+umfassend\s+dokumentiert\b/i,
+  /\bnicht\s+(?:eindeutig|abschließend)\s+beurteilbar\b/i,
+  /\bDokumentationsgewohnheiten\b/i,
+  /\bpr[äa]zisere\s+Analyse\s+erschwert\b/i,
+  /\bIdentifikation\s+(?:der|von)\s+(?:kausalen?|spezifischen?)\s+Ausl[öo]ser/i,
+  /\bkausale[rn]?\s+Ausl[öo]ser\b/i,
+  /\berschwert\s+die\s+(?:Identifikation|Interpretation|Analyse|Beurteilung)/i,
+  /\bSchlafzeiten\s+(?:sind\s+)?nicht\s+umfassend\b/i,
+  /\bSchlaf\s+als\s+Einflussfaktor\s+k[öo]nnte\b/i,
+  /\bDaten\s+(?:sind\s+)?nicht\s+ausreichend\b/i,
+  /\bnicht\s+explizit\s+genannt\b/i,
 ];
 
 
@@ -176,7 +200,38 @@ const STRIP_TECHNICAL_TOKENS: RegExp[] = [
 
 export const POLICY_BANNED_PATTERNS = BAN_ALWAYS;
 
-// ─────────────────────────── Text sanitation ───────────────────────────
+// ─────────────────────────── Smart sentence split ──────────────────────
+// Does NOT split on "vs.", "z. B.", "bzw.", "ca.", "u. a.", etc.
+// Does NOT split inside parentheses/brackets. Prevents fragments like
+// "(5 vs." from being treated as a complete sentence.
+const ABBR_TAIL_RE = /\b(?:vs|bzw|z\s?\.?\s?B|ca|u\s?\.?\s?a|d\s?\.?\s?h|i\s?\.?\s?d\s?\.?\s?R|etc|Nr|Mio|Mrd|inkl|exkl|ggf|sog|evtl|bzgl|max|min)\.$/i;
+
+export function splitSentencesSmart(text: string): string[] {
+  const out: string[] = [];
+  let buf = "";
+  let depth = 0;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    buf += ch;
+    if (ch === "(" || ch === "[") depth++;
+    else if (ch === ")" || ch === "]") depth = Math.max(0, depth - 1);
+    else if ((ch === "." || ch === "!" || ch === "?") && depth === 0) {
+      const next = text[i + 1];
+      if (!next || /\s/.test(next)) {
+        const trimmed = buf.trim();
+        if (!ABBR_TAIL_RE.test(trimmed)) {
+          out.push(trimmed);
+          buf = "";
+          while (i + 1 < text.length && /\s/.test(text[i + 1])) i++;
+        }
+      }
+    }
+  }
+  if (buf.trim()) out.push(buf.trim());
+  return out;
+}
+
+
 
 /**
  * Drops sentences that match any banned pattern. Used as a last-line
@@ -189,7 +244,7 @@ export function sanitizeOutputText(text: string | null | undefined): string {
   const lines = text.split(/\r?\n/);
   const outLines: string[] = [];
   for (const line of lines) {
-    const parts = line.split(/(?<=[.!?])\s+/);
+    const parts = splitSentencesSmart(line);
     const kept = parts.filter((s) => {
       const trimmed = s.trim();
       if (!trimmed) return false;

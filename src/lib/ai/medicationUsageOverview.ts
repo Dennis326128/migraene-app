@@ -187,7 +187,7 @@ export function medicationUsageOverviewTitle(rangeDays: number): string {
  * sondern auf einen kurzen Kontext-Hinweis abstrahiert.
  */
 export function formatMedicationUsageLine(m: MedicationUsageEntry): string {
-  const parts: string[] = [
+  const head: string[] = [
     `${m.name}: ${m.intakeCount} Einnahme${m.intakeCount === 1 ? "" : "n"}`,
   ];
   if (m.avgScore !== null && m.ratedCount > 0) {
@@ -197,11 +197,14 @@ export function formatMedicationUsageLine(m: MedicationUsageEntry): string {
           ? "subjektiv häufig hilfreich bewertet"
           : "subjektiv gemischt bewertet")
       : effectQualitative(m.avgScore);
-    parts.push(qual);
+    head.push(qual);
   }
+  const main = head.join(", ");
   const noteHint = summarizeNotesSemantic(m.topNotes);
-  if (noteHint) parts.push(noteHint);
-  return parts.join(", ");
+  if (!noteHint) return main;
+  const mainWithDot = main.endsWith(".") ? main : `${main}.`;
+  const hint = noteHint.trim().endsWith(".") ? noteHint.trim() : `${noteHint.trim()}.`;
+  return `${mainWithDot} ${hint}`;
 }
 
 /** Kompakte Zusammenfassung als mehrzeiliger Text (für LLM-Prompt + UI). */
