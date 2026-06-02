@@ -38,7 +38,7 @@ export interface AnalysisGateDecision {
   canRunAnalysis: boolean;
 }
 
-export const FREE_PATTERN_ANALYSIS_LIMIT = 3;
+export const FREE_PATTERN_ANALYSIS_LIMIT = 5;
 export const COOLDOWN_SECONDS = 5 * 60;
 /**
  * Time-based staleness threshold (days).

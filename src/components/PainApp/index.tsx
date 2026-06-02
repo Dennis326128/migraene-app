@@ -64,6 +64,11 @@ export const PainApp: React.FC = () => {
   const [selectedAIReport, setSelectedAIReport] = useState<AIReport | null>(null);
   const [diaryInitialMedication, setDiaryInitialMedication] = useState<string | null>(null);
   const [diaryOneShotRange, setDiaryOneShotRange] = useState<{ preset: string; from?: string; to?: string } | null>(null);
+  // One-shot pre-selection when entering DiaryReport via the KI-Analyse dialog
+  const [diaryAiMode, setDiaryAiMode] = useState<'none' | 'include_ai' | 'ai_only'>('none');
+  // One-shot flag to auto-trigger pattern analysis when entering AnalysisView
+  const [analysisAutoRunAi, setAnalysisAutoRunAi] = useState(false);
+  const [analysisInitialTab, setAnalysisInitialTab] = useState<'statistik' | 'ki-analyse' | undefined>(undefined);
   const { needsOnboarding, isLoading, completeOnboarding } = useOnboarding();
   const { 
     showTutorial, 
@@ -206,7 +211,11 @@ export const PainApp: React.FC = () => {
       {/* Lazy-loaded views with Suspense */}
       {view === "analysis" && withSuspense(
         <LazyAnalysisView 
-          onBack={goHome}
+          onBack={() => {
+            setAnalysisAutoRunAi(false);
+            setAnalysisInitialTab(undefined);
+            goHome();
+          }}
           onNavigateToLimits={handleNavigateToLimits}
           onNavigateToMedicationHistory={(medicationName, rangeOverride) => {
             setDiaryInitialMedication(medicationName);
@@ -217,6 +226,8 @@ export const PainApp: React.FC = () => {
             setSelectedAIReport(report);
             setView('ai-report-detail');
           }}
+          initialTab={analysisInitialTab}
+          autoRunAi={analysisAutoRunAi}
         />,
         "Auswertung laden..."
       )}
@@ -311,6 +322,7 @@ export const PainApp: React.FC = () => {
               goHome();
             }
             setDiaryReportOrigin(null);
+            setDiaryAiMode('none');
           }} 
           onNavigate={(target: string) => {
             if (target === 'settings-account') {
@@ -322,7 +334,9 @@ export const PainApp: React.FC = () => {
               setDoctorsOrigin(origin ? { origin, editDoctorId: editId, returnView: 'diary-report' } : null);
               setView('settings-doctors');
             }
-          }} 
+          }}
+          initialIncludeAI={diaryAiMode === 'include_ai'}
+          initialAiOnly={diaryAiMode === 'ai_only'}
         />,
         "Bericht laden..."
       )}
@@ -414,6 +428,7 @@ export const PainApp: React.FC = () => {
           onBack={goHome}
           onSelectReportType={(type) => {
             if (type === 'diary') {
+              setDiaryAiMode('none');
               setDiaryReportOrigin('home');
               setView('diary-report');
             } else if (type === 'daily_impact') {
@@ -421,6 +436,18 @@ export const PainApp: React.FC = () => {
             } else if (type === 'medication_plan') {
               // TODO: Navigate to dedicated medication plan page
               setView('medication-management');
+            } else if (type === 'ai_view') {
+              setAnalysisInitialTab('ki-analyse');
+              setAnalysisAutoRunAi(true);
+              setView('analysis');
+            } else if (type === 'ai_only_pdf') {
+              setDiaryAiMode('ai_only');
+              setDiaryReportOrigin('home');
+              setView('diary-report');
+            } else if (type === 'ai_full_pdf') {
+              setDiaryAiMode('include_ai');
+              setDiaryReportOrigin('home');
+              setView('diary-report');
             }
           }}
           onViewHistory={() => setView('report-history')}

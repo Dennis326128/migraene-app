@@ -1,11 +1,20 @@
-import React from "react";
+import React, { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { FileText, Pill, ClipboardList, History, Share2 } from "lucide-react";
+import { FileText, Pill, ClipboardList, History, Share2, Brain } from "lucide-react";
 import { AppHeader } from "@/components/ui/app-header";
+import { KiAnalyseDialog, type KiAnalyseChoice } from "./KiAnalyseDialog";
+
+export type ReportsHubSelection =
+  | 'diary'
+  | 'medication_plan'
+  | 'daily_impact'
+  | 'ai_view'
+  | 'ai_only_pdf'
+  | 'ai_full_pdf';
 
 interface ReportsHubPageProps {
   onBack: () => void;
-  onSelectReportType: (type: 'diary' | 'medication_plan' | 'daily_impact') => void;
+  onSelectReportType: (type: ReportsHubSelection) => void;
   onViewHistory: () => void;
   onDoctorShare?: () => void;
 }
@@ -16,6 +25,14 @@ export const ReportsHubPage: React.FC<ReportsHubPageProps> = ({
   onViewHistory,
   onDoctorShare,
 }) => {
+  const [kiDialogOpen, setKiDialogOpen] = useState(false);
+
+  const handleKiChoice = (choice: KiAnalyseChoice) => {
+    if (choice === 'view') onSelectReportType('ai_view');
+    else if (choice === 'ai_only_pdf') onSelectReportType('ai_only_pdf');
+    else if (choice === 'full_pdf') onSelectReportType('ai_full_pdf');
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <AppHeader title="Berichte & PDFs" onBack={onBack} sticky />
@@ -61,6 +78,26 @@ export const ReportsHubPage: React.FC<ReportsHubPageProps> = ({
                 <div className="flex-1 min-w-0">
                   <span className="font-medium text-base block">
                     Kopfschmerztagebuch (PDF)
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* KI-Analyse — neuer einheitlicher Einstieg */}
+            <Card
+              className="cursor-pointer hover:bg-muted/30 transition-colors border-border/50"
+              onClick={() => setKiDialogOpen(true)}
+            >
+              <CardContent className="p-4 flex items-center gap-4">
+                <div className="p-3 rounded-lg bg-purple-500/10 shrink-0">
+                  <Brain className="h-6 w-6 text-purple-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className="font-medium text-base block">
+                    KI-Analyse
+                  </span>
+                  <span className="text-xs text-muted-foreground mt-1 block">
+                    Ansehen, als PDF speichern oder mit Tagebuch kombinieren
                   </span>
                 </div>
               </CardContent>
@@ -125,6 +162,12 @@ export const ReportsHubPage: React.FC<ReportsHubPageProps> = ({
           </Card>
         </div>
       </div>
+
+      <KiAnalyseDialog
+        open={kiDialogOpen}
+        onOpenChange={setKiDialogOpen}
+        onChoose={handleKiChoice}
+      />
     </div>
   );
 };

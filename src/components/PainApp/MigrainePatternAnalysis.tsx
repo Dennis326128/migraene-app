@@ -561,9 +561,10 @@ function WeakDataMessage() {
 // === MAIN COMPONENT ===
 // ============================================================
 
-export function MigrainePatternAnalysis() {
+export function MigrainePatternAnalysis({ autoRun = false }: { autoRun?: boolean } = {}) {
   const { from, to } = useTimeRange();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [autoRunFired, setAutoRunFired] = useState(false);
   const [isLoadingCache, setIsLoadingCache] = useState(true);
   const [result, setResult] = useState<VoiceAnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -818,6 +819,19 @@ export function MigrainePatternAnalysis() {
       setGateRefresh(n => n + 1); // reload quota/cooldown after attempt
     }
   }, [from, to, decision.canRunAnalysis, reloadHistory]);
+
+  // Auto-trigger analysis once when navigated here with autoRun=true
+  // and no cached result is shown. Respects all gate decisions.
+  useEffect(() => {
+    if (!autoRun || autoRunFired) return;
+    if (isLoadingCache || gateState.loading || isAnalyzing) return;
+    if (result) return; // already have something to show
+    if (!decision.canRunAnalysis) return;
+    setAutoRunFired(true);
+    void runAnalysis();
+  }, [autoRun, autoRunFired, isLoadingCache, gateState.loading, isAnalyzing, result, decision.canRunAnalysis, runAnalysis]);
+
+
 
   const cachedAtLabel = useMemo(() => {
     if (!cachedAt) return null;

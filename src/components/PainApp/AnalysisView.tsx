@@ -75,14 +75,16 @@ interface AnalysisViewProps {
   onNavigateToBurden?: () => void;
   onNavigateToMedicationHistory?: (medicationName: string, rangeOverride?: { preset: string; from?: string; to?: string }) => void;
   onViewAIReport?: (report: AIReport) => void;
+  initialTab?: "statistik" | "ki-analyse";
+  autoRunAi?: boolean;
 }
 
-export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, onNavigateToMedicationHistory, onViewAIReport }: AnalysisViewProps) {
+export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, onNavigateToMedicationHistory, onViewAIReport, initialTab, autoRunAi }: AnalysisViewProps) {
   // Global time range (Single Source of Truth)
   const { timeRange, setTimeRange, from, to, wasClamped, firstEntryDate, documentationSpanDays } = useTimeRange();
 
   // View mode
-  const [viewMode, setViewMode] = useState<"statistik" | "ki-analyse">("statistik");
+  const [viewMode, setViewMode] = useState<"statistik" | "ki-analyse">(initialTab ?? "statistik");
 
   // ME/CFS tracking start date
   const [mecfsStartDate, setMecfsStartDate] = useState<string | null>(null);
@@ -323,7 +325,7 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
             </TabsTrigger>
             <TabsTrigger value="ki-analyse" className="flex items-center gap-2 text-base px-6 py-3">
               <Brain className="h-5 w-5" />
-              KI-Analyse
+              Mustererkennung (KI)
             </TabsTrigger>
           </TabsList>
 
@@ -481,11 +483,11 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
                       <div className="flex-1">
                         <h4 className="font-medium mb-1">Tiefere Analyse?</h4>
                         <p className="text-sm text-muted-foreground mb-3">
-                          Im Tab <strong>„KI-Analyse"</strong> erstellt die KI einen detaillierten Bericht über mögliche Muster und Trigger.
+                          Im Tab <strong>„Mustererkennung (KI)"</strong> erstellt die KI einen detaillierten Bericht über mögliche Muster und Trigger.
                         </p>
                         <Button variant="outline" size="sm" onClick={() => setViewMode("ki-analyse")}>
                           <Brain className="h-4 w-4 mr-2" />
-                          KI-Analysebericht
+                          Mustererkennung öffnen
                         </Button>
                       </div>
                     </div>
@@ -496,7 +498,7 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
           </TabsContent>
 
           <TabsContent value="ki-analyse" className="mt-6">
-            <MigrainePatternAnalysis />
+            <MigrainePatternAnalysis autoRun={autoRunAi && viewMode === "ki-analyse"} />
           </TabsContent>
         </Tabs>
       </div>
