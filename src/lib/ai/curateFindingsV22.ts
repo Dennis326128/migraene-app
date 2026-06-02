@@ -235,6 +235,43 @@ function getPainRatio(responseJson: unknown): number {
   return pain / documented;
 }
 
+function getMedicationIntakeCount(responseJson: unknown): number {
+  const v = (responseJson as any)?.analysisV21?.data_basis?.medication_intake_days;
+  return typeof v === "number" && isFinite(v) ? v : 0;
+}
+
+function buildBalancedOpenQuestions(
+  curated: NormalizedAnalysisFinding[],
+  existing: string[],
+  responseJson: unknown,
+): string[] {
+  const out: string[] = [];
+  const add = (q: string) => {
+    const k = q.toLowerCase().replace(/\s+/g, " ").trim();
+    if (!k || out.some((x) => x.toLowerCase().replace(/\s+/g, " ").trim() === k)) return;
+    out.push(q);
+  };
+  if (getPainRatio(responseJson) >= 0.5) {
+    add("Hohe Kopfschmerzfrequenz und mögliche chronische Verlaufsform ärztlich einordnen.");
+  }
+  const hasTriptanSignal = curated.some((f) =>
+    (f.category === "medication_trend" || f.category === "medication_use" || f.category === "interaction") &&
+    TRIPTAN_AVOID_RE.test(`${f.title} ${f.summary} ${f.reasoning ?? ""}`),
+  );
+  if (hasTriptanSignal) add("Triptan-Zurückhaltung und Akutstrategie besprechen.");
+  if (getMedicationIntakeCount(responseJson) >= 10) {
+    add("Häufige Akutmedikation und mögliche Übergebrauchsrisiken einordnen.");
+  }
+  const hasMecfs = getMecfsDays(responseJson) >= 10 || curated.some((f) => f.category === "mecfs_energy_pem");
+  if (hasMecfs) add("ME/CFS-/Energiesignale im Zusammenhang mit Migräne besprechen.");
+  for (const q of existing) {
+    if (out.length >= MAX_OPEN_QUESTIONS) break;
+    if (/fr[üu]hzeitige\s+Einnahme|Optimierung\s+des\s+Einnahmezeitpunkts|Diazepam|Sumatriptan|Wetter/i.test(q)) continue;
+    add(q);
+  }
+  return out.slice(0, MAX_OPEN_QUESTIONS);
+}
+
 function rewriteMecfsGap(
   f: NormalizedAnalysisFinding,
   mecfsDays: number,
