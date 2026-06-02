@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
-import { useHeadacheTreatmentDays } from '@/lib/analytics/headacheDays';
+// useHeadacheTreatmentDays intentionally NOT imported — PDF distribution is
+// computed inside buildDiaryPdf from the report's fresh entries.
 import { HeadacheDaysPie } from "@/components/diary/HeadacheDaysPie";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/lib/supabaseClient";
