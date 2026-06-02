@@ -319,7 +319,11 @@ function FindingCard({ f, sectionKey }: { f: NormalizedAnalysisFinding; sectionK
   const showCategory =
     !!userCategoryLabel && !HIDE_CATEGORY_IN_SECTION.has(sectionKey);
 
-  const shortSummary = truncateToSentences(f.summary, 2, 240);
+  const isUsageOverview = f.id === "medication.usage_overview";
+  const usageLines = isUsageOverview
+    ? f.summary.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
+    : [];
+  const shortSummary = isUsageOverview ? "" : truncateToSentences(f.summary, 2, 240);
   const primaryDoctorPoint = f.doctorDiscussionPoints[0];
   const additionalDoctorPoints = f.doctorDiscussionPoints.slice(1, 3);
 
@@ -347,7 +351,13 @@ function FindingCard({ f, sectionKey }: { f: NormalizedAnalysisFinding; sectionK
           {userCategoryLabel}
         </p>
       )}
-      <p className="text-[13px] text-foreground/80 leading-[1.7]">{shortSummary}</p>
+      {isUsageOverview && usageLines.length > 0 ? (
+        <ul className="text-[13px] text-foreground/80 leading-[1.7] list-disc pl-4 space-y-0.5">
+          {usageLines.map((line, i) => <li key={i}>{line}</li>)}
+        </ul>
+      ) : (
+        <p className="text-[13px] text-foreground/80 leading-[1.7]">{shortSummary}</p>
+      )}
 
       {primaryDoctorPoint && (
         <p className="text-[11px] text-muted-foreground/80">

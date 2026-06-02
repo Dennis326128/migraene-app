@@ -143,7 +143,38 @@ function normalizeMedicationFinding(f: NormalizedAnalysisFinding): NormalizedAna
 function finalizeMedicationSection(
   curated: NormalizedAnalysisFinding[],
   suppressed: Array<{ id: string; reason: string }>,
+  responseJson?: unknown,
 ): NormalizedAnalysisFinding[] {
+  // Defensive re-inject: when the deterministic overview exists in the
+  // stored analysisV21.findings but was dropped (dedup, LLM clobber, …),
+  // pull it back in so it can never silently disappear.
+  if (!curated.some(isMedicationOverview)) {
+    const rj = responseJson as any;
+    const detList = Array.isArray(rj?.analysisV21?.findings) ? rj.analysisV21.findings : [];
+    const detOverview = detList.find(
+      (x: any) => x && x.id === "medication.usage_overview" &&
+        typeof x.title === "string" && typeof x.plain_language_summary === "string",
+    );
+    if (detOverview) {
+      curated = [
+        {
+          id: "medication.usage_overview",
+          category: "medication_use",
+          section: "medication",
+          title: "Medikamentengebrauch im Zeitraum",
+          evidenceLevel: "moderate",
+          summary: String(detOverview.plain_language_summary),
+          limitations: [],
+          recommendedTrackingNext: [],
+          doctorDiscussionPoints: [],
+          source: "deterministic",
+          shouldShowInDoctorShare: true,
+          pinToTopical: true,
+        },
+        ...curated,
+      ];
+    }
+  }
   const overview = curated.find(isMedicationOverview);
   let triptanKept = false;
   const out: NormalizedAnalysisFinding[] = [];
@@ -711,7 +742,7 @@ export function curateFindingsV22(
   // 4e) Medikamente final kompakt: Übersicht zuerst, einzelne Wirkungs-
   // Interpretationen in die Übersicht integrieren, maximal eine Triptan-
   // Strategie-Karte zusätzlich.
-  curated = finalizeMedicationSection(curated, suppressed);
+  curated = finalizeMedicationSection(curated, suppressed, responseJson);
 
   // 5) Weather single-source — keep best, drop rest
   const weatherItems = curated.filter(isWeatherFinding);
@@ -935,15 +966,16 @@ export function applySectionCaps<T extends { evidenceLevel: NormalizedAnalysisFi
     interaction: 1,
   };
   const cap = capMap[section];
-  if (cap == null || items.length <= cap) return items;
   if (section === "medication") {
     const overview = items.find((item) => isMedicationOverview(item as unknown as NormalizedAnalysisFinding));
     const rest = items.filter((item) => item !== overview);
+    const effectiveCap = cap ?? items.length;
     const ranked = [...rest]
       .sort((a, b) => evidenceRank[b.evidenceLevel] - evidenceRank[a.evidenceLevel])
-      .slice(0, overview ? cap - 1 : cap);
+      .slice(0, overview ? Math.max(0, effectiveCap - 1) : effectiveCap);
     return (overview ? [overview, ...ranked] : ranked) as T[];
   }
+  if (cap == null || items.length <= cap) return items;
   return [...items]
     .sort((a, b) => evidenceRank[b.evidenceLevel] - evidenceRank[a.evidenceLevel])
     .slice(0, cap);

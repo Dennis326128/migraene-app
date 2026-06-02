@@ -224,3 +224,51 @@ describe("curateFindingsV22 — release polish (final)", () => {
     expect(text).not.toMatch(/Voranalyse/i);
   });
 });
+
+describe("curateFindingsV22 — defensive re-inject of medication.usage_overview", () => {
+  it("re-injects medication.usage_overview from responseJson when missing from input findings", () => {
+    const findings = [
+      f({
+        id: "med.llm.misc",
+        category: "medication_use",
+        section: "medication",
+        title: "Häufiger Sumatriptan-Gebrauch",
+        summary: "LLM-Karte ohne Übersicht.",
+        evidenceLevel: "moderate",
+      }),
+    ];
+    const rj = {
+      analysisV21: {
+        data_basis: { documented_days: 30, pain_days: 28, medication_intake_days: 13 },
+        period: { from: "2026-05-01", to: "2026-05-30" },
+        findings: [
+          {
+            id: "medication.usage_overview",
+            category: "medication_use",
+            title: "Medikamentengebrauch im Zeitraum",
+            evidence_level: "moderate",
+            plain_language_summary: "Sumatriptan: 13 Einnahmen, subjektiv überwiegend hilfreich bewertet\nIbuprofen: 4 Einnahmen",
+            deterministic_basis: {},
+            limitations: [],
+            recommended_tracking_next: [],
+            doctor_discussion_points: [],
+          },
+        ],
+      },
+    };
+    const out = curateFindingsV22(findings, rj);
+    const grouped = groupFindingsBySection(out.findings);
+    expect(grouped.medication.length).toBeGreaterThan(0);
+    expect(grouped.medication[0].id).toBe("medication.usage_overview");
+    expect(grouped.medication[0].title).toBe("Medikamentengebrauch im Zeitraum");
+  });
+
+  it("medication.usage_overview is preserved by applySectionCaps even when other findings have higher evidence", () => {
+    const items = [
+      f({ id: "x", category: "medication_use", section: "medication", title: "Anderes", evidenceLevel: "high" }),
+      f({ id: "medication.usage_overview", category: "medication_use", section: "medication", title: "Medikamentengebrauch im Zeitraum", evidenceLevel: "low" }),
+    ];
+    const capped = applySectionCaps("medication", items);
+    expect(capped[0].id).toBe("medication.usage_overview");
+  });
+});

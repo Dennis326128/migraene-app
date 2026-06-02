@@ -184,24 +184,29 @@ export const POLICY_BANNED_PATTERNS = BAN_ALWAYS;
  */
 export function sanitizeOutputText(text: string | null | undefined): string {
   if (!text) return "";
-  // Split into sentences but keep the trailing punctuation.
-  const parts = text.split(/(?<=[.!?])\s+/);
-  const kept = parts.filter((s) => {
-    const trimmed = s.trim();
-    if (!trimmed) return false;
-    for (const re of BAN_ALWAYS) if (re.test(trimmed)) return false;
-    for (const re of BAN_SOFT) if (re.test(trimmed)) return false;
-    return true;
-  });
-  const STRIP_RE_LIST = STRIP_TECHNICAL_TOKENS;
-  let joined = kept.join(" ");
-  // Defensively fix any leaked "X von Y Tagen" weather-coverage phrase.
-  joined = joined.replace(
-    /Wetterdaten\s+(?:lagen|liegen)\s+für\s+\d+\s+von\s+\d+\s+Tagen\s+vor\.?/gi,
-    "",
-  );
-  for (const re of STRIP_RE_LIST) joined = joined.replace(re, "");
-  return joined.replace(/\s{2,}/g, " ").trim();
+  // Preserve hard line breaks (used by deterministic list cards like
+  // "Medikamentengebrauch im Zeitraum"). Sanitize each line separately.
+  const lines = text.split(/\r?\n/);
+  const outLines: string[] = [];
+  for (const line of lines) {
+    const parts = line.split(/(?<=[.!?])\s+/);
+    const kept = parts.filter((s) => {
+      const trimmed = s.trim();
+      if (!trimmed) return false;
+      for (const re of BAN_ALWAYS) if (re.test(trimmed)) return false;
+      for (const re of BAN_SOFT) if (re.test(trimmed)) return false;
+      return true;
+    });
+    let joined = kept.join(" ");
+    joined = joined.replace(
+      /Wetterdaten\s+(?:lagen|liegen)\s+für\s+\d+\s+von\s+\d+\s+Tagen\s+vor\.?/gi,
+      "",
+    );
+    for (const re of STRIP_TECHNICAL_TOKENS) joined = joined.replace(re, "");
+    const cleaned = joined.replace(/[ \t]{2,}/g, " ").trim();
+    if (cleaned) outLines.push(cleaned);
+  }
+  return outLines.join("\n");
 }
 
 /** Returns true if any HARD-banned phrase appears anywhere in the text. */
