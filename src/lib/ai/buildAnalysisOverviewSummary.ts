@@ -205,10 +205,18 @@ export function buildAnalysisOverviewSummary(
 
   if (sentences.length === 0) return null;
 
+  // Final guard: every Summary sentence must be atomic and valid (no
+  // dangling abbreviation tail, no open parenthesis). Anything that fails
+  // is dropped — better a shorter Summary than a broken one.
+  const safeSentences = sentences
+    .map((s) => s.trim())
+    .filter((s) => isValidSentence(s));
+  if (safeSentences.length === 0) return null;
+
   // Cap to max. 4 sentences for Summary-first readability, then run the output policy
   // as a safety net so no banned wording (weather coverage counts, voice
   // events, schmerzfreie Vergleichstage, …) can leak into the summary.
-  const joined = sentences.slice(0, 4).join(" ");
+  const joined = safeSentences.slice(0, 4).join(" ");
   const safe = sanitizeOutputText(joined);
   return safe || null;
 }
