@@ -923,7 +923,7 @@ export function applySectionCaps<T extends { evidenceLevel: NormalizedAnalysisFi
   const cap = capMap[section];
   if (cap == null || items.length <= cap) return items;
   if (section === "medication") {
-    const overview = items.find((item) => isMedicationOverview(item as NormalizedAnalysisFinding));
+    const overview = items.find((item) => isMedicationOverview(item as unknown as NormalizedAnalysisFinding));
     const rest = items.filter((item) => item !== overview);
     const ranked = [...rest]
       .sort((a, b) => evidenceRank[b.evidenceLevel] - evidenceRank[a.evidenceLevel])
