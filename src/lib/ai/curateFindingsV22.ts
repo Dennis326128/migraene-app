@@ -241,10 +241,7 @@ function rewriteMecfsGap(
   documentedDays: number,
 ): NormalizedAnalysisFinding {
   if (f.category !== "mecfs_energy_pem") return f;
-  if (f.evidenceLevel !== "insufficient") return f;
   if (mecfsDays < 10) return f;
-  const txt = (f.title + " " + f.summary).toLowerCase();
-  if (!/nicht\s+(?:ausreichend\s+)?dokumentiert|keine\s+ausreichend|mangelnde/i.test(txt)) return f;
   const ofDays = documentedDays > 0 ? ` von ${documentedDays}` : "";
   return {
     ...f,
@@ -252,11 +249,12 @@ function rewriteMecfsGap(
     summary:
       `An ${mecfsDays}${ofDays} Tagen wurden ME/CFS- oder Energie-Signale dokumentiert. ` +
       `Das kann für die Gesamtbelastung relevant sein.`,
-    reasoning: "Ein klarer PEM-Zusammenhang lässt sich daraus nicht sicher ableiten.",
+    reasoning: undefined,
     evidenceLevel: "moderate",
     pinToTopical: true,
     limitations: [],
     recommendedTrackingNext: [],
+    doctorDiscussionPoints: ["ME/CFS-/Energiesignale im Zusammenhang mit Migräne besprechen."],
   };
 }
 
@@ -613,6 +611,23 @@ export function curateFindingsV22(
     });
   }
 
+  // 4b-iv-b) Hitze/Wetter nicht zusätzlich zeigen, wenn es nur als Teil
+  // eines ME/CFS-/Belastungs-/Erholungskontexts beschrieben wird.
+  if (hasMecfsBlock) {
+    const HEAT_RE = /\b(hitze|warm|hei[ßs]|schw[üu]le|temperatur)\b/i;
+    const BURDEN_CONTEXT_RE = /\b(belastung|[üu]berlastung|erholung|ruhe|erschöpf|fatigue|me\/?cfs|pem|energie|crash)\b/i;
+    const OWN_WEATHER_SIGNAL_RE = /\b(mehrfach|wiederholt|subjektiv(?:er|es)?|ausl[öo]ser|wetterf[üu]hlig|wetterwechsel)\b/i;
+    curated = curated.filter((f) => {
+      if (f.category !== "weather") return true;
+      const hay = `${f.title} ${f.summary} ${f.reasoning ?? ""}`;
+      if (HEAT_RE.test(hay) && BURDEN_CONTEXT_RE.test(hay) && !OWN_WEATHER_SIGNAL_RE.test(hay)) {
+        suppressed.push({ id: f.id, reason: "weather_heat_covered_by_mecfs_burden" });
+        return false;
+      }
+      return true;
+    });
+  }
+
   // 4b-v) Verlauf & Veränderung: kompakt halten.
   curated = curated.filter((f) => {
     if (f.category === "mecfs_energy_trend" && STABLE_TREND_RE.test(f.title)) {
@@ -641,6 +656,11 @@ export function curateFindingsV22(
   // 4d) Documentation summary supersedes negative data_quality cards
   // ("Mangel an …", "fehlende schmerzfreie Vergleichstage", "unzureichend …").
   curated = suppressNegativeDataQualityWhenFriendlySummary(curated, suppressed);
+
+  // 4e) Medikamente final kompakt: Übersicht zuerst, einzelne Wirkungs-
+  // Interpretationen in die Übersicht integrieren, maximal eine Triptan-
+  // Strategie-Karte zusätzlich.
+  curated = finalizeMedicationSection(curated, suppressed);
 
   // 5) Weather single-source — keep best, drop rest
   const weatherItems = curated.filter(isWeatherFinding);
