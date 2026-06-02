@@ -63,9 +63,48 @@ function effectQualitative(avg: number): string {
   return "subjektiv häufig hilfreich bewertet";
 }
 
-/** Diazepam: NIE als wirksam/empfohlen darstellen – nur neutral spiegeln. */
-function isDiazepam(name: string): boolean {
-  return /\bdiazepam\b/i.test(name);
+/**
+ * Sensible / nicht-standardmäßige Substanzen, die NIE als „wirksam",
+ * „Therapie" oder „Alternative" beschrieben werden dürfen — nur neutral
+ * spiegeln. Generisch, nicht auf Diazepam beschränkt.
+ */
+const SENSITIVE_SUBSTANCE_RE =
+  /\b(diazepam|lorazepam|alprazolam|oxazepam|clonazepam|bromazepam|tavor|valium|tilidin|tramadol|oxycodon|morphin|fentanyl|codein|zolpidem|zopiclon|pregabalin|gabapentin)\b/i;
+
+function isSensitiveSubstance(name: string): boolean {
+  return SENSITIVE_SUBSTANCE_RE.test(name);
+}
+
+/**
+ * Semantische, abstrahierende Kurz-Zusammenfassung roher Freitextnotizen.
+ * Wir zeigen die Originalnotizen NIE roh in der Übersicht — sie sind
+ * persönlich, mobil schlecht lesbar und enthalten oft halbe Sätze.
+ * Stattdessen werden bis zu 2 thematische Kontext-Tags extrahiert und in
+ * einen einzigen kurzen Satz verpackt. Keine Pipe-Zeichen, keine Zitate.
+ *
+ * Liefert null, wenn keine praktisch relevante Kategorie erkennbar ist —
+ * dann erscheint einfach KEIN Notizhinweis (kein Mangel-Wording).
+ */
+function summarizeNotesSemantic(notes: string[]): string | null {
+  if (!notes || notes.length === 0) return null;
+  const hay = notes.join(" ").toLowerCase();
+  const categories: Array<[RegExp, string]> = [
+    [/\b(schlaf|geschlafen|m[üu]de|m[üu]digkeit|ruhe|erholung|entspann|hinleg)/, "Schlaf/Erholung"],
+    [/\b(verz[öo]gert|sp[äa]ter\s+(?:wirk|hilf|geholf)|erst\s+sp[äa]ter|nicht\s+sofort|brauchte\s+lange)\b/, "verzögerte Wirkung"],
+    [/\b(schnell|sofort|rasch|innerhalb\s+(?:weniger|kurzer))\b/, "schnelle Wirkung"],
+    [/\b(triptan[-\s]?(zur[üu]ckhalt|vermeid|gespart|gewartet)|kein(?:e[rn]?)?\s+triptan|verzicht\s+auf\s+triptan|ohne\s+triptan|triptan\s+aufgehoben)\b/, "Triptan-Zurückhaltung"],
+    [/\b([üu]belkeit|erbrechen|brechreiz|magen)\b/, "Übelkeit/Magen"],
+    [/\b(nebenwirk|schwindel|kreislauf|herzklopfen|benommen)\b/, "Nebenwirkungen"],
+    [/\b(stress|arbeit|anspann|aufregung)\b/, "Stress"],
+    [/\b(wetter|regen|hitze|warm|kalt|gewitter|druck)\b/, "Wetter"],
+  ];
+  const tags: string[] = [];
+  for (const [re, t] of categories) {
+    if (re.test(hay) && !tags.includes(t)) tags.push(t);
+    if (tags.length >= 2) break;
+  }
+  if (tags.length === 0) return null;
+  return `Einzelne Notizen erwähnen ${tags.join(" und ")} als Kontext.`;
 }
 
 /**
@@ -137,25 +176,26 @@ export function medicationUsageOverviewTitle(rangeDays: number): string {
  * und IMMER als subjektive Dokumentation formuliert (keine numerische
  * Skala in der Ausgabe, keine Wirksamkeitsbehauptung).
  *
- * Diazepam wird neutral aufgeführt – nie als „wirksam" / „sehr gut"
- * o. ä., auch bei hohem subjektivem Score.
+ * Sensible Substanzen (Benzos, Opioide, …) werden generisch neutral
+ * aufgeführt – nie als „wirksam" / „sehr gut" o. ä., auch bei hohem
+ * subjektivem Score. Freitextnotizen werden NIE roh wiedergegeben,
+ * sondern auf einen kurzen Kontext-Hinweis abstrahiert.
  */
 export function formatMedicationUsageLine(m: MedicationUsageEntry): string {
   const parts: string[] = [
     `${m.name}: ${m.intakeCount} Einnahme${m.intakeCount === 1 ? "" : "n"}`,
   ];
   if (m.avgScore !== null && m.ratedCount > 0) {
-    const qual = isDiazepam(m.name)
-      // Diazepam: neutral spiegeln, niemals als "sehr wirksam" beschreiben.
+    const qual = isSensitiveSubstance(m.name)
+      // Sensible Substanz: neutral spiegeln, nie als „sehr wirksam" beschreiben.
       ? (m.avgScore >= 5.5
           ? "subjektiv häufig hilfreich bewertet"
           : "subjektiv gemischt bewertet")
       : effectQualitative(m.avgScore);
     parts.push(qual);
   }
-  if (m.topNotes.length > 0) {
-    parts.push(`Notiz: ${m.topNotes.join(" | ")}`);
-  }
+  const noteHint = summarizeNotesSemantic(m.topNotes);
+  if (noteHint) parts.push(noteHint);
   return parts.join(", ");
 }
 

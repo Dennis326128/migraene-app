@@ -309,8 +309,9 @@ export function computeTrendAnalysis(days: TrendDayRecord[]): TrendResult | null
     metrics.severe.label !== "decreased" &&
     metrics.severe.recent >= 1
   ) {
+    const wp = windowPhrases(recent, previous);
     triptanStrategyNote =
-      "Die Triptan-Einnahmen waren zuletzt niedriger, während die Schmerzlast hoch blieb. " +
+      `Die Triptan-Einnahmen waren ${wp.recent} niedriger als ${wp.previous}, während die Schmerzlast hoch blieb. ` +
       "Das spricht eher für eine veränderte Akutstrategie als für eine klare Entlastung.";
     plain.push(triptanStrategyNote);
   }
@@ -345,42 +346,80 @@ function computeShortTerm(days: TrendDayRecord[]): TrendResult["shortTerm"] | nu
   const painHigh = recent.headacheDays >= Math.ceil(recent.documentedDays * 0.6);
   if (triptanDrop >= 2 && painHigh && metrics.headache.label !== "decreased") {
     note =
-      "Die Triptan-Einnahmen waren in den letzten 10 Tagen niedriger, während die Schmerzlast hoch blieb. " +
+      `Die Triptan-Einnahmen waren in den letzten 10 Tagen niedriger als in den 10 Tagen davor (${recent.triptanDays} vs. ${previous.triptanDays} Tage), während die Schmerzlast hoch blieb. ` +
       "Das spricht eher für eine veränderte Akutstrategie als für eine klare Entlastung.";
   } else if (triptanDrop >= 2 && metrics.headache.label === "decreased") {
     note =
-      "Die Triptan-Einnahmen waren in den letzten 10 Tagen niedriger und die Schmerzlast war etwas geringer. " +
+      `Die Triptan-Einnahmen waren in den letzten 10 Tagen niedriger als in den 10 Tagen davor (${recent.triptanDays} vs. ${previous.triptanDays} Tage) und die Schmerzlast war etwas geringer. ` +
       "Das kann auf eine vorsichtige Entlastung hinweisen und sollte weiter beobachtet werden.";
   } else if (triptanRise >= 2) {
-    note = "Die Triptan-Einnahmen waren in den letzten 10 Tagen häufiger als in den 10 Tagen davor.";
+    note = `Die Triptan-Einnahmen waren in den letzten 10 Tagen häufiger als in den 10 Tagen davor (${recent.triptanDays} vs. ${previous.triptanDays} Tage).`;
   }
   return { recent, previous, metrics, note };
 }
 
+/**
+ * Maps the structural window labels stored on WindowStats to dative
+ * phrases so trend sentences can always state explicitly which window
+ * is meant. Generic — works for any range length / custom range.
+ */
+export function windowPhrases(
+  r: WindowStats,
+  p: WindowStats,
+): { recent: string; previous: string } {
+  const rl = r.label;
+  const pl = p.label;
+  if (rl === "letzte 10 Tage") return { recent: "in den letzten 10 Tagen", previous: "in den 10 Tagen davor" };
+  if (rl === "letzte 30 Tage") return { recent: "in den letzten 30 Tagen", previous: "in den 30 Tagen davor" };
+  if (rl === "letzter Monat") return { recent: "im letzten Monat", previous: "im Monat davor" };
+  if (rl === "zweite Hälfte des Zeitraums") {
+    return { recent: "in der zweiten Hälfte des Zeitraums", previous: "in der ersten Hälfte" };
+  }
+  // Generic fallback (custom ranges, future variants):
+  return { recent: `in ${rl}`, previous: `in ${pl}` };
+}
+
 function painSentence(headache: MetricTrend, r: WindowStats, p: WindowStats): string {
-  if (headache.label === "stable") return `Die Schmerzlast blieb zuletzt ähnlich (Schmerztage ${r.headacheDays}/${r.documentedDays} vs. zuvor ${p.headacheDays}/${p.documentedDays}).`;
-  if (headache.label === "decreased") return `Die Schmerztage gingen zuletzt zurück (${r.headacheDays}/${r.documentedDays} vs. zuvor ${p.headacheDays}/${p.documentedDays}).`;
-  if (headache.label === "increased") return `Die Schmerztage nahmen zuletzt zu (${r.headacheDays}/${r.documentedDays} vs. zuvor ${p.headacheDays}/${p.documentedDays}).`;
-  return `Die Schmerzlast bleibt insgesamt hoch (Schmerztage ${r.headacheDays}/${r.documentedDays} vs. zuvor ${p.headacheDays}/${p.documentedDays}).`;
+  const wp = windowPhrases(r, p);
+  const pair = `${r.headacheDays}/${r.documentedDays} vs. ${p.headacheDays}/${p.documentedDays}`;
+  if (headache.label === "stable")
+    return `Die Schmerzlast blieb ${wp.recent} ähnlich wie ${wp.previous} (Schmerztage ${pair}).`;
+  if (headache.label === "decreased")
+    return `Die Schmerztage waren ${wp.recent} seltener als ${wp.previous} (${pair}).`;
+  if (headache.label === "increased")
+    return `Die Schmerztage waren ${wp.recent} häufiger als ${wp.previous} (${pair}).`;
+  return `Die Schmerzlast bleibt ${wp.recent} insgesamt hoch (Schmerztage ${pair} im Vergleich zu ${wp.previous}).`;
 }
 
 function medSentence(med: MetricTrend, triptan: MetricTrend, triptanPresent: boolean, r: WindowStats, p: WindowStats): string {
+  const wp = windowPhrases(r, p);
   const pieces: string[] = [];
   if (triptanPresent) {
-    if (triptan.label === "decreased") pieces.push(`Triptan-Einnahmen waren zuletzt seltener (${r.triptanDays} vs. ${p.triptanDays} Tage).`);
-    else if (triptan.label === "increased") pieces.push(`Triptan-Einnahmen waren zuletzt häufiger (${r.triptanDays} vs. ${p.triptanDays} Tage).`);
-    else pieces.push(`Triptan-Einnahmen blieben stabil (${r.triptanDays} vs. ${p.triptanDays} Tage).`);
+    if (triptan.label === "decreased")
+      pieces.push(`Triptan-Einnahmen waren ${wp.recent} seltener als ${wp.previous} (${r.triptanDays} vs. ${p.triptanDays} Tage).`);
+    else if (triptan.label === "increased")
+      pieces.push(`Triptan-Einnahmen waren ${wp.recent} häufiger als ${wp.previous} (${r.triptanDays} vs. ${p.triptanDays} Tage).`);
+    else
+      pieces.push(`Triptan-Einnahmen blieben ${wp.recent} im Vergleich zu ${wp.previous} stabil (${r.triptanDays} vs. ${p.triptanDays} Tage).`);
   }
-  if (med.label === "decreased") pieces.push(`Akutmedikation insgesamt seltener (${r.medDays} vs. ${p.medDays} Tage).`);
-  else if (med.label === "increased") pieces.push(`Akutmedikation insgesamt häufiger (${r.medDays} vs. ${p.medDays} Tage).`);
-  else if (!triptanPresent) pieces.push(`Akutmedikation insgesamt stabil (${r.medDays} vs. ${p.medDays} Tage).`);
-  if (pieces.length === 0) return `Akutmedikation und Triptane blieben im Vergleich stabil.`;
+  if (med.label === "decreased")
+    pieces.push(`Akutmedikation insgesamt seltener (${r.medDays} vs. ${p.medDays} Tage ${wp.recent} im Vergleich zu ${wp.previous}).`);
+  else if (med.label === "increased")
+    pieces.push(`Akutmedikation insgesamt häufiger (${r.medDays} vs. ${p.medDays} Tage ${wp.recent} im Vergleich zu ${wp.previous}).`);
+  else if (!triptanPresent)
+    pieces.push(`Akutmedikation blieb ${wp.recent} im Vergleich zu ${wp.previous} stabil (${r.medDays} vs. ${p.medDays} Tage).`);
+  if (pieces.length === 0)
+    return `Akutmedikation und Triptane blieben ${wp.recent} im Vergleich zu ${wp.previous} stabil.`;
   return pieces.join(" ");
 }
 
 function mecfsSentence(m: MetricTrend, r: WindowStats, p: WindowStats): string {
-  if (r.mecfsDays === 0 && p.mecfsDays === 0) return "Keine ME/CFS-/Energie-Signale in beiden Vergleichsfenstern dokumentiert.";
-  if (m.label === "decreased") return `ME/CFS-/Energie-Signale wurden zuletzt seltener dokumentiert (${r.mecfsDays} vs. ${p.mecfsDays} Tage).`;
-  if (m.label === "increased") return `ME/CFS-/Energie-Signale wurden zuletzt häufiger dokumentiert (${r.mecfsDays} vs. ${p.mecfsDays} Tage).`;
-  return `ME/CFS-/Energie-Signale blieben im Vergleich stabil (${r.mecfsDays} vs. ${p.mecfsDays} Tage).`;
+  const wp = windowPhrases(r, p);
+  if (r.mecfsDays === 0 && p.mecfsDays === 0)
+    return `Keine ME/CFS-/Energie-Signale ${wp.recent} oder ${wp.previous} dokumentiert.`;
+  if (m.label === "decreased")
+    return `ME/CFS-/Energie-Signale wurden ${wp.recent} seltener dokumentiert als ${wp.previous} (${r.mecfsDays} vs. ${p.mecfsDays} Tage).`;
+  if (m.label === "increased")
+    return `ME/CFS-/Energie-Signale wurden ${wp.recent} häufiger dokumentiert als ${wp.previous} (${r.mecfsDays} vs. ${p.mecfsDays} Tage).`;
+  return `ME/CFS-/Energie-Signale blieben ${wp.recent} im Vergleich zu ${wp.previous} stabil (${r.mecfsDays} vs. ${p.mecfsDays} Tage).`;
 }
