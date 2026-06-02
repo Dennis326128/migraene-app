@@ -20,7 +20,7 @@ interface PressureDeltaResult {
   matchedWeatherAt?: string;
 }
 
-async function fetchPressureDelta24h(
+export async function fetchPressureDelta24h(
   userId: string,
   occurredAt: string,
   currentPressureMb: number,
