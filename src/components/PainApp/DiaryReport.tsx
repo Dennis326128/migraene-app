@@ -700,7 +700,12 @@ export default function DiaryReport({ onBack, onNavigate, initialIncludeAI, init
         from,
         to,
         entries: freshEntries,
-        headacheTreatmentDays: dayBuckets,
+        // Donut MUST use the same fresh entries + report range as the
+        // clinical core overview. The global useHeadacheTreatmentDays() hook
+        // is bound to the app's TimeRangeContext (often ≠ report range) and
+        // would render an inconsistent distribution (e.g. 90/90 undocumented).
+        // Pass null → report.ts recomputes from freshEntries + from/to.
+        headacheTreatmentDays: null,
         selectedMeds: [], // No medication filtering – always all
         
         includeStats: true, // Always included
