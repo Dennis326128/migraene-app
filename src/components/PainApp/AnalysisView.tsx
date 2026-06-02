@@ -323,7 +323,7 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
             </TabsTrigger>
             <TabsTrigger value="ki-analyse" className="flex items-center gap-2 text-base px-6 py-3">
               <Brain className="h-5 w-5" />
-              KI-Analyse
+              Mustererkennung (KI)
             </TabsTrigger>
           </TabsList>
 
