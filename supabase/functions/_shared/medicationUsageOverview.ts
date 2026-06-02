@@ -94,10 +94,13 @@ export function formatMedicationUsageLine(m: MedicationUsageEntry): string {
   const parts: string[] = [
     `${m.name}: ${m.intakeCount} Einnahme${m.intakeCount === 1 ? "" : "n"}`,
   ];
-  if (m.avgScore !== null) {
-    parts.push(
-      `Wirkung ${effectQualitative(m.avgScore)} (Ø ${m.avgScore.toFixed(1)}/10, ${m.ratedCount} bewertet)`,
-    );
+  if (m.avgScore !== null && m.ratedCount > 0) {
+    const qual = isDiazepam(m.name)
+      ? (m.avgScore >= 5.5
+          ? "subjektiv häufig hilfreich bewertet"
+          : "subjektiv gemischt bewertet")
+      : effectQualitative(m.avgScore);
+    parts.push(qual);
   }
   return parts.join(", ");
 }
