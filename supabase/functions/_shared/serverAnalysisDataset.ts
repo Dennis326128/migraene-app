@@ -37,8 +37,17 @@ export interface ServerDataset {
   raw: {
     painEntries: PainEntryRow[];
     medIntakes: MedicationIntakeRow[];
+    medEffects: MedicationEffectRow[];
     contextNoteCount: number;
   };
+}
+
+export interface MedicationEffectRow {
+  id: string;
+  entry_id: number;
+  med_name: string;
+  effect_score: number | null;
+  effect_rating: string | null;
 }
 
 
