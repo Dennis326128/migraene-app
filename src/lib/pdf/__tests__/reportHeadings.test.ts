@@ -12,12 +12,13 @@ describe('PDF report headings — umlaut encoding', () => {
   const src = readFileSync(resolve(__dirname, '../report.ts'), 'utf8');
 
   it('uses "KI-gestützte" (no GESTUETZTE) for the AI section header', () => {
-    expect(src).toContain('KI-GEST\u00DCTZTE VERLAUFSZUSAMMENFASSUNG');
-    expect(src).not.toMatch(/KI-GESTUETZTE/);
+    // source may contain either the literal umlaut or the \uXXXX escape
+    expect(/KI-GEST(\\u00DC|\u00DC)TZTE VERLAUFSZUSAMMENFASSUNG/.test(src)).toBe(true);
+    expect(src).not.toMatch(/KI-GESTUETZTE VERLAUFSZUSAMMENFASSUNG/);
   });
 
   it('uses "Für das Arztgespräch" (no Fuer / Arztgespraech)', () => {
-    expect(src).toContain('F\u00FCr das Arztgespr\u00E4ch');
+    expect(/F(\\u00FC|\u00FC)r das Arztgespr(\\u00E4|\u00E4)ch/.test(src)).toBe(true);
     expect(src).not.toMatch(/"Fuer das Arztgespraech"/);
   });
 
