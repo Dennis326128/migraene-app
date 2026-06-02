@@ -218,25 +218,146 @@ function safeHighlightLine(raw: string): string {
   return t;
 }
 
+/**
+ * PDF-spezifischer Kurzfazit — qualitativ statt zahlenlastig.
+ *
+ * Die klinische Kernübersicht auf Seite 1 enthält bereits alle Kernzahlen
+ * (Kopfschmerztage/30T, Triptan-Tage/30T, Ø Schmerzintensität, Doku-Quote,
+ * Donut). Der KI-Kurzfazit darf diese Zahlen nicht 1:1 wiederholen, sondern
+ * soll qualitativ einordnen, was klinisch relevant ist.
+ *
+ * Bewusst NICHT: "An X von Y Tagen wurden Schmerzen dokumentiert."
+ */
+function buildPdfSummaryText(
+  responseJson: Record<string, unknown>,
+  findings: NormalizedAnalysisFinding[],
+  daysAnalyzed: number,
+): string {
+  const v21 = (responseJson as any).analysisV21;
+  const db: Record<string, unknown> = v21?.data_basis ?? {};
+  const painDays = Number(db.pain_days);
+  const docDays = Number(db.documented_days);
+
+  const parts: string[] = [];
+
+  // 1) Qualitative Schmerzlast — OHNE Rohzahlen.
+  if (isFinite(painDays) && isFinite(docDays) && docDays > 0) {
+    const ratio = painDays / docDays;
+    if (ratio >= 0.85) {
+      parts.push(
+        "Die dokumentierten Daten zeigen eine sehr hohe und über den Zeitraum stabile Kopfschmerzlast.",
+      );
+    } else if (ratio >= 0.6) {
+      parts.push("Die Kopfschmerzlast war im analysierten Zeitraum deutlich erhöht.");
+    } else if (ratio >= 0.3) {
+      parts.push("Die Kopfschmerzlast war im analysierten Zeitraum moderat ausgeprägt.");
+    } else {
+      parts.push("Die Kopfschmerzlast war im analysierten Zeitraum eher niedrig.");
+    }
+  }
+
+  // 2) Akutmedikations-Trend — qualitativ, kein Vergleichsfenster.
+  const medTrend = findings.find(
+    (f) => topicOf(f) === "medication" && (f.category || "").includes("trend"),
+  );
+  if (medTrend) {
+    const t = (medTrend.title || "").toLowerCase();
+    if (t.includes("seltener")) {
+      parts.push("Die Akutmedikation wurde zuletzt etwas zur\u00FCckhaltender eingesetzt.");
+    } else if (t.includes("h\u00E4ufiger")) {
+      parts.push("Die Akutmedikation wurde zuletzt etwas h\u00E4ufiger eingesetzt.");
+    }
+  }
+
+  // 3) ME/CFS-/Energiesignale — kurze qualitative Ergänzung.
+  const mecfs = findings.find((f) => topicOf(f) === "mecfs");
+  if (mecfs) {
+    parts.push(
+      "Zus\u00E4tzlich liegen regelm\u00E4\u00DFige Energiesignale vor, die f\u00FCr die Gesamtbelastung relevant sein k\u00F6nnen.",
+    );
+  }
+
+  if (parts.length === 0) return safeSummaryFallback(daysAnalyzed);
+  // Max 3 Sätze – kompakt für unter-60-Sekunden-Lesen.
+  return parts.slice(0, 3).join(" ");
+}
+
+/**
+ * Arztorientierte Highlight-Overrides. Die Roh-Findings können wörtliche
+ * Statistik-Sätze enthalten ("28 von 30 Tagen…"). Im PDF wollen wir
+ * stattdessen eine kurze klinische Einordnung pro Topic.
+ */
+function doctorHighlightOverride(
+  f: NormalizedAnalysisFinding,
+): { title: string; line: string } | null {
+  switch (topicOf(f)) {
+    case "burden":
+      return {
+        title: "Hohe Kopfschmerzfrequenz",
+        line: "\u00C4rztliche Einordnung im Hinblick auf eine m\u00F6gliche chronische Verlaufsform sinnvoll.",
+      };
+    case "chronification":
+      return {
+        title: "Chronifizierungsrisiko",
+        line: "\u00C4rztliche Einordnung im Hinblick auf eine m\u00F6gliche chronische Verlaufsform sinnvoll.",
+      };
+    case "medication":
+      return {
+        title: "Akutstrategie pr\u00FCfen",
+        line: "Die Eintr\u00E4ge deuten auf eine ver\u00E4nderte Akutstrategie hin \u2013 Triptan-/Schmerzmittel-Gebrauch sollte besprochen werden.",
+      };
+    case "mecfs":
+      return {
+        title: "ME/CFS- und Energie-Signale",
+        line: "Regelm\u00E4\u00DFige Energiesignale k\u00F6nnen f\u00FCr die Gesamtbelastung relevant sein und sollten besprochen werden.",
+      };
+    default:
+      return null;
+  }
+}
+
 function buildFromV21(responseJson: Record<string, unknown>): AiPdfSummary | null {
   const raw = normalizeAnalysisFindings(responseJson);
   const curated = curateFindingsV22(raw, responseJson);
-  const overview = buildAnalysisOverviewSummary({
-    responseJson,
-    findings: curated.findings,
-  });
-  const summarySource = overview || (typeof responseJson.summary === "string" ? responseJson.summary : "");
   const scope = (responseJson.scope as { daysAnalyzed?: number } | undefined) ?? {};
   const days = scope.daysAnalyzed ?? 0;
 
-  let summary = sanitizeOutputText(truncateSentences(summarySource, MAX_SUMMARY_SENTENCES, MAX_SUMMARY_CHARS));
+  // PDF-Kurzfazit: qualitativ, dedupe-frei gegenüber Seite 1.
+  // Fallback-Kette: PDF-Text → App-Overview → LLM-summary → safeFallback.
+  let summary = sanitizeOutputText(
+    truncateSentences(
+      buildPdfSummaryText(responseJson, curated.findings, days),
+      MAX_SUMMARY_SENTENCES,
+      MAX_SUMMARY_CHARS,
+    ),
+  );
+  if (!summary) {
+    const overview = buildAnalysisOverviewSummary({
+      responseJson,
+      findings: curated.findings,
+    });
+    const fallbackSrc =
+      overview || (typeof responseJson.summary === "string" ? responseJson.summary : "");
+    summary = sanitizeOutputText(
+      truncateSentences(fallbackSrc, MAX_SUMMARY_SENTENCES, MAX_SUMMARY_CHARS),
+    );
+  }
   if (!summary) summary = safeSummaryFallback(days);
 
   const top = pickHighlights(curated.findings);
-  const highlights = top.map((f) => ({
-    title: sanitizeOutputText(clip(f.title, 80)),
-    line: sanitizeOutputText(safeHighlightLine(f.summary)),
-  }));
+  const highlights = top.map((f) => {
+    const override = doctorHighlightOverride(f);
+    if (override) {
+      return {
+        title: sanitizeOutputText(clip(override.title, 80)),
+        line: sanitizeOutputText(clip(override.line, MAX_HIGHLIGHT_LINE_CHARS)),
+      };
+    }
+    return {
+      title: sanitizeOutputText(clip(f.title, 80)),
+      line: sanitizeOutputText(safeHighlightLine(f.summary)),
+    };
+  });
 
   const openQuestions = curated.openQuestions
     .slice(0, MAX_OPEN_QUESTIONS)
