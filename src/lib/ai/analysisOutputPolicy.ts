@@ -213,7 +213,7 @@ export function sanitizeOutputText(text: string | null | undefined): string {
   const lines = text.split(/\r?\n/);
   const outLines: string[] = [];
   for (const line of lines) {
-    const parts = line.split(/(?<=[.!?])\s+/);
+    const parts = splitSentencesSmart(line);
     const kept = parts.filter((s) => {
       const trimmed = s.trim();
       if (!trimmed) return false;
