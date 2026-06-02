@@ -201,7 +201,7 @@ export function formatMedicationUsageLine(m: MedicationUsageEntry): string {
   }
   const main = head.join(", ");
   const noteHint = summarizeNotesSemantic(m.topNotes);
-  if (!noteHint) return main.endsWith(".") ? main : `${main}.`;
+  if (!noteHint) return main;
   const mainWithDot = main.endsWith(".") ? main : `${main}.`;
   const hint = noteHint.trim().endsWith(".") ? noteHint.trim() : `${noteHint.trim()}.`;
   return `${mainWithDot} ${hint}`;
