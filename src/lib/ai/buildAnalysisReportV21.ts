@@ -25,6 +25,7 @@ import {
   type TrendDayRecord,
 } from "./trendAnalysis";
 import { buildCourseTrendFindings } from "./buildCourseTrendFindings";
+import { buildMedicationUsageOverviewFinding } from "./medicationUsageOverview";
 
 export interface BuildReportV21Input {
   fromISO: string;
