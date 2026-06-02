@@ -295,15 +295,32 @@ export async function buildPatternPreAnalysis(
         : `Wochentag-Verteilung erfasst (n=${totalWd}). Uhrzeitdaten nur für ${withTime} Einträge.`,
     },
     mecfs: { daysWithMecfs, contextNoteCount, note: mecfsNote },
-    medication: {
-      intakeCount: medIntakes.length,
-      highPainEntries: highPain,
-      highPainWithMed: highPainMed,
-      highPainWithoutMed: highPain - highPainMed,
-      note: highPain > 0
+    medication: (() => {
+      const usageOverview = aggregateMedicationUsage(
+        medIntakes.map((m) => ({ medication_name: m.medication_name })),
+        (medEffects ?? []).map((e) => ({
+          med_name: e.med_name,
+          effect_score: e.effect_score,
+          effect_rating: e.effect_rating,
+        })),
+      );
+      const usageSummary = formatMedicationUsageSummary(usageOverview);
+      const baseNote = highPain > 0
         ? `Schmerz ≥ 7: ${highPain} Einträge, davon mit dokumentiertem Akutmedikament: ${highPainMed} (${pct(highPainMed, highPain)}). Ohne Medikament: ${highPain - highPainMed}. Insgesamt ${medIntakes.length} Medikamenteneinnahmen erfasst.`
-        : `Keine Einträge mit Schmerz ≥ 7 im Zeitraum. Insgesamt ${medIntakes.length} Medikamenteneinnahmen erfasst.`,
-    },
+        : `Keine Einträge mit Schmerz ≥ 7 im Zeitraum. Insgesamt ${medIntakes.length} Medikamenteneinnahmen erfasst.`;
+      const effectRatedCount = usageOverview.reduce((s, m) => s + m.ratedCount, 0);
+      return {
+        intakeCount: medIntakes.length,
+        highPainEntries: highPain,
+        highPainWithMed: highPainMed,
+        highPainWithoutMed: highPain - highPainMed,
+        effectRatedCount,
+        usageOverview,
+        note: usageSummary
+          ? `${baseNote}\nMedikamentengebrauch im Zeitraum:\n${usageSummary}`
+          : baseNote,
+      };
+    })(),
     dataQuality: {
       painEntries: dataset.meta.painEntryCount,
       voiceEvents: dataset.meta.voiceEventCount,
