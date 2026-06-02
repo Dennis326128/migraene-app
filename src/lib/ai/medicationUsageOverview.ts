@@ -50,12 +50,22 @@ function ratingToScore(rating: string | null | undefined): number | null {
   }
 }
 
+/**
+ * Subjektive Dokumentationsformulierung – KEINE medizinische
+ * Wirksamkeitsbehauptung, KEINE numerische Skala in der Ausgabe.
+ * Spiegelt nur, was Nutzer:innen selbst dokumentiert haben.
+ */
 function effectQualitative(avg: number): string {
-  if (avg <= 1.5) return "ohne klare Wirkung";
-  if (avg <= 3.5) return "gering";
-  if (avg <= 5.5) return "teilweise";
-  if (avg <= 7.5) return "gut";
-  return "sehr gut";
+  if (avg <= 1.5) return "subjektiv ohne klare Wirkung beschrieben";
+  if (avg <= 3.5) return "subjektiv gering wirksam beschrieben";
+  if (avg <= 5.5) return "subjektiv gemischt bewertet";
+  if (avg <= 7.5) return "subjektiv überwiegend hilfreich bewertet";
+  return "subjektiv häufig hilfreich bewertet";
+}
+
+/** Diazepam: NIE als wirksam/empfohlen darstellen – nur neutral spiegeln. */
+function isDiazepam(name: string): boolean {
+  return /\bdiazepam\b/i.test(name);
 }
 
 /**
