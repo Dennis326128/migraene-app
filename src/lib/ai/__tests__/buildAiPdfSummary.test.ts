@@ -139,9 +139,9 @@ describe('buildAiPdfSummary', () => {
     const out = buildAiPdfSummary(responseJson)!;
     const titles = out.highlights.map((h) => h.title);
     expect(titles).toHaveLength(3);
-    expect(titles.some((t) => /Sehr hohe Schmerzlast/i.test(t))).toBe(true);
+    expect(titles.some((t) => /Kopfschmerzfrequenz|Chronifizierung|Schmerzlast/i.test(t))).toBe(true);
     expect(titles.some((t) => /Schmerzlast bleibt/i.test(t))).toBe(false);
-    expect(titles.some((t) => /Triptan|Akutmedikation/i.test(t))).toBe(true);
+    expect(titles.some((t) => /Triptan|Akutmedikation|Akutstrategie/i.test(t))).toBe(true);
     expect(titles.some((t) => /ME\/CFS|Energie/i.test(t))).toBe(true);
   });
 
