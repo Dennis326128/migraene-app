@@ -200,7 +200,38 @@ const STRIP_TECHNICAL_TOKENS: RegExp[] = [
 
 export const POLICY_BANNED_PATTERNS = BAN_ALWAYS;
 
-// ─────────────────────────── Text sanitation ───────────────────────────
+// ─────────────────────────── Smart sentence split ──────────────────────
+// Does NOT split on "vs.", "z. B.", "bzw.", "ca.", "u. a.", etc.
+// Does NOT split inside parentheses/brackets. Prevents fragments like
+// "(5 vs." from being treated as a complete sentence.
+const ABBR_TAIL_RE = /\b(?:vs|bzw|z\s?\.?\s?B|ca|u\s?\.?\s?a|d\s?\.?\s?h|i\s?\.?\s?d\s?\.?\s?R|etc|Nr|Mio|Mrd|inkl|exkl|ggf|sog|evtl|bzgl|max|min)\.$/i;
+
+export function splitSentencesSmart(text: string): string[] {
+  const out: string[] = [];
+  let buf = "";
+  let depth = 0;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    buf += ch;
+    if (ch === "(" || ch === "[") depth++;
+    else if (ch === ")" || ch === "]") depth = Math.max(0, depth - 1);
+    else if ((ch === "." || ch === "!" || ch === "?") && depth === 0) {
+      const next = text[i + 1];
+      if (!next || /\s/.test(next)) {
+        const trimmed = buf.trim();
+        if (!ABBR_TAIL_RE.test(trimmed)) {
+          out.push(trimmed);
+          buf = "";
+          while (i + 1 < text.length && /\s/.test(text[i + 1])) i++;
+        }
+      }
+    }
+  }
+  if (buf.trim()) out.push(buf.trim());
+  return out;
+}
+
+
 
 /**
  * Drops sentences that match any banned pattern. Used as a last-line
