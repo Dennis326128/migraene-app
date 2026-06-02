@@ -105,8 +105,11 @@ Deno.serve(async (req) => {
     }
     if (consentOk !== true) {
       console.log(`[shared-ai] AI_CONSENT_REQUIRED owner=${shortId(ownerUserId)}`);
+      // Neutral wording — UI on the Doctor-Share website uses
+      // `aiAnalysis.blockedReason` from get-shared-report-data to render
+      // the appropriate copy. Backend gate stays in place (DSGVO Art. 9).
       return json(
-        { error: 'Der Patient hat die KI-Verarbeitung nicht freigegeben.', code: 'AI_CONSENT_REQUIRED' },
+        { error: 'KI-Analyse für diese Freigabe aktuell nicht möglich.', code: 'AI_CONSENT_REQUIRED' },
         403,
       );
     }
