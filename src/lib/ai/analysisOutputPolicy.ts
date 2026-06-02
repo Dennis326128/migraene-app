@@ -95,6 +95,20 @@ const BAN_SOFT: RegExp[] = [
   /nicht\s+aus\s+dem\s+Datensatz\s+ersichtlich/i,
   /nicht\s+explizit\s+dokumentiert/i,
   /\bDatenlage\s+erschwert\b/i,
+  // Release-Polish (Medikation): keine Mangel-/Pflichtformulierungen
+  /Wirk(?:samkeit|ung)[^.]{0,40}nicht\s+detailliert\s+beschrieben/i,
+  /Wirk(?:samkeit|ung)\s+kann\s+nicht\s+beurteilt\s+werden/i,
+  /Informationen\s+zur\s+zeitlichen\s+Abfolge[^.]{0,40}fehl/i,
+  /zeitliche\s+Abfolge\s+der\s+Medikamentenwirkung[^.]{0,40}fehl/i,
+  /Dosis\s+und\s+Wirksamkeit\s+(?:überprüfen|prüfen|bewerten)/i,
+  /Wirkung\s+(?:bewerten|dokumentieren)\b/i,
+  /(?:Wirkung|Wirksamkeit)\s+nach\s+\d+\s*(?:h|Stunden?)\s*(?:bewerten|dokumentieren)?/i,
+  /(?:fehlende|keine)\s+Wirkungsdaten/i,
+  /\bInformationen\s+fehlen\b/i,
+  /\bDokumentiere\s+(?:die\s+)?Wirkung\b/i,
+  /\bDokumentiere\s+(?:den\s+)?Einnahmezeitpunkt\b/i,
+  /\bDokumentiere\s+(?:die\s+)?Dosis\b/i,
+  /\bDokumentiere\s+(?:die\s+)?zeitliche\s+Abfolge\b/i,
 ];
 
 
