@@ -28,8 +28,8 @@ describe('gateDecision', () => {
   it('allows new at 0/3', () => {
     expect(gateDecision(baseInput).action).toBe('allow_new');
   });
-  it('blocks quota at 3/3 (free)', () => {
-    expect(gateDecision({ ...baseInput, usageCount: 3 }).action).toBe('block_quota');
+  it('blocks quota at limit (free)', () => {
+    expect(gateDecision({ ...baseInput, usageCount: FREE_PATTERN_ANALYSIS_LIMIT }).action).toBe('block_quota');
   });
   it('unlimited bypasses quota', () => {
     expect(gateDecision({ ...baseInput, usageCount: 99, isUnlimited: true }).action).toBe('allow_new');
@@ -47,7 +47,7 @@ describe('gateDecision', () => {
     expect(gateDecision({ ...baseInput, hasCache: true, isStale: true }).action).toBe('allow_refresh');
   });
   it('stale cache + quota exceeded → block_quota (cache still shown by UI)', () => {
-    const d = gateDecision({ ...baseInput, hasCache: true, isStale: true, usageCount: 3 });
+    const d = gateDecision({ ...baseInput, hasCache: true, isStale: true, usageCount: FREE_PATTERN_ANALYSIS_LIMIT });
     expect(d.action).toBe('block_quota');
   });
 });
