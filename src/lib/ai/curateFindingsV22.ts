@@ -966,15 +966,16 @@ export function applySectionCaps<T extends { evidenceLevel: NormalizedAnalysisFi
     interaction: 1,
   };
   const cap = capMap[section];
-  if (cap == null || items.length <= cap) return items;
   if (section === "medication") {
     const overview = items.find((item) => isMedicationOverview(item as unknown as NormalizedAnalysisFinding));
     const rest = items.filter((item) => item !== overview);
+    const effectiveCap = cap ?? items.length;
     const ranked = [...rest]
       .sort((a, b) => evidenceRank[b.evidenceLevel] - evidenceRank[a.evidenceLevel])
-      .slice(0, overview ? cap - 1 : cap);
+      .slice(0, overview ? Math.max(0, effectiveCap - 1) : effectiveCap);
     return (overview ? [overview, ...ranked] : ranked) as T[];
   }
+  if (cap == null || items.length <= cap) return items;
   return [...items]
     .sort((a, b) => evidenceRank[b.evidenceLevel] - evidenceRank[a.evidenceLevel])
     .slice(0, cap);
