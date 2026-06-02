@@ -742,7 +742,7 @@ export function curateFindingsV22(
   // 4e) Medikamente final kompakt: Übersicht zuerst, einzelne Wirkungs-
   // Interpretationen in die Übersicht integrieren, maximal eine Triptan-
   // Strategie-Karte zusätzlich.
-  curated = finalizeMedicationSection(curated, suppressed);
+  curated = finalizeMedicationSection(curated, suppressed, responseJson);
 
   // 5) Weather single-source — keep best, drop rest
   const weatherItems = curated.filter(isWeatherFinding);
