@@ -47,7 +47,7 @@ describe('gateDecision', () => {
     expect(gateDecision({ ...baseInput, hasCache: true, isStale: true }).action).toBe('allow_refresh');
   });
   it('stale cache + quota exceeded → block_quota (cache still shown by UI)', () => {
-    const d = gateDecision({ ...baseInput, hasCache: true, isStale: true, usageCount: 3 });
+    const d = gateDecision({ ...baseInput, hasCache: true, isStale: true, usageCount: FREE_PATTERN_ANALYSIS_LIMIT });
     expect(d.action).toBe('block_quota');
   });
 });
