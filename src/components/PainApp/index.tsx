@@ -322,6 +322,7 @@ export const PainApp: React.FC = () => {
               goHome();
             }
             setDiaryReportOrigin(null);
+            setDiaryAiMode('none');
           }} 
           onNavigate={(target: string) => {
             if (target === 'settings-account') {
@@ -333,7 +334,9 @@ export const PainApp: React.FC = () => {
               setDoctorsOrigin(origin ? { origin, editDoctorId: editId, returnView: 'diary-report' } : null);
               setView('settings-doctors');
             }
-          }} 
+          }}
+          initialIncludeAI={diaryAiMode === 'include_ai'}
+          initialAiOnly={diaryAiMode === 'ai_only'}
         />,
         "Bericht laden..."
       )}
