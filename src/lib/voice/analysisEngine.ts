@@ -179,6 +179,7 @@ export async function buildAnalysisPromptData(range: AnalysisTimeRange): Promise
     medication: {
       intakeCount: dataset.meta.medicationIntakeCount ?? 0,
       highPainEntries: 0, highPainWithMed: 0, highPainWithoutMed: 0,
+      effectRatedCount: dataset.meta.medicationEffectRatedCount ?? 0,
       note: '',
     },
     dataQuality: {
