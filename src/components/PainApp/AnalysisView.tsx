@@ -75,14 +75,16 @@ interface AnalysisViewProps {
   onNavigateToBurden?: () => void;
   onNavigateToMedicationHistory?: (medicationName: string, rangeOverride?: { preset: string; from?: string; to?: string }) => void;
   onViewAIReport?: (report: AIReport) => void;
+  initialTab?: "statistik" | "ki-analyse";
+  autoRunAi?: boolean;
 }
 
-export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, onNavigateToMedicationHistory, onViewAIReport }: AnalysisViewProps) {
+export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, onNavigateToMedicationHistory, onViewAIReport, initialTab, autoRunAi }: AnalysisViewProps) {
   // Global time range (Single Source of Truth)
   const { timeRange, setTimeRange, from, to, wasClamped, firstEntryDate, documentationSpanDays } = useTimeRange();
 
   // View mode
-  const [viewMode, setViewMode] = useState<"statistik" | "ki-analyse">("statistik");
+  const [viewMode, setViewMode] = useState<"statistik" | "ki-analyse">(initialTab ?? "statistik");
 
   // ME/CFS tracking start date
   const [mecfsStartDate, setMecfsStartDate] = useState<string | null>(null);
