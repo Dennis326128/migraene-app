@@ -342,23 +342,28 @@ serve(async (req) => {
         console.log('📊 Current weather response:', data);
 
         if (data.current) {
-          // Calculate 24h pressure change for current weather
-          let pressureChange24h = null;
-          try {
-            const yesterdayDate = new Date(requestDate);
-            yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-            const yesterdayString = yesterdayDate.toISOString().split('T')[0];
-            
-            const histUrl = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${yesterdayString}&end_date=${yesterdayString}&daily=surface_pressure_mean&timezone=auto`;
-            const histResponse = await fetch(histUrl);
-            const histData = await histResponse.json();
-            
-            if (histData.daily?.surface_pressure_mean?.[0]) {
-              pressureChange24h = data.current.surface_pressure - histData.daily.surface_pressure_mean[0];
-              console.log('📈 Calculated 24h pressure change:', pressureChange24h, 'hPa');
+          // Calculate 24h pressure change from hourly archive (deterministic).
+          // Falls back to daily mean if hourly archive has no data for this region.
+          let pressureChange24h: number | null = await fetchPressureDelta24hFromArchive(lat, lon, at);
+          if (pressureChange24h == null) {
+            try {
+              const yesterdayDate = new Date(requestDate);
+              yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+              const yesterdayString = yesterdayDate.toISOString().split('T')[0];
+
+              const histUrl = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${yesterdayString}&end_date=${yesterdayString}&daily=surface_pressure_mean&timezone=auto`;
+              const histResponse = await fetch(histUrl);
+              const histData = await histResponse.json();
+
+              if (histData.daily?.surface_pressure_mean?.[0] && data.current.surface_pressure) {
+                pressureChange24h = Math.round(data.current.surface_pressure - histData.daily.surface_pressure_mean[0]);
+                console.log('📈 Calculated 24h pressure change (daily-mean fallback):', pressureChange24h, 'hPa');
+              }
+            } catch (pressureError) {
+              console.log('⚠️ Failed to calculate pressure change fallback:', pressureError);
             }
-          } catch (pressureError) {
-            console.log('⚠️ Failed to calculate pressure change:', pressureError);
+          } else {
+            console.log('📈 Δ24h from hourly archive:', pressureChange24h, 'hPa');
           }
 
           weatherData = {
