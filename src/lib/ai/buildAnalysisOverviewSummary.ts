@@ -76,22 +76,7 @@ export function buildAnalysisOverviewSummary(
     sentences.push(`Im Zeitraum ${from} bis ${to} liegt eine Auswertung der dokumentierten Tage vor.`);
   }
 
-  // 2) Verlauf / Veränderung
-  const courseTrend = findByCategory(findings, "course_trend");
-  if (courseTrend) {
-    const t = courseTrend.title.toLowerCase();
-    if (t.includes("seltener")) {
-      sentences.push("Im Verlauf wurden die Schmerztage zuletzt etwas seltener.");
-    } else if (t.includes("häufiger")) {
-      sentences.push("Im Verlauf wurden die Schmerztage zuletzt etwas häufiger.");
-    } else if (t.includes("ähnlich") || t.includes("hoch")) {
-      sentences.push("Im Verlauf blieb die Schmerzlast ähnlich hoch.");
-    } else {
-      sentences.push("Für eine belastbare Verlaufsbewertung ist der Zeitraum bisher kurz.");
-    }
-  }
-
-  // 3) Triptan-/Akutmedikationsentwicklung — Kurzfristtrend (10 vs 10) hat
+  // 2) Triptan-/Akutmedikationsentwicklung — Kurzfristtrend (10 vs 10) hat
   // Vorrang vor dem 15-vs-15-Trend; "stabil" wird nur erwähnt, wenn kein
   // Kurzfristtrend Sinnvolles aussagt.
   const triptanShort = findings.find(
@@ -101,11 +86,9 @@ export function buildAnalysisOverviewSummary(
   const medFinding = triptanShort ?? medTrend;
   if (medFinding) {
     const t = medFinding.title.toLowerCase();
-    const shortSummary = (medFinding.summary || "").trim();
-    if (triptanShort && shortSummary) {
-      sentences.push(shortSummary);
-    } else if (t.includes("triptan") && t.includes("seltener")) {
-      sentences.push("Triptane wurden zuletzt seltener eingenommen, die Schmerzlast blieb dabei unverändert.");
+    const hay = `${medFinding.title} ${medFinding.summary}`.toLowerCase();
+    if (hay.includes("seltener") && hay.includes("triptan")) {
+      sentences.push("Triptane wurden zuletzt etwas seltener eingenommen.");
     } else if (t.includes("seltener")) {
       sentences.push("Die Akutmedikation wurde zuletzt etwas seltener eingenommen.");
     } else if (t.includes("häufiger")) {
@@ -116,7 +99,7 @@ export function buildAnalysisOverviewSummary(
     }
   }
 
-  // 4) ME/CFS-/Energiehinweis
+  // 3) ME/CFS-/Energiehinweis
   const mecfsTrend = findByCategory(findings, "mecfs_energy_trend");
   if (mecfsTrend) {
     const t = mecfsTrend.title.toLowerCase();
@@ -131,33 +114,18 @@ export function buildAnalysisOverviewSummary(
     sentences.push("ME/CFS-/Energiesignale wurden über den Zeitraum hinweg regelmäßig dokumentiert.");
   }
 
-  // 5) Wetterhinweis — nur bei klar erkennbarem Zusammenhang erwähnen.
-  // Bei niedriger Evidenz lieber gar nichts oder einen knappen Negativsatz.
-  const weather = findByCategory(findings, "weather");
-  if (weather) {
-    if (weather.evidenceLevel === "high" || weather.evidenceLevel === "moderate") {
-      sentences.push("Wetterveränderungen zeigen in diesem Zeitraum einen erkennbaren Zusammenhang mit den Schmerztagen.");
-    } else {
-      sentences.push("Ein klarer Wetterzusammenhang zeigt sich in diesem Zeitraum nicht.");
-    }
-  }
-
-  // 6) Dokumentationsfazit — ruhig, ohne Pflicht- oder Mangelformulierung.
+  // 4) Dokumentationsfazit — ruhig, ohne Pflicht- oder Mangelformulierung.
   const docSummary = findFriendlyDocSummary(findings);
-  const medUsage = findings.find((f) => f.id === "medication.usage_overview");
   if (docSummary) {
     sentences.push("Die Dokumentation ist insgesamt sehr gut.");
-    if (medUsage) {
-      sentences.push("Wirkungsbewertungen zu Medikamenten wurden, soweit vorhanden, berücksichtigt.");
-    }
   }
 
   if (sentences.length === 0) return null;
 
-  // Cap to max. 7 sentences for readability, then run the output policy
+  // Cap to max. 4 sentences for Summary-first readability, then run the output policy
   // as a safety net so no banned wording (weather coverage counts, voice
   // events, schmerzfreie Vergleichstage, …) can leak into the summary.
-  const joined = sentences.slice(0, 7).join(" ");
+  const joined = sentences.slice(0, 4).join(" ");
   const safe = sanitizeOutputText(joined);
   return safe || null;
 }

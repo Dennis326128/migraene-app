@@ -30,7 +30,7 @@ describe('buildAnalysisOverviewSummary', () => {
     expect(buildAnalysisOverviewSummary({ responseJson: {}, findings: [] })).toBeNull();
   });
 
-  it('builds a 5–7 sentence Fließtext covering Schmerzlast, Verlauf, Triptan, Wetter und Doku', () => {
+  it('builds a short summary covering Schmerzlast, Triptan, ME/CFS und Doku', () => {
     const findings: NormalizedAnalysisFinding[] = [
       f({ id: 'course_trend.pain_burden', category: 'course_trend', title: 'Schmerzlast bleibt ähnlich' }),
       f({ id: 'medication_trend.acute_use', category: 'medication_trend', title: 'Triptan-Einnahmen seltener, Schmerzlast unverändert' }),
@@ -42,18 +42,18 @@ describe('buildAnalysisOverviewSummary', () => {
     expect(txt).toBeTruthy();
     expect(txt).toMatch(/29 von 30/);
     expect(txt).toMatch(/sehr hoch/);
-    expect(txt).toMatch(/Verlauf/i);
     expect(txt).toMatch(/Triptan/);
     expect(txt).toMatch(/ME\/CFS/);
-    expect(txt).toMatch(/Wetter/);
     expect(txt).toMatch(/Dokumentation/i);
+    expect(txt).not.toMatch(/Wirkungsbewertungen zu Medikamenten wurden/i);
+    expect(txt).not.toMatch(/Wetter/);
     // no diagnostic / harsh wording
     expect(txt).not.toMatch(/chronische Migräne/i);
     expect(txt).not.toMatch(/Diagnose/i);
     expect(txt).not.toMatch(/fehlende schmerzfreie/i);
-    // cap to ≤7 sentences
+    // cap to ≤4 sentences
     const sentences = txt.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0);
-    expect(sentences.length).toBeLessThanOrEqual(7);
+    expect(sentences.length).toBeLessThanOrEqual(4);
     expect(sentences.length).toBeGreaterThanOrEqual(3);
   });
 

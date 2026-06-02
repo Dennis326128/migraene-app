@@ -115,6 +115,90 @@ const isTriptanMention = (f: NormalizedAnalysisFinding): boolean => {
   return /triptan/.test(hay);
 };
 
+const isMedicationOverview = (f: Pick<NormalizedAnalysisFinding, "id" | "title">): boolean =>
+  f.id === "medication.usage_overview" || /^Medikamentengebrauch im Zeitraum$/i.test((f.title ?? "").trim());
+
+const TRIPTAN_AVOID_RE = /\b(triptan[-\s]?zur[üu]ckhaltung|triptan[-\s]?vermeid|kein(?:e[rn]?)?\s+triptan|verzicht\s+auf\s+triptan|ohne\s+triptan|akutstrategie|akutmedikation\s+vermeid)/i;
+
+const MED_EFFECT_CARD_RE =
+  /\b(?:gemischte\s+wirksamkeit|wirksamkeit\s+und\s+kontext|zeigt\s+wirkung|zeigt\s+hohe?\s+wirksamkeit|wirkt\s+(?:sehr\s+)?gut|wirksamer\s+schmerzlinderer|schlaf\s+als\s+wirksamer|alternative\s+zu\s+triptan|gezielter?\s+einsatz\s+von\s+diazepam|sumatriptan\s+zeigt|diazepam\s+zeigt|wirkung\s+nicht|wirkung\s+unklar)\b/i;
+
+function normalizeMedicationFinding(f: NormalizedAnalysisFinding): NormalizedAnalysisFinding {
+  if (isMedicationOverview(f)) return { ...f, title: "Medikamentengebrauch im Zeitraum", pinToTopical: true };
+  const hay = `${f.title} ${f.summary}`;
+  if (TRIPTAN_AVOID_RE.test(hay)) {
+    return {
+      ...f,
+      title: "Triptan-Zurückhaltung / veränderte Akutstrategie",
+      summary: "Die Einträge deuten auf Triptan-Zurückhaltung hin. Die Akutstrategie sollte ärztlich eingeordnet werden.",
+      limitations: [],
+      recommendedTrackingNext: [],
+      doctorDiscussionPoints: ["Triptan-Zurückhaltung und Akutstrategie besprechen."],
+      pinToTopical: true,
+    };
+  }
+  return f;
+}
+
+function finalizeMedicationSection(
+  curated: NormalizedAnalysisFinding[],
+  suppressed: Array<{ id: string; reason: string }>,
+): NormalizedAnalysisFinding[] {
+  const overview = curated.find(isMedicationOverview);
+  let triptanKept = false;
+  const out: NormalizedAnalysisFinding[] = [];
+  for (const raw of curated) {
+    const f = normalizeMedicationFinding(raw);
+    const isMedicationCategory =
+      f.category === "medication_use" || f.category === "medication_effect" || f.category === "preventive_course";
+    if (!isMedicationCategory) {
+      out.push(f);
+      continue;
+    }
+    if (isMedicationOverview(f)) {
+      if (!out.some(isMedicationOverview)) out.push(f);
+      else suppressed.push({ id: f.id, reason: "medication_overview_duplicate" });
+      continue;
+    }
+    const hay = `${f.title} ${f.summary} ${f.reasoning ?? ""}`;
+    if (overview && (f.category === "medication_effect" || MED_EFFECT_CARD_RE.test(hay))) {
+      suppressed.push({ id: f.id, reason: "medication_effect_integrated_into_overview" });
+      continue;
+    }
+    if (overview && f.id === "medication.acute_intakes") {
+      suppressed.push({ id: f.id, reason: "medication_intake_redundant_with_overview" });
+      continue;
+    }
+    if (overview) {
+      if (TRIPTAN_AVOID_RE.test(hay) && !triptanKept) {
+        triptanKept = true;
+        out.push(f);
+      } else {
+        suppressed.push({ id: f.id, reason: "medication_section_compacted" });
+      }
+      continue;
+    }
+    out.push(f);
+  }
+  const medicationItems = out.filter((f) =>
+    f.category === "medication_use" || f.category === "medication_effect" || f.category === "preventive_course",
+  ).sort((a, b) => {
+    const ao = isMedicationOverview(a) ? 0 : TRIPTAN_AVOID_RE.test(`${a.title} ${a.summary}`) ? 1 : 2;
+    const bo = isMedicationOverview(b) ? 0 : TRIPTAN_AVOID_RE.test(`${b.title} ${b.summary}`) ? 1 : 2;
+    return ao - bo;
+  });
+  if (medicationItems.length === 0) return out;
+  let insertedMedication = false;
+  return out.flatMap((f) => {
+    const isMedicationCategory =
+      f.category === "medication_use" || f.category === "medication_effect" || f.category === "preventive_course";
+    if (!isMedicationCategory) return [f];
+    if (insertedMedication) return [];
+    insertedMedication = true;
+    return medicationItems;
+  });
+}
+
 const isWeatherFinding = (f: NormalizedAnalysisFinding) => f.category === "weather";
 const isTimePattern = (f: NormalizedAnalysisFinding) => f.category === "time_pattern";
 const isBurden = (f: NormalizedAnalysisFinding) => f.category === "burden";
@@ -163,16 +247,52 @@ function getPainRatio(responseJson: unknown): number {
   return pain / documented;
 }
 
+function getMedicationIntakeCount(responseJson: unknown): number {
+  const v = (responseJson as any)?.analysisV21?.data_basis?.medication_intake_days;
+  return typeof v === "number" && isFinite(v) ? v : 0;
+}
+
+function buildBalancedOpenQuestions(
+  curated: NormalizedAnalysisFinding[],
+  existing: string[],
+  responseJson: unknown,
+): string[] {
+  const out: string[] = [];
+  const add = (q: string) => {
+    const k = q.toLowerCase().replace(/\s+/g, " ").trim();
+    if (!k || out.some((x) => x.toLowerCase().replace(/\s+/g, " ").trim() === k)) return;
+    out.push(q);
+  };
+  const hasNonWeatherClinicalFinding = curated.some((f) => f.category !== "weather" && f.category !== "data_quality");
+  if (hasNonWeatherClinicalFinding && getPainRatio(responseJson) >= 0.5) {
+    add("Hohe Kopfschmerzfrequenz und mögliche chronische Verlaufsform ärztlich einordnen.");
+  }
+  const hasTriptanSignal = curated.some((f) =>
+    (f.category === "medication_trend" || f.category === "medication_use" || f.category === "interaction") &&
+    (TRIPTAN_AVOID_RE.test(`${f.title} ${f.summary} ${f.reasoning ?? ""}`) ||
+      /triptan/i.test(`${f.title} ${f.summary}`) && /seltener|zur[üu]ckhalt/i.test(`${f.title} ${f.summary}`)),
+  );
+  if (hasTriptanSignal) add("Triptan-Zurückhaltung und Akutstrategie besprechen.");
+  if (getMedicationIntakeCount(responseJson) >= 10) {
+    add("Häufige Akutmedikation und mögliche Übergebrauchsrisiken einordnen.");
+  }
+  const hasMecfs = getMecfsDays(responseJson) >= 10 || curated.some((f) => f.category === "mecfs_energy_pem");
+  if (hasMecfs) add("ME/CFS-/Energiesignale im Zusammenhang mit Migräne besprechen.");
+  for (const q of existing) {
+    if (out.length >= MAX_OPEN_QUESTIONS) break;
+    if (/fr[üu]hzeitige\s+Einnahme|Optimierung\s+des\s+Einnahmezeitpunkts|Diazepam|Sumatriptan|Wetter/i.test(q)) continue;
+    add(q);
+  }
+  return out.slice(0, MAX_OPEN_QUESTIONS);
+}
+
 function rewriteMecfsGap(
   f: NormalizedAnalysisFinding,
   mecfsDays: number,
   documentedDays: number,
 ): NormalizedAnalysisFinding {
   if (f.category !== "mecfs_energy_pem") return f;
-  if (f.evidenceLevel !== "insufficient") return f;
   if (mecfsDays < 10) return f;
-  const txt = (f.title + " " + f.summary).toLowerCase();
-  if (!/nicht\s+(?:ausreichend\s+)?dokumentiert|keine\s+ausreichend|mangelnde/i.test(txt)) return f;
   const ofDays = documentedDays > 0 ? ` von ${documentedDays}` : "";
   return {
     ...f,
@@ -180,11 +300,12 @@ function rewriteMecfsGap(
     summary:
       `An ${mecfsDays}${ofDays} Tagen wurden ME/CFS- oder Energie-Signale dokumentiert. ` +
       `Das kann für die Gesamtbelastung relevant sein.`,
-    reasoning: "Ein klarer PEM-Zusammenhang lässt sich daraus nicht sicher ableiten.",
+    reasoning: undefined,
     evidenceLevel: "moderate",
     pinToTopical: true,
     limitations: [],
     recommendedTrackingNext: [],
+    doctorDiscussionPoints: ["ME/CFS-/Energiesignale im Zusammenhang mit Migräne besprechen."],
   };
 }
 
@@ -541,6 +662,23 @@ export function curateFindingsV22(
     });
   }
 
+  // 4b-iv-b) Hitze/Wetter nicht zusätzlich zeigen, wenn es nur als Teil
+  // eines ME/CFS-/Belastungs-/Erholungskontexts beschrieben wird.
+  if (hasMecfsBlock) {
+    const HEAT_RE = /\b(hitze|warm|hei[ßs]|schw[üu]le|temperatur)\b/i;
+    const BURDEN_CONTEXT_RE = /\b(belastung|[üu]berlastung|erholung|ruhe|erschöpf|fatigue|me\/?cfs|pem|energie|crash)\b/i;
+    const OWN_WEATHER_SIGNAL_RE = /\b(mehrfach|wiederholt|subjektiv(?:er|es)?|ausl[öo]ser|wetterf[üu]hlig|wetterwechsel)\b/i;
+    curated = curated.filter((f) => {
+      if (f.category !== "weather") return true;
+      const hay = `${f.title} ${f.summary} ${f.reasoning ?? ""}`;
+      if (HEAT_RE.test(hay) && BURDEN_CONTEXT_RE.test(hay) && !OWN_WEATHER_SIGNAL_RE.test(hay)) {
+        suppressed.push({ id: f.id, reason: "weather_heat_covered_by_mecfs_burden" });
+        return false;
+      }
+      return true;
+    });
+  }
+
   // 4b-v) Verlauf & Veränderung: kompakt halten.
   curated = curated.filter((f) => {
     if (f.category === "mecfs_energy_trend" && STABLE_TREND_RE.test(f.title)) {
@@ -569,6 +707,11 @@ export function curateFindingsV22(
   // 4d) Documentation summary supersedes negative data_quality cards
   // ("Mangel an …", "fehlende schmerzfreie Vergleichstage", "unzureichend …").
   curated = suppressNegativeDataQualityWhenFriendlySummary(curated, suppressed);
+
+  // 4e) Medikamente final kompakt: Übersicht zuerst, einzelne Wirkungs-
+  // Interpretationen in die Übersicht integrieren, maximal eine Triptan-
+  // Strategie-Karte zusätzlich.
+  curated = finalizeMedicationSection(curated, suppressed);
 
   // 5) Weather single-source — keep best, drop rest
   const weatherItems = curated.filter(isWeatherFinding);
@@ -675,7 +818,8 @@ export function curateFindingsV22(
   // forbidden wording (weather coverage counts, voice events,
   // "schmerzfreie Vergleichstage", diagnose wording, …) into UI or report.
   const hasFriendlyDocSummary = friendlyPresent;
-  const policy = applyOutputPolicy(curated, openQuestions, { hasFriendlyDocSummary });
+  const balancedOpenQuestions = buildBalancedOpenQuestions(curated, openQuestions, responseJson);
+  const policy = applyOutputPolicy(curated, balancedOpenQuestions, { hasFriendlyDocSummary });
   for (const r of policy.removed) suppressed.push(r);
 
   return { findings: policy.findings, openQuestions: policy.openQuestions, suppressed };
@@ -792,6 +936,14 @@ export function applySectionCaps<T extends { evidenceLevel: NormalizedAnalysisFi
   };
   const cap = capMap[section];
   if (cap == null || items.length <= cap) return items;
+  if (section === "medication") {
+    const overview = items.find((item) => isMedicationOverview(item as unknown as NormalizedAnalysisFinding));
+    const rest = items.filter((item) => item !== overview);
+    const ranked = [...rest]
+      .sort((a, b) => evidenceRank[b.evidenceLevel] - evidenceRank[a.evidenceLevel])
+      .slice(0, overview ? cap - 1 : cap);
+    return (overview ? [overview, ...ranked] : ranked) as T[];
+  }
   return [...items]
     .sort((a, b) => evidenceRank[b.evidenceLevel] - evidenceRank[a.evidenceLevel])
     .slice(0, cap);

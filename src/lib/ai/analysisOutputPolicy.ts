@@ -78,6 +78,11 @@ const BAN_ALWAYS: RegExp[] = [
   /\b(?:gezielter?\s+Einsatz|Einsatz)\s+(?:von\s+)?Diazepam\b[^.]{0,80}\bMigr[äa]ne/i,
   /\bDiazepam\b[^.]{0,80}\bMigr[äa]ne(?:behandlung|management|therapie)\b/i,
   /\bDiazepam\b[^.]{0,80}\bzur\s+Migr[äa]nebehandlung\s+geeignet\b/i,
+  /\bPatient(?:in)?\s+versucht\b/i,
+  /fr[üu]hzeitige\s+Einnahme\s+von\s+Akutmedikamenten/i,
+  /Optimierung\s+des\s+Einnahmezeitpunkts/i,
+  /Schlaf\s+als\s+wirksamer\s+Schmerzlinderer/i,
+  /\bSumatriptan\s+zeigt\s+Wirkung\b/i,
 ];
 
 /**
@@ -120,6 +125,18 @@ const BAN_SOFT: RegExp[] = [
   // Release-Polish (Summary): keine "wären zusätzliche Angaben hilfreich" mehr.
   /w[äa]ren\s+zus[äa]tzliche\s+Angaben[^.]{0,120}hilfreich/i,
   /f[üu]r\s+feinere\s+Zusammenh[äa]nge[^.]{0,120}(?:hilfreich|n[öo]tig|erforderlich)/i,
+  // Final release polish: generische Einschränkungen ohne Nutzwert.
+  /nicht\s+systematisch\s+erfasst/i,
+  /nicht\s+immer\s+pr[äa]zise\s+dokumentiert/i,
+  /fehl(?:en|t)\s+zur\s+weiteren\s+Absicherung/i,
+  /keine\s+detaillierten\s+Schlafdaten/i,
+  /Wirk(?:ung|samkeit)\s+nicht\s+detailliert/i,
+  /zeitliche\s+Abfolge/i,
+  /Tagesfaktoren\s+fehl(?:en|t)/i,
+  /detaillierte\s+PEM[-\s]?Daten\s+fehl(?:en|t)/i,
+  /nicht\s+eindeutig\s+beweisbar/i,
+  /kann\s+nicht\s+umfassend\s+bewertet\s+werden/i,
+  /nicht\s+umfassend\s+bewertet\s+werden/i,
 ];
 
 
@@ -216,9 +233,10 @@ function sanitizeFinding(f: NormalizedAnalysisFinding): NormalizedAnalysisFindin
   // Drop banned sentences from each text field; if a list item is fully
   // banned (hard OR soft), drop it entirely.
   const keepLine = (s: string) => !!s && !hasBannedText(s) && !hasSoftBannedText(s);
+  const cleanSummary = sanitizeOutputText(f.summary);
   return {
     ...f,
-    summary: sanitizeOutputText(f.summary) || f.summary,
+    summary: cleanSummary || (hasBannedText(f.summary) || hasSoftBannedText(f.summary) ? "" : f.summary),
     reasoning: f.reasoning ? sanitizeOutputText(f.reasoning) || undefined : undefined,
     limitations: f.limitations.map((l) => sanitizeOutputText(l)).filter(keepLine),
     recommendedTrackingNext: f.recommendedTrackingNext
@@ -256,6 +274,10 @@ export function applyOutputPolicy(
   for (const raw of findings) {
     if (findingIsBanned(raw)) {
       removed.push({ id: raw.id, reason: "policy_banned_content" });
+      continue;
+    }
+    if (!sanitizeOutputText(raw.summary) && hasSoftBannedText(`${raw.title} ${raw.summary}`)) {
+      removed.push({ id: raw.id, reason: "policy_soft_only_content" });
       continue;
     }
     if (

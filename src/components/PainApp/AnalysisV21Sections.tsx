@@ -220,7 +220,7 @@ export function AnalysisV21Sections({ responseJson, doctorShare = false, showVoi
 
             const highlightIds = new Set(highlights.map((h) => h.id));
             let secItems = dedupSection(grouped[key]);
-            if (key === "weaker" || key === "strongest") {
+            if (key !== "data_quality") {
               secItems = secItems.filter((f) => !highlightIds.has(f.id));
             }
             const items = applySectionCaps(key, secItems);

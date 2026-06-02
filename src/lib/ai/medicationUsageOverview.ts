@@ -57,7 +57,7 @@ function ratingToScore(rating: string | null | undefined): number | null {
  */
 function effectQualitative(avg: number): string {
   if (avg <= 1.5) return "subjektiv ohne klare Wirkung beschrieben";
-  if (avg <= 3.5) return "subjektiv gering wirksam beschrieben";
+  if (avg <= 3.5) return "subjektiv wenig hilfreich beschrieben";
   if (avg <= 5.5) return "subjektiv gemischt bewertet";
   if (avg <= 7.5) return "subjektiv überwiegend hilfreich bewertet";
   return "subjektiv häufig hilfreich bewertet";
@@ -128,9 +128,7 @@ export function aggregateMedicationUsage(
 
 /** Zeitraum-passender Titel ohne Mangel-Aussagen. */
 export function medicationUsageOverviewTitle(rangeDays: number): string {
-  if (rangeDays >= 6 && rangeDays <= 8) return "Medikamentengebrauch in den letzten 7 Tagen";
-  if (rangeDays >= 25 && rangeDays <= 33) return "Medikamentengebrauch in den letzten 30 Tagen";
-  if (rangeDays >= 85 && rangeDays <= 95) return "Medikamentengebrauch in den letzten 90 Tagen";
+  void rangeDays;
   return "Medikamentengebrauch im Zeitraum";
 }
 
