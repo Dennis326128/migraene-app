@@ -1769,7 +1769,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
       yPos -= 4;
     }
 
-    // D) Fuer das Arztgespraech (max 4)
+    // D) Für das Arztgespräch (max 4)
     if (aiPdfSummary.openQuestions.length > 0) {
       if (yPos < LAYOUT.margin + 80) {
         page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
