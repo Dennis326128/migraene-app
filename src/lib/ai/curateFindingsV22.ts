@@ -143,7 +143,38 @@ function normalizeMedicationFinding(f: NormalizedAnalysisFinding): NormalizedAna
 function finalizeMedicationSection(
   curated: NormalizedAnalysisFinding[],
   suppressed: Array<{ id: string; reason: string }>,
+  responseJson?: unknown,
 ): NormalizedAnalysisFinding[] {
+  // Defensive re-inject: when the deterministic overview exists in the
+  // stored analysisV21.findings but was dropped (dedup, LLM clobber, …),
+  // pull it back in so it can never silently disappear.
+  if (!curated.some(isMedicationOverview)) {
+    const rj = responseJson as any;
+    const detList = Array.isArray(rj?.analysisV21?.findings) ? rj.analysisV21.findings : [];
+    const detOverview = detList.find(
+      (x: any) => x && x.id === "medication.usage_overview" &&
+        typeof x.title === "string" && typeof x.plain_language_summary === "string",
+    );
+    if (detOverview) {
+      curated = [
+        {
+          id: "medication.usage_overview",
+          category: "medication_use",
+          section: "medication",
+          title: "Medikamentengebrauch im Zeitraum",
+          evidenceLevel: "moderate",
+          summary: String(detOverview.plain_language_summary),
+          limitations: [],
+          recommendedTrackingNext: [],
+          doctorDiscussionPoints: [],
+          source: "deterministic",
+          shouldShowInDoctorShare: true,
+          pinToTopical: true,
+        },
+        ...curated,
+      ];
+    }
+  }
   const overview = curated.find(isMedicationOverview);
   let triptanKept = false;
   const out: NormalizedAnalysisFinding[] = [];
