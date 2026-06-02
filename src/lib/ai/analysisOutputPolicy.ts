@@ -70,6 +70,19 @@ const BAN_ALWAYS: RegExp[] = [
   /\bdeterministisch(?:e[rnms]?)?\b/i,
   /\bVoranalyse\b/i,
   /\bDie\s+Analyse\s+zeigt\b/i,
+  // Generic uncertainty / "we'd need more data" boilerplate (Release-Polish).
+  // These add no practical value and contradict the "einfach dokumentieren"
+  // product goal. Dropped sentence-level by sanitizeOutputText / sanitizeFinding.
+  /ohne\s+vollständige\s+Dokumentation/i,
+  /fehlende\s+vollständige\s+Dokumentation/i,
+  /Verläufe\s+brauchen\s+längere\s+Zeiträume/i,
+  /Medikamenten[-\s]?Trend\s+allein/i,
+  /Wirksamkeit\s+wird\s+hier\s+nicht\s+bewertet/i,
+  /keine\s+Informationen\s+zur\s+Wirksamkeit/i,
+  /\bWirksamkeit\s+fehlt\b/i,
+  /nicht\s+aus\s+dem\s+Datensatz\s+ersichtlich/i,
+  /nicht\s+explizit\s+dokumentiert/i,
+  /\bDatenlage\s+erschwert\b/i,
 ];
 
 /** Forbidden only in data_quality findings when a friendly summary exists. */
