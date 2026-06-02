@@ -271,7 +271,7 @@ serve(async (req) => {
       
       const { data: recentLogs, error: cacheError } = await supabaseService
         .from('weather_logs')
-        .select('id, latitude, longitude, created_at, temperature_c')
+        .select('id, latitude, longitude, created_at, temperature_c, pressure_mb, pressure_change_24h')
         .eq('user_id', userId)
         .gte('created_at', requestedHour.toISOString())
         .lte('created_at', hourEndUTC.toISOString())
