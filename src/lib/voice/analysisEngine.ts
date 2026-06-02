@@ -15,6 +15,10 @@ import { validateAnalysisResult, isAnalysisUnavailable, type VoiceAnalysisResult
 import { buildAnalysisReportV21 } from '@/lib/ai/buildAnalysisReportV21';
 import { buildTrendDaysFromEntries, type TrendDayRecord } from '@/lib/ai/trendAnalysis';
 import { ANALYSIS_V21_SCHEMA, ANALYSIS_V21_VERSION } from '@/lib/ai/analysisTypes';
+import {
+  aggregateMedicationUsage,
+  formatMedicationUsageSummary,
+} from '@/lib/ai/medicationUsageOverview';
 
 // ============================================================
 // === CONSTANTS ===
