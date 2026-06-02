@@ -1,18 +1,21 @@
 /**
- * analysisCore.ts
+ * analysisCore.ts — LEGACY / NICHT MEHR LIVE
  *
- * Shared LLM core for voice-pattern analysis.
- * Used by:
- *   - analyze-voice-patterns          (App, JWT auth)
- *   - analyze-voice-patterns-shared   (Doctor share, HMAC auth)
+ * Status: Dieser Prompt + LLM-Pfad wird seit V2.2 NICHT mehr aufgerufen.
+ * Live-Pfad ist:
+ *   analyze-voice-patterns/index.ts        → runPatternAnalysisV22
+ *   analyze-voice-patterns-shared/index.ts → runPatternAnalysisV22
+ *                                            (patternAnalysisBuilder.ts)
  *
- * NO data fetching, NO consent check — purely:
- *   1) Prompt + tool schema
- *   2) LLM call
- *   3) Extraction + validation
- *   4) Unavailable-result builder
+ * Diese Datei bleibt aus zwei Gründen erhalten:
+ *   1) Referenz für die "weniger ist mehr"-Leitlinie (inzwischen in
+ *      patternAnalysisBuilder.buildSystemPrompt übernommen).
+ *   2) Schema/Validator-Hilfen (ANALYSIS_TOOL, extractAnalysisFromLLMResponse,
+ *      validateExtractedResult, buildUnavailableResult) — falls je ein
+ *      Fallback-Pfad ohne V2.2-Envelope nötig wird.
  *
- * Keep this file deterministic and side-effect-free apart from the LLM fetch.
+ * NICHT mehr als aktive Analysequelle pflegen. Keine neuen Produktregeln
+ * hier ergänzen — alle Prompt-Änderungen gehören in patternAnalysisBuilder.ts.
  */
 
 export const MAX_CONTEXT_CHARS = 120_000;
