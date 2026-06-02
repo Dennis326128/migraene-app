@@ -29,6 +29,12 @@ import type { ServerDataset } from "./serverAnalysisDataset.ts";
 import { computeTrendAnalysis, buildTrendDaysFromEntries, type TrendDayRecord, type TrendResult } from "./trendAnalysis.ts";
 import { computeDocumentationSummary } from "./documentationSummary.ts";
 import { buildCourseTrendFindings } from "./buildCourseTrendFindings.ts";
+import {
+  aggregateMedicationUsage,
+  buildMedicationUsageOverviewFinding,
+  formatMedicationUsageSummary,
+  type MedicationUsageEntry,
+} from "./medicationUsageOverview.ts";
 export { buildTrendDaysFromEntries } from "./trendAnalysis.ts";
 
 
