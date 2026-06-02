@@ -70,9 +70,21 @@ const BAN_ALWAYS: RegExp[] = [
   /\bdeterministisch(?:e[rnms]?)?\b/i,
   /\bVoranalyse\b/i,
   /\bDie\s+Analyse\s+zeigt\b/i,
-  // Generic uncertainty / "we'd need more data" boilerplate (Release-Polish).
-  // These add no practical value and contradict the "einfach dokumentieren"
-  // product goal. Dropped sentence-level by sanitizeOutputText / sanitizeFinding.
+];
+
+/**
+ * Soft bans — generic uncertainty / "we'd need more data" boilerplate
+ * (Release-Polish). These add no practical value and contradict the
+ * "einfach dokumentieren" product goal.
+ *
+ * Important difference vs BAN_ALWAYS:
+ *   - sentences containing these phrases are DROPPED by sanitizeOutputText
+ *   - list items containing them are DROPPED by sanitizeFinding
+ *   - but a whole finding card is NOT dropped just because the soft phrase
+ *     appears in its summary (we still want to keep e.g. a Triptan card,
+ *     just without the unnecessary "Gründe nicht aus dem Datensatz" tail).
+ */
+const BAN_SOFT: RegExp[] = [
   /ohne\s+vollständige\s+Dokumentation/i,
   /fehlende\s+vollständige\s+Dokumentation/i,
   /Verläufe\s+brauchen\s+längere\s+Zeiträume/i,
@@ -84,6 +96,7 @@ const BAN_ALWAYS: RegExp[] = [
   /nicht\s+explizit\s+dokumentiert/i,
   /\bDatenlage\s+erschwert\b/i,
 ];
+
 
 /** Forbidden only in data_quality findings when a friendly summary exists. */
 const BAN_NEGATIVE_DQ: RegExp[] = [
