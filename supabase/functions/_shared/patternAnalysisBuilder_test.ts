@@ -212,8 +212,10 @@ Deno.test("live prompt: no '10–24 findings' mandatory rule", () => {
 Deno.test("live prompt: no 'jede Sektion muss bearbeitet werden' rule", () => {
   const p = buildSystemPrompt(PROMPT_META);
   assert(!/JEDE\s+Kategorie\s+MUSS/i.test(p));
-  assert(!/PFLICHTSEKTIONEN/i.test(p));
-  assert(!/PFLICHTBEREICHE/i.test(p));
+  // Only the negation form ("KEINE Pflichtsektionen") may appear:
+  assert(!/(^|\n)\s*PFLICHTSEKTIONEN/i.test(p));
+  assert(!/(^|\n)\s*PFLICHTBEREICHE/i.test(p));
+  assertStringIncludes(p, "KEINE Pflichtsektionen");
 });
 
 Deno.test("live prompt: explicitly allows empty arrays", () => {
