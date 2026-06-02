@@ -256,6 +256,24 @@ export async function getAnalysisDataset(range: AnalysisTimeRange): Promise<Full
   // Compute linkage metadata
   const linkedCount = voiceEvents.filter(e => e.related_entry_id !== null).length;
 
+  // Release-Polish: count user-rated medication effects in range.
+  // Pure read, owner-scoped via RLS (medication_effects RLS joins through
+  // pain_entries.user_id). Used to suppress "Wirksamkeit wird hier nicht
+  // bewertet" boilerplate when the user already rated at least one med.
+  let medicationEffectRatedCount = 0;
+  try {
+    const entryIds = painEntries.map((p) => p.id);
+    if (entryIds.length > 0) {
+      const { count } = await supabase
+        .from('medication_effects')
+        .select('id', { count: 'exact', head: true })
+        .in('entry_id', entryIds);
+      medicationEffectRatedCount = count ?? 0;
+    }
+  } catch (e) {
+    console.warn('[AnalysisAccess] medication_effects count failed (non-fatal):', e);
+  }
+
   return {
     voiceEvents,
     painEntries,
@@ -269,6 +287,7 @@ export async function getAnalysisDataset(range: AnalysisTimeRange): Promise<Full
       contextNoteCount: contextNotes.length,
       linkedVoiceEventCount: linkedCount,
       unlinkedVoiceEventCount: voiceEvents.length - linkedCount,
+      medicationEffectRatedCount,
     },
   };
 }
