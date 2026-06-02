@@ -150,6 +150,23 @@ export function normalizeAnalysisFindings(
     out.push(f);
   };
 
+  // Deterministic findings whose presence in the rendered output is part of
+  // the product contract — they MUST never be silently dedup-displaced by
+  // a similarly named LLM-expanded finding.
+  const RESERVED_DETERMINISTIC_IDS = new Set<string>([
+    "medication.usage_overview",
+    "data_quality.diary_coverage",
+  ]);
+
+  // 2) Deterministic V2.1 — reserved IDs first
+  const det = v21 && Array.isArray((v21 as any).findings)
+    ? ((v21 as any).findings as Array<Record<string, unknown>>)
+    : [];
+  for (const raw of det) {
+    const f = mapDeterministic(raw);
+    if (f && RESERVED_DETERMINISTIC_IDS.has(f.id)) pushIfNew(f);
+  }
+
   // 1) LLM expanded
   const expanded = v21 && Array.isArray((v21 as any).llm_expanded_findings)
     ? ((v21 as any).llm_expanded_findings as Array<Record<string, unknown>>)
@@ -159,13 +176,10 @@ export function normalizeAnalysisFindings(
     if (f) pushIfNew(f);
   }
 
-  // 2) Deterministic V2.1
-  const det = v21 && Array.isArray((v21 as any).findings)
-    ? ((v21 as any).findings as Array<Record<string, unknown>>)
-    : [];
+  // 2b) Remaining deterministic
   for (const raw of det) {
     const f = mapDeterministic(raw);
-    if (f) pushIfNew(f);
+    if (f && !RESERVED_DETERMINISTIC_IDS.has(f.id)) pushIfNew(f);
   }
 
   // 3) Legacy fallback — only when no V2.1 at all
