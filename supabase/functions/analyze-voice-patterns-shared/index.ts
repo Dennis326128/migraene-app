@@ -142,19 +142,24 @@ Deno.serve(async (req) => {
       lastAnalysisAtISO: lastReportRow?.created_at ?? null,
     });
 
-    if (!gate.allowed) {
-      const gateMap: Record<string, { code: string; status: number; msg: string }> = {
-        share_inactive:            { code: 'SHARE_INACTIVE',            status: 403, msg: 'Die Freigabe ist nicht aktiv.' },
-        share_expired:             { code: 'SHARE_EXPIRED',             status: 403, msg: 'Die Freigabe ist abgelaufen.' },
-        ai_analysis_not_included:  { code: 'AI_ANALYSIS_NOT_INCLUDED',  status: 403, msg: 'KI-Analyse ist für diese Freigabe nicht aktiviert.' },
-        ai_generation_not_allowed: { code: 'AI_GENERATE_NOT_ALLOWED',   status: 403, msg: 'Diese Freigabe erlaubt keine neuen KI-Analysen über die Website.' },
-        cooldown_active:           { code: 'ANALYSIS_COOLDOWN_ACTIVE',  status: 429, msg: 'Eine Analyse wurde gerade erstellt. Bitte später erneut versuchen.' },
-      };
+    const gateMap: Record<string, { code: string; status: number; msg: string }> = {
+      share_inactive:            { code: 'SHARE_INACTIVE',            status: 403, msg: 'Die Freigabe ist nicht aktiv.' },
+      share_expired:             { code: 'SHARE_EXPIRED',             status: 403, msg: 'Die Freigabe ist abgelaufen.' },
+      ai_analysis_not_included:  { code: 'AI_ANALYSIS_NOT_INCLUDED',  status: 403, msg: 'KI-Analyse ist für diese Freigabe nicht aktiviert.' },
+      ai_generation_not_allowed: { code: 'AI_GENERATE_NOT_ALLOWED',   status: 403, msg: 'Diese Freigabe erlaubt keine neuen KI-Analysen über die Website.' },
+      cooldown_active:           { code: 'ANALYSIS_COOLDOWN_ACTIVE',  status: 429, msg: 'Eine Analyse wurde gerade erstellt. Bitte später erneut versuchen.' },
+    };
+    const respondGateBlocked = () => {
       const r = gateMap[gate.reason] ?? { code: 'AI_GENERATE_NOT_ALLOWED', status: 403, msg: 'Analyse aktuell nicht möglich.' };
       console.log(`[shared-ai] gate_blocked reason=${gate.reason} owner=${shortId(ownerUserId)} share=${shortId(shareId)}`);
       const body: Record<string, unknown> = { error: r.msg, code: r.code };
       if (gate.reason === 'cooldown_active' && gate.waitMinutes) body.waitMinutes = gate.waitMinutes;
       return json(body, r.status);
+    };
+
+    // Hard share gates short-circuit immediately (cooldown is soft — reuse first)
+    if (!gate.allowed && gate.reason !== 'cooldown_active') {
+      return respondGateBlocked();
     }
 
     // 4. Owner profile gate (App-side AI disable)
@@ -167,12 +172,44 @@ Deno.serve(async (req) => {
     const range = shareSettings?.range_preset ?? shareRow?.default_range ?? '3m';
     const { from, to } = rangeToDates(range);
 
-    // 5b. Quota check on PATIENT account (no cooldown for Doctor-Share)
+    // 5a. Idempotency — if a fresh analysis for this exact window + data
+    //     signature already exists, return it without consuming a credit
+    //     or hitting the LLM. Cooldown does NOT block reuse.
+    const dedupeKey = `pattern_analysis_${from}_${to}`;
+    const ds = await computeDataStateSignature(supabase, ownerUserId, from, to);
+    const { data: existingRow } = await supabase
+      .from('ai_reports')
+      .select('id,response_json,created_at')
+      .eq('user_id', ownerUserId)
+      .eq('report_type', 'pattern_analysis')
+      .eq('dedupe_key', dedupeKey)
+      .eq('data_state_signature', ds.signature)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existingRow?.response_json) {
+      try {
+        await supabase.from('doctor_share_report_snapshots')
+          .update({ is_stale: true })
+          .eq('share_id', shareId);
+      } catch { /* non-fatal */ }
+      console.log(`[shared-ai] reused owner=${shortId(ownerUserId)} share=${shortId(shareId)} sig=${ds.signature.slice(0, 8)}…`);
+      return json({ reused: true, ...(existingRow.response_json as Record<string, unknown>) }, 200);
+    }
+
+    // 5b. No reusable analysis — if cooldown was the only blocker, surface it now
+    if (!gate.allowed) {
+      return respondGateBlocked();
+    }
+
+    // 5c. Quota check on PATIENT account (no cooldown for Doctor-Share)
     const quotaCheck = await checkPatternAnalysisQuota(supabase, ownerUserId, { enforceCooldown: false });
     if (!quotaCheck.allowed) {
       console.log(`[shared-ai] quota_blocked owner=${shortId(ownerUserId)} reason=${quotaCheck.blockedReason}`);
       return json(quotaErrorBody(quotaCheck), quotaCheck.status ?? 429);
     }
+
 
     // 6. Build dataset
     const dataset = await buildServerAnalysisDataset(supabase, ownerUserId, from, to);
