@@ -161,6 +161,18 @@ function pickHighlights(findings: NormalizedAnalysisFinding[]): NormalizedAnalys
     .slice(0, MAX_HIGHLIGHTS);
 }
 
+function safeSummaryFallback(daysAnalyzed: number): string {
+  return daysAnalyzed > 0
+    ? `Im analysierten ${daysAnalyzed}-Tage-Zeitraum wurden die dokumentierten Daten ausgewertet.`
+    : "Im analysierten Zeitraum wurden die dokumentierten Daten ausgewertet.";
+}
+
+function safeHighlightLine(raw: string): string {
+  const t = truncateSentences(raw, 1, MAX_HIGHLIGHT_LINE_CHARS);
+  if (!t || looksFragmented(t)) return "";
+  return t;
+}
+
 function buildFromV21(responseJson: Record<string, unknown>): AiPdfSummary | null {
   const raw = normalizeAnalysisFindings(responseJson);
   const curated = curateFindingsV22(raw, responseJson);
@@ -169,12 +181,16 @@ function buildFromV21(responseJson: Record<string, unknown>): AiPdfSummary | nul
     findings: curated.findings,
   });
   const summarySource = overview || (typeof responseJson.summary === "string" ? responseJson.summary : "");
-  const summary = sanitizeOutputText(truncateSentences(summarySource, MAX_SUMMARY_SENTENCES, MAX_SUMMARY_CHARS));
+  const scope = (responseJson.scope as { daysAnalyzed?: number } | undefined) ?? {};
+  const days = scope.daysAnalyzed ?? 0;
+
+  let summary = sanitizeOutputText(truncateSentences(summarySource, MAX_SUMMARY_SENTENCES, MAX_SUMMARY_CHARS));
+  if (!summary) summary = safeSummaryFallback(days);
 
   const top = pickHighlights(curated.findings);
   const highlights = top.map((f) => ({
     title: sanitizeOutputText(clip(f.title, 80)),
-    line: sanitizeOutputText(truncateSentences(f.summary, 1, MAX_HIGHLIGHT_LINE_CHARS)),
+    line: sanitizeOutputText(safeHighlightLine(f.summary)),
   }));
 
   const openQuestions = curated.openQuestions
@@ -184,23 +200,22 @@ function buildFromV21(responseJson: Record<string, unknown>): AiPdfSummary | nul
   if (!summary && highlights.length === 0 && openQuestions.length === 0) return null;
 
   const meta = (responseJson.meta as { analyzedAt?: string } | undefined) ?? {};
-  const scope = (responseJson.scope as { daysAnalyzed?: number } | undefined) ?? {};
 
   return {
     summary,
     highlights,
     openQuestions,
     analyzedAt: meta.analyzedAt ?? "",
-    daysAnalyzed: scope.daysAnalyzed ?? 0,
+    daysAnalyzed: days,
   };
 }
 
 function buildFromLegacy(responseJson: Record<string, unknown>): AiPdfSummary | null {
-  const summary = typeof responseJson.summary === "string" ? responseJson.summary : "";
+  const summaryRaw = typeof responseJson.summary === "string" ? responseJson.summary : "";
   const patterns = Array.isArray((responseJson as any).possiblePatterns)
     ? ((responseJson as any).possiblePatterns as Array<{ title?: string; description?: string; evidenceStrength?: string }>)
     : [];
-  if (!summary && patterns.length === 0) return null;
+  if (!summaryRaw && patterns.length === 0) return null;
 
   const rank: Record<string, number> = { high: 3, medium: 2, low: 1 };
   const sorted = [...patterns].sort(
@@ -209,7 +224,7 @@ function buildFromLegacy(responseJson: Record<string, unknown>): AiPdfSummary | 
 
   const highlights = sorted.slice(0, MAX_HIGHLIGHTS).map((p) => ({
     title: sanitizeOutputText(clip(String(p.title ?? ""), 80)),
-    line: sanitizeOutputText(truncateSentences(String(p.description ?? ""), 1, MAX_HIGHLIGHT_LINE_CHARS)),
+    line: sanitizeOutputText(safeHighlightLine(String(p.description ?? ""))),
   }));
 
   const openQuestions = (Array.isArray((responseJson as any).openQuestions)
@@ -221,13 +236,17 @@ function buildFromLegacy(responseJson: Record<string, unknown>): AiPdfSummary | 
 
   const meta = (responseJson.meta as { analyzedAt?: string } | undefined) ?? {};
   const scope = (responseJson.scope as { daysAnalyzed?: number } | undefined) ?? {};
+  const days = scope.daysAnalyzed ?? 0;
+
+  let summary = sanitizeOutputText(truncateSentences(summaryRaw, MAX_SUMMARY_SENTENCES, MAX_SUMMARY_CHARS));
+  if (!summary) summary = safeSummaryFallback(days);
 
   return {
-    summary: sanitizeOutputText(truncateSentences(summary, MAX_SUMMARY_SENTENCES, MAX_SUMMARY_CHARS)),
+    summary,
     highlights,
     openQuestions,
     analyzedAt: meta.analyzedAt ?? "",
-    daysAnalyzed: scope.daysAnalyzed ?? 0,
+    daysAnalyzed: days,
   };
 }
 
