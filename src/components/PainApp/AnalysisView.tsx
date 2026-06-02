@@ -481,11 +481,11 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
                       <div className="flex-1">
                         <h4 className="font-medium mb-1">Tiefere Analyse?</h4>
                         <p className="text-sm text-muted-foreground mb-3">
-                          Im Tab <strong>„KI-Analyse"</strong> erstellt die KI einen detaillierten Bericht über mögliche Muster und Trigger.
+                          Im Tab <strong>„Mustererkennung (KI)"</strong> erstellt die KI einen detaillierten Bericht über mögliche Muster und Trigger.
                         </p>
                         <Button variant="outline" size="sm" onClick={() => setViewMode("ki-analyse")}>
                           <Brain className="h-4 w-4 mr-2" />
-                          KI-Analysebericht
+                          Mustererkennung öffnen
                         </Button>
                       </div>
                     </div>
