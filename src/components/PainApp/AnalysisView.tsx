@@ -498,7 +498,7 @@ export function AnalysisView({ onBack, onNavigateToLimits, onNavigateToBurden, o
           </TabsContent>
 
           <TabsContent value="ki-analyse" className="mt-6">
-            <MigrainePatternAnalysis />
+            <MigrainePatternAnalysis autoRun={autoRunAi && viewMode === "ki-analyse"} />
           </TabsContent>
         </Tabs>
       </div>
