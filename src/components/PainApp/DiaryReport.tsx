@@ -100,7 +100,7 @@ const DEFAULT_SETTINGS: Omit<ReportSettingsState, 'customStart' | 'customEnd'> =
   lastDoctorIds: [],
 };
 
-export default function DiaryReport({ onBack, onNavigate }: { onBack: () => void; onNavigate?: (target: string) => void }) {
+export default function DiaryReport({ onBack, onNavigate, initialIncludeAI, initialAiOnly }: { onBack: () => void; onNavigate?: (target: string) => void; initialIncludeAI?: boolean; initialAiOnly?: boolean }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   
