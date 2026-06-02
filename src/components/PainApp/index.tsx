@@ -211,7 +211,11 @@ export const PainApp: React.FC = () => {
       {/* Lazy-loaded views with Suspense */}
       {view === "analysis" && withSuspense(
         <LazyAnalysisView 
-          onBack={goHome}
+          onBack={() => {
+            setAnalysisAutoRunAi(false);
+            setAnalysisInitialTab(undefined);
+            goHome();
+          }}
           onNavigateToLimits={handleNavigateToLimits}
           onNavigateToMedicationHistory={(medicationName, rangeOverride) => {
             setDiaryInitialMedication(medicationName);
@@ -222,6 +226,8 @@ export const PainApp: React.FC = () => {
             setSelectedAIReport(report);
             setView('ai-report-detail');
           }}
+          initialTab={analysisInitialTab}
+          autoRunAi={analysisAutoRunAi}
         />,
         "Auswertung laden..."
       )}
