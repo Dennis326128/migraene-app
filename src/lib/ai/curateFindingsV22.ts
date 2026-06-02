@@ -268,7 +268,8 @@ function buildBalancedOpenQuestions(
   }
   const hasTriptanSignal = curated.some((f) =>
     (f.category === "medication_trend" || f.category === "medication_use" || f.category === "interaction") &&
-    TRIPTAN_AVOID_RE.test(`${f.title} ${f.summary} ${f.reasoning ?? ""}`),
+    (TRIPTAN_AVOID_RE.test(`${f.title} ${f.summary} ${f.reasoning ?? ""}`) ||
+      /triptan/i.test(`${f.title} ${f.summary}`) && /seltener|zur[üu]ckhalt/i.test(`${f.title} ${f.summary}`)),
   );
   if (hasTriptanSignal) add("Triptan-Zurückhaltung und Akutstrategie besprechen.");
   if (getMedicationIntakeCount(responseJson) >= 10) {
