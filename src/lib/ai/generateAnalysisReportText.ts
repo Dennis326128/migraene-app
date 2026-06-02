@@ -67,10 +67,9 @@ const SECTION_TITLES: Array<{ key: AnalysisSectionKey; title: string }> = [
 ];
 
 const LIMITS_DISCLAIMER =
-  "Diese Analyse ersetzt keine ärztliche Beurteilung. Sie zeigt Hinweise " +
-  "aus dokumentierten Daten und keine Diagnosen. Besonders Wetter-, " +
-  "Trigger- und PEM-Zusammenhänge bleiben eingeschränkt, wenn " +
-  "Vergleichstage oder Detaildaten fehlen.";
+  "Diese Analyse ersetzt keine ärztliche Beurteilung. Sie zeigt Hinweise aus " +
+  "dokumentierten Daten. Bei plötzlich neuartigen, sehr starken oder anhaltenden " +
+  "Beschwerden bitte ärztlich abklären lassen.";
 
 export function generateAnalysisReportText(responseJson: unknown): string {
   if (!responseJson || typeof responseJson !== "object") return "";
