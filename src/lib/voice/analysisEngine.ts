@@ -15,6 +15,10 @@ import { validateAnalysisResult, isAnalysisUnavailable, type VoiceAnalysisResult
 import { buildAnalysisReportV21 } from '@/lib/ai/buildAnalysisReportV21';
 import { buildTrendDaysFromEntries, type TrendDayRecord } from '@/lib/ai/trendAnalysis';
 import { ANALYSIS_V21_SCHEMA, ANALYSIS_V21_VERSION } from '@/lib/ai/analysisTypes';
+import {
+  aggregateMedicationUsage,
+  formatMedicationUsageSummary,
+} from '@/lib/ai/medicationUsageOverview';
 
 // ============================================================
 // === CONSTANTS ===
@@ -111,6 +115,8 @@ export interface PreAnalysis {
     /** Number of user-rated medication effect entries in range. ≥1 = user
      *  already rated at least one med; suppress "Wirksamkeit nicht bewertet". */
     effectRatedCount?: number;
+    /** Aggregierte „Medikamentengebrauch im Zeitraum"-Übersicht. */
+    usageOverview?: import("@/lib/ai/medicationUsageOverview").MedicationUsageEntry[];
     note: string;
   };
   dataQuality: {
@@ -180,6 +186,10 @@ export async function buildAnalysisPromptData(range: AnalysisTimeRange): Promise
       intakeCount: dataset.meta.medicationIntakeCount ?? 0,
       highPainEntries: 0, highPainWithMed: 0, highPainWithoutMed: 0,
       effectRatedCount: dataset.meta.medicationEffectRatedCount ?? 0,
+      usageOverview: aggregateMedicationUsage(
+        dataset.medicationIntakes ?? [],
+        dataset.medicationEffects ?? [],
+      ),
       note: '',
     },
     dataQuality: {
@@ -331,9 +341,13 @@ export async function buildAnalysisPromptData(range: AnalysisTimeRange): Promise
     preAnalysis.medication.highPainEntries = highPain;
     preAnalysis.medication.highPainWithMed = highPainMed;
     preAnalysis.medication.highPainWithoutMed = highPain - highPainMed;
-    preAnalysis.medication.note = highPain > 0
+    const usageSummary = formatMedicationUsageSummary(preAnalysis.medication.usageOverview ?? []);
+    const baseMedNote = highPain > 0
       ? `Schmerz ≥ 7: ${highPain} Einträge, davon mit dokumentiertem Akutmedikament: ${highPainMed} (${Math.round((highPainMed/highPain)*100)}%). Ohne Medikament: ${highPain - highPainMed}. Insgesamt ${dataset.meta.medicationIntakeCount} Medikamenteneinnahmen erfasst.`
       : `Keine Einträge mit Schmerz ≥ 7 im Zeitraum. Insgesamt ${dataset.meta.medicationIntakeCount} Medikamenteneinnahmen erfasst.`;
+    preAnalysis.medication.note = usageSummary
+      ? `${baseMedNote}\nMedikamentengebrauch im Zeitraum:\n${usageSummary}`
+      : baseMedNote;
 
     // --- ME/CFS coverage ---
     preAnalysis.mecfs.note = preAnalysis.mecfs.daysWithMecfs > 0

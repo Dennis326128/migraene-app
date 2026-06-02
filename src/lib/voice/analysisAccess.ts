@@ -79,6 +79,18 @@ export interface MedicationIntakeForAnalysis {
   dose_quarters: number;
 }
 
+/** Medication effect row used by the usage overview aggregator. */
+export interface MedicationEffectForAnalysis {
+  id: string;
+  entry_id: number;
+  med_name: string;
+  effect_score: number | null;
+  effect_rating: string | null;
+  notes: string | null;
+  side_effects: string[] | null;
+  updated_at: string | null;
+}
+
 /** Context note from "Alltag & Auslöser" form (voice_notes with context_type) */
 export interface ContextNoteForAnalysis {
   id: string;
@@ -117,6 +129,8 @@ export interface FullAnalysisDataset {
   medicationIntakes: MedicationIntakeForAnalysis[];
   /** Context notes from "Alltag & Auslöser" (with fatigue/energy metadata) */
   contextNotes: ContextNoteForAnalysis[];
+  /** Raw medication effect rows (rating + optional notes) for the range. */
+  medicationEffects?: MedicationEffectForAnalysis[];
   /** Metadata for the dataset */
   meta: {
     range: AnalysisTimeRange;
@@ -128,9 +142,6 @@ export interface FullAnalysisDataset {
     linkedVoiceEventCount: number;
     /** Voice events without a structured counterpart (everyday observations) */
     unlinkedVoiceEventCount: number;
-    /** Number of medication intakes (or pain entries) with a user-rated
-     *  effect entry in medication_effects within the range. 0 = no
-     *  effect ratings, ≥1 = user has rated at least one med. */
     /** Number of pain entries that have at least one user-rated effect entry
      *  in medication_effects within the range. 0 = no effect ratings,
      *  ≥1 = user has rated at least one med. Optional for backwards-compat
@@ -256,22 +267,27 @@ export async function getAnalysisDataset(range: AnalysisTimeRange): Promise<Full
   // Compute linkage metadata
   const linkedCount = voiceEvents.filter(e => e.related_entry_id !== null).length;
 
-  // Release-Polish: count user-rated medication effects in range.
-  // Pure read, owner-scoped via RLS (medication_effects RLS joins through
-  // pain_entries.user_id). Used to suppress "Wirksamkeit wird hier nicht
-  // bewertet" boilerplate when the user already rated at least one med.
+  // Release-Polish: load actual medication_effects rows (not just count)
+  // so the analysis can use rating + optional notes per medication.
+  // Owner-scoped via RLS (joins through pain_entries.user_id).
+  let medicationEffects: MedicationEffectForAnalysis[] = [];
   let medicationEffectRatedCount = 0;
   try {
     const entryIds = painEntries.map((p) => p.id);
     if (entryIds.length > 0) {
-      const { count } = await supabase
+      const { data: effRows } = await supabase
         .from('medication_effects')
-        .select('id', { count: 'exact', head: true })
+        .select('id, entry_id, med_name, effect_score, effect_rating, notes, side_effects, updated_at')
         .in('entry_id', entryIds);
-      medicationEffectRatedCount = count ?? 0;
+      medicationEffects = (effRows ?? []) as MedicationEffectForAnalysis[];
+      medicationEffectRatedCount = medicationEffects.filter(
+        (e) =>
+          (typeof e.effect_score === 'number' && isFinite(e.effect_score)) ||
+          (typeof e.effect_rating === 'string' && e.effect_rating.length > 0),
+      ).length;
     }
   } catch (e) {
-    console.warn('[AnalysisAccess] medication_effects count failed (non-fatal):', e);
+    console.warn('[AnalysisAccess] medication_effects fetch failed (non-fatal):', e);
   }
 
   return {
@@ -279,6 +295,7 @@ export async function getAnalysisDataset(range: AnalysisTimeRange): Promise<Full
     painEntries,
     medicationIntakes,
     contextNotes,
+    medicationEffects,
     meta: {
       range,
       voiceEventCount: voiceEvents.length,
@@ -291,6 +308,7 @@ export async function getAnalysisDataset(range: AnalysisTimeRange): Promise<Full
     },
   };
 }
+
 
 /**
  * Reconstructs a temporal chain of events for a given session.

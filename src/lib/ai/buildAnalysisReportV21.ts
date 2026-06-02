@@ -25,6 +25,7 @@ import {
   type TrendDayRecord,
 } from "./trendAnalysis";
 import { buildCourseTrendFindings } from "./buildCourseTrendFindings";
+import { buildMedicationUsageOverviewFinding } from "./medicationUsageOverview";
 
 export interface BuildReportV21Input {
   fromISO: string;
@@ -160,9 +161,26 @@ export function buildAnalysisReportV21(input: BuildReportV21Input): AnalysisRepo
     should_show_in_doctor_share: true,
   });
 
-  // ── 4. Medikamentennutzung ───────────────────────────────────────
+  // ── 4a. Medikamentengebrauch im Zeitraum (kompakte Übersicht) ────
+  // Release-Polish: erste Karte in „Medikamente & Wirkung". Nur wenn
+  // tatsächlich Einnahmen dokumentiert wurden. Wirkung nur dann, wenn
+  // Bewertungen vorhanden sind – keine Mangel-Aussagen.
+  const usageFinding = buildMedicationUsageOverviewFinding(
+    pre.medication.usageOverview ?? [],
+    daysTotal,
+  );
+  if (usageFinding) findings.push(usageFinding);
+
+  // ── 4b. Medikamentennutzung (deterministisch, ohne Pflichthinweise) ──
   const intakeCount = pre.medication.intakeCount ?? 0;
+  const effectRated = pre.medication.effectRatedCount ?? 0;
   const acuteEvidence: AnalysisFinding["evidence_level"] = intakeCount >= 3 ? "low" : "insufficient";
+  const acuteLimitations: string[] = [];
+  if (intakeCount >= 10) {
+    acuteLimitations.push(
+      "Häufige Akutmedikation kann auf ein Übergebrauchsrisiko hinweisen – ärztlich einordnen.",
+    );
+  }
   findings.push({
     id: "medication.acute_intakes",
     category: "medication_use",
@@ -172,9 +190,9 @@ export function buildAnalysisReportV21(input: BuildReportV21Input): AnalysisRepo
     patient_relevance: "high",
     direction: "not_applicable",
     time_window: "rolling_month",
-    plain_language_summary: `${intakeCount} dokumentierte Medikamenteneinnahmen. ${pre.medication.note ?? ""}`.trim(),
+    plain_language_summary: `${intakeCount} dokumentierte Medikamenteneinnahmen.`,
     deterministic_basis: {
-      metric_names: ["medication_intake_count", "high_pain_with_med", "high_pain_without_med"],
+      metric_names: ["medication_intake_count", "high_pain_with_med", "high_pain_without_med", "effect_rated_count"],
       numerator: intakeCount,
       denominator: daysTotal,
       comparison_numerator: pre.medication.highPainWithMed,
@@ -182,13 +200,14 @@ export function buildAnalysisReportV21(input: BuildReportV21Input): AnalysisRepo
       effect_label: "not_calculated",
       sample_size_label: sampleSizeLabel(intakeCount),
     },
-    limitations: [
-      "Keine Aussage zu MOH ohne längeren, vollständig dokumentierten Zeitraum.",
-    ],
-    recommended_tracking_next: ["Einnahmezeitpunkt relativ zum Schmerzbeginn erfassen."],
-    doctor_discussion_points: [],
+    limitations: acuteLimitations,
+    recommended_tracking_next: [],
+    doctor_discussion_points: intakeCount >= 10
+      ? ["Häufige Akutmedikation und mögliche Übergebrauchsrisiken einordnen."]
+      : [],
     should_show_in_doctor_share: true,
   });
+  void effectRated; // wird in data_basis.effect_rating_count widergespiegelt
 
   // ── 5. Wetter-Hinweis (Druckabfall) — empathisch bei hoher Schmerzlast ──
   const dropDays = pre.weather.pressureDropDays ?? 0;

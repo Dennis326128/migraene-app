@@ -37,8 +37,17 @@ export interface ServerDataset {
   raw: {
     painEntries: PainEntryRow[];
     medIntakes: MedicationIntakeRow[];
+    medEffects: MedicationEffectRow[];
     contextNoteCount: number;
   };
+}
+
+export interface MedicationEffectRow {
+  id: string;
+  entry_id: number;
+  med_name: string;
+  effect_score: number | null;
+  effect_rating: string | null;
 }
 
 
@@ -272,12 +281,28 @@ export async function buildServerAnalysisDataset(
     daysWithMecfs,
   };
 
+  // Load actual medication_effects rows for the entries in range
+  // (owner-scoped via entry_id filter; pain_entries are already owner-filtered).
+  let medEffects: MedicationEffectRow[] = [];
+  try {
+    const entryIds = painEntries.map((p) => p.id);
+    if (entryIds.length > 0) {
+      const { data: effData } = await supabase
+        .from("medication_effects")
+        .select("id,entry_id,med_name,effect_score,effect_rating")
+        .in("entry_id", entryIds);
+      medEffects = (effData ?? []) as MedicationEffectRow[];
+    }
+  } catch (e) {
+    console.warn("[serverAnalysisDataset] medication_effects fetch failed (non-fatal):", e);
+  }
+
   return {
     serialized,
     meta,
     fromDate,
     toDate,
-    raw: { painEntries, medIntakes, contextNoteCount: ctxNotes.length },
+    raw: { painEntries, medIntakes, medEffects, contextNoteCount: ctxNotes.length },
   };
 }
 

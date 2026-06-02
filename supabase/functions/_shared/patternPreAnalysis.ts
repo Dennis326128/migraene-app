@@ -29,6 +29,12 @@ import type { ServerDataset } from "./serverAnalysisDataset.ts";
 import { computeTrendAnalysis, buildTrendDaysFromEntries, type TrendDayRecord, type TrendResult } from "./trendAnalysis.ts";
 import { computeDocumentationSummary } from "./documentationSummary.ts";
 import { buildCourseTrendFindings } from "./buildCourseTrendFindings.ts";
+import {
+  aggregateMedicationUsage,
+  buildMedicationUsageOverviewFinding,
+  formatMedicationUsageSummary,
+  type MedicationUsageEntry,
+} from "./medicationUsageOverview.ts";
 export { buildTrendDaysFromEntries } from "./trendAnalysis.ts";
 
 
@@ -71,6 +77,8 @@ export interface PreAnalysis {
     highPainEntries: number;
     highPainWithMed: number;
     highPainWithoutMed: number;
+    effectRatedCount?: number;
+    usageOverview?: MedicationUsageEntry[];
     note: string;
   };
   dataQuality: {
@@ -157,7 +165,7 @@ export async function buildPatternPreAnalysis(
   ownerUserId: string,
   dataset: ServerDataset,
 ): Promise<PreAnalysis> {
-  const { painEntries, medIntakes, contextNoteCount } = dataset.raw;
+  const { painEntries, medIntakes, medEffects, contextNoteCount } = dataset.raw;
   const rangeDays = dataset.meta.totalDays;
 
   // --- Time aggregates ---
@@ -287,15 +295,32 @@ export async function buildPatternPreAnalysis(
         : `Wochentag-Verteilung erfasst (n=${totalWd}). Uhrzeitdaten nur für ${withTime} Einträge.`,
     },
     mecfs: { daysWithMecfs, contextNoteCount, note: mecfsNote },
-    medication: {
-      intakeCount: medIntakes.length,
-      highPainEntries: highPain,
-      highPainWithMed: highPainMed,
-      highPainWithoutMed: highPain - highPainMed,
-      note: highPain > 0
+    medication: (() => {
+      const usageOverview = aggregateMedicationUsage(
+        medIntakes.map((m) => ({ medication_name: m.medication_name })),
+        (medEffects ?? []).map((e) => ({
+          med_name: e.med_name,
+          effect_score: e.effect_score,
+          effect_rating: e.effect_rating,
+        })),
+      );
+      const usageSummary = formatMedicationUsageSummary(usageOverview);
+      const baseNote = highPain > 0
         ? `Schmerz ≥ 7: ${highPain} Einträge, davon mit dokumentiertem Akutmedikament: ${highPainMed} (${pct(highPainMed, highPain)}). Ohne Medikament: ${highPain - highPainMed}. Insgesamt ${medIntakes.length} Medikamenteneinnahmen erfasst.`
-        : `Keine Einträge mit Schmerz ≥ 7 im Zeitraum. Insgesamt ${medIntakes.length} Medikamenteneinnahmen erfasst.`,
-    },
+        : `Keine Einträge mit Schmerz ≥ 7 im Zeitraum. Insgesamt ${medIntakes.length} Medikamenteneinnahmen erfasst.`;
+      const effectRatedCount = usageOverview.reduce((s, m) => s + m.ratedCount, 0);
+      return {
+        intakeCount: medIntakes.length,
+        highPainEntries: highPain,
+        highPainWithMed: highPainMed,
+        highPainWithoutMed: highPain - highPainMed,
+        effectRatedCount,
+        usageOverview,
+        note: usageSummary
+          ? `${baseNote}\nMedikamentengebrauch im Zeitraum:\n${usageSummary}`
+          : baseNote,
+      };
+    })(),
     dataQuality: {
       painEntries: dataset.meta.painEntryCount,
       voiceEvents: dataset.meta.voiceEventCount,
@@ -426,8 +451,21 @@ export function buildDeterministicFindings(
     should_show_in_doctor_share: true,
   });
 
-  // 4. medication.acute_intakes
+  // 4a. Medikamentengebrauch im Zeitraum – kompakte Übersicht
+  const usageFinding = buildMedicationUsageOverviewFinding(
+    pre.medication.usageOverview ?? [],
+    daysTotal,
+  );
+  if (usageFinding) findings.push(usageFinding as AnalysisFinding);
+
+  // 4b. medication.acute_intakes (ohne Pflicht-Recommendations)
   const intakeCount = pre.medication.intakeCount;
+  const acuteLimitations: string[] = [];
+  if (intakeCount >= 10) {
+    acuteLimitations.push(
+      "Häufige Akutmedikation kann auf ein Übergebrauchsrisiko hinweisen – ärztlich einordnen.",
+    );
+  }
   findings.push({
     id: "medication.acute_intakes",
     category: "medication_use",
@@ -437,7 +475,7 @@ export function buildDeterministicFindings(
     patient_relevance: "high",
     direction: "not_applicable",
     time_window: "rolling_month",
-    plain_language_summary: `${intakeCount} dokumentierte Medikamenteneinnahmen. ${pre.medication.note}`.trim(),
+    plain_language_summary: `${intakeCount} dokumentierte Medikamenteneinnahmen.`,
     deterministic_basis: {
       metric_names: ["medication_intake_count", "high_pain_with_med", "high_pain_without_med"],
       numerator: intakeCount, denominator: daysTotal,
@@ -445,9 +483,11 @@ export function buildDeterministicFindings(
       comparison_denominator: pre.medication.highPainEntries,
       effect_label: "not_calculated", sample_size_label: sampleSizeLabel(intakeCount),
     },
-    limitations: ["Keine Aussage zu MOH ohne längeren, vollständig dokumentierten Zeitraum."],
-    recommended_tracking_next: ["Einnahmezeitpunkt relativ zum Schmerzbeginn erfassen."],
-    doctor_discussion_points: [],
+    limitations: acuteLimitations,
+    recommended_tracking_next: [],
+    doctor_discussion_points: intakeCount >= 10
+      ? ["Häufige Akutmedikation und mögliche Übergebrauchsrisiken einordnen."]
+      : [],
     should_show_in_doctor_share: true,
   });
 
@@ -573,7 +613,7 @@ export function buildDeterministicFindings(
       weather_days: weatherDays,
       lifestyle_factor_days: pre.mecfs.contextNoteCount ?? null,
       mecfs_energy_days: mecfsDays,
-      effect_rating_count: null,
+      effect_rating_count: pre.medication.effectRatedCount ?? null,
       private_notes_excluded: privateNotesExcluded,
     },
     clinical_caution: {
