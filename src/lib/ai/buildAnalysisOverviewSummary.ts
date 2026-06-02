@@ -40,10 +40,72 @@ function findFriendlyDocSummary(
   );
 }
 
-function firstSentence(s: string | undefined | null): string {
-  if (!s) return "";
-  const m = s.split(/(?<=[.!?])\s+/)[0] ?? s;
-  return m.trim();
+/**
+ * Sentence splitter that does NOT break inside parentheses or after common
+ * abbreviations like "vs.", "bzw.", "z. B.", "ca.", "u. a.", "d. h.".
+ * Critical: prevents Summary fragments like "(5 vs." being treated as a
+ * complete sentence and being glued to the next topic.
+ */
+const ABBR_TAIL_RE = /\b(?:vs|bzw|z\s?\.?\s?B|ca|u\s?\.?\s?a|d\s?\.?\s?h|i\s?\.?\s?d\s?\.?\s?R|etc|Nr|Mio|Mrd|inkl|exkl|ggf|sog|evtl|bzgl|max|min)\.$/i;
+
+function splitSentencesSmart(text: string): string[] {
+  const out: string[] = [];
+  let buf = "";
+  let depth = 0;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    buf += ch;
+    if (ch === "(" || ch === "[") depth++;
+    else if (ch === ")" || ch === "]") depth = Math.max(0, depth - 1);
+    else if ((ch === "." || ch === "!" || ch === "?") && depth === 0) {
+      const next = text[i + 1];
+      if (!next || /\s/.test(next)) {
+        const trimmed = buf.trim();
+        if (!ABBR_TAIL_RE.test(trimmed)) {
+          out.push(trimmed);
+          buf = "";
+          while (i + 1 < text.length && /\s/.test(text[i + 1])) i++;
+        }
+      }
+    }
+  }
+  if (buf.trim()) out.push(buf.trim());
+  return out;
+}
+
+/**
+ * Validates that a sentence is safe to surface in the Summary:
+ *  - balanced parentheses
+ *  - ends with a real sentence terminator
+ *  - does not end with an abbreviation fragment ("(5 vs.", "ca.")
+ *  - does not contain dangling "vs" / "vs." without a comparison value
+ */
+function isValidSentence(s: string): boolean {
+  if (!s) return false;
+  const t = s.trim();
+  if (!/[.!?]$/.test(t)) return false;
+  let depth = 0;
+  for (const ch of t) {
+    if (ch === "(" || ch === "[") depth++;
+    else if (ch === ")" || ch === "]") depth--;
+    if (depth < 0) return false;
+  }
+  if (depth !== 0) return false;
+  if (ABBR_TAIL_RE.test(t.slice(0, -1) + ".")) return false;
+  // Trailing comparison fragment like "(5 vs.)" or "vs.)"
+  if (/\bvs\.?\s*\)?\s*[.!?]$/i.test(t)) return false;
+  // Open numeric fragment "5 vs.)"
+  if (/\d+\s*vs\.?\s*\)?\s*[.!?]$/i.test(t)) return false;
+  return true;
+}
+
+function firstSafeSentence(s: string | undefined | null): string | null {
+  if (!s) return null;
+  const parts = splitSentencesSmart(s.trim());
+  for (const p of parts) {
+    if (isValidSentence(p)) return p;
+  }
+  return null;
 }
 
 /**
