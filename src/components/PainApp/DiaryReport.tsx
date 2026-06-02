@@ -763,17 +763,15 @@ export default function DiaryReport({ onBack, onNavigate, initialIncludeAI, init
         symptomData,
         meCfsData,
         clinicalAnalysis: clinicalAnalysisResult,
-        patternAnalysis: await (async () => {
+        patternAnalysis: null,
+        aiPdfSummary: await (async () => {
           if (!includePremiumAI) return null;
           try {
             const cached = await loadAnalysisForReport(from, to);
             if (!cached) return null;
-            // Use extractCompactSummary for SSOT — prefers pre-built _compactSummary
-            const compact = extractCompactSummary(cached);
-            if (!compact || compact.patterns.length === 0) return null;
-            return compact;
+            return buildAiPdfSummary(cached);
           } catch (err) {
-            console.warn('[PDF Export] Pattern analysis load failed:', err);
+            console.warn('[PDF Export] AI summary load failed:', err);
             return null;
           }
         })(),
