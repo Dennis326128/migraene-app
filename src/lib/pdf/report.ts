@@ -1710,7 +1710,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     page = spaceCheck.page;
     yPos = spaceCheck.yPos;
 
-    yPos = drawSectionHeader(page, "KI-GESTUETZTE VERLAUFSZUSAMMENFASSUNG", yPos, fontBold, 12);
+    yPos = drawSectionHeader(page, "KI-GEST\u00DCTZTE VERLAUFSZUSAMMENFASSUNG", yPos, fontBold, 12);
 
     page.drawText("Automatische Auswertung dokumentierter Daten. Keine \u00E4rztliche Diagnose oder Therapieempfehlung.", {
       x: LAYOUT.margin, y: yPos, size: 8, font, color: COLORS.textLight,
