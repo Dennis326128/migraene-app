@@ -613,7 +613,7 @@ export function buildDeterministicFindings(
       weather_days: weatherDays,
       lifestyle_factor_days: pre.mecfs.contextNoteCount ?? null,
       mecfs_energy_days: mecfsDays,
-      effect_rating_count: null,
+      effect_rating_count: pre.medication.effectRatedCount ?? null,
       private_notes_excluded: privateNotesExcluded,
     },
     clinical_caution: {
