@@ -13,6 +13,7 @@ import { describe, it, expect } from "vitest";
 import {
   aggregateMedicationUsage,
   buildMedicationUsageOverviewFinding,
+  formatMedicationUsageLine,
   formatMedicationUsageSummary,
   medicationUsageOverviewTitle,
 } from "@/lib/ai/medicationUsageOverview";
