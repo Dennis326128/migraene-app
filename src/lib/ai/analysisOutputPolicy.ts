@@ -154,8 +154,19 @@ export function sanitizeOutputText(text: string | null | undefined): string {
   // that survived sentence-level filtering (e.g. embedded mid-sentence).
   /** Technical raw tokens that must never appear in user-visible text. */
   const STRIP_RE_LIST = STRIP_TECHNICAL_TOKENS;
+export function sanitizeOutputText(text: string | null | undefined): string {
+  if (!text) return "";
+  // Split into sentences but keep the trailing punctuation.
+  const parts = text.split(/(?<=[.!?])\s+/);
+  const kept = parts.filter((s) => {
+    const trimmed = s.trim();
+    if (!trimmed) return false;
+    for (const re of BAN_ALWAYS) if (re.test(trimmed)) return false;
+    for (const re of BAN_SOFT) if (re.test(trimmed)) return false;
+    return true;
+  });
+  const STRIP_RE_LIST = STRIP_TECHNICAL_TOKENS;
   let joined = kept.join(" ");
-  // Defensively fix any leaked "X von Y Tagen" weather-coverage phrase.
   joined = joined.replace(
     /Wetterdaten\s+(?:lagen|liegen)\s+für\s+\d+\s+von\s+\d+\s+Tagen\s+vor\.?/gi,
     "",
@@ -164,10 +175,17 @@ export function sanitizeOutputText(text: string | null | undefined): string {
   return joined.replace(/\s{2,}/g, " ").trim();
 }
 
-/** Returns true if any banned phrase appears anywhere in the text. */
+/** Returns true if any HARD-banned phrase appears anywhere in the text. */
 export function hasBannedText(text: string | null | undefined): boolean {
   if (!text) return false;
   for (const re of BAN_ALWAYS) if (re.test(text)) return true;
+  return false;
+}
+
+/** Returns true if any soft-banned (boilerplate) phrase appears anywhere. */
+export function hasSoftBannedText(text: string | null | undefined): boolean {
+  if (!text) return false;
+  for (const re of BAN_SOFT) if (re.test(text)) return true;
   return false;
 }
 
@@ -184,8 +202,8 @@ function findingIsBanned(f: NormalizedAnalysisFinding): boolean {
 
 function sanitizeFinding(f: NormalizedAnalysisFinding): NormalizedAnalysisFinding {
   // Drop banned sentences from each text field; if a list item is fully
-  // banned, drop it entirely.
-  const keepLine = (s: string) => !!s && !hasBannedText(s);
+  // banned (hard OR soft), drop it entirely.
+  const keepLine = (s: string) => !!s && !hasBannedText(s) && !hasSoftBannedText(s);
   return {
     ...f,
     summary: sanitizeOutputText(f.summary) || f.summary,
