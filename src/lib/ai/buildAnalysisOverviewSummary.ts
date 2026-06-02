@@ -142,16 +142,14 @@ export function buildAnalysisOverviewSummary(
     }
   }
 
-  // 6) Dokumentationsfazit
+  // 6) Dokumentationsfazit — ruhig, ohne Pflicht- oder Mangelformulierung.
   const docSummary = findFriendlyDocSummary(findings);
+  const medUsage = findings.find((f) => f.id === "medication.usage_overview");
   if (docSummary) {
-    sentences.push(
-      "Die Dokumentation ist insgesamt sehr gut; für feinere Zusammenhänge wären zusätzliche Angaben zu Schlaf, Stress, PEM und Medikamentenwirkung hilfreich.",
-    );
-  } else if (isFinite(docDays) && docDays > 0) {
-    sentences.push(
-      "Für feinere Zusammenhänge wären zusätzliche Angaben zu Schlaf, Stress, PEM und Medikamentenwirkung hilfreich.",
-    );
+    sentences.push("Die Dokumentation ist insgesamt sehr gut.");
+    if (medUsage) {
+      sentences.push("Wirkungsbewertungen zu Medikamenten wurden, soweit vorhanden, berücksichtigt.");
+    }
   }
 
   if (sentences.length === 0) return null;

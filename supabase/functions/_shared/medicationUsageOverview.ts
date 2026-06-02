@@ -38,11 +38,15 @@ function ratingToScore(rating: string | null | undefined): number | null {
 }
 
 function effectQualitative(avg: number): string {
-  if (avg <= 1.5) return "ohne klare Wirkung";
-  if (avg <= 3.5) return "gering";
-  if (avg <= 5.5) return "teilweise";
-  if (avg <= 7.5) return "gut";
-  return "sehr gut";
+  if (avg <= 1.5) return "subjektiv ohne klare Wirkung beschrieben";
+  if (avg <= 3.5) return "subjektiv gering wirksam beschrieben";
+  if (avg <= 5.5) return "subjektiv gemischt bewertet";
+  if (avg <= 7.5) return "subjektiv überwiegend hilfreich bewertet";
+  return "subjektiv häufig hilfreich bewertet";
+}
+
+function isDiazepam(name: string): boolean {
+  return /\bdiazepam\b/i.test(name);
 }
 
 export function aggregateMedicationUsage(
@@ -90,10 +94,13 @@ export function formatMedicationUsageLine(m: MedicationUsageEntry): string {
   const parts: string[] = [
     `${m.name}: ${m.intakeCount} Einnahme${m.intakeCount === 1 ? "" : "n"}`,
   ];
-  if (m.avgScore !== null) {
-    parts.push(
-      `Wirkung ${effectQualitative(m.avgScore)} (Ø ${m.avgScore.toFixed(1)}/10, ${m.ratedCount} bewertet)`,
-    );
+  if (m.avgScore !== null && m.ratedCount > 0) {
+    const qual = isDiazepam(m.name)
+      ? (m.avgScore >= 5.5
+          ? "subjektiv häufig hilfreich bewertet"
+          : "subjektiv gemischt bewertet")
+      : effectQualitative(m.avgScore);
+    parts.push(qual);
   }
   return parts.join(", ");
 }

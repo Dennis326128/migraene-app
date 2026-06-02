@@ -50,12 +50,22 @@ function ratingToScore(rating: string | null | undefined): number | null {
   }
 }
 
+/**
+ * Subjektive Dokumentationsformulierung – KEINE medizinische
+ * Wirksamkeitsbehauptung, KEINE numerische Skala in der Ausgabe.
+ * Spiegelt nur, was Nutzer:innen selbst dokumentiert haben.
+ */
 function effectQualitative(avg: number): string {
-  if (avg <= 1.5) return "ohne klare Wirkung";
-  if (avg <= 3.5) return "gering";
-  if (avg <= 5.5) return "teilweise";
-  if (avg <= 7.5) return "gut";
-  return "sehr gut";
+  if (avg <= 1.5) return "subjektiv ohne klare Wirkung beschrieben";
+  if (avg <= 3.5) return "subjektiv gering wirksam beschrieben";
+  if (avg <= 5.5) return "subjektiv gemischt bewertet";
+  if (avg <= 7.5) return "subjektiv überwiegend hilfreich bewertet";
+  return "subjektiv häufig hilfreich bewertet";
+}
+
+/** Diazepam: NIE als wirksam/empfohlen darstellen – nur neutral spiegeln. */
+function isDiazepam(name: string): boolean {
+  return /\bdiazepam\b/i.test(name);
 }
 
 /**
@@ -125,17 +135,25 @@ export function medicationUsageOverviewTitle(rangeDays: number): string {
 }
 
 /**
- * Eine einzelne Zeile pro Medikament – Wirkung nur dann, wenn bewertet.
- * Keine "keine Wirkungsdaten"-Hinweise.
+ * Eine einzelne Zeile pro Medikament – Wirkung nur dann, wenn bewertet,
+ * und IMMER als subjektive Dokumentation formuliert (keine numerische
+ * Skala in der Ausgabe, keine Wirksamkeitsbehauptung).
+ *
+ * Diazepam wird neutral aufgeführt – nie als „wirksam" / „sehr gut"
+ * o. ä., auch bei hohem subjektivem Score.
  */
 export function formatMedicationUsageLine(m: MedicationUsageEntry): string {
   const parts: string[] = [
     `${m.name}: ${m.intakeCount} Einnahme${m.intakeCount === 1 ? "" : "n"}`,
   ];
-  if (m.avgScore !== null) {
-    parts.push(
-      `Wirkung ${effectQualitative(m.avgScore)} (Ø ${m.avgScore.toFixed(1)}/10, ${m.ratedCount} bewertet)`,
-    );
+  if (m.avgScore !== null && m.ratedCount > 0) {
+    const qual = isDiazepam(m.name)
+      // Diazepam: neutral spiegeln, niemals als "sehr wirksam" beschreiben.
+      ? (m.avgScore >= 5.5
+          ? "subjektiv häufig hilfreich bewertet"
+          : "subjektiv gemischt bewertet")
+      : effectQualitative(m.avgScore);
+    parts.push(qual);
   }
   if (m.topNotes.length > 0) {
     parts.push(`Notiz: ${m.topNotes.join(" | ")}`);

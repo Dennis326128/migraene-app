@@ -70,6 +70,14 @@ const BAN_ALWAYS: RegExp[] = [
   /\bdeterministisch(?:e[rnms]?)?\b/i,
   /\bVoranalyse\b/i,
   /\bDie\s+Analyse\s+zeigt\b/i,
+  // Release-Polish: Diazepam darf NIE als Migränetherapie / Triptan-Alternative
+  // / „wirksam" / „sehr gut" / „gezielt eingesetzt" beschrieben werden.
+  // Sicherheitsnetz unabhängig von LLM-/Legacy-Inhalten.
+  /\bDiazepam\b[^.]{0,80}\b(?:hohe?\s+Wirksamkeit|sehr\s+gut|wirkt\s+(?:sehr\s+)?gut|ist\s+wirksam|wirksam(?:e[rsn]?)?)\b/i,
+  /\bDiazepam\b[^.]{0,80}\bAlternative\s+zu\s+Triptan/i,
+  /\b(?:gezielter?\s+Einsatz|Einsatz)\s+(?:von\s+)?Diazepam\b[^.]{0,80}\bMigr[äa]ne/i,
+  /\bDiazepam\b[^.]{0,80}\bMigr[äa]ne(?:behandlung|management|therapie)\b/i,
+  /\bDiazepam\b[^.]{0,80}\bzur\s+Migr[äa]nebehandlung\s+geeignet\b/i,
 ];
 
 /**
@@ -109,6 +117,9 @@ const BAN_SOFT: RegExp[] = [
   /\bDokumentiere\s+(?:den\s+)?Einnahmezeitpunkt\b/i,
   /\bDokumentiere\s+(?:die\s+)?Dosis\b/i,
   /\bDokumentiere\s+(?:die\s+)?zeitliche\s+Abfolge\b/i,
+  // Release-Polish (Summary): keine "wären zusätzliche Angaben hilfreich" mehr.
+  /w[äa]ren\s+zus[äa]tzliche\s+Angaben[^.]{0,120}hilfreich/i,
+  /f[üu]r\s+feinere\s+Zusammenh[äa]nge[^.]{0,120}(?:hilfreich|n[öo]tig|erforderlich)/i,
 ];
 
 
