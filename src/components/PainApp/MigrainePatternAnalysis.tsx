@@ -561,9 +561,10 @@ function WeakDataMessage() {
 // === MAIN COMPONENT ===
 // ============================================================
 
-export function MigrainePatternAnalysis() {
+export function MigrainePatternAnalysis({ autoRun = false }: { autoRun?: boolean } = {}) {
   const { from, to } = useTimeRange();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [autoRunFired, setAutoRunFired] = useState(false);
   const [isLoadingCache, setIsLoadingCache] = useState(true);
   const [result, setResult] = useState<VoiceAnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
