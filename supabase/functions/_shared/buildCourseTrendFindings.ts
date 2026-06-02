@@ -64,7 +64,7 @@ export function buildCourseTrendFindings(
       sample_size_label: sample(recent.documentedDays + previous.documentedDays),
     },
     limitations: hasEnoughData
-      ? ["Verläufe brauchen längere Zeiträume, um wirklich stabil zu sein."]
+      ? []
       : ["Für einen belastbaren Vergleich werden mindestens zwei dokumentierte Wochen benötigt."],
     recommended_tracking_next: ["Weiter regelmäßig dokumentieren."],
     doctor_discussion_points: [],
