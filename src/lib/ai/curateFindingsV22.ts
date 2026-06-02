@@ -115,6 +115,78 @@ const isTriptanMention = (f: NormalizedAnalysisFinding): boolean => {
   return /triptan/.test(hay);
 };
 
+const isMedicationOverview = (f: NormalizedAnalysisFinding): boolean =>
+  f.id === "medication.usage_overview" || /^Medikamentengebrauch im Zeitraum$/i.test(f.title.trim());
+
+const TRIPTAN_AVOID_RE = /\b(triptan[-\s]?zur[üu]ckhaltung|triptan[-\s]?vermeid|kein(?:e[rn]?)?\s+triptan|verzicht\s+auf\s+triptan|ohne\s+triptan|akutstrategie|akutmedikation\s+vermeid)/i;
+
+const MED_EFFECT_CARD_RE =
+  /\b(?:gemischte\s+wirksamkeit|wirksamkeit\s+und\s+kontext|zeigt\s+wirkung|zeigt\s+hohe?\s+wirksamkeit|wirkt\s+(?:sehr\s+)?gut|wirksamer\s+schmerzlinderer|schlaf\s+als\s+wirksamer|alternative\s+zu\s+triptan|gezielter?\s+einsatz\s+von\s+diazepam|sumatriptan\s+zeigt|diazepam\s+zeigt|wirkung\s+nicht|wirkung\s+unklar)\b/i;
+
+function normalizeMedicationFinding(f: NormalizedAnalysisFinding): NormalizedAnalysisFinding {
+  if (isMedicationOverview(f)) return { ...f, title: "Medikamentengebrauch im Zeitraum", pinToTopical: true };
+  const hay = `${f.title} ${f.summary}`;
+  if (TRIPTAN_AVOID_RE.test(hay)) {
+    return {
+      ...f,
+      title: "Triptan-Zurückhaltung / veränderte Akutstrategie",
+      summary: "Die Einträge deuten auf Triptan-Zurückhaltung hin. Die Akutstrategie sollte ärztlich eingeordnet werden.",
+      limitations: [],
+      recommendedTrackingNext: [],
+      doctorDiscussionPoints: ["Triptan-Zurückhaltung und Akutstrategie besprechen."],
+      pinToTopical: true,
+    };
+  }
+  return f;
+}
+
+function finalizeMedicationSection(
+  curated: NormalizedAnalysisFinding[],
+  suppressed: Array<{ id: string; reason: string }>,
+): NormalizedAnalysisFinding[] {
+  const overview = curated.find(isMedicationOverview);
+  let triptanKept = false;
+  const out: NormalizedAnalysisFinding[] = [];
+  for (const raw of curated) {
+    const f = normalizeMedicationFinding(raw);
+    const isMedicationCategory =
+      f.category === "medication_use" || f.category === "medication_effect" || f.category === "preventive_course";
+    if (!isMedicationCategory) {
+      out.push(f);
+      continue;
+    }
+    if (isMedicationOverview(f)) {
+      if (!out.some(isMedicationOverview)) out.push(f);
+      else suppressed.push({ id: f.id, reason: "medication_overview_duplicate" });
+      continue;
+    }
+    const hay = `${f.title} ${f.summary} ${f.reasoning ?? ""}`;
+    if (overview && (f.category === "medication_effect" || MED_EFFECT_CARD_RE.test(hay))) {
+      suppressed.push({ id: f.id, reason: "medication_effect_integrated_into_overview" });
+      continue;
+    }
+    if (overview && f.id === "medication.acute_intakes") {
+      suppressed.push({ id: f.id, reason: "medication_intake_redundant_with_overview" });
+      continue;
+    }
+    if (overview) {
+      if (TRIPTAN_AVOID_RE.test(hay) && !triptanKept) {
+        triptanKept = true;
+        out.push(f);
+      } else {
+        suppressed.push({ id: f.id, reason: "medication_section_compacted" });
+      }
+      continue;
+    }
+    out.push(f);
+  }
+  return out.sort((a, b) => {
+    const ao = isMedicationOverview(a) ? 0 : TRIPTAN_AVOID_RE.test(`${a.title} ${a.summary}`) ? 1 : 2;
+    const bo = isMedicationOverview(b) ? 0 : TRIPTAN_AVOID_RE.test(`${b.title} ${b.summary}`) ? 1 : 2;
+    return ao - bo;
+  });
+}
+
 const isWeatherFinding = (f: NormalizedAnalysisFinding) => f.category === "weather";
 const isTimePattern = (f: NormalizedAnalysisFinding) => f.category === "time_pattern";
 const isBurden = (f: NormalizedAnalysisFinding) => f.category === "burden";
