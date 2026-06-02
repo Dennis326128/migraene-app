@@ -72,6 +72,32 @@ const BAN_ALWAYS: RegExp[] = [
   /\bDie\s+Analyse\s+zeigt\b/i,
 ];
 
+/**
+ * Soft bans — generic uncertainty / "we'd need more data" boilerplate
+ * (Release-Polish). These add no practical value and contradict the
+ * "einfach dokumentieren" product goal.
+ *
+ * Important difference vs BAN_ALWAYS:
+ *   - sentences containing these phrases are DROPPED by sanitizeOutputText
+ *   - list items containing them are DROPPED by sanitizeFinding
+ *   - but a whole finding card is NOT dropped just because the soft phrase
+ *     appears in its summary (we still want to keep e.g. a Triptan card,
+ *     just without the unnecessary "Gründe nicht aus dem Datensatz" tail).
+ */
+const BAN_SOFT: RegExp[] = [
+  /ohne\s+vollständige\s+Dokumentation/i,
+  /fehlende\s+vollständige\s+Dokumentation/i,
+  /Verläufe\s+brauchen\s+längere\s+Zeiträume/i,
+  /Medikamenten[-\s]?Trend\s+allein/i,
+  /Wirksamkeit\s+wird\s+hier\s+nicht\s+bewertet/i,
+  /keine\s+Informationen\s+zur\s+Wirksamkeit/i,
+  /\bWirksamkeit\s+fehlt\b/i,
+  /nicht\s+aus\s+dem\s+Datensatz\s+ersichtlich/i,
+  /nicht\s+explizit\s+dokumentiert/i,
+  /\bDatenlage\s+erschwert\b/i,
+];
+
+
 /** Forbidden only in data_quality findings when a friendly summary exists. */
 const BAN_NEGATIVE_DQ: RegExp[] = [
   /\bunzureichende?\s+Dokumentation\b/i,
@@ -122,11 +148,9 @@ export function sanitizeOutputText(text: string | null | undefined): string {
     const trimmed = s.trim();
     if (!trimmed) return false;
     for (const re of BAN_ALWAYS) if (re.test(trimmed)) return false;
+    for (const re of BAN_SOFT) if (re.test(trimmed)) return false;
     return true;
   });
-  // Also defensively fix any leaked "X von Y Tagen" weather-coverage phrase
-  // that survived sentence-level filtering (e.g. embedded mid-sentence).
-  /** Technical raw tokens that must never appear in user-visible text. */
   const STRIP_RE_LIST = STRIP_TECHNICAL_TOKENS;
   let joined = kept.join(" ");
   // Defensively fix any leaked "X von Y Tagen" weather-coverage phrase.
@@ -138,10 +162,17 @@ export function sanitizeOutputText(text: string | null | undefined): string {
   return joined.replace(/\s{2,}/g, " ").trim();
 }
 
-/** Returns true if any banned phrase appears anywhere in the text. */
+/** Returns true if any HARD-banned phrase appears anywhere in the text. */
 export function hasBannedText(text: string | null | undefined): boolean {
   if (!text) return false;
   for (const re of BAN_ALWAYS) if (re.test(text)) return true;
+  return false;
+}
+
+/** Returns true if any soft-banned (boilerplate) phrase appears anywhere. */
+export function hasSoftBannedText(text: string | null | undefined): boolean {
+  if (!text) return false;
+  for (const re of BAN_SOFT) if (re.test(text)) return true;
   return false;
 }
 
@@ -158,8 +189,8 @@ function findingIsBanned(f: NormalizedAnalysisFinding): boolean {
 
 function sanitizeFinding(f: NormalizedAnalysisFinding): NormalizedAnalysisFinding {
   // Drop banned sentences from each text field; if a list item is fully
-  // banned, drop it entirely.
-  const keepLine = (s: string) => !!s && !hasBannedText(s);
+  // banned (hard OR soft), drop it entirely.
+  const keepLine = (s: string) => !!s && !hasBannedText(s) && !hasSoftBannedText(s);
   return {
     ...f,
     summary: sanitizeOutputText(f.summary) || f.summary,

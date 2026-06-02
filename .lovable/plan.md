@@ -1,104 +1,102 @@
-# Release-Fix KI-Analyse — Plan
+# Release-Polish KI-Analyse — Phase „Einschränkungen"
 
-Ziel: Praxistauglichere, kürzere Analyse ohne neue Architektur. Wir ändern Prompt, Curation-Gates und UI/Report-Rendering. Kein neues Schema, kein Wetter-V2.3, keine Migration.
+## 1. Prüfung: Fließt Medikamentenwirkung in die Analyse ein?
 
-## 1. Prompt entschlacken (`supabase/functions/_shared/analysisCore.ts`)
+Befund (Code belegt):
 
-- Entfernen: „MINDESTENS 8 sinnvolle Einträge", „2–4 stärkste Muster", „4–8 zusätzliche Hinweise", Pflicht-Wetter-Hinweis, Pflicht-Sektionen A–H.
-- Entfernen: Pflichtprüfung Wetter, die immer mind. 1 Eintrag erzwingt.
-- Entfernen: erzwungener `fatigueContextFindings`-Eintrag „ME/CFS-Daten nicht ausreichend".
-- Neuer Leitsatz (sinngemäß): „Weniger ist besser. Nur praktisch relevante Hinweise. Stabile/triviale Beobachtungen NICHT als Findings. Wetter nur bei konkretem plausiblem Zusammenhang oder subjektivem Hinweis. ME/CFS gebündelt, nicht verstreut. Datenlücken nur als freundlicher Detailhinweis, nicht als prominente Karte bei guter Tagesdokumentation."
-- `summary` weiter 2–3 Sätze; Sektionsschema bleibt unverändert (Arrays dürfen jetzt aber leer sein).
-- Deno-Test `analysisCore_prompt_test.ts` anpassen + neue Assertions: kein „mindestens 8", keine Wetter-Pflicht, „weniger ist besser" enthalten.
+- Tabelle `medication_effects` existiert und wird vom Feature `src/features/medication-effects/` (eigenes API + UI) genutzt.
+- App-Pipeline: weder `src/lib/voice/analysisAccess.ts` noch `src/lib/voice/analysisContext.ts` lesen `medication_effects` (rg-Treffer: 0).
+- `src/lib/ai/buildAnalysisReportV21.ts:356` setzt `effect_rating_count: null` hart.
+- Server-Pipeline: `supabase/functions/_shared/serverAnalysisDataset.ts` lädt nur `pain_entries` + `medication_intakes`, keine `medication_effects`.
+- `patternPreAnalysis.ts:122` definiert das Feld `effect_rating_count`, es bleibt aber `null`.
+- Das LLM-Prompt enthält die Kategorie `medication_effect`, bekommt jedoch keine Wirkungsdaten als Input.
 
-## 2. Legacy-Rohlisten standardmäßig nicht rendern (`src/components/PainApp/AnalysisV21Sections.tsx` + ggf. `MigrainePatternAnalysis.tsx`)
+→ **Wirkungsdaten fließen aktuell NICHT in PreAnalysis, Prompt oder deterministische Findings ein.**
 
-- Wenn `analysisV21` vorhanden ist: NUR rendern: `data_basis`, Summary, kuratierte Highlights, kuratierte `findings`, kuratierte `openQuestions`, Grenzen.
-- `possiblePatterns`, `painContextFindings`, `fatigueContextFindings`, `medicationContextFindings`, `recurringSequences`, `confidenceNotes` werden bei vorhandenem `analysisV21` NICHT mehr gerendert.
-- Fallback-Pfad (kein `analysisV21`): Legacy-Felder weiter rendern, aber durch `sanitizeOutputText` / `applyOutputPolicy` schicken.
-- Bestehende Konstante `MAX_HIGHLIGHTS` von 4 → **3**.
+Folge für diesen Release: minimaler, nicht-invasiver Anschluss (Zählen vorhandener `medication_effects.effect_rating_0_4` im Zeitraum) — kein neues UI, keine Pflicht, keine Migration. Wenn ≥1 Wirkungsrating im Zeitraum existiert, werden alle „Wirksamkeit wird hier nicht bewertet" / „Medikamenten-Trend allein erlaubt keine Aussage zur Wirksamkeit" Einschränkungen unterdrückt.
 
-## 3. ME/CFS-Dedupe (`src/lib/ai/curateFindingsV22.ts`)
+## 2. Datei-Änderungen (klein, gezielt)
 
-- Nach Curation, vor Output-Policy: Topic-Dedup für `mecfs_*` / `fatigue_*` Findings:
-  - max. 1 ME/CFS-Karte in Highlights (höchste Evidenz gewinnt; Trend „nur seltener dokumentiert" wird nicht zum Highlight befördert).
-  - max. 1 ME/CFS-Block in Details (übrige ME/CFS-Findings werden zusammengeführt oder verworfen).
-  - keine separate PEM-Mangelkarte parallel zum ME/CFS-Block.
-- `mecfs_energy_trend` mit `direction:"unchanged"` oder nur Dokumentationshäufigkeit: nicht in Highlights, höchstens kurzer Detail-Satz.
+### a) Wirkungsdaten in App-Pipeline einbeziehen
+- `src/lib/voice/analysisAccess.ts`: zusätzlich `medication_effects` (nur `entry_id`, `effect_rating_0_4`, `updated_at`) für Zeitraum laden, owner-gefiltert.
+- `src/lib/voice/analysisContext.ts`: Anzahl bewerteter Einnahmen als `medicationEffectRatedCount` ausgeben.
+- `src/lib/ai/buildAnalysisReportV21.ts`:
+  - `effect_rating_count` aus Kontext statt `null`.
+  - Limitation `"Wirksamkeit wird hier nicht bewertet."` und `"Ohne vollständige Dokumentation kann die tatsächliche Last höher oder niedriger sein."` nur noch konditional ausgeben (siehe c/d).
 
-## 4. Stabile Trends aus Highlights (`curateFindingsV22.ts`)
+### b) Server-Pipeline minimal angleichen
+- `supabase/functions/_shared/serverAnalysisDataset.ts`: zusätzlicher Select auf `medication_effects` (owner-gefiltert über entry_id-Join), nur Zählung in Meta.
+- `supabase/functions/_shared/patternPreAnalysis.ts`: `effect_rating_count` aus Meta befüllen; gleiche konditionale Limitation-Logik wie App.
 
-- Findings vom Typ `course_trend`, `medication_trend`, `mecfs_energy_trend` mit `direction:"unchanged"` oder kleinem Delta: aus Highlights ausschließen.
-- Highlights-Priorisierung (Sortier-Score):
-  1. echte Verschlechterung
-  2. echte Verbesserung
-  3. relevante Änderung Akutstrategie (Triptan-Kurzfrist)
-  4. hohe Schmerzlast
-  5. ein starkes ME/CFS-/Wetter-/Medikamenten-Signal
+### c) Generische Einschränkungen entfernen / konditional machen
+Betroffen:
+- `src/lib/ai/curateFindingsV22.ts:266` — Burden-merged: Limitation `"Ohne vollständige Dokumentation …"` nur, wenn `documented_days / days_total < 0.8`, sonst leeres Array.
+- `src/lib/ai/buildAnalysisReportV21.ts:152` (`burden.pain_days_share`) und `supabase/functions/_shared/patternPreAnalysis.ts:419` — selbe Bedingung `<0.8` Coverage.
+- `src/lib/ai/buildAnalysisReportV21.ts:185` und Server-Pendant (`medication.acute_intakes`) — `"Wirksamkeit wird hier nicht bewertet."` entfällt, wenn `effect_rating_count ≥ 1`.
+- `src/lib/ai/buildCourseTrendFindings.ts:67` und Server-Pendant — stabile Verlaufskarten: Limitation `"Verläufe brauchen längere Zeiträume …"` ersatzlos entfernen (Fallback `"… mindestens zwei dokumentierte Wochen …"` bleibt für `!hasEnoughData`).
+- `buildCourseTrendFindings.ts:111` — `"Medikamenten-Trend allein erlaubt keine Aussage zur Wirksamkeit."` ersatzlos entfernen; `recommended_tracking_next` „Wirksamkeit der Akutmedikation pro Einnahme kurz bewerten." nur, wenn `effect_rating_count === 0`.
 
-## 5. Triptan-Kurzfristtrend priorisieren (`src/lib/ai/buildCourseTrendFindings.ts` + Mirror in `supabase/functions/_shared/`)
+### d) Output-Policy als Sicherheitsnetz
+- `src/lib/ai/analysisOutputPolicy.ts`: zentrale Regex-Liste erweitern um pauschale Floskeln, die auch durch LLM erzeugt werden könnten:
+  - `/ohne vollständige Dokumentation/i`
+  - `/Verläufe brauchen längere Zeiträume/i`
+  - `/Medikamenten-Trend allein/i`
+  - `/Wirksamkeit wird hier nicht bewertet/i`
+  - `/keine Informationen zur Wirksamkeit/i`
+  - `/Wirksamkeit fehlt/i`
+  - `/nicht aus dem Datensatz ersichtlich/i`
+  - `/nicht explizit dokumentiert/i`
+  - `/Datenlage erschwert/i`
+  Stripper greift bei `limitations[]`, `reasoning`, `summary` (wie bestehend) — wenn Doc-Coverage ≥ 0.8 bzw. `effect_rating_count ≥ 1` greift das Filter unbedingt; sonst nur stark gekürzt.
 
-- 10-vs-10-Logik existiert bereits — sicherstellen, dass das Triptan-Kurzfrist-Finding:
-  - vor `medication_trend` „stabil" priorisiert wird (Score-Bump),
-  - in `buildAnalysisOverviewSummary` in den Summary-Text einfließt (statt „Akutmedikation stabil"),
-  - bei hoher Schmerzlast → Text „veränderte Akutstrategie", bei sinkender Schmerzlast → „vorsichtige Entlastung".
+### e) Triptan-Vermeidung kürzen
+- `curateFindingsV22.ts` (Triptan/Avoidance-Pfad): wenn Card-Text die genannten Phrasen enthält, durch Kurzform ersetzen:
+  - Titel/Summary: „Hinweise auf Triptan-Zurückhaltung."
+  - Optional 1 Doctor-Point: „Gründe können im Arztgespräch eingeordnet werden."
+  - Keine `limitations`.
 
-## 6. Wetter-Gating verschärfen (`curateFindingsV22.ts` / `analysisOutputPolicy.ts`)
+### f) Detailansicht (UI) — keine leeren Hinweisblöcke
+- `src/components/PainApp/AnalysisV21Sections.tsx::FindingCard`: `limitationsShort` wird bereits gerendert nur falls vorhanden — keine Code-Änderung nötig, profitiert automatisch davon, dass `limitations` jetzt leer sein können.
 
-- Wetter-Findings mit `evidenceLevel:"low"` ohne subjektiven Bezug oder klare Korrelation: nicht in Highlights, in Details nur, wenn Mehrwert vorhanden.
-- „möglicher Verstärkungsfaktor" ohne praktische Aussage: verwerfen.
-- Wenn kein klarer Wetterzusammenhang: Summary darf nur einen kurzen Satz enthalten oder Wetter gar nicht erwähnen.
+## 3. Erhalten bleibt explizit
 
-## 7. Dokumentationsfazit als einziges DQ-Finding
+- Summary-first Layout, „Detaillierte Analyse anzeigen"-Toggle.
+- Max. 3 Highlights, `pickTopHighlights`-Reihenfolge unverändert.
+- Triptan-Kurzfristtrend (`medication_trend.acute_use_short_term`).
+- Dokumentationsfazit genau einmal (suppressNegativeDataQualityWhenFriendlySummary).
+- ME/CFS-Dedupe + neutraler Wortlaut.
+- Wetter-Gating + subjectiveContextSignal.
+- Legacy-Feld-Filterung, Report/Kopieren via `generateAnalysisReportText` mit identischer Curation.
+- Arztfragen-Cap = 4.
 
-- `injectFriendlyDocSummaryIfNeeded` existiert. Erweitern: bei vorhandenem freundlichen Fazit werden ALLE anderen `data_quality`-Findings (inkl. „Tagesfaktoren fehlen", „PEM-Daten fehlen") aus Highlights und Details verworfen — bereits teilweise in `analysisOutputPolicy` (`hasFriendlyDocSummary`); Filter erweitern und sicherstellen, dass auch positive Coverage (<90 %) genau ein DQ-Finding emittiert.
+## 4. Tests
 
-## 8. „Weitere mögliche Zusammenhänge" entschärfen (`AnalysisV21Sections.tsx` + `curateFindingsV22.ts`)
+Neu anlegen: `src/lib/ai/__tests__/curateFindingsV22.constraintRelease.test.ts`
 
-- `weaker`-Sektion: vor Render Findings deduplizieren gegen Hauptthemen (Schmerzlast, ME/CFS, Wetter, Medikation, DQ) — wenn Titel/Kategorie überlappt → verwerfen.
-- Wenn nach Dedup leer: Sektion komplett ausblenden (UI + Report).
+| # | Test |
+|---|---|
+| 1 | Bei `documented_days=28, days_total=30` (≥80 %) erscheint keine Limitation `/ohne vollständige Dokumentation/i` mehr |
+| 2 | Verlaufskarte (course_trend stable) hat keine Limitation `/Verläufe brauchen längere Zeiträume/i` |
+| 3 | `medication.acute_intakes` mit `effect_rating_count=2` enthält keine Limitation `/Wirksamkeit wird hier nicht bewertet/i` |
+| 4 | `medication_trend.acute_use` enthält keine Limitation `/Medikamenten-Trend allein/i` |
+| 5 | Triptan-Avoidance-Card: Text enthält nicht `/nicht aus dem Datensatz ersichtlich/i` und `/nicht explizit dokumentiert/i` |
+| 6 | Bei `effect_rating_count ≥ 1`: `analysisV21.data_basis.effect_rating_count` ≠ null und Output-Policy entfernt restliche Pauschalformulierungen |
+| 7 | Bestehende Tests bleiben grün: `releasePolish`, `detailPolish`, `simplify`, `polish`, `subjectiveContextSignal`, `buildCourseTrendFindings` |
 
-## 9. Initiale Ansicht & Report (`AnalysisV21Sections.tsx`, `generateAnalysisReportText.ts`)
+Server-Pendants in `supabase/functions/_shared/buildCourseTrendFindings.ts` + `patternPreAnalysis.ts` werden via existierender Deno-Tests (`patternAnalysisBuilder_test.ts`, `patternPreAnalysis_test.ts`) abgedeckt; bei Bedarf werden 1–2 Assertions ergänzt.
 
-- Initial: Datenbasis → Summary → max. 3 Highlights → Button „Detaillierte Analyse anzeigen".
-- Report: identische 3-Highlight-Grenze; Cap `strongest` von 3 unverändert; Legacy-Rendering im V2.1-Pfad weiterhin entfernt; Arztfragen-Cap 5 + Dedup auf normalisierten Text.
+Ausführen: `npx vitest run`, `deno test supabase/functions/_shared/*_test.ts --allow-net --allow-env`, `tsc --noEmit`, `npm run build`.
 
-## 10. Tests (Vitest + Deno)
+## 5. Risiko / Rollback
 
-- `analysisCore_prompt_test.ts`: neue Assertions (kein „mindestens 8", keine Wetter-Pflicht, „weniger ist besser").
-- `curateFindingsV22.test.ts`:
-  - ME/CFS-Dedupe: nur 1 Highlight + 1 Detailblock bei mehreren ME/CFS-Findings.
-  - `direction:"unchanged"` → kein Highlight.
-  - Wetter low ohne Subjektivbezug → kein Highlight.
-  - Friendly DocSummary → keine weiteren DQ-Karten.
-- Neuer Test `AnalysisV21Sections.test.tsx` (oder Erweiterung): bei vorhandenem `analysisV21` werden Legacy-Felder NICHT gerendert.
-- `generateAnalysisReportText.test.ts`: max. 3 Highlights, keine Legacy-Listen, max. 5 dedupliziete Arztfragen.
-- `buildCourseTrendFindings.test.ts`: 10-vs-10 Triptan-Rückgang → Highlight; Wording-Varianten je nach Schmerzlast.
+Reine Text-/Konditional-Änderungen + ein neuer DB-Lesepfad auf bestehender Tabelle `medication_effects` (RLS ist owner-gefiltert, keine Schreibvorgänge). Kein Schema-, Prompt-Architektur- oder Wetter-Logik-Eingriff. Rollback = Revert der genannten Dateien.
 
-## 11. Build & Verify
+## Antwort am Ende der Umsetzung (gewünschtes Format)
 
-- `npx vitest run` (relevante Suites).
-- `deno test supabase/functions/_shared/analysisCore_prompt_test.ts` (sowie `trendAnalysis_test`, falls vorhanden).
-- `npm run build` läuft via Lovable automatisch.
-
-## Betroffene Dateien (Übersicht)
-
-**Geändert:**
-- `supabase/functions/_shared/analysisCore.ts` (Prompt)
-- `supabase/functions/_shared/analysisCore_prompt_test.ts`
-- `src/lib/ai/curateFindingsV22.ts` (ME/CFS-Dedupe, Trend-Gating, Wetter-Gating, weaker-Dedup, DQ-Konsolidierung)
-- `src/lib/ai/analysisOutputPolicy.ts` (Friendly-DocSummary-Filter erweitern, optional)
-- `src/lib/ai/buildAnalysisOverviewSummary.ts` (Triptan-Kurzfrist priorisieren, Wetter-Stillschweigen erlauben)
-- `src/lib/ai/buildCourseTrendFindings.ts` + `supabase/functions/_shared/buildCourseTrendFindings.ts` (Priorisierung Kurzfristtrend)
-- `src/components/PainApp/AnalysisV21Sections.tsx` (Legacy aus, MAX_HIGHLIGHTS=3, weaker ausblenden wenn leer)
-- `src/lib/ai/generateAnalysisReportText.ts` (Cap 3, Legacy aus, Arztfragen-Dedup)
-
-**Tests (neu/erweitert):**
-- `src/lib/ai/__tests__/curateFindingsV22.test.ts`
-- `src/lib/ai/__tests__/generateAnalysisReportText.test.ts`
-- `src/components/PainApp/__tests__/AnalysisV21Sections.test.tsx` (neu, klein)
-- `supabase/functions/_shared/analysisCore_prompt_test.ts`
-
-## Antwort am Ende des Builds
-
-User-Antwortblock 1–9 wie spezifiziert. Erwartete Antwort auf Punkt 9: **„Neu laden reicht"** für UI-/Curation-/Sanitizer-/Legacy-Render-Änderungen. **Neu analysieren** ist nur nötig für den entschlackten Prompt (sonst läuft die alte LLM-Antwort weiter durch die neue, strengere Curation — funktioniert, aber Prompt-Vorteile fehlen).
+1. Geänderte Dateien
+2. Ergebnis Prüfung Medikamentenwirkung
+3. Änderungen an Einschränkungen
+4. Detailansicht-Vereinfachung
+5. Erhaltene bestehende Funktionen
+6. Tests/Build
+7. Muss ich neu analysieren oder reicht neu laden

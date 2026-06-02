@@ -108,6 +108,9 @@ export interface PreAnalysis {
     highPainEntries: number;        // pain >= 7
     highPainWithMed: number;
     highPainWithoutMed: number;
+    /** Number of user-rated medication effect entries in range. ≥1 = user
+     *  already rated at least one med; suppress "Wirksamkeit nicht bewertet". */
+    effectRatedCount?: number;
     note: string;
   };
   dataQuality: {
@@ -176,6 +179,7 @@ export async function buildAnalysisPromptData(range: AnalysisTimeRange): Promise
     medication: {
       intakeCount: dataset.meta.medicationIntakeCount ?? 0,
       highPainEntries: 0, highPainWithMed: 0, highPainWithoutMed: 0,
+      effectRatedCount: dataset.meta.medicationEffectRatedCount ?? 0,
       note: '',
     },
     dataQuality: {
