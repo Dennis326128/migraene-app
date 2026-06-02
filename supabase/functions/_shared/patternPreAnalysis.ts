@@ -165,7 +165,7 @@ export async function buildPatternPreAnalysis(
   ownerUserId: string,
   dataset: ServerDataset,
 ): Promise<PreAnalysis> {
-  const { painEntries, medIntakes, contextNoteCount } = dataset.raw;
+  const { painEntries, medIntakes, medEffects, contextNoteCount } = dataset.raw;
   const rangeDays = dataset.meta.totalDays;
 
   // --- Time aggregates ---
