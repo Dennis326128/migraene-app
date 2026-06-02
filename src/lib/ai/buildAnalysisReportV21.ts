@@ -149,7 +149,9 @@ export function buildAnalysisReportV21(input: BuildReportV21Input): AnalysisRepo
       effect_label: "not_calculated",
       sample_size_label: sampleSizeLabel(painDays),
     },
-    limitations: ["Ohne vollständige Dokumentation kann die tatsächliche Last höher oder niedriger sein."],
+    limitations: documentedDays > 0 && documentedDays / Math.max(1, daysTotal) >= 0.8
+      ? []
+      : ["Ohne vollständige Dokumentation kann die tatsächliche Last höher oder niedriger sein."],
     recommended_tracking_next: ["Auch leichte Kopfschmerztage erfassen."],
     doctor_discussion_points:
       painRate >= 0.5
