@@ -249,6 +249,81 @@ Deno.serve(async (req) => {
       ? await loadDayFactors(supabase, userId, fromDate, toDate)
       : undefined;
 
+    // ─────────────────────────────────────────────────────────────────
+    // aiAnalysis status block — single source of truth for the website
+    // UI ("Analyse vorhanden / erzeugbar / Limit erreicht / Cooldown / disabled").
+    // Mirrors the gate logic in analyze-voice-patterns-shared without
+    // any DB writes.
+    // ─────────────────────────────────────────────────────────────────
+    const hasModernAnalysis = Boolean(patternAnalysisV21);
+    const lastAnalysisAtISO = latestAiReport?.createdAtISO ?? null;
+    const gate = evaluateShareAnalysisGate({
+      share: {
+        active: shareSettings ? true : true, // share already validated by verifyDoctorAccess
+        expiresAtISO: null, // already checked in guard
+      },
+      settings: {
+        include_ai_analysis: includePatternAnalysis,
+        allow_ai_generate: allowAiGenerate,
+      },
+      lastAnalysisAtISO,
+    });
+
+    let blockedReason:
+      | 'share_inactive' | 'share_expired'
+      | 'ai_analysis_not_included' | 'ai_generation_not_allowed'
+      | 'cooldown_active' | 'ai_disabled_owner' | 'ai_consent_missing'
+      | 'quota_exceeded' | null = null;
+    let cooldownWaitMinutes: number | null = null;
+
+    if (aiConsentState !== 'granted') {
+      blockedReason = 'ai_consent_missing';
+    } else if (aiEnabledState !== 'enabled') {
+      blockedReason = 'ai_disabled_owner';
+    } else if (!gate.allowed) {
+      blockedReason = gate.reason as typeof blockedReason;
+      if (gate.reason === 'cooldown_active') cooldownWaitMinutes = gate.waitMinutes ?? null;
+    } else if (!quotaState.isUnlimited && quotaState.remaining <= 0) {
+      blockedReason = 'quota_exceeded';
+    }
+
+    const canTrigger = blockedReason === null;
+
+    const aiAnalysis = {
+      hasModernAnalysis,
+      isStale,
+      canTrigger,
+      blockedReason,
+      cooldownWaitMinutes,
+      quota: {
+        used: Math.max(0, quotaState.limit - quotaState.remaining),
+        limit: quotaState.limit,
+        remaining: quotaState.remaining,
+        isUnlimited: quotaState.isUnlimited,
+      },
+    };
+
+    // ─────────────────────────────────────────────────────────────────
+    // pdfFreshness — honest signal that the stored App-PDF was created
+    // at a fixed moment and does NOT update when the website triggers a
+    // new AI analysis. The website uses this to render a "PDF spiegelt
+    // diese Analyse / bitte in der App neu erstellen" hint.
+    // ─────────────────────────────────────────────────────────────────
+    const pdfCreatedAt = linkedHistoryReport?.createdAt ?? null;
+    let pdfReflectsLatestAnalysis = true;
+    if (pdfCreatedAt && lastAnalysisAtISO) {
+      pdfReflectsLatestAnalysis =
+        new Date(pdfCreatedAt).getTime() >= new Date(lastAnalysisAtISO).getTime();
+    } else if (!pdfCreatedAt) {
+      pdfReflectsLatestAnalysis = false;
+    }
+    const pdfFreshness = {
+      pdfFilePath: linkedHistoryReport?.pdfFilePath ?? null,
+      pdfCreatedAt,
+      latestAnalysisAt: lastAnalysisAtISO,
+      pdfReflectsLatestAnalysis,
+    };
+
     const responseBody: Record<string, unknown> = {
       report: enrichedReport,
       snapshotId,
@@ -268,8 +343,11 @@ Deno.serve(async (req) => {
       latestRelevantDataAt: dataState.latestRelevantDataAt,
       dataStateSignature: dataState.signature,
       isStale,
+      aiAnalysis,
+      pdfFreshness,
     };
     if (dayFactors) responseBody.dayFactors = dayFactors;
+
     if (wantsLegacy) Object.assign(responseBody, buildLegacyFields(enrichedReport, userId));
 
     return new Response(
