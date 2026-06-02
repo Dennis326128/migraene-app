@@ -45,8 +45,15 @@ function effectQualitative(avg: number): string {
   return "subjektiv häufig hilfreich bewertet";
 }
 
-function isDiazepam(name: string): boolean {
-  return /\bdiazepam\b/i.test(name);
+/**
+ * Sensible / nicht-standardmäßige Substanzen (Benzos, Opioide, …):
+ * NIE als wirksam / Therapie / Alternative beschreiben. Generisch.
+ */
+const SENSITIVE_SUBSTANCE_RE =
+  /\b(diazepam|lorazepam|alprazolam|oxazepam|clonazepam|bromazepam|tavor|valium|tilidin|tramadol|oxycodon|morphin|fentanyl|codein|zolpidem|zopiclon|pregabalin|gabapentin)\b/i;
+
+function isSensitiveSubstance(name: string): boolean {
+  return SENSITIVE_SUBSTANCE_RE.test(name);
 }
 
 export function aggregateMedicationUsage(
