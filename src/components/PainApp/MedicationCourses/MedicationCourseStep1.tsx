@@ -174,6 +174,31 @@ export const MedicationCourseStep1: React.FC<MedicationCourseStep1Props> = ({
   const [showDetails, setShowDetails] = useState(false);
   const [showCustomSchedule, setShowCustomSchedule] = useState(() => regularPreset === "custom");
 
+  // Sync local UI state when structuredDosage is hydrated/changed externally (e.g. edit mode)
+  useEffect(() => {
+    const rhythm = structuredDosage.doseRhythm;
+    if (rhythm === "as_needed") {
+      setIntakeMode("as_needed");
+      return;
+    }
+    setIntakeMode("regular");
+    let nextPreset: string;
+    if (rhythm === "weekly") nextPreset = "weekly";
+    else if (rhythm === "monthly") nextPreset = "monthly";
+    else {
+      const { morning, noon, evening, night } = structuredDosage.doseSchedule;
+      const total = morning + noon + evening + night;
+      if (total === 1 && morning === 1) nextPreset = "1x";
+      else if (total === 2 && morning === 1 && evening === 1) nextPreset = "2x";
+      else if (total === 3 && morning === 1 && noon === 1 && evening === 1) nextPreset = "3x";
+      else if (total > 0) nextPreset = "custom";
+      else nextPreset = "1x";
+    }
+    setRegularPreset(nextPreset);
+    setShowCustomSchedule(nextPreset === "custom");
+  }, [structuredDosage.doseRhythm, structuredDosage.doseSchedule.morning, structuredDosage.doseSchedule.noon, structuredDosage.doseSchedule.evening, structuredDosage.doseSchedule.night]);
+
+
   // Get final medication name
   const finalMedName = medicationName === "__custom__" ? customMedication : medicationName;
 
