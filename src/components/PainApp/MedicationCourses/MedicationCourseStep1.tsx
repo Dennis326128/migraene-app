@@ -241,24 +241,7 @@ export const MedicationCourseStep1: React.FC<MedicationCourseStep1Props> = ({
 
   return (
     <div className="space-y-6">
-      {/* Voice Input - Prominent floating button */}
-      <Card className="border-primary/30 bg-primary/5">
-        <CardContent className="p-4">
-          <div className="flex items-center gap-4">
-            <div className="flex-1">
-              <p className="font-medium text-foreground/90">Per Sprache ausfüllen</p>
-              <p className="text-sm text-muted-foreground">
-                Ideal bei Kopfschmerzen – einfach diktieren
-              </p>
-            </div>
-            <VoiceInputButton
-              userMeds={medications}
-              onDataRecognized={onVoiceData}
-              className="h-12 w-12 rounded-full"
-            />
-          </div>
-        </CardContent>
-      </Card>
+
 
       {/* Section 1: Medication & Treatment Type */}
       <Card className="border-border/50">
