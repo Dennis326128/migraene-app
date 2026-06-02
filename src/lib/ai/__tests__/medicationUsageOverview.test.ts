@@ -74,10 +74,10 @@ describe("Medikamentengebrauch im Zeitraum", () => {
     expect(text).not.toMatch(/Wirkung\s+(?:fehlt|nicht\s+bewertet)/i);
   });
 
-  it("Titel ist zeitraumabhängig", () => {
-    expect(medicationUsageOverviewTitle(7)).toMatch(/letzten 7 Tagen/);
-    expect(medicationUsageOverviewTitle(30)).toMatch(/letzten 30 Tagen/);
-    expect(medicationUsageOverviewTitle(90)).toMatch(/letzten 90 Tagen/);
+  it("Titel ist bewusst immer zeitraumneutral", () => {
+    expect(medicationUsageOverviewTitle(7)).toBe("Medikamentengebrauch im Zeitraum");
+    expect(medicationUsageOverviewTitle(30)).toBe("Medikamentengebrauch im Zeitraum");
+    expect(medicationUsageOverviewTitle(90)).toBe("Medikamentengebrauch im Zeitraum");
     expect(medicationUsageOverviewTitle(45)).toBe("Medikamentengebrauch im Zeitraum");
   });
 
