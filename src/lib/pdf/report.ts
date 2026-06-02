@@ -239,6 +239,18 @@ type BuildReportParams = {
     analyzedAt: string;
     daysAnalyzed: number;
   } | null;
+  /**
+   * Compact AI summary used for the static "KI-gestützte Verlaufszusammenfassung"
+   * block in the PDF. Built via {@link import('@/lib/ai/buildAiPdfSummary').buildAiPdfSummary}
+   * from the SAME response_json as the App KI-Analyse.
+   */
+  aiPdfSummary?: {
+    summary: string;
+    highlights: Array<{ title: string; line: string }>;
+    openQuestions: string[];
+    analyzedAt: string;
+    daysAnalyzed: number;
+  } | null;
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -996,6 +1008,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     prophylaxisData,
     clinicalAnalysis,
     patternAnalysis,
+    aiPdfSummary,
   } = params;
 
   const pdfDoc = await PDFDocument.create();
@@ -1678,288 +1691,108 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
     yPos -= LAYOUT.sectionGap;
   }
 
-  // 4. DATENBASIERTE MUSTERANALYSE
   // ═══════════════════════════════════════════════════════════════════════════
-  // Hybrid: Deterministic modules always rendered + LLM Kurzfazit if available
+  // 4. KI-GESTUETZTE VERLAUFSZUSAMMENFASSUNG (static, ≤ 1 page)
+  // ───────────────────────────────────────────────────────────────────────────
+  // Same SSOT as the App KI-Analyse (buildAiPdfSummary). No expandable cards,
+  // no chronobio/MOH/ICHD prose, no long pattern list, no "Was noch unklar"
+  // section. Structured stats (clinical core, acute meds, prophylaxis, weather
+  // chart, etc.) live in their own report sections and are not duplicated here.
   // ═══════════════════════════════════════════════════════════════════════════
 
-  if (clinicalAnalysis && clinicalAnalysis.modules.length > 0) {
+  if (
+    aiPdfSummary &&
+    (aiPdfSummary.summary ||
+      aiPdfSummary.highlights.length > 0 ||
+      aiPdfSummary.openQuestions.length > 0)
+  ) {
     const spaceCheck = ensureSpace(pdfDoc, page, yPos, 200);
     page = spaceCheck.page;
     yPos = spaceCheck.yPos;
 
-    yPos = drawSectionHeader(page, "DATENBASIERTE MUSTERANALYSE (KI-GEST\u00DCTZT)", yPos, fontBold, 12);
+    yPos = drawSectionHeader(page, "KI-GESTUETZTE VERLAUFSZUSAMMENFASSUNG", yPos, fontBold, 12);
 
-    page.drawText("Automatische Auswertung auf Basis dokumentierter Daten. Keine \u00E4rztliche Diagnose oder Therapieempfehlung.", {
-      x: LAYOUT.margin,
-      y: yPos,
-      size: 8,
-      font,
-      color: COLORS.textLight,
+    page.drawText("Automatische Auswertung dokumentierter Daten. Keine \u00E4rztliche Diagnose oder Therapieempfehlung.", {
+      x: LAYOUT.margin, y: yPos, size: 8, font, color: COLORS.textLight,
     });
     yPos -= 14;
 
-    page.drawText(`Auswertungszeitraum: ${formatDateGerman(clinicalAnalysis.dataRange.from)} - ${formatDateGerman(clinicalAnalysis.dataRange.to)} | ${clinicalAnalysis.totalEntries} Eintr\u00E4ge, ${clinicalAnalysis.totalDays} Tage`, {
-      x: LAYOUT.margin,
-      y: yPos,
-      size: 8,
-      font,
-      color: COLORS.textLight,
-    });
-    yPos -= 18;
-
-    // ── KLINISCHES KURZFAZIT ──
-    if (isPremiumAIRequested && hasPremiumAIData && premiumAIReport!.headline) {
-      // LLM-generated clinical summary
-      page.drawText("Klinisches Kurzfazit", {
-        x: LAYOUT.margin,
-        y: yPos,
-        size: 10,
-        font: fontBold,
-        color: COLORS.primary,
-      });
-      yPos -= 14;
-
-      const headlineLines = wrapText(premiumAIReport!.headline, LAYOUT.pageWidth - 2 * LAYOUT.margin, 9, font);
-      for (const line of headlineLines) {
-        page.drawText(sanitizeForPDF(line), {
-          x: LAYOUT.margin,
-          y: yPos,
-          size: 9,
-          font,
-          color: COLORS.text,
-        });
-        yPos -= 12;
-      }
-      yPos -= 6;
-
-      // LLM key findings as concise bullets
-      for (const finding of premiumAIReport!.keyFindings.slice(0, 5)) {
-        if (yPos < LAYOUT.margin + 60) {
-          page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
-          yPos = LAYOUT.pageHeight - LAYOUT.margin;
-        }
-        const bulletLines = wrapText(`\u2022 ${finding.finding}`, LAYOUT.pageWidth - 2 * LAYOUT.margin - 10, 9, font);
-        for (const line of bulletLines) {
-          page.drawText(sanitizeForPDF(line), {
-            x: LAYOUT.margin + 5,
-            y: yPos,
-            size: 9,
-            font,
-            color: COLORS.text,
-          });
-          yPos -= 12;
-        }
-      }
-      yPos -= 10;
-    } else if (clinicalAnalysis.kurzfazitBullets.length > 0) {
-      // Deterministic kurzfazit (no LLM available)
-      page.drawText("Klinisches Kurzfazit", {
-        x: LAYOUT.margin,
-        y: yPos,
-        size: 10,
-        font: fontBold,
-        color: COLORS.primary,
-      });
-      yPos -= 14;
-
-      for (const bullet of clinicalAnalysis.kurzfazitBullets) {
-        if (yPos < LAYOUT.margin + 60) {
-          page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
-          yPos = LAYOUT.pageHeight - LAYOUT.margin;
-        }
-        const bulletLines = wrapText(`\u2022 ${bullet}`, LAYOUT.pageWidth - 2 * LAYOUT.margin - 10, 9, font);
-        for (const line of bulletLines) {
-          page.drawText(sanitizeForPDF(line), {
-            x: LAYOUT.margin + 5,
-            y: yPos,
-            size: 9,
-            font,
-            color: COLORS.text,
-          });
-          yPos -= 12;
-        }
-      }
-      yPos -= 10;
-    }
-
-    // ── DETERMINISTIC MODULES ──
-    for (const mod of clinicalAnalysis.modules) {
-      // Section header for each module
-      if (yPos < LAYOUT.margin + 100) {
-        page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
-        yPos = LAYOUT.pageHeight - LAYOUT.margin;
-      }
-
-      page.drawText(sanitizeForPDF(mod.title), {
-        x: LAYOUT.margin,
-        y: yPos,
-        size: 10,
-        font: fontBold,
-        color: COLORS.primary,
-      });
-      yPos -= 14;
-
-      if (!mod.sufficient) {
-        // Insufficient data notice
-        const insuffLines = wrapText(mod.insufficientReason || 'Zu wenig Datenpunkte.', LAYOUT.pageWidth - 2 * LAYOUT.margin, 9, font);
-        for (const line of insuffLines) {
-          page.drawText(sanitizeForPDF(line), {
-            x: LAYOUT.margin,
-            y: yPos,
-            size: 9,
-            font,
-            color: COLORS.textLight,
-          });
-          yPos -= 12;
-        }
-        yPos -= 8;
-        continue;
-      }
-
-      // Findings
-      for (const finding of mod.findings) {
-        if (yPos < LAYOUT.margin + 50) {
-          page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
-          yPos = LAYOUT.pageHeight - LAYOUT.margin;
-        }
-
-        const findingLines = wrapText(finding.text, LAYOUT.pageWidth - 2 * LAYOUT.margin - 5, 9, font);
-        for (const line of findingLines) {
-          page.drawText(sanitizeForPDF(line), {
-            x: LAYOUT.margin + 5,
-            y: yPos,
-            size: 9,
-            font,
-            color: COLORS.text,
-          });
-          yPos -= 12;
-        }
-
-        // Data basis (small, light)
-        if (finding.basis) {
-          page.drawText(sanitizeForPDF(finding.basis), {
-            x: LAYOUT.margin + 5,
-            y: yPos,
-            size: 7,
-            font,
-            color: COLORS.textLight,
-          });
-          yPos -= 10;
-        }
-        yPos -= 4;
-      }
-
-      // Module disclaimer (small)
-      page.drawText(sanitizeForPDF(mod.disclaimer), {
-        x: LAYOUT.margin,
-        y: yPos,
-        size: 7,
-        font,
-        color: COLORS.textLight,
-      });
+    if (aiPdfSummary.daysAnalyzed) {
+      page.drawText(
+        `Auswertungszeitraum: ${formatDateGerman(from)} - ${formatDateGerman(to)} | ${aiPdfSummary.daysAnalyzed} Tage analysiert`,
+        { x: LAYOUT.margin, y: yPos, size: 8, font, color: COLORS.textLight },
+      );
       yPos -= 16;
     }
 
-    // Created-at & premium AI meta
-    if (isPremiumAIRequested && hasPremiumAIData && premiumAIReport!.createdAt) {
-      const createdDate = new Date(premiumAIReport!.createdAt);
-      page.drawText(`KI-Kurzfazit erstellt am: ${formatDateGerman(createdDate.toISOString())}`, {
-        x: LAYOUT.margin,
-        y: yPos,
-        size: 7,
-        font,
-        color: COLORS.textLight,
-      });
-      yPos -= 10;
-    }
-
-    yPos -= LAYOUT.sectionGap;
-
-    // ── PATTERN ANALYSIS (from KI-Analyse tab) ──
-    if (patternAnalysis && patternAnalysis.patterns.length > 0) {
-      const paSpaceCheck = ensureSpace(pdfDoc, page, yPos, 120);
-      page = paSpaceCheck.page;
-      yPos = paSpaceCheck.yPos;
-
-      yPos = drawSectionHeader(page, "KI-MUSTERANALYSE: MOEGLICHE ZUSAMMENHAENGE", yPos, fontBold, 10);
-
-      // Summary
-      const summaryLines = wrapText(patternAnalysis.summary, LAYOUT.pageWidth - 2 * LAYOUT.margin, 9, font);
-      for (const line of summaryLines) {
-        if (yPos < LAYOUT.margin + 40) {
-          page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
-          yPos = LAYOUT.pageHeight - LAYOUT.margin;
-        }
+    // A) Kurzfazit
+    if (aiPdfSummary.summary) {
+      page.drawText("Kurzfazit", { x: LAYOUT.margin, y: yPos, size: 10, font: fontBold, color: COLORS.primary });
+      yPos -= 13;
+      const lines = wrapText(aiPdfSummary.summary, LAYOUT.pageWidth - 2 * LAYOUT.margin, 9, font);
+      for (const line of lines) {
         page.drawText(sanitizeForPDF(line), { x: LAYOUT.margin, y: yPos, size: 9, font, color: COLORS.text });
         yPos -= 12;
       }
       yPos -= 6;
+    }
 
-      // Patterns
-      const evidenceLabels: Record<string, string> = { high: 'Deutliche Hinweise', medium: 'Mehrere Hinweise', low: 'Wenige Hinweise' };
-      for (const p of patternAnalysis.patterns) {
+    // B) Wichtigste Hinweise (max 3)
+    if (aiPdfSummary.highlights.length > 0) {
+      page.drawText("Wichtigste Hinweise", { x: LAYOUT.margin, y: yPos, size: 10, font: fontBold, color: COLORS.primary });
+      yPos -= 13;
+      for (const h of aiPdfSummary.highlights.slice(0, 3)) {
         if (yPos < LAYOUT.margin + 60) {
           page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
           yPos = LAYOUT.pageHeight - LAYOUT.margin;
         }
-        const label = evidenceLabels[p.evidenceStrength] || '';
-        page.drawText(sanitizeForPDF(`${p.title} (${label})`), { x: LAYOUT.margin + 5, y: yPos, size: 9, font: fontBold, color: COLORS.text });
-        yPos -= 12;
-        const descLines = wrapText(p.description, LAYOUT.pageWidth - 2 * LAYOUT.margin - 10, 8, font);
-        for (const line of descLines) {
-          page.drawText(sanitizeForPDF(line), { x: LAYOUT.margin + 10, y: yPos, size: 8, font, color: COLORS.text });
-          yPos -= 11;
+        const text = h.line ? `- ${h.title}: ${h.line}` : `- ${h.title}`;
+        const wrapped = wrapText(text, LAYOUT.pageWidth - 2 * LAYOUT.margin - 5, 9, font);
+        for (const line of wrapped) {
+          page.drawText(sanitizeForPDF(line), { x: LAYOUT.margin + 5, y: yPos, size: 9, font, color: COLORS.text });
+          yPos -= 12;
         }
-        yPos -= 4;
+        yPos -= 2;
       }
-
-      // Recurring sequences
-      if (patternAnalysis.recurringSequences.length > 0) {
-        yPos -= 4;
-        page.drawText('Wiederkehrende Muster:', { x: LAYOUT.margin, y: yPos, size: 9, font: fontBold, color: COLORS.text });
-        yPos -= 13;
-        for (const seq of patternAnalysis.recurringSequences) {
-          if (yPos < LAYOUT.margin + 40) {
-            page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
-            yPos = LAYOUT.pageHeight - LAYOUT.margin;
-          }
-          const seqText = `- ${seq.pattern}${seq.count > 1 ? ` (${seq.count}x)` : ''}${seq.interpretation ? ': ' + seq.interpretation : ''}`;
-          const seqLines = wrapText(seqText, LAYOUT.pageWidth - 2 * LAYOUT.margin - 10, 8, font);
-          for (const line of seqLines) {
-            page.drawText(sanitizeForPDF(line), { x: LAYOUT.margin + 5, y: yPos, size: 8, font, color: COLORS.text });
-            yPos -= 11;
-          }
-        }
-      }
-
-      // Open questions
-      if (patternAnalysis.openQuestions.length > 0) {
-        yPos -= 4;
-        page.drawText('Was noch unklar ist:', { x: LAYOUT.margin, y: yPos, size: 9, font: fontBold, color: COLORS.textLight });
-        yPos -= 13;
-        for (const q of patternAnalysis.openQuestions) {
-          if (yPos < LAYOUT.margin + 40) {
-            page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
-            yPos = LAYOUT.pageHeight - LAYOUT.margin;
-          }
-          const qLines = wrapText(`- ${q}`, LAYOUT.pageWidth - 2 * LAYOUT.margin - 10, 8, font);
-          for (const line of qLines) {
-            page.drawText(sanitizeForPDF(line), { x: LAYOUT.margin + 5, y: yPos, size: 8, font, color: COLORS.textLight });
-            yPos -= 11;
-          }
-        }
-      }
-
-      // Disclaimer + meta
-      yPos -= 6;
-      page.drawText('Moegliche Zusammenhaenge - keine medizinische Diagnose.', { x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight });
-      yPos -= 10;
-      page.drawText(`KI-Musteranalyse vom ${formatDateGerman(patternAnalysis.analyzedAt)} | ${patternAnalysis.daysAnalyzed} Tage analysiert`, { x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight });
-      yPos -= LAYOUT.sectionGap;
+      yPos -= 4;
     }
 
-  } else if (isPremiumAIRequested && !hasPremiumAIData) {
+    // D) Fuer das Arztgespraech (max 4)
+    if (aiPdfSummary.openQuestions.length > 0) {
+      if (yPos < LAYOUT.margin + 80) {
+        page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
+        yPos = LAYOUT.pageHeight - LAYOUT.margin;
+      }
+      page.drawText("Fuer das Arztgespraech", { x: LAYOUT.margin, y: yPos, size: 10, font: fontBold, color: COLORS.primary });
+      yPos -= 13;
+      for (const q of aiPdfSummary.openQuestions.slice(0, 4)) {
+        if (yPos < LAYOUT.margin + 40) {
+          page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
+          yPos = LAYOUT.pageHeight - LAYOUT.margin;
+        }
+        const wrapped = wrapText(`- ${q}`, LAYOUT.pageWidth - 2 * LAYOUT.margin - 5, 9, font);
+        for (const line of wrapped) {
+          page.drawText(sanitizeForPDF(line), { x: LAYOUT.margin + 5, y: yPos, size: 9, font, color: COLORS.text });
+          yPos -= 12;
+        }
+      }
+      yPos -= 4;
+    }
+
+    // E) Hinweis + Meta
+    page.drawText("Hinweis: Automatische Auswertung dokumentierter Daten. Keine Diagnose oder Therapieempfehlung.", {
+      x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight,
+    });
+    yPos -= 10;
+    if (aiPdfSummary.analyzedAt) {
+      page.drawText(`KI-Analyse vom ${formatDateGerman(aiPdfSummary.analyzedAt)}`, {
+        x: LAYOUT.margin, y: yPos, size: 7, font, color: COLORS.textLight,
+      });
+      yPos -= 10;
+    }
+    yPos -= LAYOUT.sectionGap;
+  } else if (isPremiumAIRequested && !aiPdfSummary) {
+
     // ── FALLBACK: Premium requested but failed ──
     const spaceCheck = ensureSpace(pdfDoc, page, yPos, 100);
     page = spaceCheck.page;

@@ -31,6 +31,7 @@ import { computeClinicalAnalysis, type AnalysisEntry } from '@/lib/pdf/clinicalA
 import { uploadPdfToStorage } from '@/lib/pdf/pdfStorageUpload';
 import { buildPdfFilename } from '@/lib/pdf/filenameUtils';
 import { loadAnalysisForReport, buildPatternAnalysisSummary, extractCompactSummary } from '@/lib/voice/analysisCache';
+import { buildAiPdfSummary } from '@/lib/ai/buildAiPdfSummary';
 
 import { PremiumBadge } from "@/components/ui/premium-badge";
 import { useUserAISettings } from "@/features/draft-composer/hooks/useUserAISettings";
@@ -762,17 +763,15 @@ export default function DiaryReport({ onBack, onNavigate, initialIncludeAI, init
         symptomData,
         meCfsData,
         clinicalAnalysis: clinicalAnalysisResult,
-        patternAnalysis: await (async () => {
+        patternAnalysis: null,
+        aiPdfSummary: await (async () => {
           if (!includePremiumAI) return null;
           try {
             const cached = await loadAnalysisForReport(from, to);
             if (!cached) return null;
-            // Use extractCompactSummary for SSOT — prefers pre-built _compactSummary
-            const compact = extractCompactSummary(cached);
-            if (!compact || compact.patterns.length === 0) return null;
-            return compact;
+            return buildAiPdfSummary(cached);
           } catch (err) {
-            console.warn('[PDF Export] Pattern analysis load failed:', err);
+            console.warn('[PDF Export] AI summary load failed:', err);
             return null;
           }
         })(),
