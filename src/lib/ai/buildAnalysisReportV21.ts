@@ -184,7 +184,6 @@ export function buildAnalysisReportV21(input: BuildReportV21Input): AnalysisRepo
     },
     limitations: [
       "Keine Aussage zu MOH ohne längeren, vollständig dokumentierten Zeitraum.",
-      "Wirksamkeit wird hier nicht bewertet.",
     ],
     recommended_tracking_next: ["Einnahmezeitpunkt relativ zum Schmerzbeginn erfassen."],
     doctor_discussion_points: [],
