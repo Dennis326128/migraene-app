@@ -1775,7 +1775,7 @@ export async function buildDiaryPdf(params: BuildReportParams): Promise<Uint8Arr
         page = pdfDoc.addPage([LAYOUT.pageWidth, LAYOUT.pageHeight]);
         yPos = LAYOUT.pageHeight - LAYOUT.margin;
       }
-      page.drawText("Fuer das Arztgespraech", { x: LAYOUT.margin, y: yPos, size: 10, font: fontBold, color: COLORS.primary });
+      page.drawText("F\u00FCr das Arztgespr\u00E4ch", { x: LAYOUT.margin, y: yPos, size: 10, font: fontBold, color: COLORS.primary });
       yPos -= 13;
       for (const q of aiPdfSummary.openQuestions.slice(0, 4)) {
         if (yPos < LAYOUT.margin + 40) {
