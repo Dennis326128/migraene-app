@@ -100,7 +100,7 @@ export function formatMedicationUsageLine(m: MedicationUsageEntry): string {
     `${m.name}: ${m.intakeCount} Einnahme${m.intakeCount === 1 ? "" : "n"}`,
   ];
   if (m.avgScore !== null && m.ratedCount > 0) {
-    const qual = isDiazepam(m.name)
+    const qual = isSensitiveSubstance(m.name)
       ? (m.avgScore >= 5.5
           ? "subjektiv häufig hilfreich bewertet"
           : "subjektiv gemischt bewertet")
