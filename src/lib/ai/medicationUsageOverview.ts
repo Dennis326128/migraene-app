@@ -135,17 +135,25 @@ export function medicationUsageOverviewTitle(rangeDays: number): string {
 }
 
 /**
- * Eine einzelne Zeile pro Medikament – Wirkung nur dann, wenn bewertet.
- * Keine "keine Wirkungsdaten"-Hinweise.
+ * Eine einzelne Zeile pro Medikament – Wirkung nur dann, wenn bewertet,
+ * und IMMER als subjektive Dokumentation formuliert (keine numerische
+ * Skala in der Ausgabe, keine Wirksamkeitsbehauptung).
+ *
+ * Diazepam wird neutral aufgeführt – nie als „wirksam" / „sehr gut"
+ * o. ä., auch bei hohem subjektivem Score.
  */
 export function formatMedicationUsageLine(m: MedicationUsageEntry): string {
   const parts: string[] = [
     `${m.name}: ${m.intakeCount} Einnahme${m.intakeCount === 1 ? "" : "n"}`,
   ];
-  if (m.avgScore !== null) {
-    parts.push(
-      `Wirkung ${effectQualitative(m.avgScore)} (Ø ${m.avgScore.toFixed(1)}/10, ${m.ratedCount} bewertet)`,
-    );
+  if (m.avgScore !== null && m.ratedCount > 0) {
+    const qual = isDiazepam(m.name)
+      // Diazepam: neutral spiegeln, niemals als "sehr wirksam" beschreiben.
+      ? (m.avgScore >= 5.5
+          ? "subjektiv häufig hilfreich bewertet"
+          : "subjektiv gemischt bewertet")
+      : effectQualitative(m.avgScore);
+    parts.push(qual);
   }
   if (m.topNotes.length > 0) {
     parts.push(`Notiz: ${m.topNotes.join(" | ")}`);
