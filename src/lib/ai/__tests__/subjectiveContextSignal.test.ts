@@ -117,7 +117,7 @@ describe("curateFindingsV22 — general subjective gating", () => {
     expect(r.findings.find((x) => x.id === "i1")).toBeUndefined();
   });
 
-  it("keeps weather doctor question when subjective context is present", () => {
+  it("keeps subjective weather card but does not force a weather doctor question", () => {
     const r = curateFindingsV22(
       [
         f({
@@ -131,7 +131,8 @@ describe("curateFindingsV22 — general subjective gating", () => {
       ],
       ctxHighPain,
     );
-    expect(r.openQuestions.some((q) => /wetter|umweltbelastung/i.test(q))).toBe(true);
+    expect(r.findings.some((x) => x.id === "w1")).toBe(true);
+    expect(r.openQuestions.some((q) => /wetter|umweltbelastung/i.test(q))).toBe(false);
   });
 
   it("drops weather doctor question that is auto-only and low evidence", () => {
