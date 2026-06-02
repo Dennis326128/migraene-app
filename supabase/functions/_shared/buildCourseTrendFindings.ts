@@ -108,8 +108,8 @@ export function buildCourseTrendFindings(
       },
       limitations: triptanStrategyNote
         ? ["Weniger Triptane bei gleichbleibender Schmerzlast kann auf bewusste Zurückhaltung oder fehlende Wirksamkeit hindeuten – ärztlich zu klären."]
-        : ["Medikamenten-Trend allein erlaubt keine Aussage zur Wirksamkeit."],
-      recommended_tracking_next: ["Wirksamkeit der Akutmedikation pro Einnahme kurz bewerten."],
+        : [],
+      recommended_tracking_next: [],
       doctor_discussion_points: triptanStrategyNote
         ? ["Veränderte Akutstrategie besprechen – wann Triptan, wann nicht?"]
         : [],
