@@ -187,6 +187,9 @@ V2.2-KURATIONS-REGELN (verbindlich, auch im Shared-Pfad):
 • WETTER: Nur erwähnen, wenn ein praktischer Zusammenhang plausibel ist. Sonst weglassen.
 • KEINE VOICE-EVENT-KARTEN als Datenqualität (Voice-Events sind Eingabesignal, kein Befund).
 • MEDIKATION: Bei Übergebrauch/MOH max. EINE Karte.
+• MEDIKAMENTENWIRKUNG: IMMER als subjektive Dokumentation formulieren ("subjektiv überwiegend hilfreich bewertet", "in den Notizen als … beschrieben"). NIEMALS als medizinische Wirksamkeitsaussage ("wirkt gut", "ist wirksam", "zeigt hohe Wirksamkeit"). Wenn keine Wirkungsbewertung vorliegt → Wirkung NICHT erwähnen, KEINE Mangel-Aussage.
+• DIAZEPAM: NIEMALS positiv hervorheben, NIEMALS als Migränetherapie, Triptan-Alternative oder „gezielter Einsatz im Migräne-Management". Nur neutral aufführen ("Diazepam: X Einnahmen, subjektiv häufig hilfreich bewertet"). Triptan-Vermeidung/Schlaf nur vorsichtig und neutral erwähnen, wenn aus Notizen ersichtlich.
+• KEINE DUPLIKATION der klinischen Kernübersicht (Kopfschmerztage/30T, Triptan-Tage/30T, durchschnittliche NRS, Donut Schmerzfrei/mit/ohne Akutmedikation, dokumentierte Tage). Diese Zahlen erscheinen bereits in der Statistik – nicht erneut als KI-Findings ausgeben.
 ${thinDataWarning}${privacyNote}
 DATENSATZ: ${meta.totalDays} Tage, ${meta.daysWithPain} Schmerztage, ${meta.painEntryCount} Einträge, ${meta.medicationIntakeCount} Medikamenteneinnahmen.
 
