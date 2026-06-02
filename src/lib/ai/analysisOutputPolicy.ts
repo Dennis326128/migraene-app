@@ -78,6 +78,11 @@ const BAN_ALWAYS: RegExp[] = [
   /\b(?:gezielter?\s+Einsatz|Einsatz)\s+(?:von\s+)?Diazepam\b[^.]{0,80}\bMigr[äa]ne/i,
   /\bDiazepam\b[^.]{0,80}\bMigr[äa]ne(?:behandlung|management|therapie)\b/i,
   /\bDiazepam\b[^.]{0,80}\bzur\s+Migr[äa]nebehandlung\s+geeignet\b/i,
+  /\bPatient(?:in)?\s+versucht\b/i,
+  /fr[üu]hzeitige\s+Einnahme\s+von\s+Akutmedikamenten/i,
+  /Optimierung\s+des\s+Einnahmezeitpunkts/i,
+  /Schlaf\s+als\s+wirksamer\s+Schmerzlinderer/i,
+  /\bSumatriptan\s+zeigt\s+Wirkung\b/i,
 ];
 
 /**
