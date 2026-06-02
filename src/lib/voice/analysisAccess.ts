@@ -128,6 +128,10 @@ export interface FullAnalysisDataset {
     linkedVoiceEventCount: number;
     /** Voice events without a structured counterpart (everyday observations) */
     unlinkedVoiceEventCount: number;
+    /** Number of medication intakes (or pain entries) with a user-rated
+     *  effect entry in medication_effects within the range. 0 = no
+     *  effect ratings, ≥1 = user has rated at least one med. */
+    medicationEffectRatedCount: number;
   };
 }
 
