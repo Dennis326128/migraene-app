@@ -68,6 +68,21 @@ const SAFETY_REWRITES: Array<[RegExp, string]> = [
   // strip misleading "100% Korrelation" wording
   [/\b100\s?%?\s*(?:Korrelation|Übereinstimmung|Trefferquote)\b/gi,
     "auffällige Häufung (Vergleichsbasis schwach)"],
+  // Release-Polish (Diazepam): NIE als wirksam / Therapie / Triptan-
+  // Alternative beschreiben. Auf eine subjektive Dokumentationsform
+  // herunterziehen.
+  [/\bDiazepam\s+zeigt\s+(?:eine\s+)?hohe?\s+Wirksamkeit\b/gi,
+    "Diazepam wurde in den dokumentierten Bewertungen häufig als hilfreich beschrieben"],
+  [/\bDiazepam\s+wirkt\s+(?:sehr\s+)?gut\b/gi,
+    "Diazepam wurde subjektiv häufig als hilfreich beschrieben"],
+  [/\bDiazepam\s+ist\s+wirksam\b/gi,
+    "Diazepam wurde subjektiv häufig als hilfreich beschrieben"],
+  [/\bDiazepam\s+als\s+Alternative\s+zu\s+Triptan\w*/gi,
+    "Diazepam wurde dokumentiert; die Rolle im Gesamtplan ärztlich einordnen"],
+  [/\bgezielter?\s+Einsatz\s+(?:von\s+)?Diazepam\s+im\s+Migr[äa]ne[-\s]?Management\b/gi,
+    "Diazepam-Einnahmen sind dokumentiert; ärztlich einordnen"],
+  [/\bDiazepam\s+zur\s+Migr[äa]nebehandlung\s+geeignet\b/gi,
+    "Diazepam wurde dokumentiert; Eignung ärztlich einordnen"],
 ];
 
 function rewriteSafety(text: string | undefined): string | undefined {
