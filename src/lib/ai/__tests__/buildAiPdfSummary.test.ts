@@ -69,4 +69,53 @@ describe('buildAiPdfSummary', () => {
     })!;
     expect(out.summary.length).toBeLessThanOrEqual(480);
   });
+
+  it('never truncates inside a date or after an abbreviation', () => {
+    const summary =
+      'Im Zeitraum 02.05.2026 bis 31.05.2026 war die Schmerzlast sehr hoch. ' +
+      'Die Schmerzlast blieb in der zweiten Hälfte des Zeitraums ähnlich wie in der ersten Hälfte (Schmerztage 12/14 vs. 11/14). ' +
+      'Triptane wurden in der zweiten Hälfte seltener dokumentiert. ' +
+      'Weitere Beobachtungen folgen.';
+    const out = buildAiPdfSummary({
+      summary,
+      possiblePatterns: [{ title: 't', description: 'd', evidenceStrength: 'low' }],
+      scope: { daysAnalyzed: 30 },
+    })!;
+    // No dangling date fragments
+    expect(out.summary).not.toMatch(/\d+\.\s+\d+\.\s*$/);
+    expect(out.summary).not.toMatch(/\d+\.\s+\d+\.\s+\d+\.\s*$/);
+    // No abbreviation tails
+    expect(out.summary).not.toMatch(/\bvs\.\s*$/i);
+    expect(out.summary).not.toMatch(/\bbzw\.\s*$/i);
+    // No fragment like "12/14 vs."
+    expect(out.summary).not.toMatch(/\d+\/\d+\s+vs\.\s*$/i);
+    // Date spacing stays compact: must contain "02.05.2026", never "2. 5. 2026"
+    expect(out.summary).not.toMatch(/\b\d\.\s\d\.\s\d{4}\b/);
+    // Must end on a sentence terminator
+    expect(out.summary.trim()).toMatch(/[.!?]$/);
+  });
+
+  it('uses a safe fallback when no full sentence fits', () => {
+    const out = buildAiPdfSummary({
+      summary: 'Vergleich 12/14 vs.',
+      possiblePatterns: [{ title: 't', description: 'd', evidenceStrength: 'low' }],
+      scope: { daysAnalyzed: 30 },
+    })!;
+    expect(out.summary).toContain('30-Tage-Zeitraum');
+    expect(out.summary.trim()).toMatch(/[.!?]$/);
+  });
+
+  it('drops fragmented highlight lines instead of rendering them', () => {
+    const out = buildAiPdfSummary({
+      summary: 'Kurzfazit.',
+      possiblePatterns: [
+        { title: 'Schmerzlast bleibt ähnlich', description: 'Schmerztage 12/14 vs.', evidenceStrength: 'high' },
+        { title: 'Solide Beobachtung', description: 'Hohe Belastung dokumentiert.', evidenceStrength: 'high' },
+      ],
+    })!;
+    const fragHighlight = out.highlights.find((h) => h.title.includes('Schmerzlast'));
+    expect(fragHighlight?.line ?? '').toBe('');
+    const okHighlight = out.highlights.find((h) => h.title.includes('Solide'));
+    expect(okHighlight?.line).toContain('Hohe Belastung');
+  });
 });

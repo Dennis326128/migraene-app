@@ -19,7 +19,17 @@ export interface OverviewInputs {
 
 function fmtDate(d?: unknown): string | null {
   if (typeof d !== "string") return null;
-  try { return new Date(d).toLocaleDateString("de-DE"); } catch { return d; }
+  try {
+    // Always 2-digit day/month so PDF renderers do not insert spaces and
+    // sentence-splitters cannot break the date apart (e.g. "02.05.2026").
+    return new Date(d).toLocaleDateString("de-DE", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  } catch {
+    return d;
+  }
 }
 
 function findByCategory(
