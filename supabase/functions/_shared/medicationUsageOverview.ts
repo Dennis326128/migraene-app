@@ -84,9 +84,7 @@ export function aggregateMedicationUsage(
 }
 
 export function medicationUsageOverviewTitle(rangeDays: number): string {
-  if (rangeDays >= 6 && rangeDays <= 8) return "Medikamentengebrauch in den letzten 7 Tagen";
-  if (rangeDays >= 25 && rangeDays <= 33) return "Medikamentengebrauch in den letzten 30 Tagen";
-  if (rangeDays >= 85 && rangeDays <= 95) return "Medikamentengebrauch in den letzten 90 Tagen";
+  void rangeDays;
   return "Medikamentengebrauch im Zeitraum";
 }
 
