@@ -250,9 +250,19 @@ function mergeBurdenWithChronification(
   const db = (responseJson as any)?.analysisV21?.data_basis ?? {};
   const painDays = Number(db.pain_days) || 0;
   const docDays = Number(db.documented_days) || 0;
+  const period = (responseJson as any)?.analysisV21?.period ?? {};
+  const daysTotal = Number(period.days_total) || docDays || 0;
+  const docCoverage = daysTotal > 0 ? docDays / daysTotal : 0;
   const dayPart = painDays > 0 && docDays > 0 ? `Im beobachteten Zeitraum traten an ${painDays} von ${docDays} Tagen Schmerzen auf. ` : "";
 
   const primary = burdens[0] ?? chronif[0];
+  // Release-Polish: bei guter Dokumentationsabdeckung (≥80 %) ist der
+  // generische "Ohne vollständige Dokumentation"-Hinweis irreführend und
+  // entfällt. Bei klar lückenhafter Datenlage bleibt er als Hinweis erhalten.
+  const burdenLimitations =
+    docCoverage >= 0.8
+      ? []
+      : ["Ohne vollständige Dokumentation kann die tatsächliche Last höher oder niedriger sein."];
   const merged: NormalizedAnalysisFinding = {
     id: primary?.id ?? "burden.merged",
     category: "burden",
@@ -262,9 +272,7 @@ function mergeBurdenWithChronification(
     summary:
       `${dayPart}Das zeigt eine sehr hohe Belastung und sollte ärztlich eingeordnet werden.`.trim(),
     reasoning: primary?.reasoning,
-    limitations: [
-      "Ohne vollständige Dokumentation kann die tatsächliche Last höher oder niedriger sein.",
-    ],
+    limitations: burdenLimitations,
     recommendedTrackingNext: [],
     doctorDiscussionPoints: [
       "Hohe Kopfschmerzfrequenz und mögliche chronische Verlaufsform ärztlich besprechen.",
