@@ -117,6 +117,9 @@ const BAN_SOFT: RegExp[] = [
   /\bDokumentiere\s+(?:den\s+)?Einnahmezeitpunkt\b/i,
   /\bDokumentiere\s+(?:die\s+)?Dosis\b/i,
   /\bDokumentiere\s+(?:die\s+)?zeitliche\s+Abfolge\b/i,
+  // Release-Polish (Summary): keine "wären zusätzliche Angaben hilfreich" mehr.
+  /w[äa]ren\s+zus[äa]tzliche\s+Angaben[^.]{0,120}hilfreich/i,
+  /f[üu]r\s+feinere\s+Zusammenh[äa]nge[^.]{0,120}(?:hilfreich|n[öo]tig|erforderlich)/i,
 ];
 
 
