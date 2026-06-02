@@ -144,6 +144,23 @@ const BAN_SOFT: RegExp[] = [
   /nicht\s+eindeutig\s+beweisbar/i,
   /kann\s+nicht\s+umfassend\s+bewertet\s+werden/i,
   /nicht\s+umfassend\s+bewertet\s+werden/i,
+  // Release-Polish (final): generic "we cannot really tell" wording must
+  // not surface as standalone Detail content. Dropping these sentences
+  // collapses weak weather / sleep / time-pattern cards via the
+  // policy-soft-only filter.
+  /\bschwer\s+zu\s+beurteilen\b/i,
+  /\bnicht\s+sicher\s+(?:zu\s+)?(?:beurteilen|sagen|bewerten)\b/i,
+  /\bnicht\s+umfassend\s+dokumentiert\b/i,
+  /\bnicht\s+(?:eindeutig|abschließend)\s+beurteilbar\b/i,
+  /\bDokumentationsgewohnheiten\b/i,
+  /\bpr[äa]zisere\s+Analyse\s+erschwert\b/i,
+  /\bIdentifikation\s+(?:der|von)\s+(?:kausalen?|spezifischen?)\s+Ausl[öo]ser/i,
+  /\bkausale[rn]?\s+Ausl[öo]ser\b/i,
+  /\berschwert\s+die\s+(?:Identifikation|Interpretation|Analyse|Beurteilung)/i,
+  /\bSchlafzeiten\s+(?:sind\s+)?nicht\s+umfassend\b/i,
+  /\bSchlaf\s+als\s+Einflussfaktor\s+k[öo]nnte\b/i,
+  /\bDaten\s+(?:sind\s+)?nicht\s+ausreichend\b/i,
+  /\bnicht\s+explizit\s+genannt\b/i,
 ];
 
 
