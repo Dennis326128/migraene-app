@@ -144,4 +144,66 @@ describe('buildAiPdfSummary', () => {
     expect(titles.some((t) => /Triptan|Akutmedikation/i.test(t))).toBe(true);
     expect(titles.some((t) => /ME\/CFS|Energie/i.test(t))).toBe(true);
   });
+
+  it('PDF-Kurzfazit wiederholt keine Rohzahlen aus Seite 1 (kein "X von Y Tagen")', () => {
+    const out = buildAiPdfSummary({
+      summary: 'LLM-Rohtext',
+      scope: { daysAnalyzed: 30 },
+      analysisV21: {
+        schema_version: '2.1',
+        period: { from: '2026-05-02', to: '2026-05-31' },
+        data_basis: { documented_days: 30, pain_days: 28, mecfs_energy_days: 14 },
+        llm_expanded_findings: [
+          { id: 'b1', category: 'burden', title: 'Sehr hohe Schmerzlast', summary: 'An 28 von 30 Tagen wurden Schmerzen dokumentiert.', evidence_level: 'high' },
+        ],
+        findings: [],
+      },
+    })!;
+    expect(out.summary).not.toMatch(/\d+\s*von\s*\d+\s*Tagen/i);
+    expect(out.summary).not.toMatch(/An\s+\d+\s+von\s+\d+/i);
+    expect(out.summary).toMatch(/sehr hoch|deutlich|moderat|niedrig/i);
+  });
+
+  it('Kurzfazit und erstes Highlight sind nicht identisch', () => {
+    const out = buildAiPdfSummary({
+      summary: 'irrelevant',
+      scope: { daysAnalyzed: 30 },
+      analysisV21: {
+        schema_version: '2.1',
+        period: { from: '2026-05-02', to: '2026-05-31' },
+        data_basis: { documented_days: 30, pain_days: 28, mecfs_energy_days: 14 },
+        llm_expanded_findings: [
+          { id: 'b1', category: 'burden', title: 'Sehr hohe Schmerzlast', summary: 'An 28 von 30 Tagen wurden Schmerzen dokumentiert.', evidence_level: 'high' },
+        ],
+        findings: [],
+      },
+    })!;
+    const firstHl = out.highlights[0];
+    expect(firstHl).toBeTruthy();
+    expect(firstHl.line).not.toBe(out.summary);
+    expect(firstHl.line).not.toContain('28 von 30');
+  });
+
+  it('Highlights sind arztorientiert formuliert (klinische Einordnung statt Statistik)', () => {
+    const out = buildAiPdfSummary({
+      summary: 'irrelevant',
+      scope: { daysAnalyzed: 30 },
+      analysisV21: {
+        schema_version: '2.1',
+        period: { from: '2026-05-02', to: '2026-05-31' },
+        data_basis: { documented_days: 30, pain_days: 28, mecfs_energy_days: 14 },
+        llm_expanded_findings: [
+          { id: 'b1', category: 'burden', title: 'Sehr hohe Schmerzlast', summary: 'An 28 von 30 Tagen.', evidence_level: 'high' },
+          { id: 'm1', category: 'medication_trend', title: 'Triptan-Einnahmen seltener', summary: 'Akut rückläufig.', evidence_level: 'high' },
+          { id: 'me1', category: 'mecfs_energy_trend', title: 'ME/CFS- und Energie-Signale', summary: 'Regelmäßige Energieeinbrüche.', evidence_level: 'high' },
+        ],
+        findings: [],
+      },
+    })!;
+    const joined = out.highlights.map((h) => `${h.title}: ${h.line}`).join(' | ');
+    expect(joined).toMatch(/Kopfschmerzfrequenz|Chronifizierung/i);
+    expect(joined).toMatch(/Akutstrategie|Triptan|Schmerzmittel/i);
+    expect(joined).toMatch(/Energie|ME\/CFS/i);
+    expect(joined).not.toMatch(/\d+\s*von\s*\d+\s*Tagen/i);
+  });
 });
