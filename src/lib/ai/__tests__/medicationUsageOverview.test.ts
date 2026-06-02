@@ -13,6 +13,7 @@ import { describe, it, expect } from "vitest";
 import {
   aggregateMedicationUsage,
   buildMedicationUsageOverviewFinding,
+  formatMedicationUsageLine,
   formatMedicationUsageSummary,
   medicationUsageOverviewTitle,
 } from "@/lib/ai/medicationUsageOverview";
@@ -137,5 +138,38 @@ describe("Medikamentengebrauch im Zeitraum", () => {
       expect(hasSoftBannedText(phrase)).toBe(true);
       expect(sanitizeOutputText(phrase)).toBe("");
     }
+  });
+});
+
+describe("Freitextnotizen – offene Themenliste", () => {
+  it("unbekannte aber relevante Notizen gehen nicht verloren (neutraler Hinweis)", () => {
+    const items = aggregateMedicationUsage(
+      [{ medication_name: "Sumatriptan" }],
+      [{ med_name: "Sumatriptan", effect_score: 7, effect_rating: null, notes: "Aura war diesmal ungewöhnlich lang und visuell intensiv" }],
+    );
+    const line = formatMedicationUsageLine(items[0]);
+    expect(line).toMatch(/weitere dokumentierte Beobachtungen/i);
+  });
+
+  it("gibt Rohnotizen NIE wörtlich aus", () => {
+    const raw = "Aura war diesmal ungewöhnlich lang und visuell intensiv";
+    const items = aggregateMedicationUsage(
+      [{ medication_name: "Sumatriptan" }],
+      [{ med_name: "Sumatriptan", effect_score: 7, effect_rating: null, notes: raw }],
+    );
+    const line = formatMedicationUsageLine(items[0]);
+    expect(line).not.toContain(raw);
+    expect(line).not.toContain("Aura");
+    expect(line).not.toContain("|");
+  });
+
+  it("bekannte Themen werden weiterhin semantisch zusammengefasst (Hilfslayer aktiv)", () => {
+    const items = aggregateMedicationUsage(
+      [{ medication_name: "Sumatriptan" }],
+      [{ med_name: "Sumatriptan", effect_score: 7, effect_rating: null, notes: "war total müde danach, viel geschlafen" }],
+    );
+    const line = formatMedicationUsageLine(items[0]);
+    expect(line).toMatch(/Schlaf\/Erholung/);
+    expect(line).not.toMatch(/weitere dokumentierte Beobachtungen/i);
   });
 });
