@@ -103,7 +103,12 @@ function summarizeNotesSemantic(notes: string[]): string | null {
     if (re.test(hay) && !tags.includes(t)) tags.push(t);
     if (tags.length >= 2) break;
   }
-  if (tags.length === 0) return null;
+  if (tags.length === 0) {
+    // Themenliste ist nur Safety-/Hilfslayer. Wenn Notizen vorhanden sind,
+    // aber kein bekanntes Thema matcht, gehen sie NICHT verloren – wir
+    // spiegeln sie neutral, ohne Rohtext oder Zitate auszugeben.
+    return "Weitere dokumentierte Beobachtungen zur Wirkung/Verträglichkeit vorhanden.";
+  }
   return `Einzelne Notizen erwähnen ${tags.join(" und ")} als Kontext.`;
 }
 
