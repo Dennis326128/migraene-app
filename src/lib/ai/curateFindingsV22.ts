@@ -804,7 +804,8 @@ export function curateFindingsV22(
   // forbidden wording (weather coverage counts, voice events,
   // "schmerzfreie Vergleichstage", diagnose wording, …) into UI or report.
   const hasFriendlyDocSummary = friendlyPresent;
-  const policy = applyOutputPolicy(curated, openQuestions, { hasFriendlyDocSummary });
+  const balancedOpenQuestions = buildBalancedOpenQuestions(curated, openQuestions, responseJson);
+  const policy = applyOutputPolicy(curated, balancedOpenQuestions, { hasFriendlyDocSummary });
   for (const r of policy.removed) suppressed.push(r);
 
   return { findings: policy.findings, openQuestions: policy.openQuestions, suppressed };
