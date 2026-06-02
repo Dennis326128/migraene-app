@@ -115,8 +115,8 @@ const isTriptanMention = (f: NormalizedAnalysisFinding): boolean => {
   return /triptan/.test(hay);
 };
 
-const isMedicationOverview = (f: NormalizedAnalysisFinding): boolean =>
-  f.id === "medication.usage_overview" || /^Medikamentengebrauch im Zeitraum$/i.test(f.title.trim());
+const isMedicationOverview = (f: Pick<NormalizedAnalysisFinding, "id" | "title">): boolean =>
+  f.id === "medication.usage_overview" || /^Medikamentengebrauch im Zeitraum$/i.test((f.title ?? "").trim());
 
 const TRIPTAN_AVOID_RE = /\b(triptan[-\s]?zur[üu]ckhaltung|triptan[-\s]?vermeid|kein(?:e[rn]?)?\s+triptan|verzicht\s+auf\s+triptan|ohne\s+triptan|akutstrategie|akutmedikation\s+vermeid)/i;
 
@@ -263,7 +263,8 @@ function buildBalancedOpenQuestions(
     if (!k || out.some((x) => x.toLowerCase().replace(/\s+/g, " ").trim() === k)) return;
     out.push(q);
   };
-  if (getPainRatio(responseJson) >= 0.5) {
+  const hasNonWeatherClinicalFinding = curated.some((f) => f.category !== "weather" && f.category !== "data_quality");
+  if (hasNonWeatherClinicalFinding && getPainRatio(responseJson) >= 0.5) {
     add("Hohe Kopfschmerzfrequenz und mögliche chronische Verlaufsform ärztlich einordnen.");
   }
   const hasTriptanSignal = curated.some((f) =>
