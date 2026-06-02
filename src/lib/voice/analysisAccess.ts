@@ -131,7 +131,11 @@ export interface FullAnalysisDataset {
     /** Number of medication intakes (or pain entries) with a user-rated
      *  effect entry in medication_effects within the range. 0 = no
      *  effect ratings, ≥1 = user has rated at least one med. */
-    medicationEffectRatedCount: number;
+    /** Number of pain entries that have at least one user-rated effect entry
+     *  in medication_effects within the range. 0 = no effect ratings,
+     *  ≥1 = user has rated at least one med. Optional for backwards-compat
+     *  with test fixtures. */
+    medicationEffectRatedCount?: number;
   };
 }
 
