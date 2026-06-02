@@ -29,13 +29,6 @@ interface MedicationCourseStep1Props {
   setType: (type: MedicationCourseType) => void;
   structuredDosage: StructuredDosage;
   setStructuredDosage: React.Dispatch<React.SetStateAction<StructuredDosage>>;
-  onVoiceData: (data: {
-    medicationName: string;
-    type: MedicationCourseType;
-    dosage: Partial<StructuredDosage>;
-    startDate: Date | undefined;
-    isActive: boolean;
-  }) => void;
   /** Whether we're editing an existing course */
   isEditMode?: boolean;
 }
