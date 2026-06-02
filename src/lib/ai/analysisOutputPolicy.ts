@@ -83,6 +83,13 @@ const BAN_ALWAYS: RegExp[] = [
   /Optimierung\s+des\s+Einnahmezeitpunkts/i,
   /Schlaf\s+als\s+wirksamer\s+Schmerzlinderer/i,
   /\bSumatriptan\s+zeigt\s+Wirkung\b/i,
+  // Release-Polish: generic sensitive-substance "Alternative"-claim must
+  // NEVER appear, regardless of category. Catches "Alternativen wie
+  // Diazepam/Lorazepam/Tilidin/…" wording outside the medication section.
+  /\bAlternativen?\s+wie\s+(?:Diazepam|Lorazepam|Alprazolam|Oxazepam|Clonazepam|Bromazepam|Tavor|Valium|Tilidin|Tramadol|Oxycodon|Morphin|Fentanyl|Codein|Zolpidem|Zopiclon|Pregabalin|Gabapentin)\b/i,
+  // Speculation about reasons for triptan avoidance is not allowed.
+  /m[öo]glicherweise\s+um\s+Medikamenten[üu]bergebrauch\s+vorzubeugen/i,
+  /\bum\s+Medikamenten[üu]bergebrauch\s+vorzubeugen\b/i,
 ];
 
 /**
