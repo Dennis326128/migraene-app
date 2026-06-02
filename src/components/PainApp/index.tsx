@@ -64,6 +64,11 @@ export const PainApp: React.FC = () => {
   const [selectedAIReport, setSelectedAIReport] = useState<AIReport | null>(null);
   const [diaryInitialMedication, setDiaryInitialMedication] = useState<string | null>(null);
   const [diaryOneShotRange, setDiaryOneShotRange] = useState<{ preset: string; from?: string; to?: string } | null>(null);
+  // One-shot pre-selection when entering DiaryReport via the KI-Analyse dialog
+  const [diaryAiMode, setDiaryAiMode] = useState<'none' | 'include_ai' | 'ai_only'>('none');
+  // One-shot flag to auto-trigger pattern analysis when entering AnalysisView
+  const [analysisAutoRunAi, setAnalysisAutoRunAi] = useState(false);
+  const [analysisInitialTab, setAnalysisInitialTab] = useState<'statistik' | 'ki-analyse' | undefined>(undefined);
   const { needsOnboarding, isLoading, completeOnboarding } = useOnboarding();
   const { 
     showTutorial, 
