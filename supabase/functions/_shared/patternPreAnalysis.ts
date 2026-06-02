@@ -451,8 +451,21 @@ export function buildDeterministicFindings(
     should_show_in_doctor_share: true,
   });
 
-  // 4. medication.acute_intakes
+  // 4a. Medikamentengebrauch im Zeitraum – kompakte Übersicht
+  const usageFinding = buildMedicationUsageOverviewFinding(
+    pre.medication.usageOverview ?? [],
+    daysTotal,
+  );
+  if (usageFinding) findings.push(usageFinding as AnalysisFinding);
+
+  // 4b. medication.acute_intakes (ohne Pflicht-Recommendations)
   const intakeCount = pre.medication.intakeCount;
+  const acuteLimitations: string[] = [];
+  if (intakeCount >= 10) {
+    acuteLimitations.push(
+      "Häufige Akutmedikation kann auf ein Übergebrauchsrisiko hinweisen – ärztlich einordnen.",
+    );
+  }
   findings.push({
     id: "medication.acute_intakes",
     category: "medication_use",
@@ -462,7 +475,7 @@ export function buildDeterministicFindings(
     patient_relevance: "high",
     direction: "not_applicable",
     time_window: "rolling_month",
-    plain_language_summary: `${intakeCount} dokumentierte Medikamenteneinnahmen. ${pre.medication.note}`.trim(),
+    plain_language_summary: `${intakeCount} dokumentierte Medikamenteneinnahmen.`,
     deterministic_basis: {
       metric_names: ["medication_intake_count", "high_pain_with_med", "high_pain_without_med"],
       numerator: intakeCount, denominator: daysTotal,
@@ -470,9 +483,11 @@ export function buildDeterministicFindings(
       comparison_denominator: pre.medication.highPainEntries,
       effect_label: "not_calculated", sample_size_label: sampleSizeLabel(intakeCount),
     },
-    limitations: ["Keine Aussage zu MOH ohne längeren, vollständig dokumentierten Zeitraum."],
-    recommended_tracking_next: ["Einnahmezeitpunkt relativ zum Schmerzbeginn erfassen."],
-    doctor_discussion_points: [],
+    limitations: acuteLimitations,
+    recommended_tracking_next: [],
+    doctor_discussion_points: intakeCount >= 10
+      ? ["Häufige Akutmedikation und mögliche Übergebrauchsrisiken einordnen."]
+      : [],
     should_show_in_doctor_share: true,
   });
 
