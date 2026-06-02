@@ -108,6 +108,9 @@ export interface PreAnalysis {
     highPainEntries: number;        // pain >= 7
     highPainWithMed: number;
     highPainWithoutMed: number;
+    /** Number of user-rated medication effect entries in range. ≥1 = user
+     *  already rated at least one med; suppress "Wirksamkeit nicht bewertet". */
+    effectRatedCount: number;
     note: string;
   };
   dataQuality: {
