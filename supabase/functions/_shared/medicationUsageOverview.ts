@@ -39,7 +39,7 @@ function ratingToScore(rating: string | null | undefined): number | null {
 
 function effectQualitative(avg: number): string {
   if (avg <= 1.5) return "subjektiv ohne klare Wirkung beschrieben";
-  if (avg <= 3.5) return "subjektiv gering wirksam beschrieben";
+  if (avg <= 3.5) return "subjektiv wenig hilfreich beschrieben";
   if (avg <= 5.5) return "subjektiv gemischt bewertet";
   if (avg <= 7.5) return "subjektiv überwiegend hilfreich bewertet";
   return "subjektiv häufig hilfreich bewertet";
