@@ -191,3 +191,89 @@ Deno.test("builder: LLM HTTP 429 maps to LLM_UNAVAILABLE", async () => {
   assertEquals(res.status, 429);
   assertEquals((res.body as any).code, "LLM_UNAVAILABLE");
 });
+
+// ─────────────────────────────────────────────────────────────────────────
+// Live-Prompt: "weniger ist mehr" — Release-Konsolidierung
+// ─────────────────────────────────────────────────────────────────────────
+import { buildSystemPrompt } from "./patternAnalysisBuilder.ts";
+import { assertStringIncludes } from "https://deno.land/std@0.224.0/assert/mod.ts";
+
+const PROMPT_META = {
+  totalDays: 30, voiceEventCount: 4, painEntryCount: 18,
+  medicationIntakeCount: 7, daysWithPain: 12, daysWithMecfs: 6,
+};
+
+Deno.test("live prompt: no '10–24 findings' mandatory rule", () => {
+  const p = buildSystemPrompt(PROMPT_META);
+  assert(!/10\s*[–-]\s*24\s+Findings/i.test(p));
+  assert(!/6\s*[–-]\s*12/.test(p), "no 6–12 possiblePatterns minimum");
+});
+
+Deno.test("live prompt: no 'jede Sektion muss bearbeitet werden' rule", () => {
+  const p = buildSystemPrompt(PROMPT_META);
+  assert(!/JEDE\s+Kategorie\s+MUSS/i.test(p));
+  // Only the negation form ("KEINE Pflichtsektionen") may appear:
+  assert(!/(^|\n)\s*PFLICHTSEKTIONEN/i.test(p));
+  assert(!/(^|\n)\s*PFLICHTBEREICHE/i.test(p));
+  assertStringIncludes(p, "KEINE Pflichtsektionen");
+});
+
+Deno.test("live prompt: explicitly allows empty arrays", () => {
+  const p = buildSystemPrompt(PROMPT_META);
+  assertStringIncludes(p, "Leere Arrays sind ausdrücklich erlaubt");
+});
+
+Deno.test("live prompt: prioritizes 3–5 relevant findings (less-is-more)", () => {
+  const p = buildSystemPrompt(PROMPT_META);
+  assertStringIncludes(p, "WENIGER IST");
+  assertStringIncludes(p, "3–5");
+});
+
+Deno.test("live prompt: LLM must not displace deterministic/reserved findings", () => {
+  const p = buildSystemPrompt(PROMPT_META);
+  assertStringIncludes(p, "Niemals verdrängen");
+  assertStringIncludes(p, "medication.usage_overview");
+  assertStringIncludes(p, "Triptantrend");
+  assertStringIncludes(p, "Dokumentationsfazit");
+});
+
+Deno.test("live prompt: medication wording forced to subjective", () => {
+  const p = buildSystemPrompt(PROMPT_META);
+  assertStringIncludes(p, "subjektiv");
+  assert(/NIEMALS\s+als\s+medizinische\s+Wirksamkeitsaussage/i.test(p));
+});
+
+Deno.test("live prompt: sensitive substances treated neutrally", () => {
+  const p = buildSystemPrompt(PROMPT_META);
+  assertStringIncludes(p, "Benzodiazepine");
+  assertStringIncludes(p, "Opioide");
+  assertStringIncludes(p, "Diazepam");
+  assert(/NUR\s+neutral/i.test(p));
+  assert(/NIEMALS\s+als\s+Migränestrategie/i.test(p));
+});
+
+Deno.test("live prompt: forbids raw notes and quotes", () => {
+  const p = buildSystemPrompt(PROMPT_META);
+  assertStringIncludes(p, "KEINE Rohnotizen");
+  assertStringIncludes(p, "KEINE Zitate");
+  assertStringIncludes(p, "KEINE Pipe-Zeichen");
+});
+
+Deno.test("live prompt: forbids deficit/mandatory-doc wording", () => {
+  const p = buildSystemPrompt(PROMPT_META);
+  assertStringIncludes(p, "KEINE Mangel-");
+  assert(/nicht\s+systematisch\s+erfasst/i.test(p));
+  assert(/kann\s+nicht\s+beurteilt\s+werden/i.test(p));
+});
+
+Deno.test("live prompt: caps llm_expanded_findings at 0–6 instead of 10–24", () => {
+  const p = buildSystemPrompt(PROMPT_META);
+  assert(/llm_expanded_findings:\s*0\s*[–-]\s*6/.test(p));
+});
+
+Deno.test("live prompt: detail findings stay short — no long limitations", () => {
+  const p = buildSystemPrompt(PROMPT_META);
+  assertStringIncludes(p, "DETAIL-FINDINGS");
+  assertStringIncludes(p, "strikt kurz");
+  assertStringIncludes(p, "NICHT ausgeben");
+});
