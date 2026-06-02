@@ -299,6 +299,20 @@ serve(async (req) => {
           if (distance < proximityKm) {
             const logTime = new Date(log.created_at);
             console.log(`✅ Reusing hourly cache within ${distance.toFixed(2)} km from ${logTime.toISOString()}`);
+
+            // Repair stale NULL Δ24h on the cached log (idempotent).
+            if (log.pressure_mb != null && log.pressure_change_24h == null) {
+              const delta = await fetchPressureDelta24hFromArchive(roundedLat, roundedLon, at);
+              if (delta != null) {
+                const { error: updErr } = await supabaseService
+                  .from('weather_logs')
+                  .update({ pressure_change_24h: delta })
+                  .eq('id', log.id);
+                if (updErr) console.log('⚠️ Cache Δ24h repair update failed:', updErr.message);
+                else console.log(`🔧 Cache Δ24h repaired for log ${log.id}: ${delta} hPa`);
+              }
+            }
+
             return new Response(JSON.stringify({ 
               weather_id: log.id,
               source: 'cache_hourly' 
