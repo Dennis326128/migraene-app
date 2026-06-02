@@ -180,10 +180,22 @@ function finalizeMedicationSection(
     }
     out.push(f);
   }
-  return out.sort((a, b) => {
+  const medicationItems = out.filter((f) =>
+    f.category === "medication_use" || f.category === "medication_effect" || f.category === "preventive_course",
+  ).sort((a, b) => {
     const ao = isMedicationOverview(a) ? 0 : TRIPTAN_AVOID_RE.test(`${a.title} ${a.summary}`) ? 1 : 2;
     const bo = isMedicationOverview(b) ? 0 : TRIPTAN_AVOID_RE.test(`${b.title} ${b.summary}`) ? 1 : 2;
     return ao - bo;
+  });
+  if (medicationItems.length === 0) return out;
+  let insertedMedication = false;
+  return out.flatMap((f) => {
+    const isMedicationCategory =
+      f.category === "medication_use" || f.category === "medication_effect" || f.category === "preventive_course";
+    if (!isMedicationCategory) return [f];
+    if (insertedMedication) return [];
+    insertedMedication = true;
+    return medicationItems;
   });
 }
 
