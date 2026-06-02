@@ -77,36 +77,29 @@ export function buildAnalysisOverviewSummary(
   }
 
   // 2) Triptan-/Akutmedikationsentwicklung — Kurzfristtrend (10 vs 10) hat
-  // Vorrang vor dem 15-vs-15-Trend; "stabil" wird nur erwähnt, wenn kein
-  // Kurzfristtrend Sinnvolles aussagt.
+  // Vorrang vor dem 15-vs-15-Trend. Wir übernehmen den ersten Satz aus dem
+  // Trend-Finding direkt, weil dieser bereits das verwendete Vergleichs-
+  // fenster („in den letzten 10 Tagen…", „in der zweiten Hälfte…") nennt.
   const triptanShort = findings.find(
     (f) => f.id === "medication_trend.acute_use_short_term",
   );
   const medTrend = findByCategory(findings, "medication_trend");
   const medFinding = triptanShort ?? medTrend;
   if (medFinding) {
-    const t = medFinding.title.toLowerCase();
-    const hay = `${medFinding.title} ${medFinding.summary}`.toLowerCase();
-    if (hay.includes("seltener") && hay.includes("triptan")) {
-      sentences.push("Triptane wurden zuletzt etwas seltener eingenommen.");
-    } else if (t.includes("seltener")) {
-      sentences.push("Die Akutmedikation wurde zuletzt etwas seltener eingenommen.");
-    } else if (t.includes("häufiger")) {
-      sentences.push("Die Akutmedikation wurde zuletzt etwas häufiger eingenommen.");
+    const first = firstSentence(medFinding.summary);
+    if (first) {
+      sentences.push(first);
     } else if (!triptanShort) {
-      // Only mention "stabil" when there is no short-term trend to highlight.
       sentences.push("Die Akutmedikation war im Verlauf weitgehend stabil.");
     }
   }
 
-  // 3) ME/CFS-/Energiehinweis
+  // 3) ME/CFS-/Energiehinweis — gleiches Muster, Fenster-Phrase bleibt erhalten.
   const mecfsTrend = findByCategory(findings, "mecfs_energy_trend");
   if (mecfsTrend) {
-    const t = mecfsTrend.title.toLowerCase();
-    if (t.includes("seltener")) {
-      sentences.push("ME/CFS-/Energiesignale wurden zuletzt etwas seltener dokumentiert.");
-    } else if (t.includes("häufiger")) {
-      sentences.push("ME/CFS-/Energiesignale wurden zuletzt etwas häufiger dokumentiert.");
+    const first = firstSentence(mecfsTrend.summary);
+    if (first) {
+      sentences.push(first);
     } else {
       sentences.push("ME/CFS-/Energiesignale blieben im Verlauf weitgehend ähnlich.");
     }
