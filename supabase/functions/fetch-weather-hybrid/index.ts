@@ -417,18 +417,21 @@ serve(async (req) => {
             if (closestIndex !== -1 && data.hourly.temperature_2m[closestIndex] !== null) {
               const matchedTime = new Date(data.hourly.time[closestIndex]);
               const formattedTime = `${matchedTime.getUTCHours()}:00`;
-              
+
+              // Compute Δ24h directly from archive (deterministic, no DB dependency).
+              const hourlyPressureDelta = await fetchPressureDelta24hFromArchive(lat, lon, at);
+
               weatherData = {
                 temperature_c: data.hourly.temperature_2m[closestIndex],
                 humidity: data.hourly.relative_humidity_2m[closestIndex],
                 pressure_mb: data.hourly.surface_pressure[closestIndex],
-                pressure_change_24h: null, // Will be calculated below from DB
-                wind_kph: data.hourly.wind_speed_10m[closestIndex], // Open-Meteo default unit is km/h
+                pressure_change_24h: hourlyPressureDelta, // null only if archive itself has no data → DB fallback below
+                wind_kph: data.hourly.wind_speed_10m[closestIndex],
                 dewpoint_c: data.hourly.dewpoint_2m?.[closestIndex],
                 condition_text: `Historical data (${formattedTime})`,
                 location: `${lat.toFixed(2)}, ${lon.toFixed(2)}`
               };
-              console.log('✅ Using hourly historical weather data for', formattedTime);
+              console.log('✅ Using hourly historical weather data for', formattedTime, 'Δ24h:', hourlyPressureDelta);
             }
           }
         } catch (error) {
