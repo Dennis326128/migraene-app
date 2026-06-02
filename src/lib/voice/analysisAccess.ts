@@ -129,6 +129,8 @@ export interface FullAnalysisDataset {
   medicationIntakes: MedicationIntakeForAnalysis[];
   /** Context notes from "Alltag & Auslöser" (with fatigue/energy metadata) */
   contextNotes: ContextNoteForAnalysis[];
+  /** Raw medication effect rows (rating + optional notes) for the range. */
+  medicationEffects: MedicationEffectForAnalysis[];
   /** Metadata for the dataset */
   meta: {
     range: AnalysisTimeRange;
@@ -140,9 +142,6 @@ export interface FullAnalysisDataset {
     linkedVoiceEventCount: number;
     /** Voice events without a structured counterpart (everyday observations) */
     unlinkedVoiceEventCount: number;
-    /** Number of medication intakes (or pain entries) with a user-rated
-     *  effect entry in medication_effects within the range. 0 = no
-     *  effect ratings, ≥1 = user has rated at least one med. */
     /** Number of pain entries that have at least one user-rated effect entry
      *  in medication_effects within the range. 0 = no effect ratings,
      *  ≥1 = user has rated at least one med. Optional for backwards-compat
