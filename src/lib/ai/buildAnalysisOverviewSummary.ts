@@ -47,6 +47,7 @@ function firstSentence(s: string | undefined | null): string {
 }
 
 /**
+ * Returns a 5–7 sentence Fließtext or null when no analysisV21 is present.
  */
 export function buildAnalysisOverviewSummary(
   { responseJson, findings }: OverviewInputs,
