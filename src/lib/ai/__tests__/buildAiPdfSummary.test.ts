@@ -161,7 +161,7 @@ describe('buildAiPdfSummary', () => {
     })!;
     expect(out.summary).not.toMatch(/\d+\s*von\s*\d+\s*Tagen/i);
     expect(out.summary).not.toMatch(/An\s+\d+\s+von\s+\d+/i);
-    expect(out.summary).toMatch(/sehr hoch|deutlich|moderat|niedrig/i);
+    expect(out.summary).toMatch(/sehr hoh|deutlich|moderat|niedrig/i);
   });
 
   it('Kurzfazit und erstes Highlight sind nicht identisch', () => {
