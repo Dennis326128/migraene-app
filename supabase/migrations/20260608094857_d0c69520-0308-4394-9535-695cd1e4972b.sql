@@ -1,0 +1,2 @@
+ALTER TABLE public.user_medications ADD COLUMN IF NOT EXISTS regular_frequency text;
+COMMENT ON COLUMN public.user_medications.regular_frequency IS 'Einnahmerhythmus für regelmäßige Medikation: daily_1x, daily_2x, daily_3x, weekly, monthly, quarterly, other';

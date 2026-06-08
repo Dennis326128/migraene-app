@@ -1427,6 +1427,7 @@ export type Database = {
           medication_status: string | null
           name: string
           raw_input: string | null
+          regular_frequency: string | null
           regular_notes: string | null
           regular_weekdays: string[] | null
           staerke: string | null
@@ -1466,6 +1467,7 @@ export type Database = {
           medication_status?: string | null
           name: string
           raw_input?: string | null
+          regular_frequency?: string | null
           regular_notes?: string | null
           regular_weekdays?: string[] | null
           staerke?: string | null
@@ -1505,6 +1507,7 @@ export type Database = {
           medication_status?: string | null
           name?: string
           raw_input?: string | null
+          regular_frequency?: string | null
           regular_notes?: string | null
           regular_weekdays?: string[] | null
           staerke?: string | null
