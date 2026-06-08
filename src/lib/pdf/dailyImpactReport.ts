@@ -20,12 +20,11 @@ interface DailyImpactPdfInput {
   answers: DailyImpactAnswers;
   score: number;
   completedDate: Date;
-  externalHit6Score?: number | null;
-  externalHit6Date?: Date | null;
 }
 
 export async function buildDailyImpactPdf(input: DailyImpactPdfInput): Promise<Uint8Array> {
-  const { answers, score, completedDate, externalHit6Score, externalHit6Date } = input;
+  const { answers, score, completedDate } = input;
+
   
   const doc = new jsPDF({
     orientation: 'portrait',
