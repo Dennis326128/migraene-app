@@ -1,19 +1,18 @@
 import React, { useState, useMemo } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Bell, BellOff, Clock, Plus, Pencil, Trash2, Calendar, X } from "lucide-react";
-import { format, addMonths, addDays } from "date-fns";
+import { Bell, BellOff, Clock, Plus, Trash2, X } from "lucide-react";
+import { format, addMonths } from "date-fns";
 import { de } from "date-fns/locale";
 import { toast } from "sonner";
 import { useCreateReminder, useUpdateReminder, useDeleteReminder } from "@/features/reminders/hooks/useReminders";
 import type { Reminder, ReminderRepeat } from "@/types/reminder.types";
 import type { Med } from "@/features/meds/hooks/useMeds";
 import type { MedicationReminderStatus } from "@/features/reminders/hooks/useMedicationReminders";
+import { detectImplicitFrequency } from "@/lib/medications/medicationFrequency";
 import { cn } from "@/lib/utils";
 
 interface MedicationReminderSheetProps {
@@ -46,31 +45,37 @@ export const MedicationReminderSheet: React.FC<MedicationReminderSheetProps> = (
   const medicationName = medication?.name ?? providedMedicationName ?? "";
   const medicationId = medication?.id ?? providedMedicationId;
   
-  // Default repeat based on medication type
-  const defaultRepeat: ReminderRepeat = isProphylaxis ? "monthly" : "daily";
-  
-  // Smart default date for prophylaxis (next month) vs regular (today)
+  // Smart default: Ajovy/CGRP → monthly; explicit isProphylaxis flag → monthly; sonst daily
+  const autoMonthly = useMemo(() => {
+    if (isProphylaxis) return true;
+    const f = detectImplicitFrequency(medicationName);
+    return f === "monthly" || f === "quarterly";
+  }, [isProphylaxis, medicationName]);
+
+  const defaultRepeat: ReminderRepeat = autoMonthly ? "monthly" : "daily";
+
+  // Smart default date: monatlich → nächster Monat (Standard für Ajovy), sonst heute
   const smartDefaultDate = useMemo(() => {
-    if (isProphylaxis) {
+    if (autoMonthly) {
       return format(addMonths(new Date(), 1), 'yyyy-MM-dd');
     }
     return format(new Date(), 'yyyy-MM-dd');
-  }, [isProphylaxis]);
-  
+  }, [autoMonthly]);
+
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newDate, setNewDate] = useState(smartDefaultDate);
   const [newTime, setNewTime] = useState("09:00");
   const [newRepeat, setNewRepeat] = useState<ReminderRepeat>(defaultRepeat);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [reminderToDelete, setReminderToDelete] = useState<Reminder | null>(null);
-  
+
   // Defensive destructuring with fallbacks to prevent crash if reminderStatus is undefined
-  const { 
-    isActive = false, 
-    reminders = [], 
-    nextTriggerDate = null, 
-    isIntervalMed = isProphylaxis, 
-    reminderCount = 0 
+  const {
+    isActive = false,
+    reminders = [],
+    nextTriggerDate = null,
+    isIntervalMed = autoMonthly,
+    reminderCount = 0,
   } = reminderStatus ?? {};
 
   // Early return if no medication name
@@ -78,21 +83,24 @@ export const MedicationReminderSheet: React.FC<MedicationReminderSheetProps> = (
     return null;
   }
 
-  // Generate time options (every 30 minutes)
-  const timeOptions: string[] = [];
-  for (let h = 0; h < 24; h++) {
-    for (let m = 0; m < 60; m += 30) {
-      const hour = h.toString().padStart(2, '0');
-      const minute = m.toString().padStart(2, '0');
-      timeOptions.push(`${hour}:${minute}`);
-    }
-  }
+  const REPEAT_CHIPS: { value: ReminderRepeat; label: string }[] = [
+    { value: "none", label: "Einmalig" },
+    { value: "daily", label: "Täglich" },
+    { value: "weekly", label: "Wöchentlich" },
+    { value: "monthly", label: "Monatlich" },
+  ];
+
+  const showDateField = newRepeat === "monthly" || newRepeat === "none";
+
 
   const handleCreateReminder = async () => {
     setIsSubmitting(true);
     try {
-      // Use the selected date for prophylaxis or today for regular meds
-      const dateToUse = isProphylaxis ? newDate : format(new Date(), 'yyyy-MM-dd');
+      // Wenn Datum sichtbar ist (monatlich/einmalig) → User-Wahl, sonst heute
+      const dateToUse =
+        newRepeat === "monthly" || newRepeat === "none"
+          ? newDate
+          : format(new Date(), 'yyyy-MM-dd');
       const dateTime = `${dateToUse}T${newTime}:00`;
       
       await createReminder.mutateAsync({
@@ -252,52 +260,61 @@ export const MedicationReminderSheet: React.FC<MedicationReminderSheetProps> = (
                     </Button>
                   </div>
                   
-                  {/* Date picker for prophylaxis (interval meds) */}
-                  {isProphylaxis && (
+                  {/* Wiederholung — Chips */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Wiederholung</Label>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {REPEAT_CHIPS.map((chip) => (
+                        <button
+                          key={chip.value}
+                          type="button"
+                          onClick={() => setNewRepeat(chip.value)}
+                          className={cn(
+                            "h-10 rounded-md border text-xs font-medium transition-colors touch-manipulation",
+                            newRepeat === chip.value
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-input bg-background text-foreground hover:bg-muted"
+                          )}
+                        >
+                          {chip.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Datum (nur bei monatlich oder einmalig) + Uhrzeit */}
+                  <div className={cn("grid gap-3", showDateField ? "grid-cols-2" : "grid-cols-1")}>
+                    {showDateField && (
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">
+                          {newRepeat === "monthly" ? "Erstes Datum" : "Datum"}
+                        </Label>
+                        <input
+                          type="date"
+                          value={newDate}
+                          onChange={(e) => setNewDate(e.target.value)}
+                          min={format(new Date(), 'yyyy-MM-dd')}
+                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        />
+                      </div>
+                    )}
                     <div className="space-y-1.5">
-                      <Label className="text-xs text-muted-foreground">Datum der nächsten Einnahme</Label>
+                      <Label className="text-xs text-muted-foreground">Uhrzeit</Label>
                       <input
-                        type="date"
-                        value={newDate}
-                        onChange={(e) => setNewDate(e.target.value)}
-                        min={format(new Date(), 'yyyy-MM-dd')}
+                        type="time"
+                        value={newTime}
+                        onChange={(e) => setNewTime(e.target.value)}
                         className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                       />
                     </div>
-                  )}
-                  
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label className="text-xs text-muted-foreground">Uhrzeit</Label>
-                      <Select value={newTime} onValueChange={setNewTime}>
-                        <SelectTrigger className="h-10">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="max-h-[200px]">
-                          {timeOptions.map((option) => (
-                            <SelectItem key={option} value={option}>
-                              {option} Uhr
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    <div className="space-y-1.5">
-                      <Label className="text-xs text-muted-foreground">Wiederholung</Label>
-                      <Select value={newRepeat} onValueChange={(v) => setNewRepeat(v as ReminderRepeat)}>
-                        <SelectTrigger className="h-10">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">Einmalig</SelectItem>
-                          <SelectItem value="daily">Täglich</SelectItem>
-                          <SelectItem value="weekly">Wöchentlich</SelectItem>
-                          <SelectItem value="monthly">Monatlich</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
                   </div>
+
+                  {newRepeat === "monthly" && (
+                    <p className="text-xs text-muted-foreground">
+                      Wiederholt sich jeden Monat am gleichen Kalendertag.
+                    </p>
+                  )}
+
                   
                   <div className="flex gap-2 pt-2">
                     <Button

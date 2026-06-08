@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Plus, Bell, BellOff, Clock, Calendar } from 'lucide-react';
+import { Plus, Bell, BellOff, Clock, Calendar, CalendarPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/ui/page-header';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ReminderCard } from './ReminderCard';
+import { SimpleAppointmentSheet } from './SimpleAppointmentSheet';
 import { groupReminders, type GroupedReminder, type DoctorsMap } from '@/features/reminders/helpers/groupReminders';
 import { ReminderForm } from './ReminderForm';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -91,6 +92,7 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
   const [lastNonAppointmentFilter, setLastNonAppointmentFilter] = useState<RangeFilter>('all');
   const [hasNotificationPermission, setHasNotificationPermission] = useState(false);
   const [formKey, setFormKey] = useState(0);
+  const [appointmentSheetOpen, setAppointmentSheetOpen] = useState(false);
 
   const queryClient = useQueryClient();
   const { data: activeReminders = [], isLoading: loadingActive } = useActiveReminders();
@@ -283,6 +285,11 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
   const handleMarkDone = async (id: string) => {
     markDoneMutation.mutate(id);
   };
+
+  const handleToggleEnabled = (reminder: Reminder, enabled: boolean) => {
+    updateMutation.mutate({ id: reminder.id, input: { notification_enabled: enabled } });
+  };
+
 
   const handleCreate = (data: CreateReminderInput | CreateReminderInput[] | UpdateReminderInput) => {
     if (Array.isArray(data)) {
@@ -548,7 +555,7 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
       />
 
       <div className="container mx-auto px-4 pb-6">
-        <div className="mb-6">
+        <div className="mb-6 space-y-2">
           <Button
             onClick={() => {
               setPrefillData(null);
@@ -562,7 +569,16 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
             <Plus className="w-6 h-6 mr-3" />
             Neue Erinnerung
           </Button>
+          <Button
+            onClick={() => setAppointmentSheetOpen(true)}
+            variant="outline"
+            className="w-full touch-manipulation min-h-12"
+          >
+            <CalendarPlus className="w-5 h-5 mr-2" />
+            Termin schnell anlegen
+          </Button>
         </div>
+
 
         {!hasNotificationPermission && (
           <div className="mb-4">
@@ -669,6 +685,7 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
                     onEdit={handleEdit}
                     onMarkDone={handleMarkDone}
                     onPlanFollowUp={handlePlanFollowUp}
+                    onToggleEnabled={handleToggleEnabled}
                   />
                 ))}
                 
@@ -771,6 +788,11 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
           </TabsContent>
         </Tabs>
       </div>
+
+      <SimpleAppointmentSheet
+        isOpen={appointmentSheetOpen}
+        onClose={() => setAppointmentSheetOpen(false)}
+      />
     </div>
   );
 };

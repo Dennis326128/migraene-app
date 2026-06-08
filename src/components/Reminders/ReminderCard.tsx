@@ -1,6 +1,7 @@
-import { Pill, Calendar, Edit2, AlertTriangle, Check, CalendarPlus } from 'lucide-react';
+import { Pill, Calendar, Edit2, AlertTriangle, Check, CalendarPlus, Bell, BellOff } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
 import { isToday, isTomorrow } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import type { Reminder, ReminderPrefill } from '@/types/reminder.types';
@@ -21,6 +22,8 @@ interface ReminderCardProps {
   onEdit: (reminder: Reminder, allReminders: Reminder[]) => void;
   onMarkDone: (id: string) => void;
   onPlanFollowUp?: (prefill: ReminderPrefill) => void;
+  /** Optional: toggle notification_enabled (mute/unmute) */
+  onToggleEnabled?: (reminder: Reminder, enabled: boolean) => void;
 }
 
 // Safe date extraction helpers
@@ -33,11 +36,12 @@ const extractTimeFromDateTime = (dateTime: string): string => {
   }
 };
 
-export const ReminderCard = ({ grouped, relativeLabel, onEdit, onMarkDone, onPlanFollowUp }: ReminderCardProps) => {
+export const ReminderCard = ({ grouped, relativeLabel, onEdit, onMarkDone, onPlanFollowUp, onToggleEnabled }: ReminderCardProps) => {
   const { reminder, nextOccurrence, frequencyLabel, isRecurring, displayTitle } = grouped;
   const isOverdue = isReminderOverdue(reminder);
   const showFollowUp = hasFollowUpConfigured(reminder) && onPlanFollowUp;
   const nextFollowUpDate = (reminder as any).next_follow_up_date;
+  const enabled = reminder.notification_enabled !== false;
   
   // Relative time removed for cleaner medical UX
 
@@ -175,7 +179,25 @@ export const ReminderCard = ({ grouped, relativeLabel, onEdit, onMarkDone, onPla
         </div>
 
         {/* Rechte Seite: Action Buttons */}
-        <div className="flex flex-col gap-2 shrink-0">
+        <div className="flex flex-col gap-2 shrink-0 items-end">
+          {onToggleEnabled && reminder.status === 'pending' && (
+            <button
+              type="button"
+              onClick={() => onToggleEnabled(reminder, !enabled)}
+              className={cn(
+                "flex items-center gap-1 px-2 h-7 rounded-md border text-xs font-medium transition-colors touch-manipulation",
+                enabled
+                  ? "border-primary/30 bg-primary/5 text-primary"
+                  : "border-border bg-muted/40 text-muted-foreground"
+              )}
+              title={enabled ? "Erinnerung pausieren" : "Erinnerung aktivieren"}
+              aria-label={enabled ? "Erinnerung pausieren" : "Erinnerung aktivieren"}
+            >
+              {enabled ? <Bell className="h-3.5 w-3.5" /> : <BellOff className="h-3.5 w-3.5" />}
+              <span>{enabled ? "Aktiv" : "Aus"}</span>
+            </button>
+          )}
+
           {reminder.status === 'pending' && (
             <Button
               size="sm"
@@ -187,7 +209,7 @@ export const ReminderCard = ({ grouped, relativeLabel, onEdit, onMarkDone, onPla
               Erledigt
             </Button>
           )}
-          
+
           <Button
             size="sm"
             variant="ghost"
