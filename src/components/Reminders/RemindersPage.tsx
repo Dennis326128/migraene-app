@@ -286,6 +286,11 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
     markDoneMutation.mutate(id);
   };
 
+  const handleToggleEnabled = (reminder: Reminder, enabled: boolean) => {
+    updateMutation.mutate({ id: reminder.id, input: { notification_enabled: enabled } });
+  };
+
+
   const handleCreate = (data: CreateReminderInput | CreateReminderInput[] | UpdateReminderInput) => {
     if (Array.isArray(data)) {
       createMultipleMutation.mutate(data, {
