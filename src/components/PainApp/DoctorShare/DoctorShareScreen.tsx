@@ -101,32 +101,29 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack, on
     refetchDoctors();
   }, [refetchDoctors]);
 
-  // Load current allow_ai_generate setting for the active share
   const currentShareId = shareStatus?.id ?? null;
+
+  // Keep allow_ai_generate in sync with include_ai_analysis for existing shares.
+  // No separate UI toggle — the rule is: if the KI-Zusammenfassung is part of
+  // the share, the doctor may refresh it via the website; otherwise not.
   useEffect(() => {
     if (!currentShareId) return;
     let cancelled = false;
-    getShareSettings(currentShareId)
-      .then((s) => { if (!cancelled && s) setAllowAiGenerate(!!s.allow_ai_generate); })
-      .catch(() => { /* non-fatal */ });
+    (async () => {
+      try {
+        const s = await getShareSettings(currentShareId);
+        if (cancelled || !s) return;
+        const desired = !!s.include_ai_analysis;
+        if (!!s.allow_ai_generate !== desired) {
+          await upsertShareSettings(currentShareId, { allow_ai_generate: desired });
+        }
+      } catch (err) {
+        console.error('[DoctorShare] allow_ai_generate sync failed:', err);
+      }
+    })();
     return () => { cancelled = true; };
   }, [currentShareId, justCreatedCode]);
 
-  const handleToggleAllowAiGenerate = async (checked: boolean) => {
-    if (!currentShareId) return;
-    setAllowAiGeneratePending(true);
-    const prev = allowAiGenerate;
-    setAllowAiGenerate(checked); // optimistic
-    try {
-      await upsertShareSettings(currentShareId, { allow_ai_generate: checked });
-    } catch (err) {
-      console.error('[DoctorShare] allow_ai_generate update failed:', err);
-      setAllowAiGenerate(prev);
-      toast.error("Einstellung konnte nicht gespeichert werden");
-    } finally {
-      setAllowAiGeneratePending(false);
-    }
-  };
 
   // Determine if we should auto-start generation
   const shouldAutoGenerate =
