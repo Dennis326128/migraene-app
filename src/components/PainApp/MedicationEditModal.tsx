@@ -321,13 +321,13 @@ export const MedicationEditModal = ({ medication, open, onOpenChange }: Medicati
             {/* 2. Wofür */}
             <div className="space-y-2">
               <Label className="text-sm font-medium">Wofür?</Label>
-              <Segmented value={purpose} onChange={setPurpose} options={PURPOSE_OPTIONS} />
+              <Segmented value={purpose} onChange={(v) => setPurpose(v as PurposeKey)} options={PURPOSE_OPTIONS} />
             </div>
 
             {/* 3. Einnahme */}
             <div className="space-y-2">
               <Label className="text-sm font-medium">Einnahme</Label>
-              <Segmented value={intake} onChange={(v) => { setIntake(v); if (v === "as_needed") setFrequency(""); }} options={INTAKE_OPTIONS} />
+              <Segmented value={intake} onChange={(v) => { setIntake(v as IntakeKey); if (v === "as_needed") setFrequency(""); }} options={INTAKE_OPTIONS} />
             </div>
 
             {/* 4. Rhythmus — nur bei Regelmäßig */}
@@ -508,8 +508,8 @@ export const MedicationEditModal = ({ medication, open, onOpenChange }: Medicati
 
       {medication && (
         <MedicationReminderSheet
-          open={showReminderSheet}
-          onOpenChange={setShowReminderSheet}
+          isOpen={showReminderSheet}
+          onClose={() => setShowReminderSheet(false)}
           medication={medication}
         />
       )}
