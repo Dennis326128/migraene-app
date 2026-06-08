@@ -74,7 +74,7 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack, on
   const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(null);
   const [showActivateDialog, setShowActivateDialog] = useState(false);
   const [isActivatingForLink, setIsActivatingForLink] = useState(false);
-  const [allowAiGenerate, setAllowAiGenerate] = useState<boolean>(false);
+  const [allowAiGenerate, setAllowAiGenerate] = useState<boolean>(true);
   const [allowAiGeneratePending, setAllowAiGeneratePending] = useState(false);
   const abortRef = useRef(false);
 
@@ -195,6 +195,7 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack, on
         include_entry_notes: true,
         include_context_notes: false,
         include_ai_analysis: true,
+        allow_ai_generate: true,
       });
       if (abortRef.current) return;
 
@@ -685,17 +686,19 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack, on
                 </p>
               )}
 
-              {/* allow_ai_generate toggle — patient must opt in explicitly.
-                  Always tied to include_ai_analysis=true (set on share creation). */}
+              {/* allow_ai_generate toggle — opt-in to let the doctor trigger
+                  a fresh KI-Zusammenfassung from the share website. Uses the
+                  patient's monthly KI-Kontingent. Default is ON for new shares
+                  (set on creation), but the patient may turn it off any time. */}
               {currentShareId && (
                 <div className="rounded-lg border border-border/50 p-3 space-y-1.5">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-sm text-foreground">
-                        Ärzt:innen dürfen neue KI-Analyse erstellen
+                        KI-Zusammenfassung über Freigabe erstellen erlauben
                       </p>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        Nur wenn KI-Analyse freigegeben ist. Maximal alle 15 Minuten.
+                        Ärzt:innen können über den Freigabe-Link eine neue KI-Zusammenfassung erstellen. Dabei wird dein monatliches KI-Kontingent verwendet. Maximal alle 15 Minuten.
                       </p>
                     </div>
                     <Switch
