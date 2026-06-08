@@ -1,19 +1,18 @@
 import React, { useState, useMemo } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Bell, BellOff, Clock, Plus, Pencil, Trash2, Calendar, X } from "lucide-react";
-import { format, addMonths, addDays } from "date-fns";
+import { Bell, BellOff, Clock, Plus, Trash2, X } from "lucide-react";
+import { format, addMonths } from "date-fns";
 import { de } from "date-fns/locale";
 import { toast } from "sonner";
 import { useCreateReminder, useUpdateReminder, useDeleteReminder } from "@/features/reminders/hooks/useReminders";
 import type { Reminder, ReminderRepeat } from "@/types/reminder.types";
 import type { Med } from "@/features/meds/hooks/useMeds";
 import type { MedicationReminderStatus } from "@/features/reminders/hooks/useMedicationReminders";
+import { detectImplicitFrequency } from "@/lib/medications/medicationFrequency";
 import { cn } from "@/lib/utils";
 
 interface MedicationReminderSheetProps {
