@@ -1,6 +1,7 @@
-import { Pill, Calendar, Edit2, AlertTriangle, Check, CalendarPlus } from 'lucide-react';
+import { Pill, Calendar, Edit2, AlertTriangle, Check, CalendarPlus, Bell, BellOff } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
 import { isToday, isTomorrow } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import type { Reminder, ReminderPrefill } from '@/types/reminder.types';
@@ -21,6 +22,8 @@ interface ReminderCardProps {
   onEdit: (reminder: Reminder, allReminders: Reminder[]) => void;
   onMarkDone: (id: string) => void;
   onPlanFollowUp?: (prefill: ReminderPrefill) => void;
+  /** Optional: toggle notification_enabled (mute/unmute) */
+  onToggleEnabled?: (reminder: Reminder, enabled: boolean) => void;
 }
 
 // Safe date extraction helpers
