@@ -1,27 +1,25 @@
 import { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useUpdateMed, type Med, type UpdateMedInput } from "@/features/meds/hooks/useMeds";
-import { lookupMedicationMetadata } from "@/lib/medicationLookup";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Sparkles, AlertTriangle, Pill, Clock, FileText, Calendar, ChevronDown, Settings2, X, Bell } from "lucide-react";
+import { Loader2, ChevronDown, Bell, AlertTriangle, Sparkles, Pill } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useMedicationReminderStatus } from "@/features/reminders/hooks/useMedicationReminders";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useUserDefaults } from "@/features/settings/hooks/useUserSettings";
-import { supabase } from "@/integrations/supabase/client";
-import { Badge } from "@/components/ui/badge";
-import { WeekdayPicker, type Weekday, formatWeekdays } from "@/components/ui/weekday-picker";
+import { useMedicationReminderStatus } from "@/features/reminders/hooks/useMedicationReminders";
 import { MedicationReminderSheet } from "@/components/Reminders/MedicationReminderSheet";
-import { format } from "date-fns";
+import {
+  FREQUENCY_OPTIONS,
+  detectImplicitFrequency,
+  type RegularFrequency,
+} from "@/lib/medications/medicationFrequency";
+import { lookupMedicationMetadata } from "@/lib/medicationLookup";
 import { classifyMedication } from "@/lib/medications/classifyMedication";
 
 interface MedicationEditModalProps {
@@ -30,1057 +28,491 @@ interface MedicationEditModalProps {
   onOpenChange: (open: boolean) => void;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// CONSTANTS
-// ═══════════════════════════════════════════════════════════════════════════
+type PurposeKey = "prophylaxe" | "akut" | "sonstiges";
+type IntakeKey = "regular" | "as_needed";
 
-const DARREICHUNGSFORMEN = [
-  "Tablette", "Kapsel", "Filmtablette", "Schmelztablette", "Brausetablette",
-  "Tropfen", "Lösung", "Sirup", "Nasenspray", "Spray",
-  "Injektionslösung", "Fertigspritze", "Pen",
-  "Zäpfchen", "Creme", "Salbe", "Pflaster", "Infusion", "Sonstiges"
-];
-
-// Reduced unit list for simplicity
-const STRENGTH_UNITS = [
-  { value: "mg", label: "mg" },
-  { value: "µg", label: "µg" },
-  { value: "g", label: "g" },
-  { value: "ml", label: "ml" },
-  { value: "IE", label: "IE" },
-];
-
-const INTAKE_TYPES = [
-  { value: "as_needed", label: "Bei Bedarf" },
-  { value: "regular", label: "Regelmäßig" },
-];
-
-const MIGRAINE_CATEGORIES = [
-  { value: "none", label: "Kein Triptan/Gepant" },
-  { value: "triptan", label: "Triptan" },
-  { value: "gepant", label: "Gepant" },
-] as const;
-
-type MigraineCategory = typeof MIGRAINE_CATEGORIES[number]["value"];
-
-const TYPICAL_INDICATIONS = [
-  "Akute Migräneattacke",
-  "Migräneprophylaxe",
-  "Übelkeit / Erbrechen",
-  "Schlafstörung",
-  "Angst / Unruhe",
-  "Schmerzen allgemein",
-];
-
-const INTOLERANCE_REASONS = [
-  { value: "allergie", label: "Allergie" },
-  { value: "nebenwirkungen", label: "Schwere Nebenwirkungen" },
-  { value: "wirkungslos", label: "Wirkt nicht / unzureichende Wirkung" },
+const PURPOSE_OPTIONS: { value: PurposeKey; label: string }[] = [
+  { value: "prophylaxe", label: "Prophylaxe" },
+  { value: "akut", label: "Akut" },
   { value: "sonstiges", label: "Sonstiges" },
 ];
 
-// ═══════════════════════════════════════════════════════════════════════════
-// HELPER: Extract strength and unit from medication name
-// ═══════════════════════════════════════════════════════════════════════════
-function extractStrengthFromName(name: string): { strength: string; unit: string; wirkstoff: string } {
-  // Match patterns like "Sumatriptan 100 mg", "Zopiclon 7,5mg", "Ibuprofen 400"
-  const match = name.match(/^(.+?)\s*(\d+(?:[,\.]\d+)?)\s*(mg|µg|g|ml|IE)?$/i);
-  
-  if (match) {
-    const wirkstoff = match[1].trim();
-    const strength = match[2].replace(',', '.');
-    const unit = match[3]?.toLowerCase() || 'mg';
-    return { strength, unit, wirkstoff };
-  }
-  
-  // Try to find any number in the name for strength
-  const numberMatch = name.match(/(\d+(?:[,\.]\d+)?)/);
-  if (numberMatch) {
-    const strength = numberMatch[1].replace(',', '.');
-    // Extract text before the number as potential wirkstoff
-    const beforeNumber = name.slice(0, name.indexOf(numberMatch[0])).trim();
-    return { strength, unit: 'mg', wirkstoff: beforeNumber || '' };
-  }
-  
-  return { strength: '', unit: 'mg', wirkstoff: '' };
+const INTAKE_OPTIONS: { value: IntakeKey; label: string }[] = [
+  { value: "regular", label: "Regelmäßig" },
+  { value: "as_needed", label: "Bei Bedarf" },
+];
+
+const DARREICHUNGSFORMEN = [
+  "Tablette", "Kapsel", "Filmtablette", "Tropfen", "Lösung", "Spray",
+  "Nasenspray", "Injektionslösung", "Fertigspritze", "Pen",
+  "Zäpfchen", "Pflaster", "Sonstiges",
+];
+
+const STRENGTH_UNITS = ["mg", "µg", "g", "ml", "IE"];
+
+function mapArtToPurpose(art: string | null | undefined, intake: IntakeKey): PurposeKey {
+  if (art === "prophylaxe") return "prophylaxe";
+  if (art === "akut") return "akut";
+  if (intake === "as_needed") return "akut";
+  return "sonstiges";
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// COLLAPSIBLE SECTION COMPONENT
-// ═══════════════════════════════════════════════════════════════════════════
-interface CollapsibleSectionProps {
-  title: string;
-  icon: React.ReactNode;
-  hint?: string;
-  badge?: React.ReactNode;
-  defaultOpen?: boolean;
-  children: React.ReactNode;
+function purposeToArt(purpose: PurposeKey, intake: IntakeKey): string {
+  if (purpose === "prophylaxe") return "prophylaxe";
+  if (purpose === "akut") return intake === "regular" ? "akut" : "bedarf";
+  return intake === "regular" ? "regelmaessig" : "bedarf";
 }
 
-const CollapsibleSection = ({ title, icon, hint, badge, defaultOpen = false, children }: CollapsibleSectionProps) => {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
-  
+function deriveFrequency(med: Med | null): RegularFrequency | "" {
+  if (!med) return "";
+  if (med.regular_frequency) return med.regular_frequency as RegularFrequency;
+  // Implicit detection (e.g., Ajovy → monthly)
+  const implicit = detectImplicitFrequency(med.name);
+  if (implicit) return implicit;
+  // Derive from existing dose fields
+  const filled = [med.dosis_morgens, med.dosis_mittags, med.dosis_abends, med.dosis_nacht]
+    .filter((d) => d && d.trim().length > 0).length;
+  if (filled === 3) return "daily_3x";
+  if (filled === 2) return "daily_2x";
+  if (filled === 1) return "daily_1x";
+  const wd = med.regular_weekdays || [];
+  if (wd.length > 0 && wd.length < 7) return "weekly";
+  return "";
+}
+
+// Tiny segmented control component (mobile-first, app-feeling)
+function Segmented<T extends string>({
+  value, onChange, options,
+}: {
+  value: T;
+  onChange: (v: T) => void;
+  options: { value: T; label: string }[];
+}) {
   return (
-    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-      <div className="rounded-lg bg-card/30 border border-border/30">
-        <CollapsibleTrigger className="flex items-center justify-between w-full p-4 hover:bg-muted/30 transition-colors rounded-lg">
-          <div className="flex items-center gap-3">
-            <div className="text-muted-foreground">{icon}</div>
-            <div className="text-left">
-              <div className="flex items-center gap-2">
-                <span className="font-medium text-sm">{title}</span>
-                {badge}
-              </div>
-              {hint && !isOpen && (
-                <p className="text-xs text-muted-foreground mt-0.5">{hint}</p>
-              )}
-            </div>
-          </div>
-          <ChevronDown className={cn(
-            "h-4 w-4 text-muted-foreground transition-transform duration-200",
-            isOpen && "rotate-180"
-          )} />
-        </CollapsibleTrigger>
-        <CollapsibleContent>
-          <div className="px-4 pb-4 pt-2 space-y-4">
-            {children}
-          </div>
-        </CollapsibleContent>
-      </div>
-    </Collapsible>
+    <div className="grid gap-1 p-1 rounded-lg bg-muted/40 border border-border/40"
+         style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}>
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          onClick={() => onChange(o.value)}
+          className={cn(
+            "text-sm font-medium py-2.5 rounded-md transition-colors",
+            value === o.value
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
   );
-};
-
-// ═══════════════════════════════════════════════════════════════════════════
-// MAIN COMPONENT
-// ═══════════════════════════════════════════════════════════════════════════
+}
 
 export const MedicationEditModal = ({ medication, open, onOpenChange }: MedicationEditModalProps) => {
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const updateMed = useUpdateMed();
   const reminderStatus = useMedicationReminderStatus(medication);
-  const [showIntakeChangeConfirm, setShowIntakeChangeConfirm] = useState(false);
-  const [pendingIntakeType, setPendingIntakeType] = useState<string | null>(null);
-  const [customReasons, setCustomReasons] = useState<string[]>([]);
-  const [hasStartDate, setHasStartDate] = useState(false);
-  const [scheduleType, setScheduleType] = useState<"daily" | "weekdays">("daily");
   const [showReminderSheet, setShowReminderSheet] = useState(false);
-  const [categoryTouched, setCategoryTouched] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
-  const [formData, setFormData] = useState<UpdateMedInput>({
-    name: "",
-    wirkstoff: "",
-    staerke: "",
-    darreichungsform: "Tablette",
-    einheit: "Stück",
-    dosis_morgens: "",
-    dosis_mittags: "",
-    dosis_abends: "",
-    dosis_nacht: "",
-    dosis_bedarf: "",
-    anwendungsgebiet: "",
-    hinweise: "",
-    art: "bedarf",
-    intolerance_flag: false,
-    intolerance_notes: "",
-    intolerance_reason_type: "",
-    intake_type: "as_needed",
-    strength_value: "",
-    strength_unit: "mg",
-    typical_indication: "",
-    as_needed_standard_dose: "",
-    as_needed_max_per_24h: undefined,
-    as_needed_max_days_per_month: undefined,
-    as_needed_min_interval_hours: undefined,
-    as_needed_notes: "",
-    regular_weekdays: [],
-    regular_notes: "",
-    medication_status: "active",
-    start_date: "",
-    end_date: "",
-    is_active: true,
-  });
+  // Core simplified state
+  const [name, setName] = useState("");
+  const [purpose, setPurpose] = useState<PurposeKey>("akut");
+  const [intake, setIntake] = useState<IntakeKey>("as_needed");
+  const [frequency, setFrequency] = useState<RegularFrequency | "">("");
+  const [doseText, setDoseText] = useState("");
 
-  // Load custom reasons from user profile
+  // Optional/advanced state
+  const [strengthValue, setStrengthValue] = useState("");
+  const [strengthUnit, setStrengthUnit] = useState("mg");
+  const [wirkstoff, setWirkstoff] = useState("");
+  const [form, setForm] = useState("Tablette");
+  const [hinweise, setHinweise] = useState("");
+  const [maxPer24h, setMaxPer24h] = useState<number | "">("");
+  const [maxDaysPerMonth, setMaxDaysPerMonth] = useState<number | "">("");
+  const [intolerant, setIntolerant] = useState(false);
+  const [intoleranceNotes, setIntoleranceNotes] = useState("");
+  const [archived, setArchived] = useState(false);
+  const [effectCategory, setEffectCategory] = useState<string>("");
+
   useEffect(() => {
-    const loadCustomReasons = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      
-      const { data } = await supabase
-        .from('user_profiles')
-        .select('custom_medication_reasons')
-        .eq('user_id', user.id)
-        .single();
-      
-      if (data?.custom_medication_reasons) {
-        setCustomReasons(data.custom_medication_reasons as string[]);
-      }
-    };
-    
-    if (open) {
-      loadCustomReasons();
-    }
-  }, [open]);
+    if (!medication) return;
+    const inferredIntake: IntakeKey =
+      medication.intake_type === "regular" ||
+      medication.art === "prophylaxe" ||
+      medication.art === "regelmaessig"
+        ? "regular"
+        : "as_needed";
 
-  // Reset form when medication changes
-  useEffect(() => {
-    if (medication) {
-      const inferredIntakeType = medication.intake_type || 
-        (medication.art === "prophylaxe" || medication.art === "regelmaessig" ? "regular" : "as_needed");
-      
-      // Determine if start date should be shown (has existing start_date)
-      const hasExistingStartDate = !!medication.start_date;
-      setHasStartDate(hasExistingStartDate);
-      
-      // Determine schedule type from weekdays
-      const hasWeekdays = medication.regular_weekdays && medication.regular_weekdays.length > 0;
-      setScheduleType(hasWeekdays ? "weekdays" : "daily");
-      
-      setFormData({
-        name: medication.name || "",
-        wirkstoff: medication.wirkstoff || "",
-        staerke: medication.staerke || "",
-        darreichungsform: medication.darreichungsform || "Tablette",
-        einheit: medication.einheit || "Stück",
-        dosis_morgens: medication.dosis_morgens || "",
-        dosis_mittags: medication.dosis_mittags || "",
-        dosis_abends: medication.dosis_abends || "",
-        dosis_nacht: medication.dosis_nacht || "",
-        dosis_bedarf: medication.dosis_bedarf || "",
-        anwendungsgebiet: medication.anwendungsgebiet || "",
-        hinweise: medication.hinweise || "",
-        art: medication.art || "bedarf",
-        intolerance_flag: medication.intolerance_flag || false,
-        intolerance_notes: medication.intolerance_notes || "",
-        intolerance_reason_type: medication.intolerance_reason_type || "",
-        intake_type: inferredIntakeType,
-        strength_value: medication.strength_value || "",
-        strength_unit: medication.strength_unit || "mg",
-        typical_indication: medication.typical_indication || "",
-        as_needed_standard_dose: medication.as_needed_standard_dose || "",
-        as_needed_max_per_24h: medication.as_needed_max_per_24h || undefined,
-        as_needed_max_days_per_month: medication.as_needed_max_days_per_month || undefined,
-        as_needed_min_interval_hours: medication.as_needed_min_interval_hours || undefined,
-        as_needed_notes: medication.as_needed_notes || "",
-        regular_weekdays: medication.regular_weekdays || [],
-        regular_notes: medication.regular_notes || "",
-        medication_status: medication.medication_status || "active",
-        effect_category: medication.effect_category || "",
-        start_date: medication.start_date || "",
-        end_date: medication.end_date || "",
-        is_active: medication.is_active !== false,
-      });
-      setCategoryTouched(Boolean(medication.effect_category));
-    } else {
-      // Reset for new medication
-      setHasStartDate(false);
-      setScheduleType("daily");
-      setCategoryTouched(false);
-    }
+    setName(medication.name || "");
+    setIntake(inferredIntake);
+    setPurpose(mapArtToPurpose(medication.art, inferredIntake));
+    setFrequency(deriveFrequency(medication));
+    // Dose: prefer structured single field. For daily grid, show first non-empty.
+    const dailyDose =
+      medication.dosis_morgens ||
+      medication.dosis_mittags ||
+      medication.dosis_abends ||
+      medication.dosis_nacht ||
+      "";
+    setDoseText(medication.as_needed_standard_dose || dailyDose || medication.dosis_bedarf || "");
+
+    setStrengthValue(medication.strength_value || "");
+    setStrengthUnit(medication.strength_unit || "mg");
+    setWirkstoff(medication.wirkstoff || "");
+    setForm(medication.darreichungsform || "Tablette");
+    setHinweise(medication.hinweise || medication.regular_notes || medication.as_needed_notes || "");
+    setMaxPer24h(medication.as_needed_max_per_24h ?? "");
+    setMaxDaysPerMonth(medication.as_needed_max_days_per_month ?? "");
+    setIntolerant(!!medication.intolerance_flag);
+    setIntoleranceNotes(medication.intolerance_notes || "");
+    setArchived(medication.is_active === false);
+    setEffectCategory(medication.effect_category || "");
+    setAdvancedOpen(false);
   }, [medication]);
 
-  // Auto-extract strength/unit/wirkstoff from name when name changes
-  const handleNameChange = (newName: string) => {
-    setFormData(prev => {
-      const updated = { ...prev, name: newName };
-      if (!categoryTouched) {
-        const detected = classifyMedication(newName);
-        updated.effect_category = detected.isGepant ? "gepant" : detected.isTriptan ? "triptan" : "";
-      }
-      
-      // Only auto-fill if the fields are currently empty
-      if (!prev.strength_value && !prev.wirkstoff) {
-        const extracted = extractStrengthFromName(newName);
-        if (extracted.strength) {
-          updated.strength_value = extracted.strength;
-        }
-        if (extracted.unit) {
-          updated.strength_unit = extracted.unit;
-        }
-        if (extracted.wirkstoff && !prev.wirkstoff) {
-          updated.wirkstoff = extracted.wirkstoff;
-        }
-      }
-      
-      return updated;
-    });
-  };
+  // Smart defaults: when switching to regular, suggest a frequency
+  useEffect(() => {
+    if (intake === "regular" && !frequency) {
+      const implicit = detectImplicitFrequency(name);
+      setFrequency(implicit || "daily_1x");
+    }
+  }, [intake, frequency, name]);
 
   const handleAutoFill = () => {
-    if (!formData.name) return;
-    
-    const metadata = lookupMedicationMetadata(formData.name);
-    if (metadata) {
-      setFormData(prev => ({
-        ...prev,
-        wirkstoff: metadata.wirkstoff || prev.wirkstoff,
-        staerke: metadata.staerke || prev.staerke,
-        darreichungsform: metadata.darreichungsform || prev.darreichungsform,
-        art: metadata.art || prev.art,
-        anwendungsgebiet: metadata.anwendungsgebiet || prev.anwendungsgebiet,
-        hinweise: metadata.hinweise || prev.hinweise,
-      }));
-      toast({
-        title: "Auto-Fill angewendet",
-        description: "Vorschläge wurden eingetragen. Du kannst sie anpassen.",
-      });
+    if (!name.trim()) return;
+    const meta = lookupMedicationMetadata(name);
+    if (meta) {
+      if (!wirkstoff && meta.wirkstoff) setWirkstoff(meta.wirkstoff);
+      if (meta.darreichungsform) setForm(meta.darreichungsform);
+      if (!effectCategory) {
+        const cls = classifyMedication(name);
+        if (cls.isTriptan) setEffectCategory("triptan");
+        else if (cls.isGepant) setEffectCategory("gepant");
+      }
+      toast({ title: "Vorschläge übernommen" });
     } else {
-      toast({
-        title: "Keine Vorschläge gefunden",
-        description: "Für dieses Medikament sind keine Auto-Fill-Daten verfügbar.",
-      });
+      toast({ title: "Keine Vorschläge gefunden" });
     }
-  };
-
-  const handleIntakeTypeChange = (newType: string) => {
-    if (formData.intake_type === "regular" && newType === "as_needed") {
-      const hasDoses = formData.dosis_morgens || formData.dosis_mittags || 
-                       formData.dosis_abends || formData.dosis_nacht;
-      if (hasDoses) {
-        setPendingIntakeType(newType);
-        setShowIntakeChangeConfirm(true);
-        return;
-      }
-    }
-    if (formData.intake_type === "as_needed" && newType === "regular") {
-      const hasAsNeededData = formData.as_needed_standard_dose || formData.as_needed_max_per_24h;
-      if (hasAsNeededData) {
-        setPendingIntakeType(newType);
-        setShowIntakeChangeConfirm(true);
-        return;
-      }
-    }
-    applyIntakeTypeChange(newType);
-  };
-
-  const applyIntakeTypeChange = (newType: string) => {
-    if (newType === "as_needed") {
-      setFormData(prev => ({
-        ...prev,
-        intake_type: newType,
-        art: "bedarf",
-        dosis_morgens: "",
-        dosis_mittags: "",
-        dosis_abends: "",
-        dosis_nacht: "",
-        regular_weekdays: [],
-        regular_notes: "",
-      }));
-      setScheduleType("daily");
-    } else {
-      setFormData(prev => ({
-        ...prev,
-        intake_type: newType,
-        art: "regelmaessig",
-        as_needed_standard_dose: "",
-        as_needed_max_per_24h: undefined,
-        as_needed_max_days_per_month: undefined,
-        as_needed_min_interval_hours: undefined,
-        as_needed_notes: "",
-        dosis_bedarf: "",
-      }));
-    }
-    setShowIntakeChangeConfirm(false);
-    setPendingIntakeType(null);
-  };
-
-  // Handler for start date toggle
-  const handleStartDateToggle = (enabled: boolean) => {
-    setHasStartDate(enabled);
-    if (enabled) {
-      // Set to today when enabling
-      const today = format(new Date(), 'yyyy-MM-dd');
-      updateField("start_date", today);
-    } else {
-      // Clear when disabling
-      updateField("start_date", "");
-    }
-  };
-
-  // Handler for schedule type change
-  const handleScheduleTypeChange = (type: "daily" | "weekdays") => {
-    setScheduleType(type);
-    if (type === "daily") {
-      updateField("regular_weekdays", []);
-    }
-  };
-
-  // Handler for weekdays change
-  const handleWeekdaysChange = (days: Weekday[]) => {
-    updateField("regular_weekdays", days);
-  };
-
-  const handleActiveToggle = (isActive: boolean) => {
-    setFormData(prev => {
-      const updated = { ...prev, is_active: isActive };
-      if (!isActive && !prev.end_date) {
-        // Set end date to today when deactivating
-        updated.end_date = new Date().toISOString().split('T')[0];
-      }
-      if (isActive) {
-        // Clear end date when reactivating
-        updated.end_date = "";
-      }
-      return updated;
-    });
-  };
-
-  const handleIntoleranceToggle = (isIntolerant: boolean) => {
-    setFormData(prev => {
-      const updated = { ...prev, intolerance_flag: isIntolerant };
-      if (isIntolerant) {
-        // Auto-deactivate and set end date when marking as intolerant
-        updated.is_active = false;
-        if (!prev.end_date) {
-          updated.end_date = new Date().toISOString().split('T')[0];
-        }
-      }
-      return updated;
-    });
-  };
-
-  const saveCustomReason = async (reason: string) => {
-    if (!reason || reason.length < 3) return;
-    if (customReasons.includes(reason)) return;
-    
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    
-    const newReasons = [...customReasons, reason];
-    setCustomReasons(newReasons);
-    
-    await supabase
-      .from('user_profiles')
-      .update({ custom_medication_reasons: newReasons } as any)
-      .eq('user_id', user.id);
-  };
-
-  const removeCustomReason = async (reason: string) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    
-    const newReasons = customReasons.filter(r => r !== reason);
-    setCustomReasons(newReasons);
-    
-    await supabase
-      .from('user_profiles')
-      .update({ custom_medication_reasons: newReasons } as any)
-      .eq('user_id', user.id);
   };
 
   const handleSave = async () => {
     if (!medication) return;
+    if (!name.trim()) {
+      toast({ title: "Name erforderlich", variant: "destructive" });
+      return;
+    }
 
-    const combinedStaerke = formData.strength_value && formData.strength_unit
-      ? `${formData.strength_value} ${formData.strength_unit}`
-      : formData.staerke;
+    const isRegular = intake === "regular";
+    const art = purposeToArt(purpose, intake);
 
-    const finalData: UpdateMedInput = { 
-      ...formData,
-      staerke: combinedStaerke,
-      // Only save start_date if toggle is ON
-      start_date: hasStartDate ? formData.start_date : null,
-      // For regular medications with weekdays schedule, ensure weekdays are saved
-      regular_weekdays: isRegular && scheduleType === "weekdays" ? formData.regular_weekdays : [],
+    // Build dose fields: for daily grid, write into dosis_morgens; otherwise into as_needed_standard_dose.
+    let dosis_morgens: string | undefined = "";
+    let dosis_mittags: string | undefined = "";
+    let dosis_abends: string | undefined = "";
+    let dosis_nacht: string | undefined = "";
+    let as_needed_standard_dose: string | undefined = "";
+
+    if (isRegular && (frequency === "daily_1x" || frequency === "daily_2x" || frequency === "daily_3x")) {
+      const slots = frequency === "daily_3x" ? 3 : frequency === "daily_2x" ? 2 : 1;
+      dosis_morgens = doseText || "";
+      dosis_mittags = slots >= 3 ? doseText : "";
+      dosis_abends = slots >= 2 ? doseText : "";
+    } else if (isRegular) {
+      // weekly/monthly/quarterly/other: store dose label in as_needed_standard_dose for SSOT
+      as_needed_standard_dose = doseText || "";
+    } else {
+      // as_needed
+      as_needed_standard_dose = doseText || "";
+    }
+
+    const finalData: UpdateMedInput = {
+      name: name.trim(),
+      art,
+      intake_type: intake,
+      regular_frequency: isRegular ? (frequency || null) as any : null as any,
+      dosis_morgens,
+      dosis_mittags,
+      dosis_abends,
+      dosis_nacht,
+      as_needed_standard_dose,
+      as_needed_max_per_24h: typeof maxPer24h === "number" ? maxPer24h : undefined,
+      as_needed_max_days_per_month: typeof maxDaysPerMonth === "number" ? maxDaysPerMonth : undefined,
+      strength_value: strengthValue || "",
+      strength_unit: strengthUnit || "mg",
+      wirkstoff: wirkstoff || "",
+      darreichungsform: form || "Tablette",
+      hinweise: hinweise || "",
+      regular_notes: isRegular ? hinweise || "" : "",
+      as_needed_notes: !isRegular ? hinweise || "" : "",
+      intolerance_flag: intolerant,
+      intolerance_notes: intolerant ? intoleranceNotes || "" : "",
+      effect_category: effectCategory || "",
+      is_active: !archived && !intolerant,
     };
-    
-    if (formData.intolerance_flag) {
-      finalData.is_active = false;
-      finalData.discontinued_at = new Date().toISOString();
+
+    if (intolerant) {
       finalData.medication_status = "intolerant";
-    } else if (!formData.is_active) {
-      finalData.discontinued_at = formData.end_date ? new Date(formData.end_date).toISOString() : new Date().toISOString();
+      finalData.discontinued_at = new Date().toISOString();
+    } else if (archived) {
       finalData.medication_status = "stopped";
+      finalData.discontinued_at = new Date().toISOString();
     } else {
       finalData.medication_status = "active";
       finalData.discontinued_at = null;
     }
 
-    // Save custom reason if it's new
-    const customReason = formData.anwendungsgebiet?.trim();
-    if (customReason && customReason.length >= 3) {
-      const isBuiltIn = TYPICAL_INDICATIONS.includes(customReason);
-      if (!isBuiltIn && !customReasons.includes(customReason)) {
-        await saveCustomReason(customReason);
-      }
-    }
-
     try {
-      await updateMed.mutateAsync({
-        id: medication.id,
-        input: finalData,
-      });
-      toast({
-        title: "Gespeichert",
-        description: "Medikamenten-Stammdaten wurden aktualisiert.",
-      });
+      await updateMed.mutateAsync({ id: medication.id, input: finalData });
+      toast({ title: "Gespeichert" });
       onOpenChange(false);
-    } catch (error: any) {
-      toast({
-        title: "Fehler beim Speichern",
-        description: error.message,
-        variant: "destructive",
-      });
+    } catch (e: any) {
+      toast({ title: "Fehler", description: e.message, variant: "destructive" });
     }
   };
 
-  const updateField = (field: keyof UpdateMedInput, value: string | boolean | number | string[] | undefined) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-  };
-
-  const handleTypicalIndicationSelect = (indication: string) => {
-    updateField("typical_indication", indication);
-    updateField("anwendungsgebiet", indication);
-  };
-
-  const handleCustomReasonSelect = (reason: string) => {
-    updateField("anwendungsgebiet", reason);
-  };
-
-  const isRegular = formData.intake_type === "regular";
-  const isActive = formData.is_active !== false;
+  const isRegular = intake === "regular";
 
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className={cn(
-          "max-w-xl max-h-[90vh] overflow-y-auto modern-scrollbar",
-          "bg-background border-border/50",
-          isMobile && "max-w-[95vw] p-4"
-        )}>
-          <DialogHeader>
-            <DialogTitle className={cn("text-lg flex items-center gap-2", isMobile && "text-base")}>
-              <Pill className="h-5 w-5 text-primary" />
+        <DialogContent
+          className={cn(
+            "p-0 gap-0 border-border/50 bg-background overflow-hidden",
+            isMobile
+              ? "max-w-full w-screen h-[100dvh] rounded-none sm:rounded-none"
+              : "max-w-md max-h-[90vh]"
+          )}
+        >
+          {/* Sticky header */}
+          <DialogHeader className="px-5 pt-5 pb-3 border-b border-border/40 shrink-0">
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Pill className="h-4 w-4 text-primary" />
               Medikament bearbeiten
             </DialogTitle>
+            <DialogDescription className="sr-only">
+              Bearbeite Name, Einnahme und Rhythmus deines Medikaments.
+            </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-5 py-2">
-            {/* ═══════════════════════════════════════════════════════════════════════════ */}
-            {/* KURZBEREICH - Always Visible */}
-            {/* ═══════════════════════════════════════════════════════════════════════════ */}
-            <div className="space-y-4">
-              {/* Name + Stärke + Unit in one row */}
+          {/* Scrollable body — single scroll surface */}
+          <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
+            {/* 1. Medikament */}
+            <div className="space-y-2">
+              <Label htmlFor="med-name" className="text-sm font-medium">Medikament</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="med-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="z. B. Ajovy 225 mg"
+                  className="h-11 text-base"
+                  autoComplete="off"
+                />
+                <Button type="button" variant="outline" size="icon" className="h-11 w-11 shrink-0" onClick={handleAutoFill} title="Vorschläge laden">
+                  <Sparkles className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* 2. Wofür */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Wofür?</Label>
+              <Segmented value={purpose} onChange={(v) => setPurpose(v as PurposeKey)} options={PURPOSE_OPTIONS} />
+            </div>
+
+            {/* 3. Einnahme */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Einnahme</Label>
+              <Segmented value={intake} onChange={(v) => { setIntake(v as IntakeKey); if (v === "as_needed") setFrequency(""); }} options={INTAKE_OPTIONS} />
+            </div>
+
+            {/* 4. Rhythmus — nur bei Regelmäßig */}
+            {isRegular && (
               <div className="space-y-2">
-                <Label htmlFor="name">Handelsname</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) => handleNameChange(e.target.value)}
-                    placeholder="z.B. Sumatriptan 100 mg"
-                    className="flex-1"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={handleAutoFill}
-                    title="Auto-Fill Vorschläge laden"
-                    className="shrink-0"
-                  >
-                    <Sparkles className="h-4 w-4" />
+                <Label className="text-sm font-medium">Wie oft?</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {FREQUENCY_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setFrequency(opt.value)}
+                      className={cn(
+                        "text-sm font-medium py-3 px-3 rounded-lg border transition-colors text-center",
+                        frequency === opt.value
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border/60 bg-card/40 text-foreground hover:border-border"
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 5. Dosis */}
+            <div className="space-y-2">
+              <Label htmlFor="dose" className="text-sm font-medium">
+                Dosis {isRegular ? "pro Einnahme" : "(optional)"}
+              </Label>
+              <Input
+                id="dose"
+                value={doseText}
+                onChange={(e) => setDoseText(e.target.value)}
+                placeholder={isRegular && frequency === "monthly" ? "z. B. 1 Injektion" : "z. B. 1 Tablette"}
+                className="h-11 text-base"
+                autoComplete="off"
+              />
+            </div>
+
+            {/* Weitere Angaben — Progressive Disclosure */}
+            <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+              <CollapsibleTrigger className="flex items-center justify-between w-full py-3 px-4 rounded-lg bg-muted/30 border border-border/40 hover:bg-muted/50 transition-colors">
+                <span className="text-sm font-medium">Weitere Angaben</span>
+                <ChevronDown className={cn("h-4 w-4 transition-transform", advancedOpen && "rotate-180")} />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-5 pt-4">
+                {/* Stärke */}
+                <div className="grid grid-cols-[1fr_auto] gap-2 items-end">
+                  <div className="space-y-2">
+                    <Label htmlFor="strength" className="text-sm">Stärke</Label>
+                    <Input id="strength" value={strengthValue} inputMode="decimal" onChange={(e) => setStrengthValue(e.target.value)} placeholder="z. B. 225" className="h-10" />
+                  </div>
+                  <div className="space-y-2 w-20">
+                    <Label className="text-sm">Einheit</Label>
+                    <Select value={strengthUnit} onValueChange={setStrengthUnit}>
+                      <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {STRENGTH_UNITS.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Wirkstoff */}
+                <div className="space-y-2">
+                  <Label htmlFor="wirkstoff" className="text-sm">Wirkstoff</Label>
+                  <Input id="wirkstoff" value={wirkstoff} onChange={(e) => setWirkstoff(e.target.value)} placeholder="z. B. Fremanezumab" className="h-10" />
+                </div>
+
+                {/* Darreichungsform */}
+                <div className="space-y-2">
+                  <Label className="text-sm">Darreichungsform</Label>
+                  <Select value={form} onValueChange={setForm}>
+                    <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {DARREICHUNGSFORMEN.map((f) => <SelectItem key={f} value={f}>{f}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Bedarfs-Limits (nur bei Bedarf) */}
+                {!isRegular && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label className="text-sm">Max./Tag</Label>
+                      <Input type="number" min={1} max={20} value={maxPer24h} onChange={(e) => setMaxPer24h(e.target.value ? parseInt(e.target.value) : "")} className="h-10" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm">Max. Tage/Monat</Label>
+                      <Input type="number" min={1} max={31} value={maxDaysPerMonth} onChange={(e) => setMaxDaysPerMonth(e.target.value ? parseInt(e.target.value) : "")} className="h-10" />
+                    </div>
+                  </div>
+                )}
+
+                {/* Hinweise */}
+                <div className="space-y-2">
+                  <Label htmlFor="hinweise" className="text-sm">Hinweise</Label>
+                  <Textarea id="hinweise" value={hinweise} onChange={(e) => setHinweise(e.target.value)} rows={2} placeholder="z. B. mit Wasser einnehmen" />
+                </div>
+
+                {/* Kategorie (Triptan/Gepant) */}
+                <div className="space-y-2">
+                  <Label className="text-sm">Kategorie (Migräne-Analyse)</Label>
+                  <Select value={effectCategory || "none"} onValueChange={(v) => setEffectCategory(v === "none" ? "" : v)}>
+                    <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Kein Triptan/Gepant</SelectItem>
+                      <SelectItem value="triptan">Triptan</SelectItem>
+                      <SelectItem value="gepant">Gepant</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Erinnerung */}
+                <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border/40">
+                  <div className="flex items-center gap-2">
+                    <Bell className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm">
+                      {reminderStatus.isActive
+                        ? `${reminderStatus.reminderCount} Erinnerung${reminderStatus.reminderCount !== 1 ? "en" : ""}`
+                        : "Keine Erinnerung"}
+                    </span>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => setShowReminderSheet(true)}>
+                    {reminderStatus.isActive ? "Bearbeiten" : "Hinzufügen"}
                   </Button>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Tipp: Stärke im Namen (z.B. „Ibuprofen 400 mg") wird automatisch erkannt
-                </p>
-              </div>
 
-              {/* Strength + Unit row (compact) */}
-              <div className="flex gap-3 items-end">
-                <div className="flex-1 space-y-2">
-                  <Label htmlFor="strength_value" className="text-sm">Stärke</Label>
-                  <Input
-                    id="strength_value"
-                    value={formData.strength_value || ""}
-                    onChange={(e) => updateField("strength_value", e.target.value)}
-                    placeholder="z.B. 100"
-                    inputMode="decimal"
-                    className="h-9"
-                  />
-                </div>
-                <div className="w-20 space-y-2">
-                  <Label className="text-sm">Einheit</Label>
-                  <Select
-                    value={formData.strength_unit || "mg"}
-                    onValueChange={(v) => updateField("strength_unit", v)}
-                  >
-                    <SelectTrigger className="h-9">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {STRENGTH_UNITS.map((u) => (
-                        <SelectItem key={u.value} value={u.value}>{u.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {/* Intake Type */}
-              <div className="space-y-2">
-                <Label>Art der Einnahme</Label>
-                <Select
-                  value={formData.intake_type || "as_needed"}
-                  onValueChange={handleIntakeTypeChange}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Auswählen..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {INTAKE_TYPES.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Kategorie</Label>
-                <Select
-                  value={(formData.effect_category as MigraineCategory) || "none"}
-                  onValueChange={(value) => {
-                    setCategoryTouched(true);
-                    updateField("effect_category", value === "none" ? "" : value);
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {MIGRAINE_CATEGORIES.map((category) => (
-                      <SelectItem key={category.value} value={category.value}>{category.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Quick Dosage Fields for as-needed medications */}
-              {!isRegular && (
-                <div className="space-y-3 p-4 rounded-lg bg-muted/30 border border-border/30">
-                  <p className="text-sm font-medium text-muted-foreground">Dosierung (Bei Bedarf)</p>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="as_needed_standard_dose" className="text-sm">Standarddosis</Label>
-                      <Input
-                        id="as_needed_standard_dose"
-                        value={formData.as_needed_standard_dose || ""}
-                        onChange={(e) => updateField("as_needed_standard_dose", e.target.value)}
-                        placeholder="z.B. 1 Tablette"
-                        className="h-9"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="as_needed_max_per_24h" className="text-sm">Max. pro 24h</Label>
-                      <Input
-                        id="as_needed_max_per_24h"
-                        type="number"
-                        min={1}
-                        max={20}
-                        value={formData.as_needed_max_per_24h || ""}
-                        onChange={(e) => updateField("as_needed_max_per_24h", e.target.value ? parseInt(e.target.value) : undefined)}
-                        placeholder="z.B. 2"
-                        className="h-9"
-                      />
-                    </div>
+                {/* Archiviert */}
+                <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border/40">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm font-medium">Archiviert</Label>
+                    <p className="text-xs text-muted-foreground">Aus aktueller Liste entfernen</p>
                   </div>
-                </div>
-              )}
-            </div>
-
-            {/* ═══════════════════════════════════════════════════════════════════════════ */}
-            {/* COLLAPSIBLE SECTIONS */}
-            {/* ═══════════════════════════════════════════════════════════════════════════ */}
-            <div className="space-y-2">
-              <CollapsibleSection
-                title="Weitere Optionen"
-                icon={<Calendar className="h-4 w-4" />}
-                hint="Startdatum, Archivierung und Einnahmeplan"
-              >
-                {isRegular && (
-                  <div className="space-y-4 p-3 rounded-lg bg-muted/20 border border-border/30">
-                    <p className="text-sm font-medium text-muted-foreground">Einnahmeplan</p>
-                    <div className="space-y-2">
-                      <Label className="text-sm">Frequenz</Label>
-                      <Select value={scheduleType} onValueChange={(v) => handleScheduleTypeChange(v as "daily" | "weekdays")}>
-                        <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="daily">Täglich</SelectItem>
-                          <SelectItem value="weekdays">Bestimmte Wochentage</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {scheduleType === "weekdays" && (
-                      <div className="space-y-2">
-                        <Label className="text-sm">Einnahme an</Label>
-                        <WeekdayPicker value={(formData.regular_weekdays || []) as Weekday[]} onChange={handleWeekdaysChange} size="sm" />
-                        {formData.regular_weekdays && formData.regular_weekdays.length > 0 && (
-                          <p className="text-xs text-muted-foreground">{formatWeekdays(formData.regular_weekdays as Weekday[])}</p>
-                        )}
-                      </div>
-                    )}
-                    <div className="space-y-2 pt-2 border-t border-border/30">
-                      <Label className="text-sm">Dosierung pro Einnahme</Label>
-                      <div className="grid grid-cols-4 gap-2">
-                        {[
-                          { key: "dosis_morgens", label: "Mo" },
-                          { key: "dosis_mittags", label: "Mi" },
-                          { key: "dosis_abends", label: "Ab" },
-                          { key: "dosis_nacht", label: "Na" },
-                        ].map(({ key, label }) => (
-                          <div key={key} className="space-y-1">
-                            <Label className="text-xs text-center block">{label}</Label>
-                            <Input
-                              value={(formData as any)[key] || ""}
-                              onChange={(e) => updateField(key as any, e.target.value)}
-                              placeholder="0"
-                              className="text-center h-9"
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="space-y-3 p-3 rounded-lg bg-muted/20 border border-border/30">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="space-y-0.5">
-                      <Label className="text-sm font-medium">Startdatum hinzufügen</Label>
-                      <p className="text-xs text-muted-foreground">Optional für den Therapieverlauf</p>
-                    </div>
-                    <Switch checked={hasStartDate} onCheckedChange={handleStartDateToggle} />
-                  </div>
-                  {hasStartDate && (
-                    <div className="space-y-2 pt-2 border-t border-border/30">
-                      <Label htmlFor="start_date" className="text-sm">Startdatum</Label>
-                      <Input
-                        id="start_date"
-                        type="date"
-                        value={formData.start_date || ""}
-                        onChange={(e) => updateField("start_date", e.target.value)}
-                        className="h-9"
-                      />
-                    </div>
-                  )}
+                  <Switch checked={archived} onCheckedChange={setArchived} />
                 </div>
 
-                <div className="space-y-3 p-3 rounded-lg bg-muted/20 border border-border/30">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="space-y-0.5">
-                      <Label className="text-sm font-medium">Archiviert</Label>
-                      <p className="text-xs text-muted-foreground">Aus aktueller Liste entfernen</p>
-                    </div>
-                    <Switch checked={!isActive} onCheckedChange={(archived) => handleActiveToggle(!archived)} />
-                  </div>
-                  {!isActive && (
-                    <div className="space-y-2 pt-2 border-t border-border/30">
-                      <Label htmlFor="end_date" className="text-sm">Ende der Einnahme</Label>
-                      <Input
-                        id="end_date"
-                        type="date"
-                        value={formData.end_date || ""}
-                        onChange={(e) => updateField("end_date", e.target.value)}
-                        className="h-9"
-                      />
-                    </div>
-                  )}
-                </div>
-              </CollapsibleSection>
-
-              {/* Pharmazeutische Details */}
-              <CollapsibleSection
-                title="Pharmazeutische Details"
-                icon={<FileText className="h-4 w-4" />}
-                hint="Optional – für detaillierten Medikationsplan"
-              >
-                <div className="space-y-2">
-                  <Label htmlFor="wirkstoff">Wirkstoff</Label>
-                  <Input
-                    id="wirkstoff"
-                    value={formData.wirkstoff || ""}
-                    onChange={(e) => updateField("wirkstoff", e.target.value)}
-                    placeholder="z.B. Sumatriptan"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Darreichungsform</Label>
-                  <Select
-                    value={formData.darreichungsform || "Tablette"}
-                    onValueChange={(v) => updateField("darreichungsform", v)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Tablette" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {DARREICHUNGSFORMEN.map((form) => (
-                        <SelectItem key={form} value={form}>{form}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Anwendungsgebiet / Grund (optional)</Label>
-                  <div className="flex flex-wrap gap-1.5 mb-2">
-                    {TYPICAL_INDICATIONS.map((ind) => (
-                      <Button
-                        key={ind}
-                        type="button"
-                        variant={formData.anwendungsgebiet === ind ? "default" : "outline"}
-                        size="sm"
-                        className="text-xs h-7"
-                        onClick={() => handleTypicalIndicationSelect(ind)}
-                      >
-                        {ind}
-                      </Button>
-                    ))}
-                  </div>
-                  
-                  {/* Custom Reasons */}
-                  {customReasons.length > 0 && (
-                    <div className="space-y-1.5">
-                      <p className="text-xs text-muted-foreground">Eigene Gründe:</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {customReasons.map((reason) => (
-                          <Badge
-                            key={reason}
-                            variant={formData.anwendungsgebiet === reason ? "default" : "outline"}
-                            className="cursor-pointer text-xs pr-1 flex items-center gap-1"
-                            onClick={() => handleCustomReasonSelect(reason)}
-                          >
-                            {reason}
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                removeCustomReason(reason);
-                              }}
-                              className="ml-1 hover:text-destructive"
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  
-                  <Input
-                    value={formData.anwendungsgebiet || ""}
-                    onChange={(e) => updateField("anwendungsgebiet", e.target.value)}
-                    placeholder="z.B. Thrombose, Bluthochdruck"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Eigene Gründe werden automatisch gespeichert und stehen für andere Medikamente zur Auswahl
-                  </p>
-                </div>
-              </CollapsibleSection>
-
-              {/* Erweiterte Grenzen (nur bei Bedarf) */}
-              {!isRegular && (
-                <CollapsibleSection
-                  title="Erweiterte Grenzen"
-                  icon={<Settings2 className="h-4 w-4" />}
-                  hint="Optional – für Medikations-Übergebrauch-Warnung"
-                >
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="as_needed_max_days_per_month">Max. Tage pro Monat</Label>
-                      <Input
-                        id="as_needed_max_days_per_month"
-                        type="number"
-                        min={1}
-                        max={31}
-                        value={formData.as_needed_max_days_per_month || ""}
-                        onChange={(e) => updateField("as_needed_max_days_per_month", e.target.value ? parseInt(e.target.value) : undefined)}
-                        placeholder="z.B. 10"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="as_needed_min_interval_hours">Mindestabstand (Std.)</Label>
-                      <Input
-                        id="as_needed_min_interval_hours"
-                        type="number"
-                        min={0.5}
-                        max={72}
-                        step={0.5}
-                        value={formData.as_needed_min_interval_hours || ""}
-                        onChange={(e) => updateField("as_needed_min_interval_hours", e.target.value ? parseFloat(e.target.value) : undefined)}
-                        placeholder="z.B. 4"
-                      />
-                    </div>
-                  </div>
-                </CollapsibleSection>
-              )}
-
-              {/* Hinweise - combined field */}
-              <CollapsibleSection
-                title="Hinweise"
-                icon={<Clock className="h-4 w-4" />}
-                hint="Optional – Einnahmehinweise, Warnungen"
-              >
-                <Textarea
-                  value={formData.hinweise || formData.as_needed_notes || formData.regular_notes || ""}
-                  onChange={(e) => {
-                    updateField("hinweise", e.target.value);
-                    // Also sync to type-specific field
-                    if (isRegular) {
-                      updateField("regular_notes", e.target.value);
-                    } else {
-                      updateField("as_needed_notes", e.target.value);
-                    }
-                  }}
-                  placeholder="z.B. Nicht mit anderen Triptanen kombinieren, Einnahme zu den Mahlzeiten, nur Mo/Mi/Fr einnehmen..."
-                  rows={2}
-                />
-              </CollapsibleSection>
-
-              {/* Verträglichkeit */}
-              <CollapsibleSection
-                title="Verträglichkeit"
-                icon={<AlertTriangle className="h-4 w-4" />}
-                hint="Optional – Unverträglichkeiten dokumentieren"
-                badge={formData.intolerance_flag ? (
-                  <span className="text-xs bg-destructive text-destructive-foreground px-2 py-0.5 rounded">
-                    Unverträglich
-                  </span>
-                ) : undefined}
-              >
+                {/* Unverträglichkeit */}
                 <div className={cn(
-                  "flex items-start space-x-3 p-3 rounded-lg border",
-                  formData.intolerance_flag 
-                    ? "border-destructive/50 bg-destructive/10" 
-                    : "border-border/50 bg-muted/20"
+                  "p-3 rounded-lg border space-y-3",
+                  intolerant ? "border-destructive/50 bg-destructive/5" : "border-border/40 bg-muted/30"
                 )}>
-                  <Checkbox
-                    id="intolerance_flag"
-                    checked={formData.intolerance_flag || false}
-                    onCheckedChange={(checked) => handleIntoleranceToggle(!!checked)}
-                  />
-                  <div className="grid gap-1.5 leading-none">
-                    <label
-                      htmlFor="intolerance_flag"
-                      className="text-sm font-medium leading-none cursor-pointer"
-                    >
-                      Medikament ist unverträglich
-                    </label>
-                    <p className="text-xs text-muted-foreground">
-                      Nicht mehr einnehmen (z.B. Allergie, schwere Nebenwirkungen)
-                    </p>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className={cn("h-4 w-4", intolerant ? "text-destructive" : "text-muted-foreground")} />
+                      <Label className="text-sm font-medium">Unverträglich</Label>
+                    </div>
+                    <Switch checked={intolerant} onCheckedChange={setIntolerant} />
                   </div>
-                </div>
-
-                {formData.intolerance_flag && (
-                  <div className="space-y-4 p-3 rounded-lg border border-destructive/30 bg-destructive/5">
-                    <div className="space-y-2">
-                      <Label>Grund</Label>
-                      <Select
-                        value={formData.intolerance_reason_type || ""}
-                        onValueChange={(v) => updateField("intolerance_reason_type", v)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Auswählen..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {INTOLERANCE_REASONS.map((r) => (
-                            <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="intolerance_notes">Beschreibung (optional)</Label>
-                      <Textarea
-                        id="intolerance_notes"
-                        value={formData.intolerance_notes || ""}
-                        onChange={(e) => updateField("intolerance_notes", e.target.value)}
-                        placeholder="z.B. Hautausschlag, starker Schwindel..."
-                        rows={2}
-                      />
-                    </div>
-                  </div>
-                )}
-              </CollapsibleSection>
-
-              {/* Reminder Section */}
-              <CollapsibleSection title="Erinnerung" icon={<Bell className="h-5 w-5" />} defaultOpen={false}>
-                <div className="space-y-3">
-                  {reminderStatus.isActive ? (
-                    <div className="flex items-center justify-between p-3 bg-primary/10 rounded-lg">
-                      <div className="flex items-center gap-2">
-                        <Bell className="h-4 w-4 text-primary" />
-                        <span className="text-sm">
-                          {reminderStatus.reminderCount} aktive Erinnerung{reminderStatus.reminderCount !== 1 ? 'en' : ''}
-                        </span>
-                      </div>
-                      <Button variant="outline" size="sm" onClick={() => setShowReminderSheet(true)}>
-                        Bearbeiten
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                      <span className="text-sm text-muted-foreground">Keine Erinnerung eingerichtet</span>
-                      <Button variant="outline" size="sm" onClick={() => setShowReminderSheet(true)}>
-                        <Bell className="h-4 w-4 mr-2" />
-                        Hinzufügen
-                      </Button>
-                    </div>
+                  {intolerant && (
+                    <Textarea
+                      value={intoleranceNotes}
+                      onChange={(e) => setIntoleranceNotes(e.target.value)}
+                      placeholder="Beschreibung (optional)"
+                      rows={2}
+                    />
                   )}
                 </div>
-              </CollapsibleSection>
-            </div>
+              </CollapsibleContent>
+            </Collapsible>
+
+            <div className="h-2" />
           </div>
 
-          <DialogFooter className={cn("gap-2 mt-4", isMobile && "flex-col")}>
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
+          {/* Sticky footer */}
+          <div className="shrink-0 border-t border-border/40 px-5 py-3 flex items-center gap-3 bg-background">
+            <Button variant="ghost" onClick={() => onOpenChange(false)} className="flex-1 h-11">
               Abbrechen
             </Button>
-            <Button onClick={handleSave} disabled={updateMed.isPending || !formData.name?.trim()}>
-              {updateMed.isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Speichern...
-                </>
-              ) : (
-                "Speichern"
-              )}
+            <Button onClick={handleSave} disabled={updateMed.isPending || !name.trim()} className="flex-1 h-11">
+              {updateMed.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Speichern"}
             </Button>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
 
-      {/* Intake Type Change Confirmation */}
-      <AlertDialog open={showIntakeChangeConfirm} onOpenChange={setShowIntakeChangeConfirm}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Einnahmeart ändern?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {pendingIntakeType === "as_needed" 
-                ? "Beim Wechsel auf 'Bei Bedarf' werden die festen Einnahmezeiten gelöscht."
-                : "Beim Wechsel auf 'Regelmäßig' werden die Bedarfsdosierungsdaten gelöscht."}
-              <br /><br />
-              Fortfahren?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => {
-              setShowIntakeChangeConfirm(false);
-              setPendingIntakeType(null);
-            }}>
-              Abbrechen
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={() => pendingIntakeType && applyIntakeTypeChange(pendingIntakeType)}>
-              Ja, ändern
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {medication && (
+        <MedicationReminderSheet
+          isOpen={showReminderSheet}
+          onClose={() => setShowReminderSheet(false)}
+          medication={medication}
+        />
+      )}
     </>
   );
 };

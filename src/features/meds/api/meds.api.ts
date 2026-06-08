@@ -38,6 +38,7 @@ export type Med = {
   // Regular structured dosing
   regular_weekdays?: string[] | null;
   regular_notes?: string | null;
+  regular_frequency?: string | null; // daily_1x | daily_2x | daily_3x | weekly | monthly | quarterly | other
   // Status
   medication_status?: string | null; // 'active' | 'stopped' | 'intolerant'
   // Effect category for analysis
@@ -82,6 +83,7 @@ export type CreateMedInput = {
   // Regular structured dosing
   regular_weekdays?: string[];
   regular_notes?: string;
+  regular_frequency?: string;
   // Status
   medication_status?: string;
   // Effect category for analysis
@@ -239,6 +241,7 @@ export async function addMed(input: CreateMedInput): Promise<Med> {
       as_needed_notes: input.as_needed_notes || null,
       regular_weekdays: input.regular_weekdays || null,
       regular_notes: input.regular_notes || null,
+      regular_frequency: input.regular_frequency || null,
       medication_status: input.medication_status || "active",
       effect_category: input.effect_category || null,
       // Therapy history dates
@@ -288,6 +291,7 @@ export async function updateMed(id: string, input: UpdateMedInput): Promise<Med>
   if (input.as_needed_notes !== undefined) updateData.as_needed_notes = input.as_needed_notes || null;
   if (input.regular_weekdays !== undefined) updateData.regular_weekdays = input.regular_weekdays || null;
   if (input.regular_notes !== undefined) updateData.regular_notes = input.regular_notes || null;
+  if (input.regular_frequency !== undefined) updateData.regular_frequency = input.regular_frequency || null;
   if (input.medication_status !== undefined) updateData.medication_status = input.medication_status || null;
   if (input.effect_category !== undefined) updateData.effect_category = input.effect_category || null;
   // Handle therapy history dates

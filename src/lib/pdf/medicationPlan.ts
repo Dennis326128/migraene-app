@@ -18,6 +18,7 @@
 import { PDFDocument, rgb, PDFPage, PDFFont } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import { lookupMedicationMetadata } from "@/lib/medicationLookup";
+import { computeDoseDescription } from "@/lib/medications/medicationFrequency";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES & CONSTANTS
@@ -86,6 +87,7 @@ export type UserMedicationForPlan = {
   as_needed_notes?: string | null;
   regular_weekdays?: string[] | null;
   regular_notes?: string | null;
+  regular_frequency?: string | null;
   medication_status?: string | null;
 };
 
@@ -378,6 +380,9 @@ type MedRow = {
   asNeededDoseText: string;
   weekdayInfo: string;
   limitText: string;
+  doseMode: "daily" | "asNeeded" | "periodic";
+  doseLabel: string; // e.g. "1× monatlich", "bei Bedarf", "2× täglich"
+  doseDetail: string;
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -437,9 +442,6 @@ function buildMedicationRows(
     const weekdayInfo = buildWeekdayInfo(med);
     
     const hasDailyDose = morgens || mittags || abends || nachts;
-    if (!hasDailyDose && !isRegular) {
-      morgens = "b.B.";
-    }
 
     const derivedWirkstoff = deriveWirkstoff(med.wirkstoff, med.name, lookup?.wirkstoff);
     const cleanedHandelsname = cleanHandelsname(med.name);
@@ -479,6 +481,14 @@ function buildMedicationRows(
       hinweiseParts.push(limitText);
     }
 
+    // Compute professional dose description (SSOT)
+    const dose = computeDoseDescription(med);
+    // For periodic (monthly/weekly) and as-needed: combine label + detail for hinweise context
+    let combinedDoseDetail = dose.detail || "";
+    if (dose.mode === "asNeeded" && limitText) {
+      combinedDoseDetail = [combinedDoseDetail, limitText].filter(Boolean).join(", ");
+    }
+
     const row: MedRow = {
       wirkstoff: cleanText(derivedWirkstoff),
       handelsname: cleanText(cleanedHandelsname),
@@ -501,6 +511,9 @@ function buildMedicationRows(
       asNeededDoseText: cleanText(combinedAsNeededText),
       weekdayInfo: cleanText(weekdayInfo),
       limitText: "",
+      doseMode: dose.mode,
+      doseLabel: cleanText(dose.label),
+      doseDetail: cleanText(combinedDoseDetail),
     };
 
     if (med.intolerance_flag || med.medication_status === "intolerant") {
@@ -709,21 +722,12 @@ function drawMedicationRow(
   cx += colWidths.form;
   
   // Dose columns
-  if (isAsNeeded) {
-    // For as-needed: Show "b.B." in first column
-    page.drawText("b.B.", { x: cx + 3, y: textY, size: fs, font: regular, color: COLORS.text });
-    cx += colWidths.mo;
-    
-    // Show combined dose text in remaining space if available
-    if (med.asNeededDoseText) {
-      const doseLines = wrapText(med.asNeededDoseText, regular, fsSmall, colWidths.mi + colWidths.ab + colWidths.na - 4, 2);
-      doseLines.forEach((line, idx) => {
-        page.drawText(line, { x: cx, y: textY - (idx * 8), size: fsSmall, font: regular, color: COLORS.textMuted });
-      });
-    }
-    cx += colWidths.mi + colWidths.ab + colWidths.na;
-  } else {
-    // Regular medication doses
+  const doseSpan = colWidths.mo + colWidths.mi + colWidths.ab + colWidths.na;
+  const showDailyGrid = med.doseMode === "daily" &&
+    (med.morgens || med.mittags || med.abends || med.nachts);
+
+  if (showDailyGrid) {
+    // Regular daily dosing: 4-column grid (morgens/mittags/abends/nachts)
     const doseVals = [med.morgens || "-", med.mittags || "-", med.abends || "-", med.nachts || "-"];
     for (let i = 0; i < 4; i++) {
       if (i > 0) {
@@ -733,6 +737,18 @@ function drawMedicationRow(
       page.drawText(doseText, { x: cx + 2, y: textY, size: fs, font: regular, color: COLORS.text });
       cx += colWidths.mo;
     }
+  } else {
+    // Periodic (1× monatlich, 1× pro Woche) or as-needed (bei Bedarf): show label spanning columns
+    page.drawText(med.doseLabel || "regelmäßig", {
+      x: cx + 3, y: textY, size: fs, font: bold, color: COLORS.text,
+    });
+    if (med.doseDetail) {
+      const detailLines = wrapText(med.doseDetail, regular, fsSmall, doseSpan - 6, 2);
+      detailLines.forEach((line, idx) => {
+        page.drawText(line, { x: cx + 3, y: textY - 10 - (idx * 8), size: fsSmall, font: regular, color: COLORS.textMuted });
+      });
+    }
+    cx += doseSpan;
   }
   
   // Einheit
@@ -1076,7 +1092,7 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
   // ═══════════════════════════════════════════════════════════════════════════
   
   y -= 12;
-  page.drawText("Legende: mo = morgens, mi = mittags, ab = abends, na = nachts, b.B. = bei Bedarf", {
+  page.drawText("Legende: mo = morgens, mi = mittags, ab = abends, na = nachts", {
     x: tableX,
     y,
     size: 6,
