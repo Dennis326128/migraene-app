@@ -96,8 +96,11 @@ export const MedicationReminderSheet: React.FC<MedicationReminderSheetProps> = (
   const handleCreateReminder = async () => {
     setIsSubmitting(true);
     try {
-      // Use the selected date for prophylaxis or today for regular meds
-      const dateToUse = isProphylaxis ? newDate : format(new Date(), 'yyyy-MM-dd');
+      // Wenn Datum sichtbar ist (monatlich/einmalig) → User-Wahl, sonst heute
+      const dateToUse =
+        newRepeat === "monthly" || newRepeat === "none"
+          ? newDate
+          : format(new Date(), 'yyyy-MM-dd');
       const dateTime = `${dateToUse}T${newTime}:00`;
       
       await createReminder.mutateAsync({
