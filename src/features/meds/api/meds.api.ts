@@ -38,6 +38,7 @@ export type Med = {
   // Regular structured dosing
   regular_weekdays?: string[] | null;
   regular_notes?: string | null;
+  regular_frequency?: string | null; // daily_1x | daily_2x | daily_3x | weekly | monthly | quarterly | other
   // Status
   medication_status?: string | null; // 'active' | 'stopped' | 'intolerant'
   // Effect category for analysis
@@ -82,6 +83,7 @@ export type CreateMedInput = {
   // Regular structured dosing
   regular_weekdays?: string[];
   regular_notes?: string;
+  regular_frequency?: string;
   // Status
   medication_status?: string;
   // Effect category for analysis
