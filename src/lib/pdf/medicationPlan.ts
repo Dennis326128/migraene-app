@@ -442,9 +442,6 @@ function buildMedicationRows(
     const weekdayInfo = buildWeekdayInfo(med);
     
     const hasDailyDose = morgens || mittags || abends || nachts;
-    if (!hasDailyDose && !isRegular) {
-      morgens = "b.B.";
-    }
 
     const derivedWirkstoff = deriveWirkstoff(med.wirkstoff, med.name, lookup?.wirkstoff);
     const cleanedHandelsname = cleanHandelsname(med.name);
@@ -484,6 +481,14 @@ function buildMedicationRows(
       hinweiseParts.push(limitText);
     }
 
+    // Compute professional dose description (SSOT)
+    const dose = computeDoseDescription(med);
+    // For periodic (monthly/weekly) and as-needed: combine label + detail for hinweise context
+    let combinedDoseDetail = dose.detail || "";
+    if (dose.mode === "asNeeded" && limitText) {
+      combinedDoseDetail = [combinedDoseDetail, limitText].filter(Boolean).join(", ");
+    }
+
     const row: MedRow = {
       wirkstoff: cleanText(derivedWirkstoff),
       handelsname: cleanText(cleanedHandelsname),
@@ -506,6 +511,9 @@ function buildMedicationRows(
       asNeededDoseText: cleanText(combinedAsNeededText),
       weekdayInfo: cleanText(weekdayInfo),
       limitText: "",
+      doseMode: dose.mode,
+      doseLabel: cleanText(dose.label),
+      doseDetail: cleanText(combinedDoseDetail),
     };
 
     if (med.intolerance_flag || med.medication_status === "intolerant") {
