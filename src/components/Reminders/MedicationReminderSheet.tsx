@@ -257,52 +257,61 @@ export const MedicationReminderSheet: React.FC<MedicationReminderSheetProps> = (
                     </Button>
                   </div>
                   
-                  {/* Date picker for prophylaxis (interval meds) */}
-                  {isProphylaxis && (
+                  {/* Wiederholung — Chips */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Wiederholung</Label>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {REPEAT_CHIPS.map((chip) => (
+                        <button
+                          key={chip.value}
+                          type="button"
+                          onClick={() => setNewRepeat(chip.value)}
+                          className={cn(
+                            "h-10 rounded-md border text-xs font-medium transition-colors touch-manipulation",
+                            newRepeat === chip.value
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-input bg-background text-foreground hover:bg-muted"
+                          )}
+                        >
+                          {chip.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Datum (nur bei monatlich oder einmalig) + Uhrzeit */}
+                  <div className={cn("grid gap-3", showDateField ? "grid-cols-2" : "grid-cols-1")}>
+                    {showDateField && (
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">
+                          {newRepeat === "monthly" ? "Erstes Datum" : "Datum"}
+                        </Label>
+                        <input
+                          type="date"
+                          value={newDate}
+                          onChange={(e) => setNewDate(e.target.value)}
+                          min={format(new Date(), 'yyyy-MM-dd')}
+                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        />
+                      </div>
+                    )}
                     <div className="space-y-1.5">
-                      <Label className="text-xs text-muted-foreground">Datum der nächsten Einnahme</Label>
+                      <Label className="text-xs text-muted-foreground">Uhrzeit</Label>
                       <input
-                        type="date"
-                        value={newDate}
-                        onChange={(e) => setNewDate(e.target.value)}
-                        min={format(new Date(), 'yyyy-MM-dd')}
+                        type="time"
+                        value={newTime}
+                        onChange={(e) => setNewTime(e.target.value)}
                         className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                       />
                     </div>
-                  )}
-                  
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label className="text-xs text-muted-foreground">Uhrzeit</Label>
-                      <Select value={newTime} onValueChange={setNewTime}>
-                        <SelectTrigger className="h-10">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="max-h-[200px]">
-                          {timeOptions.map((option) => (
-                            <SelectItem key={option} value={option}>
-                              {option} Uhr
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    <div className="space-y-1.5">
-                      <Label className="text-xs text-muted-foreground">Wiederholung</Label>
-                      <Select value={newRepeat} onValueChange={(v) => setNewRepeat(v as ReminderRepeat)}>
-                        <SelectTrigger className="h-10">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">Einmalig</SelectItem>
-                          <SelectItem value="daily">Täglich</SelectItem>
-                          <SelectItem value="weekly">Wöchentlich</SelectItem>
-                          <SelectItem value="monthly">Monatlich</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
                   </div>
+
+                  {newRepeat === "monthly" && (
+                    <p className="text-xs text-muted-foreground">
+                      Wiederholt sich jeden Monat am gleichen Kalendertag.
+                    </p>
+                  )}
+
                   
                   <div className="flex gap-2 pt-2">
                     <Button
