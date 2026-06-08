@@ -788,6 +788,11 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
           </TabsContent>
         </Tabs>
       </div>
+
+      <SimpleAppointmentSheet
+        isOpen={appointmentSheetOpen}
+        onClose={() => setAppointmentSheetOpen(false)}
+      />
     </div>
   );
 };
