@@ -36,11 +36,12 @@ const extractTimeFromDateTime = (dateTime: string): string => {
   }
 };
 
-export const ReminderCard = ({ grouped, relativeLabel, onEdit, onMarkDone, onPlanFollowUp }: ReminderCardProps) => {
+export const ReminderCard = ({ grouped, relativeLabel, onEdit, onMarkDone, onPlanFollowUp, onToggleEnabled }: ReminderCardProps) => {
   const { reminder, nextOccurrence, frequencyLabel, isRecurring, displayTitle } = grouped;
   const isOverdue = isReminderOverdue(reminder);
   const showFollowUp = hasFollowUpConfigured(reminder) && onPlanFollowUp;
   const nextFollowUpDate = (reminder as any).next_follow_up_date;
+  const enabled = reminder.notification_enabled !== false;
   
   // Relative time removed for cleaner medical UX
 
