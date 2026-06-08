@@ -103,19 +103,24 @@ export function computeDoseDescription(med: DoseLabelInput): ComputedDose {
     ? explicit
     : detectImplicitFrequency(med.name) ?? null;
 
-  if (freq === "monthly") return { mode: "periodic", label: "1× monatlich" };
+  // Generic dose text for periodic schedules (e.g., "1 Injektion", "225 mg")
+  const periodicDoseDetail = med.as_needed_standard_dose?.trim() || "";
+
+  if (freq === "monthly")
+    return { mode: "periodic", label: "1× monatlich", detail: periodicDoseDetail || undefined };
   if (freq === "quarterly")
-    return { mode: "periodic", label: "1× pro Quartal" };
+    return { mode: "periodic", label: "1× pro Quartal", detail: periodicDoseDetail || undefined };
   if (freq === "weekly") {
     const weekdays = med.regular_weekdays?.filter(Boolean) ?? [];
-    if (weekdays.length > 0 && weekdays.length < 7) {
-      return {
-        mode: "periodic",
-        label: "wöchentlich",
-        detail: weekdays.join(", "),
-      };
-    }
-    return { mode: "periodic", label: "1× pro Woche" };
+    const detailParts = [
+      weekdays.length > 0 && weekdays.length < 7 ? weekdays.join(", ") : "",
+      periodicDoseDetail,
+    ].filter(Boolean);
+    return {
+      mode: "periodic",
+      label: weekdays.length > 0 && weekdays.length < 7 ? "wöchentlich" : "1× pro Woche",
+      detail: detailParts.length ? detailParts.join(" · ") : undefined,
+    };
   }
   if (freq === "daily_3x") return { mode: "daily", label: "3× täglich" };
   if (freq === "daily_2x") return { mode: "daily", label: "2× täglich" };
