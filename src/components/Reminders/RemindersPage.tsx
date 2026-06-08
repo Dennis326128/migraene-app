@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Plus, Bell, BellOff, Clock, Calendar } from 'lucide-react';
+import { Plus, Bell, BellOff, Clock, Calendar, CalendarPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/ui/page-header';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ReminderCard } from './ReminderCard';
+import { SimpleAppointmentSheet } from './SimpleAppointmentSheet';
 import { groupReminders, type GroupedReminder, type DoctorsMap } from '@/features/reminders/helpers/groupReminders';
 import { ReminderForm } from './ReminderForm';
 import { EmptyState } from '@/components/ui/empty-state';
