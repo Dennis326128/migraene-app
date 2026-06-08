@@ -20,12 +20,11 @@ interface DailyImpactPdfInput {
   answers: DailyImpactAnswers;
   score: number;
   completedDate: Date;
-  externalHit6Score?: number | null;
-  externalHit6Date?: Date | null;
 }
 
 export async function buildDailyImpactPdf(input: DailyImpactPdfInput): Promise<Uint8Array> {
-  const { answers, score, completedDate, externalHit6Score, externalHit6Date } = input;
+  const { answers, score, completedDate } = input;
+
   
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -106,39 +105,16 @@ export async function buildDailyImpactPdf(input: DailyImpactPdfInput): Promise<U
     y += 8;
   });
 
-  // External HIT-6 (if provided)
-  if (externalHit6Score) {
-    y += 5;
-    doc.setFillColor(255, 250, 240);
-    doc.roundedRect(margin, y, contentWidth, 18, 3, 3, 'F');
-    
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(0);
-    doc.text('Externer HIT-6 Gesamtwert (Patientenangabe):', margin + 5, y + 7);
-    doc.text(`${externalHit6Score} Punkte`, margin + 95, y + 7);
-    
-    if (externalHit6Date) {
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(80);
-      doc.text(`Erhoben am: ${format(externalHit6Date, 'd. MMMM yyyy', { locale: de })}`, margin + 5, y + 13);
-    }
-    y += 25;
-  }
-
   // Footer disclaimer
   y = Math.max(y + 10, 260);
   doc.setFontSize(8);
   doc.setTextColor(120);
   doc.text(
-    'Selbsteinschätzung zur Gesprächsvorbereitung. Diese Dokumentation ersetzt keinen lizenzierten Test.',
+    'Selbsteinschätzung zur Gesprächsvorbereitung. Diese Dokumentation ersetzt keinen standardisierten Fragebogen.',
     margin,
     y
   );
-  y += 4;
-  if (externalHit6Score) {
-    doc.text('Externer HIT-6 Wert wurde vom Patienten angegeben.', margin, y);
-  }
+
 
   // Return as Uint8Array
   const arrayBuffer = doc.output('arraybuffer');

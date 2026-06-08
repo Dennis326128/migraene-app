@@ -300,9 +300,9 @@
     "share": "Share"
   },
   
-  "hit6": {
-    "title": "HIT-6 Test",
-    "description": "Headache Impact Test"
+  "dailyImpact": {
+    "title": "Daily impact",
+    "description": "Short self-assessment of daily impact"
   },
   
   "time": {
@@ -432,7 +432,7 @@
     "createPdf": "Create PDF",
     "exportCsv": "Export CSV",
     "medicationPlan": "Medication plan",
-    "hit6Pdf": "HIT-6 (PDF)"
+    "dailyImpactPdf": "Daily impact (PDF)"
   },
   
   "symptoms": {

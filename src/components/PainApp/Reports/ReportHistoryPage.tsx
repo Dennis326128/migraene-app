@@ -150,7 +150,7 @@ export const ReportHistoryPage: React.FC<ReportHistoryPageProps> = ({
                     <TabsTrigger value="medication_plan">Medikation</TabsTrigger>
                   )}
                   {visibleTabs.includes('hit6') && (
-                    <TabsTrigger value="hit6">HIT-6</TabsTrigger>
+                    <TabsTrigger value="hit6">Fragebogen (alt)</TabsTrigger>
                   )}
                   {visibleTabs.includes('daily_impact') && (
                     <TabsTrigger value="daily_impact">Belastung</TabsTrigger>

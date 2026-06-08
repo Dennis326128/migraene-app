@@ -300,9 +300,9 @@
     "share": "Teilen"
   },
   
-  "hit6": {
-    "title": "HIT-6 Test",
-    "description": "Kopfschmerz-Einfluss-Test"
+  "dailyImpact": {
+    "title": "Alltagsbelastung",
+    "description": "Kurze Selbsteinschätzung der Alltagsbelastung"
   },
   
   "time": {
@@ -432,7 +432,7 @@
     "createPdf": "PDF erstellen",
     "exportCsv": "CSV exportieren",
     "medicationPlan": "Medikationsplan",
-    "hit6Pdf": "HIT-6 (PDF)"
+    "dailyImpactPdf": "Alltagsbelastung (PDF)"
   },
   
   "symptoms": {
