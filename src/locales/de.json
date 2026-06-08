@@ -432,7 +432,7 @@
     "createPdf": "PDF erstellen",
     "exportCsv": "CSV exportieren",
     "medicationPlan": "Medikationsplan",
-    "hit6Pdf": "HIT-6 (PDF)"
+    "dailyImpactPdf": "Alltagsbelastung (PDF)"
   },
   
   "symptoms": {
