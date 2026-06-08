@@ -134,7 +134,7 @@ export const ReportsHubPage: React.FC<ReportsHubPageProps> = ({
                     Alltagsbelastung (Kurzcheck)
                   </span>
                   <span className="text-xs text-muted-foreground mt-1 block">
-                    Selbsteinschätzung + optional HIT-6 Ergebnis speichern
+                    Kurze Selbsteinschätzung der Alltagsbelastung
                   </span>
                 </div>
               </CardContent>
