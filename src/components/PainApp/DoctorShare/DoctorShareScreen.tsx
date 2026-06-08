@@ -473,37 +473,45 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack, on
           {/* Doctor data section – shown before generation */}
           {!isLoading && !fetchError && flowState !== "generating" && (
             <div className="space-y-3">
-              {/* No active doctors: show add CTA */}
+              {/* No active doctors: compact "no doctor selected" row */}
               {activeDoctors.length === 0 && (
-                <div className="rounded-lg border border-border/50 p-4 space-y-2">
-                  <p className="text-sm text-muted-foreground">
-                    Für das Teilen mit dem Arzt kannst du Arztdaten hinterlegen.
-                  </p>
-                  <div className="flex items-center gap-3">
-                    {onNavigate && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => onNavigate('settings-doctors?origin=export_migraine_diary')}
-                      >
-                        <Plus className="h-4 w-4 mr-1.5" />
-                        Arzt hinzufügen
-                      </Button>
-                    )}
-                    <span className="text-xs text-muted-foreground">
-                      oder ohne Arztdaten fortfahren
-                    </span>
-                  </div>
+                <div className="flex items-center justify-between gap-3 text-xs">
+                  <span className="text-muted-foreground">
+                    Keine Ärztin/Praxis ausgewählt
+                  </span>
+                  {onNavigate && (
+                    <button
+                      type="button"
+                      onClick={() => onNavigate('settings-doctors?origin=export_migraine_diary')}
+                      className="text-primary hover:underline"
+                    >
+                      Auswählen
+                    </button>
+                  )}
                 </div>
               )}
 
-              {/* Single doctor: auto-selected, show info */}
+              {/* Single doctor: compact line with "Ändern" */}
               {activeDoctors.length === 1 && (
-                <p className="text-xs text-muted-foreground">
-                  Arztdaten: {activeDoctors[0].title ? `${activeDoctors[0].title} ` : ''}
-                  {activeDoctors[0].first_name} {activeDoctors[0].last_name}
-                  {activeDoctors[0].specialty ? ` · ${activeDoctors[0].specialty}` : ''}
-                </p>
+                <div className="flex items-center justify-between gap-3 text-xs">
+                  <span className="text-muted-foreground truncate">
+                    Freigabe für{' '}
+                    <span className="text-foreground">
+                      {activeDoctors[0].title ? `${activeDoctors[0].title} ` : ''}
+                      {activeDoctors[0].first_name} {activeDoctors[0].last_name}
+                    </span>
+                    {activeDoctors[0].specialty ? ` · ${activeDoctors[0].specialty}` : ''}
+                  </span>
+                  {onNavigate && (
+                    <button
+                      type="button"
+                      onClick={() => onNavigate('settings-doctors?origin=export_migraine_diary')}
+                      className="text-primary hover:underline shrink-0"
+                    >
+                      Ändern
+                    </button>
+                  )}
+                </div>
               )}
 
               {/* Multiple doctors: radio selection */}
