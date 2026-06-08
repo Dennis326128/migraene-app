@@ -722,21 +722,12 @@ function drawMedicationRow(
   cx += colWidths.form;
   
   // Dose columns
-  if (isAsNeeded) {
-    // For as-needed: Show "b.B." in first column
-    page.drawText("b.B.", { x: cx + 3, y: textY, size: fs, font: regular, color: COLORS.text });
-    cx += colWidths.mo;
-    
-    // Show combined dose text in remaining space if available
-    if (med.asNeededDoseText) {
-      const doseLines = wrapText(med.asNeededDoseText, regular, fsSmall, colWidths.mi + colWidths.ab + colWidths.na - 4, 2);
-      doseLines.forEach((line, idx) => {
-        page.drawText(line, { x: cx, y: textY - (idx * 8), size: fsSmall, font: regular, color: COLORS.textMuted });
-      });
-    }
-    cx += colWidths.mi + colWidths.ab + colWidths.na;
-  } else {
-    // Regular medication doses
+  const doseSpan = colWidths.mo + colWidths.mi + colWidths.ab + colWidths.na;
+  const showDailyGrid = med.doseMode === "daily" &&
+    (med.morgens || med.mittags || med.abends || med.nachts);
+
+  if (showDailyGrid) {
+    // Regular daily dosing: 4-column grid (morgens/mittags/abends/nachts)
     const doseVals = [med.morgens || "-", med.mittags || "-", med.abends || "-", med.nachts || "-"];
     for (let i = 0; i < 4; i++) {
       if (i > 0) {
@@ -746,6 +737,18 @@ function drawMedicationRow(
       page.drawText(doseText, { x: cx + 2, y: textY, size: fs, font: regular, color: COLORS.text });
       cx += colWidths.mo;
     }
+  } else {
+    // Periodic (1× monatlich, 1× pro Woche) or as-needed (bei Bedarf): show label spanning columns
+    page.drawText(med.doseLabel || "regelmäßig", {
+      x: cx + 3, y: textY, size: fs, font: bold, color: COLORS.text,
+    });
+    if (med.doseDetail) {
+      const detailLines = wrapText(med.doseDetail, regular, fsSmall, doseSpan - 6, 2);
+      detailLines.forEach((line, idx) => {
+        page.drawText(line, { x: cx + 3, y: textY - 10 - (idx * 8), size: fsSmall, font: regular, color: COLORS.textMuted });
+      });
+    }
+    cx += doseSpan;
   }
   
   // Einheit
