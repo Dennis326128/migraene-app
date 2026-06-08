@@ -1092,7 +1092,7 @@ export async function buildMedicationPlanPdf(params: BuildMedicationPlanParams):
   // ═══════════════════════════════════════════════════════════════════════════
   
   y -= 12;
-  page.drawText("Legende: mo = morgens, mi = mittags, ab = abends, na = nachts, b.B. = bei Bedarf", {
+  page.drawText("Legende: mo = morgens, mi = mittags, ab = abends, na = nachts", {
     x: tableX,
     y,
     size: 6,
