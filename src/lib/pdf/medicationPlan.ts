@@ -18,6 +18,7 @@
 import { PDFDocument, rgb, PDFPage, PDFFont } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import { lookupMedicationMetadata } from "@/lib/medicationLookup";
+import { computeDoseDescription } from "@/lib/medications/medicationFrequency";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES & CONSTANTS
@@ -86,6 +87,7 @@ export type UserMedicationForPlan = {
   as_needed_notes?: string | null;
   regular_weekdays?: string[] | null;
   regular_notes?: string | null;
+  regular_frequency?: string | null;
   medication_status?: string | null;
 };
 
