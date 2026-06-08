@@ -92,6 +92,7 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
   const [lastNonAppointmentFilter, setLastNonAppointmentFilter] = useState<RangeFilter>('all');
   const [hasNotificationPermission, setHasNotificationPermission] = useState(false);
   const [formKey, setFormKey] = useState(0);
+  const [appointmentSheetOpen, setAppointmentSheetOpen] = useState(false);
 
   const queryClient = useQueryClient();
   const { data: activeReminders = [], isLoading: loadingActive } = useActiveReminders();
