@@ -685,6 +685,7 @@ export const RemindersPage = ({ onBack }: RemindersPageProps = {}) => {
                     onEdit={handleEdit}
                     onMarkDone={handleMarkDone}
                     onPlanFollowUp={handlePlanFollowUp}
+                    onToggleEnabled={handleToggleEnabled}
                   />
                 ))}
                 
