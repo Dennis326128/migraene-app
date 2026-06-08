@@ -74,8 +74,6 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack, on
   const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(null);
   const [showActivateDialog, setShowActivateDialog] = useState(false);
   const [isActivatingForLink, setIsActivatingForLink] = useState(false);
-  const [allowAiGenerate, setAllowAiGenerate] = useState<boolean>(true);
-  const [allowAiGeneratePending, setAllowAiGeneratePending] = useState(false);
   const abortRef = useRef(false);
 
   const today = useMemo(() => new Date(), []);
