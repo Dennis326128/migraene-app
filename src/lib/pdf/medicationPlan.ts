@@ -380,6 +380,9 @@ type MedRow = {
   asNeededDoseText: string;
   weekdayInfo: string;
   limitText: string;
+  doseMode: "daily" | "asNeeded" | "periodic";
+  doseLabel: string; // e.g. "1× monatlich", "bei Bedarf", "2× täglich"
+  doseDetail: string;
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
