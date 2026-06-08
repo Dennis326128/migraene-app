@@ -195,6 +195,7 @@ export const DoctorShareScreen: React.FC<DoctorShareScreenProps> = ({ onBack, on
         include_entry_notes: true,
         include_context_notes: false,
         include_ai_analysis: true,
+        allow_ai_generate: true,
       });
       if (abortRef.current) return;
 
