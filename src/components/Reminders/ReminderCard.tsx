@@ -179,7 +179,25 @@ export const ReminderCard = ({ grouped, relativeLabel, onEdit, onMarkDone, onPla
         </div>
 
         {/* Rechte Seite: Action Buttons */}
-        <div className="flex flex-col gap-2 shrink-0">
+        <div className="flex flex-col gap-2 shrink-0 items-end">
+          {onToggleEnabled && reminder.status === 'pending' && (
+            <button
+              type="button"
+              onClick={() => onToggleEnabled(reminder, !enabled)}
+              className={cn(
+                "flex items-center gap-1 px-2 h-7 rounded-md border text-xs font-medium transition-colors touch-manipulation",
+                enabled
+                  ? "border-primary/30 bg-primary/5 text-primary"
+                  : "border-border bg-muted/40 text-muted-foreground"
+              )}
+              title={enabled ? "Erinnerung pausieren" : "Erinnerung aktivieren"}
+              aria-label={enabled ? "Erinnerung pausieren" : "Erinnerung aktivieren"}
+            >
+              {enabled ? <Bell className="h-3.5 w-3.5" /> : <BellOff className="h-3.5 w-3.5" />}
+              <span>{enabled ? "Aktiv" : "Aus"}</span>
+            </button>
+          )}
+
           {reminder.status === 'pending' && (
             <Button
               size="sm"
@@ -191,7 +209,7 @@ export const ReminderCard = ({ grouped, relativeLabel, onEdit, onMarkDone, onPla
               Erledigt
             </Button>
           )}
-          
+
           <Button
             size="sm"
             variant="ghost"
