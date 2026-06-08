@@ -241,6 +241,7 @@ export async function addMed(input: CreateMedInput): Promise<Med> {
       as_needed_notes: input.as_needed_notes || null,
       regular_weekdays: input.regular_weekdays || null,
       regular_notes: input.regular_notes || null,
+      regular_frequency: input.regular_frequency || null,
       medication_status: input.medication_status || "active",
       effect_category: input.effect_category || null,
       // Therapy history dates
@@ -290,6 +291,7 @@ export async function updateMed(id: string, input: UpdateMedInput): Promise<Med>
   if (input.as_needed_notes !== undefined) updateData.as_needed_notes = input.as_needed_notes || null;
   if (input.regular_weekdays !== undefined) updateData.regular_weekdays = input.regular_weekdays || null;
   if (input.regular_notes !== undefined) updateData.regular_notes = input.regular_notes || null;
+  if (input.regular_frequency !== undefined) updateData.regular_frequency = input.regular_frequency || null;
   if (input.medication_status !== undefined) updateData.medication_status = input.medication_status || null;
   if (input.effect_category !== undefined) updateData.effect_category = input.effect_category || null;
   // Handle therapy history dates
