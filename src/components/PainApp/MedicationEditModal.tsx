@@ -511,6 +511,14 @@ export const MedicationEditModal = ({ medication, open, onOpenChange }: Medicati
           isOpen={showReminderSheet}
           onClose={() => setShowReminderSheet(false)}
           medication={medication}
+          reminderStatus={reminderStatus}
+          isProphylaxis={
+            purpose === "prophylaxe" ||
+            frequency === "monthly" ||
+            frequency === "quarterly" ||
+            detectImplicitFrequency(name) === "monthly" ||
+            detectImplicitFrequency(name) === "quarterly"
+          }
         />
       )}
     </>
