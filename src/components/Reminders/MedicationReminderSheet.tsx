@@ -45,31 +45,37 @@ export const MedicationReminderSheet: React.FC<MedicationReminderSheetProps> = (
   const medicationName = medication?.name ?? providedMedicationName ?? "";
   const medicationId = medication?.id ?? providedMedicationId;
   
-  // Default repeat based on medication type
-  const defaultRepeat: ReminderRepeat = isProphylaxis ? "monthly" : "daily";
-  
-  // Smart default date for prophylaxis (next month) vs regular (today)
+  // Smart default: Ajovy/CGRP → monthly; explicit isProphylaxis flag → monthly; sonst daily
+  const autoMonthly = useMemo(() => {
+    if (isProphylaxis) return true;
+    const f = detectImplicitFrequency(medicationName);
+    return f === "monthly" || f === "quarterly";
+  }, [isProphylaxis, medicationName]);
+
+  const defaultRepeat: ReminderRepeat = autoMonthly ? "monthly" : "daily";
+
+  // Smart default date: monatlich → nächster Monat (Standard für Ajovy), sonst heute
   const smartDefaultDate = useMemo(() => {
-    if (isProphylaxis) {
+    if (autoMonthly) {
       return format(addMonths(new Date(), 1), 'yyyy-MM-dd');
     }
     return format(new Date(), 'yyyy-MM-dd');
-  }, [isProphylaxis]);
-  
+  }, [autoMonthly]);
+
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newDate, setNewDate] = useState(smartDefaultDate);
   const [newTime, setNewTime] = useState("09:00");
   const [newRepeat, setNewRepeat] = useState<ReminderRepeat>(defaultRepeat);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [reminderToDelete, setReminderToDelete] = useState<Reminder | null>(null);
-  
+
   // Defensive destructuring with fallbacks to prevent crash if reminderStatus is undefined
-  const { 
-    isActive = false, 
-    reminders = [], 
-    nextTriggerDate = null, 
-    isIntervalMed = isProphylaxis, 
-    reminderCount = 0 
+  const {
+    isActive = false,
+    reminders = [],
+    nextTriggerDate = null,
+    isIntervalMed = autoMonthly,
+    reminderCount = 0,
   } = reminderStatus ?? {};
 
   // Early return if no medication name
@@ -77,15 +83,15 @@ export const MedicationReminderSheet: React.FC<MedicationReminderSheetProps> = (
     return null;
   }
 
-  // Generate time options (every 30 minutes)
-  const timeOptions: string[] = [];
-  for (let h = 0; h < 24; h++) {
-    for (let m = 0; m < 60; m += 30) {
-      const hour = h.toString().padStart(2, '0');
-      const minute = m.toString().padStart(2, '0');
-      timeOptions.push(`${hour}:${minute}`);
-    }
-  }
+  const REPEAT_CHIPS: { value: ReminderRepeat; label: string }[] = [
+    { value: "none", label: "Einmalig" },
+    { value: "daily", label: "Täglich" },
+    { value: "weekly", label: "Wöchentlich" },
+    { value: "monthly", label: "Monatlich" },
+  ];
+
+  const showDateField = newRepeat === "monthly" || newRepeat === "none";
+
 
   const handleCreateReminder = async () => {
     setIsSubmitting(true);
