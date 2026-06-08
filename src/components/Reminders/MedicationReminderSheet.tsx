@@ -45,14 +45,24 @@ export const MedicationReminderSheet: React.FC<MedicationReminderSheetProps> = (
   const medicationName = medication?.name ?? providedMedicationName ?? "";
   const medicationId = medication?.id ?? providedMedicationId;
   
-  // Smart default: Ajovy/CGRP → monthly; explicit isProphylaxis flag → monthly; sonst daily
+  // Smart default:
+  //  - Prophylaxe / CGRP (Ajovy etc.) → monatlich
+  //  - Bedarfs-/Akutmedikamente (Triptane usw.) → einmalig (NICHT täglich,
+  //    damit es nicht wie eine tägliche Einnahmeempfehlung wirkt)
+  //  - regelmäßige Dauermedikation → täglich
   const autoMonthly = useMemo(() => {
     if (isProphylaxis) return true;
     const f = detectImplicitFrequency(medicationName);
     return f === "monthly" || f === "quarterly";
   }, [isProphylaxis, medicationName]);
 
-  const defaultRepeat: ReminderRepeat = autoMonthly ? "monthly" : "daily";
+  const isAsNeeded = medication?.intake_type === "as_needed";
+
+  const defaultRepeat: ReminderRepeat = autoMonthly
+    ? "monthly"
+    : isAsNeeded
+      ? "none"
+      : "daily";
 
   // Smart default date: monatlich → nächster Monat (Standard für Ajovy), sonst heute
   const smartDefaultDate = useMemo(() => {
