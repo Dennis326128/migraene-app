@@ -492,7 +492,7 @@ export function buildDeterministicFindings(
   });
 
   // 5. weather.pressure_drop — softer wording when pain ratio is very high
-  const painRate = coverageRate(painDays, daysTotal);
+  // painRate already computed above (finding #3)
   const dropDays = pre.weather.pressureDropDays;
   const painOnDrop = pre.weather.painOnDropDays;
   const stableDaysW = pre.weather.stableDays;
