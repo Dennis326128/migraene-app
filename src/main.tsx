@@ -45,6 +45,23 @@ try {
         <App />
       </React.StrictMode>
     );
+
+    // Capacitor Splash nach erstem Paint ausblenden.
+    // Lazy import → Web/Preview bricht nicht, wenn das Plugin nicht verfügbar ist.
+    // Nicht auf Auth warten; AuthGuard zeigt seinen eigenen dunklen Loader.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(async () => {
+        try {
+          const { SplashScreen } = await import('@capacitor/splash-screen');
+          await SplashScreen.hide({ fadeOutDuration: 250 });
+        } catch (e) {
+          // Im Browser/Preview: kein natives Plugin → still ignorieren
+          if (import.meta.env.DEV) {
+            console.debug('[splash] hide skipped:', e);
+          }
+        }
+      });
+    });
   }
 } catch (err) {
   console.error('[bootstrap] app startup failed:', err);
