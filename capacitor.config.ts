@@ -13,13 +13,17 @@ const config: CapacitorConfig = {
   
   plugins: {
     SplashScreen: {
-      launchShowDuration: 1500,
-      launchAutoHide: true,
-      backgroundColor: "#14171C",
+      // Splash bleibt sichtbar, bis wir ihn aus main.tsx manuell ausblenden.
+      // Verhindert zu frühes Verschwinden und damit White-Flash.
+      launchAutoHide: false,
+      launchShowDuration: 3000, // Fallback, falls hide() nie aufgerufen wird
+      backgroundColor: "#14171C", // muss zu html/body Background passen
       showSpinner: false,
       splashFullScreen: true,
       splashImmersive: true,
-      androidScaleType: "CENTER_INSIDE"
+      androidScaleType: "CENTER_CROP",
+      androidSplashResourceName: "splash",
+      useDialog: false,
     },
     StatusBar: {
       style: 'Dark',
