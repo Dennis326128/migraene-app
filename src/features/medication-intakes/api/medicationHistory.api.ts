@@ -46,7 +46,8 @@ export async function getMedicationHistory(
 
   if (countError) throw countError;
 
-  // Paginated items sorted by taken_at DESC
+  // Paginated items sorted by documented intake time (taken_date + taken_time)
+  // NOT by taken_at — that can be the row-creation timestamp for backfilled intakes.
   const { data, error } = await supabase
     .from("medication_intakes")
     .select("id, entry_id, medication_name, dose_quarters, taken_at, taken_date, taken_time")
@@ -54,7 +55,8 @@ export async function getMedicationHistory(
     .eq("medication_name", medicationName)
     .gte("taken_date", from)
     .lte("taken_date", to)
-    .order("taken_at", { ascending: false })
+    .order("taken_date", { ascending: false })
+    .order("taken_time", { ascending: false, nullsFirst: false })
     .range(offset, offset + limit - 1);
 
   if (error) throw error;
@@ -93,13 +95,15 @@ export async function getMedicationHistoryLatest(
 
   if (countError) throw countError;
 
-  // Paginated items sorted by taken_at DESC
+  // Paginated items sorted by documented intake time (taken_date + taken_time)
+  // NOT by taken_at — that can be the row-creation timestamp for backfilled intakes.
   const { data, error } = await supabase
     .from("medication_intakes")
     .select("id, entry_id, medication_name, dose_quarters, taken_at, taken_date, taken_time")
     .eq("user_id", user.id)
     .eq("medication_name", medicationName)
-    .order("taken_at", { ascending: false })
+    .order("taken_date", { ascending: false })
+    .order("taken_time", { ascending: false, nullsFirst: false })
     .range(offset, offset + limit - 1);
 
   if (error) throw error;
