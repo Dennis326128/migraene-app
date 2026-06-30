@@ -35,7 +35,7 @@ export const UNSPECIFIC_SYMPTOMS = new Set([
   'Gleichgewichtsstörung',
   'Hitzewallungen',
   'Kältegefühl',
-  'Spannungskopfschmerz',
+  'Kopfdruck / Spannungsschmerz',
 ]);
 
 export type SymptomGroup = 'typical' | 'associated' | 'unspecific';
