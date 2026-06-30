@@ -838,6 +838,11 @@ export const NewEntry = ({
                         );
                       })}
                     </div>
+                    {group.group === 'unspecific' && (
+                      <p className="text-[11px] text-muted-foreground/60 mt-2 italic">
+                        Beschreibt dein Empfinden, keine Diagnose.
+                      </p>
+                    )}
                   </div>
                 ))}
                 {catalog.length === 0 && (

@@ -343,7 +343,7 @@ export function getSymptomLabel(symptomId: string): string {
     'gleichgewichtsstoerung': 'Gleichgewichtsstörung',
     'hitzewallungen': 'Hitzewallungen',
     'kaeltegefuehl': 'Kältegefühl',
-    'spannungskopfschmerz': 'Spannungskopfschmerz',
+    'spannungskopfschmerz': 'Kopfdruck / Spannungsschmerz',
     'konzentrationsstoerung': 'Konzentrationsstörung',
     'aura': 'Aura',
   };
