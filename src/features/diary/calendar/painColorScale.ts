@@ -11,9 +11,9 @@
 // Direct hex colors for predictable results
 const PAIN_COLORS_HEX: Record<number, string> = {
   0: '#16a34a',  // Grün – schmerzfrei (SSOT: PIE_COLORS_CSS.painFree = hsl(142 76% 36%))
-  1: '#2a2f36',  // Neutral dark, minimal warm
-  2: '#333842',  // Neutral dark
-  3: '#3d4350',  // Neutral dark, slightly lighter
+  1: '#22c55e',  // green-500 – leichter Schmerz, noch grün
+  2: '#84cc16',  // lime-500 – Übergang grün → gelb
+  3: '#eab308',  // yellow-500 – Übergang gelb → amber
   4: '#fbbf24',  // amber-400
   5: '#f59e0b',  // amber-500
   6: '#f97316',  // orange-500
@@ -54,11 +54,12 @@ export function getColorForPain(painLevel: number | null): string {
 export function getTextColorForPain(painLevel: number | null): string {
   if (painLevel === null || painLevel === undefined) return '#fff';
 
-  // 0: weiß auf Grün (schmerzfrei)
-  // 1-3: Light gray text on dark neutral backgrounds
-  // 4+: White text on colored backgrounds
+  // 0: weiß auf sattem Grün
+  // 1-3: dunkler Text auf hellen Grün-/Gelb-Tönen (bessere Lesbarkeit)
+  // 4+: weißer Text auf farbigen Hintergründen
   if (painLevel === 0) return '#ffffff';
-  return painLevel <= 3 ? '#cbd5e1' : '#ffffff';
+  if (painLevel >= 1 && painLevel <= 3) return '#0f172a';
+  return '#ffffff';
 }
 
 // Determine if dark text should be used (kept for backwards compat, but now unused)
