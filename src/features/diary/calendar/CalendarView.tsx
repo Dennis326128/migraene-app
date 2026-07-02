@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { MonthGrid } from './MonthGrid';
 import { CalendarLegend } from './CalendarLegend';
 import { DaySheet } from './DaySheet';
@@ -7,6 +8,8 @@ import { Loader2 } from 'lucide-react';
 import { startOfMonth, subMonths, isBefore, parseISO, isSameMonth } from 'date-fns';
 import { toast } from 'sonner';
 import type { PainEntry } from '@/types/painApp';
+import { supabase } from '@/integrations/supabase/client';
+import { invalidateEntryCaches } from '@/features/entries/hooks/invalidateEntryCaches';
 
 interface CalendarViewProps {
   onEdit?: (entry: PainEntry) => void;
