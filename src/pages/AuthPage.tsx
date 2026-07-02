@@ -51,11 +51,19 @@ export default function AuthPage() {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
 
+  const getRedirectPath = () => {
+    try {
+      const p = new URLSearchParams(window.location.search).get("redirect");
+      if (p && p.startsWith("/")) return p;
+    } catch { /* ignore */ }
+    return "/";
+  };
+
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data }) => {
       if (data.session) {
         await ensureUserProfile();
-        navigate("/");
+        navigate(getRedirectPath());
       }
     });
   }, [navigate]);
