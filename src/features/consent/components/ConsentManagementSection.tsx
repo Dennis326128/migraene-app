@@ -85,112 +85,82 @@ export const ConsentManagementSection: React.FC = () => {
             Einwilligungen verwalten
           </CardTitle>
         </CardHeader>
-        <CardContent className="px-0 pb-0 space-y-4">
-          {/* Health Data Consent Status */}
-          <div className="border rounded-lg p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
+        <CardContent className="px-0 pb-0">
+          <div className="divide-y divide-border/40">
+            {/* Health Data Consent */}
+            <div className="py-4 first:pt-0 space-y-2">
+              <div className="flex items-center justify-between gap-3">
                 <span className="font-medium">Gesundheitsdaten-Verarbeitung</span>
-                <Badge variant={hasValidHealthConsent ? "default" : "destructive"}>
-                  {hasValidHealthConsent ? (
-                    <><Check className="h-3 w-3 mr-1" /> Aktiv</>
-                  ) : (
-                    <><X className="h-3 w-3 mr-1" /> Widerrufen</>
-                  )}
-                </Badge>
+                <span className="flex items-center gap-2 text-xs">
+                  <span
+                    className={cn(
+                      "h-2 w-2 rounded-full",
+                      hasValidHealthConsent ? "bg-emerald-500" : "bg-destructive"
+                    )}
+                  />
+                  <span className={hasValidHealthConsent ? "text-muted-foreground" : "text-destructive"}>
+                    {hasValidHealthConsent ? "Aktiv" : "Widerrufen"}
+                  </span>
+                </span>
               </div>
-            </div>
-
-            <p className={cn("text-sm text-muted-foreground", isMobile && "text-xs")}>
-              Einwilligung zur Verarbeitung von Gesundheitsdaten nach Art. 9 DSGVO 
-              (Schmerzeinträge, Symptome, Medikation).
-            </p>
-
-            {consent && (
-              <div className="text-xs text-muted-foreground space-y-1">
-                {consent.health_data_consent_at && (
-                  <p>Erteilt am: {formatDate(consent.health_data_consent_at)}</p>
-                )}
-                {consent.consent_withdrawn_at && (
-                  <p className="text-destructive">
-                    Widerrufen am: {formatDate(consent.consent_withdrawn_at)}
-                  </p>
-                )}
-                <p>Version: {consent.health_data_consent_version || "1.0"}</p>
-              </div>
-            )}
-
-            {hasValidHealthConsent && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-destructive hover:text-destructive"
-                onClick={() => setShowWithdrawDialog(true)}
-              >
-                <X className="h-4 w-4 mr-2" />
-                Einwilligung widerrufen
-              </Button>
-            )}
-          </div>
-
-          {/* Terms & Privacy Consent Status */}
-          <div className="border rounded-lg p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="font-medium">AGB & Datenschutzerklärung</span>
-              <Badge variant="default">
-                <Check className="h-3 w-3 mr-1" /> Akzeptiert
-              </Badge>
-            </div>
-
-            <p className={cn("text-sm text-muted-foreground", isMobile && "text-xs")}>
-              Zustimmung zu den Allgemeinen Geschäftsbedingungen und der Datenschutzerklärung.
-            </p>
-
-            {consent && (
-              <div className="text-xs text-muted-foreground space-y-1">
-                <p>AGB Version: {consent.terms_version}</p>
-                <p>Datenschutz Version: {consent.privacy_version}</p>
-                <p>Akzeptiert am: {formatDate(consent.terms_accepted_at)}</p>
-              </div>
-            )}
-          </div>
-
-          {/* Medical Disclaimer */}
-          <div className="border rounded-lg p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="font-medium">Medizinischer Hinweis</span>
-              <Badge variant={consent?.medical_disclaimer_accepted_at ? "default" : "secondary"}>
-                {consent?.medical_disclaimer_accepted_at ? (
-                  <><Check className="h-3 w-3 mr-1" /> Akzeptiert</>
-                ) : (
-                  "Ausstehend"
-                )}
-              </Badge>
-            </div>
-
-            <p className={cn("text-sm text-muted-foreground", isMobile && "text-xs")}>
-              Diese App ersetzt keine ärztliche Beratung, Diagnose oder Behandlung.
-            </p>
-
-            {consent?.medical_disclaimer_accepted_at && (
-              <p className="text-xs text-muted-foreground">
-                Akzeptiert am: {formatDate(consent.medical_disclaimer_accepted_at)}
+              <p className={cn("text-sm text-muted-foreground", isMobile && "text-xs")}>
+                Verarbeitung von Gesundheitsdaten nach Art. 9 DSGVO (Schmerzeinträge, Symptome, Medikation).
               </p>
-            )}
+              {consent && (
+                <p className="text-xs text-muted-foreground">
+                  {consent.health_data_consent_at && <>Erteilt am {formatDate(consent.health_data_consent_at)} · </>}
+                  Version {consent.health_data_consent_version || "1.0"}
+                  {consent.consent_withdrawn_at && (
+                    <span className="text-destructive"> · Widerrufen am {formatDate(consent.consent_withdrawn_at)}</span>
+                  )}
+                </p>
+              )}
+              {hasValidHealthConsent && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive hover:text-destructive px-2 -ml-2"
+                  onClick={() => setShowWithdrawDialog(true)}
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  Einwilligung widerrufen
+                </Button>
+              )}
+            </div>
+
+            {/* Terms & Privacy */}
+            <div className="py-4 space-y-1">
+              <span className="font-medium">AGB & Datenschutzerklärung</span>
+              <p className={cn("text-sm text-muted-foreground", isMobile && "text-xs")}>
+                Zustimmung zu den Allgemeinen Geschäftsbedingungen und der Datenschutzerklärung.
+              </p>
+              {consent && (
+                <p className="text-xs text-muted-foreground">
+                  AGB {consent.terms_version} · Datenschutz {consent.privacy_version} · {formatDate(consent.terms_accepted_at)}
+                </p>
+              )}
+            </div>
+
+            {/* Medical Disclaimer */}
+            <div className="py-4 last:pb-0 space-y-1">
+              <span className="font-medium">Medizinischer Hinweis</span>
+              <p className={cn("text-sm text-muted-foreground", isMobile && "text-xs")}>
+                Diese App ersetzt keine ärztliche Beratung, Diagnose oder Behandlung.
+              </p>
+              {consent?.medical_disclaimer_accepted_at && (
+                <p className="text-xs text-muted-foreground">
+                  Bestätigt am {formatDate(consent.medical_disclaimer_accepted_at)}
+                </p>
+              )}
+            </div>
           </div>
 
           {/* Export Hint */}
-          <div className="bg-muted/50 rounded-lg p-4 flex items-start gap-3">
-            <FileDown className="h-5 w-5 text-muted-foreground mt-0.5" />
-            <div>
-              <p className={cn("text-sm font-medium", isMobile && "text-xs")}>
-                Tipp: Daten vor Widerruf exportieren
-              </p>
-              <p className={cn("text-sm text-muted-foreground", isMobile && "text-xs")}>
-                Bevor Sie Ihre Einwilligung widerrufen, können Sie Ihre Daten über 
-                die "Account löschen" Funktion als Bericht exportieren.
-              </p>
-            </div>
+          <div className="mt-4 flex items-start gap-2 text-xs text-muted-foreground">
+            <FileDown className="h-4 w-4 mt-0.5 shrink-0" />
+            <p>
+              Tipp: Bevor Sie Ihre Einwilligung widerrufen, können Sie Ihre Daten über „Daten exportieren" sichern.
+            </p>
           </div>
         </CardContent>
       </Card>
