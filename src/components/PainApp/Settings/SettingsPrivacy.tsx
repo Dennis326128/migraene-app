@@ -121,6 +121,14 @@ export const SettingsPrivacy = () => {
           Account-Verwaltung
         </h2>
         <AccountDeletion />
+        <div className="mt-4 pt-4 border-t">
+          <p className="text-sm text-muted-foreground mb-2">
+            Du möchtest dein Konto und deine Daten dauerhaft löschen?
+          </p>
+          <Button variant="outline" asChild className="w-full">
+            <Link to="/konto-loeschen">Konto und Daten löschen</Link>
+          </Button>
+        </div>
       </Card>
     </div>
   );
