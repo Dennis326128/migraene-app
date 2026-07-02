@@ -104,10 +104,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ onEdit }) => {
     return monthsToDisplay.findIndex(month => isSameMonth(month, now));
   }, [monthsToDisplay]);
   
-  // Scroll to current month on initial load
+  // Scroll to current month on initial load – zeige die letzten Wochen (heute nahe unten).
   useEffect(() => {
     if (!isLoading && monthsToDisplay.length > 0 && !hasScrolledRef.current && currentMonthRef.current) {
-      currentMonthRef.current.scrollIntoView({ behavior: 'auto', block: 'start' });
+      currentMonthRef.current.scrollIntoView({ behavior: 'auto', block: 'end' });
       hasScrolledRef.current = true;
     }
   }, [isLoading, monthsToDisplay.length]);

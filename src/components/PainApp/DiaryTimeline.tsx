@@ -396,6 +396,10 @@ export const DiaryTimeline: React.FC<DiaryTimelineProps> = ({ onBack, onNavigate
     if (value === 'list' || value === 'calendar') {
       setViewMode(value);
       localStorage.setItem(DIARY_VIEW_MODE_KEY, value);
+      // Beim Wechsel zur Liste: oben starten. Kalender scrollt sich selbst zu den letzten Wochen.
+      if (value === 'list') {
+        requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'auto' }));
+      }
     }
   };
   const [editingNote, setEditingNote] = useState<any>(null);
