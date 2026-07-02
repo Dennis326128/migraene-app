@@ -116,3 +116,6 @@ verify_jwt = false
 
 [functions.analyze-voice-patterns]
 verify_jwt = true
+
+[functions.delete-my-account]
+verify_jwt = true

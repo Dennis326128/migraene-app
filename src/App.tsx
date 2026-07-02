@@ -21,6 +21,8 @@ import NotFound from "./pages/NotFound";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Imprint from "./pages/Imprint";
 import TermsOfService from "./pages/TermsOfService";
+import KontoLoeschenPage from "./pages/KontoLoeschenPage";
+import KontoGeloeschtPage from "./pages/KontoGeloeschtPage";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { getAccountStatus, AccountStatus } from "@/features/account/api/accountStatus.api";
 
@@ -181,6 +183,11 @@ function App() {
               <Route path="/datenschutz" element={<Navigate to="/privacy" replace />} />
               <Route path="/impressum" element={<Navigate to="/imprint" replace />} />
               <Route path="/agb" element={<Navigate to="/terms" replace />} />
+
+              {/* Account deletion (PUBLIC per Google Play requirement) */}
+              <Route path="/konto-loeschen" element={<KontoLoeschenPage />} />
+              <Route path="/konto-geloescht" element={<KontoGeloeschtPage />} />
+              <Route path="/konto-deaktivieren" element={<Navigate to="/konto-loeschen" replace />} />
 
               {/* Doctor Share (PUBLIC - no auth required) */}
               <Route path="/doctor" element={<DoctorCodeEntry />} />
