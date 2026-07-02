@@ -166,7 +166,7 @@ export default function AuthPage() {
       } else {
         if (isLogin) {
           await ensureUserProfile();
-          navigate("/");
+          navigate(getRedirectPath());
         } else {
           // Consent-Daten beim Signup speichern
           await ensureUserProfile({
