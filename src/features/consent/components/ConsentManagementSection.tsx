@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,7 +12,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Shield, Check, X, AlertTriangle, FileDown } from "lucide-react";
+import { Shield, AlertTriangle, FileDown, X } from "lucide-react";
 import { useConsent, useWithdrawConsent } from "../hooks/useConsent";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
