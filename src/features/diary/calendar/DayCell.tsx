@@ -30,7 +30,10 @@ export const DayCell: React.FC<DayCellProps> = ({
   const hasEntries = entryCount > 0;
   const hasPainData = hasEntries && maxPain !== null;
   const isSevere = hasPainData && isSeverePain(maxPain);
-  
+  // Vergangene / heutige Tage ohne Eintrag im aktuellen Monat bekommen dezente Streifen.
+  const isPastOrToday = !isBefore(startOfDay(new Date()), startOfDay(date));
+  const showEmptyStripes = !hasEntries && isCurrentMonth && isPastOrToday;
+
   // Get pain color for full background
   const painColor = hasPainData ? getColorForPain(maxPain) : undefined;
   const textColor = hasPainData && maxPain !== null ? getTextColorForPain(maxPain) : undefined;
@@ -71,6 +74,10 @@ export const DayCell: React.FC<DayCellProps> = ({
             } : hasEntries && !hasPainData ? {
               // Has entries but no pain data - muted fill
               backgroundColor: 'hsl(var(--muted) / 0.5)',
+            } : showEmptyStripes ? {
+              // Vergangene/heutige leere Tage: dezente Grau/Grün-Streifen (45°)
+              backgroundImage: EMPTY_PAST_STRIPES,
+              backgroundColor: 'hsl(var(--muted) / 0.15)',
             } : {
               // No entries - very subtle neutral background
               backgroundColor: 'hsl(var(--muted) / 0.15)',
