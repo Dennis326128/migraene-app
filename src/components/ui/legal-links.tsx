@@ -15,9 +15,9 @@ export const LegalLinks = ({
   openInNewTab = false 
 }: LegalLinksProps) => {
   const links = [
-    { to: "/privacy", label: "Datenschutz", icon: Shield },
-    { to: "/terms", label: "AGB", icon: Scale },
-    { to: "/imprint", label: "Impressum", icon: FileText },
+    { to: "https://miary.de/datenschutz", label: "Datenschutz", icon: Shield, external: true },
+    { to: "/terms", label: "AGB", icon: Scale, external: false },
+    { to: "/imprint", label: "Impressum", icon: FileText, external: false },
   ];
 
   const linkProps = openInNewTab 
@@ -26,19 +26,19 @@ export const LegalLinks = ({
 
   if (variant === "buttons") {
     return (
-      <div className={cn("space-y-2", className)}>
+      <div className={cn("divide-y divide-border/40", className)}>
         {links.map(({ to, label, icon: Icon }) => (
           <Button
             key={to}
-            variant="outline"
-            className="w-full justify-between"
+            variant="ghost"
+            className="w-full justify-between rounded-none h-12 px-2"
             onClick={() => window.open(to, "_blank", "noopener,noreferrer")}
           >
             <span className="flex items-center gap-2">
               <Icon className="h-4 w-4" />
-              {label} öffnen
+              {label}
             </span>
-            <ExternalLink className="h-4 w-4" />
+            <ExternalLink className="h-4 w-4 text-muted-foreground" />
           </Button>
         ))}
       </div>

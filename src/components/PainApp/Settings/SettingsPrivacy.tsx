@@ -91,24 +91,25 @@ export const SettingsPrivacy = () => {
 
       {/* Legal Documents */}
       <Card className={cn("p-6", isMobile && "p-4")}>
-        <h2 className={cn("text-lg font-medium mb-4 flex items-center gap-2", isMobile && "text-base")}>
+        <h2 className={cn("text-lg font-medium mb-2 flex items-center gap-2", isMobile && "text-base")}>
           <Shield className="h-5 w-5" />
           Rechtliche Dokumente
         </h2>
-        <p className={cn("text-sm text-muted-foreground mb-4", isMobile && "text-xs")}>
-          Hier finden Sie alle rechtlichen Informationen zu dieser App.
+        <p className={cn("text-sm text-muted-foreground mb-2", isMobile && "text-xs")}>
+          Alle rechtlichen Informationen zu dieser App.
         </p>
-        
-        <div className="space-y-2">
+
+        <div className="divide-y divide-border/40">
           <LegalLinks variant="buttons" />
-          <Button 
-            variant="outline" 
-            className="w-full justify-between"
+          <Button
+            variant="ghost"
+            className="w-full justify-between rounded-none h-12 px-2"
             asChild
           >
             <Link to="/medical-disclaimer">
               <span className="flex items-center gap-2">
-                🏥 Medizinischer Hinweis
+                <Shield className="h-4 w-4" />
+                Medizinischer Hinweis
               </span>
             </Link>
           </Button>
