@@ -1,59 +1,31 @@
 ## Ziel
-Die Kalenderübersicht (`CalendarView` / `useCalendarPainSummary`) soll immer den aktuellen Datenstand zeigen — ohne dass der Nutzer 5 Minuten warten oder die Seite neu laden muss.
 
-## Ist-Zustand (kurz analysiert)
-- Kalender-Hook nutzt eigene Query-Keys:
-  - `['calendar-entries', from, to]` (staleTime 5 Min)
-  - `['first-entry-date']` (staleTime 10 Min)
-- Alle Mutationen (Anlegen/Bearbeiten/Löschen von Einträgen, Voice-Einträge, Medikamenten-Intakes, Medikamenten-Effekte) invalidieren nur `["entries"]`, `["missing-weather"]`, `["unratedMedicationEntries"]` etc.
-- **Die Calendar-Keys werden nirgends invalidiert** → Kalender bleibt bis zu 5 Min veraltet, oder bis Hard-Reload.
-- Kein `refetchOnWindowFocus`, keine Realtime-Subscription.
+Kalenderübersicht klarer lesbar machen:
+1. Dokumentiert schmerzfrei (Pain = 0) → gleiches Grün wie im Pie-Chart der Schmerzverteilung (`hsl(142 76% 36%)` ≈ `#16a34a`). Aktuell wird Pain=0 nahezu transparent gerendert, deshalb sehen die schmerzfreien Tage im Screenshot noch grau/dunkel aus.
+2. Tage ohne Eintrag → dezente diagonale Grau/Grün-Streifen (45°, ~22 % Grün-Opazität).
+3. Legende ergänzt: grüner Marker „schmerzfrei" + gestreifter Marker „keine Einträge".
 
-## Lösung (minimal-invasiv, mehrschichtig)
+## Änderungen
 
-### 1. Zentraler Invalidierungs-Helfer
-Neue Datei `src/features/entries/hooks/invalidateEntryCaches.ts`:
-- Exportiert `invalidateEntryCaches(qc)`, das **alle** von Einträgen abhängigen Query-Keys invalidiert:
-  - `["entries"]`
-  - `["calendar-entries"]`
-  - `["first-entry-date"]`
-  - `["pain-entries-count"]`
-  - `["missing-weather"]`
-  - `["filtered-entries"]`, `["allEntriesForReport"]`, `["entriesCount"]`
-- Ein Aufruf statt 3–4 einzelne. Verhindert Vergessen künftig.
+**`src/features/diary/calendar/painColorScale.ts`**
+- `PAIN_COLORS_HEX[0]` von `rgba(255,255,255,0.03)` auf `#16a34a` (Pie-SSOT `PIE_COLORS_CSS.painFree`).
+- `getTextColorForPain(0)` liefert weiß (statt hellgrau), damit die „0" auf Grün lesbar bleibt.
 
-### 2. Alle Mutations-Callsites auf Helfer umstellen
-Betrifft:
-- `src/features/entries/hooks/useEntryMutations.ts` (create/update/delete)
-- `src/features/medication-intakes/hooks/useMedicationIntakes.ts` (4 Stellen)
-- `src/features/medication-effects/hooks/useMedicationEffects.ts` (Rate/Update/Delete)
-- Voice-Eintrags-Speicherpfade in `DiaryTimeline.tsx` (dort wo neue Entries geschrieben werden)
+**`src/features/diary/calendar/DayCell.tsx`**
+- Neuer Zweig „kein Eintrag":
+  - Background via inline `repeating-linear-gradient(45deg, hsl(var(--muted)/0.45) 0 4px, hsl(142 76% 36% / 0.22) 4px 8px)`.
+  - Zukünftige Tage und Tage außerhalb des aktuellen Monats bleiben schlicht neutral (keine Streifen), damit die Streifen nicht als Zukunftsprognose gelesen werden.
+- Text bleibt `text-muted-foreground`, Heute-Ring/Klick unverändert.
 
-### 3. Kalender-Query „frischer" machen
-In `useCalendarPainSummary.ts`:
-- `staleTime` von 5 Min auf **30 Sek** senken (bleibt effizient, aber gefühlt „immer aktuell").
-- `refetchOnWindowFocus: true` (App-Tab wieder aktiv → automatischer Refresh).
-- `refetchOnMount: 'always'` beim Öffnen der Kalender-Route.
-- `first-entry-date` staleTime auf 2 Min senken.
+**`src/features/diary/calendar/CalendarLegend.tsx`**
+- Zweite Zeile mit zwei kleinen Markern: grünes Quadrat („schmerzfrei"), gestreiftes Quadrat („keine Einträge"). Kompakt, kein Layout-Umbau.
 
-### 4. Realtime-Auffrischung (optional, empfohlen)
-In `CalendarView.tsx` (oder als eigener Hook `useCalendarRealtime`):
-- Supabase-Channel auf `postgres_changes` für `pain_entries` (Filter: `user_id=eq.<auth.uid()>`).
-- Bei INSERT/UPDATE/DELETE → `invalidateEntryCaches(qc)`.
-- Sauber im `useEffect`-Cleanup `removeChannel` aufrufen (SSOT-Regel Realtime).
-- Voraussetzung: `pain_entries` muss in `supabase_realtime` publication sein. Falls nicht → Migration `ALTER PUBLICATION supabase_realtime ADD TABLE public.pain_entries;` und `REPLICA IDENTITY FULL`.
+## Nicht Teil des Plans
 
-### 5. Sichtbares „Aktualisieren"-Feedback (optional, klein)
-- Beim aktiven Refetch dezent den bestehenden Loading-Indikator im Kalender-Header nutzen (nichts neu bauen).
+- Keine Änderung an Datenlogik, Cache, Realtime, Pie-Chart oder PDF.
+- Kein Toggle — Streifen fest, aber dezent.
 
-## Technische Details
-- Keine DB-Schema-Änderungen außer ggf. Realtime-Publication.
-- Keine UI-Umbauten am Kalender selbst.
-- Rückwärtskompatibel: alte `["entries"]`-Invalidations bleiben, der Helfer erweitert nur.
-- Testabdeckung: kleiner Unit-Test für `invalidateEntryCaches` (Keys korrekt aufgerufen).
+## Verifikation
 
-## Ergebnis
-Nach einem neuen Eintrag (App, Voice, Import, Backfill) oder Bearbeiten/Löschen erscheint die Änderung im Kalender:
-- **sofort**, wenn im gleichen Client (Invalidation),
-- **innerhalb Sekunden**, wenn aus einem anderen Tab/Gerät (Realtime),
-- **spätestens beim Tab-Fokus** (refetchOnWindowFocus).
+- Playwright-Screenshot des aktuellen + Vormonats zur Sichtprüfung (Grün-Zellen + Streifen sichtbar, aber ruhig).
+- Bestehende Kalender-Tests laufen unverändert weiter.
