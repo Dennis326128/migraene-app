@@ -15,9 +15,9 @@ export const LegalLinks = ({
   openInNewTab = false 
 }: LegalLinksProps) => {
   const links = [
-    { to: "/privacy", label: "Datenschutz", icon: Shield },
-    { to: "/terms", label: "AGB", icon: Scale },
-    { to: "/imprint", label: "Impressum", icon: FileText },
+    { to: "https://miary.de/datenschutz", label: "Datenschutz", icon: Shield, external: true },
+    { to: "/terms", label: "AGB", icon: Scale, external: false },
+    { to: "/imprint", label: "Impressum", icon: FileText, external: false },
   ];
 
   const linkProps = openInNewTab 
