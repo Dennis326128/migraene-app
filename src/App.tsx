@@ -21,6 +21,8 @@ import NotFound from "./pages/NotFound";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Imprint from "./pages/Imprint";
 import TermsOfService from "./pages/TermsOfService";
+import KontoLoeschenPage from "./pages/KontoLoeschenPage";
+import KontoGeloeschtPage from "./pages/KontoGeloeschtPage";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { getAccountStatus, AccountStatus } from "@/features/account/api/accountStatus.api";
 
