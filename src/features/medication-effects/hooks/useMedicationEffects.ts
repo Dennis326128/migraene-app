@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { invalidateEntryCaches } from "@/features/entries/hooks/invalidateEntryCaches";
 import { 
   getUnratedMedicationEntries, 
   createMedicationEffect, 
