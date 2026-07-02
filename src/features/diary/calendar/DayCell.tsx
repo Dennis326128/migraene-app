@@ -2,8 +2,13 @@ import React from 'react';
 import { cn } from '@/lib/utils';
 import { getColorForPain, getTextColorForPain, isSeverePain } from './painColorScale';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { isToday, format } from 'date-fns';
+import { isToday, isBefore, startOfDay, format } from 'date-fns';
 import { de } from 'date-fns/locale';
+
+// Diagonale Streifen (45°) für Tage ohne Eintrag in Vergangenheit / aktuellem Monat:
+// dünn abwechselnd Grau (muted) und Pie-Grün (schmerzfrei) mit niedriger Opazität.
+const EMPTY_PAST_STRIPES =
+  'repeating-linear-gradient(45deg, hsl(var(--muted) / 0.45) 0 4px, hsl(142 76% 36% / 0.22) 4px 8px)';
 
 interface DayCellProps {
   date: Date;
