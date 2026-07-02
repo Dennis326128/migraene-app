@@ -1,28 +1,59 @@
-# Verlauf-Liste nach dokumentiertem Zeitpunkt sortieren
+## Ziel
+Die Kalenderübersicht (`CalendarView` / `useCalendarPainSummary`) soll immer den aktuellen Datenstand zeigen — ohne dass der Nutzer 5 Minuten warten oder die Seite neu laden muss.
 
-## Problem
-Im Tab „Medikamente → Verlauf" werden die Einnahmen aktuell nach der DB-Spalte `taken_at` sortiert. Bei nachträglich dokumentierten Einnahmen ist `taken_at` aber faktisch der Eintrag-Zeitpunkt – nicht der dokumentierte Einnahmezeitpunkt. Folge (siehe Screenshot): „Mi 3. Juni 22:39" steht über „Do 4. Juni 18:03".
+## Ist-Zustand (kurz analysiert)
+- Kalender-Hook nutzt eigene Query-Keys:
+  - `['calendar-entries', from, to]` (staleTime 5 Min)
+  - `['first-entry-date']` (staleTime 10 Min)
+- Alle Mutationen (Anlegen/Bearbeiten/Löschen von Einträgen, Voice-Einträge, Medikamenten-Intakes, Medikamenten-Effekte) invalidieren nur `["entries"]`, `["missing-weather"]`, `["unratedMedicationEntries"]` etc.
+- **Die Calendar-Keys werden nirgends invalidiert** → Kalender bleibt bis zu 5 Min veraltet, oder bis Hard-Reload.
+- Kein `refetchOnWindowFocus`, keine Realtime-Subscription.
 
-In der UI wird bereits korrekt `taken_date` + `taken_time` als „dokumentierter Zeitpunkt" angezeigt – nur die Sortierung passt nicht dazu.
+## Lösung (minimal-invasiv, mehrschichtig)
 
-## Lösung
-Die Liste nach `taken_date DESC, taken_time DESC` sortieren – also exakt nach dem, was die UI auch anzeigt. `taken_at` bleibt unangetastet (wird weiter für Counts/Zeitstempel benutzt).
+### 1. Zentraler Invalidierungs-Helfer
+Neue Datei `src/features/entries/hooks/invalidateEntryCaches.ts`:
+- Exportiert `invalidateEntryCaches(qc)`, das **alle** von Einträgen abhängigen Query-Keys invalidiert:
+  - `["entries"]`
+  - `["calendar-entries"]`
+  - `["first-entry-date"]`
+  - `["pain-entries-count"]`
+  - `["missing-weather"]`
+  - `["filtered-entries"]`, `["allEntriesForReport"]`, `["entriesCount"]`
+- Ein Aufruf statt 3–4 einzelne. Verhindert Vergessen künftig.
 
-## Betroffene Stelle
-`src/features/medication-intakes/api/medicationHistory.api.ts`
-- `getMedicationHistory(...)` → `.order("taken_at", { ascending: false })` ersetzen durch
-  `.order("taken_date", { ascending: false }).order("taken_time", { ascending: false, nullsFirst: false })`
-- `getMedicationHistoryLatest(...)` → identisch anpassen
+### 2. Alle Mutations-Callsites auf Helfer umstellen
+Betrifft:
+- `src/features/entries/hooks/useEntryMutations.ts` (create/update/delete)
+- `src/features/medication-intakes/hooks/useMedicationIntakes.ts` (4 Stellen)
+- `src/features/medication-effects/hooks/useMedicationEffects.ts` (Rate/Update/Delete)
+- Voice-Eintrags-Speicherpfade in `DiaryTimeline.tsx` (dort wo neue Entries geschrieben werden)
 
-## Nicht betroffen / bleibt gleich
-- Keine DB-Migration.
-- Keine Änderung an Counts (7d/30d), Limit-Logik, SSOT-Helpern oder Anzeige-Format.
-- Keine Änderung an `taken_at` selbst.
-- Keine UI-Komponenten-Änderungen – `MedicationHistoryView.tsx` rendert weiterhin aus `taken_date`/`taken_time`.
+### 3. Kalender-Query „frischer" machen
+In `useCalendarPainSummary.ts`:
+- `staleTime` von 5 Min auf **30 Sek** senken (bleibt effizient, aber gefühlt „immer aktuell").
+- `refetchOnWindowFocus: true` (App-Tab wieder aktiv → automatischer Refresh).
+- `refetchOnMount: 'always'` beim Öffnen der Kalender-Route.
+- `first-entry-date` staleTime auf 2 Min senken.
 
-## Erwartetes Ergebnis
-Reihenfolge entspricht exakt dem dokumentierten Zeitpunkt, z. B.:
-- Do, 4. Juni – 18:03
-- Mi, 3. Juni – 22:39
-- Mi, 3. Juni – 14:04
-- …
+### 4. Realtime-Auffrischung (optional, empfohlen)
+In `CalendarView.tsx` (oder als eigener Hook `useCalendarRealtime`):
+- Supabase-Channel auf `postgres_changes` für `pain_entries` (Filter: `user_id=eq.<auth.uid()>`).
+- Bei INSERT/UPDATE/DELETE → `invalidateEntryCaches(qc)`.
+- Sauber im `useEffect`-Cleanup `removeChannel` aufrufen (SSOT-Regel Realtime).
+- Voraussetzung: `pain_entries` muss in `supabase_realtime` publication sein. Falls nicht → Migration `ALTER PUBLICATION supabase_realtime ADD TABLE public.pain_entries;` und `REPLICA IDENTITY FULL`.
+
+### 5. Sichtbares „Aktualisieren"-Feedback (optional, klein)
+- Beim aktiven Refetch dezent den bestehenden Loading-Indikator im Kalender-Header nutzen (nichts neu bauen).
+
+## Technische Details
+- Keine DB-Schema-Änderungen außer ggf. Realtime-Publication.
+- Keine UI-Umbauten am Kalender selbst.
+- Rückwärtskompatibel: alte `["entries"]`-Invalidations bleiben, der Helfer erweitert nur.
+- Testabdeckung: kleiner Unit-Test für `invalidateEntryCaches` (Keys korrekt aufgerufen).
+
+## Ergebnis
+Nach einem neuen Eintrag (App, Voice, Import, Backfill) oder Bearbeiten/Löschen erscheint die Änderung im Kalender:
+- **sofort**, wenn im gleichen Client (Invalidation),
+- **innerhalb Sekunden**, wenn aus einem anderen Tab/Gerät (Realtime),
+- **spätestens beim Tab-Fokus** (refetchOnWindowFocus).
