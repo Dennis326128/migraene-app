@@ -83,7 +83,7 @@ export default function KontoLoeschenPage() {
       const msg = e?.message === "invalid_password"
         ? "Passwort ist nicht korrekt."
         : e?.message === "confirmation_required"
-        ? "Bitte gib „LÖSCHEN" ein."
+        ? 'Bitte gib „LÖSCHEN“ ein.'
         : "Löschung fehlgeschlagen. Bitte später erneut versuchen oder Support kontaktieren.";
       toast({ title: "Fehler", description: msg, variant: "destructive" });
       setIsDeleting(false);
