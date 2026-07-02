@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { invalidateEntryCaches } from "@/features/entries/hooks/invalidateEntryCaches";
 import { 
   getUnratedMedicationEntries, 
   createMedicationEffect, 
@@ -100,7 +101,7 @@ export function useDeleteMedicationFromEntry() {
       qc.invalidateQueries({ queryKey: ["unratedMedicationEntries"] });
       qc.invalidateQueries({ queryKey: ["medicationEffects"] });
       qc.invalidateQueries({ queryKey: ["ratedMedicationEntries"] });
-      qc.invalidateQueries({ queryKey: ["entries"] });
+      invalidateEntryCaches(qc);
     },
   });
 }
@@ -114,7 +115,7 @@ export function useRestoreMedicationToEntry() {
       qc.invalidateQueries({ queryKey: ["unratedMedicationEntries"] });
       qc.invalidateQueries({ queryKey: ["medicationEffects"] });
       qc.invalidateQueries({ queryKey: ["ratedMedicationEntries"] });
-      qc.invalidateQueries({ queryKey: ["entries"] });
+      invalidateEntryCaches(qc);
     },
   });
 }

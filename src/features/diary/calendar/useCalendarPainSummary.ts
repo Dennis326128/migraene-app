@@ -38,7 +38,8 @@ export function useCalendarPainSummary({
   const { data: earliestDate } = useQuery({
     queryKey: ['first-entry-date'],
     queryFn: getFirstEntryDate,
-    staleTime: 1000 * 60 * 10, // 10 minutes
+    staleTime: 1000 * 60 * 2, // 2 minutes
+    refetchOnWindowFocus: true,
   });
   
   // Calculate date range
@@ -90,7 +91,9 @@ export function useCalendarPainSummary({
       
       return allData;
     },
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 30_000, // 30 seconds — feels always fresh
+    refetchOnWindowFocus: true,
+    refetchOnMount: 'always',
     enabled: !!dateRange.from && !!dateRange.to
   });
   

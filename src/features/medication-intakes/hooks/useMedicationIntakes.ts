@@ -4,6 +4,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { invalidateEntryCaches } from "@/features/entries/hooks/invalidateEntryCaches";
 import {
   getIntakesForEntry,
   getIntakesForEntries,
@@ -51,7 +52,7 @@ export function useCreateIntake() {
     mutationFn: createIntake,
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["medication-intakes"] });
-      queryClient.invalidateQueries({ queryKey: ["entries"] });
+      invalidateEntryCaches(queryClient);
     },
   });
 }
@@ -66,7 +67,7 @@ export function useCreateIntakes() {
     mutationFn: createIntakes,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["medication-intakes"] });
-      queryClient.invalidateQueries({ queryKey: ["entries"] });
+      invalidateEntryCaches(queryClient);
     },
   });
 }
@@ -96,7 +97,7 @@ export function useDeleteIntake() {
     mutationFn: deleteIntake,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["medication-intakes"] });
-      queryClient.invalidateQueries({ queryKey: ["entries"] });
+      invalidateEntryCaches(queryClient);
     },
   });
 }
@@ -117,7 +118,7 @@ export function useSyncIntakes() {
     }) => syncIntakesForEntry(entryId, medications),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["medication-intakes"] });
-      queryClient.invalidateQueries({ queryKey: ["entries"] });
+      invalidateEntryCaches(queryClient);
     },
   });
 }

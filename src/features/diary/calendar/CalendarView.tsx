@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { MonthGrid } from './MonthGrid';
 import { CalendarLegend } from './CalendarLegend';
 import { DaySheet } from './DaySheet';
@@ -7,12 +8,15 @@ import { Loader2 } from 'lucide-react';
 import { startOfMonth, subMonths, isBefore, parseISO, isSameMonth } from 'date-fns';
 import { toast } from 'sonner';
 import type { PainEntry } from '@/types/painApp';
+import { supabase } from '@/integrations/supabase/client';
+import { invalidateEntryCaches } from '@/features/entries/hooks/invalidateEntryCaches';
 
 interface CalendarViewProps {
   onEdit?: (entry: PainEntry) => void;
 }
 
 export const CalendarView: React.FC<CalendarViewProps> = ({ onEdit }) => {
+  const queryClient = useQueryClient();
   const {
     daySummaries,
     isLoading,
@@ -21,6 +25,33 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ onEdit }) => {
     canLoadEarlier,
     loadedMonths
   } = useCalendarPainSummary({ initialMonths: 12 });
+
+  // Realtime: refresh calendar whenever this user's pain_entries change
+  // (e.g. voice entry from another tab, backfill job, edit on another device).
+  useEffect(() => {
+    let cancelled = false;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
+    (async () => {
+      const { data } = await supabase.auth.getUser();
+      const uid = data.user?.id;
+      if (cancelled || !uid) return;
+
+      channel = supabase
+        .channel(`calendar-pain-entries-${uid}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'pain_entries', filter: `user_id=eq.${uid}` },
+          () => invalidateEntryCaches(queryClient),
+        )
+        .subscribe();
+    })();
+
+    return () => {
+      cancelled = true;
+      if (channel) supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
   
   // Unified sheet state
   const [sheetState, setSheetState] = useState<{
