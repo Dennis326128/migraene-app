@@ -184,6 +184,11 @@ function App() {
               <Route path="/impressum" element={<Navigate to="/imprint" replace />} />
               <Route path="/agb" element={<Navigate to="/terms" replace />} />
 
+              {/* Account deletion (PUBLIC per Google Play requirement) */}
+              <Route path="/konto-loeschen" element={<KontoLoeschenPage />} />
+              <Route path="/konto-geloescht" element={<KontoGeloeschtPage />} />
+              <Route path="/konto-deaktivieren" element={<Navigate to="/konto-loeschen" replace />} />
+
               {/* Doctor Share (PUBLIC - no auth required) */}
               <Route path="/doctor" element={<DoctorCodeEntry />} />
               <Route path="/doctor/view" element={<DoctorReportView />} />
